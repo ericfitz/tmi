@@ -1,0 +1,71 @@
+{
+  "APP": {
+    "TITLE": "TMI",
+    "SUBTITLE": "Threat Modeling Improved"
+  },
+  "NAV": {
+    "HOME": "Home",
+    "DIAGRAMS": "Diagrams",
+    "ABOUT": "About",
+    "HELP": "Help"
+  },
+  "AUTH": {
+    "LOGIN": "Log in",
+    "LOGOUT": "Log out",
+    "LOGGING_IN": "Logging in...",
+    "LOGGING_OUT": "Logging out..."
+  },
+  "LANDING": {
+    "HERO": {
+      "TITLE": "Threat Modeling Improved",
+      "SUBTITLE": "A better way to model and visualize security threats in your systems",
+      "START_BUTTON": "Start Diagramming",
+      "LEARN_MORE": "Learn More"
+    },
+    "FEATURES": {
+      "TITLE": "Key Features",
+      "INTERACTIVE": {
+        "TITLE": "Interactive Diagrams",
+        "DESCRIPTION": "Create, edit, and share interactive threat models with our intuitive diagramming tools."
+      },
+      "SECURITY": {
+        "TITLE": "Security-First",
+        "DESCRIPTION": "Built with security in mind, helping you identify and mitigate threats in your architecture."
+      },
+      "STORAGE": {
+        "TITLE": "Cloud Storage",
+        "DESCRIPTION": "Securely store and access your diagrams from anywhere with Google Drive integration."
+      },
+      "COLLABORATION": {
+        "TITLE": "Collaboration",
+        "DESCRIPTION": "Work together with your team to build comprehensive threat models."
+      }
+    }
+  },
+  "DIAGRAM": {
+    "TOOLBAR": {
+      "NEW": "New",
+      "OPEN": "Open",
+      "SAVE": "Save",
+      "SAVE_AS": "Save As",
+      "ADD_NODE": "Add Node",
+      "DELETE": "Delete",
+      "UNSAVED_CHANGES": "The current diagram has unsaved changes. Do you want to save before {0}?",
+      "UNSAVED_CHANGES_CREATE": "creating a new diagram",
+      "UNSAVED_CHANGES_OPEN": "opening a different diagram"
+    },
+    "PICKER": {
+      "OPEN_TITLE": "Open Diagram",
+      "SAVE_TITLE": "Save Diagram As"
+    },
+    "DEACTIVATE_GUARD": {
+      "UNSAVED_CHANGES": "You have unsaved changes. Are you sure you want to leave?"
+    }
+  },
+  "FOOTER": {
+    "COPYRIGHT": "© 2025 TMI - Threat Modeling Improved",
+    "TERMS": "Terms of Service",
+    "PRIVACY": "Privacy Policy",
+    "CONTACT": "Contact Us"
+  }
+}

@@ -1,16 +1,26 @@
 import { TestBed } from '@angular/core/testing';
+import { GoogleStorageProvider } from './google-storage.provider';
+import { LoggerService } from '../../logger/logger.service';
 
-import { GoogleStorageService } from './google-storage.service';
-
-describe('GoogleStorageService', () => {
-  let service: GoogleStorageService;
+describe('GoogleStorageProvider', () => {
+  let provider: GoogleStorageProvider;
+  let loggerServiceSpy: jasmine.SpyObj<LoggerService>;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({});
-    service = TestBed.inject(GoogleStorageService);
+    const spy = jasmine.createSpyObj('LoggerService', ['debug', 'info', 'error']);
+    
+    TestBed.configureTestingModule({
+      providers: [
+        GoogleStorageProvider,
+        { provide: LoggerService, useValue: spy }
+      ]
+    });
+    
+    provider = TestBed.inject(GoogleStorageProvider);
+    loggerServiceSpy = TestBed.inject(LoggerService) as jasmine.SpyObj<LoggerService>;
   });
 
   it('should be created', () => {
-    expect(service).toBeTruthy();
+    expect(provider).toBeTruthy();
   });
 });

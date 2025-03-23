@@ -1,1 +1,19 @@
-<p>diagram-toolbar works!</p>
+<div class="diagram-toolbar">
+  <div class="toolbar-section file-operations">
+    <button (click)="newDiagram()" [title]="'DIAGRAM.TOOLBAR.NEW' | translate">{{ 'DIAGRAM.TOOLBAR.NEW' | translate }}</button>
+    <button (click)="openDiagram()" [title]="'DIAGRAM.TOOLBAR.OPEN' | translate">{{ 'DIAGRAM.TOOLBAR.OPEN' | translate }}</button>
+    <button (click)="saveDiagram()" [title]="'DIAGRAM.TOOLBAR.SAVE' | translate">{{ 'DIAGRAM.TOOLBAR.SAVE' | translate }}</button>
+    <button (click)="saveAsDiagram()" [title]="'DIAGRAM.TOOLBAR.SAVE_AS' | translate">{{ 'DIAGRAM.TOOLBAR.SAVE_AS' | translate }}</button>
+  </div>
+  
+  <div class="toolbar-section edit-operations">
+    <button (click)="addNode()" [title]="'DIAGRAM.TOOLBAR.ADD_NODE' | translate">{{ 'DIAGRAM.TOOLBAR.ADD_NODE' | translate }}</button>
+    <button (click)="deleteSelected()" [title]="'DIAGRAM.TOOLBAR.DELETE' | translate">{{ 'DIAGRAM.TOOLBAR.DELETE' | translate }}</button>
+  </div>
+  
+  <div class="toolbar-section file-info">
+    <span class="file-name" [class.unsaved]="isDiagramDirty">
+      {{ currentFileName }}{{ isDiagramDirty ? '*' : '' }}
+    </span>
+  </div>
+</div>

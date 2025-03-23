@@ -1,25 +1,77 @@
 import { Injectable, Inject } from '@angular/core';
-import { AUTH_PROVIDER, AuthProvider } from './providers/auth-provider.interface';
+import { AUTH_PROVIDER, AuthProvider, UserInfo } from './providers/auth-provider.interface';
+import { BehaviorSubject, Observable } from 'rxjs';
+import { LoggerService } from '../logger/logger.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
-  constructor(@Inject(AUTH_PROVIDER) private provider: AuthProvider) {}
+  private authState = new BehaviorSubject<boolean>(false);
+  private userInfo = new BehaviorSubject<UserInfo | null>(null);
 
-  login(): Promise<void> {
-    return this.provider.login();
+  constructor(
+    @Inject(AUTH_PROVIDER) private provider: AuthProvider,
+    private logger: LoggerService
+  ) {
+    // Initialize the auth state from local storage
+    this.logger.debug('Initializing AuthService', 'AuthService');
+    this.checkAuthState();
   }
 
-  logout(): Promise<void> {
-    return this.provider.logout();
+  private checkAuthState(): void {
+    const isAuthenticated = this.provider.isAuthenticated();
+    this.authState.next(isAuthenticated);
+    this.logger.debug(`Auth state checked: ${isAuthenticated}`, 'AuthService');
+    
+    if (isAuthenticated) {
+      const user = this.provider.getUserInfo();
+      this.userInfo.next(user);
+      this.logger.debug('User info retrieved', 'AuthService', { userId: user?.id });
+    } else {
+      this.userInfo.next(null);
+      this.logger.debug('No authenticated user', 'AuthService');
+    }
+  }
+
+  async login(): Promise<void> {
+    try {
+      this.logger.info('Login attempt', 'AuthService');
+      await this.provider.login();
+      this.checkAuthState();
+      this.logger.info('Login successful', 'AuthService');
+    } catch (error) {
+      this.logger.error('Login failed', 'AuthService', error);
+      throw error;
+    }
+  }
+
+  async logout(): Promise<void> {
+    try {
+      this.logger.info('Logout attempt', 'AuthService');
+      await this.provider.logout();
+      this.checkAuthState();
+      this.logger.info('Logout successful', 'AuthService');
+    } catch (error) {
+      this.logger.error('Logout failed', 'AuthService', error);
+      throw error;
+    }
   }
 
   isAuthenticated(): boolean {
     return this.provider.isAuthenticated();
   }
 
-  getUserInfo(): any {
+  getUserInfo(): UserInfo | null {
     return this.provider.getUserInfo();
+  }
+
+  // Observable streams
+  get authState$(): Observable<boolean> {
+    return this.authState.asObservable();
+  }
+
+  get userInfo$(): Observable<UserInfo | null> {
+    return this.userInfo.asObservable();
   }
 }

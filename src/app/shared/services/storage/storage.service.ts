@@ -1,25 +1,197 @@
 import { Injectable, Inject } from '@angular/core';
-import { STORAGE_PROVIDER, StorageProvider } from './providers/storage-provider.interface';
+import { STORAGE_PROVIDER, StorageProvider, StorageFile, PickerOptions, PickerResult } from './providers/storage-provider.interface';
+import { LoggerService } from '../logger/logger.service';
+import { BehaviorSubject, Observable } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
 })
 export class StorageService {
-  constructor(@Inject(STORAGE_PROVIDER) private provider: StorageProvider) {}
+  private initialized = false;
+  private initializing = false;
+  private initializeSubject = new BehaviorSubject<boolean>(false);
+  private currentFile = new BehaviorSubject<StorageFile | null>(null);
 
-  createFile(name: string, data: string): Promise<string> {
-    return this.provider.createFile(name, data);
+  constructor(
+    @Inject(STORAGE_PROVIDER) private provider: StorageProvider,
+    private logger: LoggerService
+  ) {
+    this.initialize();
   }
 
-  loadFile(fileId: string): Promise<string> {
-    return this.provider.loadFile(fileId);
+  /**
+   * Initialize the storage provider
+   */
+  async initialize(): Promise<boolean> {
+    if (this.initialized || this.initializing) {
+      return this.initialized;
+    }
+
+    this.initializing = true;
+    this.logger.debug('Initializing storage service', 'StorageService');
+
+    try {
+      this.initialized = await this.provider.initialize();
+      this.logger.info(`Storage provider initialized: ${this.initialized}`, 'StorageService');
+      this.initializeSubject.next(this.initialized);
+      return this.initialized;
+    } catch (error) {
+      this.logger.error('Failed to initialize storage provider', 'StorageService', error);
+      this.initialized = false;
+      this.initializeSubject.next(false);
+      return false;
+    } finally {
+      this.initializing = false;
+    }
   }
 
-  saveFile(fileId: string, data: string): Promise<void> {
-    return this.provider.saveFile(fileId, data);
+  /**
+   * Check if storage provider is initialized
+   */
+  isInitialized(): boolean {
+    return this.initialized && this.provider.isInitialized();
   }
 
-  listFiles(): Promise<any[]> {
-    return this.provider.listFiles();
+  /**
+   * Get initialization state as observable
+   */
+  get initialized$(): Observable<boolean> {
+    return this.initializeSubject.asObservable();
+  }
+
+  /**
+   * Create a new file with the given name and data
+   */
+  async createFile(name: string, data: string): Promise<StorageFile> {
+    this.logger.debug(`Creating file: ${name}`, 'StorageService');
+    
+    if (!this.isInitialized()) {
+      await this.initialize();
+    }
+    
+    try {
+      const file = await this.provider.createFile(name, data);
+      this.currentFile.next(file);
+      this.logger.info(`File created: ${file.name}`, 'StorageService', { fileId: file.id });
+      return file;
+    } catch (error) {
+      this.logger.error(`Failed to create file: ${name}`, 'StorageService', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Load a file's content by ID
+   */
+  async loadFile(fileId: string): Promise<string> {
+    this.logger.debug(`Loading file: ${fileId}`, 'StorageService');
+    
+    if (!this.isInitialized()) {
+      await this.initialize();
+    }
+    
+    try {
+      const content = await this.provider.loadFile(fileId);
+      this.logger.info(`File loaded: ${fileId}`, 'StorageService');
+      
+      // Update current file info if available from the list
+      const files = await this.listFiles();
+      const fileInfo = files.find(f => f.id === fileId);
+      if (fileInfo) {
+        this.currentFile.next(fileInfo);
+      }
+      
+      return content;
+    } catch (error) {
+      this.logger.error(`Failed to load file: ${fileId}`, 'StorageService', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Save data to an existing file
+   */
+  async saveFile(fileId: string, data: string): Promise<void> {
+    this.logger.debug(`Saving file: ${fileId}`, 'StorageService');
+    
+    if (!this.isInitialized()) {
+      await this.initialize();
+    }
+    
+    try {
+      await this.provider.saveFile(fileId, data);
+      this.logger.info(`File saved: ${fileId}`, 'StorageService');
+    } catch (error) {
+      this.logger.error(`Failed to save file: ${fileId}`, 'StorageService', error);
+      throw error;
+    }
+  }
+
+  /**
+   * List available files
+   */
+  async listFiles(): Promise<StorageFile[]> {
+    this.logger.debug('Listing files', 'StorageService');
+    
+    if (!this.isInitialized()) {
+      await this.initialize();
+    }
+    
+    try {
+      const files = await this.provider.listFiles();
+      this.logger.info(`Found ${files.length} files`, 'StorageService');
+      return files;
+    } catch (error) {
+      this.logger.error('Failed to list files', 'StorageService', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Show file picker for opening or saving files
+   */
+  async showPicker(options: PickerOptions): Promise<PickerResult> {
+    this.logger.debug(`Showing picker in ${options.mode} mode`, 'StorageService');
+    
+    if (!this.isInitialized()) {
+      await this.initialize();
+    }
+    
+    try {
+      const result = await this.provider.showPicker(options);
+      
+      if (result.action === 'picked' && result.file) {
+        this.logger.info(`File picked: ${result.file.name}`, 'StorageService', { 
+          fileId: result.file.id,
+          mode: options.mode
+        });
+        
+        // Update current file
+        if (options.mode === 'open' && result.file) {
+          this.currentFile.next(result.file);
+        }
+      } else {
+        this.logger.debug('Picker canceled or no file selected', 'StorageService');
+      }
+      
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to show picker', 'StorageService', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the current active file
+   */
+  getCurrentFile(): StorageFile | null {
+    return this.currentFile.getValue();
+  }
+
+  /**
+   * Get the current file as observable
+   */
+  get currentFile$(): Observable<StorageFile | null> {
+    return this.currentFile.asObservable();
   }
 }

@@ -1,0 +1,71 @@
+{
+  "APP": {
+    "TITLE": "TMI",
+    "SUBTITLE": "Modelado de Amenazas Mejorado"
+  },
+  "NAV": {
+    "HOME": "Inicio",
+    "DIAGRAMS": "Diagramas",
+    "ABOUT": "Acerca de",
+    "HELP": "Ayuda"
+  },
+  "AUTH": {
+    "LOGIN": "Iniciar sesión",
+    "LOGOUT": "Cerrar sesión",
+    "LOGGING_IN": "Iniciando sesión...",
+    "LOGGING_OUT": "Cerrando sesión..."
+  },
+  "LANDING": {
+    "HERO": {
+      "TITLE": "Modelado de Amenazas Mejorado",
+      "SUBTITLE": "Una mejor manera de modelar y visualizar amenazas de seguridad en sus sistemas",
+      "START_BUTTON": "Comenzar a Diagramar",
+      "LEARN_MORE": "Más Información"
+    },
+    "FEATURES": {
+      "TITLE": "Características Principales",
+      "INTERACTIVE": {
+        "TITLE": "Diagramas Interactivos",
+        "DESCRIPTION": "Cree, edite y comparta modelos de amenazas interactivos con nuestras intuitivas herramientas de diagramación."
+      },
+      "SECURITY": {
+        "TITLE": "Seguridad Primero",
+        "DESCRIPTION": "Construido con la seguridad en mente, ayudándole a identificar y mitigar amenazas en su arquitectura."
+      },
+      "STORAGE": {
+        "TITLE": "Almacenamiento en la Nube",
+        "DESCRIPTION": "Almacene y acceda de forma segura a sus diagramas desde cualquier lugar con la integración de Google Drive."
+      },
+      "COLLABORATION": {
+        "TITLE": "Colaboración",
+        "DESCRIPTION": "Trabaje junto con su equipo para construir modelos de amenazas completos."
+      }
+    }
+  },
+  "DIAGRAM": {
+    "TOOLBAR": {
+      "NEW": "Nuevo",
+      "OPEN": "Abrir",
+      "SAVE": "Guardar",
+      "SAVE_AS": "Guardar Como",
+      "ADD_NODE": "Añadir Nodo",
+      "DELETE": "Eliminar",
+      "UNSAVED_CHANGES": "El diagrama actual tiene cambios sin guardar. ¿Desea guardar antes de {0}?",
+      "UNSAVED_CHANGES_CREATE": "crear un nuevo diagrama",
+      "UNSAVED_CHANGES_OPEN": "abrir un diagrama diferente"
+    },
+    "PICKER": {
+      "OPEN_TITLE": "Abrir Diagrama",
+      "SAVE_TITLE": "Guardar Diagrama Como"
+    },
+    "DEACTIVATE_GUARD": {
+      "UNSAVED_CHANGES": "Tiene cambios sin guardar. ¿Está seguro de que desea salir?"
+    }
+  },
+  "FOOTER": {
+    "COPYRIGHT": "© 2025 TMI - Modelado de Amenazas Mejorado",
+    "TERMS": "Términos de Servicio",
+    "PRIVACY": "Política de Privacidad",
+    "CONTACT": "Contáctenos"
+  }
+}

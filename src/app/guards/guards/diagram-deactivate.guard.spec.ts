@@ -1,17 +1,25 @@
 import { TestBed } from '@angular/core/testing';
-import { CanDeactivateFn } from '@angular/router';
+import { DiagramDeactivateGuard } from './diagram-deactivate.guard';
+import { DiagramService } from '../../diagram/services/diagram.service';
 
-import { diagramDeactivateGuard } from './diagram-deactivate.guard';
-
-describe('diagramDeactivateGuard', () => {
-  const executeGuard: CanDeactivateFn<unknown> = (...guardParameters) => 
-      TestBed.runInInjectionContext(() => diagramDeactivateGuard(...guardParameters));
+describe('DiagramDeactivateGuard', () => {
+  let guard: DiagramDeactivateGuard;
+  let diagramServiceSpy: jasmine.SpyObj<DiagramService>;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({});
+    diagramServiceSpy = jasmine.createSpyObj('DiagramService', ['isDiagramDirty']);
+
+    TestBed.configureTestingModule({
+      providers: [
+        DiagramDeactivateGuard,
+        { provide: DiagramService, useValue: diagramServiceSpy }
+      ]
+    });
+
+    guard = TestBed.inject(DiagramDeactivateGuard);
   });
 
   it('should be created', () => {
-    expect(executeGuard).toBeTruthy();
+    expect(guard).toBeTruthy();
   });
 });

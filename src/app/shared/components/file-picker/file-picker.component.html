@@ -1,0 +1,7 @@
+<button
+  [title]="mode === 'open' ? 'Open a file' : 'Save file'"
+  [attr.aria-label]="mode === 'open' ? 'Open a file' : 'Save file'"
+  class="file-picker-button"
+  (click)="openPicker()">
+  {{ buttonLabel || (mode === 'open' ? 'Open' : 'Save') }}
+</button>

@@ -1,0 +1,17 @@
+<div class="login-button-container">
+  <ng-container *ngIf="isAuthenticated; else loginButton">
+    <div class="user-info">
+      <span class="user-name">{{ userInfo?.name }}</span>
+      <img *ngIf="userInfo?.picture" class="user-avatar" [src]="userInfo?.picture" [alt]="userInfo?.name" />
+    </div>
+    <button class="logout-button" (click)="onLogout()" [disabled]="isLoading">
+      {{ isLoading ? ('AUTH.LOGGING_OUT' | translate) : ('AUTH.LOGOUT' | translate) }}
+    </button>
+  </ng-container>
+
+  <ng-template #loginButton>
+    <button class="login-button" (click)="onLogin()" [disabled]="isLoading">
+      {{ isLoading ? ('AUTH.LOGGING_IN' | translate) : ('AUTH.LOGIN' | translate) }}
+    </button>
+  </ng-template>
+</div>

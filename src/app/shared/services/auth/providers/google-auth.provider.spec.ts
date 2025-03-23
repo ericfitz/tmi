@@ -1,16 +1,26 @@
 import { TestBed } from '@angular/core/testing';
+import { GoogleAuthProvider } from './google-auth.provider';
+import { LoggerService } from '../../logger/logger.service';
 
-import { GoogleAuthService } from './google-auth.service';
-
-describe('GoogleAuthService', () => {
-  let service: GoogleAuthService;
+describe('GoogleAuthProvider', () => {
+  let provider: GoogleAuthProvider;
+  let loggerServiceSpy: jasmine.SpyObj<LoggerService>;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({});
-    service = TestBed.inject(GoogleAuthService);
+    const spy = jasmine.createSpyObj('LoggerService', ['debug', 'info', 'error']);
+    
+    TestBed.configureTestingModule({
+      providers: [
+        GoogleAuthProvider,
+        { provide: LoggerService, useValue: spy }
+      ]
+    });
+    
+    provider = TestBed.inject(GoogleAuthProvider);
+    loggerServiceSpy = TestBed.inject(LoggerService) as jasmine.SpyObj<LoggerService>;
   });
 
   it('should be created', () => {
-    expect(service).toBeTruthy();
+    expect(provider).toBeTruthy();
   });
 });

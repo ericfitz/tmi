@@ -1,1 +1,28 @@
-<p>footer works!</p>
+<footer class="app-footer">
+  <div class="footer-content">
+    <div class="footer-left">
+      <span class="copyright">{{ 'FOOTER.COPYRIGHT' | translate }}</span>
+    </div>
+    
+    <div class="footer-center">
+      <nav class="footer-nav">
+        <ul>
+          <li><a routerLink="/terms">{{ 'FOOTER.TERMS' | translate }}</a></li>
+          <li><a routerLink="/privacy">{{ 'FOOTER.PRIVACY' | translate }}</a></li>
+          <li><a routerLink="/contact">{{ 'FOOTER.CONTACT' | translate }}</a></li>
+        </ul>
+      </nav>
+    </div>
+    
+    <div class="footer-right">
+      <div class="social-links">
+        <a href="https://github.com/example/tmi" target="_blank" rel="noopener noreferrer">
+          <i class="fab fa-github"></i>
+        </a>
+        <a href="https://twitter.com/example" target="_blank" rel="noopener noreferrer">
+          <i class="fab fa-twitter"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>

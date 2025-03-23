@@ -1,1 +1,31 @@
-<p>header works!</p>
+<header class="app-header">
+  <div class="header-content">
+    <div class="header-left">
+      <a class="logo" routerLink="/">
+        <span class="logo-text">{{ 'APP.TITLE' | translate }}</span>
+        <span class="logo-subtitle">{{ 'APP.SUBTITLE' | translate }}</span>
+      </a>
+    </div>
+    
+    <div class="header-center">
+      <nav class="main-nav">
+        <ul>
+          <li><a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">{{ 'NAV.HOME' | translate }}</a></li>
+          <li><a routerLink="/diagrams" routerLinkActive="active">{{ 'NAV.DIAGRAMS' | translate }}</a></li>
+          <li><a routerLink="/about" routerLinkActive="active">{{ 'NAV.ABOUT' | translate }}</a></li>
+          <li><a routerLink="/help" routerLinkActive="active">{{ 'NAV.HELP' | translate }}</a></li>
+        </ul>
+      </nav>
+    </div>
+    
+    <div class="header-right">
+      <app-login-button></app-login-button>
+      <div class="language-selector">
+        <select (change)="changeLanguage($event)">
+          <option value="en" [selected]="currentLang === 'en'">English</option>
+          <option value="es" [selected]="currentLang === 'es'">Español</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</header>
