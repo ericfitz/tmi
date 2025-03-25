@@ -1,0 +1,7 @@
+<div class="language-selector">
+  <select [ngModel]="currentLang" (ngModelChange)="changeLanguage($event)" aria-label="Select language">
+    <option *ngFor="let lang of languages; trackBy: trackByLanguageCode" [value]="lang.code">
+      {{ lang.name }}
+    </option>
+  </select>
+</div>

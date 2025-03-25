@@ -1,263 +1,216 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, BehaviorSubject } from 'rxjs';
-import { TranslateModule, TranslateLoader, TranslateService } from '@ngx-translate/core';
-import { CommonModule } from '@angular/common';
-import { DebugElement } from '@angular/core';
-import { By } from '@angular/platform-browser';
-
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { DiagramToolbarComponent } from './diagram-toolbar.component';
 import { DiagramService } from '../services/diagram.service';
 import { StorageService } from '../../shared/services/storage/storage.service';
 import { LoggerService } from '../../shared/services/logger/logger.service';
-import { PickerResult } from '../../shared/services/storage/providers/storage-provider.interface';
-
-// Mock translation loader for testing
-class MockTranslateLoader implements TranslateLoader {
-  getTranslation(lang: string) {
-    return of({
-      'DIAGRAM': {
-        'TOOLBAR': {
-          'NEW': 'New Test',
-          'OPEN': 'Open Test',
-          'SAVE': 'Save Test',
-          'SAVE_AS': 'Save As Test',
-          'ADD_NODE': 'Add Node Test',
-          'DELETE': 'Delete Test',
-          'UNSAVED_CHANGES': 'Unsaved changes test {0}',
-          'UNSAVED_CHANGES_CREATE': 'creating test',
-          'UNSAVED_CHANGES_OPEN': 'opening test'
-        },
-        'PICKER': {
-          'OPEN_TITLE': 'Open Diagram Test',
-          'SAVE_TITLE': 'Save Diagram As Test'
-        }
-      }
-    });
-  }
-}
-
-// Mock DiagramService
-class MockDiagramService {
-  private _isDirty = new BehaviorSubject<boolean>(false);
-  private _currentFile = new BehaviorSubject<any>(null);
-  
-  isDirty$ = this._isDirty.asObservable();
-  currentFile$ = this._currentFile.asObservable();
-  
-  setDirty(isDirty: boolean) {
-    this._isDirty.next(isDirty);
-  }
-  
-  setCurrentFile(file: any) {
-    this._currentFile.next(file);
-  }
-  
-  isDiagramDirty() {
-    return this._isDirty.value;
-  }
-  
-  getCurrentFile() {
-    return this._currentFile.value;
-  }
-  
-  addNode = jasmine.createSpy('addNode');
-  deleteSelected = jasmine.createSpy('deleteSelected');
-  resetDiagram = jasmine.createSpy('resetDiagram');
-  loadDiagram = jasmine.createSpy('loadDiagram').and.returnValue(Promise.resolve());
-  saveDiagram = jasmine.createSpy('saveDiagram').and.returnValue(Promise.resolve());
-}
-
-// Mock StorageService
-class MockStorageService {
-  showPicker = jasmine.createSpy('showPicker').and.returnValue(Promise.resolve({
-    action: 'picked',
-    file: {
-      id: 'test-file-id',
-      name: 'Test Diagram.json'
-    }
-  } as PickerResult));
-}
-
-// Mock LoggerService
-class MockLoggerService {
-  debug() {}
-  info() {}
-  warn() {}
-  error() {}
-}
+import { Store } from '@ngrx/store';
+import { Subject, of } from 'rxjs';
+import { LOCALE_ID } from '@angular/core';
+import { DiagramElementType } from '../store/models/diagram.model';
+import * as DiagramActions from '../store/actions/diagram.actions';
 
 describe('DiagramToolbarComponent', () => {
   let component: DiagramToolbarComponent;
   let fixture: ComponentFixture<DiagramToolbarComponent>;
-  let diagramService: MockDiagramService;
-  let storageService: StorageService;
-  let translate: TranslateService;
-  let de: DebugElement;
+  let mockStore: jasmine.SpyObj<Store>;
+  let mockDiagramService: jasmine.SpyObj<DiagramService>;
+  let mockStorageService: jasmine.SpyObj<StorageService>;
+  let mockLoggerService: jasmine.SpyObj<LoggerService>;
+  interface SubjectMap {
+    canUndo: Subject<boolean>;
+    canRedo: Subject<boolean>;
+    hasChanges: Subject<boolean>;
+    selectSelectedElementId: Subject<string | null>;
+  }
   
-  // Spy on window.confirm
-  let confirmSpy: jasmine.Spy;
+  let selectSubjects: SubjectMap;
 
   beforeEach(async () => {
-    // Create spy for confirm
-    confirmSpy = spyOn(window, 'confirm').and.returnValue(true);
+    // Create subjects for finer control of observable streams
+    selectSubjects = {
+      canUndo: new Subject<boolean>(),
+      canRedo: new Subject<boolean>(), 
+      hasChanges: new Subject<boolean>(),
+      selectSelectedElementId: new Subject<string | null>()
+    };
+    
+    // Create spies for dependencies
+    mockStore = jasmine.createSpyObj('Store', ['select', 'dispatch']);
+    mockDiagramService = jasmine.createSpyObj('DiagramService', ['initGraph']);
+    mockStorageService = jasmine.createSpyObj('StorageService', ['showPicker']);
+    mockLoggerService = jasmine.createSpyObj('LoggerService', ['debug', 'info', 'warn', 'error']);
+    
+    // Configure store.select to return different subjects based on the selector
+    mockStore.select.and.callFake((selector: any) => {
+      if (selector === 'selectCanUndo') return selectSubjects.canUndo;
+      if (selector === 'selectCanRedo') return selectSubjects.canRedo;
+      if (selector === 'selectDiagramHasChanges') return selectSubjects.hasChanges;
+      if (selector === 'selectSelectedElementId') return selectSubjects.selectSelectedElementId;
+      return of(true); // Default fallback
+    });
     
     await TestBed.configureTestingModule({
-      imports: [
-        CommonModule,
-        DiagramToolbarComponent,
-        TranslateModule.forRoot({
-          loader: { provide: TranslateLoader, useClass: MockTranslateLoader }
-        })
-      ],
+      imports: [DiagramToolbarComponent],
       providers: [
-        { provide: DiagramService, useClass: MockDiagramService },
-        { provide: StorageService, useClass: MockStorageService },
-        { provide: LoggerService, useClass: MockLoggerService }
+        { provide: Store, useValue: mockStore },
+        { provide: DiagramService, useValue: mockDiagramService },
+        { provide: StorageService, useValue: mockStorageService },
+        { provide: LoggerService, useValue: mockLoggerService },
+        { provide: LOCALE_ID, useValue: 'en' }
       ]
-    })
-    .compileComponents();
+    }).compileComponents();
 
     fixture = TestBed.createComponent(DiagramToolbarComponent);
     component = fixture.componentInstance;
-    diagramService = TestBed.inject(DiagramService) as unknown as MockDiagramService;
-    storageService = TestBed.inject(StorageService);
-    translate = TestBed.inject(TranslateService);
-    de = fixture.debugElement;
     
-    // Set up translation
-    translate.use('en');
-    
-    fixture.detectChanges();
+    // Initialize with default values
+    selectSubjects.canUndo.next(true);
+    selectSubjects.canRedo.next(true);
+    selectSubjects.hasChanges.next(true);
   });
 
   it('should create', () => {
+    fixture.detectChanges();
     expect(component).toBeTruthy();
   });
-
-  it('should display toolbar with file operation buttons', () => {
-    // Get file operation buttons
-    const fileButtons = de.queryAll(By.css('.file-operations button'));
-    
-    // Should have 4 buttons: New, Open, Save, Save As
-    expect(fileButtons.length).toBe(4);
-    
-    // Check text content of buttons
-    expect(fileButtons[0].nativeElement.textContent.trim()).toContain('New Test');
-    expect(fileButtons[1].nativeElement.textContent.trim()).toContain('Open Test');
-    expect(fileButtons[2].nativeElement.textContent.trim()).toContain('Save Test');
-    expect(fileButtons[3].nativeElement.textContent.trim()).toContain('Save As Test');
-  });
-
-  it('should display toolbar with edit operation buttons', () => {
-    // Get edit operation buttons
-    const editButtons = de.queryAll(By.css('.edit-operations button'));
-    
-    // Should have 2 buttons: Add Node, Delete
-    expect(editButtons.length).toBe(2);
-    
-    // Check text content of buttons
-    expect(editButtons[0].nativeElement.textContent.trim()).toContain('Add Node Test');
-    expect(editButtons[1].nativeElement.textContent.trim()).toContain('Delete Test');
-  });
-
-  it('should call addNode when Add Node button is clicked', () => {
-    // Get Add Node button and click it
-    const addNodeButton = de.queryAll(By.css('.edit-operations button'))[0];
-    addNodeButton.nativeElement.click();
-    
-    // Verify method was called
-    expect(diagramService.addNode).toHaveBeenCalled();
-  });
-
-  it('should call deleteSelected when Delete button is clicked', () => {
-    // Get Delete button and click it
-    const deleteButton = de.queryAll(By.css('.edit-operations button'))[1];
-    deleteButton.nativeElement.click();
-    
-    // Verify method was called
-    expect(diagramService.deleteSelected).toHaveBeenCalled();
-  });
-
-  it('should prompt to save unsaved changes when creating new diagram', () => {
-    // Set diagram as dirty
-    diagramService.setDirty(true);
+  
+  it('should emit save event when save button is clicked', () => {
     fixture.detectChanges();
     
-    // Get New button and click it
-    const newButton = de.queryAll(By.css('.file-operations button'))[0];
-    newButton.nativeElement.click();
+    // Set up spy on output event
+    spyOn(component.save, 'emit');
     
-    // Verify confirm was called with appropriate message
-    expect(confirmSpy).toHaveBeenCalled();
+    // Call the method
+    component.onSave();
     
-    // Verify resetDiagram was called after confirmation
-    expect(diagramService.resetDiagram).toHaveBeenCalled();
+    // Check that the event was emitted
+    expect(component.save.emit).toHaveBeenCalled();
   });
-
-  it('should prompt to save unsaved changes when opening diagram', async () => {
-    // Set diagram as dirty
-    diagramService.setDirty(true);
+  
+  it('should dispatch addElement action when addRectangle is called', () => {
     fixture.detectChanges();
     
-    // Get Open button and click it
-    const openButton = de.queryAll(By.css('.file-operations button'))[1];
-    openButton.nativeElement.click();
+    // Call the method
+    component.addRectangle();
     
-    // Wait for async operation
-    await fixture.whenStable();
-    
-    // Verify confirm was called with appropriate message
-    expect(confirmSpy).toHaveBeenCalled();
-    
-    // Verify showPicker and loadDiagram were called after confirmation
-    expect(storageService.showPicker).toHaveBeenCalled();
-    expect(diagramService.loadDiagram).toHaveBeenCalledWith('test-file-id');
-  });
-
-  it('should save existing diagram when Save button is clicked', async () => {
-    // Set current file
-    diagramService.setCurrentFile({ id: 'existing-file-id', name: 'Existing.json' });
-    fixture.detectChanges();
-    
-    // Get Save button and click it
-    const saveButton = de.queryAll(By.css('.file-operations button'))[2];
-    saveButton.nativeElement.click();
-    
-    // Wait for async operation
-    await fixture.whenStable();
-    
-    // Verify saveDiagram was called without filename (save to existing file)
-    expect(diagramService.saveDiagram).toHaveBeenCalledWith();
-  });
-
-  it('should show Save As dialog when Save As button is clicked', async () => {
-    // Get Save As button and click it
-    const saveAsButton = de.queryAll(By.css('.file-operations button'))[3];
-    saveAsButton.nativeElement.click();
-    
-    // Wait for async operation
-    await fixture.whenStable();
-    
-    // Verify showPicker was called with save mode
-    expect(storageService.showPicker).toHaveBeenCalledWith(jasmine.objectContaining({
-      mode: 'save'
+    // Check that the store dispatch was called with the correct action
+    expect(mockStore.dispatch).toHaveBeenCalledWith(jasmine.objectContaining({
+      type: '[Diagram] Add Element'
     }));
-    
-    // Verify saveDiagram was called with filename
-    expect(diagramService.saveDiagram).toHaveBeenCalledWith('Test Diagram.json');
   });
-
-  it('should display file name and dirty indicator', () => {
-    // Set current file and mark as dirty
-    diagramService.setCurrentFile({ name: 'Current Diagram.json' });
-    diagramService.setDirty(true);
+  
+  it('should dispatch addElement action when addCircle is called', () => {
     fixture.detectChanges();
     
-    // Get file name display
-    const fileNameDisplay = de.query(By.css('.file-name'));
+    // Call the method
+    component.addCircle();
     
-    // Verify file name and dirty indicator
-    expect(fileNameDisplay.nativeElement.textContent.trim()).toContain('Current Diagram.json*');
-    expect(fileNameDisplay.classes['unsaved']).toBeTrue();
+    // Check that the store dispatch was called with the correct action
+    expect(mockStore.dispatch).toHaveBeenCalledWith(jasmine.objectContaining({
+      type: '[Diagram] Add Element'
+    }));
   });
+  
+  it('should dispatch addElement action when addText is called', () => {
+    fixture.detectChanges();
+    
+    // Call the method
+    component.addText();
+    
+    // Check that the store dispatch was called with the correct action
+    expect(mockStore.dispatch).toHaveBeenCalledWith(jasmine.objectContaining({
+      type: '[Diagram] Add Element'
+    }));
+  });
+  
+  it('should dispatch removeElement action when deleteSelected is called with valid selection', fakeAsync(() => {
+    fixture.detectChanges();
+    
+    // Set selected element ID
+    selectSubjects.selectSelectedElementId.next('element-123');
+    tick();
+    
+    // Call the method
+    component.deleteSelected();
+    
+    // Check that the store dispatch was called with the correct action
+    expect(mockStore.dispatch).toHaveBeenCalledWith(
+      DiagramActions.removeElement({ id: 'element-123' })
+    );
+  }));
+  
+  it('should not dispatch removeElement action when deleteSelected is called with no selection', fakeAsync(() => {
+    fixture.detectChanges();
+    
+    // Reset the dispatch spy
+    mockStore.dispatch.calls.reset();
+    
+    // Set selected element ID to null
+    selectSubjects.selectSelectedElementId.next(null);
+    tick();
+    
+    // Call the method
+    component.deleteSelected();
+    
+    // Check that the store dispatch was not called
+    expect(mockStore.dispatch).not.toHaveBeenCalled();
+  }));
+  
+  it('should dispatch createDiagram action when newDiagram is called', fakeAsync(() => {
+    fixture.detectChanges();
+    
+    // Set hasChanges to false to avoid confirmation dialog
+    selectSubjects.hasChanges.next(false);
+    tick();
+    
+    // Spy on confirm to avoid actual browser dialog
+    spyOn(window, 'confirm').and.returnValue(false);
+    
+    // Call the method
+    component.newDiagram();
+    
+    // Check that the store dispatch was called with createDiagram action
+    expect(mockStore.dispatch).toHaveBeenCalledWith(jasmine.objectContaining({
+      type: '[Diagram] Create Diagram'
+    }));
+  }));
+  
+  it('should properly unsubscribe when component is destroyed', fakeAsync(() => {
+    fixture.detectChanges();
+    
+    // Create a spy to track subscription status
+    const subscriptionSpy = jasmine.createSpy('subscriptionCallback');
+    
+    // Create a test subscription that uses the destroy$ subject
+    const testSubject = new Subject<void>();
+    const subscription = testSubject.subscribe(subscriptionSpy);
+    
+    // Store the original next and complete methods
+    const originalNext = component['destroy$'].next;
+    const originalComplete = component['destroy$'].complete;
+    
+    // Replace them with spies
+    component['destroy$'].next = jasmine.createSpy('next').and.callFake(() => {
+      originalNext.call(component['destroy$']);
+    });
+    
+    component['destroy$'].complete = jasmine.createSpy('complete').and.callFake(() => {
+      originalComplete.call(component['destroy$']);
+    });
+    
+    // Destroy the component
+    component.ngOnDestroy();
+    
+    // Verify the destroy$ subject methods were called
+    expect(component['destroy$'].next).toHaveBeenCalled();
+    expect(component['destroy$'].complete).toHaveBeenCalled();
+    
+    // Emit on the test subject after destroy
+    testSubject.next();
+    
+    // The subscription callback should not be called since
+    // the component has been destroyed and all subscriptions
+    // using takeUntil(destroy$) should have been unsubscribed
+    expect(subscriptionSpy).not.toHaveBeenCalled();
+  }));
 });

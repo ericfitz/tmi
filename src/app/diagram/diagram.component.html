@@ -1,6 +1,28 @@
 <div class="diagram-container">
-  <app-diagram-toolbar></app-diagram-toolbar>
+  <app-diagram-toolbar 
+    [diagramName]="(diagram$ | async)?.name || 'Untitled Diagram'"
+    [isDiagramLoaded]="!!(diagram$ | async)"
+    (save)="saveDiagram()"
+    (undo)="undo()"
+    (redo)="redo()"
+    (close)="closeDiagram()">
+  </app-diagram-toolbar>
+  
   <div class="diagram-content">
-    <app-diagram-canvas></app-diagram-canvas>
+    <!-- Loading indicator -->
+    <div *ngIf="isLoading$ | async" class="loading-overlay">
+      <div class="loading-spinner"></div>
+      <span>Loading diagram...</span>
+    </div>
+    
+    <!-- Error message -->
+    <div *ngIf="error$ | async as error" class="error-message">
+      {{ error?.message || 'An error occurred' }}
+    </div>
+    
+    <!-- Removed welcome message as it should only appear on diagram home page -->
+    
+    <!-- Diagram canvas -->
+    <app-diagram-canvas *ngIf="diagram$ | async"></app-diagram-canvas>
   </div>
 </div>

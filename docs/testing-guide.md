@@ -36,6 +36,16 @@ npm test -- --include src/app/shared/services/auth/auth.service.spec.ts
 npm test
 ```
 
+#### End-to-End Tests
+
+```bash
+# Run all e2e tests headlessly
+npm run e2e
+
+# Open Cypress runner for development
+npm run cypress:open
+```
+
 #### Linting
 
 ```bash
@@ -57,11 +67,20 @@ npm run typecheck
 
 The test suite follows Angular's testing conventions:
 
+### Unit Tests
+
 - Each component, service, directive, pipe, and guard has a corresponding `.spec.ts` file
 - Tests use Jasmine as the testing framework
 - Angular TestBed is used for component testing
 - Services are tested with dependency injection
 - Mocks and spies are used to isolate units under test
+
+### End-to-End Tests
+
+- E2E tests are written with Cypress
+- Tests use the `.cy.ts` file extension
+- Custom commands are defined in `cypress/support/commands.ts`
+- Cypress tests verify the application from a user's perspective
 
 ## Writing Effective Tests
 
@@ -224,6 +243,36 @@ Tests are run automatically in the CI pipeline on each pull request and merge to
 - All tests must pass before merging
 - Code coverage thresholds must be maintained
 
+## Writing E2E Tests with Cypress
+
+Cypress provides a powerful framework for end-to-end testing:
+
+1. **Custom Commands**: Use custom commands in `cypress/support/commands.ts` for reusable actions
+2. **Page Objects**: Implement the page object pattern through custom commands for maintainability
+3. **Selectors**: Prefer data attributes (e.g., `data-cy`) for stable selectors
+4. **Assertions**: Use Cypress chain-able assertions for better readability
+
+Example:
+
+```typescript
+// Custom commands (page object pattern)
+Cypress.Commands.add('login', (username, password) => {
+  cy.visit('/login');
+  cy.get('[data-cy=username]').type(username);
+  cy.get('[data-cy=password]').type(password);
+  cy.get('[data-cy=login-button]').click();
+});
+
+// Test
+describe('Authentication', () => {
+  it('should login successfully', () => {
+    cy.login('testuser', 'password123');
+    cy.url().should('include', '/dashboard');
+    cy.get('[data-cy=welcome-message]').should('contain', 'Welcome, Test User');
+  });
+});
+```
+
 ## Best Practices
 
 1. **Isolated Tests**: Each test should be independent and not rely on other tests
@@ -233,3 +282,4 @@ Tests are run automatically in the CI pipeline on each pull request and merge to
 5. **Test Edge Cases**: Include tests for error conditions, boundary values, and edge cases
 6. **Keep Tests Fast**: Tests should execute quickly to maintain developer productivity
 7. **Maintain Test Code Quality**: Apply the same code quality standards to tests as to production code
+8. **Cross-Browser Testing**: Run Cypress tests across multiple browsers when possible

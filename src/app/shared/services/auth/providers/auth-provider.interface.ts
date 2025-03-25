@@ -12,4 +12,5 @@ export interface AuthProvider {
   logout(): Promise<void>;
   isAuthenticated(): boolean;
   getUserInfo(): UserInfo | null;
+  silentSignIn(): Promise<boolean>;
 }

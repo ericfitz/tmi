@@ -7,58 +7,92 @@ import { StorageProvider, StorageFile, PickerOptions, PickerResult } from './pro
 // Create a mock storage provider
 class MockStorageProvider implements StorageProvider {
   private files: Map<string, any> = new Map();
+  private _initialized = false;
   
-  getFile(id: string): Promise<StorageFile> {
-    const file = this.files.get(id);
-    if (!file) {
-      return Promise.reject(new Error(`File with ID '${id}' not found`));
-    }
-    return Promise.resolve(file);
+  async initialize(): Promise<boolean> {
+    this._initialized = true;
+    return true;
+  }
+
+  isInitialized(): boolean {
+    return this._initialized;
   }
   
-  saveFile(name: string, content: string): Promise<StorageFile> {
+  async createFile(name: string, data: string): Promise<StorageFile> {
     const id = `file-${Date.now()}`;
-    const file = { id, name, content };
-    this.files.set(id, file);
-    return Promise.resolve(file);
+    const file: StorageFile = { 
+      id, 
+      name, 
+      mimeType: 'application/json',
+      size: data.length
+    };
+    // Store content separately since it's not part of StorageFile interface
+    this.files.set(id, { ...file, content: data });
+    return file;
   }
-  
-  updateFile(id: string, content: string): Promise<StorageFile> {
-    const file = this.files.get(id);
+
+  async loadFile(fileId: string): Promise<string> {
+    const file = this.files.get(fileId);
     if (!file) {
-      return Promise.reject(new Error(`File with ID '${id}' not found`));
+      throw new Error(`File with ID '${fileId}' not found`);
+    }
+    return file.content;
+  }
+  
+  async saveFile(fileId: string, data: string): Promise<void> {
+    const file = this.files.get(fileId);
+    if (!file) {
+      throw new Error(`File with ID '${fileId}' not found`);
     }
     
-    const updatedFile = { ...file, content };
-    this.files.set(id, updatedFile);
-    return Promise.resolve(updatedFile);
+    this.files.set(fileId, { 
+      ...file, 
+      content: data,
+      size: data.length
+    });
   }
   
-  deleteFile(id: string): Promise<void> {
-    if (!this.files.has(id)) {
-      return Promise.reject(new Error(`File with ID '${id}' not found`));
-    }
+  async listFiles(): Promise<StorageFile[]> {
+    const result: StorageFile[] = [];
     
-    this.files.delete(id);
-    return Promise.resolve();
+    this.files.forEach(file => {
+      // Exclude content from the list result
+      const { content, ...fileInfo } = file;
+      result.push(fileInfo as StorageFile);
+    });
+    
+    return result;
   }
   
-  listFiles(): Promise<StorageFile[]> {
-    return Promise.resolve(Array.from(this.files.values()));
-  }
-  
-  showPicker(options: PickerOptions): Promise<PickerResult> {
+  async showPicker(options: PickerOptions): Promise<PickerResult> {
     // Mock a picked file
     if (options.mode === 'open') {
-      return Promise.resolve({
+      // Find a random existing file
+      const files = await this.listFiles();
+      if (files.length > 0) {
+        return {
+          action: 'picked',
+          file: files[0]
+        };
+      }
+      
+      // If no files, create a mock file
+      const mockFile: StorageFile = {
+        id: 'test-file-id',
+        name: 'Test File.json',
+        mimeType: 'application/json',
+        size: 0
+      };
+      
+      return {
         action: 'picked',
-        file: { id: 'test-file-id', name: 'Test File.json' }
-      });
+        file: mockFile
+      };
     } else {
-      return Promise.resolve({
+      return {
         action: 'picked',
         fileName: 'New File.json'
-      });
+      };
     }
   }
 }
@@ -90,62 +124,28 @@ describe('StorageService', () => {
     logger = TestBed.inject(LoggerService);
     
     // Set the mock provider manually
-    (service as any).storageProvider = storageProvider;
+    (service as any).provider = storageProvider;
   });
 
   it('should be created', () => {
     expect(service).toBeTruthy();
   });
   
-  it('should get file content by ID', async () => {
-    // Setup mock file
-    const mockFile = { id: 'test-id', name: 'test.json', content: '{"test": true}' };
-    (storageProvider as any).files.set('test-id', mockFile);
-    
-    // Call getFile method
-    const result = await service.getFile('test-id');
-    
-    // Check result
-    expect(result).toEqual(mockFile);
-  });
-  
-  it('should save new file with content', async () => {
-    // Call saveFile method
+  it('should create a new file with content', async () => {
+    // Call createFile method
     const content = '{"data": "test data"}';
-    const result = await service.saveFile('new-file.json', content);
+    const result = await service.createFile('new-file.json', content);
     
     // Check result
     expect(result).toBeTruthy();
     expect(result.name).toBe('new-file.json');
-    expect(result.content).toBe(content);
-  });
-  
-  it('should update existing file', async () => {
-    // Setup mock file
-    const mockFile = { id: 'update-test-id', name: 'update-test.json', content: '{"test": true}' };
-    (storageProvider as any).files.set('update-test-id', mockFile);
-    
-    // Call updateFile method
-    const newContent = '{"test": false, "updated": true}';
-    const result = await service.updateFile('update-test-id', newContent);
-    
-    // Check result
-    expect(result).toBeTruthy();
-    expect(result.id).toBe('update-test-id');
-    expect(result.name).toBe('update-test.json');
-    expect(result.content).toBe(newContent);
+    expect(result.mimeType).toBe('application/json');
   });
   
   it('should list all files', async () => {
-    // Setup mock files
-    const files = [
-      { id: 'file1', name: 'file1.json', content: '{}' },
-      { id: 'file2', name: 'file2.json', content: '{}' }
-    ];
-    
-    files.forEach(file => {
-      (storageProvider as any).files.set(file.id, file);
-    });
+    // Create some test files
+    await service.createFile('file1.json', '{}');
+    await service.createFile('file2.json', '{}');
     
     // Call listFiles method
     const result = await service.listFiles();
@@ -153,8 +153,8 @@ describe('StorageService', () => {
     // Check result
     expect(result).toBeTruthy();
     expect(result.length).toBe(2);
-    expect(result.map(f => f.id)).toContain('file1');
-    expect(result.map(f => f.id)).toContain('file2');
+    expect(result.map(f => f.name)).toContain('file1.json');
+    expect(result.map(f => f.name)).toContain('file2.json');
   });
   
   it('should show file picker dialog', async () => {
@@ -173,10 +173,22 @@ describe('StorageService', () => {
     expect(saveResult.fileName).toBe('New File.json');
   });
   
+  it('should get file content by ID', async () => {
+    // Create a test file
+    const testContent = '{"test": true}';
+    const file = await service.createFile('test.json', testContent);
+    
+    // Get content
+    const content = await service.loadFile(file.id);
+    
+    // Check content
+    expect(content).toBe(testContent);
+  });
+  
   it('should handle errors when file not found', async () => {
     try {
       // Try to get a non-existent file
-      await service.getFile('non-existent-id');
+      await service.loadFile('non-existent-id');
       fail('Expected error was not thrown');
     } catch (error) {
       expect(error).toBeTruthy();

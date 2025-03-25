@@ -18,6 +18,26 @@ export class AuthService {
     this.logger.debug('Initializing AuthService', 'AuthService');
     this.checkAuthState();
   }
+  
+  /**
+   * Initialize auth service with silent sign-in
+   */
+  async initialize(): Promise<boolean> {
+    this.logger.debug('Attempting silent sign-in', 'AuthService');
+    try {
+      const success = await this.provider.silentSignIn();
+      if (success) {
+        this.checkAuthState();
+        this.logger.info('Silent sign-in successful', 'AuthService');
+      } else {
+        this.logger.info('Silent sign-in failed or user not previously signed in', 'AuthService');
+      }
+      return success;
+    } catch (error) {
+      this.logger.error('Error during silent sign-in', 'AuthService', error);
+      return false;
+    }
+  }
 
   private checkAuthState(): void {
     const isAuthenticated = this.provider.isAuthenticated();

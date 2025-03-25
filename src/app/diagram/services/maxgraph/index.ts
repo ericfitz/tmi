@@ -1,0 +1,1 @@
+// MaxGraph initialization

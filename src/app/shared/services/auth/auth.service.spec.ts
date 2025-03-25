@@ -11,15 +11,15 @@ class MockAuthProvider implements AuthProvider {
   private _isAuthenticated = false;
   private _userInfo: UserInfo | null = null;
   
-  getUserInfo(): Promise<UserInfo | null> {
-    return Promise.resolve(this._userInfo);
+  getUserInfo(): UserInfo | null {
+    return this._userInfo;
   }
   
   isAuthenticated(): boolean {
     return this._isAuthenticated;
   }
   
-  login(): Promise<UserInfo> {
+  login(): Promise<void> {
     this._isAuthenticated = true;
     this._userInfo = {
       id: 'test-user-id',
@@ -28,7 +28,7 @@ class MockAuthProvider implements AuthProvider {
       picture: 'https://example.com/profile.jpg'
     };
     
-    return Promise.resolve(this._userInfo);
+    return Promise.resolve();
   }
   
   logout(): Promise<void> {

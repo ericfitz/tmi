@@ -1,5 +1,9 @@
 export const environment = {
   production: false,
+  server: {
+    port: 4200,
+    host: 'localhost',
+  },
   auth: {
     provider: 'anonymous', // Options: 'anonymous', 'google'
   },

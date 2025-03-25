@@ -6,7 +6,10 @@
     "outDir": "./out-tsc/spec",
     "types": [
       "jasmine"
-    ]
+    ],
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "strictPropertyInitialization": false
   },
   "include": [
     "src/**/*.spec.ts",

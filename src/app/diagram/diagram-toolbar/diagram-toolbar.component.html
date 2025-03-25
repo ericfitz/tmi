@@ -1,19 +1,91 @@
 <div class="diagram-toolbar">
-  <div class="toolbar-section file-operations">
-    <button (click)="newDiagram()" [title]="'DIAGRAM.TOOLBAR.NEW' | translate">{{ 'DIAGRAM.TOOLBAR.NEW' | translate }}</button>
-    <button (click)="openDiagram()" [title]="'DIAGRAM.TOOLBAR.OPEN' | translate">{{ 'DIAGRAM.TOOLBAR.OPEN' | translate }}</button>
-    <button (click)="saveDiagram()" [title]="'DIAGRAM.TOOLBAR.SAVE' | translate">{{ 'DIAGRAM.TOOLBAR.SAVE' | translate }}</button>
-    <button (click)="saveAsDiagram()" [title]="'DIAGRAM.TOOLBAR.SAVE_AS' | translate">{{ 'DIAGRAM.TOOLBAR.SAVE_AS' | translate }}</button>
+  <div class="toolbar-left">
+    <!-- File operations (always visible) - Left justified -->
+    <div class="toolbar-section file-operations">
+      <button (click)="newDiagram()" [title]="'DIAGRAM.TOOLBAR.NEW' | translate">
+        <fa-icon [icon]="faFile" class="icon"></fa-icon>
+        {{ 'DIAGRAM.TOOLBAR.NEW' | translate }}
+      </button>
+      
+      <button (click)="openDiagram()" [title]="'DIAGRAM.TOOLBAR.OPEN' | translate">
+        <fa-icon [icon]="faFolderOpen" class="icon"></fa-icon>
+        {{ 'DIAGRAM.TOOLBAR.OPEN' | translate }}
+      </button>
+      
+      <!-- Save and Close only visible when a diagram is loaded -->
+      <ng-container *ngIf="isDiagramLoaded">
+        <button (click)="onSave()" 
+          [disabled]="(hasChanges$ | async) === false"
+          [title]="'DIAGRAM.TOOLBAR.SAVE' | translate">
+          <fa-icon [icon]="faFloppyDisk" class="icon"></fa-icon>
+          {{ 'DIAGRAM.TOOLBAR.SAVE' | translate }}
+        </button>
+        
+        <button (click)="closeDiagram()" 
+          [title]="'DIAGRAM.TOOLBAR.CLOSE' | translate">
+          <fa-icon [icon]="faXmark" class="icon"></fa-icon>
+          {{ 'DIAGRAM.TOOLBAR.CLOSE' | translate }}
+        </button>
+      </ng-container>
+    </div>
+    
+    <!-- Other operations - Left justified -->
+    <ng-container *ngIf="isDiagramLoaded">
+      <div class="toolbar-section edit-operations">
+        <button (click)="onUndo()" 
+          [disabled]="(canUndo$ | async) === false"
+          [title]="'DIAGRAM.TOOLBAR.UNDO' | translate">
+          <fa-icon [icon]="faUndo" class="icon"></fa-icon>
+          {{ 'DIAGRAM.TOOLBAR.UNDO' | translate }}
+        </button>
+        
+        <button (click)="onRedo()" 
+          [disabled]="(canRedo$ | async) === false"
+          [title]="'DIAGRAM.TOOLBAR.REDO' | translate">
+          <fa-icon [icon]="faRedo" class="icon"></fa-icon>
+          {{ 'DIAGRAM.TOOLBAR.REDO' | translate }}
+        </button>
+      </div>
+      
+      <div class="toolbar-section element-operations">
+        <button (click)="addRectangle()" [title]="'DIAGRAM.TOOLBAR.ADD_RECTANGLE' | translate">
+          <fa-icon [icon]="faSquare" class="icon"></fa-icon>
+          {{ 'DIAGRAM.TOOLBAR.ADD_RECTANGLE' | translate }}
+        </button>
+        
+        <button (click)="addCircle()" [title]="'DIAGRAM.TOOLBAR.ADD_CIRCLE' | translate">
+          <fa-icon [icon]="faCircle" class="icon"></fa-icon>
+          {{ 'DIAGRAM.TOOLBAR.ADD_CIRCLE' | translate }}
+        </button>
+        
+        <button (click)="addText()" [title]="'DIAGRAM.TOOLBAR.ADD_TEXT' | translate">
+          <fa-icon [icon]="faFont" class="icon"></fa-icon>
+          {{ 'DIAGRAM.TOOLBAR.ADD_TEXT' | translate }}
+        </button>
+        
+        <button (click)="deleteSelected()" [title]="'DIAGRAM.TOOLBAR.DELETE' | translate">
+          <fa-icon [icon]="faTrash" class="icon"></fa-icon>
+          {{ 'DIAGRAM.TOOLBAR.DELETE' | translate }}
+        </button>
+      </div>
+      
+      <div class="toolbar-section view-operations">
+        <button (click)="toggleGrid()" [title]="'DIAGRAM.TOOLBAR.TOGGLE_GRID' | translate">
+          <fa-icon [icon]="faTable" class="icon"></fa-icon>
+          {{ 'DIAGRAM.TOOLBAR.TOGGLE_GRID' | translate }}
+        </button>
+      </div>
+    </ng-container>
   </div>
   
-  <div class="toolbar-section edit-operations">
-    <button (click)="addNode()" [title]="'DIAGRAM.TOOLBAR.ADD_NODE' | translate">{{ 'DIAGRAM.TOOLBAR.ADD_NODE' | translate }}</button>
-    <button (click)="deleteSelected()" [title]="'DIAGRAM.TOOLBAR.DELETE' | translate">{{ 'DIAGRAM.TOOLBAR.DELETE' | translate }}</button>
-  </div>
-  
-  <div class="toolbar-section file-info">
-    <span class="file-name" [class.unsaved]="isDiagramDirty">
-      {{ currentFileName }}{{ isDiagramDirty ? '*' : '' }}
-    </span>
-  </div>
+  <!-- Right side of toolbar for file info -->
+  <ng-container *ngIf="isDiagramLoaded">
+    <div class="toolbar-right">
+      <div class="toolbar-section file-info">
+        <span class="file-name" [class.unsaved]="hasChanges$ | async">
+          {{ diagramName }}{{ (hasChanges$ | async) ? '*' : '' }}
+        </span>
+      </div>
+    </div>
+  </ng-container>
 </div>

@@ -3,7 +3,8 @@ import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-landing',
-  standalone: false,
+  standalone: true,
+  imports: [TranslateModule],
   templateUrl: './landing.component.html',
   styleUrl: './landing.component.scss'
 })

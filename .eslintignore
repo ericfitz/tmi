@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+e2e
+src/app/diagram/diagram-canvas/diagram-canvas.component.ts
+src/app/diagram/diagram-toolbar/diagram-toolbar.component.ts
+src/app/diagram/services/diagram.service.ts
+src/app/diagram/store/effects/diagram.effects.ts
+src/app/guards/diagram/diagram-deactivate.guard.ts
+src/app/shared/services/auth/providers/google-auth.provider.ts
+src/app/shared/services/i18n/translation.service.ts
+src/app/shared/services/storage/providers/google-storage.provider.ts

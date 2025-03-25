@@ -10,6 +10,7 @@ import { LoggerService } from '../../logger/logger.service';
 export class AnonymousAuthProvider implements AuthProvider {
   private isLoggedIn = false;
   private readonly storageKey = 'anonymous_auth_user';
+  private readonly expiryKey = 'anonymous_auth_expiry';
   private user: UserInfo | null = null;
 
   constructor(private logger: LoggerService) {
@@ -22,15 +23,34 @@ export class AnonymousAuthProvider implements AuthProvider {
    */
   private checkStoredSession(): void {
     try {
-      const storedUser = localStorage.getItem(this.storageKey);
-      if (storedUser) {
-        this.user = JSON.parse(storedUser);
-        this.isLoggedIn = true;
-        this.logger.debug('Restored anonymous session', 'AnonymousAuthProvider');
+      const storedUser = sessionStorage.getItem(this.storageKey);
+      const expiryStr = sessionStorage.getItem(this.expiryKey);
+      
+      if (storedUser && expiryStr) {
+        const expiry = parseInt(expiryStr, 10);
+        
+        // Check if session is expired
+        if (Date.now() < expiry) {
+          this.user = JSON.parse(storedUser);
+          this.isLoggedIn = true;
+          this.logger.debug('Restored anonymous session', 'AnonymousAuthProvider');
+        } else {
+          // Session expired, clean up
+          this.logger.debug('Anonymous session expired', 'AnonymousAuthProvider');
+          this.cleanupSession();
+        }
       }
     } catch (error) {
       this.logger.error('Failed to restore anonymous session', 'AnonymousAuthProvider', error);
+      this.cleanupSession();
     }
+  }
+  
+  private cleanupSession(): void {
+    sessionStorage.removeItem(this.storageKey);
+    sessionStorage.removeItem(this.expiryKey);
+    this.isLoggedIn = false;
+    this.user = null;
   }
 
   /**
@@ -50,11 +70,15 @@ export class AnonymousAuthProvider implements AuthProvider {
       picture: 'https://ui-avatars.com/api/?name=Anonymous+User&background=random'
     };
     
-    // Store in local storage to persist across refreshes
-    localStorage.setItem(this.storageKey, JSON.stringify(this.user));
+    // Calculate expiration (24 hours from now)
+    const expiryTime = Date.now() + (24 * 60 * 60 * 1000);
+    
+    // Store in session storage with expiration
+    sessionStorage.setItem(this.storageKey, JSON.stringify(this.user));
+    sessionStorage.setItem(this.expiryKey, expiryTime.toString());
     
     this.isLoggedIn = true;
-    this.logger.debug('Anonymous user created', 'AnonymousAuthProvider', { userId });
+    this.logger.debug('Anonymous user created', 'AnonymousAuthProvider', { userId, expiresAt: new Date(expiryTime).toISOString() });
     
     return Promise.resolve();
   }
@@ -65,7 +89,8 @@ export class AnonymousAuthProvider implements AuthProvider {
   async logout(): Promise<void> {
     this.logger.info('Anonymous logout', 'AnonymousAuthProvider');
     
-    localStorage.removeItem(this.storageKey);
+    sessionStorage.removeItem(this.storageKey);
+    sessionStorage.removeItem(this.expiryKey);
     this.isLoggedIn = false;
     this.user = null;
     
@@ -76,7 +101,16 @@ export class AnonymousAuthProvider implements AuthProvider {
    * Check if a user is authenticated
    */
   isAuthenticated(): boolean {
-    return this.isLoggedIn;
+    // First check our internal state
+    if (this.isLoggedIn && this.user) {
+      // Double-check expiration
+      const expiryStr = sessionStorage.getItem(this.expiryKey);
+      if (expiryStr) {
+        const expiry = parseInt(expiryStr, 10);
+        return Date.now() < expiry;
+      }
+    }
+    return false;
   }
 
   /**
@@ -84,5 +118,14 @@ export class AnonymousAuthProvider implements AuthProvider {
    */
   getUserInfo(): UserInfo | null {
     return this.user;
+  }
+
+  /**
+   * Silent sign-in for anonymous auth provider
+   * Simply checks for existing session
+   */
+  async silentSignIn(): Promise<boolean> {
+    this.checkStoredSession();
+    return this.isLoggedIn;
   }
 }

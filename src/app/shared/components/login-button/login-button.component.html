@@ -5,12 +5,14 @@
       <img *ngIf="userInfo?.picture" class="user-avatar" [src]="userInfo?.picture" [alt]="userInfo?.name" />
     </div>
     <button class="logout-button" (click)="onLogout()" [disabled]="isLoading">
+      <fa-icon [icon]="faLogout" class="icon"></fa-icon>
       {{ isLoading ? ('AUTH.LOGGING_OUT' | translate) : ('AUTH.LOGOUT' | translate) }}
     </button>
   </ng-container>
 
   <ng-template #loginButton>
     <button class="login-button" (click)="onLogin()" [disabled]="isLoading">
+      <fa-icon [icon]="faLogin" class="icon"></fa-icon>
       {{ isLoading ? ('AUTH.LOGGING_IN' | translate) : ('AUTH.LOGIN' | translate) }}
     </button>
   </ng-template>

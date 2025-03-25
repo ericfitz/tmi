@@ -3,6 +3,21 @@ import { STORAGE_PROVIDER, StorageProvider, StorageFile, PickerOptions, PickerRe
 import { LoggerService } from '../logger/logger.service';
 import { BehaviorSubject, Observable } from 'rxjs';
 
+/**
+ * Custom storage error class with improved type information
+ */
+export class StorageError extends Error {
+  constructor(
+    message: string,
+    public readonly fileId?: string,
+    public readonly fileName?: string,
+    public readonly originalError?: unknown
+  ) {
+    super(message);
+    this.name = 'StorageError';
+  }
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -75,9 +90,45 @@ export class StorageService {
       this.logger.info(`File created: ${file.name}`, 'StorageService', { fileId: file.id });
       return file;
     } catch (error) {
-      this.logger.error(`Failed to create file: ${name}`, 'StorageService', error);
-      throw error;
+      const storageError = new StorageError(
+        `Failed to create file: ${name}`,
+        undefined,
+        name,
+        error
+      );
+      this.logger.error(storageError.message, 'StorageService', error);
+      throw storageError;
     }
+  }
+  
+  /**
+   * Get a file by ID
+   */
+  async getFile(fileId: string): Promise<StorageFile> {
+    if (!this.isInitialized()) {
+      await this.initialize();
+    }
+    
+    const files = await this.listFiles();
+    const file = files.find(f => f.id === fileId);
+    
+    if (!file) {
+      throw new Error(`File with ID ${fileId} not found`);
+    }
+    
+    return file;
+  }
+  
+  /**
+   * Update an existing file
+   */
+  async updateFile(fileId: string, data: string): Promise<StorageFile> {
+    if (!this.isInitialized()) {
+      await this.initialize();
+    }
+    
+    await this.saveFile(fileId, data);
+    return this.getFile(fileId);
   }
 
   /**
@@ -122,8 +173,14 @@ export class StorageService {
       await this.provider.saveFile(fileId, data);
       this.logger.info(`File saved: ${fileId}`, 'StorageService');
     } catch (error) {
-      this.logger.error(`Failed to save file: ${fileId}`, 'StorageService', error);
-      throw error;
+      const storageError = new StorageError(
+        `Failed to save file: ${fileId}`,
+        fileId,
+        undefined,
+        error
+      );
+      this.logger.error(storageError.message, 'StorageService', error);
+      throw storageError;
     }
   }
 

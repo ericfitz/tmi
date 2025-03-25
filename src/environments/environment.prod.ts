@@ -1,5 +1,9 @@
 export const environment = {
   production: true,
+  server: {
+    port: 8080, // Production port - typically different than dev
+    host: '0.0.0.0', // In production, bind to all interfaces
+  },
   auth: {
     provider: 'google', // Options: 'anonymous', 'google'
   },

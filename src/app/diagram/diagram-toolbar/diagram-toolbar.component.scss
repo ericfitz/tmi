@@ -1,23 +1,42 @@
 .diagram-toolbar {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   padding: 8px 16px;
-  background-color: #f0f0f0;
-  border-bottom: 1px solid #ddd;
+  background-color: #e0e8f0; /* Slightly different from nav bar color */
+  border-block-end: 1px solid #ccc;
   min-height: 48px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
   
-  .toolbar-section {
+  .toolbar-left {
     display: flex;
     align-items: center;
-    margin-right: 24px;
+    flex-grow: 1;
     
-    &:last-child {
-      margin-right: 0;
-      margin-left: auto;
+    .toolbar-section {
+      display: flex;
+      align-items: center;
+      margin-inline-end: 24px;
+      
+      &:last-child {
+        margin-inline-end: 0;
+      }
     }
+  }
+  
+  .toolbar-right {
+    display: flex;
+    justify-content: flex-end;
     
+    .toolbar-section {
+      display: flex;
+      align-items: center;
+    }
+  }
+  
+  .toolbar-section {
     button {
-      margin-right: 8px;
+      margin-inline-end: 8px;
       padding: 6px 12px;
       background-color: #fff;
       border: 1px solid #ddd;
@@ -25,13 +44,20 @@
       font-size: 14px;
       cursor: pointer;
       transition: background-color 0.2s, box-shadow 0.2s;
+      display: flex;
+      align-items: center;
       
-      &:hover {
+      .icon {
+        margin-inline-end: 5px;
+        font-size: 14px;
+      }
+      
+      &:hover:not(:disabled) {
         background-color: #f8f8f8;
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
       }
       
-      &:active {
+      &:active:not(:disabled) {
         background-color: #e8e8e8;
       }
       
@@ -40,9 +66,30 @@
         box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.4);
       }
       
-      &:last-child {
-        margin-right: 0;
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background-color: #f5f5f5;
       }
+      
+      &:last-child {
+        margin-inline-end: 0;
+      }
+    }
+  }
+  
+  /* File operations section styling */
+  .file-operations {
+    button {
+      background-color: #f0f8ff; /* Slightly blue background for file operations */
+      border-color: #c0d0e0;
+    }
+  }
+  
+  /* Element operations section styling */
+  .element-operations {
+    button {
+      background-color: #f5f5f5;
     }
   }
   
@@ -50,11 +97,41 @@
     .file-name {
       font-size: 14px;
       color: #666;
+      padding: 6px 12px;
+      background-color: rgba(255, 255, 255, 0.5);
+      border-radius: 4px;
       
       &.unsaved {
         font-style: italic;
         color: #ff6b6b;
       }
+    }
+  }
+}
+
+/* Optimized for mobile */
+@media (max-width: 768px) {
+  .diagram-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    
+    .toolbar-left, .toolbar-right {
+      width: 100%;
+      flex-wrap: wrap;
+    }
+    
+    .toolbar-section {
+      margin-block-end: 8px;
+      flex-wrap: wrap;
+      
+      button {
+        margin-bottom: 4px;
+      }
+    }
+    
+    .toolbar-right {
+      justify-content: flex-start;
+      margin-top: 8px;
     }
   }
 }

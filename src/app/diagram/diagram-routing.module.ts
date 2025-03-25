@@ -1,16 +1,21 @@
-import { NgModule } from '@angular/core';
-import { RouterModule, Routes } from '@angular/router';
+import { Routes } from '@angular/router';
 import { DiagramComponent } from './diagram.component';
-import { DiagramDeactivateGuard } from '../guards/guards/diagram-deactivate.guard';
+import { DiagramHomeComponent } from './diagram-home/diagram-home.component';
+import { DiagramDeactivateGuard } from '../guards/diagram/diagram-deactivate.guard';
 
-const routes: Routes = [{ 
-  path: '', 
-  component: DiagramComponent,
-  canDeactivate: [DiagramDeactivateGuard]
-}];
-
-@NgModule({
-  imports: [RouterModule.forChild(routes)],
-  exports: [RouterModule]
-})
-export class DiagramRoutingModule { }
+export const diagramRoutes: Routes = [
+  { 
+    path: '', 
+    component: DiagramHomeComponent 
+  },
+  { 
+    path: 'editor', 
+    component: DiagramComponent,
+    canDeactivate: [DiagramDeactivateGuard]
+  },
+  { 
+    path: 'editor/:id', 
+    component: DiagramComponent,
+    canDeactivate: [DiagramDeactivateGuard]
+  }
+];

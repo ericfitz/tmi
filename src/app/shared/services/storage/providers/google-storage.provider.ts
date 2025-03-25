@@ -3,14 +3,119 @@ import { StorageProvider, StorageFile, PickerOptions, PickerResult } from './sto
 import { environment } from '../../../../../environments/environment';
 import { LoggerService } from '../../logger/logger.service';
 
-declare var gapi: any;
-declare var google: any;
+// Define Gapi interfaces
+interface GapiClient {
+  init(config: {
+    apiKey: string;
+    discoveryDocs: string[];
+  }): Promise<void>;
+  load(api: string, version: string): Promise<void>;
+  request(options: {
+    path: string;
+    method: string;
+    params?: Record<string, unknown>;
+    headers?: Record<string, string>;
+    body?: string;
+  }): Promise<{
+    result: any;
+    body: string;
+  }>;
+  drive: {
+    files: {
+      get(params: { fileId: string; alt?: string }): Promise<{ body: string }>;
+      list(params: {
+        q?: string;
+        pageSize?: number;
+        fields?: string;
+      }): Promise<{
+        result: {
+          files: Array<{
+            id: string;
+            name: string;
+            mimeType: string;
+            modifiedTime?: string;
+            size?: string;
+            iconLink?: string;
+          }>;
+        };
+      }>;
+    };
+  };
+}
+
+interface GapiType {
+  load(api: string, callback: { callback: () => void; onerror?: (error: Error) => void }): void;
+  client: GapiClient;
+}
+
+// Define Google OAuth and Picker interfaces
+interface GooglePickerView {
+  setMimeTypes(mimeTypes: string): void;
+}
+
+interface GooglePickerDocsUploadView extends GooglePickerView {}
+
+interface GooglePickerBuilder {
+  addView(viewId: unknown): GooglePickerBuilder;
+  setOAuthToken(token: string): GooglePickerBuilder;
+  setDeveloperKey(key: string): GooglePickerBuilder;
+  setAppId(appId: string): GooglePickerBuilder;
+  setTitle(title: string): GooglePickerBuilder;
+  setSelectableMimeTypes(mimeTypes: string): GooglePickerBuilder;
+  setCallback(callback: (data: GooglePickerData) => void): GooglePickerBuilder;
+  build(): { setVisible(visible: boolean): void };
+}
+
+interface GooglePickerData {
+  action: string;
+  docs?: Array<{
+    id: string;
+    name: string;
+    mimeType: string;
+    lastEditedUtc?: number;
+    sizeBytes?: string;
+    iconUrl?: string;
+  }>;
+}
+
+interface GoogleOAuth2TokenClient {
+  requestAccessToken(options: { prompt: string }): void;
+}
+
+interface GoogleOAuth2 {
+  initTokenClient(config: {
+    client_id: string;
+    scope: string;
+    callback: (response: { access_token?: string }) => void;
+  }): GoogleOAuth2TokenClient;
+}
+
+interface GoogleType {
+  accounts: {
+    oauth2: GoogleOAuth2;
+  };
+  picker: {
+    View: new (viewId: unknown) => GooglePickerView;
+    DocsUploadView: new () => GooglePickerDocsUploadView;
+    PickerBuilder: new () => GooglePickerBuilder;
+    Action: {
+      PICKED: string;
+      CANCEL: string;
+    };
+    ViewId: Record<string, unknown>;
+  };
+}
+
+// eslint-disable-next-line no-var
+declare var gapi: GapiType;
+// eslint-disable-next-line no-var
+declare var google: GoogleType;
 
 @Injectable()
 export class GoogleStorageProvider implements StorageProvider {
   private initialized = false;
   private initializing = false;
-  private tokenClient: any;
+  private tokenClient: GoogleOAuth2TokenClient | null = null;
   private pickerApiLoaded = false;
   private driveApiLoaded = false;
   private oauthToken: string | null = null;
@@ -83,21 +188,27 @@ export class GoogleStorageProvider implements StorageProvider {
     this.logger.debug('Loading Google APIs', 'GoogleStorageProvider');
     
     return new Promise<void>((resolve, reject) => {
-      gapi.load('client:picker', async () => {
-        try {
-          // Initialize the gapi client with the API key
-          await gapi.client.init({
-            apiKey: this.apiKey,
-            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
-          });
-          
-          // Load the Drive API
-          await gapi.client.load('drive', 'v3');
-          this.driveApiLoaded = true;
-          this.logger.debug('Google Drive API loaded', 'GoogleStorageProvider');
-          
-          resolve();
-        } catch (error) {
+      gapi.load('client:picker', {
+        callback: async () => {
+          try {
+            // Initialize the gapi client with the API key
+            await gapi.client.init({
+              apiKey: this.apiKey,
+              discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+            });
+            
+            // Load the Drive API
+            await gapi.client.load('drive', 'v3');
+            this.driveApiLoaded = true;
+            this.logger.debug('Google Drive API loaded', 'GoogleStorageProvider');
+            
+            resolve();
+          } catch (error) {
+            this.logger.error('Failed to load Google APIs', 'GoogleStorageProvider', error);
+            reject(error);
+          }
+        },
+        onerror: (error) => {
           this.logger.error('Failed to load Google APIs', 'GoogleStorageProvider', error);
           reject(error);
         }
@@ -133,8 +244,12 @@ export class GoogleStorageProvider implements StorageProvider {
       return true;
     }
     
+    if (!this.tokenClient) {
+      await this.setupTokenClient();
+    }
+    
     return new Promise<boolean>((resolve) => {
-      this.tokenClient.requestAccessToken({
+      this.tokenClient?.requestAccessToken({
         prompt: 'consent'
       });
       
@@ -345,6 +460,7 @@ export class GoogleStorageProvider implements StorageProvider {
       
       // For open mode, show existing documents
       if (options.mode === 'open') {
+        // eslint-disable-next-line prefer-const
         let view = new google.picker.View(google.picker.ViewId[this.DOCS_VIEW]);
         
         // Apply file type filter if specified
@@ -359,6 +475,7 @@ export class GoogleStorageProvider implements StorageProvider {
       
       // For save mode or as a fallback, show upload option
       if (options.mode === 'save' || views.length === 0) {
+        // eslint-disable-next-line prefer-const
         let uploadView = new google.picker.DocsUploadView();
         
         if (options.fileType && options.fileType.length > 0) {
@@ -372,32 +489,49 @@ export class GoogleStorageProvider implements StorageProvider {
       
       // Create and render the picker
       const picker = new google.picker.PickerBuilder()
-        .addView(google.picker.ViewId.DOCS)
+        .addView(google.picker.ViewId['DOCS'])
         .setOAuthToken(this.oauthToken || '')
         .setDeveloperKey(this.apiKey)
         .setAppId(this.appId)
         .setTitle(options.title || (options.mode === 'open' ? 'Open File' : 'Save File'))
         .setSelectableMimeTypes(this.mimeTypes.join(','))
         .setCallback(async (data: any) => {
-          // Handle picker events
-          if (data.action === google.picker.Action.PICKED) {
-            const doc = data.docs[0];
+          // Define the interface for Google Picker response
+          interface GooglePickerResponse {
+            action: string;
+            docs?: {
+              id: string;
+              name: string;
+              mimeType: string;
+              url: string;
+              description: string;
+              [key: string]: unknown;
+            }[];
+            [key: string]: unknown;
+          }
+          
+          // Cast data to the proper type for type safety
+          const pickerData = data as GooglePickerResponse;
+          if (pickerData.action === google.picker.Action.PICKED && pickerData.docs && pickerData.docs.length > 0) {
+            const doc = pickerData.docs[0];
             
-            const file: StorageFile = {
-              id: doc.id,
-              name: doc.name,
-              mimeType: doc.mimeType,
-              lastModified: doc.lastEditedUtc ? new Date(doc.lastEditedUtc) : undefined,
-              size: doc.sizeBytes ? parseInt(doc.sizeBytes) : undefined,
-              iconUrl: doc.iconUrl
-            };
-            
-            this.logger.info(`File picked: ${file.name}`, 'GoogleStorageProvider', { fileId: file.id });
-            
-            resolve({
-              action: 'picked',
-              file
-            });
+            if (doc) {
+              const file: StorageFile = {
+                id: doc.id,
+                name: doc.name,
+                mimeType: doc.mimeType,
+                lastModified: doc['lastEditedUtc'] ? new Date(doc['lastEditedUtc'] as string) : undefined,
+                size: doc['sizeBytes'] ? parseInt(doc['sizeBytes'] as string) : undefined,
+                iconUrl: doc['iconUrl'] as string | undefined
+              };
+              
+              this.logger.info(`File picked: ${file.name}`, 'GoogleStorageProvider', { fileId: file.id });
+              
+              resolve({
+                action: 'picked',
+                file
+              });
+            }
           } else if (data.action === google.picker.Action.CANCEL) {
             this.logger.debug('Picker canceled', 'GoogleStorageProvider');
             resolve({

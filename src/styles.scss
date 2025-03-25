@@ -1,1 +1,66 @@
 /* You can add global styles to this file, and also import other style files */
+
+/* Import Roboto Condensed font from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300;400;700&display=swap');
+
+/* Global variables */
+:root {
+  --primary-color: #1976d2;
+  --accent-color: #ff4081;
+  --background-color: #ffffff;
+  --text-color: #333333;
+  --border-color: #e0e0e0;
+  --hover-color: #bbbbbb;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+}
+
+/* RTL support styles */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Roboto Condensed', sans-serif;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* RTL specific adjustments */
+body.rtl-layout {
+  /* Text alignment for RTL */
+  text-align: right;
+  
+  /* RTL form elements */
+  input, textarea {
+    text-align: right;
+  }
+  
+  /* Flip icons and directional UI elements */
+  .icon-arrow-right {
+    transform: scaleX(-1);
+  }
+  
+  /* RTL margins and paddings */
+  .margin-right {
+    margin-left: 1rem;
+    margin-right: 0;
+  }
+  
+  .margin-left {
+    margin-right: 1rem;
+    margin-left: 0;
+  }
+  
+  /* RTL specific fonts (optional) */
+  [lang="ar"] {
+    font-family: 'Noto Sans Arabic', 'Roboto Condensed', sans-serif;
+  }
+  
+  [lang="he"] {
+    font-family: 'Noto Sans Hebrew', 'Roboto Condensed', sans-serif;
+  }
+}

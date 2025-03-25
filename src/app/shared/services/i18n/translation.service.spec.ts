@@ -9,7 +9,7 @@ import { of } from 'rxjs';
 class TranslateLoaderMock implements TranslateLoader {
   getTranslation(lang: string) {
     // Return mock translations
-    const translations = {
+    const translations: Record<string, any> = {
       en: {
         APP: {
           TITLE: 'TMI',

@@ -1,17 +1,19 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { TranslateModule } from '@ngx-translate/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../services/auth/auth.service';
 import { UserInfo } from '../../services/auth/providers/auth-provider.interface';
 import { LoggerService } from '../../services/logger/logger.service';
-import { TranslationService } from '../../services/i18n/translation.service';
 import { Subscription } from 'rxjs';
+import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
+import { faGoogle } from '@fortawesome/free-brands-svg-icons';
+import { faRightToBracket, faRightFromBracket } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
   selector: 'app-login-button',
   standalone: true,
-  imports: [CommonModule, TranslateModule],
+  imports: [CommonModule, TranslateModule, FontAwesomeModule],
   templateUrl: './login-button.component.html',
   styleUrls: ['./login-button.component.scss']
 })
@@ -20,13 +22,18 @@ export class LoginButtonComponent implements OnInit, OnDestroy {
   userInfo: UserInfo | null = null;
   isLoading = false;
   
+  // Icon references
+  faLogin = faRightToBracket;
+  faLogout = faRightFromBracket;
+  faGoogle = faGoogle;
+  
   private subscriptions: Subscription[] = [];
 
   constructor(
     private authService: AuthService,
     private router: Router,
     private logger: LoggerService,
-    private translationService: TranslationService
+    private translate: TranslateService
   ) {}
 
   ngOnInit(): void {

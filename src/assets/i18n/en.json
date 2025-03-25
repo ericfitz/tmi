@@ -1,16 +1,17 @@
 {
   "APP": {
     "TITLE": "TMI",
-    "SUBTITLE": "Threat Modeling Improved"
+    "SUBTITLE": "Threat Modeling Improved",
+    "WELCOME": "Welcome to TMI!"
   },
   "NAV": {
     "HOME": "Home",
-    "DIAGRAMS": "Diagrams",
-    "ABOUT": "About",
+    "DIAGRAMS": "View or Edit Diagrams",
+    "ABOUT": "About TMI",
     "HELP": "Help"
   },
   "AUTH": {
-    "LOGIN": "Log in",
+    "LOGIN": "Login",
     "LOGOUT": "Log out",
     "LOGGING_IN": "Logging in...",
     "LOGGING_OUT": "Logging out..."
@@ -43,13 +44,31 @@
     }
   },
   "DIAGRAM": {
+    "WELCOME_MESSAGE": "Create a new diagram or load an existing diagram to get started.",
+    "HOME": {
+      "TITLE": "Your Diagrams",
+      "CREATE_NEW": "Create New Diagram",
+      "LOADING": "Loading your diagrams...",
+      "EMPTY_TITLE": "No Diagrams Found",
+      "EMPTY_MESSAGE": "You don't have any diagrams yet. Create your first one to get started.",
+      "CREATE_FIRST": "Create First Diagram",
+      "CREATED": "Created",
+      "MODIFIED": "Last Modified"
+    },
     "TOOLBAR": {
       "NEW": "New",
       "OPEN": "Open",
       "SAVE": "Save",
+      "CLOSE": "Close",
       "SAVE_AS": "Save As",
       "ADD_NODE": "Add Node",
+      "ADD_RECTANGLE": "Rectangle",
+      "ADD_CIRCLE": "Circle",
+      "ADD_TEXT": "Text",
       "DELETE": "Delete",
+      "UNDO": "Undo",
+      "REDO": "Redo",
+      "TOGGLE_GRID": "Toggle Grid",
       "UNSAVED_CHANGES": "The current diagram has unsaved changes. Do you want to save before {0}?",
       "UNSAVED_CHANGES_CREATE": "creating a new diagram",
       "UNSAVED_CHANGES_OPEN": "opening a different diagram"
@@ -60,12 +79,20 @@
     },
     "DEACTIVATE_GUARD": {
       "UNSAVED_CHANGES": "You have unsaved changes. Are you sure you want to leave?"
+    },
+    "EDITOR": {
+      "SAVING": "Saving diagram...",
+      "DIAGRAM_NAME": "Diagram Name",
+      "PROPERTIES": "Properties",
+      "GRID_SIZE": "Grid Size",
+      "SNAP_TO_GRID": "Snap to Grid",
+      "BACKGROUND_COLOR": "Background Color"
     }
   },
   "FOOTER": {
-    "COPYRIGHT": "© 2025 TMI - Threat Modeling Improved",
+    "COPYRIGHT": "© 2025 Eric Fitzgerald, All Rights Reserved",
     "TERMS": "Terms of Service",
     "PRIVACY": "Privacy Policy",
-    "CONTACT": "Contact Us"
+    "CONTACT": "Contact"
   }
 }

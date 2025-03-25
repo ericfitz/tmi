@@ -1,43 +1,99 @@
 #!/bin/bash
 
-# Colors for terminal output
+# Colorful output
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}Starting comprehensive test suite for TMI...${NC}"
+echo -e "${BLUE}┌──────────────────────────────────────┐${NC}"
+echo -e "${BLUE}│       TMI - Test All                 │${NC}"
+echo -e "${BLUE}└──────────────────────────────────────┘${NC}"
 
-# Run linting
-echo -e "\n${YELLOW}Running lint check...${NC}"
-if npm run lint; then
-  echo -e "${GREEN}Lint check passed!${NC}"
+# Function to run a command and check if it succeeded
+run_step() {
+  local step_name=$1
+  local command=$2
+  
+  echo -e "\n${YELLOW}Running ${step_name}...${NC}"
+  eval $command
+  
+  if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✓ ${step_name} passed!${NC}"
+    return 0
+  else
+    echo -e "${RED}✗ ${step_name} failed!${NC}"
+    return 1
+  fi
+}
+
+# Start with a clean slate
+echo -e "\n${BLUE}Starting test sequence...${NC}"
+
+# Step 1: Format code
+run_step "Code formatting" "npm run format"
+FORMAT_RESULT=$?
+
+# Step 2: Run linting
+run_step "ESLint" "npm run lint"
+LINT_RESULT=$?
+
+# Step 3: Run type checking
+run_step "TypeScript type checking" "npm run typecheck"
+TYPECHECK_RESULT=$?
+
+# Step 4: Run unit tests with Cypress component testing
+run_step "Unit tests with Cypress" "npm run test:unit"
+TEST_RESULT=$?
+
+# Step 5: Run e2e tests
+run_step "E2E tests" "npm run e2e"
+E2E_RESULT=$?
+
+# Summary
+echo -e "\n${BLUE}┌──────────────────────────────────────┐${NC}"
+echo -e "${BLUE}│       Test Summary                   │${NC}"
+echo -e "${BLUE}└──────────────────────────────────────┘${NC}"
+
+if [ $FORMAT_RESULT -eq 0 ]; then
+  echo -e "${GREEN}✓ Formatting: Passed${NC}"
 else
-  echo -e "${RED}Lint check failed!${NC}"
-  exit 1
+  echo -e "${RED}✗ Formatting: Failed${NC}"
 fi
 
-# Run TypeScript type checking
-echo -e "\n${YELLOW}Running type check...${NC}"
-if npm run typecheck; then
-  echo -e "${GREEN}Type check passed!${NC}"
+if [ $LINT_RESULT -eq 0 ]; then
+  echo -e "${GREEN}✓ Linting: Passed${NC}"
 else
-  echo -e "${RED}Type check failed!${NC}"
-  exit 1
+  echo -e "${RED}✗ Linting: Failed${NC}"
 fi
 
-# Run all unit tests with coverage
-echo -e "\n${YELLOW}Running unit tests with coverage...${NC}"
-if npm test -- --no-watch --code-coverage; then
-  echo -e "${GREEN}All tests passed!${NC}"
+if [ $TYPECHECK_RESULT -eq 0 ]; then
+  echo -e "${GREEN}✓ Type checking: Passed${NC}"
 else
-  echo -e "${RED}Some tests failed!${NC}"
-  exit 1
+  echo -e "${RED}✗ Type checking: Failed${NC}"
 fi
 
-# Print a summary of the coverage report
-echo -e "\n${YELLOW}Coverage summary:${NC}"
-cat coverage/*/coverage-summary.json | grep "total"
+if [ $TEST_RESULT -eq 0 ]; then
+  echo -e "${GREEN}✓ Unit tests: Passed${NC}"
+else
+  echo -e "${RED}✗ Unit tests: Failed${NC}"
+fi
 
-echo -e "\n${GREEN}All checks passed successfully!${NC}"
-exit 0
+if [ $E2E_RESULT -eq 0 ]; then
+  echo -e "${GREEN}✓ E2E tests: Passed${NC}"
+else
+  echo -e "${RED}✗ E2E tests: Failed${NC}"
+fi
+
+# Note: Cypress coverage reporting can be added later if needed
+echo -e "\n${BLUE}Note: Test coverage reporting will be configured in Cypress${NC}"
+
+# Final result
+if [ $FORMAT_RESULT -eq 0 ] && [ $LINT_RESULT -eq 0 ] && [ $TYPECHECK_RESULT -eq 0 ] && [ $TEST_RESULT -eq 0 ] && [ $E2E_RESULT -eq 0 ]; then
+  echo -e "\n${GREEN}All tests passed successfully!${NC}"
+  exit 0
+else
+  echo -e "\n${RED}Some tests failed. Please fix the issues before committing.${NC}"
+  exit 1
+fi

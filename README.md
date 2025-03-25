@@ -6,13 +6,42 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 
 ## Development server
 
-To start a local development server, run:
+The application now uses an Express server for both serving the Angular application and handling API requests. This ensures that security features like CSRF protection work correctly.
 
-```bash
-ng serve
-```
+To start the development server:
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+1. Install dependencies (first time only):
+   ```bash
+   npm install
+   npm install cookie-parser helmet express --save
+   ```
+
+2. Create an environment file (first time only):
+   ```bash
+   cp .env.example .env
+   ```
+
+2. For production or basic development:
+   ```bash
+   ./start.sh
+   ```
+
+3. For active development with auto-rebuild and server restart:
+   ```bash
+   ./dev.sh
+   ```
+   This script:
+   - Watches for changes in Angular source files and rebuilds automatically
+   - Restarts the Express server when server code changes
+   - Installs nodemon if needed
+
+4. Alternatively, run these commands manually:
+   ```bash
+   npm run build           # Build the Angular application once
+   node server.js          # Start the Express server
+   ```
+
+Once the server is running, open your browser and navigate to `http://localhost:4200/`.
 
 ## Code scaffolding
 

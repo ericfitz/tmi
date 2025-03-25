@@ -14,7 +14,7 @@ export interface LogEntry {
   level: string;
   message: string;
   context?: string;
-  data?: any;
+  data?: unknown;
 }
 
 @Injectable({
@@ -49,7 +49,7 @@ export class LoggerService {
     }
   }
 
-  private formatLogEntry(level: string, message: string, context?: string, data?: any): LogEntry {
+  private formatLogEntry(level: string, message: string, context?: string, data?: unknown): LogEntry {
     const entry: LogEntry = {
       timestamp: environment.logging.includeTimestamp ? new Date().toISOString() : '',
       level,
@@ -71,13 +71,13 @@ export class LoggerService {
     switch (levelValue) {
       case LogLevel.TRACE:
         // Using console.debug with a "TRACE" prefix to differentiate from DEBUG
-        console.debug(`TRACE: ${formattedData}`);
+        this.logDebug(`TRACE: ${formattedData}`);
         break;
       case LogLevel.DEBUG:
-        console.debug(formattedData);
+        this.logDebug(formattedData);
         break;
       case LogLevel.INFO:
-        console.info(formattedData);
+        this.logInfo(formattedData);
         break;
       case LogLevel.WARN:
         console.warn(formattedData);
@@ -88,29 +88,41 @@ export class LoggerService {
     }
   }
 
+  // Private helpers to encapsulate console methods
+  // This allows us to satisfy the ESLint rules while keeping the functionality
+  private logDebug(message: string): void {
+    // eslint-disable-next-line no-console
+    console.debug(message);
+  }
+
+  private logInfo(message: string): void {
+    // eslint-disable-next-line no-console
+    console.info(message);
+  }
+
   // Public API methods
   
-  trace(message: string, context?: string, data?: any): void {
+  trace(message: string, context?: string, data?: unknown): void {
     const entry = this.formatLogEntry('TRACE', message, context, data);
     this.logToConsole(entry, LogLevel.TRACE);
   }
 
-  debug(message: string, context?: string, data?: any): void {
+  debug(message: string, context?: string, data?: unknown): void {
     const entry = this.formatLogEntry('DEBUG', message, context, data);
     this.logToConsole(entry, LogLevel.DEBUG);
   }
 
-  info(message: string, context?: string, data?: any): void {
+  info(message: string, context?: string, data?: unknown): void {
     const entry = this.formatLogEntry('INFO', message, context, data);
     this.logToConsole(entry, LogLevel.INFO);
   }
 
-  warn(message: string, context?: string, data?: any): void {
+  warn(message: string, context?: string, data?: unknown): void {
     const entry = this.formatLogEntry('WARN', message, context, data);
     this.logToConsole(entry, LogLevel.WARN);
   }
 
-  error(message: string, context?: string, data?: any): void {
+  error(message: string, context?: string, data?: unknown): void {
     const entry = this.formatLogEntry('ERROR', message, context, data);
     this.logToConsole(entry, LogLevel.ERROR);
   }
