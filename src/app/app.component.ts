@@ -30,7 +30,7 @@ export class AppComponent implements OnInit {
     // Monitor route changes
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
-    ).subscribe((event: any) => {
+    ).subscribe((event: NavigationEnd) => {
       // Update if we're on home page
       this.isHomePage = event.url === '/' || event.url === '';
       

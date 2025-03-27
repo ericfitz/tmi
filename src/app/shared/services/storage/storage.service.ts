@@ -1,7 +1,6 @@
-import { Injectable, Inject } from '@angular/core';
+import { Injectable, Inject, signal } from '@angular/core';
 import { STORAGE_PROVIDER, StorageProvider, StorageFile, PickerOptions, PickerResult } from './providers/storage-provider.interface';
 import { LoggerService } from '../logger/logger.service';
-import { BehaviorSubject, Observable } from 'rxjs';
 
 /**
  * Custom storage error class with improved type information
@@ -22,10 +21,11 @@ export class StorageError extends Error {
   providedIn: 'root'
 })
 export class StorageService {
-  private initialized = false;
   private initializing = false;
-  private initializeSubject = new BehaviorSubject<boolean>(false);
-  private currentFile = new BehaviorSubject<StorageFile | null>(null);
+  
+  // Signal-based state
+  private initializedSignal = signal<boolean>(false);
+  private currentFileSignal = signal<StorageFile | null>(null);
 
   constructor(
     @Inject(STORAGE_PROVIDER) private provider: StorageProvider,
@@ -38,22 +38,21 @@ export class StorageService {
    * Initialize the storage provider
    */
   async initialize(): Promise<boolean> {
-    if (this.initialized || this.initializing) {
-      return this.initialized;
+    if (this.initializedSignal() || this.initializing) {
+      return this.initializedSignal();
     }
 
     this.initializing = true;
     this.logger.debug('Initializing storage service', 'StorageService');
 
     try {
-      this.initialized = await this.provider.initialize();
-      this.logger.info(`Storage provider initialized: ${this.initialized}`, 'StorageService');
-      this.initializeSubject.next(this.initialized);
-      return this.initialized;
+      const result = await this.provider.initialize();
+      this.initializedSignal.set(result);
+      this.logger.info(`Storage provider initialized: ${result}`, 'StorageService');
+      return result;
     } catch (error) {
       this.logger.error('Failed to initialize storage provider', 'StorageService', error);
-      this.initialized = false;
-      this.initializeSubject.next(false);
+      this.initializedSignal.set(false);
       return false;
     } finally {
       this.initializing = false;
@@ -64,14 +63,14 @@ export class StorageService {
    * Check if storage provider is initialized
    */
   isInitialized(): boolean {
-    return this.initialized && this.provider.isInitialized();
+    return this.initializedSignal() && this.provider.isInitialized();
   }
 
   /**
-   * Get initialization state as observable
+   * Get initialization state as signal
    */
-  get initialized$(): Observable<boolean> {
-    return this.initializeSubject.asObservable();
+  get initialized(): ReturnType<typeof signal<boolean>> {
+    return this.initializedSignal;
   }
 
   /**
@@ -86,7 +85,10 @@ export class StorageService {
     
     try {
       const file = await this.provider.createFile(name, data);
-      this.currentFile.next(file);
+      
+      // Update signal with the new file
+      this.currentFileSignal.set(file);
+      
       this.logger.info(`File created: ${file.name}`, 'StorageService', { fileId: file.id });
       return file;
     } catch (error) {
@@ -149,7 +151,8 @@ export class StorageService {
       const files = await this.listFiles();
       const fileInfo = files.find(f => f.id === fileId);
       if (fileInfo) {
-        this.currentFile.next(fileInfo);
+        // Update file signal
+        this.currentFileSignal.set(fileInfo);
       }
       
       return content;
@@ -225,7 +228,7 @@ export class StorageService {
         
         // Update current file
         if (options.mode === 'open' && result.file) {
-          this.currentFile.next(result.file);
+          this.currentFileSignal.set(result.file);
         }
       } else {
         this.logger.debug('Picker canceled or no file selected', 'StorageService');
@@ -242,13 +245,13 @@ export class StorageService {
    * Get the current active file
    */
   getCurrentFile(): StorageFile | null {
-    return this.currentFile.getValue();
+    return this.currentFileSignal();
   }
 
   /**
-   * Get the current file as observable
+   * Get the current file signal
    */
-  get currentFile$(): Observable<StorageFile | null> {
-    return this.currentFile.asObservable();
+  get currentFile(): ReturnType<typeof signal<StorageFile | null>> {
+    return this.currentFileSignal;
   }
 }

@@ -11,14 +11,10 @@ import { StorageFactoryService } from './shared/services/storage/providers/stora
 import { CsrfInterceptor } from './shared/interceptors/csrf.interceptor';
 import { CsrfInitInterceptor } from './shared/interceptors/csrf-init.interceptor';
 import { CspHeaderInterceptor } from './shared/interceptors/csp-header.interceptor';
-import { environment } from '../environments/environment';
+// import { environment } from '../environments/environment';
 import { TranslationModuleService } from './shared/services/translation-module.service';
-import { reducers, metaReducers } from './store';
-import { StoreModule } from '@ngrx/store';
-import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 import { registerIcons } from './shared/icons/icon.service';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { diagramReducer } from './diagram/store/reducers/diagram.reducer';
 
 // Initialize security features
 export function initializeSecurity(securityService: SecurityService): () => Promise<void> {
@@ -35,19 +31,8 @@ export const appConfig: ApplicationConfig = {
     }),
     provideRouter(routes),
     
-    // NgRx Store (consolidated root configuration)
-    importProvidersFrom(
-      StoreModule.forRoot(reducers, { metaReducers }),
-      StoreModule.forFeature('diagram', diagramReducer),
-      !environment.production ? StoreDevtoolsModule.instrument({
-        maxAge: 25,
-        logOnly: environment.production,
-        autoPause: true,
-        trace: false,
-        traceLimit: 75,
-      }) : [],
-      FontAwesomeModule
-    ),
+    // Fontawesome icons
+    importProvidersFrom(FontAwesomeModule),
     
     // Initialize Font Awesome icons
     {

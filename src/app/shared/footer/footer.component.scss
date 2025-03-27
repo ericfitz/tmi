@@ -20,9 +20,21 @@
     }
     
     .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      
       .copyright {
         font-size: 14px;
         color: #666;
+      }
+      
+      .version {
+        font-size: 12px;
+        color: #999;
+        background-color: #eaeaea;
+        padding: 2px 6px;
+        border-radius: 10px;
       }
     }
     

@@ -1,4 +1,3 @@
-import { Observable } from 'rxjs';
 import { StorageFile } from '../../shared/services/storage/providers/storage-provider.interface';
 
 export interface DiagramCell {
@@ -52,8 +51,5 @@ export interface DiagramService {
   loadDiagram(id: string): Promise<void>;
   loadDiagramList(): Promise<StorageFile[]>;
 
-  // Observable state
-  currentDiagram$: Observable<DiagramData | null>;
-  isDirty$: Observable<boolean>;
-  currentFile$: Observable<StorageFile | null>;
+  // Signal/reactive state - now directly accessed through currentDiagram, isDirty, currentFile
 }

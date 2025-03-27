@@ -1,8 +1,7 @@
-import { Injectable } from '@angular/core';
-import { Inject } from '@angular/core';
+import { Injectable, Inject, signal, computed } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { Observable, of } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { catchError } from 'rxjs/operators';
 import { LoggerService } from '../logger/logger.service';
 import { TranslateService } from '@ngx-translate/core';
 // Allow any string for now during development
@@ -29,7 +28,7 @@ export class TranslationService {
   };
   
   // Currently active language
-  private currentLanguage: SupportedLanguages = 'en';
+  private currentLanguage = signal<SupportedLanguages>('en');
 
   constructor(
     @Inject(DOCUMENT) private document: Document,
@@ -78,7 +77,7 @@ export class TranslationService {
     
     // Use ngx-translate to set the language
     this.translateService.use(lang);
-    this.currentLanguage = lang;
+    this.currentLanguage.set(lang);
     
     return of(lang);
   }
@@ -150,8 +149,13 @@ export class TranslationService {
    * Get the current language
    */
   getCurrentLanguage(): SupportedLanguages {
-    return this.currentLanguage;
+    return this.currentLanguage();
   }
+  
+  /**
+   * Read-only language signal that components can subscribe to
+   */
+  readonly language = computed(() => this.currentLanguage());
 
   /**
    * Get a translation for a key

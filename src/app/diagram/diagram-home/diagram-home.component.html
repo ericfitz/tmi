@@ -7,28 +7,27 @@
   </div>
   
   <!-- Loading indicator -->
-  <div *ngIf="isLoading$ | async" class="loading-indicator">
+  <div *ngIf="diagramState.isLoading()" class="loading-indicator">
     <div class="loading-spinner"></div>
     <span>{{ 'DIAGRAM.HOME.LOADING' | translate }}</span>
   </div>
   
   <!-- Empty state -->
-  <ng-container *ngIf="isLoading$ | async as isLoading">
-    <ng-container *ngIf="isEmpty$ | async as isEmpty">
-      <div *ngIf="isEmpty && !isLoading" class="empty-state">
-        <div class="empty-icon">📁</div>
-        <h3>{{ 'DIAGRAM.HOME.EMPTY_TITLE' | translate }}</h3>
-        <p>{{ 'DIAGRAM.HOME.EMPTY_MESSAGE' | translate }}</p>
-        <!-- This button will be removed as users should use the toolbar instead -->
-      </div>
-      
-      <!-- Diagram list with virtual scrolling -->
-      <cdk-virtual-scroll-viewport 
-        *ngIf="!isEmpty && !isLoading"
-    [itemSize]="itemSize"
-    class="diagram-list">
+  <div *ngIf="!diagramState.isLoading()">
+    <div *ngIf="isEmpty()" class="empty-state">
+      <div class="empty-icon">📁</div>
+      <h3>{{ 'DIAGRAM.HOME.EMPTY_TITLE' | translate }}</h3>
+      <p>{{ 'DIAGRAM.HOME.EMPTY_MESSAGE' | translate }}</p>
+      <!-- This button will be removed as users should use the toolbar instead -->
+    </div>
     
-    <div *cdkVirtualFor="let diagram of diagrams$ | async; trackBy: trackByFn" 
+    <!-- Diagram list with virtual scrolling -->
+    <cdk-virtual-scroll-viewport 
+      *ngIf="!isEmpty()"
+      [itemSize]="itemSize"
+      class="diagram-list">
+    
+    <div *cdkVirtualFor="let diagram of diagramState.diagramList(); trackBy: trackByFn" 
          class="diagram-card"
          (click)="openDiagram(diagram)">
       
@@ -50,7 +49,6 @@
       </div>
     </div>
     
-  </cdk-virtual-scroll-viewport>
-    </ng-container>
-  </ng-container>
+    </cdk-virtual-scroll-viewport>
+  </div>
 </div>

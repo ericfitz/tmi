@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
-import { DiagramElement } from '../store/models/diagram.model';
+import { DiagramElement } from '../models/diagram.model';
 import { LoggerService } from '../../shared/services/logger/logger.service';
-import { Graph, Cell } from '@maxgraph/core';
+import { Cell } from '@maxgraph/core';
 
 // Define the DiagramGraph interface to type the Graph from MaxGraph
 // This interface provides a common API surface for MaxGraph
@@ -31,6 +31,7 @@ export interface DiagramGraph {
   clearSelection: () => void;
   setSelectionCells: (cells: Cell[]) => void;
   removeCells: (cells: Cell[]) => Cell[];
+  addListener: (eventName: string, handler: (sender: any, evt: any) => void) => void;
   insertVertex: (
     parent: Cell,
     id: string | null,
@@ -159,7 +160,7 @@ export class DiagramRendererService {
           .map(id => {
             try {
               return model.getCell(id);
-            } catch (error) {
+            } catch {
               return null;
             }
           })
@@ -179,6 +180,7 @@ export class DiagramRendererService {
    * This is more efficient than updating each element individually
    */
   private batchUpdateElements(graph: DiagramGraph, elements: DiagramElement[]): void {
+    // Skipping local handling of unused 'error' variables
     if (!graph) {
       this.logger.warn('Cannot update elements: graph is null', 'DiagramRendererService');
       return;
@@ -227,7 +229,7 @@ export class DiagramRendererService {
             if (id) {
               existingCellsMap.set(id, cell);
             }
-          } catch (error) {
+          } catch {
             // Skip this cell if we can't get its ID
             this.logger.debug('Unable to get ID for cell', 'DiagramRendererService');
           }
@@ -251,7 +253,7 @@ export class DiagramRendererService {
               if (id && !elementIdsMap.has(id)) {
                 cellsToRemove.push(cell);
               }
-            } catch (error) {
+            } catch {
               // Skip this cell
             }
           }
@@ -267,20 +269,55 @@ export class DiagramRendererService {
         
         // 2. Add or update elements
         for (const element of elements) {
-          if (!element || !element.id) continue;
+          if (!element || !element.id) {
+            this.logger.warn('Skipping element with invalid ID', 'DiagramRendererService');
+            continue;
+          }
           
           try {
-            const existingCell = existingCellsMap.get(element.id);
+            // Add extra protection for accessing Map
+            const existingCell = existingCellsMap.has(element.id) ? existingCellsMap.get(element.id) : null;
+            
+            // Log what we're about to do
+            this.logger.debug(`Processing element: ${element.id}, type: ${element.type}, exists: ${Boolean(existingCell)}`, 'DiagramRendererService');
             
             if (!existingCell) {
-              // Add new element
-              this.addElementToGraph(graph, element);
+              // Add new element - wrap with additional try/catch
+              try {
+                this.addElementToGraph(graph, element);
+              } catch (addError) {
+                this.logger.warn(`Error adding element ${element.id} of type ${element.type}`, 'DiagramRendererService', {
+                  error: addError,
+                  element: JSON.stringify({
+                    id: element.id,
+                    type: element.type,
+                    position: element.position,
+                    size: element.size
+                  }, null, 2)
+                });
+              }
             } else {
-              // Update existing element if needed
-              this.updateElementInGraph(graph, existingCell, element);
+              // Update existing element if needed - wrap with additional try/catch
+              try {
+                this.updateElementInGraph(graph, existingCell, element);
+              } catch (updateError) {
+                this.logger.warn(`Error updating element ${element.id} of type ${element.type}`, 'DiagramRendererService', {
+                  error: updateError,
+                  element: JSON.stringify({
+                    id: element.id,
+                    type: element.type,
+                    position: element.position,
+                    size: element.size
+                  }, null, 2)
+                });
+              }
             }
           } catch (error) {
-            this.logger.warn(`Error processing element ${element.id}`, 'DiagramRendererService', error);
+            this.logger.warn(`General error processing element ${element.id}`, 'DiagramRendererService', {
+              error: error,
+              elementId: element.id,
+              elementType: element.type
+            });
             // Continue with next element
           }
         }
@@ -314,6 +351,8 @@ export class DiagramRendererService {
     }
     
     try {
+      this.logger.debug(`Adding element to graph: ${element.id}, type: ${element.type}`, 'DiagramRendererService');
+      
       const parent = graph.getDefaultParent();
       if (!parent) {
         this.logger.warn('Unable to get default parent for adding elements', 'DiagramRendererService');
@@ -323,8 +362,11 @@ export class DiagramRendererService {
       // Check if this element already exists in the graph
       let existingCell = null;
       try {
-        existingCell = graph.model.getCell(element.id);
-      } catch (e) {
+        if (element.id && graph.model && typeof graph.model.getCell === 'function') {
+          existingCell = graph.model.getCell(element.id);
+        }
+      } catch {
+        this.logger.debug(`No existing cell found for ID ${element.id} (which is normal for new elements)`, 'DiagramRendererService');
         // Cell doesn't exist, which is fine for new elements
       }
       
@@ -343,37 +385,81 @@ export class DiagramRendererService {
       // Handle different element types
       switch (element.type) {
         case 'rectangle':
+        case 'process': // Process uses rectangle rendering
         case 'circle':
         case 'triangle':
         case 'text':
         case 'image':
           try {
+            // Safety check element properties
+            if (!element.position || !element.size) {
+              this.logger.warn(`Element ${element.id} missing position or size properties`, 'DiagramRendererService');
+              // Add fallback values
+              element.position = element.position || { x: 0, y: 0 };
+              element.size = element.size || { width: 100, height: 50 };
+            }
+            
             // Ensure we have valid position and size with fallbacks
-            const x = element.position?.x || 0;
-            const y = element.position?.y || 0;
-            const width = element.size?.width || 100;
-            const height = element.size?.height || 50;
+            const x = element.position.x ?? 0;
+            const y = element.position.y ?? 0;
+            const width = element.size.width ?? 100;
+            const height = element.size.height ?? 50;
             const text = element.properties?.text || '';
             
-            // Create style string based on element type and properties
-            const styleString = this.getStyleForElement(element);
-            
-            // Insert the vertex
-            const cell = graph.insertVertex(
-              parent,
-              element.id,
-              text,
-              x,
-              y,
-              width,
-              height,
-              styleString
-            );
-            
-            if (cell) {
-              this.logger.debug(`Successfully added ${element.type} element with ID ${element.id}`, 'DiagramRendererService');
+            // Add validation
+            if (typeof x !== 'number' || typeof y !== 'number' || 
+                typeof width !== 'number' || typeof height !== 'number') {
+              this.logger.warn(`Element ${element.id} has invalid position or size values`, 'DiagramRendererService', {
+                position: element.position,
+                size: element.size
+              });
+              // Fix values
+              const safeX = typeof x === 'number' ? x : 0;
+              const safeY = typeof y === 'number' ? y : 0;
+              const safeWidth = typeof width === 'number' ? width : 100;
+              const safeHeight = typeof height === 'number' ? height : 50;
+              
+              // Create style string based on element type and properties
+              const styleString = this.getStyleForElement(element);
+              
+              // Insert the vertex with safe values
+              const cell = graph.insertVertex(
+                parent,
+                element.id,
+                text,
+                safeX,
+                safeY,
+                safeWidth,
+                safeHeight,
+                styleString
+              );
+              
+              if (cell) {
+                this.logger.debug(`Successfully added ${element.type} element with ID ${element.id} (with fixed values)`, 'DiagramRendererService');
+              } else {
+                this.logger.warn(`Failed to add ${element.type} element with ID ${element.id}, null cell returned`, 'DiagramRendererService');
+              }
             } else {
-              this.logger.warn(`Failed to add ${element.type} element with ID ${element.id}, null cell returned`, 'DiagramRendererService');
+              // Create style string based on element type and properties
+              const styleString = this.getStyleForElement(element);
+              
+              // Insert the vertex
+              const cell = graph.insertVertex(
+                parent,
+                element.id,
+                text,
+                x,
+                y,
+                width,
+                height,
+                styleString
+              );
+              
+              if (cell) {
+                this.logger.debug(`Successfully added ${element.type} element with ID ${element.id}`, 'DiagramRendererService');
+              } else {
+                this.logger.warn(`Failed to add ${element.type} element with ID ${element.id}, null cell returned`, 'DiagramRendererService');
+              }
             }
           } catch (error) {
             this.logger.warn(`Error inserting vertex for element ${element.id}`, 'DiagramRendererService', error);
@@ -447,43 +533,103 @@ export class DiagramRendererService {
    * Update an existing element in the graph
    */
   private updateElementInGraph(graph: DiagramGraph, cell: Cell, element: DiagramElement): void {
-    if (!graph) return;
+    if (!graph) {
+      this.logger.warn('Cannot update element: graph is null', 'DiagramRendererService');
+      return;
+    }
     
-    const model = graph.model;
+    if (!cell) {
+      this.logger.warn(`Cannot update element ${element?.id}: cell is null`, 'DiagramRendererService');
+      return;
+    }
     
-    // Check if we need to update the geometry
-    const isVertex = !cell.isEdge();
-    if (isVertex) {
-      const geometry = cell.getGeometry();
-      
-      if (geometry && (
-          geometry.x !== element.position.x || 
-          geometry.y !== element.position.y ||
-          geometry.width !== element.size.width ||
-          geometry.height !== element.size.height)) {
-        
-        const newGeometry = geometry.clone();
-        newGeometry.x = element.position.x;
-        newGeometry.y = element.position.y;
-        newGeometry.width = element.size.width;
-        newGeometry.height = element.size.height;
-        
-        model.setGeometry(cell, newGeometry);
+    if (!element) {
+      this.logger.warn('Cannot update element: element is null', 'DiagramRendererService');
+      return;
+    }
+    
+    try {
+      const model = graph.model;
+      if (!model) {
+        this.logger.warn(`Cannot update element ${element.id}: model is null`, 'DiagramRendererService');
+        return;
       }
-    }
-    
-    // Check if we need to update the value (text)
-    const currentValue = model.getValue(cell) || '';
-    const newText = element.properties.text || '';
-    if (currentValue !== newText) {
-      model.setValue(cell, newText);
-    }
-    
-    // Check if we need to update the style
-    const newStyle = this.getStyleForElement(element);
-    const currentStyle = model.getStyle(cell) || '';
-    if (currentStyle !== newStyle) {
-      model.setStyle(cell, newStyle);
+      
+      // Safety check element properties
+      if (!element.position || !element.size) {
+        this.logger.warn(`Element ${element.id} missing position or size properties for update`, 'DiagramRendererService');
+        // Add fallback values
+        element.position = element.position || { x: 0, y: 0 };
+        element.size = element.size || { width: 100, height: 50 };
+      }
+      
+      if (!element.properties) {
+        element.properties = {}; // Ensure properties exists
+      }
+      
+      // Check if we need to update the geometry
+      try {
+        const isVertex = typeof cell.isEdge === 'function' ? !cell.isEdge() : true;
+        if (isVertex) {
+          const geometry = cell.getGeometry();
+          
+          if (geometry && typeof geometry.clone === 'function') {
+            // Safely get position and size with fallbacks
+            const elementX = element.position.x ?? 0;
+            const elementY = element.position.y ?? 0; 
+            const elementWidth = element.size.width ?? 100;
+            const elementHeight = element.size.height ?? 50;
+            
+            // Only update if values have changed and are valid numbers
+            if ((typeof elementX === 'number' && geometry.x !== elementX) || 
+                (typeof elementY === 'number' && geometry.y !== elementY) ||
+                (typeof elementWidth === 'number' && geometry.width !== elementWidth) ||
+                (typeof elementHeight === 'number' && geometry.height !== elementHeight)) {
+              
+              const newGeometry = geometry.clone();
+              
+              if (typeof elementX === 'number') newGeometry.x = elementX;
+              if (typeof elementY === 'number') newGeometry.y = elementY;
+              if (typeof elementWidth === 'number') newGeometry.width = elementWidth;
+              if (typeof elementHeight === 'number') newGeometry.height = elementHeight;
+              
+              if (typeof model.setGeometry === 'function') {
+                model.setGeometry(cell, newGeometry);
+              }
+            }
+          }
+        }
+      } catch (geometryError) {
+        this.logger.warn(`Error updating geometry for element ${element.id}`, 'DiagramRendererService', geometryError);
+      }
+      
+      try {
+        // Check if we need to update the value (text)
+        if (typeof model.getValue === 'function' && typeof model.setValue === 'function') {
+          const currentValue = model.getValue(cell) || '';
+          const newText = element.properties.text || '';
+          if (currentValue !== newText) {
+            model.setValue(cell, newText);
+          }
+        }
+      } catch (valueError) {
+        this.logger.warn(`Error updating text value for element ${element.id}`, 'DiagramRendererService', valueError);
+      }
+      
+      try {
+        // Check if we need to update the style
+        if (typeof model.getStyle === 'function' && typeof model.setStyle === 'function') {
+          const newStyle = this.getStyleForElement(element);
+          const currentStyle = model.getStyle(cell) || '';
+          if (currentStyle !== newStyle) {
+            model.setStyle(cell, newStyle);
+          }
+        }
+      } catch (styleError) {
+        this.logger.warn(`Error updating style for element ${element.id}`, 'DiagramRendererService', styleError);
+      }
+    } catch (error) {
+      this.logger.warn(`Unexpected error updating element ${element.id}`, 'DiagramRendererService', error);
     }
   }
 
@@ -497,6 +643,9 @@ export class DiagramRendererService {
       case 'rectangle':
         style = 'shape=rectangle;';
         break;
+      case 'process':
+        style = 'shape=rectangle;';  // Process uses rectangle shape
+        break;
       case 'circle':
         style = 'shape=circle;aspect=fixed;';
         break;
@@ -507,7 +656,7 @@ export class DiagramRendererService {
         style = 'shape=text;html=1;';
         break;
       case 'connector':
-        style = 'edgeStyle=orthogonalEdgeStyle;curved=1;';
+        style = 'edgeStyle=orthogonalEdgeStyle;curved=1;rounded=1;endArrow=classic;startArrow=none;';
         break;
       case 'line':
         style = 'shape=line;';

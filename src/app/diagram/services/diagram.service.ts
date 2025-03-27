@@ -1,7 +1,6 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal, computed } from '@angular/core';
 import { LoggerService } from '../../shared/services/logger/logger.service';
 import { StorageService } from '../../shared/services/storage/storage.service';
-import { BehaviorSubject, Observable } from 'rxjs';
 import { StorageFile } from '../../shared/services/storage/providers/storage-provider.interface';
 import { DiagramCell, DiagramData, DiagramService as DiagramServiceInterface } from './diagram-service';
 
@@ -16,14 +15,16 @@ import { Graph, Cell } from '@maxgraph/core';
 })
 export class DiagramService implements DiagramServiceInterface {
   private graph: Graph | null = null;
-  private currentDiagram = new BehaviorSubject<DiagramData | null>(null);
-  private isDirty = new BehaviorSubject<boolean>(false);
-  private currentFile = new BehaviorSubject<StorageFile | null>(null);
   
-  // Expose observables
-  currentDiagram$ = this.currentDiagram.asObservable();
-  isDirty$ = this.isDirty.asObservable();
-  currentFile$ = this.currentFile.asObservable();
+  // Signal-based state
+  private diagramSignal = signal<DiagramData | null>(null);
+  private dirtySignal = signal<boolean>(false);
+  private fileSignal = signal<StorageFile | null>(null);
+  
+  // Expose signals
+  readonly currentDiagram = this.diagramSignal;
+  readonly isDirty = this.dirtySignal;
+  readonly currentFile = this.fileSignal;
 
   constructor(
     private logger: LoggerService,
@@ -85,6 +86,16 @@ export class DiagramService implements DiagramServiceInterface {
       graph.setCellsResizable(true);   // Allow resizing cells
       graph.setAllowDanglingEdges(false); // Don't allow dangling edges
       
+      // Allow connecting to edges
+      if (typeof graph.setConnectableEdges === 'function') {
+        graph.setConnectableEdges(true);
+      }
+      
+      // Allow self-connections
+      if (typeof graph.setAllowLoops === 'function') {
+        graph.setAllowLoops(true);
+      }
+      
       // Set default grid size
       graph.gridSize = 20;
       
@@ -101,10 +112,13 @@ export class DiagramService implements DiagramServiceInterface {
         
         // Update selection in current diagram
         if (cell) {
-          this.currentDiagram.next({
-            ...this.currentDiagram.getValue(),
+          const updatedDiagram = {
+            ...this.diagramSignal(),
             selectedCellId: cell.getId()
-          });
+          };
+          
+          // Update diagram signal
+          this.diagramSignal.set(updatedDiagram);
         }
       });
       
@@ -213,7 +227,10 @@ export class DiagramService implements DiagramServiceInterface {
     // If graph is not initialized yet, just update the diagram model
     if (!this.graph) {
       this.logger.debug('Creating blank diagram (graph not yet initialized)', 'DiagramService');
-      this.currentDiagram.next(blankDiagram);
+      
+      // Update diagram signal
+      this.diagramSignal.set(blankDiagram);
+      
       this.markDiagramClean();
       return;
     }
@@ -225,7 +242,10 @@ export class DiagramService implements DiagramServiceInterface {
       if (!model || typeof model.beginUpdate !== 'function') {
         this.logger.warn('Graph model not properly initialized', 'DiagramService');
         // Still update the diagram model even if graph operations fail
-        this.currentDiagram.next(blankDiagram);
+        
+        // Update diagram signal
+        this.diagramSignal.set(blankDiagram);
+        
         this.markDiagramClean();
         return;
       }
@@ -261,7 +281,9 @@ export class DiagramService implements DiagramServiceInterface {
         };
         
         // Update the current diagram
-        this.currentDiagram.next(blankDiagram);
+        // Update diagram signal
+        this.diagramSignal.set(blankDiagram);
+        
         this.markDiagramClean();
         
       } catch (innerError) {
@@ -293,7 +315,9 @@ export class DiagramService implements DiagramServiceInterface {
         }
       };
       
-      this.currentDiagram.next(blankDiagram);
+      // Update diagram signal
+      this.diagramSignal.set(blankDiagram);
+      
       this.markDiagramClean();
     }
   }
@@ -395,7 +419,7 @@ export class DiagramService implements DiagramServiceInterface {
       
       // If no cells are selected in the graph, check our tracked selectedCellId
       if (!cellsToDelete || cellsToDelete.length === 0) {
-        const diagramData = this.currentDiagram.getValue();
+        const diagramData = this.diagramSignal();
         const selectedId = diagramData?.selectedCellId;
         
         if (selectedId) {
@@ -408,6 +432,10 @@ export class DiagramService implements DiagramServiceInterface {
           if (cellById) {
             cellsToDelete = [cellById];
           }
+        } else {
+          // If no cells selected in graph and no selectedCellId, just return silently
+          this.logger.debug('No cells selected for deletion', 'DiagramService');
+          return;
         }
       }
       
@@ -433,7 +461,7 @@ export class DiagramService implements DiagramServiceInterface {
           this.markDiagramDirty();
           
           // Clear the selection ID in our diagram data
-          const currentData = this.currentDiagram.getValue();
+          const currentData = this.diagramSignal();
           if (currentData) {
             // Update the diagram data to remove these cells completely
             const updatedCells = currentData.cells.filter(cell => 
@@ -443,11 +471,14 @@ export class DiagramService implements DiagramServiceInterface {
             this.logger.info(`Removed ${currentData.cells.length - updatedCells.length} cells from diagram data`, 'DiagramService');
             
             // Update the diagram data with the cleaned cell list and make sure deleted cells won't reappear
-            this.currentDiagram.next({
+            const updatedDiagram = {
               ...currentData,
               cells: updatedCells,
               selectedCellId: undefined
-            });
+            };
+            
+            // Update diagram signal
+            this.diagramSignal.set(updatedDiagram);
             
             // Make sure the graph state and our state model are consistent by exporting from the graph
             const exportedData = this.exportDiagram();
@@ -459,8 +490,6 @@ export class DiagramService implements DiagramServiceInterface {
           // End the batch update
           model.endUpdate();
         }
-      } else {
-        this.logger.warn('No cells selected for deletion', 'DiagramService');
       }
     } catch (error) {
       this.logger.error('Error deleting selected cells', 'DiagramService', error);
@@ -472,7 +501,7 @@ export class DiagramService implements DiagramServiceInterface {
    * @returns The current diagram data or null
    */
   getCurrentDiagram(): DiagramData | null {
-    return this.currentDiagram.getValue();
+    return this.diagramSignal();
   }
 
   /**
@@ -480,21 +509,23 @@ export class DiagramService implements DiagramServiceInterface {
    * @returns True if the diagram is dirty
    */
   isDiagramDirty(): boolean {
-    return this.isDirty.getValue();
+    return this.dirtySignal();
   }
 
   /**
    * Mark the diagram as dirty (has unsaved changes)
    */
   markDiagramDirty(): void {
-    this.isDirty.next(true);
+    // Update isDirty signal
+    this.dirtySignal.set(true);
   }
 
   /**
    * Mark the diagram as clean (no unsaved changes)
    */
   markDiagramClean(): void {
-    this.isDirty.next(false);
+    // Update isDirty signal
+    this.dirtySignal.set(false);
   }
 
   /**
@@ -502,7 +533,7 @@ export class DiagramService implements DiagramServiceInterface {
    * @returns The current file or null
    */
   getCurrentFile(): StorageFile | null {
-    return this.currentFile.getValue();
+    return this.fileSignal();
   }
 
   /**
@@ -560,7 +591,7 @@ export class DiagramService implements DiagramServiceInterface {
       });
       
       // Get the current diagram data
-      const currentData = this.currentDiagram.getValue();
+      const currentData = this.diagramSignal();
       
       // Create the diagram data
       const diagramData: DiagramData = {
@@ -694,7 +725,8 @@ export class DiagramService implements DiagramServiceInterface {
         };
         
         // Update current diagram
-        this.currentDiagram.next(currentData);
+        // Update diagram signal
+        this.diagramSignal.set(currentData);
         this.markDiagramClean();
       } finally {
         // End the batch update
@@ -721,7 +753,7 @@ export class DiagramService implements DiagramServiceInterface {
       let result: StorageFile;
       
       // Check if we have an existing file
-      const currentFile = this.currentFile.getValue();
+      const currentFile = this.fileSignal();
       
       if (currentFile && !filename) {
         // Update existing file
@@ -731,7 +763,9 @@ export class DiagramService implements DiagramServiceInterface {
         // Create a new file
         const name = filename || `${diagramData.title || 'Untitled Diagram'}.json`;
         result = await this.storageService.createFile(name, jsonData);
-        this.currentFile.next(result);
+        
+        // Update current file signal
+        this.fileSignal.set(result);
       }
       
       // Mark the diagram as clean
@@ -765,7 +799,8 @@ export class DiagramService implements DiagramServiceInterface {
       const currentFile = files.find(file => file.id === id);
       
       if (currentFile) {
-        this.currentFile.next(currentFile);
+        // Update current file signal
+        this.fileSignal.set(currentFile);
       }
       
       this.logger.debug('Diagram loaded', 'DiagramService');

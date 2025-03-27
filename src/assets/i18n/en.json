@@ -65,6 +65,7 @@
       "ADD_RECTANGLE": "Rectangle",
       "ADD_CIRCLE": "Circle",
       "ADD_TEXT": "Text",
+      "ADD_PROCESS": "Process",
       "DELETE": "Delete",
       "UNDO": "Undo",
       "REDO": "Redo",
@@ -94,5 +95,14 @@
     "TERMS": "Terms of Service",
     "PRIVACY": "Privacy Policy",
     "CONTACT": "Contact"
+  },
+  "CONTACT": {
+    "TITLE": "Contact Us",
+    "SUPPORT_TITLE": "Technical Support",
+    "SUPPORT_TEXT": "Need help with your threat modeling? Our support team is ready to assist you with any technical questions.",
+    "FEEDBACK_TITLE": "Feedback & Suggestions",
+    "FEEDBACK_TEXT": "Have ideas for improving TMI? We welcome your feedback and suggestions for new features.",
+    "CONNECT_TITLE": "Connect With Us",
+    "CONNECT_TEXT": "Follow our project on GitHub and Twitter to stay updated with the latest news and releases."
   }
 }

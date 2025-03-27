@@ -15,7 +15,7 @@
       <!-- Save and Close only visible when a diagram is loaded -->
       <ng-container *ngIf="isDiagramLoaded">
         <button (click)="onSave()" 
-          [disabled]="(hasChanges$ | async) === false"
+          [disabled]="!diagramState.hasChanges()"
           [title]="'DIAGRAM.TOOLBAR.SAVE' | translate">
           <fa-icon [icon]="faFloppyDisk" class="icon"></fa-icon>
           {{ 'DIAGRAM.TOOLBAR.SAVE' | translate }}
@@ -31,36 +31,11 @@
     
     <!-- Other operations - Left justified -->
     <ng-container *ngIf="isDiagramLoaded">
-      <div class="toolbar-section edit-operations">
-        <button (click)="onUndo()" 
-          [disabled]="(canUndo$ | async) === false"
-          [title]="'DIAGRAM.TOOLBAR.UNDO' | translate">
-          <fa-icon [icon]="faUndo" class="icon"></fa-icon>
-          {{ 'DIAGRAM.TOOLBAR.UNDO' | translate }}
-        </button>
-        
-        <button (click)="onRedo()" 
-          [disabled]="(canRedo$ | async) === false"
-          [title]="'DIAGRAM.TOOLBAR.REDO' | translate">
-          <fa-icon [icon]="faRedo" class="icon"></fa-icon>
-          {{ 'DIAGRAM.TOOLBAR.REDO' | translate }}
-        </button>
-      </div>
       
       <div class="toolbar-section element-operations">
-        <button (click)="addRectangle()" [title]="'DIAGRAM.TOOLBAR.ADD_RECTANGLE' | translate">
+        <button (click)="addProcess()" [title]="'DIAGRAM.TOOLBAR.ADD_PROCESS' | translate">
           <fa-icon [icon]="faSquare" class="icon"></fa-icon>
-          {{ 'DIAGRAM.TOOLBAR.ADD_RECTANGLE' | translate }}
-        </button>
-        
-        <button (click)="addCircle()" [title]="'DIAGRAM.TOOLBAR.ADD_CIRCLE' | translate">
-          <fa-icon [icon]="faCircle" class="icon"></fa-icon>
-          {{ 'DIAGRAM.TOOLBAR.ADD_CIRCLE' | translate }}
-        </button>
-        
-        <button (click)="addText()" [title]="'DIAGRAM.TOOLBAR.ADD_TEXT' | translate">
-          <fa-icon [icon]="faFont" class="icon"></fa-icon>
-          {{ 'DIAGRAM.TOOLBAR.ADD_TEXT' | translate }}
+          {{ 'DIAGRAM.TOOLBAR.ADD_PROCESS' | translate }}
         </button>
         
         <button (click)="deleteSelected()" [title]="'DIAGRAM.TOOLBAR.DELETE' | translate">
@@ -82,8 +57,8 @@
   <ng-container *ngIf="isDiagramLoaded">
     <div class="toolbar-right">
       <div class="toolbar-section file-info">
-        <span class="file-name" [class.unsaved]="hasChanges$ | async">
-          {{ diagramName }}{{ (hasChanges$ | async) ? '*' : '' }}
+        <span class="file-name" [class.unsaved]="diagramState.hasChanges()">
+          {{ diagramName }}{{ diagramState.hasChanges() ? '*' : '' }}
         </span>
       </div>
     </div>

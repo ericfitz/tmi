@@ -1,6 +1,5 @@
 import { 
   Component, 
-  OnDestroy, 
   OnInit, 
   Input, 
   Output, 
@@ -15,10 +14,8 @@ import { DiagramService } from '../services/diagram.service';
 import { StorageService } from '../../shared/services/storage/storage.service';
 import { LoggerService } from '../../shared/services/logger/logger.service';
 import { PickerOptions, PickerResult } from '../../shared/services/storage/providers/storage-provider.interface';
-import { Observable, Subject, firstValueFrom } from 'rxjs';
-import { take, takeUntil, map } from 'rxjs/operators';
-import { DiagramFacadeService } from '../services/diagram-facade.service';
-import { DiagramElementType, DiagramProperties, Position, Size, DiagramElementProperties } from '../store/models/diagram.model';
+import { DiagramStateService } from '../services/diagram-state.service';
+import { DiagramElementType, DiagramProperties, Position, Size, DiagramElementProperties } from '../models/diagram.model';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 
@@ -35,11 +32,7 @@ import {
 import {
   faFileExport,
   faXmark,
-  faUndo,
-  faRedo,
   faSquare,
-  faCircle,
-  faFont,
   faTrash,
   faTable
 } from '@fortawesome/free-solid-svg-icons';
@@ -52,21 +45,12 @@ import {
   styleUrls: ['./diagram-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class DiagramToolbarComponent implements OnInit, OnDestroy {
+export class DiagramToolbarComponent implements OnInit {
   @Input() diagramName = 'Untitled Diagram';
   @Input() isDiagramLoaded = false;
   
   @Output() save = new EventEmitter<void>();
-  @Output() undo = new EventEmitter<void>();
-  @Output() redo = new EventEmitter<void>();
   @Output() close = new EventEmitter<void>();
-  
-  // Observables for enabling/disabling toolbar buttons
-  canUndo$: Observable<boolean>;
-  canRedo$: Observable<boolean>;
-  hasChanges$: Observable<boolean>;
-  
-  private destroy$ = new Subject<void>();
   
   // Add icon references
   faFile = faFile;
@@ -76,26 +60,18 @@ export class DiagramToolbarComponent implements OnInit, OnDestroy {
   faXmark = faXmark;
   faCopy = faCopy;
   faPaste = faPaste;
-  faUndo = faUndo;
-  faRedo = faRedo;
   faSquare = faSquare;
-  faCircle = faCircle;
-  faFont = faFont;
   faTrash = faTrash;
   faTable = faTable;
 
   constructor(
-    private diagramFacade: DiagramFacadeService,
+    public diagramState: DiagramStateService, // Public to access signals in template
     private diagramService: DiagramService,
     private storageService: StorageService,
     private logger: LoggerService,
     private router: Router,
     @Inject(LOCALE_ID) private locale: string
-  ) {
-    this.canUndo$ = this.diagramFacade.canUndo$;
-    this.canRedo$ = this.diagramFacade.canRedo$;
-    this.hasChanges$ = this.diagramFacade.hasChanges$;
-  }
+  ) {}
   
   ngOnInit(): void {
     // Initialize component resources
@@ -106,110 +82,82 @@ export class DiagramToolbarComponent implements OnInit, OnDestroy {
     // This method will be implemented to load user preferences
     this.logger.debug('Loading user preferences for diagram toolbar', 'DiagramToolbarComponent');
   }
-  
-  ngOnDestroy(): void {
-    // Clean up subscriptions
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-  
+
   /**
    * Close the current diagram
    */
   closeDiagram(): void {
     try {
       // Check for unsaved changes
-      this.hasChanges$.pipe(take(1)).subscribe(hasChanges => {
-        if (hasChanges) {
-          const message = 'There are unsaved changes. Do you want to save your changes before closing this diagram?';
-          
-          if (confirm(message)) {
-            this.save.emit(); // Emit the save event so parent can handle it
-          }
-        }
+      if (this.diagramState.hasChanges()) {
+        const message = 'There are unsaved changes. Do you want to save your changes before closing this diagram?';
         
-        // Emit close event for parent to handle
-        this.close.emit();
-      });
+        if (confirm(message)) {
+          this.save.emit(); // Emit the save event so parent can handle it
+        }
+      }
+      
+      // Emit close event for parent to handle
+      this.close.emit();
     } catch (error) {
       this.logger.error('Failed to close diagram', 'DiagramToolbarComponent', error);
     }
   }
 
   /**
-   * Add a new rectangular node to the diagram
+   * Add a new process node to the diagram
    */
-  addRectangle(): void {
+  addProcess(): void {
     try {
       const position = { x: Math.random() * 400, y: Math.random() * 400 } as Position;
       const size = { width: 120, height: 60 } as Size;
       const properties = {
-        text: 'Rectangle',
+        text: 'Process',
         backgroundColor: '#ffffff',
-        borderColor: '#000000'
-      };
-      
-      this.diagramFacade.addElement(DiagramElementType.RECTANGLE, position, size, properties);
-    } catch (error) {
-      this.logger.error('Failed to add rectangle', 'DiagramToolbarComponent', error);
-    }
-  }
-
-  /**
-   * Add a new circular node to the diagram
-   */
-  addCircle(): void {
-    try {
-      const position = { x: Math.random() * 400, y: Math.random() * 400 } as Position;
-      // For a true circle, width and height should be the same
-      const size = { width: 80, height: 80 } as Size;
-      const properties = {
-        text: 'Circle',
-        backgroundColor: '#f0f0f0',
         borderColor: '#000000',
-        // Add a specific marker for circle type
-        shapeType: 'circle'
+        elementType: 'process'
       };
       
-      this.logger.info('Adding circle element', 'DiagramToolbarComponent');
-      this.diagramFacade.addElement(DiagramElementType.CIRCLE, position, size, properties);
+      this.diagramState.addElement(DiagramElementType.PROCESS, position, size, properties);
     } catch (error) {
-      this.logger.error('Failed to add circle', 'DiagramToolbarComponent', error);
+      this.logger.error('Failed to add process', 'DiagramToolbarComponent', error);
     }
   }
 
-  /**
-   * Add a text element to the diagram
-   */
-  addText(): void {
-    try {
-      const position = { x: Math.random() * 400, y: Math.random() * 400 } as Position;
-      const size = { width: 150, height: 40 } as Size;
-      const properties = {
-        text: 'Text Element',
-        color: '#000000',
-        fontSize: 14,
-        fontFamily: 'Arial'
-      };
-      
-      this.diagramFacade.addElement(DiagramElementType.TEXT, position, size, properties);
-    } catch (error) {
-      this.logger.error('Failed to add text', 'DiagramToolbarComponent', error);
-    }
-  }
 
   /**
    * Delete selected elements
    */
   deleteSelected(): void {
     try {
-      this.logger.info('Delete button clicked - invoking DiagramService deleteSelected', 'DiagramToolbarComponent');
+      this.logger.info('Delete button clicked', 'DiagramToolbarComponent');
       
-      // Call the diagram service's delete method directly
-      this.diagramService.deleteSelected();
+      // Get the selected element ID
+      const selectedId = this.diagramState.selectedElementId();
       
-      // Also update the store by clearing selection
-      this.diagramFacade.selectElement(null);
+      // Check for selection in DiagramService first (for backward compatibility)
+      const diagramData = this.diagramService.getCurrentDiagram();
+      const selectedCellId = diagramData?.selectedCellId;
+      
+      if (selectedId || selectedCellId) {
+        // Use whichever selection we have
+        const idToDelete = selectedId || selectedCellId;
+        this.logger.info(`Deleting element with ID: ${idToDelete}`, 'DiagramToolbarComponent');
+        
+        // Delete from DiagramStateService if it has the element
+        if (selectedId) {
+          this.diagramState.removeElement(selectedId);
+        }
+        
+        // Make sure DiagramService selection is updated
+        if (diagramData && diagramData.selectedCellId) {
+          // Call the diagram service's delete method to handle the graph deletion
+          this.diagramService.deleteSelected();
+        }
+      } else {
+        // If no element is selected, do nothing - no warning needed
+        this.logger.debug('Delete clicked but no element selected', 'DiagramToolbarComponent');
+      }
     } catch (error) {
       this.logger.error('Failed to delete selection', 'DiagramToolbarComponent', error);
     }
@@ -221,10 +169,7 @@ export class DiagramToolbarComponent implements OnInit, OnDestroy {
   async newDiagram(): Promise<void> {
     try {
       // First check if there are unsaved changes
-      let hasChanges = false;
-      await firstValueFrom(this.hasChanges$.pipe(take(1)))
-        .then(changes => hasChanges = changes)
-        .catch(err => this.logger.error('Error checking changes', 'DiagramToolbarComponent', err));
+      const hasChanges = this.diagramState.hasChanges();
       
       if (hasChanges) {
         const message = 'There are unsaved changes. Do you want to save your changes before creating a new diagram?';
@@ -234,8 +179,8 @@ export class DiagramToolbarComponent implements OnInit, OnDestroy {
         }
       }
       
-      // Create new diagram via facade
-      await this.diagramFacade.createDiagram('Untitled Diagram', {
+      // Create new diagram via state service
+      this.diagramState.createNewDiagram('Untitled Diagram', {
         backgroundColor: '#ffffff',
         gridSize: 20,
         snapToGrid: true
@@ -260,17 +205,15 @@ export class DiagramToolbarComponent implements OnInit, OnDestroy {
       // Check for unsaved changes
       let shouldProceed = true;
       
-      await this.hasChanges$.pipe(take(1)).forEach(hasChanges => {
-        if (hasChanges) {
-          const message = 'There are unsaved changes. Do you want to save your changes before opening a diagram?';
-          
-          if (confirm(message)) {
-            this.save.emit(); // Emit the save event so parent can handle it
-          } else {
-            shouldProceed = false;
-          }
+      if (this.diagramState.hasChanges()) {
+        const message = 'There are unsaved changes. Do you want to save your changes before opening a diagram?';
+        
+        if (confirm(message)) {
+          this.save.emit(); // Emit the save event so parent can handle it
+        } else {
+          shouldProceed = false;
         }
-      });
+      }
       
       if (!shouldProceed) return;
       
@@ -286,10 +229,34 @@ export class DiagramToolbarComponent implements OnInit, OnDestroy {
       
       // Handle the result
       if (result.action === 'picked' && result.file) {
-        this.diagramFacade.loadDiagram(result.file.id);
+        // Set loading state
+        this.diagramState.setLoading(true);
+        
+        try {
+          // Load the file content
+          const content = await this.storageService.loadFile(result.file.id);
+          
+          // Parse the JSON content
+          const diagramData = JSON.parse(content);
+          
+          // Update the diagram state
+          this.diagramState.setCurrentDiagram(diagramData);
+          this.diagramState.setCurrentFile(result.file);
+          
+          // Clear loading state
+          this.diagramState.setLoading(false);
+        } catch (error) {
+          this.logger.error('Failed to load diagram file', 'DiagramToolbarComponent', error);
+          this.diagramState.setError({
+            message: 'Failed to load diagram',
+            details: { error: String(error) }
+          });
+          this.diagramState.setLoading(false);
+        }
       }
     } catch (error) {
       this.logger.error('Failed to open diagram', 'DiagramToolbarComponent', error);
+      this.diagramState.setLoading(false);
     }
   }
 
@@ -297,7 +264,27 @@ export class DiagramToolbarComponent implements OnInit, OnDestroy {
    * Toggle grid visibility
    */
   toggleGrid(): void {
-    this.diagramFacade.toggleGrid(false);
+    try {
+      const currentVisibility = this.diagramState.showGrid();
+      const newVisibility = !currentVisibility;
+      
+      this.logger.info(`Toggling grid visibility from ${currentVisibility} to ${newVisibility}`, 'DiagramToolbarComponent');
+      
+      // Update in DiagramStateService
+      this.diagramState.toggleGrid(newVisibility);
+      
+      // Also apply the change to the DiagramService to ensure the graph rendering is updated
+      if (this.diagramService) {
+        // Get the graph from the service if available
+        const graph = (this.diagramService as any).graph;
+        if (graph && typeof graph.setGridEnabled === 'function') {
+          this.logger.debug(`Applying grid visibility ${newVisibility} to graph directly`, 'DiagramToolbarComponent');
+          graph.setGridEnabled(newVisibility);
+        }
+      }
+    } catch (error) {
+      this.logger.error('Failed to toggle grid', 'DiagramToolbarComponent', error);
+    }
   }
 
   /**
@@ -308,16 +295,14 @@ export class DiagramToolbarComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Handle undo event
+   * Backward compatibility getter for the template
+   * This allows the template to continue using the async pipe pattern
+   * until it's updated to use signals directly
    */
-  onUndo(): void {
-    this.undo.emit();
-  }
-
-  /**
-   * Handle redo event
-   */
-  onRedo(): void {
-    this.redo.emit();
+  get hasChanges$() {
+    return { 
+      async: true, 
+      pipe: () => ({ subscribe: (cb: any) => { cb(this.diagramState.hasChanges()); return { unsubscribe: () => {} }; } })
+    };
   }
 }

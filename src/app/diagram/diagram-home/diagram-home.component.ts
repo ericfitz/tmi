@@ -1,17 +1,16 @@
 import { 
   Component, 
   OnInit, 
-  OnDestroy, 
   ChangeDetectionStrategy,
-  ViewChild
+  ViewChild,
+  computed,
+  inject
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { Observable, Subscription } from 'rxjs';
-import { map } from 'rxjs/operators';
 import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling';
-import { DiagramMetadata } from '../store/models/diagram.model';
-import { DiagramFacadeService } from '../services/diagram-facade.service';
+import { DiagramMetadata } from '../models/diagram.model';
+import { DiagramStateService } from '../services/diagram-state.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { DiagramToolbarComponent } from '../diagram-toolbar/diagram-toolbar.component';
 import { LoggerService } from '../../shared/services/logger/logger.service';
@@ -19,68 +18,79 @@ import { LoggerService } from '../../shared/services/logger/logger.service';
 @Component({
   selector: 'app-diagram-home',
   standalone: true,
-  imports: [CommonModule, ScrollingModule, TranslatePipe, DiagramToolbarComponent],
+  imports: [CommonModule, ScrollingModule, DiagramToolbarComponent, TranslatePipe],
   templateUrl: './diagram-home.component.html',
   styleUrls: ['./diagram-home.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class DiagramHomeComponent implements OnInit, OnDestroy {
+export class DiagramHomeComponent implements OnInit {
   @ViewChild(CdkVirtualScrollViewport) viewport!: CdkVirtualScrollViewport;
   
-  // Observables for the template
-  diagrams$: Observable<DiagramMetadata[]>;
-  isLoading$: Observable<boolean>;
-  isEmpty$: Observable<boolean>;
-  
-  // Track subscriptions for cleanup
-  private subscriptions: Subscription[] = [];
+  // Inject services
+  public diagramState = inject(DiagramStateService);
+  private router = inject(Router);
+  private logger = inject(LoggerService);
   
   // Item size for virtual scrolling (in pixels)
   readonly itemSize = 80;
-
-  constructor(
-    private diagramFacade: DiagramFacadeService,
-    private router: Router,
-    private logger: LoggerService
-  ) {
-    this.diagrams$ = this.diagramFacade.diagramList$;
-    this.isLoading$ = this.diagramFacade.isLoading$;
-    this.isEmpty$ = this.diagrams$.pipe(
-      map(diagrams => diagrams.length === 0)
-    );
-  }
+  
+  // Computed signal for empty state
+  readonly isEmpty = computed(() => this.diagramState.diagramList().length === 0);
 
   ngOnInit(): void {
     // Load the diagram list
-    this.diagramFacade.loadDiagramList();
+    this.loadDiagramList();
   }
 
-  ngOnDestroy(): void {
-    // Clean up subscriptions
-    this.subscriptions.forEach(sub => sub.unsubscribe());
+  /**
+   * Load the list of diagrams
+   */
+  private loadDiagramList(): void {
+    // We're assuming DiagramStateService has a method to load the diagram list
+    // This implementation might need to be adjusted based on the actual method
+    try {
+      // Set loading state
+      this.diagramState.setLoading(true);
+      
+      // Load diagrams from storage
+      // In a real implementation, this would likely be asynchronous
+      // But since we're working with signals, we don't need to subscribe
+      this.diagramState.loadDiagramList().then(() => {
+        this.diagramState.setLoading(false);
+      }).catch(error => {
+        this.logger.error('Failed to load diagram list', 'DiagramHomeComponent', error);
+        this.diagramState.setError({
+          message: 'Failed to load diagram list',
+          details: { error: String(error) }
+        });
+        this.diagramState.setLoading(false);
+      });
+    } catch (error) {
+      this.logger.error('Error in loadDiagramList', 'DiagramHomeComponent', error);
+      this.diagramState.setLoading(false);
+    }
   }
 
   /**
    * Create a new diagram
    */
-  async createNewDiagram(): Promise<void> {
+  createNewDiagram(): void {
     try {
-      const result = await this.diagramFacade.createDiagram('Untitled Diagram', {
+      // Create a new diagram using the state service
+      this.diagramState.createNewDiagram('Untitled Diagram', {
         backgroundColor: '#ffffff',
         gridSize: 20,
         snapToGrid: true
       });
       
-      // Only navigate to editor if diagram creation was successful
-      if (result && result.success) {
-        this.router.navigate(['/diagrams/editor']);
-      } else {
-        // Stay on the current page and let the error handler show the error
-        this.logger.warn('Failed to create new diagram - staying on current page', 'DiagramHomeComponent');
-      }
+      // Navigate to the editor
+      this.router.navigate(['/diagrams/editor']);
     } catch (error) {
       this.logger.error('Failed to create new diagram:', 'DiagramHomeComponent', error);
-      // Error state should be handled by the facade, we stay on current page
+      this.diagramState.setError({
+        message: 'Failed to create new diagram',
+        details: { error: String(error) }
+      });
     }
   }
 

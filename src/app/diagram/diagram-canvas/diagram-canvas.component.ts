@@ -5,16 +5,18 @@ import {
   ElementRef, 
   OnDestroy, 
   ChangeDetectionStrategy,
-  OnInit
+  OnInit,
+  inject,
+  computed,
+  effect,
+  untracked
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiagramService } from '../services/diagram.service';
 import { DiagramRendererService } from '../services/diagram-renderer.service';
 import { LoggerService } from '../../shared/services/logger/logger.service';
-import { Observable, Subject } from 'rxjs';
-import { filter, take, takeUntil, map } from 'rxjs/operators';
-import { DiagramElement, DiagramElementProperties } from '../store/models/diagram.model';
-import { DiagramFacadeService } from '../services/diagram-facade.service';
+import { DiagramStateService } from '../services/diagram-state.service';
+import { DiagramElement, DiagramElementProperties } from '../models/diagram.model';
 // Import DiagramGraph from renderer service to ensure type compatibility
 import { DiagramGraph } from '../services/diagram-renderer.service';
 
@@ -38,40 +40,45 @@ interface CanvasState {
 export class DiagramCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('diagramContainer', { static: true }) diagramContainer!: ElementRef;
   
-  canvas$: Observable<CanvasState>;
-  zoomLevel$: Observable<number>;
-  showGrid$: Observable<boolean>;
+  // Inject services
+  private diagramState = inject(DiagramStateService);
+  private diagramService = inject(DiagramService);
+  private diagramRenderer = inject(DiagramRendererService);
+  private logger = inject(LoggerService);
+  
   private graph: DiagramGraph | null = null;
   private resizeObserver: ResizeObserver | null = null;
-  private destroy$ = new Subject<void>();
-
-  constructor(
-    private diagramFacade: DiagramFacadeService,
-    private diagramService: DiagramService,
-    private diagramRenderer: DiagramRendererService,
-    private logger: LoggerService
-  ) {
-    // Use selector from facade that's already optimized for the canvas
-    this.canvas$ = this.diagramFacade.diagramForCanvas$ as Observable<CanvasState>;
-    
-    // These are derived from the canvas state
-    this.zoomLevel$ = this.canvas$.pipe(
-      map(state => state.zoomLevel)
-    );
-    
-    this.showGrid$ = this.canvas$.pipe(
-      map(state => state.showGrid)
-    );
-  }
   
-  ngOnInit(): void {
-    // Subscribe to diagram updates for rendering
-    this.canvas$.pipe(
-      filter(state => !!state && Array.isArray(state.elements)),
-      takeUntil(this.destroy$)
-    ).subscribe(state => {
-      this.updateDiagramFromState(state);
+  // Computed state derived from signals
+  private canvasState = computed<CanvasState>(() => {
+    return {
+      elements: this.diagramState.elements(),
+      zoomLevel: this.diagramState.zoomLevel(),
+      showGrid: this.diagramState.showGrid(),
+      gridSize: this.diagramState.gridSize(),
+      selectedElementIds: this.diagramState.selectedElementId() ? 
+        [this.diagramState.selectedElementId()!] : [],
+      backgroundColor: this.diagramState.backgroundColor()
+    };
+  });
+  
+  // Create the effect during component creation (injection time)
+  // This is in the injection context
+  private diagramEffect = effect(() => {
+    // Get the latest state
+    const state = this.canvasState();
+    
+    // Use untracked to avoid triggering this effect when calling updateDiagramFromState
+    untracked(() => {
+      // Only update if we have a graph and elements
+      if (this.graph && state.elements) {
+        this.updateDiagramFromState(state);
+      }
     });
+  });
+
+  ngOnInit(): void {
+    // No need to create an effect here, it's already created during injection
   }
 
   ngAfterViewInit(): void {
@@ -81,10 +88,6 @@ export class DiagramCanvasComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   ngOnDestroy(): void {
-    // Emit complete notification for all subscriptions
-    this.destroy$.next();
-    this.destroy$.complete();
-    
     // Clean up resize observer
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
@@ -122,13 +125,11 @@ export class DiagramCanvasComponent implements OnInit, AfterViewInit, OnDestroy 
             throw new Error('Failed to initialize graph - graph object is null');
           }
           
-          // Get initial state from store
-          this.canvas$.pipe(
-            filter(state => !!state),
-            take(1)
-          ).subscribe(state => {
-            this.updateDiagramFromState(state);
-          });
+          // Setup click event handler
+          this.setupClickHandler(this.graph);
+          
+          // Get initial state and update the diagram
+          this.updateDiagramFromState(this.canvasState());
           
           this.logger.info('Diagram canvas initialized', 'DiagramCanvasComponent');
         } catch (graphError) {
@@ -141,6 +142,81 @@ export class DiagramCanvasComponent implements OnInit, AfterViewInit, OnDestroy 
       }, 100); // Small delay to ensure DOM rendering is complete
     } catch (error) {
       this.logger.error('Failed to initialize diagram canvas', 'DiagramCanvasComponent', error);
+    }
+  }
+  
+  /**
+   * Setup click handler for the graph
+   */
+  private setupClickHandler(graph: DiagramGraph): void {
+    try {
+      // Remove all existing click listeners to prevent duplicates
+      try {
+        // This is not in the interface, but might be available on the actual graph object
+        if (typeof (graph as any).removeListeners === 'function') {
+          (graph as any).removeListeners('click');
+        }
+      } catch (e) {
+        this.logger.debug('Could not remove existing listeners (this is fine if first init)', 'DiagramCanvasComponent');
+      }
+      
+      // Add click handler to graph with a higher priority to override existing handlers
+      graph.addListener('click', (sender: any, evt: any) => {
+        const cell = evt.getProperty('cell');
+        
+        if (cell) {
+          const cellId = cell.getId();
+          this.logger.debug(`Graph cell clicked: ${cellId}`, 'DiagramCanvasComponent');
+          
+          // Update DiagramStateService
+          this.diagramState.selectElement(cellId);
+          
+          // Update DiagramService selection
+          if (this.diagramService.getCurrentDiagram()) {
+            const currentDiagram = this.diagramService.getCurrentDiagram();
+            currentDiagram.selectedCellId = cellId;
+            
+            // Force update to trigger changes
+            this.diagramService.markDiagramDirty();
+            this.diagramService.markDiagramClean();
+          }
+          
+          // Set selection in graph (this is important)
+          try {
+            if (typeof graph.clearSelection === 'function' && 
+                typeof graph.setSelectionCells === 'function') {
+              graph.clearSelection();
+              const model = graph.model;
+              if (model && typeof model.getCell === 'function') {
+                const graphCell = model.getCell(cellId);
+                if (graphCell) {
+                  graph.setSelectionCells([graphCell]);
+                }
+              }
+            }
+          } catch (e) {
+            this.logger.warn('Error updating graph selection', 'DiagramCanvasComponent', e);
+          }
+        } else {
+          // Clicked on the background
+          this.logger.debug('Background clicked, clearing selection', 'DiagramCanvasComponent');
+          
+          // Clear selection in both services
+          this.diagramState.selectElement(null);
+          
+          if (this.diagramService.getCurrentDiagram()) {
+            const currentDiagram = this.diagramService.getCurrentDiagram();
+            currentDiagram.selectedCellId = undefined;
+          }
+          
+          // Clear selection in graph
+          if (typeof graph.clearSelection === 'function') {
+            graph.clearSelection();
+          }
+        }
+      });
+    } catch (error) {
+      this.logger.warn('Error setting up click handler', 'DiagramCanvasComponent', error);
     }
   }
   
@@ -347,7 +423,6 @@ export class DiagramCanvasComponent implements OnInit, AfterViewInit, OnDestroy 
     return true;
   }
   
-  
   /**
    * Handle element selection from UI
    */
@@ -356,9 +431,9 @@ export class DiagramCanvasComponent implements OnInit, AfterViewInit, OnDestroy 
     
     const cell = event.getProperty('cell');
     if (cell && cell.id) {
-      this.diagramFacade.selectElement(cell.id);
+      this.diagramState.selectElement(cell.id);
     } else {
-      this.diagramFacade.selectElement(null);
+      this.diagramState.selectElement(null);
     }
   }
 }

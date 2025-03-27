@@ -1,11 +1,10 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, effect, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../services/auth/auth.service';
 import { UserInfo } from '../../services/auth/providers/auth-provider.interface';
 import { LoggerService } from '../../services/logger/logger.service';
-import { Subscription } from 'rxjs';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faGoogle } from '@fortawesome/free-brands-svg-icons';
 import { faRightToBracket, faRightFromBracket } from '@fortawesome/free-solid-svg-icons';
@@ -17,55 +16,45 @@ import { faRightToBracket, faRightFromBracket } from '@fortawesome/free-solid-sv
   templateUrl: './login-button.component.html',
   styleUrls: ['./login-button.component.scss']
 })
-export class LoginButtonComponent implements OnInit, OnDestroy {
+export class LoginButtonComponent {
   isAuthenticated = false;
   userInfo: UserInfo | null = null;
-  isLoading = false;
+  isLoading = signal(false);
   
   // Icon references
   faLogin = faRightToBracket;
   faLogout = faRightFromBracket;
   faGoogle = faGoogle;
-  
-  private subscriptions: Subscription[] = [];
 
   constructor(
     private authService: AuthService,
     private router: Router,
     private logger: LoggerService,
     private translate: TranslateService
-  ) {}
-
-  ngOnInit(): void {
-    // Subscribe to auth state changes
-    this.subscriptions.push(
-      this.authService.authState$.subscribe(isAuthenticated => {
-        this.isAuthenticated = isAuthenticated;
-      })
-    );
+  ) {
+    // Set initial values
+    this.isAuthenticated = this.authService.isAuthenticated();
+    this.userInfo = this.authService.getUserInfo();
     
-    // Subscribe to user info changes
-    this.subscriptions.push(
-      this.authService.userInfo$.subscribe(userInfo => {
-        this.userInfo = userInfo;
-      })
-    );
-  }
-
-  ngOnDestroy(): void {
-    // Clean up subscriptions
-    this.subscriptions.forEach(sub => sub.unsubscribe());
+    // Setup effects to react to auth state and user info changes
+    effect(() => {
+      this.isAuthenticated = this.authService.isAuthenticated();
+    });
+    
+    effect(() => {
+      this.userInfo = this.authService.getUserInfo();
+    });
   }
 
   /**
    * Handle login button click
    */
   async onLogin(): Promise<void> {
-    if (this.isLoading) {
+    if (this.isLoading()) {
       return;
     }
     
-    this.isLoading = true;
+    this.isLoading.set(true);
     
     try {
       this.logger.info('Login initiated', 'LoginButtonComponent');
@@ -78,7 +67,7 @@ export class LoginButtonComponent implements OnInit, OnDestroy {
     } catch (error) {
       this.logger.error('Login failed', 'LoginButtonComponent', error);
     } finally {
-      this.isLoading = false;
+      this.isLoading.set(false);
     }
   }
 
@@ -86,11 +75,11 @@ export class LoginButtonComponent implements OnInit, OnDestroy {
    * Handle logout button click
    */
   async onLogout(): Promise<void> {
-    if (this.isLoading) {
+    if (this.isLoading()) {
       return;
     }
     
-    this.isLoading = true;
+    this.isLoading.set(true);
     
     try {
       this.logger.info('Logout initiated', 'LoginButtonComponent');
@@ -101,7 +90,7 @@ export class LoginButtonComponent implements OnInit, OnDestroy {
     } catch (error) {
       this.logger.error('Logout failed', 'LoginButtonComponent', error);
     } finally {
-      this.isLoading = false;
+      this.isLoading.set(false);
     }
   }
 }

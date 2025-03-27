@@ -24,7 +24,8 @@ export enum DiagramElementType {
   TEXT = 'text',
   LINE = 'line',
   IMAGE = 'image',
-  CONNECTOR = 'connector'
+  CONNECTOR = 'connector',
+  PROCESS = 'process'
 }
 
 export interface DiagramElementProperties {

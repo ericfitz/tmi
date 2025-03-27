@@ -70,7 +70,7 @@ export class CsrfInterceptor implements HttpInterceptor {
       const requestUrl = new URL(url);
       const originUrl = new URL(window.location.origin);
       return requestUrl.origin === originUrl.origin;
-    } catch (e) {
+    } catch {
       // If parsing fails, assume it's not same origin
       return false;
     }

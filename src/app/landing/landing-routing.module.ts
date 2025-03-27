@@ -4,6 +4,7 @@ import { AboutComponent } from './about/about.component';
 import { HelpComponent } from './help/help.component';
 import { PrivacyComponent } from './privacy/privacy.component';
 import { TermsOfServiceComponent } from './terms-of-service/terms-of-service.component';
+import { ContactComponent } from './contact/contact.component';
 
 export const LANDING_ROUTES: Routes = [
   {
@@ -25,5 +26,9 @@ export const LANDING_ROUTES: Routes = [
   {
     path: 'terms',
     component: TermsOfServiceComponent
+  },
+  {
+    path: 'contact',
+    component: ContactComponent
   }
 ];

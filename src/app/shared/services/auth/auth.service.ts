@@ -1,14 +1,13 @@
-import { Injectable, Inject } from '@angular/core';
+import { Injectable, Inject, signal } from '@angular/core';
 import { AUTH_PROVIDER, AuthProvider, UserInfo } from './providers/auth-provider.interface';
-import { BehaviorSubject, Observable } from 'rxjs';
 import { LoggerService } from '../logger/logger.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
-  private authState = new BehaviorSubject<boolean>(false);
-  private userInfo = new BehaviorSubject<UserInfo | null>(null);
+  private authState = signal<boolean>(false);
+  private userInfo = signal<UserInfo | null>(null);
 
   constructor(
     @Inject(AUTH_PROVIDER) private provider: AuthProvider,
@@ -41,15 +40,15 @@ export class AuthService {
 
   private checkAuthState(): void {
     const isAuthenticated = this.provider.isAuthenticated();
-    this.authState.next(isAuthenticated);
+    this.authState.set(isAuthenticated);
     this.logger.debug(`Auth state checked: ${isAuthenticated}`, 'AuthService');
     
     if (isAuthenticated) {
       const user = this.provider.getUserInfo();
-      this.userInfo.next(user);
+      this.userInfo.set(user);
       this.logger.debug('User info retrieved', 'AuthService', { userId: user?.id });
     } else {
-      this.userInfo.next(null);
+      this.userInfo.set(null);
       this.logger.debug('No authenticated user', 'AuthService');
     }
   }
@@ -78,20 +77,12 @@ export class AuthService {
     }
   }
 
+  // Signal API
   isAuthenticated(): boolean {
-    return this.provider.isAuthenticated();
+    return this.authState();
   }
 
   getUserInfo(): UserInfo | null {
-    return this.provider.getUserInfo();
-  }
-
-  // Observable streams
-  get authState$(): Observable<boolean> {
-    return this.authState.asObservable();
-  }
-
-  get userInfo$(): Observable<UserInfo | null> {
-    return this.userInfo.asObservable();
+    return this.userInfo();
   }
 }
