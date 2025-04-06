@@ -1,0 +1,787 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "TMI Collaborative Diagram Editing API",
+        "description": "A RESTful API with WebSocket support for collaborative diagram editing, using JSON payloads, OAuth authentication, and JWTs.",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "https://api.example.com"
+        }
+    ],
+    "components": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        },
+        "schemas": {
+            "Diagram": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Unique identifier for the diagram."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the diagram."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description of the diagram."
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Creation timestamp (ISO8601)."
+                    },
+                    "modified_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Last modification timestamp (ISO8601)."
+                    },
+                    "owner": {
+                        "type": "string",
+                        "format": "email",
+                        "description": "Email address of the current owner."
+                    },
+                    "authorization": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "subject": {
+                                    "type": "string",
+                                    "format": "email",
+                                    "description": "User email address."
+                                },
+                                "role": {
+                                    "type": "string",
+                                    "enum": [
+                                        "reader",
+                                        "writer",
+                                        "owner"
+                                    ],
+                                    "description": "Role: reader (view), writer (edit), owner (full control)."
+                                }
+                            },
+                            "required": [
+                                "subject",
+                                "role"
+                            ]
+                        },
+                        "description": "List of users and their roles."
+                    },
+                    "metadata": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Metadata"
+                        },
+                        "description": "Key-value pairs for additional diagram metadata."
+                    },
+                    "components": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "format": "uuid",
+                                    "description": "Unique identifier for the component."
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "description": "Component type (e.g., vertex, edge)."
+                                },
+                                "data": {
+                                    "type": "object",
+                                    "description": "Component properties (e.g., position, label)."
+                                },
+                                "metadata": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Metadata"
+                                    },
+                                    "description": "Key-value pairs for component metadata."
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "type",
+                                "data"
+                            ]
+                        },
+                        "description": "List of diagram components (maxGraph cells)."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "created_at",
+                    "modified_at",
+                    "owner",
+                    "authorization"
+                ]
+            },
+            "Metadata": {
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "description": "Metadata key."
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "Metadata value."
+                    }
+                },
+                "required": [
+                    "key",
+                    "value"
+                ]
+            },
+            "Error": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "description": "Error code."
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Error description."
+                    }
+                },
+                "required": [
+                    "error",
+                    "message"
+                ]
+            },
+            "CollaborationSession": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Unique identifier for the session."
+                    },
+                    "diagram_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Associated diagram ID."
+                    },
+                    "participants": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "user_id": {
+                                    "type": "string",
+                                    "format": "email",
+                                    "description": "Participant email."
+                                },
+                                "joined_at": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "description": "Join timestamp."
+                                }
+                            }
+                        },
+                        "description": "List of active participants."
+                    },
+                    "websocket_url": {
+                        "type": "string",
+                        "description": "WebSocket URL for real-time updates."
+                    }
+                },
+                "required": [
+                    "session_id",
+                    "diagram_id",
+                    "participants",
+                    "websocket_url"
+                ]
+            }
+        },
+        "responses": {
+            "Error": {
+                "description": "Error response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "paths": {
+        "/auth/login": {
+            "get": {
+                "summary": "Initiate OAuth login",
+                "description": "Redirects to OAuth provider for authentication.",
+                "parameters": [
+                    {
+                        "name": "redirect_uri",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Optional redirect URI after login."
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Redirect to OAuth provider",
+                        "headers": {
+                            "Location": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "OAuth provider URL."
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/callback": {
+            "get": {
+                "summary": "Handle OAuth callback",
+                "description": "Exchanges OAuth code for JWT.",
+                "parameters": [
+                    {
+                        "name": "code",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "OAuth authorization code."
+                    },
+                    {
+                        "name": "state",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Optional state parameter."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "JWT issued",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "token": {
+                                            "type": "string",
+                                            "description": "JWT for authentication."
+                                        },
+                                        "expires_in": {
+                                            "type": "integer",
+                                            "description": "Expiration time in seconds."
+                                        }
+                                    },
+                                    "required": [
+                                        "token",
+                                        "expires_in"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "summary": "Logout user",
+                "description": "Invalidates the JWT and ends the session.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Session ended successfully."
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            }
+        },
+        "/diagrams": {
+            "get": {
+                "summary": "List diagrams",
+                "description": "Returns diagrams accessible to the authenticated user.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 20
+                        },
+                        "description": "Number of diagrams to return."
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 0
+                        },
+                        "description": "Pagination offset."
+                    },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "default": "created_at:desc"
+                        },
+                        "description": "Sort order (e.g., created_at:desc)."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of diagrams",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "diagrams": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Diagram"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "offset": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "diagrams",
+                                        "total",
+                                        "limit",
+                                        "offset"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create a diagram",
+                "description": "Creates a new diagram; owner is set to the authenticated user.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "description": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "name"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Diagram created",
+                        "headers": {
+                            "Location": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "URL of the new diagram."
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Diagram"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            }
+        },
+        "/diagrams/{id}": {
+            "get": {
+                "summary": "Get a diagram",
+                "description": "Retrieves a diagram's details if the user has access.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Diagram details",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Diagram"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            },
+            "put": {
+                "summary": "Update a diagram",
+                "description": "Fully updates a diagram; restricted to writer/owner roles.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Diagram"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Diagram updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Diagram"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            },
+            "patch": {
+                "summary": "Partially update a diagram",
+                "description": "Applies JSON Patch operations; restricted to writer/owner roles.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "op": {
+                                            "type": "string",
+                                            "enum": [
+                                                "add",
+                                                "replace",
+                                                "remove",
+                                                "move",
+                                                "copy",
+                                                "test"
+                                            ]
+                                        },
+                                        "path": {
+                                            "type": "string"
+                                        },
+                                        "value": {}
+                                    },
+                                    "required": [
+                                        "op",
+                                        "path"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Diagram updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Diagram"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete a diagram",
+                "description": "Deletes a diagram; restricted to owner role.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Diagram deleted successfully."
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            }
+        },
+        "/diagrams/{id}/collaborate": {
+            "get": {
+                "summary": "Get collaboration session status",
+                "description": "Returns details of an active collaboration session.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Session details",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CollaborationSession"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            },
+            "post": {
+                "summary": "Join or start collaboration session",
+                "description": "Joins an existing session or starts a new one (writer/owner only to start).",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Session joined or started",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CollaborationSession"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Leave collaboration session",
+                "description": "Removes the user from the session.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Left session successfully."
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            }
+        }
+    }
+}
