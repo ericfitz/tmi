@@ -21,6 +21,90 @@
             }
         },
         "schemas": {
+            "ApiInfo": {
+                "type": "object",
+                "description": "API information response for the root endpoint",
+                "properties": {
+                    "status": {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "enum": ["OK", "ERROR"],
+                                "description": "Status code indicating if the API is functioning correctly"
+                            },
+                            "time": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "Current server time in UTC, formatted as RFC 3339"
+                            }
+                        },
+                        "required": ["code", "time"]
+                    },
+                    "service": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the service"
+                            },
+                            "build": {
+                                "type": "string",
+                                "description": "Current build number"
+                            }
+                        },
+                        "required": ["name", "build"]
+                    },
+                    "api": {
+                        "type": "object",
+                        "properties": {
+                            "version": {
+                                "type": "string",
+                                "description": "API version"
+                            },
+                            "specification": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "URL to the API specification"
+                            }
+                        },
+                        "required": ["version", "specification"]
+                    },
+                    "operator": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Operator name from environment variables"
+                            },
+                            "contact": {
+                                "type": "string",
+                                "description": "Operator contact information from environment variables"
+                            }
+                        },
+                        "required": ["name", "contact"]
+                    }
+                },
+                "required": ["status", "service", "api"],
+                "example": {
+                    "status": {
+                        "code": "OK",
+                        "time": "2025-04-09T12:00:00Z"
+                    },
+                    "service": {
+                        "name": "TMI",
+                        "build": "1.0.0-386eea0"
+                    },
+                    "api": {
+                        "version": "1.0",
+                        "specification": "https://github.com/ericfitz/tmi/blob/main/tmi-openapi.json"
+                    },
+                    "operator": {
+                        "name": "Example Organization",
+                        "contact": "api-support@example.com"
+                    }
+                }
+            },
             "Diagram": {
                 "type": "object",
                 "description": "A diagram object supporting collaborative editing",
@@ -441,6 +525,25 @@
         }
     },
     "paths": {
+        "/": {
+            "get": {
+                "summary": "Get API information",
+                "description": "Returns service, API, and operator information without authentication",
+                "operationId": "getApiInfo",
+                "responses": {
+                    "200": {
+                        "description": "Service and API information",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiInfo"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "get": {
                 "summary": "Initiate OAuth login",

@@ -38,7 +38,7 @@ func TestDiagramStoreAndAuth(t *testing.T) {
 
 	// Now retrieve and verify
 	retrieved, err := DiagramStore.Get(diagramID)
-	if err \!= nil {
+	if err != nil {
 		t.Fatalf("Failed to retrieve diagram: %v", err)
 	}
 
@@ -57,13 +57,13 @@ func TestDiagramStoreAndAuth(t *testing.T) {
 	})
 
 	err = DiagramStore.Update(diagramID, updatedDiagram)
-	if err \!= nil {
+	if err != nil {
 		t.Fatalf("Failed to update diagram: %v", err)
 	}
 
 	// Retrieve again
 	updated, err := DiagramStore.Get(diagramID)
-	if err \!= nil {
+	if err != nil {
 		t.Fatalf("Failed to retrieve updated diagram: %v", err)
 	}
 

@@ -17,6 +17,12 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// Defines values for ApiInfoStatusCode.
+const (
+	ERROR ApiInfoStatusCode = "ERROR"
+	OK    ApiInfoStatusCode = "OK"
+)
+
 // Defines values for AuthorizationRole.
 const (
 	Owner  AuthorizationRole = "owner"
@@ -43,6 +49,41 @@ const (
 	PatchThreatModelsIdJSONBodyOpReplace PatchThreatModelsIdJSONBodyOp = "replace"
 	PatchThreatModelsIdJSONBodyOpTest    PatchThreatModelsIdJSONBodyOp = "test"
 )
+
+// ApiInfo API information response for the root endpoint
+type ApiInfo struct {
+	Api struct {
+		// Specification URL to the API specification
+		Specification string `json:"specification"`
+
+		// Version API version
+		Version string `json:"version"`
+	} `json:"api"`
+	Operator *struct {
+		// Contact Operator contact information from environment variables
+		Contact string `json:"contact"`
+
+		// Name Operator name from environment variables
+		Name string `json:"name"`
+	} `json:"operator,omitempty"`
+	Service struct {
+		// Build Current build number
+		Build string `json:"build"`
+
+		// Name Name of the service
+		Name string `json:"name"`
+	} `json:"service"`
+	Status struct {
+		// Code Status code indicating if the API is functioning correctly
+		Code ApiInfoStatusCode `json:"code"`
+
+		// Time Current server time in UTC, formatted as RFC 3339
+		Time time.Time `json:"time"`
+	} `json:"status"`
+}
+
+// ApiInfoStatusCode Status code indicating if the API is functioning correctly
+type ApiInfoStatusCode string
 
 // Authorization A user-role pair defining access permissions
 type Authorization struct {
@@ -313,6 +354,9 @@ type PutThreatModelsIdJSONRequestBody = ThreatModel
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Get API information
+	// (GET /)
+	GetApiInfo(ctx echo.Context) error
 	// Handle OAuth callback
 	// (GET /auth/callback)
 	GetAuthCallback(ctx echo.Context, params GetAuthCallbackParams) error
@@ -372,6 +416,15 @@ type ServerInterface interface {
 // ServerInterfaceWrapper converts echo contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler ServerInterface
+}
+
+// GetApiInfo converts echo context to params.
+func (w *ServerInterfaceWrapper) GetApiInfo(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetApiInfo(ctx)
+	return err
 }
 
 // GetAuthCallback converts echo context to params.
@@ -744,6 +797,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 		Handler: si,
 	}
 
+	router.GET(baseURL+"/", wrapper.GetApiInfo)
 	router.GET(baseURL+"/auth/callback", wrapper.GetAuthCallback)
 	router.GET(baseURL+"/auth/login", wrapper.GetAuthLogin)
 	router.POST(baseURL+"/auth/logout", wrapper.PostAuthLogout)

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -49,8 +50,8 @@ type WebSocketClient struct {
 	Session *DiagramSession
 	// The websocket connection
 	Conn *websocket.Conn
-	// User email
-	UserEmail string
+	// User name (can be email, username, etc.)
+	UserName string
 	// Buffered channel of outbound messages
 	Send chan []byte
 }
@@ -61,8 +62,8 @@ type WebSocketMessage struct {
 	Event string `json:"event"`
 	// User who sent the message
 	UserID string `json:"user_id"`
-	// JSON Patch operation
-	Operation interface{} `json:"operation,omitempty"`
+	// Diagram operation
+	Operation DiagramOperation `json:"operation,omitempty"`
 	// Timestamp
 	Timestamp time.Time `json:"timestamp"`
 }
@@ -108,6 +109,18 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string) *DiagramSession {
 	go session.Run()
 
 	return session
+}
+
+// GetSession returns an existing session or nil if none exists
+func (h *WebSocketHub) GetSession(diagramID string) *DiagramSession {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	
+	if session, ok := h.Diagrams[diagramID]; ok {
+		return session
+	}
+	
+	return nil
 }
 
 // CloseSession closes a session and removes it
@@ -174,7 +187,7 @@ func (s *DiagramSession) Run() {
 			// Notify other clients that someone joined
 			msg := WebSocketMessage{
 				Event:     "join",
-				UserID:    client.UserEmail,
+				UserID:    client.UserName,
 				Timestamp: time.Now().UTC(),
 			}
 			if msgBytes, err := json.Marshal(msg); err == nil {
@@ -193,7 +206,7 @@ func (s *DiagramSession) Run() {
 			// Notify other clients that someone left
 			msg := WebSocketMessage{
 				Event:     "leave",
-				UserID:    client.UserEmail,
+				UserID:    client.UserName,
 				Timestamp: time.Now().UTC(),
 			}
 			if msgBytes, err := json.Marshal(msg); err == nil {
@@ -223,7 +236,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	diagramID := c.Param("id")
 
 	// Get user from context
-	userEmail, exists := c.Get("user_email")
+	userName, exists := c.Get("user_name")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:   "unauthorized",
@@ -247,7 +260,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		Hub:       h,
 		Session:   session,
 		Conn:      conn,
-		UserEmail: userEmail.(string),
+		UserName:  userName.(string),
 		Send:      make(chan []byte, 256),
 	}
 
@@ -257,6 +270,112 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Start goroutines
 	go client.ReadPump()
 	go client.WritePump()
+}
+
+// DiagramOperation defines a change to a diagram
+type DiagramOperation struct {
+	// Operation type (add, remove, update)
+	Type string `json:"type"`
+	// Component ID (for update/remove)
+	ComponentID string `json:"component_id,omitempty"`
+	// Component data (for add/update)
+	Component *DiagramComponent `json:"component,omitempty"`
+	// Properties to update (for update)
+	Properties map[string]interface{} `json:"properties,omitempty"`
+}
+
+// Validate the diagram operation
+func validateDiagramOperation(op DiagramOperation) error {
+	// Validate operation type
+	if op.Type != "add" && op.Type != "update" && op.Type != "remove" {
+		return fmt.Errorf("invalid operation type: %s", op.Type)
+	}
+	
+	// Validate operation parameters based on type
+	switch op.Type {
+	case "add":
+		// Add requires a component
+		if op.Component == nil {
+			return fmt.Errorf("add operation requires component data")
+		}
+		
+		// Validate component data
+		if err := validateDiagramComponent(op.Component); err != nil {
+			return fmt.Errorf("invalid component data: %w", err)
+		}
+		
+	case "remove":
+		// Remove requires component ID
+		if op.ComponentID == "" {
+			return fmt.Errorf("remove operation requires component_id")
+		}
+		
+		// Validate component ID
+		if _, err := uuid.Parse(op.ComponentID); err != nil {
+			return fmt.Errorf("invalid component ID format: %w", err)
+		}
+		
+	case "update":
+		// Update requires component ID and either component or properties
+		if op.ComponentID == "" {
+			return fmt.Errorf("update operation requires component_id")
+		}
+		
+		// Validate component ID
+		if _, err := uuid.Parse(op.ComponentID); err != nil {
+			return fmt.Errorf("invalid component ID format: %w", err)
+		}
+		
+		// Properties or component required
+		if op.Properties == nil && op.Component == nil {
+			return fmt.Errorf("update operation requires either properties or component")
+		}
+		
+		// If component provided, validate it
+		if op.Component != nil {
+			if err := validateDiagramComponent(op.Component); err != nil {
+				return fmt.Errorf("invalid component data: %w", err)
+			}
+		}
+		
+		// If properties provided, validate them
+		if op.Properties != nil {
+			for key, _ := range op.Properties {
+				if len(key) > 255 {
+					return fmt.Errorf("property key exceeds maximum length: %s", key)
+				}
+			}
+		}
+	}
+	
+	return nil
+}
+
+// Validate diagram component
+func validateDiagramComponent(component *DiagramComponent) error {
+	if component == nil {
+		return fmt.Errorf("component cannot be nil")
+	}
+	
+	// Validate type is not empty
+	if component.Type == "" {
+		return fmt.Errorf("component type is required")
+	}
+	
+	// Validate type length
+	if len(component.Type) > 100 {
+		return fmt.Errorf("component type exceeds maximum length")
+	}
+	
+	// Validate data if present
+	if component.Data != nil {
+		// Check for reasonable size
+		if len(component.Data) > 50 {
+			return fmt.Errorf("component data has too many fields")
+		}
+	}
+	
+	return nil
 }
 
 // ReadPump pumps messages from WebSocket to hub
@@ -290,21 +409,40 @@ func (c *WebSocketClient) ReadPump() {
 			log.Printf("Error parsing WebSocket message: %v", err)
 			continue
 		}
+		
+		// Validate message size
+		if len(clientMsg.Operation) > 1024*50 { // 50KB limit
+			log.Printf("Operation too large (%d bytes), ignoring", len(clientMsg.Operation))
+			continue
+		}
 
 		// Create server message
 		msg := WebSocketMessage{
 			Event:     "update",
-			UserID:    c.UserEmail,
+			UserID:    c.UserName,
 			Timestamp: time.Now().UTC(),
 		}
 
 		// Unmarshal operation
-		var op interface{}
+		var op DiagramOperation
 		if err := json.Unmarshal(clientMsg.Operation, &op); err != nil {
 			log.Printf("Error parsing operation: %v", err)
 			continue
 		}
+		
+		// Validate operation
+		if err := validateDiagramOperation(op); err != nil {
+			log.Printf("Invalid diagram operation: %v", err)
+			continue
+		}
+		
 		msg.Operation = op
+
+		// Apply operation to the diagram
+		if err := applyDiagramOperation(c.Session.DiagramID, op); err != nil {
+			log.Printf("Error applying operation to diagram: %v", err)
+			// Still broadcast the operation to maintain consistency
+		}
 
 		// Marshal and broadcast
 		msgBytes, err := json.Marshal(msg)
@@ -315,6 +453,66 @@ func (c *WebSocketClient) ReadPump() {
 
 		c.Session.Broadcast <- msgBytes
 	}
+}
+
+// applyDiagramOperation applies a diagram operation to the stored diagram
+func applyDiagramOperation(diagramID string, op DiagramOperation) error {
+	// Get the diagram from the store
+	diagram, err := DiagramStore.Get(diagramID)
+	if err != nil {
+		return err
+	}
+
+	// Ensure components array exists
+	if diagram.Components == nil {
+		components := []DiagramComponent{}
+		diagram.Components = &components
+	}
+
+	// Update diagram based on operation type
+	switch op.Type {
+	case "add":
+		// Add a new component
+		if op.Component != nil {
+			*diagram.Components = append(*diagram.Components, *op.Component)
+		}
+	case "update":
+		// Update an existing component
+		for i := range *diagram.Components {
+			comp := &(*diagram.Components)[i]
+			if comp.Id.String() == op.ComponentID {
+				// Update existing component with new properties
+				if op.Properties != nil {
+					for key, value := range op.Properties {
+						if comp.Data == nil {
+							comp.Data = make(map[string]interface{})
+						}
+						comp.Data[key] = value
+					}
+				}
+				break
+			}
+		}
+	case "remove":
+		// Remove a component
+		for i, comp := range *diagram.Components {
+			if comp.Id.String() == op.ComponentID {
+				// Remove by replacing with last element and truncating
+				lastIndex := len(*diagram.Components) - 1
+				if i != lastIndex {
+					(*diagram.Components)[i] = (*diagram.Components)[lastIndex]
+				}
+				*diagram.Components = (*diagram.Components)[:lastIndex]
+				break
+			}
+		}
+	}
+
+	// Update modification time
+	diagram.ModifiedAt = time.Now().UTC()
+
+	// Save changes
+	return DiagramStore.Update(diagramID, diagram)
 }
 
 // WritePump pumps messages from hub to WebSocket

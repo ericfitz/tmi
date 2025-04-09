@@ -201,9 +201,7 @@ func TestPatchThreatModel(t *testing.T) {
 }
 
 // Helper functions
-func stringPointer(s string) *string {
-	return &s
-}
+// already defined in test_fixtures.go
 
 // createTestThreatModel creates a test threat model and returns it
 func createTestThreatModel(t *testing.T, router *gin.Engine, name string, description string) ThreatModel {

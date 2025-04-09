@@ -77,6 +77,15 @@ func (h *DiagramHandler) GetDiagramByID(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("id")
 	
+	// Validate ID format (UUID)
+	if _, err := ParseUUID(id); err != nil {
+		c.JSON(http.StatusBadRequest, Error{
+			Error:   "invalid_id",
+			Message: "Invalid diagram ID format, must be a valid UUID",
+		})
+		return
+	}
+	
 	// Get diagram from store
 	d, err := DiagramStore.Get(id)
 	if err != nil {
@@ -122,7 +131,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 	}
 	
 	var request struct {
-		Name          string           `json:"name" binding:"required"`
+		Name          string           `json:"name" binding:"required,min=1,max=255"`
 		Description   *string          `json:"description,omitempty"`
 		Authorization []Authorization  `json:"authorization,omitempty"`
 	}
@@ -132,6 +141,24 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
 			Message: err.Error(),
+		})
+		return
+	}
+	
+	// Validate name format (no control characters, reasonable length)
+	if len(request.Name) == 0 || len(request.Name) > 255 {
+		c.JSON(http.StatusBadRequest, Error{
+			Error:   "invalid_input",
+			Message: "Name must be between 1 and 255 characters",
+		})
+		return
+	}
+	
+	// Validate description if provided (reasonable length)
+	if request.Description != nil && len(*request.Description) > 5000 {
+		c.JSON(http.StatusBadRequest, Error{
+			Error:   "invalid_input",
+			Message: "Description must be at most 5000 characters",
 		})
 		return
 	}
@@ -152,7 +179,35 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 	// Check for duplicate authorization subjects in the request itself first
 	if len(request.Authorization) > 0 {
 		authMap := make(map[string]bool)
-		for _, auth := range request.Authorization {
+		for i, auth := range request.Authorization {
+			// Validate subject format
+			if auth.Subject == "" {
+				c.JSON(http.StatusBadRequest, Error{
+					Error:   "invalid_input",
+					Message: fmt.Sprintf("Authorization subject at index %d cannot be empty", i),
+				})
+				return
+			}
+			
+			if len(auth.Subject) > 255 {
+				c.JSON(http.StatusBadRequest, Error{
+					Error:   "invalid_input",
+					Message: fmt.Sprintf("Authorization subject '%s' exceeds maximum length of 255 characters", auth.Subject),
+				})
+				return
+			}
+			
+			// Validate role is valid
+			if auth.Role != RoleReader && auth.Role != RoleWriter && auth.Role != RoleOwner {
+				c.JSON(http.StatusBadRequest, Error{
+					Error:   "invalid_input",
+					Message: fmt.Sprintf("Invalid role '%s' for subject '%s'. Must be one of: reader, writer, owner", 
+						auth.Role, auth.Subject),
+				})
+				return
+			}
+			
+			// Check for duplicates
 			if _, exists := authMap[auth.Subject]; exists {
 				c.JSON(http.StatusBadRequest, Error{
 					Error:   "invalid_input",
@@ -266,10 +321,8 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 	
 	fmt.Printf("[DEBUG DIAGRAM HANDLER] Successfully parsed request: %+v\n", request)
 	
-	// Get username from JWT claim
-	userID, _ := c.Get("userName")
-	_, ok := userID.(string)
-	if !ok {
+	// Get username from JWT claim (just verify it exists)
+	if _, exists := c.Get("userName"); !exists {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:   "unauthorized",
 			Message: "Authentication required",
@@ -689,15 +742,56 @@ func (h *DiagramHandler) GetDiagramCollaborate(c *gin.Context) {
 		return
 	}
 	
+	// We don't need username for this endpoint
+	// userID, _ := c.Get("userName")
+	
+	// Get WebSocket hub from the server
+	var wsHub *WebSocketHub
+	serverInst, exists := c.Get("server")
+	if exists {
+		if server, ok := serverInst.(*Server); ok {
+			wsHub = server.wsHub
+		}
+	}
+	
+	// Create response
+	sessionID := "session-" + idStr
+	var participants []struct{
+		JoinedAt *time.Time `json:"joined_at,omitempty"`
+		UserId   *string    `json:"user_id,omitempty"`
+	}
+	
+	// If we have WebSocket hub, check for existing session
+	if wsHub != nil {
+		if session := wsHub.GetSession(idStr); session != nil {
+			sessionID = session.ID
+			
+			// Add existing participants
+			session.mu.RLock()
+			for client := range session.Clients {
+				// Get join time or current time
+				joinTime := time.Now().UTC()
+				userName := client.UserName
+				
+				// Add to participants
+				participants = append(participants, struct{
+					JoinedAt *time.Time `json:"joined_at,omitempty"`
+					UserId   *string    `json:"user_id,omitempty"`
+				}{
+					UserId:   &userName,
+					JoinedAt: &joinTime,
+				})
+			}
+			session.mu.RUnlock()
+		}
+	}
+	
 	// Return collaboration session details
 	session := CollaborationSession{
 		DiagramId:     id,
-		SessionId:     NewUUID().String(),
+		SessionId:     sessionID,
 		WebsocketUrl:  fmt.Sprintf("/ws/diagrams/%s", id),
-		Participants:  []struct{
-			JoinedAt *time.Time `json:"joined_at,omitempty"`
-			UserId   *string    `json:"user_id,omitempty"`
-		}{},
+		Participants:  participants,
 	}
 	
 	c.JSON(http.StatusOK, session)
@@ -716,28 +810,76 @@ func (h *DiagramHandler) PostDiagramCollaborate(c *gin.Context) {
 		return
 	}
 	
-	// Get username from context
+	// Get username from JWT claim
 	userID, _ := c.Get("userName")
 	userName, ok := userID.(string)
 	if !ok {
-		userName = ""
+		userName = "anonymous"
 	}
 	
-	// Create a new collaboration session
+	// Get WebSocket hub from the server
+	var wsHub *WebSocketHub
+	serverInst, exists := c.Get("server")
+	if exists {
+		if server, ok := serverInst.(*Server); ok {
+			wsHub = server.wsHub
+		}
+	}
+	
+	// Create or get a session
+	sessionID := "session-" + idStr
 	now := time.Now().UTC()
+	
+	var participants []struct{
+		JoinedAt *time.Time `json:"joined_at,omitempty"`
+		UserId   *string    `json:"user_id,omitempty"`
+	}
+	
+	// Add current user
+	participants = append(participants, struct{
+		JoinedAt *time.Time `json:"joined_at,omitempty"`
+		UserId   *string    `json:"user_id,omitempty"`
+	}{
+		UserId:   &userName,
+		JoinedAt: &now,
+	})
+	
+	// If we have a WebSocket hub, create/get a session
+	if wsHub != nil {
+		// This will create a session if it doesn't exist
+		session := wsHub.GetOrCreateSession(idStr)
+		sessionID = session.ID
+		
+		// Add other participants
+		session.mu.RLock()
+		for client := range session.Clients {
+			// Skip current user as already added
+			if client.UserName == userName {
+				continue
+			}
+			
+			// Get client info
+			joinTime := now
+			userName := client.UserName
+			
+			// Add to participants
+			participants = append(participants, struct{
+				JoinedAt *time.Time `json:"joined_at,omitempty"`
+				UserId   *string    `json:"user_id,omitempty"`
+			}{
+				UserId:   &userName,
+				JoinedAt: &joinTime,
+			})
+		}
+		session.mu.RUnlock()
+	}
+	
+	// Return the collaboration session
 	session := CollaborationSession{
 		DiagramId:    id,
-		SessionId:    NewUUID().String(),
+		SessionId:    sessionID,
 		WebsocketUrl: fmt.Sprintf("/ws/diagrams/%s", id),
-		Participants: []struct{
-			JoinedAt *time.Time `json:"joined_at,omitempty"`
-			UserId   *string    `json:"user_id,omitempty"`
-		}{
-			{
-				UserId:   &userName,
-				JoinedAt: &now,
-			},
-		},
+		Participants: participants,
 	}
 	
 	c.JSON(http.StatusOK, session)
@@ -745,5 +887,53 @@ func (h *DiagramHandler) PostDiagramCollaborate(c *gin.Context) {
 
 // DeleteDiagramCollaborate leaves a collaboration session
 func (h *DiagramHandler) DeleteDiagramCollaborate(c *gin.Context) {
+	// Parse ID from URL parameter
+	idStr := c.Param("id")
+	
+	// Get username from JWT claim
+	userID, _ := c.Get("userName")
+	userName, ok := userID.(string)
+	if !ok {
+		userName = "anonymous"
+	}
+	
+	// Get WebSocket hub from the server
+	var wsHub *WebSocketHub
+	serverInst, exists := c.Get("server")
+	if exists {
+		if server, ok := serverInst.(*Server); ok {
+			wsHub = server.wsHub
+		}
+	}
+	
+	// If we have a hub and a username, handle leaving
+	if wsHub != nil && userName != "" {
+		// Get session if it exists
+		if session := wsHub.GetSession(idStr); session != nil {
+			// Find the client to disconnect
+			session.mu.Lock()
+			var clientToRemove *WebSocketClient
+			for client := range session.Clients {
+				if client.UserName == userName {
+					clientToRemove = client
+					break
+				}
+			}
+			session.mu.Unlock()
+			
+			// Disconnect the client if found
+			if clientToRemove != nil {
+				session.Unregister <- clientToRemove
+			}
+			
+			// If no more clients, close the session
+			session.mu.RLock()
+			if len(session.Clients) == 0 {
+				wsHub.CloseSession(idStr)
+			}
+			session.mu.RUnlock()
+		}
+	}
+	
 	c.Status(http.StatusNoContent)
 }

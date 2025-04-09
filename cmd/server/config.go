@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/joho/godotenv"
 )
 
@@ -15,6 +16,7 @@ type Config struct {
 	Server   ServerConfig
 	Auth     AuthConfig
 	Database DatabaseConfig
+	Logging  LoggingConfig
 }
 
 // ServerConfig holds HTTP server configuration
@@ -40,6 +42,17 @@ type DatabaseConfig struct {
 	Username string
 	Password string
 	Name     string
+}
+
+// LoggingConfig holds logging configuration
+type LoggingConfig struct {
+	Level           logging.LogLevel
+	IsDev           bool
+	LogDir          string
+	MaxAgeDays      int
+	MaxSizeMB       int
+	MaxBackups      int
+	AlsoLogToConsole bool
 }
 
 // LoadEnvFile loads environment variables from .env file
@@ -89,13 +102,16 @@ func LoadConfig() Config {
 	// Try to load .env file (ignoring errors as it's optional)
 	_ = LoadEnvFile("")
 
+	// Parse log level
+	logLevelStr := getEnv("LOG_LEVEL", "info")
+
 	return Config{
 		Server: ServerConfig{
 			Port:         getEnv("SERVER_PORT", "8080"),
 			ReadTimeout:  parseDuration(getEnv("SERVER_READ_TIMEOUT", "5s")),
 			WriteTimeout: parseDuration(getEnv("SERVER_WRITE_TIMEOUT", "10s")),
 			IdleTimeout:  parseDuration(getEnv("SERVER_IDLE_TIMEOUT", "60s")),
-			LogLevel:     getEnv("LOG_LEVEL", "info"),
+			LogLevel:     logLevelStr,
 		},
 		Auth: AuthConfig{
 			JWTSecret:    getEnv("JWT_SECRET", "secret"),
@@ -108,6 +124,15 @@ func LoadConfig() Config {
 			Username: getEnv("DB_USERNAME", ""),
 			Password: getEnv("DB_PASSWORD", ""),
 			Name:     getEnv("DB_NAME", "tmi"),
+		},
+		Logging: LoggingConfig{
+			Level:            logging.ParseLogLevel(logLevelStr),
+			IsDev:            getEnv("ENV", "development") != "production",
+			LogDir:           getEnv("LOG_DIR", "logs"),
+			MaxAgeDays:       parseInt(getEnv("LOG_MAX_AGE_DAYS", "7"), 7),
+			MaxSizeMB:        parseInt(getEnv("LOG_MAX_SIZE_MB", "100"), 100),
+			MaxBackups:       parseInt(getEnv("LOG_MAX_BACKUPS", "10"), 10),
+			AlsoLogToConsole: getEnv("LOG_TO_CONSOLE", "true") == "true",
 		},
 	}
 }

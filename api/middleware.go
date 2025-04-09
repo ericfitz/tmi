@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,70 +42,9 @@ func ParseLogLevel(level string) LogLevel {
 	}
 }
 
-// RequestLogger is a middleware that logs HTTP requests
+// RequestLogger is a middleware that logs HTTP requests (deprecated, use logging.LoggerMiddleware)
 func RequestLogger(logLevel LogLevel) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Start timer
-		start := time.Now()
-
-		// Process request
-		c.Next()
-
-		// Calculate request processing time
-		latency := time.Since(start)
-
-		// Log request information
-		statusCode := c.Writer.Status()
-		method := c.Request.Method
-		path := c.Request.URL.Path
-		clientIP := c.ClientIP()
-
-		// Determine if we should log based on status code and log level
-		shouldLog := false
-		logPrefix := ""
-
-		switch {
-		case statusCode >= 500:
-			// Server errors are always logged at error level
-			shouldLog = logLevel <= LogLevelError
-			logPrefix = "[ERROR]"
-		case statusCode >= 400:
-			// Client errors are logged at warn level and below
-			shouldLog = logLevel <= LogLevelWarn
-			logPrefix = "[WARN]"
-		case statusCode >= 300:
-			// Redirects are logged at info level and below
-			shouldLog = logLevel <= LogLevelInfo
-			logPrefix = "[INFO]"
-		default:
-			// Success responses are logged at info level and below
-			shouldLog = logLevel <= LogLevelInfo
-			logPrefix = "[INFO]"
-		}
-
-		// Debug level logs all requests with extra details
-		if logLevel == LogLevelDebug {
-			shouldLog = true
-			logPrefix = "[DEBUG]"
-		}
-
-		if shouldLog {
-			// Log the request details
-			// In production, you would use a structured logging library like zap
-			logMsg := fmt.Sprintf(
-				"%s %s | %s | %s | %s | %d: %s | %s\n",
-				logPrefix,
-				time.Now().Format(time.RFC3339),
-				method,
-				path,
-				clientIP,
-				statusCode,
-				http.StatusText(statusCode),
-				latency.String(),
-			)
-			gin.DefaultWriter.Write([]byte(logMsg))
-		}
-	}
+	return logging.LoggerMiddleware()
 }
 
 // CORS middleware to handle Cross-Origin Resource Sharing
@@ -139,24 +79,9 @@ func ContextTimeout(timeout time.Duration) gin.HandlerFunc {
 	}
 }
 
-// Recoverer middleware recovers from panics and logs the error
+// Recoverer middleware recovers from panics and logs the error (deprecated, use logging.Recoverer)
 func Recoverer() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		defer func() {
-			if err := recover(); err != nil {
-				// Log the error
-				gin.DefaultErrorWriter.Write([]byte("[ERROR] Panic recovered: " + err.(string) + "\n"))
-
-				// Return a 500 error
-				c.AbortWithStatusJSON(http.StatusInternalServerError, Error{
-					Error:   "internal_server_error",
-					Message: "An unexpected error occurred",
-				})
-			}
-		}()
-
-		c.Next()
-	}
+	return logging.Recoverer()
 }
 
 // Role represents a user role with permission levels
@@ -224,12 +149,22 @@ func CheckThreatModelAccess(userName string, threatModel ThreatModel, requiredRo
 // ThreatModelMiddleware creates middleware for threat model authorization
 func ThreatModelMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Debug log the request and path
-		fmt.Printf("[DEBUG MIDDLEWARE] Processing request: %s %s\n", c.Request.Method, c.Request.URL.Path)
+		// Get logger from context
+		logger := logging.GetContextLogger(c)
+		
+		logger.Debug("ThreatModelMiddleware processing request: %s %s", c.Request.Method, c.Request.URL.Path)
+		
+		// Skip for public paths
+		if isPublic, exists := c.Get("isPublicPath"); exists && isPublic.(bool) {
+			logger.Debug("ThreatModelMiddleware skipping for public path: %s", c.Request.URL.Path)
+			c.Next()
+			return
+		}
 		
 		// Get username from the request context - needed for all operations
 		userID, exists := c.Get("userName")
 		if !exists {
+			logger.Warn("Authentication required but userName not found in context for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:   "unauthorized",
 				Message: "Authentication required",
@@ -239,6 +174,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		
 		userName, ok := userID.(string)
 		if !ok || userName == "" {
+			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:   "unauthorized",
 				Message: "Invalid authentication",
@@ -248,7 +184,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		
 		// For POST to collection endpoint (create new threat model), any authenticated user can proceed
 		if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/threat_models" {
-			fmt.Printf("[DEBUG MIDDLEWARE] Allowing create operation for authenticated user: %s\n", userName)
+			logger.Debug("Allowing create operation for authenticated user: %s", userName)
 			c.Next()
 			return
 		}
@@ -256,12 +192,14 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		// Skip for list endpoints
 		path := c.Request.URL.Path
 		if path == "/threat_models" {
+			logger.Debug("Skipping auth check for list endpoint")
 			c.Next()
 			return
 		}
 		
 		// Skip for non-threat model endpoints
 		if !strings.HasPrefix(path, "/threat_models/") {
+			logger.Debug("Skipping auth check for non-threat model endpoint: %s", path)
 			c.Next()
 			return
 		}
@@ -269,12 +207,14 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		// Extract ID from URL
 		parts := strings.Split(path, "/")
 		if len(parts) < 3 {
+			logger.Debug("Path does not contain threat model ID: %s", path)
 			c.Next()
 			return
 		}
 		
 		id := parts[2]
 		if id == "" {
+			logger.Debug("Empty threat model ID in path: %s", path)
 			c.Next()
 			return
 		}
@@ -282,6 +222,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		// Get the threat model from storage
 		threatModel, err := ThreatModelStore.Get(id)
 		if err != nil {
+			logger.Debug("Threat model not found: %s, error: %v", id, err)
 			// Let the handler deal with not found errors
 			c.Next()
 			return
@@ -294,24 +235,25 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		case http.MethodGet:
 			// Any valid role can read
 			requiredRole = RoleReader
-			fmt.Printf("[DEBUG MIDDLEWARE] GET request requires Reader role\n")
+			logger.Debug("GET request requires Reader role")
 		case http.MethodDelete:
 			// Only owner can delete
 			requiredRole = RoleOwner
-			fmt.Printf("[DEBUG MIDDLEWARE] DELETE request requires Owner role\n")
+			logger.Debug("DELETE request requires Owner role")
 		case http.MethodPut:
 			// PUT for updates requires writing to the object
 			// If this is an update to an existing object, it requires Writer role
 			// Handler will enforce more specific permissions for owner/auth changes
 			requiredRole = RoleWriter
-			fmt.Printf("[DEBUG MIDDLEWARE] PUT request requires Writer role (handler will check further)\n")
+			logger.Debug("PUT request requires Writer role (handler will check further)")
 		case http.MethodPatch:
 			// PATCH also requires writing to the object
 			// Handler will enforce more specific permissions for owner/auth changes
 			requiredRole = RoleWriter
-			fmt.Printf("[DEBUG MIDDLEWARE] PATCH request requires Writer role (handler will check further)\n")
+			logger.Debug("PATCH request requires Writer role (handler will check further)")
 		default:
 			// For unknown methods, let the router handle it
+			logger.Debug("Unknown method, letting router handle it: %s", c.Request.Method)
 			c.Next()
 			return
 		}
@@ -319,8 +261,9 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		// Check authorization without reading request body
 		// This just checks the basic role permission based on resource ownership
 		if err := CheckThreatModelAccess(userName, threatModel, requiredRole); err != nil {
-			fmt.Printf("[DEBUG MIDDLEWARE] Access denied for user %s with role %s\n", 
-				userName, GetUserRole(userName, threatModel))
+			userRole := GetUserRole(userName, threatModel)
+			logger.Warn("Access denied for user %s with role %s, required role: %s", 
+				userName, userRole, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
 				Error:   "forbidden",
 				Message: "You don't have sufficient permissions to perform this action",
@@ -328,12 +271,12 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			return
 		}
 		
+		userRole := GetUserRole(userName, threatModel)
 		// Set the role and threatModel in the context for handlers to use
-		c.Set("userRole", GetUserRole(userName, threatModel))
+		c.Set("userRole", userRole)
 		c.Set("threatModel", threatModel)
 		
-		fmt.Printf("[DEBUG MIDDLEWARE] Access granted for user %s with role %s\n", 
-			userName, GetUserRole(userName, threatModel))
+		logger.Debug("Access granted for user %s with role %s", userName, userRole)
 		
 		c.Next()
 	}
@@ -342,12 +285,22 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 // DiagramMiddleware creates middleware for diagram authorization
 func DiagramMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Debug log the request and path
-		fmt.Printf("[DEBUG DIAGRAM MIDDLEWARE] Processing request: %s %s\n", c.Request.Method, c.Request.URL.Path)
+		// Get logger from context
+		logger := logging.GetContextLogger(c)
+		
+		logger.Debug("DiagramMiddleware processing request: %s %s", c.Request.Method, c.Request.URL.Path)
+		
+		// Skip for public paths
+		if isPublic, exists := c.Get("isPublicPath"); exists && isPublic.(bool) {
+			logger.Debug("DiagramMiddleware skipping for public path: %s", c.Request.URL.Path)
+			c.Next()
+			return
+		}
 		
 		// Get username from the request context - needed for all operations
 		userID, exists := c.Get("userName")
 		if !exists {
+			logger.Warn("Authentication required but userName not found in context for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:   "unauthorized",
 				Message: "Authentication required",
@@ -357,6 +310,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 		
 		userName, ok := userID.(string)
 		if !ok || userName == "" {
+			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:   "unauthorized",
 				Message: "Invalid authentication",
@@ -366,7 +320,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 		
 		// For POST to collection endpoint (create new diagram), any authenticated user can proceed
 		if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/diagrams" {
-			fmt.Printf("[DEBUG DIAGRAM MIDDLEWARE] Allowing create operation for authenticated user: %s\n", userName)
+			logger.Debug("Allowing create operation for authenticated user: %s", userName)
 			c.Next()
 			return
 		}
@@ -374,12 +328,14 @@ func DiagramMiddleware() gin.HandlerFunc {
 		// Skip for list endpoints
 		path := c.Request.URL.Path
 		if path == "/diagrams" {
+			logger.Debug("Skipping auth check for list endpoint")
 			c.Next()
 			return
 		}
 		
 		// Skip for non-diagram endpoints
 		if !strings.HasPrefix(path, "/diagrams/") {
+			logger.Debug("Skipping auth check for non-diagram endpoint: %s", path)
 			c.Next()
 			return
 		}
@@ -387,18 +343,21 @@ func DiagramMiddleware() gin.HandlerFunc {
 		// Extract ID from URL
 		parts := strings.Split(path, "/")
 		if len(parts) < 3 {
+			logger.Debug("Path does not contain diagram ID: %s", path)
 			c.Next()
 			return
 		}
 		
 		id := parts[2]
 		if id == "" {
+			logger.Debug("Empty diagram ID in path: %s", path)
 			c.Next()
 			return
 		}
 		
 		// Skip for collaboration endpoints, they have their own access control
 		if len(parts) > 3 && parts[3] == "collaborate" {
+			logger.Debug("Skipping auth check for collaboration endpoint")
 			c.Next()
 			return
 		}
@@ -406,6 +365,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 		// Get the diagram from storage
 		diagram, err := DiagramStore.Get(id)
 		if err != nil {
+			logger.Debug("Diagram not found: %s, error: %v", id, err)
 			// Let the handler deal with not found errors
 			c.Next()
 			return
@@ -418,23 +378,24 @@ func DiagramMiddleware() gin.HandlerFunc {
 		case http.MethodGet:
 			// Any valid role can read
 			requiredRole = RoleReader
-			fmt.Printf("[DEBUG DIAGRAM MIDDLEWARE] GET request requires Reader role\n")
+			logger.Debug("GET request requires Reader role")
 		case http.MethodDelete:
 			// Only owner can delete
 			requiredRole = RoleOwner
-			fmt.Printf("[DEBUG DIAGRAM MIDDLEWARE] DELETE request requires Owner role\n")
+			logger.Debug("DELETE request requires Owner role")
 		case http.MethodPut:
 			// PUT for updates requires writing to the object
 			// Handler will enforce more specific permissions for owner/auth changes
 			requiredRole = RoleWriter
-			fmt.Printf("[DEBUG DIAGRAM MIDDLEWARE] PUT request requires Writer role (handler will check further)\n")
+			logger.Debug("PUT request requires Writer role (handler will check further)")
 		case http.MethodPatch:
 			// PATCH requires writing to the object
 			// Handler will enforce more specific permissions for owner/auth changes
 			requiredRole = RoleWriter
-			fmt.Printf("[DEBUG DIAGRAM MIDDLEWARE] PATCH request requires Writer role (handler will check further)\n")
+			logger.Debug("PATCH request requires Writer role (handler will check further)")
 		default:
 			// For unknown methods, let the router handle it
+			logger.Debug("Unknown method, letting router handle it: %s", c.Request.Method)
 			c.Next()
 			return
 		}
@@ -442,8 +403,9 @@ func DiagramMiddleware() gin.HandlerFunc {
 		// Check authorization without reading request body
 		// This just checks the basic role permission based on resource ownership
 		if err := CheckDiagramAccess(userName, diagram, requiredRole); err != nil {
-			fmt.Printf("[DEBUG DIAGRAM MIDDLEWARE] Access denied for user %s with role %s\n", 
-				userName, GetUserRoleForDiagram(userName, diagram))
+			userRole := GetUserRoleForDiagram(userName, diagram)
+			logger.Warn("Access denied for user %s with role %s, required role: %s", 
+				userName, userRole, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
 				Error:   "forbidden",
 				Message: "You don't have sufficient permissions to perform this action",
@@ -451,12 +413,12 @@ func DiagramMiddleware() gin.HandlerFunc {
 			return
 		}
 		
+		userRole := GetUserRoleForDiagram(userName, diagram)
 		// Set the role and diagram in the context for handlers to use
-		c.Set("userRole", GetUserRoleForDiagram(userName, diagram))
+		c.Set("userRole", userRole)
 		c.Set("diagram", diagram)
 		
-		fmt.Printf("[DEBUG DIAGRAM MIDDLEWARE] Access granted for user %s with role %s\n", 
-			userName, GetUserRoleForDiagram(userName, diagram))
+		logger.Debug("Access granted for user %s with role %s", userName, userRole)
 		
 		c.Next()
 	}
@@ -495,25 +457,28 @@ func NewReadCloser(b []byte) *readCloser {
 
 // LogRequest logs debug information about the request
 func LogRequest(c *gin.Context, prefix string) {
-	gin.DefaultWriter.Write([]byte(fmt.Sprintf("[DEBUG %s] Method: %s, Path: %s\n", 
-		prefix, c.Request.Method, c.Request.URL.Path)))
+	// Get logger from context
+	logger := logging.GetContextLogger(c)
+	
+	logger.Debug("%s - Method: %s, Path: %s", prefix, c.Request.Method, c.Request.URL.Path)
 	
 	// Log headers
-	gin.DefaultWriter.Write([]byte(fmt.Sprintf("[DEBUG %s] Headers:\n", prefix)))
+	headerLog := fmt.Sprintf("%s - Headers:", prefix)
 	for k, v := range c.Request.Header {
-		gin.DefaultWriter.Write([]byte(fmt.Sprintf("  %s: %v\n", k, v)))
+		headerLog += fmt.Sprintf(" %s=%v", k, v)
 	}
+	logger.Debug(headerLog)
 	
 	// Try to log body
 	bodyBytes, err := c.GetRawData()
 	if err != nil {
-		gin.DefaultWriter.Write([]byte(fmt.Sprintf("[DEBUG %s] Error reading body: %v\n", prefix, err)))
+		logger.Debug("%s - Error reading body: %v", prefix, err)
 	} else if len(bodyBytes) > 0 {
-		gin.DefaultWriter.Write([]byte(fmt.Sprintf("[DEBUG %s] Body: %s\n", prefix, string(bodyBytes))))
+		logger.Debug("%s - Body: %s", prefix, string(bodyBytes))
 		// Reset the body for later use
 		c.Request.Body = NewReadCloser(bodyBytes)
 	} else {
-		gin.DefaultWriter.Write([]byte(fmt.Sprintf("[DEBUG %s] Empty body\n", prefix)))
+		logger.Debug("%s - Empty body", prefix)
 	}
 }
 
