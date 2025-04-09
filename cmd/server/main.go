@@ -226,7 +226,7 @@ func (s *Server) GetAuthLogin(c *gin.Context) {
 					<div>
 						<label for="role">Role:</label>
 						<select id="role" name="role">
-							<option value="admin">Admin</option>
+							<option value="owner">Owner</option>
 							<option value="reader">Reader</option>
 							<option value="writer">Writer</option>
 						</select>

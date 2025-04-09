@@ -59,3 +59,10 @@
 [INFO] 2025-04-09T17:40:29-04:00 [logger.go:415] [109c3676-4a3a-4f33-9c42-c340b812a025] unknown unknown ip=::1 | Request completed - status=200 duration=152.042µs
 [INFO] 2025-04-09T17:40:29-04:00 [logger.go:415] [40aca6c2-60c9-4b44-bb0e-3a3cbcd96e8e] unknown unknown ip=::1 | Request completed - status=200 duration=5.029583ms
 [INFO] 2025-04-09T17:40:29-04:00 [logger.go:415] [929bf173-9124-4198-9b9c-510969b19b9a] unknown unknown ip=::1 | Request completed - status=200 duration=4.993ms
+[INFO] 2025-04-09T17:54:02-04:00 [logger.go:249] Starting TMI API server
+[INFO] 2025-04-09T17:54:02-04:00 [logger.go:249] Environment: development
+[INFO] 2025-04-09T17:54:02-04:00 [logger.go:249] Log level: info
+[INFO] 2025-04-09T17:54:02-04:00 [logger.go:249] Adding development-only endpoints
+[INFO] 2025-04-09T17:54:02-04:00 [logger.go:249] Server listening on 127.0.0.1:8080
+[INFO] 2025-04-09T17:54:05-04:00 [logger.go:249] Shutting down server...
+[INFO] 2025-04-09T17:54:05-04:00 [logger.go:249] Server gracefully stopped
