@@ -49,8 +49,8 @@ type Authorization struct {
 	// Role Role: reader (view), writer (edit), owner (full control)
 	Role AuthorizationRole `json:"role"`
 
-	// Subject User email address
-	Subject openapi_types.Email `json:"subject"`
+	// Subject Username or identifier of the user (may be email address or other format)
+	Subject string `json:"subject"`
 }
 
 // AuthorizationRole Role: reader (view), writer (edit), owner (full control)
@@ -66,8 +66,8 @@ type CollaborationSession struct {
 		// JoinedAt Join timestamp
 		JoinedAt *time.Time `json:"joined_at,omitempty"`
 
-		// UserId Participant email
-		UserId *openapi_types.Email `json:"user_id,omitempty"`
+		// UserId Username or identifier of the participant (may be email address or other format)
+		UserId *string `json:"user_id,omitempty"`
 	} `json:"participants"`
 
 	// SessionId Unique identifier for the session
@@ -103,8 +103,8 @@ type Diagram struct {
 	// Name Name of the diagram
 	Name string `json:"name"`
 
-	// Owner Email address of the current owner
-	Owner openapi_types.Email `json:"owner"`
+	// Owner Username or identifier of the current owner (may be email address or other format)
+	Owner string `json:"owner"`
 }
 
 // DiagramComponent A component within a diagram, based on maxGraph cells
@@ -199,8 +199,8 @@ type ThreatModel struct {
 	// Name Name of the threat model
 	Name string `json:"name"`
 
-	// Owner Email address of the current owner
-	Owner openapi_types.Email `json:"owner"`
+	// Owner Username or identifier of the current owner (may be email address or other format)
+	Owner string `json:"owner"`
 
 	// Threats List of threats within the threat model
 	Threats *[]Threat `json:"threats,omitempty"`

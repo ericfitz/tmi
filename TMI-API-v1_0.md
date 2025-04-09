@@ -51,8 +51,8 @@ This document describes a RESTful API with WebSocket support for threat modeling
   - `name`: String - Name of the diagram.
   - `description`: String - Description of the diagram.
   - `created_at`, `modified_at`: ISO8601 timestamps - Creation and modification times.
-  - `owner`: Email address - Current owner.
-  - `authorization`: Array of `{subject: email, role: "reader"|"writer"|"owner"}` - User roles.
+  - `owner`: String - Username or identifier of the current owner (may be email address or other format).
+  - `authorization`: Array of `{subject: string, role: "reader"|"writer"|"owner"}` - User roles.
   - `metadata`: Array of `{key: string, value: string}` - Extensible metadata.
   - `components`: Array of maxGraph cells (`{id: uuid, type: string, data: object, metadata: array}`) - Diagram elements.
 
@@ -63,8 +63,8 @@ This document describes a RESTful API with WebSocket support for threat modeling
   - `name`: String - Name of the threat model.
   - `description`: String - Description of the threat model.
   - `created_at`, `modified_at`: ISO8601 timestamps - Creation and modification times.
-  - `owner`: Email address - Current owner.
-  - `authorization`: Array of `{subject: email, role: "reader"|"writer"|"owner"}` - User roles.
+  - `owner`: String - Username or identifier of the current owner (may be email address or other format).
+  - `authorization`: Array of `{subject: string, role: "reader"|"writer"|"owner"}` - User roles.
   - `metadata`: Array of `{key: string, value: string}` - Extensible metadata.
   - `diagrams`: Array of diagram UUIDs - References to related diagrams.
   - `threats`: Array of threat objects - Embedded threats.
