@@ -124,21 +124,39 @@ You can also specify a custom .env file with:
 
 Available configuration options:
 
-| Variable           | Default               | Description                  |
-| ------------------ | --------------------- | ---------------------------- |
-| SERVER_PORT        | 8080                  | HTTP server port            |
-| SERVER_READ_TIMEOUT| 5s                    | HTTP read timeout           |
+| Variable            | Default               | Description                  |
+| ------------------- | --------------------- | ---------------------------- |
+| SERVER_PORT         | 8080                  | HTTP/HTTPS server port      |
+| SERVER_INTERFACE    | 0.0.0.0               | Network interface to listen on |
+| SERVER_READ_TIMEOUT | 5s                    | HTTP read timeout           |
 | SERVER_WRITE_TIMEOUT| 10s                   | HTTP write timeout          |
-| SERVER_IDLE_TIMEOUT| 60s                   | HTTP idle timeout           |
-| LOG_LEVEL          | info                  | Logging level (debug, info, warn, error) |
-| JWT_SECRET         | secret                | JWT signing secret (change for production!) |
-| JWT_EXPIRES_IN     | 24h                   | JWT expiration              |
-| OAUTH_URL          | https://oauth-provider.com/auth | OAuth provider URL |
-| OAUTH_SECRET       |                       | OAuth client secret         |
-| DB_URL             | localhost             | Database URL                |
-| DB_USERNAME        |                       | Database username           |
-| DB_PASSWORD        |                       | Database password           |
-| DB_NAME            | tmi                   | Database name               |
+| SERVER_IDLE_TIMEOUT | 60s                   | HTTP idle timeout           |
+| LOG_LEVEL           | info                  | Logging level (debug, info, warn, error) |
+| TLS_ENABLED         | false                 | Enable HTTPS/TLS            |
+| TLS_CERT_FILE       |                       | Path to TLS certificate file |
+| TLS_KEY_FILE        |                       | Path to TLS private key file |
+| TLS_SUBJECT_NAME    | [hostname]            | Subject name for certificate validation |
+| TLS_HTTP_REDIRECT   | true                  | Redirect HTTP to HTTPS when TLS is enabled |
+| JWT_SECRET          | secret                | JWT signing secret (change for production!) |
+| JWT_EXPIRES_IN      | 24h                   | JWT expiration              |
+| OAUTH_URL           | https://oauth-provider.com/auth | OAuth provider URL |
+| OAUTH_SECRET        |                       | OAuth client secret         |
+| DB_URL              | localhost             | Database URL                |
+| DB_USERNAME         |                       | Database username           |
+| DB_PASSWORD         |                       | Database password           |
+| DB_NAME             | tmi                   | Database name               |
+| ENV                 | development           | Environment (development or production) |
+
+### WebSocket URLs
+
+When TLS is enabled (`TLS_ENABLED=true`), clients should connect using secure WebSocket URLs:
+- Use `wss://` instead of `ws://` for WebSocket connections
+- Example: `wss://your-server.com:8080/ws/diagrams/123`
+
+When TLS is disabled, use standard WebSocket URLs:
+- Example: `ws://your-server.com:8080/ws/diagrams/123`
+
+You can use the `/api/server-info` endpoint to get the correct WebSocket base URL automatically.
 
 ## License
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,9 +73,70 @@ type WebSocketMessage struct {
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	// Allow all origins for development; restrict in production
+	// More secure origin check
 	CheckOrigin: func(r *http.Request) bool {
-		return true
+		origin := r.Header.Get("Origin")
+		
+		// Get dev mode flag from context or default to false
+		isDev := false
+		if ctx := r.Context(); ctx != nil {
+			if val := ctx.Value("isDev"); val != nil {
+				if devMode, ok := val.(bool); ok {
+					isDev = devMode
+				}
+			}
+		}
+		
+		// In development mode, accept all origins
+		if isDev {
+			return true
+		}
+		
+		// If no origin header, assume it's same-origin request
+		if origin == "" {
+			return true
+		}
+		
+		// Get allowed origins from context
+		tlsSubjectName := ""
+		if ctx := r.Context(); ctx != nil {
+			if val := ctx.Value("tlsSubjectName"); val != nil {
+				if name, ok := val.(string); ok {
+					tlsSubjectName = name
+				}
+			}
+		}
+		
+		// Basic default allowed origins
+		allowedOrigins := []string{
+			"http://localhost",
+			"https://localhost",
+			"http://127.0.0.1",
+			"https://127.0.0.1",
+		}
+		
+		// Add the configured subject name if available
+		if tlsSubjectName != "" {
+			allowedOrigins = append(allowedOrigins, 
+				"http://"+tlsSubjectName,
+				"https://"+tlsSubjectName)
+		}
+		
+		// Get the host from the request
+		host := r.Host
+		allowedOrigins = append(allowedOrigins,
+			"http://"+host,
+			"https://"+host)
+		
+		// Check if origin matches any allowed origins
+		for _, allowed := range allowedOrigins {
+			if strings.HasPrefix(origin, allowed) {
+				return true
+			}
+		}
+		
+		log.Printf("Rejected WebSocket connection from origin: %s", origin)
+		return false
 	},
 }
 

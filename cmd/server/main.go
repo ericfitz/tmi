@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"net/http"
@@ -23,6 +25,57 @@ type Server struct{
 	config Config
 	
 	// Add other dependencies like database clients, services, etc.
+}
+
+// HTTPSRedirectMiddleware redirects HTTP requests to HTTPS when TLS is enabled
+func HTTPSRedirectMiddleware(tlsEnabled bool, tlsSubjectName string, port string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get logger from context
+		logger := logging.GetContextLogger(c)
+
+		// Only redirect if TLS is enabled and this is not already HTTPS
+		// In a real environment, we'd check c.Request.TLS, but in our setup,
+		// we need to rely on a header or other mechanism to determine if we're already on HTTPS
+		if tlsEnabled && !isHTTPS(c.Request) {
+			host := c.Request.Host
+			
+			// If we have a specific subject name, use it
+			if tlsSubjectName != "" {
+				if port != "443" {
+					host = fmt.Sprintf("%s:%s", tlsSubjectName, port)
+				} else {
+					host = tlsSubjectName
+				}
+			}
+			
+			redirectURL := fmt.Sprintf("https://%s%s", host, c.Request.RequestURI)
+			logger.Debug("Redirecting to HTTPS: %s", redirectURL)
+			c.Redirect(http.StatusPermanentRedirect, redirectURL)
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// isHTTPS determines if the request is already using HTTPS
+func isHTTPS(r *http.Request) bool {
+	// Check common headers set by proxies
+	if r.Header.Get("X-Forwarded-Proto") == "https" {
+		return true
+	}
+	
+	// Check if the request was made with TLS
+	if r.TLS != nil {
+		return true
+	}
+	
+	// Check if the request came in on the standard HTTPS port
+	if r.URL.Scheme == "https" {
+		return true
+	}
+	
+	return false
 }
 
 // PublicPathsMiddleware identifies paths that don't require authentication
@@ -558,22 +611,118 @@ func main() {
 	// Setup router with config
 	r, apiServer := setupRouter(config)
 	
+	// Add HTTPS redirect middleware if enabled
+	if config.Server.TLSEnabled && config.Server.HTTPToHTTPSRedirect {
+		r.Use(HTTPSRedirectMiddleware(
+			config.Server.TLSEnabled,
+			config.Server.TLSSubjectName,
+			config.Server.Port,
+		))
+	}
+	
+	// Add middleware to provide server configuration to handlers
+	r.Use(func(c *gin.Context) {
+		c.Set("tlsEnabled", config.Server.TLSEnabled)
+		c.Set("tlsSubjectName", config.Server.TLSSubjectName)
+		c.Set("serverPort", config.Server.Port)
+		c.Set("isDev", config.Logging.IsDev)
+		c.Next()
+	})
+	
 	// Start WebSocket hub with context for cleanup
 	apiServer.StartWebSocketHub(ctx)
 	
+	// Prepare address
+	addr := fmt.Sprintf("%s:%s", config.Server.Interface, config.Server.Port)
+
+	// Validate TLS configuration if enabled
+	if config.Server.TLSEnabled {
+		if config.Server.TLSCertFile == "" || config.Server.TLSKeyFile == "" {
+			logger.Error("TLS enabled but certificate or key file not specified")
+			os.Exit(1)
+		}
+		
+		// Check that files exist
+		if _, err := os.Stat(config.Server.TLSCertFile); os.IsNotExist(err) {
+			logger.Error("TLS certificate file not found: %s", config.Server.TLSCertFile)
+			os.Exit(1)
+		}
+		
+		if _, err := os.Stat(config.Server.TLSKeyFile); os.IsNotExist(err) {
+			logger.Error("TLS key file not found: %s", config.Server.TLSKeyFile)
+			os.Exit(1)
+		}
+		
+		// Load certificate to verify it's valid
+		cert, err := tls.LoadX509KeyPair(config.Server.TLSCertFile, config.Server.TLSKeyFile)
+		if err != nil {
+			logger.Error("Failed to load TLS certificate and key: %s", err)
+			os.Exit(1)
+		}
+		
+		// Try to parse the first certificate to get more information
+		if len(cert.Certificate) > 0 {
+			x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
+			if err != nil {
+				logger.Warn("Failed to parse X509 certificate: %s", err)
+			} else {
+				logger.Info("TLS certificate subject: %s", x509Cert.Subject.CommonName)
+				logger.Info("TLS certificate expires: %s", x509Cert.NotAfter.Format(time.RFC3339))
+				
+				// Warn if subject name doesn't match
+				if x509Cert.Subject.CommonName != config.Server.TLSSubjectName {
+					logger.Warn("Certificate subject name (%s) doesn't match configured TLS_SUBJECT_NAME (%s)",
+						x509Cert.Subject.CommonName, config.Server.TLSSubjectName)
+				}
+				
+				// Check certificate expiration
+				if x509Cert.NotAfter.Before(time.Now().AddDate(0, 1, 0)) {
+					if x509Cert.NotAfter.Before(time.Now()) {
+						logger.Error("TLS certificate has expired on %s", 
+							x509Cert.NotAfter.Format(time.RFC3339))
+					} else {
+						logger.Warn("TLS certificate will expire within 1 month on %s", 
+							x509Cert.NotAfter.Format(time.RFC3339))
+					}
+				}
+			}
+		}
+	}
+
+	// Configure TLS if enabled
+	var tlsConfig *tls.Config
+	if config.Server.TLSEnabled {
+		tlsConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			ServerName: config.Server.TLSSubjectName,
+		}
+	}
+
 	// Configure server with timeouts from config
 	srv := &http.Server{
-		Addr:         ":" + config.Server.Port,
+		Addr:         addr,
 		Handler:      r,
 		ReadTimeout:  config.Server.ReadTimeout,
 		WriteTimeout: config.Server.WriteTimeout,
 		IdleTimeout:  config.Server.IdleTimeout,
+		TLSConfig:    tlsConfig,
 	}
 	
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Server listening on port %s", config.Server.Port)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		var err error
+		
+		if config.Server.TLSEnabled {
+			logger.Info("Server listening on %s with TLS enabled", addr)
+			logger.Info("Using certificate: %s, key: %s, subject name: %s", 
+				config.Server.TLSCertFile, config.Server.TLSKeyFile, config.Server.TLSSubjectName)
+			err = srv.ListenAndServeTLS(config.Server.TLSCertFile, config.Server.TLSKeyFile)
+		} else {
+			logger.Info("Server listening on %s", addr)
+			err = srv.ListenAndServe()
+		}
+		
+		if err != nil && err != http.ErrServerClosed {
 			logger.Error("Error starting server: %s", err)
 			os.Exit(1)
 		}

@@ -28,3 +28,34 @@
 [WARN] 2025-04-09T17:11:06-04:00 [main.go:67] [33992ad4-1997-4da0-bda9-34f1b6f87b29] unknown unknown ip=::1 | Authentication failed: Missing Authorization header for path: /site.webmanifest
 [WARN] 2025-04-09T17:11:06-04:00 [logger.go:413] [33992ad4-1997-4da0-bda9-34f1b6f87b29] unknown unknown ip=::1 | Request completed with client error - status=401 duration=1.16375ms
 [INFO] 2025-04-09T17:11:06-04:00 [logger.go:415] [a985dc65-945f-4072-bc44-62fc1f389456] unknown unknown ip=::1 | Request completed - status=200 duration=3.288125ms
+[INFO] 2025-04-09T17:19:56-04:00 [logger.go:249] Shutting down server...
+[INFO] 2025-04-09T17:19:56-04:00 [logger.go:249] Server gracefully stopped
+[INFO] 2025-04-09T17:20:03-04:00 [logger.go:249] Starting TMI API server
+[INFO] 2025-04-09T17:20:03-04:00 [logger.go:249] Environment: development
+[INFO] 2025-04-09T17:20:03-04:00 [logger.go:249] Log level: info
+[INFO] 2025-04-09T17:20:03-04:00 [logger.go:249] Adding development-only endpoints
+[INFO] 2025-04-09T17:20:03-04:00 [logger.go:249] Server listening on port 8080
+[INFO] 2025-04-09T17:20:33-04:00 [version.go:177] [f42d182f-eec1-4263-83f1-526efe3ad0c8] unknown unknown ip=::1 | Returning API info response
+[INFO] 2025-04-09T17:20:33-04:00 [logger.go:415] [f42d182f-eec1-4263-83f1-526efe3ad0c8] unknown unknown ip=::1 | Request completed - status=200 duration=4.265375ms
+[INFO] 2025-04-09T17:20:33-04:00 [logger.go:415] [fb7793b5-5907-40f2-92eb-c7ddf5726a42] unknown unknown ip=::1 | Request completed - status=200 duration=3.863959ms
+[INFO] 2025-04-09T17:20:33-04:00 [logger.go:415] [94184f5c-35b3-4e32-a90a-476c8332a30c] unknown unknown ip=::1 | Request completed - status=200 duration=4.156041ms
+[INFO] 2025-04-09T17:39:09-04:00 [logger.go:249] Shutting down server...
+[INFO] 2025-04-09T17:39:09-04:00 [logger.go:249] Server gracefully stopped
+[INFO] 2025-04-09T17:39:15-04:00 [logger.go:249] Starting TMI API server
+[INFO] 2025-04-09T17:39:15-04:00 [logger.go:249] Environment: development
+[INFO] 2025-04-09T17:39:15-04:00 [logger.go:249] Log level: info
+[INFO] 2025-04-09T17:39:15-04:00 [logger.go:249] Adding development-only endpoints
+[INFO] 2025-04-09T17:39:15-04:00 [logger.go:249] Server listening on 0.0.0.0:8080
+[INFO] 2025-04-09T17:39:25-04:00 [version.go:177] [8ac0ada5-45b7-4430-823c-d83df1045fab] unknown unknown ip=::1 | Returning API info response
+[INFO] 2025-04-09T17:39:25-04:00 [logger.go:415] [8ac0ada5-45b7-4430-823c-d83df1045fab] unknown unknown ip=::1 | Request completed - status=200 duration=5.089667ms
+[INFO] 2025-04-09T17:39:25-04:00 [logger.go:415] [12ad41a8-db3b-462f-a369-c5f95c90afa0] unknown unknown ip=::1 | Request completed - status=304 duration=5.71575ms
+[WARN] 2025-04-09T17:39:48-04:00 [main.go:127] [62e83d40-58c4-40cc-bfb5-acd118b0d90c] unknown unknown ip=::1 | Authentication failed: Missing Authorization header for path: /api/server-info
+[WARN] 2025-04-09T17:39:48-04:00 [logger.go:413] [62e83d40-58c4-40cc-bfb5-acd118b0d90c] unknown unknown ip=::1 | Request completed with client error - status=401 duration=297.75µs
+[INFO] 2025-04-09T17:40:27-04:00 [version.go:177] [437fd5c6-0d60-455a-a703-3a7ecfd8d610] unknown unknown ip=::1 | Returning API info response
+[INFO] 2025-04-09T17:40:27-04:00 [logger.go:415] [437fd5c6-0d60-455a-a703-3a7ecfd8d610] unknown unknown ip=::1 | Request completed - status=200 duration=220.625µs
+[INFO] 2025-04-09T17:40:27-04:00 [logger.go:415] [ceb1ca2b-6e05-4d0e-9d5b-2a9903dd9ad0] unknown unknown ip=::1 | Request completed - status=200 duration=6.804167ms
+[INFO] 2025-04-09T17:40:27-04:00 [logger.go:415] [818e5bef-85ba-4902-8cc7-faa9988f985a] unknown unknown ip=::1 | Request completed - status=200 duration=8.658541ms
+[INFO] 2025-04-09T17:40:29-04:00 [version.go:177] [109c3676-4a3a-4f33-9c42-c340b812a025] unknown unknown ip=::1 | Returning API info response
+[INFO] 2025-04-09T17:40:29-04:00 [logger.go:415] [109c3676-4a3a-4f33-9c42-c340b812a025] unknown unknown ip=::1 | Request completed - status=200 duration=152.042µs
+[INFO] 2025-04-09T17:40:29-04:00 [logger.go:415] [40aca6c2-60c9-4b44-bb0e-3a3cbcd96e8e] unknown unknown ip=::1 | Request completed - status=200 duration=5.029583ms
+[INFO] 2025-04-09T17:40:29-04:00 [logger.go:415] [929bf173-9124-4198-9b9c-510969b19b9a] unknown unknown ip=::1 | Request completed - status=200 duration=4.993ms
