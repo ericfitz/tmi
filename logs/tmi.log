@@ -18,3 +18,13 @@
 [WARN] 2025-04-09T15:04:44-04:00 [logger.go:413] [500f7d79-70a5-492f-93f6-32fa5f8f7099] unknown unknown ip=::1 | Request completed with client error - status=401 duration=360.542µs
 [INFO] 2025-04-09T15:50:37-04:00 [logger.go:249] Shutting down server...
 [INFO] 2025-04-09T15:50:37-04:00 [logger.go:249] Server gracefully stopped
+[INFO] 2025-04-09T17:10:57-04:00 [logger.go:249] Starting TMI API server
+[INFO] 2025-04-09T17:10:57-04:00 [logger.go:249] Environment: development
+[INFO] 2025-04-09T17:10:57-04:00 [logger.go:249] Log level: info
+[INFO] 2025-04-09T17:10:57-04:00 [logger.go:249] Adding development-only endpoints
+[INFO] 2025-04-09T17:10:57-04:00 [logger.go:249] Server listening on port 8080
+[INFO] 2025-04-09T17:11:06-04:00 [version.go:177] [8abfdb9e-98bb-4e04-8586-acc94c52a608] unknown unknown ip=::1 | Returning API info response
+[INFO] 2025-04-09T17:11:06-04:00 [logger.go:415] [8abfdb9e-98bb-4e04-8586-acc94c52a608] unknown unknown ip=::1 | Request completed - status=200 duration=3.770917ms
+[WARN] 2025-04-09T17:11:06-04:00 [main.go:67] [33992ad4-1997-4da0-bda9-34f1b6f87b29] unknown unknown ip=::1 | Authentication failed: Missing Authorization header for path: /site.webmanifest
+[WARN] 2025-04-09T17:11:06-04:00 [logger.go:413] [33992ad4-1997-4da0-bda9-34f1b6f87b29] unknown unknown ip=::1 | Request completed with client error - status=401 duration=1.16375ms
+[INFO] 2025-04-09T17:11:06-04:00 [logger.go:415] [a985dc65-945f-4072-bc44-62fc1f389456] unknown unknown ip=::1 | Request completed - status=200 duration=3.288125ms

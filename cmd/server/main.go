@@ -32,7 +32,14 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 		logger := logging.GetContextLogger(c)
 		
 		// Public paths that don't require authentication
-		if c.Request.URL.Path == "/" || c.Request.URL.Path == "/auth/login" || c.Request.URL.Path == "/auth/callback" {
+		if c.Request.URL.Path == "/" || 
+		   c.Request.URL.Path == "/auth/login" || 
+		   c.Request.URL.Path == "/auth/callback" ||
+		   c.Request.URL.Path == "/site.webmanifest" ||
+		   c.Request.URL.Path == "/favicon.ico" ||
+		   c.Request.URL.Path == "/favicon.svg" ||
+		   c.Request.URL.Path == "/web-app-manifest-192x192.png" ||
+		   c.Request.URL.Path == "/web-app-manifest-512x512.png" {
 			logger.Debug("Public path identified: %s", c.Request.URL.Path)
 			// Mark this request as public in the context for downstream middleware
 			c.Set("isPublicPath", true)
@@ -464,6 +471,10 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 	// Serve static files
 	r.Static("/static", "./static")
 	r.StaticFile("/favicon.ico", "./static/favicon.ico")
+	r.StaticFile("/site.webmanifest", "./static/site.webmanifest")
+	r.StaticFile("/web-app-manifest-192x192.png", "./static/web-app-manifest-192x192.png")
+	r.StaticFile("/web-app-manifest-512x512.png", "./static/web-app-manifest-512x512.png")
+	r.StaticFile("/favicon.svg", "./static/favicon.svg")
 	
 	// Security middleware with public path handling
 	r.Use(PublicPathsMiddleware())     // Identify public paths first
