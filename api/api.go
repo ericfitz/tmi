@@ -30,24 +30,24 @@ const (
 	Writer AuthorizationRole = "writer"
 )
 
-// Defines values for PatchDiagramsIdJSONBodyOp.
+// Defines values for PatchThreatModelsThreatModelIdJSONBodyOp.
 const (
-	PatchDiagramsIdJSONBodyOpAdd     PatchDiagramsIdJSONBodyOp = "add"
-	PatchDiagramsIdJSONBodyOpCopy    PatchDiagramsIdJSONBodyOp = "copy"
-	PatchDiagramsIdJSONBodyOpMove    PatchDiagramsIdJSONBodyOp = "move"
-	PatchDiagramsIdJSONBodyOpRemove  PatchDiagramsIdJSONBodyOp = "remove"
-	PatchDiagramsIdJSONBodyOpReplace PatchDiagramsIdJSONBodyOp = "replace"
-	PatchDiagramsIdJSONBodyOpTest    PatchDiagramsIdJSONBodyOp = "test"
+	PatchThreatModelsThreatModelIdJSONBodyOpAdd     PatchThreatModelsThreatModelIdJSONBodyOp = "add"
+	PatchThreatModelsThreatModelIdJSONBodyOpCopy    PatchThreatModelsThreatModelIdJSONBodyOp = "copy"
+	PatchThreatModelsThreatModelIdJSONBodyOpMove    PatchThreatModelsThreatModelIdJSONBodyOp = "move"
+	PatchThreatModelsThreatModelIdJSONBodyOpRemove  PatchThreatModelsThreatModelIdJSONBodyOp = "remove"
+	PatchThreatModelsThreatModelIdJSONBodyOpReplace PatchThreatModelsThreatModelIdJSONBodyOp = "replace"
+	PatchThreatModelsThreatModelIdJSONBodyOpTest    PatchThreatModelsThreatModelIdJSONBodyOp = "test"
 )
 
-// Defines values for PatchThreatModelsIdJSONBodyOp.
+// Defines values for PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp.
 const (
-	PatchThreatModelsIdJSONBodyOpAdd     PatchThreatModelsIdJSONBodyOp = "add"
-	PatchThreatModelsIdJSONBodyOpCopy    PatchThreatModelsIdJSONBodyOp = "copy"
-	PatchThreatModelsIdJSONBodyOpMove    PatchThreatModelsIdJSONBodyOp = "move"
-	PatchThreatModelsIdJSONBodyOpRemove  PatchThreatModelsIdJSONBodyOp = "remove"
-	PatchThreatModelsIdJSONBodyOpReplace PatchThreatModelsIdJSONBodyOp = "replace"
-	PatchThreatModelsIdJSONBodyOpTest    PatchThreatModelsIdJSONBodyOp = "test"
+	PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOpAdd     PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp = "add"
+	PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOpCopy    PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp = "copy"
+	PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOpMove    PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp = "move"
+	PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOpRemove  PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp = "remove"
+	PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOpReplace PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp = "replace"
+	PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOpTest    PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp = "test"
 )
 
 // ApiInfo API information response for the root endpoint
@@ -97,6 +97,48 @@ type Authorization struct {
 // AuthorizationRole Role: reader (view), writer (edit), owner (full control)
 type AuthorizationRole string
 
+// Cell defines model for Cell.
+type Cell struct {
+	// Edge Indicates if the cell is an edge (true) or not (false).
+	Edge bool `json:"edge"`
+
+	// Geometry The cell's geometry (position and size), typically for vertices; null for edges.
+	Geometry *struct {
+		// Height Height of the cell.
+		Height float32 `json:"height"`
+
+		// Width Width of the cell.
+		Width float32 `json:"width"`
+
+		// X X-coordinate of the cell's top-left corner.
+		X float32 `json:"x"`
+
+		// Y Y-coordinate of the cell's top-left corner.
+		Y float32 `json:"y"`
+	} `json:"geometry"`
+
+	// Id Unique identifier of the cell (vertex or edge).
+	Id string `json:"id"`
+
+	// Parent ID of the parent cell (for grouping); null if no parent.
+	Parent *string `json:"parent"`
+
+	// Source ID of the source vertex (for edges); null for vertices.
+	Source *string `json:"source"`
+
+	// Style The style string defining the cell's appearance (e.g., CSS-like properties).
+	Style *string `json:"style"`
+
+	// Target ID of the target vertex (for edges); null for vertices.
+	Target *string `json:"target"`
+
+	// Value The label or value associated with the cell (optional for edges).
+	Value *string `json:"value"`
+
+	// Vertex Indicates if the cell is a vertex (true) or not (false).
+	Vertex bool `json:"vertex"`
+}
+
 // CollaborationSession Details of an active collaboration session for a diagram
 type CollaborationSession struct {
 	// DiagramId UUID of the associated diagram
@@ -114,23 +156,23 @@ type CollaborationSession struct {
 	// SessionId Unique identifier for the session
 	SessionId string `json:"session_id"`
 
+	// ThreatModelId UUID of the associated threat model
+	ThreatModelId openapi_types.UUID `json:"threat_model_id"`
+
 	// WebsocketUrl WebSocket URL for real-time updates
 	WebsocketUrl string `json:"websocket_url"`
 }
 
 // Diagram A diagram object supporting collaborative editing
 type Diagram struct {
-	// Authorization List of users and their roles for this diagram
-	Authorization []Authorization `json:"authorization"`
-
-	// Components List of diagram components (maxGraph cells)
-	Components *[]DiagramComponent `json:"components,omitempty"`
-
 	// CreatedAt Creation timestamp (ISO8601)
 	CreatedAt time.Time `json:"created_at"`
 
 	// Description Description of the diagram
 	Description *string `json:"description,omitempty"`
+
+	// GraphData List of maxGraph cells
+	GraphData *[]Cell `json:"graphData,omitempty"`
 
 	// Id Unique identifier for the diagram
 	Id openapi_types.UUID `json:"id"`
@@ -143,24 +185,6 @@ type Diagram struct {
 
 	// Name Name of the diagram
 	Name string `json:"name"`
-
-	// Owner Username or identifier of the current owner (may be email address or other format)
-	Owner string `json:"owner"`
-}
-
-// DiagramComponent A component within a diagram, based on maxGraph cells
-type DiagramComponent struct {
-	// Data Component properties (e.g., position, label)
-	Data map[string]interface{} `json:"data"`
-
-	// Id Unique identifier for the component
-	Id openapi_types.UUID `json:"id"`
-
-	// Metadata Key-value pairs for component metadata
-	Metadata *[]Metadata `json:"metadata,omitempty"`
-
-	// Type Component type (e.g., vertex, edge)
-	Type string `json:"type"`
 }
 
 // Error Standard error response format
@@ -262,42 +286,6 @@ type GetAuthLoginParams struct {
 	RedirectUri *string `form:"redirect_uri,omitempty" json:"redirect_uri,omitempty"`
 }
 
-// GetDiagramsParams defines parameters for GetDiagrams.
-type GetDiagramsParams struct {
-	// Limit Number of diagrams to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Pagination offset
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// Sort Sort order (e.g., created_at:desc, name:asc)
-	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
-}
-
-// PostDiagramsJSONBody defines parameters for PostDiagrams.
-type PostDiagramsJSONBody struct {
-	// Description Description of the diagram
-	Description *string `json:"description,omitempty"`
-
-	// Name Name of the diagram
-	Name string `json:"name"`
-}
-
-// PatchDiagramsIdJSONBody defines parameters for PatchDiagramsId.
-type PatchDiagramsIdJSONBody = []struct {
-	// Op Patch operation type
-	Op PatchDiagramsIdJSONBodyOp `json:"op"`
-
-	// Path JSON path to target
-	Path string `json:"path"`
-
-	// Value Value to apply
-	Value *interface{} `json:"value,omitempty"`
-}
-
-// PatchDiagramsIdJSONBodyOp defines parameters for PatchDiagramsId.
-type PatchDiagramsIdJSONBodyOp string
-
 // GetThreatModelsParams defines parameters for GetThreatModels.
 type GetThreatModelsParams struct {
 	// Limit Number of threat models to return
@@ -319,10 +307,10 @@ type PostThreatModelsJSONBody struct {
 	Name string `json:"name"`
 }
 
-// PatchThreatModelsIdJSONBody defines parameters for PatchThreatModelsId.
-type PatchThreatModelsIdJSONBody = []struct {
+// PatchThreatModelsThreatModelIdJSONBody defines parameters for PatchThreatModelsThreatModelId.
+type PatchThreatModelsThreatModelIdJSONBody = []struct {
 	// Op Patch operation type
-	Op PatchThreatModelsIdJSONBodyOp `json:"op"`
+	Op PatchThreatModelsThreatModelIdJSONBodyOp `json:"op"`
 
 	// Path JSON path to target
 	Path string `json:"path"`
@@ -331,26 +319,62 @@ type PatchThreatModelsIdJSONBody = []struct {
 	Value *interface{} `json:"value,omitempty"`
 }
 
-// PatchThreatModelsIdJSONBodyOp defines parameters for PatchThreatModelsId.
-type PatchThreatModelsIdJSONBodyOp string
+// PatchThreatModelsThreatModelIdJSONBodyOp defines parameters for PatchThreatModelsThreatModelId.
+type PatchThreatModelsThreatModelIdJSONBodyOp string
 
-// PostDiagramsJSONRequestBody defines body for PostDiagrams for application/json ContentType.
-type PostDiagramsJSONRequestBody PostDiagramsJSONBody
+// GetThreatModelsThreatModelIdDiagramsParams defines parameters for GetThreatModelsThreatModelIdDiagrams.
+type GetThreatModelsThreatModelIdDiagramsParams struct {
+	// Limit Number of diagrams to return
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 
-// PatchDiagramsIdJSONRequestBody defines body for PatchDiagramsId for application/json ContentType.
-type PatchDiagramsIdJSONRequestBody = PatchDiagramsIdJSONBody
+	// Offset Pagination offset
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 
-// PutDiagramsIdJSONRequestBody defines body for PutDiagramsId for application/json ContentType.
-type PutDiagramsIdJSONRequestBody = Diagram
+	// Sort Sort order (e.g., created_at:desc, name:asc)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
+// PostThreatModelsThreatModelIdDiagramsJSONBody defines parameters for PostThreatModelsThreatModelIdDiagrams.
+type PostThreatModelsThreatModelIdDiagramsJSONBody struct {
+	// Description Description of the diagram
+	Description *string `json:"description,omitempty"`
+
+	// Name Name of the diagram
+	Name string `json:"name"`
+}
+
+// PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBody defines parameters for PatchThreatModelsThreatModelIdDiagramsDiagramId.
+type PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBody = []struct {
+	// Op Patch operation type
+	Op PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp `json:"op"`
+
+	// Path JSON path to target
+	Path string `json:"path"`
+
+	// Value Value to apply
+	Value *interface{} `json:"value,omitempty"`
+}
+
+// PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp defines parameters for PatchThreatModelsThreatModelIdDiagramsDiagramId.
+type PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp string
 
 // PostThreatModelsJSONRequestBody defines body for PostThreatModels for application/json ContentType.
 type PostThreatModelsJSONRequestBody PostThreatModelsJSONBody
 
-// PatchThreatModelsIdJSONRequestBody defines body for PatchThreatModelsId for application/json ContentType.
-type PatchThreatModelsIdJSONRequestBody = PatchThreatModelsIdJSONBody
+// PatchThreatModelsThreatModelIdJSONRequestBody defines body for PatchThreatModelsThreatModelId for application/json ContentType.
+type PatchThreatModelsThreatModelIdJSONRequestBody = PatchThreatModelsThreatModelIdJSONBody
 
-// PutThreatModelsIdJSONRequestBody defines body for PutThreatModelsId for application/json ContentType.
-type PutThreatModelsIdJSONRequestBody = ThreatModel
+// PutThreatModelsThreatModelIdJSONRequestBody defines body for PutThreatModelsThreatModelId for application/json ContentType.
+type PutThreatModelsThreatModelIdJSONRequestBody = ThreatModel
+
+// PostThreatModelsThreatModelIdDiagramsJSONRequestBody defines body for PostThreatModelsThreatModelIdDiagrams for application/json ContentType.
+type PostThreatModelsThreatModelIdDiagramsJSONRequestBody PostThreatModelsThreatModelIdDiagramsJSONBody
+
+// PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody defines body for PatchThreatModelsThreatModelIdDiagramsDiagramId for application/json ContentType.
+type PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody = PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBody
+
+// PutThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody defines body for PutThreatModelsThreatModelIdDiagramsDiagramId for application/json ContentType.
+type PutThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody = Diagram
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -366,33 +390,6 @@ type ServerInterface interface {
 	// Logout user
 	// (POST /auth/logout)
 	PostAuthLogout(ctx echo.Context) error
-	// List diagrams
-	// (GET /diagrams)
-	GetDiagrams(ctx echo.Context, params GetDiagramsParams) error
-	// Create a diagram
-	// (POST /diagrams)
-	PostDiagrams(ctx echo.Context) error
-	// Delete a diagram
-	// (DELETE /diagrams/{id})
-	DeleteDiagramsId(ctx echo.Context, id openapi_types.UUID) error
-	// Retrieve a diagram
-	// (GET /diagrams/{id})
-	GetDiagramsId(ctx echo.Context, id openapi_types.UUID) error
-	// Partially update a diagram
-	// (PATCH /diagrams/{id})
-	PatchDiagramsId(ctx echo.Context, id openapi_types.UUID) error
-	// Update a diagram
-	// (PUT /diagrams/{id})
-	PutDiagramsId(ctx echo.Context, id openapi_types.UUID) error
-	// Leave collaboration session
-	// (DELETE /diagrams/{id}/collaborate)
-	DeleteDiagramsIdCollaborate(ctx echo.Context, id openapi_types.UUID) error
-	// Get collaboration session status
-	// (GET /diagrams/{id}/collaborate)
-	GetDiagramsIdCollaborate(ctx echo.Context, id openapi_types.UUID) error
-	// Join or start collaboration session
-	// (POST /diagrams/{id}/collaborate)
-	PostDiagramsIdCollaborate(ctx echo.Context, id openapi_types.UUID) error
 	// List threat models
 	// (GET /threat_models)
 	GetThreatModels(ctx echo.Context, params GetThreatModelsParams) error
@@ -400,17 +397,44 @@ type ServerInterface interface {
 	// (POST /threat_models)
 	PostThreatModels(ctx echo.Context) error
 	// Delete a threat model
-	// (DELETE /threat_models/{id})
-	DeleteThreatModelsId(ctx echo.Context, id openapi_types.UUID) error
+	// (DELETE /threat_models/{threat_model_id})
+	DeleteThreatModelsThreatModelId(ctx echo.Context, threatModelId openapi_types.UUID) error
 	// Retrieve a threat model
-	// (GET /threat_models/{id})
-	GetThreatModelsId(ctx echo.Context, id openapi_types.UUID) error
+	// (GET /threat_models/{threat_model_id})
+	GetThreatModelsThreatModelId(ctx echo.Context, threatModelId openapi_types.UUID) error
 	// Partially update a threat model
-	// (PATCH /threat_models/{id})
-	PatchThreatModelsId(ctx echo.Context, id openapi_types.UUID) error
+	// (PATCH /threat_models/{threat_model_id})
+	PatchThreatModelsThreatModelId(ctx echo.Context, threatModelId openapi_types.UUID) error
 	// Update a threat model
-	// (PUT /threat_models/{id})
-	PutThreatModelsId(ctx echo.Context, id openapi_types.UUID) error
+	// (PUT /threat_models/{threat_model_id})
+	PutThreatModelsThreatModelId(ctx echo.Context, threatModelId openapi_types.UUID) error
+	// List diagrams for a threat model
+	// (GET /threat_models/{threat_model_id}/diagrams)
+	GetThreatModelsThreatModelIdDiagrams(ctx echo.Context, threatModelId openapi_types.UUID, params GetThreatModelsThreatModelIdDiagramsParams) error
+	// Create a diagram for a threat model
+	// (POST /threat_models/{threat_model_id}/diagrams)
+	PostThreatModelsThreatModelIdDiagrams(ctx echo.Context, threatModelId openapi_types.UUID) error
+	// Delete a diagram
+	// (DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id})
+	DeleteThreatModelsThreatModelIdDiagramsDiagramId(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	// Retrieve a diagram
+	// (GET /threat_models/{threat_model_id}/diagrams/{diagram_id})
+	GetThreatModelsThreatModelIdDiagramsDiagramId(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	// Partially update a diagram
+	// (PATCH /threat_models/{threat_model_id}/diagrams/{diagram_id})
+	PatchThreatModelsThreatModelIdDiagramsDiagramId(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	// Update a diagram
+	// (PUT /threat_models/{threat_model_id}/diagrams/{diagram_id})
+	PutThreatModelsThreatModelIdDiagramsDiagramId(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	// Leave collaboration session
+	// (DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate)
+	DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	// Get collaboration session status
+	// (GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate)
+	GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	// Join or start collaboration session
+	// (POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate)
+	PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -481,177 +505,6 @@ func (w *ServerInterfaceWrapper) PostAuthLogout(ctx echo.Context) error {
 	return err
 }
 
-// GetDiagrams converts echo context to params.
-func (w *ServerInterfaceWrapper) GetDiagrams(ctx echo.Context) error {
-	var err error
-
-	ctx.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetDiagramsParams
-	// ------------- Optional query parameter "limit" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "limit", ctx.QueryParams(), &params.Limit)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter limit: %s", err))
-	}
-
-	// ------------- Optional query parameter "offset" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "offset", ctx.QueryParams(), &params.Offset)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter offset: %s", err))
-	}
-
-	// ------------- Optional query parameter "sort" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "sort", ctx.QueryParams(), &params.Sort)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter sort: %s", err))
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetDiagrams(ctx, params)
-	return err
-}
-
-// PostDiagrams converts echo context to params.
-func (w *ServerInterfaceWrapper) PostDiagrams(ctx echo.Context) error {
-	var err error
-
-	ctx.Set(BearerAuthScopes, []string{})
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostDiagrams(ctx)
-	return err
-}
-
-// DeleteDiagramsId converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteDiagramsId(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", ctx.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter id: %s", err))
-	}
-
-	ctx.Set(BearerAuthScopes, []string{})
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteDiagramsId(ctx, id)
-	return err
-}
-
-// GetDiagramsId converts echo context to params.
-func (w *ServerInterfaceWrapper) GetDiagramsId(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", ctx.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter id: %s", err))
-	}
-
-	ctx.Set(BearerAuthScopes, []string{})
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetDiagramsId(ctx, id)
-	return err
-}
-
-// PatchDiagramsId converts echo context to params.
-func (w *ServerInterfaceWrapper) PatchDiagramsId(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", ctx.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter id: %s", err))
-	}
-
-	ctx.Set(BearerAuthScopes, []string{})
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PatchDiagramsId(ctx, id)
-	return err
-}
-
-// PutDiagramsId converts echo context to params.
-func (w *ServerInterfaceWrapper) PutDiagramsId(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", ctx.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter id: %s", err))
-	}
-
-	ctx.Set(BearerAuthScopes, []string{})
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PutDiagramsId(ctx, id)
-	return err
-}
-
-// DeleteDiagramsIdCollaborate converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteDiagramsIdCollaborate(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", ctx.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter id: %s", err))
-	}
-
-	ctx.Set(BearerAuthScopes, []string{})
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteDiagramsIdCollaborate(ctx, id)
-	return err
-}
-
-// GetDiagramsIdCollaborate converts echo context to params.
-func (w *ServerInterfaceWrapper) GetDiagramsIdCollaborate(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", ctx.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter id: %s", err))
-	}
-
-	ctx.Set(BearerAuthScopes, []string{})
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetDiagramsIdCollaborate(ctx, id)
-	return err
-}
-
-// PostDiagramsIdCollaborate converts echo context to params.
-func (w *ServerInterfaceWrapper) PostDiagramsIdCollaborate(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", ctx.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter id: %s", err))
-	}
-
-	ctx.Set(BearerAuthScopes, []string{})
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostDiagramsIdCollaborate(ctx, id)
-	return err
-}
-
 // GetThreatModels converts echo context to params.
 func (w *ServerInterfaceWrapper) GetThreatModels(ctx echo.Context) error {
 	var err error
@@ -697,75 +550,316 @@ func (w *ServerInterfaceWrapper) PostThreatModels(ctx echo.Context) error {
 	return err
 }
 
-// DeleteThreatModelsId converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteThreatModelsId(ctx echo.Context) error {
+// DeleteThreatModelsThreatModelId converts echo context to params.
+func (w *ServerInterfaceWrapper) DeleteThreatModelsThreatModelId(ctx echo.Context) error {
 	var err error
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "id", ctx.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter id: %s", err))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
 	}
 
 	ctx.Set(BearerAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteThreatModelsId(ctx, id)
+	err = w.Handler.DeleteThreatModelsThreatModelId(ctx, threatModelId)
 	return err
 }
 
-// GetThreatModelsId converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatModelsId(ctx echo.Context) error {
+// GetThreatModelsThreatModelId converts echo context to params.
+func (w *ServerInterfaceWrapper) GetThreatModelsThreatModelId(ctx echo.Context) error {
 	var err error
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "id", ctx.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter id: %s", err))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
 	}
 
 	ctx.Set(BearerAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatModelsId(ctx, id)
+	err = w.Handler.GetThreatModelsThreatModelId(ctx, threatModelId)
 	return err
 }
 
-// PatchThreatModelsId converts echo context to params.
-func (w *ServerInterfaceWrapper) PatchThreatModelsId(ctx echo.Context) error {
+// PatchThreatModelsThreatModelId converts echo context to params.
+func (w *ServerInterfaceWrapper) PatchThreatModelsThreatModelId(ctx echo.Context) error {
 	var err error
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "id", ctx.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter id: %s", err))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
 	}
 
 	ctx.Set(BearerAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PatchThreatModelsId(ctx, id)
+	err = w.Handler.PatchThreatModelsThreatModelId(ctx, threatModelId)
 	return err
 }
 
-// PutThreatModelsId converts echo context to params.
-func (w *ServerInterfaceWrapper) PutThreatModelsId(ctx echo.Context) error {
+// PutThreatModelsThreatModelId converts echo context to params.
+func (w *ServerInterfaceWrapper) PutThreatModelsThreatModelId(ctx echo.Context) error {
 	var err error
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "id", ctx.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter id: %s", err))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
 	}
 
 	ctx.Set(BearerAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PutThreatModelsId(ctx, id)
+	err = w.Handler.PutThreatModelsThreatModelId(ctx, threatModelId)
+	return err
+}
+
+// GetThreatModelsThreatModelIdDiagrams converts echo context to params.
+func (w *ServerInterfaceWrapper) GetThreatModelsThreatModelIdDiagrams(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetThreatModelsThreatModelIdDiagramsParams
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", ctx.QueryParams(), &params.Limit)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter limit: %s", err))
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", ctx.QueryParams(), &params.Offset)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter offset: %s", err))
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "sort", ctx.QueryParams(), &params.Sort)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter sort: %s", err))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetThreatModelsThreatModelIdDiagrams(ctx, threatModelId, params)
+	return err
+}
+
+// PostThreatModelsThreatModelIdDiagrams converts echo context to params.
+func (w *ServerInterfaceWrapper) PostThreatModelsThreatModelIdDiagrams(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.PostThreatModelsThreatModelIdDiagrams(ctx, threatModelId)
+	return err
+}
+
+// DeleteThreatModelsThreatModelIdDiagramsDiagramId converts echo context to params.
+func (w *ServerInterfaceWrapper) DeleteThreatModelsThreatModelIdDiagramsDiagramId(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.DeleteThreatModelsThreatModelIdDiagramsDiagramId(ctx, threatModelId, diagramId)
+	return err
+}
+
+// GetThreatModelsThreatModelIdDiagramsDiagramId converts echo context to params.
+func (w *ServerInterfaceWrapper) GetThreatModelsThreatModelIdDiagramsDiagramId(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetThreatModelsThreatModelIdDiagramsDiagramId(ctx, threatModelId, diagramId)
+	return err
+}
+
+// PatchThreatModelsThreatModelIdDiagramsDiagramId converts echo context to params.
+func (w *ServerInterfaceWrapper) PatchThreatModelsThreatModelIdDiagramsDiagramId(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.PatchThreatModelsThreatModelIdDiagramsDiagramId(ctx, threatModelId, diagramId)
+	return err
+}
+
+// PutThreatModelsThreatModelIdDiagramsDiagramId converts echo context to params.
+func (w *ServerInterfaceWrapper) PutThreatModelsThreatModelIdDiagramsDiagramId(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.PutThreatModelsThreatModelIdDiagramsDiagramId(ctx, threatModelId, diagramId)
+	return err
+}
+
+// DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate converts echo context to params.
+func (w *ServerInterfaceWrapper) DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(ctx, threatModelId, diagramId)
+	return err
+}
+
+// GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate converts echo context to params.
+func (w *ServerInterfaceWrapper) GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(ctx, threatModelId, diagramId)
+	return err
+}
+
+// PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate converts echo context to params.
+func (w *ServerInterfaceWrapper) PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(ctx, threatModelId, diagramId)
 	return err
 }
 
@@ -801,20 +895,20 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/auth/callback", wrapper.GetAuthCallback)
 	router.GET(baseURL+"/auth/login", wrapper.GetAuthLogin)
 	router.POST(baseURL+"/auth/logout", wrapper.PostAuthLogout)
-	router.GET(baseURL+"/diagrams", wrapper.GetDiagrams)
-	router.POST(baseURL+"/diagrams", wrapper.PostDiagrams)
-	router.DELETE(baseURL+"/diagrams/:id", wrapper.DeleteDiagramsId)
-	router.GET(baseURL+"/diagrams/:id", wrapper.GetDiagramsId)
-	router.PATCH(baseURL+"/diagrams/:id", wrapper.PatchDiagramsId)
-	router.PUT(baseURL+"/diagrams/:id", wrapper.PutDiagramsId)
-	router.DELETE(baseURL+"/diagrams/:id/collaborate", wrapper.DeleteDiagramsIdCollaborate)
-	router.GET(baseURL+"/diagrams/:id/collaborate", wrapper.GetDiagramsIdCollaborate)
-	router.POST(baseURL+"/diagrams/:id/collaborate", wrapper.PostDiagramsIdCollaborate)
 	router.GET(baseURL+"/threat_models", wrapper.GetThreatModels)
 	router.POST(baseURL+"/threat_models", wrapper.PostThreatModels)
-	router.DELETE(baseURL+"/threat_models/:id", wrapper.DeleteThreatModelsId)
-	router.GET(baseURL+"/threat_models/:id", wrapper.GetThreatModelsId)
-	router.PATCH(baseURL+"/threat_models/:id", wrapper.PatchThreatModelsId)
-	router.PUT(baseURL+"/threat_models/:id", wrapper.PutThreatModelsId)
+	router.DELETE(baseURL+"/threat_models/:threat_model_id", wrapper.DeleteThreatModelsThreatModelId)
+	router.GET(baseURL+"/threat_models/:threat_model_id", wrapper.GetThreatModelsThreatModelId)
+	router.PATCH(baseURL+"/threat_models/:threat_model_id", wrapper.PatchThreatModelsThreatModelId)
+	router.PUT(baseURL+"/threat_models/:threat_model_id", wrapper.PutThreatModelsThreatModelId)
+	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams", wrapper.GetThreatModelsThreatModelIdDiagrams)
+	router.POST(baseURL+"/threat_models/:threat_model_id/diagrams", wrapper.PostThreatModelsThreatModelIdDiagrams)
+	router.DELETE(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id", wrapper.DeleteThreatModelsThreatModelIdDiagramsDiagramId)
+	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id", wrapper.GetThreatModelsThreatModelIdDiagramsDiagramId)
+	router.PATCH(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id", wrapper.PatchThreatModelsThreatModelIdDiagramsDiagramId)
+	router.PUT(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id", wrapper.PutThreatModelsThreatModelIdDiagramsDiagramId)
+	router.DELETE(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
+	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
+	router.POST(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 
 }
