@@ -428,11 +428,9 @@ func DiagramMiddleware() gin.HandlerFunc {
 func GetUserRoleForDiagram(userName string, diagram Diagram) Role {
 	// Diagrams use the owner and authorization data fields from their parent threat model
 	// Find the parent threat model for this diagram
-	var parentThreatModel ThreatModel
-
 	// In a real implementation, we would look up the parent threat model
 	// For testing purposes, we'll use the TestFixtures.ThreatModel
-	parentThreatModel = TestFixtures.ThreatModel
+	parentThreatModel := TestFixtures.ThreatModel
 
 	// Check if the user is the owner
 	if userName == parentThreatModel.Owner {

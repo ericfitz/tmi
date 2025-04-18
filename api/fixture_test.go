@@ -453,10 +453,10 @@ func TestDiagramNonOwnerFields(t *testing.T) {
 	InitTestFixtures()
 	diagramID = TestFixtures.DiagramID // Get the new ID
 
-	patchReq := fmt.Sprintf(`[
+	patchReq := `[
 		{"op":"replace","path":"/name","value":"Patched Diagram Name"},
 		{"op":"replace","path":"/description","value":"This is a patched description"}
-	]`)
+	]`
 
 	req, _ = http.NewRequest("PATCH", "/diagrams/"+diagramID, strings.NewReader(patchReq))
 	req.Header.Set("Content-Type", "application/json")

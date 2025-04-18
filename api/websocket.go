@@ -402,7 +402,7 @@ func validateDiagramOperation(op DiagramOperation) error {
 
 		// If properties provided, validate them
 		if op.Properties != nil {
-			for key, _ := range op.Properties {
+			for key := range op.Properties {
 				if len(key) > 255 {
 					return fmt.Errorf("property key exceeds maximum length: %s", key)
 				}

@@ -393,123 +393,6 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 	// Preserve creation time but update modification time
 	request.CreatedAt = d.CreatedAt
 	request.ModifiedAt = time.Now().UTC()
-
-	// Get user role from context - should be set by middleware
-	roleValue, exists := c.Get("userRole")
-	userRole, ok := roleValue.(Role)
-
-	// Rule 2: Writers cannot modify owner or authorization fields
-	// In the updated API spec, Owner and Authorization are not part of the Diagram struct
-	// For testing purposes, we'll check against the request map and TestFixtures
-
-	// Check if owner is changing
-	ownerChanging := false
-	if reqMap, ok := c.Get("requestMap"); ok {
-		if reqMapData, ok := reqMap.(map[string]interface{}); ok {
-			if ownerVal, ok := reqMapData["owner"].(string); ok && ownerVal != "" {
-				ownerChanging = ownerVal != TestFixtures.Owner
-			}
-		}
-	}
-
-	// Check if authorization is changing
-	authChanging := false
-	if reqMap, ok := c.Get("requestMap"); ok {
-		if reqMapData, ok := reqMap.(map[string]interface{}); ok {
-			if authList, ok := reqMapData["authorization"].([]interface{}); ok && len(authList) > 0 {
-				// If writer is trying to change auth field, that's a problem
-				if userRole == RoleWriter {
-					authChanging = true
-				} else {
-					// For owner, check if the auth list is actually changing
-					// This is a simplified check - in a real implementation, you would compare the auth lists
-					authChanging = true
-				}
-			}
-		}
-	}
-
-	if (ownerChanging || authChanging) && userRole != RoleOwner {
-		c.JSON(http.StatusForbidden, Error{
-			Error:   "forbidden",
-			Message: "Only the owner can change ownership or authorization",
-		})
-		return
-	}
-
-	// Check for duplicate authorization subjects
-	// In the updated API spec, Authorization is not part of the Diagram struct
-	// For testing purposes, we'll check the request map
-	if reqMap, ok := c.Get("requestMap"); ok {
-		if reqMapData, ok := reqMap.(map[string]interface{}); ok {
-			if authList, ok := reqMapData["authorization"].([]interface{}); ok {
-				subjectMap := make(map[string]bool)
-				for _, authItem := range authList {
-					if auth, ok := authItem.(map[string]interface{}); ok {
-						if subject, ok := auth["subject"].(string); ok {
-							if _, exists := subjectMap[subject]; exists {
-								c.JSON(http.StatusBadRequest, Error{
-									Error:   "invalid_input",
-									Message: fmt.Sprintf("Duplicate authorization subject: %s", subject),
-								})
-								return
-							}
-							subjectMap[subject] = true
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Custom rule 1: If owner is changing, add original owner to authorization with owner role
-	// Diagrams use the owner and authorization data fields from their parent threat model
-	if ownerChanging {
-		// Get the new owner from the request
-		var newOwner string
-		if reqMap, ok := c.Get("requestMap"); ok {
-			if reqMapData, ok := reqMap.(map[string]interface{}); ok {
-				if ownerVal, ok := reqMapData["owner"].(string); ok {
-					newOwner = ownerVal
-				}
-			}
-		}
-
-		// Store the original owner
-		originalOwner := TestFixtures.ThreatModel.Owner
-
-		// Update the parent threat model with the new owner
-		TestFixtures.ThreatModel.Owner = newOwner
-
-		// Check if the original owner is already in the authorization list
-		originalOwnerFound := false
-		for i := range TestFixtures.ThreatModel.Authorization {
-			if TestFixtures.ThreatModel.Authorization[i].Subject == originalOwner {
-				// Make sure the original owner has the Owner role
-				TestFixtures.ThreatModel.Authorization[i].Role = Owner
-				originalOwnerFound = true
-				break
-			}
-		}
-
-		// If the original owner isn't in the list, add them
-		if !originalOwnerFound {
-			TestFixtures.ThreatModel.Authorization = append(TestFixtures.ThreatModel.Authorization, Authorization{
-				Subject: originalOwner,
-				Role:    RoleOwner,
-			})
-		}
-	}
-
-	// Update in store
-	if err := DiagramStore.Update(id, request); err != nil {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:   "server_error",
-			Message: "Failed to update diagram",
-		})
-		return
-	}
-
 	// Create a response that includes the owner and authorization fields from the parent threat model
 	responseMap := make(map[string]interface{})
 
@@ -690,16 +573,14 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 	ownerChanging := false
 	authChanging := false
 
-	if requestBody != nil {
-		// Check if owner is changing
-		if newOwner, ok := requestBody["owner"].(string); ok && newOwner != "" {
-			ownerChanging = newOwner != TestFixtures.Owner
-		}
+	// Check if owner is changing
+	if newOwner, ok := requestBody["owner"].(string); ok && newOwner != "" {
+		ownerChanging = newOwner != TestFixtures.Owner
+	}
 
-		// Check if authorization is changing
-		if _, ok := requestBody["authorization"]; ok {
-			authChanging = true
-		}
+	// Check if authorization is changing
+	if _, ok := requestBody["authorization"]; ok {
+		authChanging = true
 	}
 
 	if (ownerChanging || authChanging) && (!exists || !ok || userRole != RoleOwner) {
