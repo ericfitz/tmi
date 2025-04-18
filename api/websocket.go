@@ -76,7 +76,7 @@ var upgrader = websocket.Upgrader{
 	// More secure origin check
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
-		
+
 		// Get dev mode flag from context or default to false
 		isDev := false
 		if ctx := r.Context(); ctx != nil {
@@ -86,17 +86,17 @@ var upgrader = websocket.Upgrader{
 				}
 			}
 		}
-		
+
 		// In development mode, accept all origins
 		if isDev {
 			return true
 		}
-		
+
 		// If no origin header, assume it's same-origin request
 		if origin == "" {
 			return true
 		}
-		
+
 		// Get allowed origins from context
 		tlsSubjectName := ""
 		if ctx := r.Context(); ctx != nil {
@@ -106,7 +106,7 @@ var upgrader = websocket.Upgrader{
 				}
 			}
 		}
-		
+
 		// Basic default allowed origins
 		allowedOrigins := []string{
 			"http://localhost",
@@ -114,27 +114,27 @@ var upgrader = websocket.Upgrader{
 			"http://127.0.0.1",
 			"https://127.0.0.1",
 		}
-		
+
 		// Add the configured subject name if available
 		if tlsSubjectName != "" {
-			allowedOrigins = append(allowedOrigins, 
+			allowedOrigins = append(allowedOrigins,
 				"http://"+tlsSubjectName,
 				"https://"+tlsSubjectName)
 		}
-		
+
 		// Get the host from the request
 		host := r.Host
 		allowedOrigins = append(allowedOrigins,
 			"http://"+host,
 			"https://"+host)
-		
+
 		// Check if origin matches any allowed origins
 		for _, allowed := range allowedOrigins {
 			if strings.HasPrefix(origin, allowed) {
 				return true
 			}
 		}
-		
+
 		log.Printf("Rejected WebSocket connection from origin: %s", origin)
 		return false
 	},
@@ -177,11 +177,11 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string) *DiagramSession {
 func (h *WebSocketHub) GetSession(diagramID string) *DiagramSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	
+
 	if session, ok := h.Diagrams[diagramID]; ok {
 		return session
 	}
-	
+
 	return nil
 }
 
@@ -319,11 +319,11 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 
 	// Create client
 	client := &WebSocketClient{
-		Hub:       h,
-		Session:   session,
-		Conn:      conn,
-		UserName:  userName.(string),
-		Send:      make(chan []byte, 256),
+		Hub:      h,
+		Session:  session,
+		Conn:     conn,
+		UserName: userName.(string),
+		Send:     make(chan []byte, 256),
 	}
 
 	// Register client
@@ -341,7 +341,7 @@ type DiagramOperation struct {
 	// Component ID (for update/remove)
 	ComponentID string `json:"component_id,omitempty"`
 	// Component data (for add/update)
-	Component *DiagramComponent `json:"component,omitempty"`
+	Component *Cell `json:"component,omitempty"`
 	// Properties to update (for update)
 	Properties map[string]interface{} `json:"properties,omitempty"`
 }
@@ -352,7 +352,7 @@ func validateDiagramOperation(op DiagramOperation) error {
 	if op.Type != "add" && op.Type != "update" && op.Type != "remove" {
 		return fmt.Errorf("invalid operation type: %s", op.Type)
 	}
-	
+
 	// Validate operation parameters based on type
 	switch op.Type {
 	case "add":
@@ -360,46 +360,46 @@ func validateDiagramOperation(op DiagramOperation) error {
 		if op.Component == nil {
 			return fmt.Errorf("add operation requires component data")
 		}
-		
+
 		// Validate component data
-		if err := validateDiagramComponent(op.Component); err != nil {
+		if err := validateCell(op.Component); err != nil {
 			return fmt.Errorf("invalid component data: %w", err)
 		}
-		
+
 	case "remove":
 		// Remove requires component ID
 		if op.ComponentID == "" {
 			return fmt.Errorf("remove operation requires component_id")
 		}
-		
+
 		// Validate component ID
 		if _, err := uuid.Parse(op.ComponentID); err != nil {
 			return fmt.Errorf("invalid component ID format: %w", err)
 		}
-		
+
 	case "update":
 		// Update requires component ID and either component or properties
 		if op.ComponentID == "" {
 			return fmt.Errorf("update operation requires component_id")
 		}
-		
+
 		// Validate component ID
 		if _, err := uuid.Parse(op.ComponentID); err != nil {
 			return fmt.Errorf("invalid component ID format: %w", err)
 		}
-		
+
 		// Properties or component required
 		if op.Properties == nil && op.Component == nil {
 			return fmt.Errorf("update operation requires either properties or component")
 		}
-		
+
 		// If component provided, validate it
 		if op.Component != nil {
-			if err := validateDiagramComponent(op.Component); err != nil {
+			if err := validateCell(op.Component); err != nil {
 				return fmt.Errorf("invalid component data: %w", err)
 			}
 		}
-		
+
 		// If properties provided, validate them
 		if op.Properties != nil {
 			for key, _ := range op.Properties {
@@ -409,34 +409,26 @@ func validateDiagramOperation(op DiagramOperation) error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
-// Validate diagram component
-func validateDiagramComponent(component *DiagramComponent) error {
-	if component == nil {
-		return fmt.Errorf("component cannot be nil")
+// Validate cell
+func validateCell(cell *Cell) error {
+	if cell == nil {
+		return fmt.Errorf("cell cannot be nil")
 	}
-	
-	// Validate type is not empty
-	if component.Type == "" {
-		return fmt.Errorf("component type is required")
+
+	// Validate ID is not empty
+	if cell.Id == "" {
+		return fmt.Errorf("cell ID is required")
 	}
-	
-	// Validate type length
-	if len(component.Type) > 100 {
-		return fmt.Errorf("component type exceeds maximum length")
+
+	// Validate ID length
+	if len(cell.Id) > 100 {
+		return fmt.Errorf("cell ID exceeds maximum length")
 	}
-	
-	// Validate data if present
-	if component.Data != nil {
-		// Check for reasonable size
-		if len(component.Data) > 50 {
-			return fmt.Errorf("component data has too many fields")
-		}
-	}
-	
+
 	return nil
 }
 
@@ -471,7 +463,7 @@ func (c *WebSocketClient) ReadPump() {
 			log.Printf("Error parsing WebSocket message: %v", err)
 			continue
 		}
-		
+
 		// Validate message size
 		if len(clientMsg.Operation) > 1024*50 { // 50KB limit
 			log.Printf("Operation too large (%d bytes), ignoring", len(clientMsg.Operation))
@@ -491,13 +483,13 @@ func (c *WebSocketClient) ReadPump() {
 			log.Printf("Error parsing operation: %v", err)
 			continue
 		}
-		
+
 		// Validate operation
 		if err := validateDiagramOperation(op); err != nil {
 			log.Printf("Invalid diagram operation: %v", err)
 			continue
 		}
-		
+
 		msg.Operation = op
 
 		// Apply operation to the diagram
@@ -525,10 +517,10 @@ func applyDiagramOperation(diagramID string, op DiagramOperation) error {
 		return err
 	}
 
-	// Ensure components array exists
-	if diagram.Components == nil {
-		components := []DiagramComponent{}
-		diagram.Components = &components
+	// Ensure graphData array exists
+	if diagram.GraphData == nil {
+		cells := []Cell{}
+		diagram.GraphData = &cells
 	}
 
 	// Update diagram based on operation type
@@ -536,35 +528,44 @@ func applyDiagramOperation(diagramID string, op DiagramOperation) error {
 	case "add":
 		// Add a new component
 		if op.Component != nil {
-			*diagram.Components = append(*diagram.Components, *op.Component)
+			// Use the component directly since it's already a Cell
+			cell := *op.Component
+			*diagram.GraphData = append(*diagram.GraphData, cell)
 		}
 	case "update":
-		// Update an existing component
-		for i := range *diagram.Components {
-			comp := &(*diagram.Components)[i]
-			if comp.Id.String() == op.ComponentID {
-				// Update existing component with new properties
+		// Update an existing cell
+		for i := range *diagram.GraphData {
+			cell := &(*diagram.GraphData)[i]
+			if cell.Id == op.ComponentID {
+				// Update existing cell with new properties
 				if op.Properties != nil {
-					for key, value := range op.Properties {
-						if comp.Data == nil {
-							comp.Data = make(map[string]interface{})
+					// Update cell properties based on the operation
+					// This is a simplified version - in a real implementation,
+					// you would map the properties to the appropriate Cell fields
+					if value, ok := op.Properties["value"]; ok {
+						if strValue, ok := value.(string); ok {
+							cell.Value = &strValue
 						}
-						comp.Data[key] = value
+					}
+					if style, ok := op.Properties["style"]; ok {
+						if strStyle, ok := style.(string); ok {
+							cell.Style = &strStyle
+						}
 					}
 				}
 				break
 			}
 		}
 	case "remove":
-		// Remove a component
-		for i, comp := range *diagram.Components {
-			if comp.Id.String() == op.ComponentID {
+		// Remove a cell
+		for i, cell := range *diagram.GraphData {
+			if cell.Id == op.ComponentID {
 				// Remove by replacing with last element and truncating
-				lastIndex := len(*diagram.Components) - 1
+				lastIndex := len(*diagram.GraphData) - 1
 				if i != lastIndex {
-					(*diagram.Components)[i] = (*diagram.Components)[lastIndex]
+					(*diagram.GraphData)[i] = (*diagram.GraphData)[lastIndex]
 				}
-				*diagram.Components = (*diagram.Components)[:lastIndex]
+				*diagram.GraphData = (*diagram.GraphData)[:lastIndex]
 				break
 			}
 		}

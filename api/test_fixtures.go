@@ -10,25 +10,33 @@ func stringPointer(s string) *string {
 }
 
 // Fixtures provides test data for unit tests
+// CustomDiagram extends Diagram with authorization fields for testing
+type CustomDiagram struct {
+	Diagram
+	Owner         string
+	Authorization []Authorization
+}
+
 var TestFixtures struct {
 	// Test users for authorization
 	OwnerUser  string
 	WriterUser string
 	ReaderUser string
-	
+
 	// Owner field values
-	Owner      string
-	
+	Owner string
+
 	// Test threat models
-	ThreatModel     ThreatModel
-	ThreatModelID   string
-	
+	ThreatModel   ThreatModel
+	ThreatModelID string
+
 	// Test diagrams
-	Diagram         Diagram
-	DiagramID       string
-	
+	Diagram     Diagram
+	DiagramID   string
+	DiagramAuth []Authorization // Store authorization separately since it's not in the Diagram struct
+
 	// Test flags
-	Initialized     bool
+	Initialized bool
 }
 
 // ResetStores clears all data from the stores
@@ -42,38 +50,38 @@ func ResetStores() {
 func InitTestFixtures() {
 	// Clear any existing test data first
 	ResetStores()
-	
+
 	// Set up test users for authorization entries
-	TestFixtures.OwnerUser = "test@example.com" 
+	TestFixtures.OwnerUser = "test@example.com"
 	TestFixtures.WriterUser = "writer@example.com"
 	TestFixtures.ReaderUser = "reader@example.com"
-	
+
 	// Set up owner field value
 	TestFixtures.Owner = "test@example.com"
-	
+
 	// Create timestamps
 	now := time.Now().UTC()
-	
+
 	// Create a test threat model
 	metadata := []Metadata{
 		{Key: "priority", Value: "high"},
 		{Key: "status", Value: "active"},
 	}
-	
+
 	threats := []Threat{
 		{
-			Id:           NewUUID(),
-			Name:         "SQL Injection",
-			Description:  stringPointer("Database attack via malicious SQL"),
-			CreatedAt:    now,
-			ModifiedAt:   now,
+			Id:            NewUUID(),
+			Name:          "SQL Injection",
+			Description:   stringPointer("Database attack via malicious SQL"),
+			CreatedAt:     now,
+			ModifiedAt:    now,
 			ThreatModelId: NewUUID(),
-			Metadata:     &metadata,
+			Metadata:      &metadata,
 		},
 	}
-	
+
 	diagrams := []TypesUUID{NewUUID()}
-	
+
 	// Create threat model with new UUID
 	uuid1 := NewUUID()
 	threatModel := ThreatModel{
@@ -97,35 +105,51 @@ func InitTestFixtures() {
 				Role:    RoleReader,
 			},
 		},
-		Metadata:  &metadata,
-		Threats:   &threats,
-		Diagrams:  &diagrams,
+		Metadata: &metadata,
+		Threats:  &threats,
+		Diagrams: &diagrams,
 	}
-	
-	// Create a test diagram
-	components := []DiagramComponent{
+
+	// Create a test diagram with cells (graphData)
+	cells := []Cell{
 		{
-			Id:   NewUUID(),
-			Type: "node",
-			Data: map[string]interface{}{
-				"x":     100,
-				"y":     200,
-				"label": "Web Server",
+			Id:     "node1",
+			Value:  stringPointer("Web Server"),
+			Vertex: true,
+			Edge:   false,
+			Geometry: &struct {
+				Height float32 "json:\"height\""
+				Width  float32 "json:\"width\""
+				X      float32 "json:\"x\""
+				Y      float32 "json:\"y\""
+			}{
+				X:      100,
+				Y:      200,
+				Width:  80,
+				Height: 40,
 			},
-			Metadata: &metadata,
+			Style: stringPointer("rounded=1;fillColor=#ffffff;"),
 		},
 		{
-			Id:   NewUUID(),
-			Type: "node",
-			Data: map[string]interface{}{
-				"x":     300,
-				"y":     200,
-				"label": "Database",
+			Id:     "node2",
+			Value:  stringPointer("Database"),
+			Vertex: true,
+			Edge:   false,
+			Geometry: &struct {
+				Height float32 "json:\"height\""
+				Width  float32 "json:\"width\""
+				X      float32 "json:\"x\""
+				Y      float32 "json:\"y\""
+			}{
+				X:      300,
+				Y:      200,
+				Width:  80,
+				Height: 40,
 			},
-			Metadata: &metadata,
+			Style: stringPointer("rounded=1;fillColor=#ffffff;"),
 		},
 	}
-	
+
 	// Create diagram with new UUID
 	uuid2 := NewUUID()
 	diagram := Diagram{
@@ -134,43 +158,45 @@ func InitTestFixtures() {
 		Description: stringPointer("This is a test diagram"),
 		CreatedAt:   now,
 		ModifiedAt:  now,
-		Owner:       TestFixtures.Owner,
-		Authorization: []Authorization{
-			{
-				Subject: TestFixtures.OwnerUser,
-				Role:    RoleOwner,
-			},
-			{
-				Subject: TestFixtures.WriterUser,
-				Role:    RoleWriter,
-			},
-			{
-				Subject: TestFixtures.ReaderUser,
-				Role:    RoleReader,
-			},
-		},
-		Components: &components,
-		Metadata:   &metadata,
+		GraphData:   &cells,
+		Metadata:    &metadata,
 	}
-	
+
+	// Store authorization data separately for tests
+	diagramAuth := []Authorization{
+		{
+			Subject: TestFixtures.OwnerUser,
+			Role:    RoleOwner,
+		},
+		{
+			Subject: TestFixtures.WriterUser,
+			Role:    RoleWriter,
+		},
+		{
+			Subject: TestFixtures.ReaderUser,
+			Role:    RoleReader,
+		},
+	}
+
 	// Store the fixtures with their UUIDs
 	tmID := uuid1.String()
 	dID := uuid2.String()
-	
+
 	TestFixtures.ThreatModel = threatModel
 	TestFixtures.ThreatModelID = tmID
-	
+
 	TestFixtures.Diagram = diagram
 	TestFixtures.DiagramID = dID
-	
+	TestFixtures.DiagramAuth = diagramAuth
+
 	// Add directly to the underlying map
 	ThreatModelStore.mutex.Lock()
 	ThreatModelStore.data[tmID] = threatModel
 	ThreatModelStore.mutex.Unlock()
-	
+
 	DiagramStore.mutex.Lock()
 	DiagramStore.data[dID] = diagram
 	DiagramStore.mutex.Unlock()
-	
+
 	TestFixtures.Initialized = true
 }

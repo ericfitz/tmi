@@ -32,9 +32,9 @@ func CurrentTime() time.Time {
 
 // DiagramRequest is used for creating and updating diagrams
 type DiagramRequest struct {
-	Name        string      `json:"name" binding:"required"`
-	Description *string     `json:"description,omitempty"`
-	Components  []Component `json:"components,omitempty"`
+	Name        string  `json:"name" binding:"required"`
+	Description *string `json:"description,omitempty"`
+	GraphData   []Cell  `json:"graphData,omitempty"`
 }
 
 // Component represents a diagram component

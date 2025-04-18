@@ -3,9 +3,14 @@ package api_test
 import (
 	"fmt"
 	"testing"
-	
+
 	. "github.com/ericfitz/tmi/api"
 )
+
+// Helper function to create string pointers
+func stringPointer(s string) *string {
+	return &s
+}
 
 func TestDiagramStoreAndAuth(t *testing.T) {
 	// Initialize test fixtures
@@ -15,14 +20,21 @@ func TestDiagramStoreAndAuth(t *testing.T) {
 	diagramID := "debug-diagram-id"
 	uuid, _ := ParseUUID(diagramID)
 	now := CurrentTime()
-	
+
+	// Create a diagram with the new structure (without Owner and Authorization fields)
 	diagram := Diagram{
 		Id:          uuid,
 		Name:        "Debug Diagram",
 		Description: stringPointer("For debugging"),
 		CreatedAt:   now,
 		ModifiedAt:  now,
-		Owner:       "owner@example.com",
+	}
+
+	// Set up the parent threat model with owner and authorization
+	TestFixtures.ThreatModel = ThreatModel{
+		Id:    NewUUID(),
+		Name:  "Parent Threat Model",
+		Owner: "owner@example.com",
 		Authorization: []Authorization{
 			{
 				Subject: "owner@example.com",
@@ -31,10 +43,11 @@ func TestDiagramStoreAndAuth(t *testing.T) {
 		},
 	}
 
-	// Store directly
-	DiagramStore.mutex.Lock()
-	DiagramStore.data[diagramID] = diagram
-	DiagramStore.mutex.Unlock()
+	// Store using the API
+	err := DiagramStore.Update(diagramID, diagram)
+	if err != nil {
+		t.Fatalf("Failed to store diagram: %v", err)
+	}
 
 	// Now retrieve and verify
 	retrieved, err := DiagramStore.Get(diagramID)
@@ -43,15 +56,18 @@ func TestDiagramStoreAndAuth(t *testing.T) {
 	}
 
 	fmt.Printf("Retrieved diagram: %+v\n", retrieved)
-	fmt.Printf("Auth entries: %+v\n", retrieved.Authorization)
+	fmt.Printf("Auth entries: %+v\n", TestFixtures.ThreatModel.Authorization)
 
 	// Test role resolution
 	role := GetUserRoleForDiagram("owner@example.com", retrieved)
 	fmt.Printf("Role for owner: %s\n", role)
 
 	// Now add a new authorization
+	// Update the diagram
 	updatedDiagram := retrieved
-	updatedDiagram.Authorization = append(updatedDiagram.Authorization, Authorization{
+
+	// Update authorization in the parent threat model
+	TestFixtures.ThreatModel.Authorization = append(TestFixtures.ThreatModel.Authorization, Authorization{
 		Subject: "newuser@example.com",
 		Role:    RoleOwner,
 	})
@@ -68,7 +84,7 @@ func TestDiagramStoreAndAuth(t *testing.T) {
 	}
 
 	fmt.Printf("Updated diagram: %+v\n", updated)
-	fmt.Printf("Updated auth entries: %+v\n", updated.Authorization)
+	fmt.Printf("Updated auth entries: %+v\n", TestFixtures.ThreatModel.Authorization)
 
 	// Test role resolution for new user
 	newUserRole := GetUserRoleForDiagram("newuser@example.com", updated)
