@@ -118,15 +118,17 @@ func InitTestFixtures() {
 			Vertex: true,
 			Edge:   false,
 			Geometry: &struct {
-				Height float32 "json:\"height\""
-				Width  float32 "json:\"width\""
-				X      float32 "json:\"x\""
-				Y      float32 "json:\"y\""
+				Height   float32     `json:"height"`
+				Metadata *[]Metadata `json:"metadata,omitempty"`
+				Width    float32     `json:"width"`
+				X        float32     `json:"x"`
+				Y        float32     `json:"y"`
 			}{
-				X:      100,
-				Y:      200,
-				Width:  80,
-				Height: 40,
+				Height:   40,
+				Metadata: &[]Metadata{},
+				Width:    80,
+				X:        100,
+				Y:        200,
 			},
 			Style: stringPointer("rounded=1;fillColor=#ffffff;"),
 		},
@@ -136,15 +138,17 @@ func InitTestFixtures() {
 			Vertex: true,
 			Edge:   false,
 			Geometry: &struct {
-				Height float32 "json:\"height\""
-				Width  float32 "json:\"width\""
-				X      float32 "json:\"x\""
-				Y      float32 "json:\"y\""
+				Height   float32     `json:"height"`
+				Metadata *[]Metadata `json:"metadata,omitempty"`
+				Width    float32     `json:"width"`
+				X        float32     `json:"x"`
+				Y        float32     `json:"y"`
 			}{
-				X:      300,
-				Y:      200,
-				Width:  80,
-				Height: 40,
+				Height:   40,
+				Metadata: &[]Metadata{},
+				Width:    80,
+				X:        300,
+				Y:        200,
 			},
 			Style: stringPointer("rounded=1;fillColor=#ffffff;"),
 		},

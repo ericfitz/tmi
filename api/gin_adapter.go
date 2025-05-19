@@ -11,12 +11,12 @@ type GinHandlerFunc func(c *gin.Context) error
 type GinServerInterface interface {
 	// Root API Info
 	GetApiInfo(c *gin.Context)
-	
+
 	// Authentication
 	GetAuthLogin(c *gin.Context)
 	GetAuthCallback(c *gin.Context)
 	PostAuthLogout(c *gin.Context)
-	
+
 	// Diagram Management
 	GetDiagrams(c *gin.Context)
 	PostDiagrams(c *gin.Context)
@@ -24,12 +24,12 @@ type GinServerInterface interface {
 	PutDiagramsId(c *gin.Context)
 	PatchDiagramsId(c *gin.Context)
 	DeleteDiagramsId(c *gin.Context)
-	
+
 	// Diagram Collaboration
 	GetDiagramsIdCollaborate(c *gin.Context)
 	PostDiagramsIdCollaborate(c *gin.Context)
 	DeleteDiagramsIdCollaborate(c *gin.Context)
-	
+
 	// Threat Model Management
 	GetThreatModels(c *gin.Context)
 	PostThreatModels(c *gin.Context)
@@ -37,6 +37,19 @@ type GinServerInterface interface {
 	PutThreatModelsId(c *gin.Context)
 	PatchThreatModelsId(c *gin.Context)
 	DeleteThreatModelsId(c *gin.Context)
+
+	// Threat Model Diagrams
+	GetThreatModelsThreatModelIdDiagrams(c *gin.Context)
+	PostThreatModelsThreatModelIdDiagrams(c *gin.Context)
+	GetThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context)
+	PutThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context)
+	PatchThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context)
+	DeleteThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context)
+
+	// Threat Model Diagram Collaboration
+	GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context)
+	PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context)
+	DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context)
 }
 
 // GinRouter is a simplified interface for Gin router
@@ -52,12 +65,12 @@ type GinRouter interface {
 func RegisterGinHandlers(r GinRouter, si GinServerInterface) {
 	// Root
 	r.GET("/", si.GetApiInfo)
-	
+
 	// Auth
 	r.GET("/auth/login", si.GetAuthLogin)
 	r.GET("/auth/callback", si.GetAuthCallback)
 	r.POST("/auth/logout", si.PostAuthLogout)
-	
+
 	// Diagrams
 	r.GET("/diagrams", si.GetDiagrams)
 	r.POST("/diagrams", si.PostDiagrams)
@@ -65,12 +78,12 @@ func RegisterGinHandlers(r GinRouter, si GinServerInterface) {
 	r.PUT("/diagrams/:id", si.PutDiagramsId)
 	r.PATCH("/diagrams/:id", si.PatchDiagramsId)
 	r.DELETE("/diagrams/:id", si.DeleteDiagramsId)
-	
+
 	// Diagram Collaboration
 	r.GET("/diagrams/:id/collaborate", si.GetDiagramsIdCollaborate)
 	r.POST("/diagrams/:id/collaborate", si.PostDiagramsIdCollaborate)
 	r.DELETE("/diagrams/:id/collaborate", si.DeleteDiagramsIdCollaborate)
-	
+
 	// Threat Models
 	r.GET("/threat_models", si.GetThreatModels)
 	r.POST("/threat_models", si.PostThreatModels)
@@ -78,4 +91,17 @@ func RegisterGinHandlers(r GinRouter, si GinServerInterface) {
 	r.PUT("/threat_models/:id", si.PutThreatModelsId)
 	r.PATCH("/threat_models/:id", si.PatchThreatModelsId)
 	r.DELETE("/threat_models/:id", si.DeleteThreatModelsId)
+
+	// Threat Model Diagrams
+	r.GET("/threat_models/:threat_model_id/diagrams", si.GetThreatModelsThreatModelIdDiagrams)
+	r.POST("/threat_models/:threat_model_id/diagrams", si.PostThreatModelsThreatModelIdDiagrams)
+	r.GET("/threat_models/:threat_model_id/diagrams/:diagram_id", si.GetThreatModelsThreatModelIdDiagramsDiagramId)
+	r.PUT("/threat_models/:threat_model_id/diagrams/:diagram_id", si.PutThreatModelsThreatModelIdDiagramsDiagramId)
+	r.PATCH("/threat_models/:threat_model_id/diagrams/:diagram_id", si.PatchThreatModelsThreatModelIdDiagramsDiagramId)
+	r.DELETE("/threat_models/:threat_model_id/diagrams/:diagram_id", si.DeleteThreatModelsThreatModelIdDiagramsDiagramId)
+
+	// Threat Model Diagram Collaboration
+	r.GET("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", si.GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
+	r.POST("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", si.PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
+	r.DELETE("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", si.DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 }
