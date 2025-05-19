@@ -12,6 +12,8 @@
 !/.env.example
 !/static/*
 !Makefile
+!generate-api
+!oapi-codegen-config.yaml
 
 # ...even if they are in subdirectories
 !*/

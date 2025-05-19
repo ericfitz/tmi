@@ -71,10 +71,9 @@ This document describes a RESTful API with WebSocket support for threat modeling
   - `name`: String - Name of the diagram.
   - `description`: String - Description of the diagram.
   - `created_at`, `modified_at`: ISO8601 timestamps - Creation and modification times.
-  - `owner`: String - Username or identifier of the current owner (may be email address or other format).
-  - `authorization`: Array of `{subject: string, role: "reader"|"writer"|"owner"}` - User roles.
   - `metadata`: Array of `{key: string, value: string}` - Extensible metadata.
-  - `components`: Array of Cell objects - Diagram elements.
+  - `graphData`: Array of Cell objects - Diagram elements.
+  - `version`: Number - Diagram version number.
 
 ### Cell
 
@@ -99,6 +98,9 @@ This document describes a RESTful API with WebSocket support for threat modeling
   - `description`: String - Description of the threat model.
   - `created_at`, `modified_at`: ISO8601 timestamps - Creation and modification times.
   - `owner`: String - Username or identifier of the current owner (may be email address or other format).
+  - `created_by`: String - Username or identifier of the creator of the threat model.
+  - `threat_model_framework`: String - The framework used for this threat model (e.g., "STRIDE", "CIA", "LINDDUN", "DIE", "PLOT4ai").
+  - `issue_url`: String (URI) - URL to an issue in an issue tracking system for this threat model.
   - `authorization`: Array of `{subject: string, role: "reader"|"writer"|"owner"}` - User roles.
   - `metadata`: Array of `{key: string, value: string}` - Extensible metadata.
   - `diagrams`: Array of diagram UUIDs - References to related diagrams.
@@ -112,6 +114,15 @@ This document describes a RESTful API with WebSocket support for threat modeling
   - `name`: String - Name of the threat.
   - `description`: String - Description of the threat.
   - `created_at`, `modified_at`: ISO8601 timestamps - Creation and modification times.
+  - `diagram_id`: UUID - UUID of the associated diagram (if applicable).
+  - `cell_id`: UUID - UUID of the associated cell (if applicable).
+  - `severity`: String - Severity level of the threat ("Unknown", "None", "Low", "Medium", "High", "Critical").
+  - `score`: Number - Numeric score representing the risk or impact of the threat.
+  - `priority`: String - Priority level for addressing the threat.
+  - `mitigated`: Boolean - Whether the threat has been mitigated.
+  - `status`: String - Current status of the threat.
+  - `threat_type`: String - Type or category of the threat.
+  - `issue_url`: String (URI) - URL to an issue in an issue tracking system for this threat.
   - `metadata`: Array of `{key: string, value: string}` - Extensible metadata.
 
 ### Authorization
@@ -286,7 +297,8 @@ Authorization: Bearer <JWT>
 Content-Type: application/json
 {
   "name": "System Threat Model",
-  "description": "Threats for system X"
+  "description": "Threats for system X",
+  "threat_model_framework": "STRIDE"
 }
 ```
 
@@ -303,7 +315,9 @@ Content-Type: application/json
   "authorization": [{ "subject": "user@example.com", "role": "owner" }],
   "metadata": [],
   "diagrams": [],
-  "threats": []
+  "threats": [],
+  "created_by": "user@example.com",
+  "threat_model_framework": "STRIDE"
 }
 ```
 
@@ -329,7 +343,9 @@ Authorization: Bearer <JWT>
   "authorization": [{ "subject": "user@example.com", "role": "owner" }],
   "metadata": [],
   "diagrams": [],
-  "threats": []
+  "threats": [],
+  "created_by": "user@example.com",
+  "threat_model_framework": "STRIDE"
 }
 ```
 
@@ -349,7 +365,9 @@ Content-Type: application/json
   "authorization": [{"subject": "user@example.com", "role": "owner"}],
   "metadata": [],
   "diagrams": [],
-  "threats": []
+  "threats": [],
+  "created_by": "user@example.com",
+  "threat_model_framework": "STRIDE"
 }
 ```
 
@@ -366,7 +384,9 @@ Content-Type: application/json
   "authorization": [{ "subject": "user@example.com", "role": "owner" }],
   "metadata": [],
   "diagrams": [],
-  "threats": []
+  "threats": [],
+  "created_by": "user@example.com",
+  "threat_model_framework": "STRIDE"
 }
 ```
 
@@ -377,7 +397,7 @@ PATCH /threat_models/550e8400-e29b-41d4-a716-446655440000
 Authorization: Bearer <JWT>
 Content-Type: application/json
 [
-  {"op": "add", "path": "/threats/-", "value": {"id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8", "threat_model_id": "550e8400-e29b-41d4-a716-446655440000", "name": "Data Breach", "description": "Unauthorized access", "created_at": "2025-04-06T12:01:00Z", "modified_at": "2025-04-06T12:01:00Z", "metadata": []}}
+  {"op": "add", "path": "/threats/-", "value": {"id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8", "threat_model_id": "550e8400-e29b-41d4-a716-446655440000", "name": "Data Breach", "description": "Unauthorized access", "created_at": "2025-04-06T12:01:00Z", "modified_at": "2025-04-06T12:01:00Z", "severity": "High", "score": 7.5, "priority": "High", "mitigated": false, "status": "Open", "threat_type": "Information Disclosure", "metadata": []}}
 ]
 ```
 
@@ -402,6 +422,12 @@ Content-Type: application/json
       "description": "Unauthorized access",
       "created_at": "2025-04-06T12:01:00Z",
       "modified_at": "2025-04-06T12:01:00Z",
+      "severity": "High",
+      "score": 7.5,
+      "priority": "High",
+      "mitigated": false,
+      "status": "Open",
+      "threat_type": "Information Disclosure",
       "metadata": []
     }
   ]
@@ -459,7 +485,7 @@ Content-Type: application/json
   "owner": "user@example.com",
   "authorization": [{ "subject": "user@example.com", "role": "owner" }],
   "metadata": [],
-  "components": []
+  "graphData": []
 }
 ```
 
@@ -484,7 +510,7 @@ Authorization: Bearer <JWT>
   "owner": "user@example.com",
   "authorization": [{ "subject": "user@example.com", "role": "owner" }],
   "metadata": [],
-  "components": []
+  "graphData": []
 }
 ```
 
@@ -503,7 +529,7 @@ Content-Type: application/json
   "owner": "user@example.com",
   "authorization": [{"subject": "user@example.com", "role": "owner"}],
   "metadata": [],
-  "components": []
+  "graphData": []
 }
 ```
 
@@ -519,7 +545,7 @@ Content-Type: application/json
   "owner": "user@example.com",
   "authorization": [{ "subject": "user@example.com", "role": "owner" }],
   "metadata": [],
-  "components": []
+  "graphData": []
 }
 ```
 
@@ -546,7 +572,7 @@ Content-Type: application/json
   "owner": "user@example.com",
   "authorization": [{ "subject": "user@example.com", "role": "owner" }],
   "metadata": [],
-  "components": []
+  "graphData": []
 }
 ```
 
@@ -620,7 +646,7 @@ Authorization: Bearer <JWT>
 {
   "operation": {
     "op": "replace",
-    "path": "/components/0/data/label",
+    "path": "/graphData/0/data/label",
     "value": "Start Updated"
   }
 }
@@ -634,7 +660,7 @@ Authorization: Bearer <JWT>
   "user_id": "user@example.com",
   "operation": {
     "op": "replace",
-    "path": "/components/0/data/label",
+    "path": "/graphData/0/data/label",
     "value": "Start Updated"
   },
   "timestamp": "2025-04-06T12:03:00Z"

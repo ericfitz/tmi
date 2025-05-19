@@ -1,0 +1,7 @@
+package: api
+generate:
+  types: true
+  models: true
+  server: true
+  spec: true
+output: api/api.go

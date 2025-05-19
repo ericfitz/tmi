@@ -4,10 +4,17 @@
 package api
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"fmt"
 	"net/http"
+	"net/url"
+	"path"
+	"strings"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v4"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -28,6 +35,25 @@ const (
 	Owner  AuthorizationRole = "owner"
 	Reader AuthorizationRole = "reader"
 	Writer AuthorizationRole = "writer"
+)
+
+// Defines values for ThreatSeverity.
+const (
+	Critical ThreatSeverity = "Critical"
+	High     ThreatSeverity = "High"
+	Low      ThreatSeverity = "Low"
+	Medium   ThreatSeverity = "Medium"
+	None     ThreatSeverity = "None"
+	Unknown  ThreatSeverity = "Unknown"
+)
+
+// Defines values for ThreatModelThreatModelFramework.
+const (
+	CIA     ThreatModelThreatModelFramework = "CIA"
+	DIE     ThreatModelThreatModelFramework = "DIE"
+	LINDDUN ThreatModelThreatModelFramework = "LINDDUN"
+	PLOT4ai ThreatModelThreatModelFramework = "PLOT4ai"
+	STRIDE  ThreatModelThreatModelFramework = "STRIDE"
 )
 
 // Defines values for PatchThreatModelsThreatModelIdJSONBodyOp.
@@ -107,6 +133,9 @@ type Cell struct {
 		// Height Height of the cell.
 		Height float32 `json:"height"`
 
+		// Metadata Key-value pairs for additional cell metadata
+		Metadata *[]Metadata `json:"metadata,omitempty"`
+
 		// Width Width of the cell.
 		Width float32 `json:"width"`
 
@@ -171,7 +200,7 @@ type Diagram struct {
 	// Description Description of the diagram
 	Description *string `json:"description,omitempty"`
 
-	// GraphData List of maxGraph cells
+	// GraphData List of graph cells
 	GraphData *[]Cell `json:"graphData,omitempty"`
 
 	// Id Unique identifier for the diagram
@@ -185,6 +214,9 @@ type Diagram struct {
 
 	// Name Name of the diagram
 	Name string `json:"name"`
+
+	// Version Diagram version number
+	Version *float32 `json:"version,omitempty"`
 }
 
 // Error Standard error response format
@@ -216,35 +248,68 @@ type Metadata struct {
 
 // Threat A threat within a threat model
 type Threat struct {
-	// CreatedAt Creation timestamp (ISO8601)
+	// CellId UUID of the associated cell (if applicable)
+	CellId *openapi_types.UUID `json:"cell_id,omitempty"`
+
+	// CreatedAt Creation timestamp (RFC3339)
 	CreatedAt time.Time `json:"created_at"`
 
 	// Description Description of the threat
 	Description *string `json:"description,omitempty"`
 
+	// DiagramId UUID of the associated diagram (if applicable)
+	DiagramId *openapi_types.UUID `json:"diagram_id,omitempty"`
+
 	// Id Unique identifier for the threat
 	Id openapi_types.UUID `json:"id"`
+
+	// IssueUrl URL to an issue in an issue tracking system for this threat
+	IssueUrl *string `json:"issue_url,omitempty"`
 
 	// Metadata Key-value pairs for additional threat metadata
 	Metadata *[]Metadata `json:"metadata,omitempty"`
 
-	// ModifiedAt Last modification timestamp (ISO8601)
+	// Mitigated Whether the threat has been mitigated
+	Mitigated *bool `json:"mitigated,omitempty"`
+
+	// ModifiedAt Last modification timestamp (RFC3339)
 	ModifiedAt time.Time `json:"modified_at"`
 
 	// Name Name of the threat
 	Name string `json:"name"`
 
+	// Priority Priority level for addressing the threat
+	Priority *string `json:"priority,omitempty"`
+
+	// Score Numeric score representing the risk or impact of the threat
+	Score *float32 `json:"score,omitempty"`
+
+	// Severity Severity level of the threat
+	Severity ThreatSeverity `json:"severity"`
+
+	// Status Current status of the threat
+	Status *string `json:"status,omitempty"`
+
 	// ThreatModelId UUID of the parent threat model
 	ThreatModelId openapi_types.UUID `json:"threat_model_id"`
+
+	// ThreatType Type or category of the threat
+	ThreatType string `json:"threat_type"`
 }
+
+// ThreatSeverity Severity level of the threat
+type ThreatSeverity string
 
 // ThreatModel A threat model object for documenting threats
 type ThreatModel struct {
 	// Authorization List of users and their roles for this threat model
 	Authorization []Authorization `json:"authorization"`
 
-	// CreatedAt Creation timestamp (ISO8601)
+	// CreatedAt Creation timestamp (RFC3339)
 	CreatedAt time.Time `json:"created_at"`
+
+	// CreatedBy Username or identifier of the creator of the threat model
+	CreatedBy string `json:"created_by"`
 
 	// Description Description of the threat model
 	Description *string `json:"description,omitempty"`
@@ -255,10 +320,13 @@ type ThreatModel struct {
 	// Id Unique identifier for the threat model
 	Id openapi_types.UUID `json:"id"`
 
+	// IssueUrl URL to an issue in an issue tracking system for this threat model
+	IssueUrl *string `json:"issue_url,omitempty"`
+
 	// Metadata Key-value pairs for additional threat model metadata
 	Metadata *[]Metadata `json:"metadata,omitempty"`
 
-	// ModifiedAt Last modification timestamp (ISO8601)
+	// ModifiedAt Last modification timestamp (RFC3339)
 	ModifiedAt time.Time `json:"modified_at"`
 
 	// Name Name of the threat model
@@ -267,9 +335,15 @@ type ThreatModel struct {
 	// Owner Username or identifier of the current owner (may be email address or other format)
 	Owner string `json:"owner"`
 
+	// ThreatModelFramework The framework used for this threat model
+	ThreatModelFramework ThreatModelThreatModelFramework `json:"threat_model_framework"`
+
 	// Threats List of threats within the threat model
 	Threats *[]Threat `json:"threats,omitempty"`
 }
+
+// ThreatModelThreatModelFramework The framework used for this threat model
+type ThreatModelThreatModelFramework string
 
 // GetAuthCallbackParams defines parameters for GetAuthCallback.
 type GetAuthCallbackParams struct {
@@ -911,4 +985,171 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 	router.POST(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 
+}
+
+// Base64 encoded, gzipped, json marshaled Swagger object
+var swaggerSpec = []string{
+
+	"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",
+}
+
+// GetSwagger returns the content of the embedded swagger specification file
+// or error if failed to decode
+func decodeSpec() ([]byte, error) {
+	zipped, err := base64.StdEncoding.DecodeString(strings.Join(swaggerSpec, ""))
+	if err != nil {
+		return nil, fmt.Errorf("error base64 decoding spec: %w", err)
+	}
+	zr, err := gzip.NewReader(bytes.NewReader(zipped))
+	if err != nil {
+		return nil, fmt.Errorf("error decompressing spec: %w", err)
+	}
+	var buf bytes.Buffer
+	_, err = buf.ReadFrom(zr)
+	if err != nil {
+		return nil, fmt.Errorf("error decompressing spec: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+var rawSpec = decodeSpecCached()
+
+// a naive cached of a decoded swagger spec
+func decodeSpecCached() func() ([]byte, error) {
+	data, err := decodeSpec()
+	return func() ([]byte, error) {
+		return data, err
+	}
+}
+
+// Constructs a synthetic filesystem for resolving external references when loading openapi specifications.
+func PathToRawSpec(pathToFile string) map[string]func() ([]byte, error) {
+	res := make(map[string]func() ([]byte, error))
+	if len(pathToFile) > 0 {
+		res[pathToFile] = rawSpec
+	}
+
+	return res
+}
+
+// GetSwagger returns the Swagger specification corresponding to the generated code
+// in this file. The external references of Swagger specification are resolved.
+// The logic of resolving external references is tightly connected to "import-mapping" feature.
+// Externally referenced files must be embedded in the corresponding golang packages.
+// Urls can be supported but this task was out of the scope.
+func GetSwagger() (swagger *openapi3.T, err error) {
+	resolvePath := PathToRawSpec("")
+
+	loader := openapi3.NewLoader()
+	loader.IsExternalRefsAllowed = true
+	loader.ReadFromURIFunc = func(loader *openapi3.Loader, url *url.URL) ([]byte, error) {
+		pathToFile := url.String()
+		pathToFile = path.Clean(pathToFile)
+		getSpec, ok := resolvePath[pathToFile]
+		if !ok {
+			err1 := fmt.Errorf("path not found: %s", pathToFile)
+			return nil, err1
+		}
+		return getSpec()
+	}
+	var specData []byte
+	specData, err = rawSpec()
+	if err != nil {
+		return
+	}
+	swagger, err = loader.LoadFromData(specData)
+	if err != nil {
+		return
+	}
+	return
 }
