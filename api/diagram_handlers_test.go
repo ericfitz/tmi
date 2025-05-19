@@ -189,320 +189,20 @@ func TestCreateDiagramWithDuplicateOwner(t *testing.T) {
 	assert.Contains(t, errResp.Message, "Duplicate authorization subject with owner")
 }
 
-// TestUpdateDiagramOwnerChange tests the rule that when the owner changes, the original owner
-// is added to the authorization list with owner role
-func TestUpdateDiagramOwnerChange(t *testing.T) {
-	// Create initial router and diagram
-	originalRouter := setupDiagramRouter() // original owner is test@example.com
-	d := createTestDiagram(t, originalRouter, "Owner Change Test", "Testing owner change rules")
+// Note: TestUpdateDiagramOwnerChange has been removed because diagrams don't have direct owner and authorization fields
+// They inherit these from their parent threat model
 
-	// Print the created diagram for debugging
-	fmt.Printf("[TEST DEBUG] Created diagram: %+v\n", d)
+// Note: TestUpdateDiagramWithDuplicateSubjects has been removed because diagrams don't have direct owner and authorization fields
+// They inherit these from their parent threat model
 
-	// Now create a new router with a different user
-	newOwnerRouter := setupDiagramRouterWithUser("newowner@example.com")
+// Note: TestNonOwnerCannotChangeDiagramOwner has been removed because diagrams don't have direct owner and authorization fields
+// They inherit these from their parent threat model
 
-	// First, give the new user access to the diagram
-	patchOps := []PatchOperation{
-		{
-			Op:   "add",
-			Path: "/authorization/-",
-			Value: map[string]string{
-				"subject": "newowner@example.com",
-				"role":    "owner", // Need owner role to change owner
-			},
-		},
-	}
+// Note: TestOwnershipTransferViaPatchingDiagram has been removed because diagrams don't have direct owner and authorization fields
+// They inherit these from their parent threat model
 
-	patchBody, _ := json.Marshal(patchOps)
-	fmt.Printf("[TEST DEBUG] PATCH request body: %s\n", string(patchBody))
-	patchReq, _ := http.NewRequest("PATCH", "/diagrams/"+d.Id.String(), bytes.NewBuffer(patchBody))
-	patchReq.Header.Set("Content-Type", "application/json")
-	patchW := httptest.NewRecorder()
-	originalRouter.ServeHTTP(patchW, patchReq)
-	fmt.Printf("[TEST DEBUG] PATCH response code: %d\n", patchW.Code)
-	fmt.Printf("[TEST DEBUG] PATCH response body: %s\n", patchW.Body.String())
-	assert.Equal(t, http.StatusOK, patchW.Code)
-
-	// Now, as the new user, change the owner
-	// Update the diagram
-
-	// In the updated API spec, Owner and Authorization are not part of the Diagram struct
-	// For testing purposes, we'll include them in the request JSON
-	updateRequest := map[string]interface{}{
-		"id":          d.Id,
-		"name":        d.Name,
-		"description": d.Description,
-		"owner":       "newowner@example.com",
-		"authorization": []map[string]interface{}{
-			{
-				"subject": "newowner@example.com",
-				"role":    "owner",
-			},
-		},
-	}
-
-	updateBody, _ := json.Marshal(updateRequest)
-	updateReq, _ := http.NewRequest("PUT", "/diagrams/"+d.Id.String(), bytes.NewBuffer(updateBody))
-	updateReq.Header.Set("Content-Type", "application/json")
-	updateW := httptest.NewRecorder()
-
-	newOwnerRouter.ServeHTTP(updateW, updateReq)
-
-	// Assert response
-	assert.Equal(t, http.StatusOK, updateW.Code)
-
-	var resultDiagram Diagram
-	err := json.Unmarshal(updateW.Body.Bytes(), &resultDiagram)
-	require.NoError(t, err)
-
-	// Parse the response to check for owner and authorization
-	var responseMap map[string]interface{}
-	err = json.Unmarshal(updateW.Body.Bytes(), &responseMap)
-	require.NoError(t, err)
-
-	// Check that the owner was changed
-	assert.Equal(t, "newowner@example.com", responseMap["owner"])
-
-	// Check that the original owner is still in the authorization list with owner role
-	foundOriginalOwner := false
-	if authList, ok := responseMap["authorization"].([]interface{}); ok {
-		for _, authItem := range authList {
-			if auth, ok := authItem.(map[string]interface{}); ok {
-				if auth["subject"] == "test@example.com" && auth["role"] == "owner" {
-					foundOriginalOwner = true
-					break
-				}
-			}
-		}
-	}
-	assert.True(t, foundOriginalOwner, "Original owner should still have owner role in authorization")
-}
-
-// TestUpdateDiagramWithDuplicateSubjects tests updating a diagram with duplicate subjects
-func TestUpdateDiagramWithDuplicateSubjects(t *testing.T) {
-	r := setupDiagramRouter()
-	d := createTestDiagram(t, r, "Duplicate Subject Update Test", "Testing duplicate subject validation")
-
-	// Now try to update with duplicate subjects
-	// Update the diagram with duplicate subjects
-	updateRequest := map[string]interface{}{
-		"id":          d.Id,
-		"name":        d.Name,
-		"description": d.Description,
-		"authorization": []map[string]interface{}{
-			{
-				"subject": "test@example.com",
-				"role":    "owner",
-			},
-			{
-				"subject": "alice@example.com",
-				"role":    "reader",
-			},
-			{
-				"subject": "alice@example.com", // Duplicate subject
-				"role":    "writer",
-			},
-		},
-	}
-
-	updateBody, _ := json.Marshal(updateRequest)
-	updateReq, _ := http.NewRequest("PUT", "/diagrams/"+d.Id.String(), bytes.NewBuffer(updateBody))
-	updateReq.Header.Set("Content-Type", "application/json")
-	updateW := httptest.NewRecorder()
-
-	r.ServeHTTP(updateW, updateReq)
-
-	// Assert response - should fail with 400 Bad Request
-	assert.Equal(t, http.StatusBadRequest, updateW.Code)
-
-	var errResp Error
-	err := json.Unmarshal(updateW.Body.Bytes(), &errResp)
-	require.NoError(t, err)
-
-	assert.Equal(t, "invalid_input", errResp.Error)
-	assert.Contains(t, errResp.Message, "Duplicate authorization subject")
-}
-
-// TestNonOwnerCannotChangeDiagramOwner tests that a non-owner user cannot change the owner
-func TestNonOwnerCannotChangeDiagramOwner(t *testing.T) {
-	// Create initial router and diagram
-	originalRouter := setupDiagramRouter() // original owner is test@example.com
-	d := createTestDiagram(t, originalRouter, "Owner Protection Test", "Testing owner protection rules")
-
-	// Add a reader user to the diagram
-	patchOps := []PatchOperation{
-		{
-			Op:   "add",
-			Path: "/authorization/-",
-			Value: map[string]string{
-				"subject": "reader@example.com",
-				"role":    "reader",
-			},
-		},
-	}
-
-	patchBody, _ := json.Marshal(patchOps)
-	patchReq, _ := http.NewRequest("PATCH", "/diagrams/"+d.Id.String(), bytes.NewBuffer(patchBody))
-	patchReq.Header.Set("Content-Type", "application/json")
-	patchW := httptest.NewRecorder()
-	originalRouter.ServeHTTP(patchW, patchReq)
-	assert.Equal(t, http.StatusOK, patchW.Code)
-
-	// Now create a router with the reader user
-	readerRouter := setupDiagramRouterWithUser("reader@example.com")
-
-	// Try to change the owner as the reader
-	// Update the diagram with a new owner
-	updateRequest := map[string]interface{}{
-		"id":          d.Id,
-		"name":        d.Name,
-		"description": d.Description,
-		"owner":       "reader@example.com",
-	}
-
-	updateBody, _ := json.Marshal(updateRequest)
-	updateReq, _ := http.NewRequest("PUT", "/diagrams/"+d.Id.String(), bytes.NewBuffer(updateBody))
-	updateReq.Header.Set("Content-Type", "application/json")
-	updateW := httptest.NewRecorder()
-
-	readerRouter.ServeHTTP(updateW, updateReq)
-
-	// Assert response - should be forbidden
-	assert.Equal(t, http.StatusForbidden, updateW.Code)
-
-	var errResp Error
-	err := json.Unmarshal(updateW.Body.Bytes(), &errResp)
-	require.NoError(t, err)
-
-	assert.Equal(t, "forbidden", errResp.Error)
-	assert.Contains(t, errResp.Message, "You don't have sufficient permissions")
-}
-
-// TestOwnershipTransferViaPatchingDiagram tests changing ownership via PATCH operation
-func TestOwnershipTransferViaPatchingDiagram(t *testing.T) {
-	// Create initial router and diagram
-	originalRouter := setupDiagramRouter() // original owner is test@example.com
-	d := createTestDiagram(t, originalRouter, "Owner Patch Test", "Testing owner patching rules")
-
-	// First, add a new user with owner permissions
-	patchOps := []PatchOperation{
-		{
-			Op:   "add",
-			Path: "/authorization/-",
-			Value: map[string]string{
-				"subject": "newowner@example.com",
-				"role":    "owner",
-			},
-		},
-	}
-
-	patchBody, _ := json.Marshal(patchOps)
-	patchReq, _ := http.NewRequest("PATCH", "/diagrams/"+d.Id.String(), bytes.NewBuffer(patchBody))
-	patchReq.Header.Set("Content-Type", "application/json")
-	patchW := httptest.NewRecorder()
-	originalRouter.ServeHTTP(patchW, patchReq)
-	assert.Equal(t, http.StatusOK, patchW.Code)
-
-	// Now create a router with the new owner
-	newOwnerRouter := setupDiagramRouterWithUser("newowner@example.com")
-
-	// Now transfer ownership via PATCH
-	transferPatchOps := []PatchOperation{
-		{
-			Op:    "replace",
-			Path:  "/owner",
-			Value: "newowner@example.com",
-		},
-	}
-
-	transferPatchBody, _ := json.Marshal(transferPatchOps)
-	transferPatchReq, _ := http.NewRequest("PATCH", "/diagrams/"+d.Id.String(), bytes.NewBuffer(transferPatchBody))
-	transferPatchReq.Header.Set("Content-Type", "application/json")
-	transferPatchW := httptest.NewRecorder()
-
-	newOwnerRouter.ServeHTTP(transferPatchW, transferPatchReq)
-
-	// Print the response for debugging
-	fmt.Printf("[TEST DEBUG] PATCH Owner Change Response Code: %d\n", transferPatchW.Code)
-	fmt.Printf("[TEST DEBUG] PATCH Owner Change Response Body: %s\n", transferPatchW.Body.String())
-
-	// Assert response
-	assert.Equal(t, http.StatusOK, transferPatchW.Code)
-
-	var resultDiagram Diagram
-	err := json.Unmarshal(transferPatchW.Body.Bytes(), &resultDiagram)
-	require.NoError(t, err)
-
-	// Parse the response to check for owner and authorization
-	var responseMap map[string]interface{}
-	err = json.Unmarshal(transferPatchW.Body.Bytes(), &responseMap)
-	require.NoError(t, err)
-
-	// Check that the owner was changed
-	assert.Equal(t, "newowner@example.com", responseMap["owner"])
-
-	// Check that the original owner is still in the authorization list with owner role
-	foundOriginalOwner := false
-	if authList, ok := responseMap["authorization"].([]interface{}); ok {
-		for _, authItem := range authList {
-			if auth, ok := authItem.(map[string]interface{}); ok {
-				if auth["subject"] == "test@example.com" && auth["role"] == "owner" {
-					foundOriginalOwner = true
-					break
-				}
-			}
-		}
-	}
-	assert.True(t, foundOriginalOwner, "Original owner should still have owner role in authorization")
-}
-
-// TestDuplicateSubjectViaPatchingDiagram tests that patching with duplicate subjects is rejected
-func TestDuplicateSubjectViaPatchingDiagram(t *testing.T) {
-	r := setupDiagramRouter()
-	d := createTestDiagram(t, r, "Duplicate Subject Patch Test", "Testing duplicate subject validation in patching")
-
-	// Add a user first
-	patchOps := []PatchOperation{
-		{
-			Op:   "add",
-			Path: "/authorization/-",
-			Value: map[string]string{
-				"subject": "alice@example.com",
-				"role":    "reader",
-			},
-		},
-	}
-
-	patchBody, _ := json.Marshal(patchOps)
-	patchReq, _ := http.NewRequest("PATCH", "/diagrams/"+d.Id.String(), bytes.NewBuffer(patchBody))
-	patchReq.Header.Set("Content-Type", "application/json")
-	patchW := httptest.NewRecorder()
-	r.ServeHTTP(patchW, patchReq)
-	assert.Equal(t, http.StatusOK, patchW.Code)
-
-	// Now try to add the same user again with a different role
-	duplicatePatchOps := []PatchOperation{
-		{
-			Op:   "add",
-			Path: "/authorization/-",
-			Value: map[string]string{
-				"subject": "alice@example.com", // Duplicate subject
-				"role":    "writer",
-			},
-		},
-	}
-
-	duplicatePatchBody, _ := json.Marshal(duplicatePatchOps)
-	duplicatePatchReq, _ := http.NewRequest("PATCH", "/diagrams/"+d.Id.String(), bytes.NewBuffer(duplicatePatchBody))
-	duplicatePatchReq.Header.Set("Content-Type", "application/json")
-	duplicatePatchW := httptest.NewRecorder()
-	r.ServeHTTP(duplicatePatchW, duplicatePatchReq)
-
-	// Decoding the patch operation and applying it would create a diagram with duplicate subjects,
-	// which should be caught and rejected
-	assert.Equal(t, http.StatusBadRequest, duplicatePatchW.Code)
-}
+// Note: TestDuplicateSubjectViaPatchingDiagram has been removed because diagrams don't have direct owner and authorization fields
+// They inherit these from their parent threat model
 
 // TestReadWriteDeletePermissionsDiagram tests access levels for different operations
 func TestReadWriteDeletePermissionsDiagram(t *testing.T) {
@@ -515,32 +215,23 @@ func TestReadWriteDeletePermissionsDiagram(t *testing.T) {
 	diagramID := d.Id.String()
 	t.Logf("Created diagram ID: %s", diagramID)
 
-	// Add users with different permission levels
-	patchOps := []PatchOperation{
+	// Add users with different permission levels to the parent threat model
+	// Since diagrams inherit authorization from their parent threat model,
+	// we need to modify the threat model, not the diagram directly
+	TestFixtures.ThreatModel.Authorization = []Authorization{
 		{
-			Op:   "add",
-			Path: "/authorization/-",
-			Value: map[string]string{
-				"subject": "reader@example.com",
-				"role":    "reader",
-			},
+			Subject: TestFixtures.OwnerUser, // test@example.com
+			Role:    RoleOwner,
 		},
 		{
-			Op:   "add",
-			Path: "/authorization/-",
-			Value: map[string]string{
-				"subject": "writer@example.com",
-				"role":    "writer",
-			},
+			Subject: "reader@example.com",
+			Role:    RoleReader,
+		},
+		{
+			Subject: "writer@example.com",
+			Role:    RoleWriter,
 		},
 	}
-
-	patchBody, _ := json.Marshal(patchOps)
-	patchReq, _ := http.NewRequest("PATCH", "/diagrams/"+diagramID, bytes.NewBuffer(patchBody))
-	patchReq.Header.Set("Content-Type", "application/json")
-	patchW := httptest.NewRecorder()
-	originalRouter.ServeHTTP(patchW, patchReq)
-	assert.Equal(t, http.StatusOK, patchW.Code)
 
 	// Test 1: Reader can read but not write or delete
 	readerRouter := setupDiagramRouterWithUser("reader@example.com")
@@ -624,11 +315,18 @@ func TestDiagramWriterCanUpdateNonOwnerFields(t *testing.T) {
 	d := createTestDiagram(t, originalRouter, "Writer Limitations Test", "Testing writer limitations")
 
 	// Add a writer user to the parent threat model's authorization
-	// This is done by updating TestFixtures.DiagramAuth
-	TestFixtures.DiagramAuth = append(TestFixtures.DiagramAuth, Authorization{
-		Subject: "writer@example.com",
-		Role:    RoleWriter,
-	})
+	// Since diagrams inherit authorization from their parent threat model,
+	// we need to modify the threat model directly
+	TestFixtures.ThreatModel.Authorization = []Authorization{
+		{
+			Subject: TestFixtures.OwnerUser, // test@example.com
+			Role:    RoleOwner,
+		},
+		{
+			Subject: "writer@example.com",
+			Role:    RoleWriter,
+		},
+	}
 
 	// Create router for the writer
 	writerRouter := setupDiagramRouterWithUser("writer@example.com")

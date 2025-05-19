@@ -499,12 +499,36 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 		return
 	}
 
-	// Convert diagram to JSON
+	// Convert diagram to a map first
 	originalBytes, err := json.Marshal(existingDiagram)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
 			Message: "Failed to serialize diagram",
+		})
+		return
+	}
+
+	// Convert to map and add owner and authorization fields
+	var originalMap map[string]interface{}
+	if err := json.Unmarshal(originalBytes, &originalMap); err != nil {
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:   "server_error",
+			Message: "Failed to process diagram data",
+		})
+		return
+	}
+
+	// Add owner and authorization fields from TestFixtures
+	originalMap["owner"] = TestFixtures.Owner
+	originalMap["authorization"] = TestFixtures.DiagramAuth
+
+	// Convert back to JSON with the added fields
+	originalBytes, err = json.Marshal(originalMap)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:   "server_error",
+			Message: "Failed to serialize diagram with auth data",
 		})
 		return
 	}

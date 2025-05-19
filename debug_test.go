@@ -43,7 +43,10 @@ func TestDiagramStoreAndAuth(t *testing.T) {
 		},
 	}
 
-	// Store using the API
+	// Insert the diagram directly into the store using our helper function
+	InsertDiagramForTest(diagramID, diagram)
+
+	// Now update using the API
 	err := DiagramStore.Update(diagramID, diagram)
 	if err != nil {
 		t.Fatalf("Failed to store diagram: %v", err)
