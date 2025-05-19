@@ -472,40 +472,40 @@ func (s *Server) DeleteThreatModelsId(c *gin.Context) {
 
 // Threat Model Diagrams
 func (s *Server) GetThreatModelsThreatModelIdDiagrams(c *gin.Context) {
-	threatModelId := c.Param("threat_model_id")
+	threatModelId := c.Param("id")
 	handler := api.NewThreatModelDiagramHandler()
 	handler.GetDiagrams(c, threatModelId)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDiagrams(c *gin.Context) {
-	threatModelId := c.Param("threat_model_id")
+	threatModelId := c.Param("id")
 	handler := api.NewThreatModelDiagramHandler()
 	handler.CreateDiagram(c, threatModelId)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context) {
-	threatModelId := c.Param("threat_model_id")
+	threatModelId := c.Param("id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler()
 	handler.GetDiagramByID(c, threatModelId, diagramId)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context) {
-	threatModelId := c.Param("threat_model_id")
+	threatModelId := c.Param("id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler()
 	handler.UpdateDiagram(c, threatModelId, diagramId)
 }
 
 func (s *Server) PatchThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context) {
-	threatModelId := c.Param("threat_model_id")
+	threatModelId := c.Param("id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler()
 	handler.PatchDiagram(c, threatModelId, diagramId)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context) {
-	threatModelId := c.Param("threat_model_id")
+	threatModelId := c.Param("id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler()
 	handler.DeleteDiagram(c, threatModelId, diagramId)
@@ -513,21 +513,21 @@ func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context
 
 // Threat Model Diagram Collaboration
 func (s *Server) GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context) {
-	threatModelId := c.Param("threat_model_id")
+	threatModelId := c.Param("id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler()
 	handler.GetDiagramCollaborate(c, threatModelId, diagramId)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context) {
-	threatModelId := c.Param("threat_model_id")
+	threatModelId := c.Param("id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler()
 	handler.PostDiagramCollaborate(c, threatModelId, diagramId)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context) {
-	threatModelId := c.Param("threat_model_id")
+	threatModelId := c.Param("id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler()
 	handler.DeleteDiagramCollaborate(c, threatModelId, diagramId)

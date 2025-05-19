@@ -93,15 +93,15 @@ func RegisterGinHandlers(r GinRouter, si GinServerInterface) {
 	r.DELETE("/threat_models/:id", si.DeleteThreatModelsId)
 
 	// Threat Model Diagrams
-	r.GET("/threat_models/:threat_model_id/diagrams", si.GetThreatModelsThreatModelIdDiagrams)
-	r.POST("/threat_models/:threat_model_id/diagrams", si.PostThreatModelsThreatModelIdDiagrams)
-	r.GET("/threat_models/:threat_model_id/diagrams/:diagram_id", si.GetThreatModelsThreatModelIdDiagramsDiagramId)
-	r.PUT("/threat_models/:threat_model_id/diagrams/:diagram_id", si.PutThreatModelsThreatModelIdDiagramsDiagramId)
-	r.PATCH("/threat_models/:threat_model_id/diagrams/:diagram_id", si.PatchThreatModelsThreatModelIdDiagramsDiagramId)
-	r.DELETE("/threat_models/:threat_model_id/diagrams/:diagram_id", si.DeleteThreatModelsThreatModelIdDiagramsDiagramId)
+	r.GET("/threat_models/:id/diagrams", si.GetThreatModelsThreatModelIdDiagrams)
+	r.POST("/threat_models/:id/diagrams", si.PostThreatModelsThreatModelIdDiagrams)
+	r.GET("/threat_models/:id/diagrams/:diagram_id", si.GetThreatModelsThreatModelIdDiagramsDiagramId)
+	r.PUT("/threat_models/:id/diagrams/:diagram_id", si.PutThreatModelsThreatModelIdDiagramsDiagramId)
+	r.PATCH("/threat_models/:id/diagrams/:diagram_id", si.PatchThreatModelsThreatModelIdDiagramsDiagramId)
+	r.DELETE("/threat_models/:id/diagrams/:diagram_id", si.DeleteThreatModelsThreatModelIdDiagramsDiagramId)
 
 	// Threat Model Diagram Collaboration
-	r.GET("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", si.GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
-	r.POST("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", si.PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
-	r.DELETE("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", si.DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
+	r.GET("/threat_models/:id/diagrams/:diagram_id/collaborate", si.GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
+	r.POST("/threat_models/:id/diagrams/:diagram_id/collaborate", si.PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
+	r.DELETE("/threat_models/:id/diagrams/:diagram_id/collaborate", si.DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 }
