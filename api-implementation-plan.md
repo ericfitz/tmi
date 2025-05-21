@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the plan for implementing the missing API endpoints in the TMI (Threat Modeling Improved) service according to the OpenAPI specification.
+This document outlines the plan for implementing the missing API endpoints in the TMI (Threat Modeling Improved) service according to the updated OpenAPI specification. The plan accounts for recent schema changes including additional fields in threat models, threats, and diagrams, as well as the removal of authorization data directly from diagrams (which now inherit authorization information from their parent threat model).
 
 ## Current Status
 
@@ -483,6 +483,39 @@ Ensure that the relationship between threat models and diagrams is properly main
 1. When creating a diagram within a threat model, add the diagram ID to the threat model's diagrams array
 2. When deleting a diagram within a threat model, remove the diagram ID from the threat model's diagrams array
 3. Ensure that access control is properly enforced (a user with access to a threat model should have the same level of access to its diagrams)
+4. Handle the inheritance of authorization information from threat models to diagrams
+   - Diagrams no longer have their own authorization data
+   - Diagrams inherit authorization from their parent threat model
+   - Access checks for diagrams should use the parent threat model's authorization data
+5. Support additional fields in the updated schema:
+   - Threat models: metadata, issue_url, threat_model_framework
+   - Threats: metadata, mitigated, priority, score, status, threat_type
+   - Diagrams: metadata, version
+
+### Phase 6: Update Handler Implementation for Schema Changes
+
+Update the handler implementations to account for the schema changes:
+
+1. Update the `CreateDiagram` method in `ThreatModelDiagramHandler` to:
+
+   - No longer set authorization data directly on diagrams
+   - Set the new metadata and version fields
+   - Properly link the diagram to the parent threat model
+
+2. Update the `GetDiagramByID` method to:
+
+   - Use the parent threat model's authorization data for access control
+   - Return the diagram with all new fields properly populated
+
+3. Update the `UpdateDiagram` and `PatchDiagram` methods to:
+
+   - Handle the new fields in the schema
+   - Maintain the relationship with the parent threat model
+   - Ensure authorization is checked against the parent threat model
+
+4. Update the threat model handlers to:
+   - Support the new fields in threat models and threats
+   - Properly manage the relationship between threat models, threats, and diagrams
 
 ## Implementation Sequence
 
@@ -492,7 +525,8 @@ graph TD
     B --> C[Phase 3: Implement Nested Diagram Handlers]
     C --> D[Phase 4: Create ThreatModelDiagramHandler]
     D --> E[Phase 5: Update Data Models and Relationships]
-    E --> F[Testing]
+    E --> F[Phase 6: Update Handler Implementation for Schema Changes]
+    F --> G[Testing]
 ```
 
 ## Testing Strategy
@@ -500,3 +534,9 @@ graph TD
 1. Unit tests for each new handler method
 2. Integration tests for the API endpoints
 3. End-to-end tests for the complete flow (create threat model, add diagram, collaborate)
+4. Specific tests for schema changes:
+   - Test that diagrams correctly inherit authorization from parent threat models
+   - Test the handling of new fields in threat models, threats, and diagrams
+   - Test that authorization checks use the parent threat model's data for diagrams
+   - Test that relationships between threat models, diagrams, and threats are maintained correctly
+5. Regression tests to ensure existing functionality continues to work with the schema changes

@@ -17,4 +17,3 @@
 
 # ...even if they are in subdirectories
 !*/
-logs/tmi.log
