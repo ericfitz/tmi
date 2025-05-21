@@ -57,7 +57,10 @@ func setupTestRouter() *gin.Engine {
 		d.Id = uuid
 		return d
 	}
-	api.DiagramStore.Create(diagram, idSetter)
+	_, err := api.DiagramStore.Create(diagram, idSetter)
+	if err != nil {
+		panic("Failed to create test diagram: " + err.Error())
+	}
 
 	api.RegisterGinHandlers(r, server)
 	return r
@@ -146,7 +149,9 @@ func TestGetDiagramsId(t *testing.T) {
 
 	// Extract the ID of the created diagram
 	var createdDiagram api.Diagram
-	json.Unmarshal(createW.Body.Bytes(), &createdDiagram)
+	if err := json.Unmarshal(createW.Body.Bytes(), &createdDiagram); err != nil {
+		t.Fatalf("Failed to unmarshal created diagram: %v", err)
+	}
 	id := createdDiagram.Id.String()
 
 	// Now test getting the diagram by ID

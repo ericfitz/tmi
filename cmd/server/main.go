@@ -626,7 +626,11 @@ func main() {
 
 	// Get logger instance
 	logger := logging.Get()
-	defer logger.Close()
+	defer func() {
+		if err := logger.Close(); err != nil {
+			log.Printf("Error closing logger: %v", err)
+		}
+	}()
 
 	// Log startup information
 	logger.Info("Starting TMI API server")

@@ -11,22 +11,34 @@ type FallbackLogger struct{}
 
 // Debug logs debug level messages
 func (l *FallbackLogger) Debug(format string, args ...interface{}) {
-	gin.DefaultWriter.Write([]byte(fmt.Sprintf("[DEBUG] "+format+"\n", args...)))
+	_, err := fmt.Fprintf(gin.DefaultWriter, "[DEBUG] "+format+"\n", args...)
+	if err != nil {
+		fmt.Printf("Error writing debug log: %v\n", err)
+	}
 }
 
 // Info logs info level messages
 func (l *FallbackLogger) Info(format string, args ...interface{}) {
-	gin.DefaultWriter.Write([]byte(fmt.Sprintf("[INFO] "+format+"\n", args...)))
+	_, err := fmt.Fprintf(gin.DefaultWriter, "[INFO] "+format+"\n", args...)
+	if err != nil {
+		fmt.Printf("Error writing info log: %v\n", err)
+	}
 }
 
 // Warn logs warning level messages
 func (l *FallbackLogger) Warn(format string, args ...interface{}) {
-	gin.DefaultWriter.Write([]byte(fmt.Sprintf("[WARN] "+format+"\n", args...)))
+	_, err := fmt.Fprintf(gin.DefaultWriter, "[WARN] "+format+"\n", args...)
+	if err != nil {
+		fmt.Printf("Error writing warning log: %v\n", err)
+	}
 }
 
 // Error logs error level messages
 func (l *FallbackLogger) Error(format string, args ...interface{}) {
-	gin.DefaultErrorWriter.Write([]byte(fmt.Sprintf("[ERROR] "+format+"\n", args...)))
+	_, err := fmt.Fprintf(gin.DefaultErrorWriter, "[ERROR] "+format+"\n", args...)
+	if err != nil {
+		fmt.Printf("Error writing error log: %v\n", err)
+	}
 }
 
 // NewFallbackLogger creates a simple logger for fallback use

@@ -127,7 +127,10 @@ func TestPatchOperation(t *testing.T) {
 	fmt.Printf("Authorization entries after patch: %+v\n", TestFixtures.ThreatModel.Authorization)
 
 	// Update store
-	DiagramStore.Update(diagramID, modifiedDiagram)
+	err = DiagramStore.Update(diagramID, modifiedDiagram)
+	if err != nil {
+		t.Fatalf("Failed to update diagram: %v", err)
+	}
 
 	// Check role for new user
 	newUserRole := GetUserRoleForDiagram("newowner@example.com", modifiedDiagram)

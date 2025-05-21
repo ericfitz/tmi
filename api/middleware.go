@@ -109,7 +109,7 @@ func GetUserRole(userName string, threatModel ThreatModel) Role {
 	// Check authorization entries
 	for _, auth := range threatModel.Authorization {
 		if auth.Subject == userName {
-			return Role(auth.Role)
+			return auth.Role
 		}
 	}
 
@@ -440,7 +440,7 @@ func GetUserRoleForDiagram(userName string, diagram Diagram) Role {
 	// Check authorization entries
 	for _, auth := range parentThreatModel.Authorization {
 		if auth.Subject == userName {
-			return Role(auth.Role)
+			return auth.Role
 		}
 	}
 

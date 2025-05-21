@@ -177,7 +177,10 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	tm.ModifiedAt = now
 	if err := ThreatModelStore.Update(threatModelId, tm); err != nil {
 		// If updating the threat model fails, delete the created diagram
-		DiagramStore.Delete(createdDiagram.Id.String())
+		if deleteErr := DiagramStore.Delete(createdDiagram.Id.String()); deleteErr != nil {
+			// Log the error but continue with the main error response
+			fmt.Printf("Failed to delete diagram after threat model update failure: %v\n", deleteErr)
+		}
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
 			Message: "Failed to update threat model with new diagram",

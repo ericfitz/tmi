@@ -398,7 +398,13 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 
 	// First marshal the diagram to get its JSON representation
 	diagramBytes, _ := json.Marshal(request)
-	json.Unmarshal(diagramBytes, &responseMap)
+	if err := json.Unmarshal(diagramBytes, &responseMap); err != nil {
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:   "server_error",
+			Message: "Failed to process diagram data",
+		})
+		return
+	}
 
 	// Add the owner and authorization fields from the parent threat model
 	responseMap["owner"] = TestFixtures.ThreatModel.Owner
@@ -718,7 +724,13 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 
 	// First marshal the diagram to get its JSON representation
 	diagramBytes, _ := json.Marshal(modifiedDiagram)
-	json.Unmarshal(diagramBytes, &responseMap)
+	if err := json.Unmarshal(diagramBytes, &responseMap); err != nil {
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:   "server_error",
+			Message: "Failed to process diagram data",
+		})
+		return
+	}
 
 	// Add the owner and authorization fields from the parent threat model
 	responseMap["owner"] = TestFixtures.ThreatModel.Owner
