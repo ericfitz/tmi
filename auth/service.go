@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -145,15 +146,16 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 	}
 
 	// Get the user from the database
-	// TODO: Implement user retrieval from PostgreSQL
-	// For now, we'll create a dummy user
-	user := User{
-		ID:        uuid.New().String(),
-		Email:     email,
-		Name:      "User",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		LastLogin: time.Now(),
+	user, err := s.GetUserByEmail(ctx, email)
+	if err != nil {
+		return TokenPair{}, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Update the last login time
+	user.LastLogin = time.Now()
+	if err := s.UpdateUser(ctx, user); err != nil {
+		// Log the error but continue
+		fmt.Printf("Failed to update user last login: %v\n", err)
 	}
 
 	// Generate new tokens
@@ -168,47 +170,302 @@ func (s *Service) RevokeToken(ctx context.Context, refreshToken string) error {
 
 // GetUserByEmail gets a user by email
 func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error) {
-	// TODO: Implement user retrieval from PostgreSQL
-	// For now, we'll return an error
-	return User{}, errors.New("user not found")
+	db := s.dbManager.Postgres().GetDB()
+
+	var user User
+	query := `SELECT id, email, name, created_at, updated_at, last_login FROM users WHERE email = $1`
+	err := db.QueryRowContext(ctx, query, email).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.LastLogin,
+	)
+
+	if err == sql.ErrNoRows {
+		return User{}, errors.New("user not found")
+	}
+
+	if err != nil {
+		return User{}, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return user, nil
 }
 
 // CreateUser creates a new user
 func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
-	// TODO: Implement user creation in PostgreSQL
-	// For now, we'll return the user with a generated ID
-	user.ID = uuid.New().String()
-	user.CreatedAt = time.Now()
-	user.UpdatedAt = time.Now()
+	db := s.dbManager.Postgres().GetDB()
+
+	// Generate a new ID if not provided
+	if user.ID == "" {
+		user.ID = uuid.New().String()
+	}
+
+	// Set timestamps if not provided
+	now := time.Now()
+	if user.CreatedAt.IsZero() {
+		user.CreatedAt = now
+	}
+	if user.UpdatedAt.IsZero() {
+		user.UpdatedAt = now
+	}
+
+	query := `
+		INSERT INTO users (id, email, name, created_at, updated_at, last_login)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id
+	`
+
+	err := db.QueryRowContext(ctx, query,
+		user.ID,
+		user.Email,
+		user.Name,
+		user.CreatedAt,
+		user.UpdatedAt,
+		user.LastLogin,
+	).Scan(&user.ID)
+
+	if err != nil {
+		return User{}, fmt.Errorf("failed to create user: %w", err)
+	}
+
 	return user, nil
 }
 
 // UpdateUser updates an existing user
 func (s *Service) UpdateUser(ctx context.Context, user User) error {
-	// TODO: Implement user update in PostgreSQL
-	return errors.New("not implemented")
+	db := s.dbManager.Postgres().GetDB()
+
+	// Update the updated_at timestamp
+	user.UpdatedAt = time.Now()
+
+	query := `
+		UPDATE users
+		SET email = $2, name = $3, updated_at = $4, last_login = $5
+		WHERE id = $1
+	`
+
+	result, err := db.ExecContext(ctx, query,
+		user.ID,
+		user.Email,
+		user.Name,
+		user.UpdatedAt,
+		user.LastLogin,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return errors.New("user not found")
+	}
+
+	return nil
 }
 
 // DeleteUser deletes a user
 func (s *Service) DeleteUser(ctx context.Context, id string) error {
-	// TODO: Implement user deletion in PostgreSQL
-	return errors.New("not implemented")
+	db := s.dbManager.Postgres().GetDB()
+
+	query := `DELETE FROM users WHERE id = $1`
+
+	result, err := db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return errors.New("user not found")
+	}
+
+	return nil
+}
+
+// UserProvider represents a user's OAuth provider
+type UserProvider struct {
+	ID             string    `json:"id"`
+	UserID         string    `json:"user_id"`
+	Provider       string    `json:"provider"`
+	ProviderUserID string    `json:"provider_user_id"`
+	Email          string    `json:"email"`
+	IsPrimary      bool      `json:"is_primary"`
+	CreatedAt      time.Time `json:"created_at"`
+	LastLogin      time.Time `json:"last_login,omitempty"`
 }
 
 // GetUserProviders gets the OAuth providers for a user
-func (s *Service) GetUserProviders(ctx context.Context, userID string) ([]string, error) {
-	// TODO: Implement provider retrieval from PostgreSQL
-	return []string{}, errors.New("not implemented")
+func (s *Service) GetUserProviders(ctx context.Context, userID string) ([]UserProvider, error) {
+	db := s.dbManager.Postgres().GetDB()
+
+	query := `
+		SELECT id, user_id, provider, provider_user_id, email, is_primary, created_at, last_login
+		FROM user_providers
+		WHERE user_id = $1
+	`
+
+	rows, err := db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user providers: %w", err)
+	}
+	defer rows.Close()
+
+	var providers []UserProvider
+	for rows.Next() {
+		var provider UserProvider
+		err := rows.Scan(
+			&provider.ID,
+			&provider.UserID,
+			&provider.Provider,
+			&provider.ProviderUserID,
+			&provider.Email,
+			&provider.IsPrimary,
+			&provider.CreatedAt,
+			&provider.LastLogin,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user provider: %w", err)
+		}
+		providers = append(providers, provider)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating user providers: %w", err)
+	}
+
+	return providers, nil
 }
 
 // LinkUserProvider links an OAuth provider to a user
 func (s *Service) LinkUserProvider(ctx context.Context, userID, provider, providerUserID, email string) error {
-	// TODO: Implement provider linking in PostgreSQL
-	return errors.New("not implemented")
+	db := s.dbManager.Postgres().GetDB()
+
+	// Check if the provider is already linked to the user
+	var count int
+	err := db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM user_providers
+		WHERE user_id = $1 AND provider = $2
+	`, userID, provider).Scan(&count)
+
+	if err != nil {
+		return fmt.Errorf("failed to check existing provider: %w", err)
+	}
+
+	if count > 0 {
+		// Provider already linked, update it
+		_, err := db.ExecContext(ctx, `
+			UPDATE user_providers
+			SET provider_user_id = $3, email = $4, last_login = $5
+			WHERE user_id = $1 AND provider = $2
+		`, userID, provider, providerUserID, email, time.Now())
+
+		if err != nil {
+			return fmt.Errorf("failed to update provider: %w", err)
+		}
+	} else {
+		// Provider not linked, insert it
+		_, err := db.ExecContext(ctx, `
+			INSERT INTO user_providers (id, user_id, provider, provider_user_id, email, is_primary, created_at, last_login)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`, uuid.New().String(), userID, provider, providerUserID, email, count == 0, time.Now(), time.Now())
+
+		if err != nil {
+			return fmt.Errorf("failed to link provider: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // UnlinkUserProvider unlinks an OAuth provider from a user
 func (s *Service) UnlinkUserProvider(ctx context.Context, userID, provider string) error {
-	// TODO: Implement provider unlinking in PostgreSQL
-	return errors.New("not implemented")
+	db := s.dbManager.Postgres().GetDB()
+
+	// Check if this is the only provider for the user
+	var count int
+	err := db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM user_providers
+		WHERE user_id = $1
+	`, userID).Scan(&count)
+
+	if err != nil {
+		return fmt.Errorf("failed to count user providers: %w", err)
+	}
+
+	if count <= 1 {
+		return errors.New("cannot unlink the only provider for a user")
+	}
+
+	// Delete the provider
+	result, err := db.ExecContext(ctx, `
+		DELETE FROM user_providers
+		WHERE user_id = $1 AND provider = $2
+	`, userID, provider)
+
+	if err != nil {
+		return fmt.Errorf("failed to unlink provider: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return errors.New("provider not found")
+	}
+
+	return nil
+}
+
+// GetUserByProviderID gets a user by provider ID
+func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUserID string) (User, error) {
+	db := s.dbManager.Postgres().GetDB()
+
+	var userID string
+	err := db.QueryRowContext(ctx, `
+		SELECT user_id FROM user_providers
+		WHERE provider = $1 AND provider_user_id = $2
+	`, provider, providerUserID).Scan(&userID)
+
+	if err == sql.ErrNoRows {
+		return User{}, errors.New("user not found")
+	}
+
+	if err != nil {
+		return User{}, fmt.Errorf("failed to get user by provider ID: %w", err)
+	}
+
+	// Get the user
+	var user User
+	err = db.QueryRowContext(ctx, `
+		SELECT id, email, name, created_at, updated_at, last_login
+		FROM users
+		WHERE id = $1
+	`, userID).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.LastLogin,
+	)
+
+	if err != nil {
+		return User{}, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return user, nil
 }

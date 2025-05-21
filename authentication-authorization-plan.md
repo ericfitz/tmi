@@ -198,37 +198,7 @@ type TokenConfig struct {
 }
 ```
 
-### 4. OIDC Implementation with zitadel/oidc
-
-We will use the zitadel/oidc library for OIDC support in Go. This library provides robust support for:
-
-- Dynamic client registration
-- Token validation
-- UserInfo endpoint access
-- PKCE flow implementation
-- JWT parsing and validation
-
-Example implementation:
-
-```go
-// Example of using zitadel/oidc for provider configuration
-import (
-    "github.com/zitadel/oidc/pkg/client"
-    "github.com/zitadel/oidc/pkg/oidc"
-)
-
-func setupOIDCProvider(config OAuthConfig) (*client.Provider, error) {
-    return client.NewProvider(
-        config.Issuer,
-        client.WithClientID(config.ClientID),
-        client.WithClientSecret(config.ClientSecret),
-        client.WithRedirectURL(config.RedirectURI),
-        client.WithScopes(config.Scopes...),
-    )
-}
-```
-
-#### Debug Logging for OIDC
+### 4. Debug Logging for OIDC
 
 We'll implement comprehensive debug logging specifically for OIDC operations:
 

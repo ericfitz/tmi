@@ -88,15 +88,25 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 	})
 }
 
+// getProvider returns a Provider instance for the given provider ID
+func (h *Handlers) getProvider(providerID string) (Provider, error) {
+	providerConfig, exists := h.config.OAuth.Providers[providerID]
+	if !exists {
+		return nil, fmt.Errorf("provider %s not found", providerID)
+	}
+
+	return NewProvider(providerConfig, h.config.OAuth.CallbackURL)
+}
+
 // Authorize redirects to the OAuth provider's authorization page
 func (h *Handlers) Authorize(c *gin.Context) {
 	providerID := c.Param("provider")
 
-	// Check if the provider exists
-	providerConfig, exists := h.config.OAuth.Providers[providerID]
-	if !exists {
+	// Get the provider
+	provider, err := h.getProvider(providerID)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("Provider %s not found", providerID),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -121,25 +131,11 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		return
 	}
 
-	// Build the authorization URL
-	authURL, err := url.Parse(providerConfig.AuthURL)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Invalid authorization URL",
-		})
-		return
-	}
-
-	q := authURL.Query()
-	q.Set("client_id", providerConfig.ClientID)
-	q.Set("redirect_uri", h.config.OAuth.CallbackURL)
-	q.Set("response_type", "code")
-	q.Set("state", state)
-	q.Set("scope", strings.Join(providerConfig.Scopes, " "))
-	authURL.RawQuery = q.Encode()
+	// Get the authorization URL
+	authURL := provider.GetAuthorizationURL(state)
 
 	// Redirect to the authorization URL
-	c.Redirect(http.StatusFound, authURL.String())
+	c.Redirect(http.StatusFound, authURL)
 }
 
 // Callback handles the OAuth callback
@@ -169,17 +165,17 @@ func (h *Handlers) Callback(c *gin.Context) {
 	// Delete the state from Redis
 	_ = h.service.dbManager.Redis().Del(ctx, stateKey)
 
-	// Get the provider configuration
-	providerConfig, exists := h.config.OAuth.Providers[providerID]
-	if !exists {
+	// Get the provider
+	provider, err := h.getProvider(providerID)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("Provider %s not found", providerID),
+			"error": err.Error(),
 		})
 		return
 	}
 
 	// Exchange the authorization code for tokens
-	tokens, err := exchangeCodeForTokens(ctx, providerConfig, code, h.config.OAuth.CallbackURL)
+	tokenResponse, err := provider.ExchangeCode(ctx, code)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to exchange code for tokens: %v", err),
@@ -187,8 +183,18 @@ func (h *Handlers) Callback(c *gin.Context) {
 		return
 	}
 
+	// Validate the ID token if present
+	var claims *IDTokenClaims
+	if tokenResponse.IDToken != "" {
+		claims, err = provider.ValidateIDToken(ctx, tokenResponse.IDToken)
+		if err != nil {
+			// Log the error but continue, as we can still get user info from the userinfo endpoint
+			fmt.Printf("Failed to validate ID token: %v\n", err)
+		}
+	}
+
 	// Get the user info from the provider
-	userInfo, err := getUserInfo(ctx, providerConfig, tokens["access_token"])
+	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to get user info: %v", err),
@@ -197,15 +203,22 @@ func (h *Handlers) Callback(c *gin.Context) {
 	}
 
 	// Get or create the user
-	email, ok := userInfo["email"].(string)
-	if !ok || email == "" {
+	email := userInfo.Email
+	if email == "" && claims != nil {
+		email = claims.Email
+	}
+
+	if email == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get user email",
 		})
 		return
 	}
 
-	name, _ := userInfo["name"].(string)
+	name := userInfo.Name
+	if name == "" && claims != nil {
+		name = claims.Name
+	}
 	if name == "" {
 		name = email
 	}
@@ -228,6 +241,20 @@ func (h *Handlers) Callback(c *gin.Context) {
 				"error": fmt.Sprintf("Failed to create user: %v", err),
 			})
 			return
+		}
+	}
+
+	// Link the provider to the user if not already linked
+	providerUserID := userInfo.ID
+	if providerUserID == "" && claims != nil {
+		providerUserID = claims.Subject
+	}
+
+	if providerUserID != "" {
+		err = h.service.LinkUserProvider(ctx, user.ID, providerID, providerUserID, email)
+		if err != nil {
+			// Log the error but continue
+			fmt.Printf("Failed to link provider: %v\n", err)
 		}
 	}
 

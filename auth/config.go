@@ -50,12 +50,22 @@ type OAuthConfig struct {
 
 // OAuthProviderConfig holds configuration for an OAuth provider
 type OAuthProviderConfig struct {
-	ClientID     string
-	ClientSecret string
-	AuthURL      string
-	TokenURL     string
-	UserInfoURL  string
-	Scopes       []string
+	ID               string            `json:"id"`
+	Name             string            `json:"name"`
+	Enabled          bool              `json:"enabled"`
+	Icon             string            `json:"icon"`
+	ClientID         string            `json:"client_id"`
+	ClientSecret     string            `json:"client_secret"`
+	AuthorizationURL string            `json:"authorization_url"`
+	TokenURL         string            `json:"token_url"`
+	UserInfoURL      string            `json:"userinfo_url"`
+	Issuer           string            `json:"issuer"`
+	JWKSURL          string            `json:"jwks_url"`
+	Scopes           []string          `json:"scopes"`
+	AdditionalParams map[string]string `json:"additional_params"`
+	EmailClaim       string            `json:"email_claim"`
+	NameClaim        string            `json:"name_claim"`
+	SubjectClaim     string            `json:"subject_claim"`
 }
 
 // LoadConfig loads configuration from environment variables
@@ -126,36 +136,64 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 	// Google OAuth configuration
 	if getEnv("OAUTH_GOOGLE_ENABLED", "true") == "true" {
 		providers["google"] = OAuthProviderConfig{
-			ClientID:     getEnv("OAUTH_GOOGLE_CLIENT_ID", ""),
-			ClientSecret: getEnv("OAUTH_GOOGLE_CLIENT_SECRET", ""),
-			AuthURL:      getEnv("OAUTH_GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/auth"),
-			TokenURL:     getEnv("OAUTH_GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
-			UserInfoURL:  getEnv("OAUTH_GOOGLE_USERINFO_URL", "https://www.googleapis.com/oauth2/v3/userinfo"),
-			Scopes:       []string{"openid", "profile", "email"},
+			ID:               "google",
+			Name:             "Google",
+			Enabled:          true,
+			Icon:             "google",
+			ClientID:         getEnv("OAUTH_GOOGLE_CLIENT_ID", ""),
+			ClientSecret:     getEnv("OAUTH_GOOGLE_CLIENT_SECRET", ""),
+			AuthorizationURL: getEnv("OAUTH_GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/auth"),
+			TokenURL:         getEnv("OAUTH_GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
+			UserInfoURL:      getEnv("OAUTH_GOOGLE_USERINFO_URL", "https://www.googleapis.com/oauth2/v3/userinfo"),
+			Issuer:           getEnv("OAUTH_GOOGLE_ISSUER", "https://accounts.google.com"),
+			JWKSURL:          getEnv("OAUTH_GOOGLE_JWKS_URL", "https://www.googleapis.com/oauth2/v3/certs"),
+			Scopes:           []string{"openid", "profile", "email"},
+			AdditionalParams: map[string]string{},
+			EmailClaim:       "email",
+			NameClaim:        "name",
+			SubjectClaim:     "sub",
 		}
 	}
 
 	// GitHub OAuth configuration
 	if getEnv("OAUTH_GITHUB_ENABLED", "true") == "true" {
 		providers["github"] = OAuthProviderConfig{
-			ClientID:     getEnv("OAUTH_GITHUB_CLIENT_ID", ""),
-			ClientSecret: getEnv("OAUTH_GITHUB_CLIENT_SECRET", ""),
-			AuthURL:      getEnv("OAUTH_GITHUB_AUTH_URL", "https://github.com/login/oauth/authorize"),
-			TokenURL:     getEnv("OAUTH_GITHUB_TOKEN_URL", "https://github.com/login/oauth/access_token"),
-			UserInfoURL:  getEnv("OAUTH_GITHUB_USERINFO_URL", "https://api.github.com/user"),
-			Scopes:       []string{"user:email"},
+			ID:               "github",
+			Name:             "GitHub",
+			Enabled:          true,
+			Icon:             "github",
+			ClientID:         getEnv("OAUTH_GITHUB_CLIENT_ID", ""),
+			ClientSecret:     getEnv("OAUTH_GITHUB_CLIENT_SECRET", ""),
+			AuthorizationURL: getEnv("OAUTH_GITHUB_AUTH_URL", "https://github.com/login/oauth/authorize"),
+			TokenURL:         getEnv("OAUTH_GITHUB_TOKEN_URL", "https://github.com/login/oauth/access_token"),
+			UserInfoURL:      getEnv("OAUTH_GITHUB_USERINFO_URL", "https://api.github.com/user"),
+			Scopes:           []string{"user:email"},
+			AdditionalParams: map[string]string{},
+			EmailClaim:       "email",
+			NameClaim:        "name",
+			SubjectClaim:     "id",
 		}
 	}
 
 	// Microsoft OAuth configuration
 	if getEnv("OAUTH_MICROSOFT_ENABLED", "true") == "true" {
 		providers["microsoft"] = OAuthProviderConfig{
-			ClientID:     getEnv("OAUTH_MICROSOFT_CLIENT_ID", ""),
-			ClientSecret: getEnv("OAUTH_MICROSOFT_CLIENT_SECRET", ""),
-			AuthURL:      getEnv("OAUTH_MICROSOFT_AUTH_URL", "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"),
-			TokenURL:     getEnv("OAUTH_MICROSOFT_TOKEN_URL", "https://login.microsoftonline.com/common/oauth2/v2.0/token"),
-			UserInfoURL:  getEnv("OAUTH_MICROSOFT_USERINFO_URL", "https://graph.microsoft.com/v1.0/me"),
-			Scopes:       []string{"openid", "profile", "email", "User.Read"},
+			ID:               "microsoft",
+			Name:             "Microsoft",
+			Enabled:          true,
+			Icon:             "microsoft",
+			ClientID:         getEnv("OAUTH_MICROSOFT_CLIENT_ID", ""),
+			ClientSecret:     getEnv("OAUTH_MICROSOFT_CLIENT_SECRET", ""),
+			AuthorizationURL: getEnv("OAUTH_MICROSOFT_AUTH_URL", "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"),
+			TokenURL:         getEnv("OAUTH_MICROSOFT_TOKEN_URL", "https://login.microsoftonline.com/common/oauth2/v2.0/token"),
+			UserInfoURL:      getEnv("OAUTH_MICROSOFT_USERINFO_URL", "https://graph.microsoft.com/v1.0/me"),
+			Issuer:           getEnv("OAUTH_MICROSOFT_ISSUER", "https://login.microsoftonline.com/common/v2.0"),
+			JWKSURL:          getEnv("OAUTH_MICROSOFT_JWKS_URL", "https://login.microsoftonline.com/common/discovery/v2.0/keys"),
+			Scopes:           []string{"openid", "profile", "email", "User.Read"},
+			AdditionalParams: map[string]string{},
+			EmailClaim:       "email",
+			NameClaim:        "name",
+			SubjectClaim:     "sub",
 		}
 	}
 
