@@ -18,3 +18,7 @@
 
 # ...even if they are in subdirectories
 !*/
+
+# But still ignore specific patterns
+*.log
+logs/
