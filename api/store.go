@@ -68,7 +68,7 @@ func (s *Store[T]) Create(item T, idSetter func(T, string) T) (T, error) {
 	defer s.mutex.Unlock()
 
 	id := uuid.New().String()
-	
+
 	// Set the ID on the item
 	if idSetter != nil {
 		item = idSetter(item, id)

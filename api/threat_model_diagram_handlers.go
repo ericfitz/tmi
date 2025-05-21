@@ -71,7 +71,7 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 		end = len(diagrams)
 	}
 
-	paginatedDiagrams := diagrams
+	var paginatedDiagrams []Diagram
 	if start < end {
 		paginatedDiagrams = diagrams[start:end]
 	} else {

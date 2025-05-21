@@ -27,39 +27,39 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	// Parse pagination parameters
 	limit := parseIntParam(c.DefaultQuery("limit", "20"), 20)
 	offset := parseIntParam(c.DefaultQuery("offset", "0"), 0)
-	
+
 	// Get username from JWT claim
 	userID, _ := c.Get("userName")
 	userName, ok := userID.(string)
 	if !ok {
 		userName = ""
 	}
-	
+
 	// Filter by user access
 	filter := func(tm ThreatModel) bool {
 		// If no user is authenticated, only show public threat models (if any)
 		if userName == "" {
 			return false
 		}
-		
+
 		// Check if the user is the owner
 		if tm.Owner == userName {
 			return true
 		}
-		
+
 		// Check if the user has access through authorization
 		for _, auth := range tm.Authorization {
 			if auth.Subject == userName {
 				return true
 			}
 		}
-		
+
 		return false
 	}
-	
+
 	// Get threat models from store with filtering
 	models := ThreatModelStore.List(offset, limit, filter)
-	
+
 	// Convert to list items for API response
 	items := make([]ListItem, 0, len(models))
 	for _, tm := range models {
@@ -68,7 +68,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 			Name: tm.Name,
 		})
 	}
-	
+
 	c.JSON(http.StatusOK, items)
 }
 
@@ -76,7 +76,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("id")
-	
+
 	// Get threat model from store
 	tm, err := ThreatModelStore.Get(id)
 	if err != nil {
@@ -86,7 +86,7 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Authorization is handled by middleware
 	// The middleware has already verified the user has appropriate access
 	c.JSON(http.StatusOK, tm)
@@ -99,7 +99,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Description   *string         `json:"description,omitempty"`
 		Authorization []Authorization `json:"authorization,omitempty"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
@@ -107,7 +107,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get username from JWT claim
 	userID, _ := c.Get("userName")
 	userName, ok := userID.(string)
@@ -118,11 +118,11 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Create new threat model
 	now := time.Now().UTC()
 	threatIDs := []Threat{}
-	
+
 	// Check for duplicate authorization subjects in the request itself first
 	if len(request.Authorization) > 0 {
 		authMap := make(map[string]bool)
@@ -137,7 +137,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 			authMap[auth.Subject] = true
 		}
 	}
-	
+
 	// Create authorizations array with owner as first entry
 	authorizations := []Authorization{
 		{
@@ -145,7 +145,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 			Role:    RoleOwner,
 		},
 	}
-	
+
 	// Add any additional authorization subjects from the request, checking for duplicates with owner
 	if len(request.Authorization) > 0 {
 		for _, auth := range request.Authorization {
@@ -159,7 +159,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 			authorizations = append(authorizations, auth)
 		}
 	}
-	
+
 	tm := ThreatModel{
 		Name:          request.Name,
 		Description:   request.Description,
@@ -170,14 +170,14 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Metadata:      &[]Metadata{},
 		Threats:       &threatIDs,
 	}
-	
+
 	// Add to store
 	idSetter := func(tm ThreatModel, id string) ThreatModel {
 		uuid, _ := ParseUUID(id)
 		tm.Id = uuid
 		return tm
 	}
-	
+
 	createdTM, err := ThreatModelStore.Create(tm, idSetter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
@@ -186,7 +186,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Set the Location header
 	c.Header("Location", "/threat_models/"+createdTM.Id.String())
 	c.JSON(http.StatusCreated, createdTM)
@@ -197,7 +197,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("id")
 	fmt.Printf("[DEBUG HANDLER] UpdateThreatModel called for ID: %s\n", id)
-	
+
 	// Copy the request body for debugging before binding
 	bodyBytes, err := c.GetRawData()
 	if err != nil {
@@ -208,7 +208,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Log the raw request body
 	if len(bodyBytes) > 0 {
 		fmt.Printf("[DEBUG HANDLER] Request body: %s\n", string(bodyBytes))
@@ -222,7 +222,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	var request ThreatModel
 	if err := c.ShouldBindJSON(&request); err != nil {
 		fmt.Printf("[DEBUG HANDLER] JSON binding error: %v\n", err)
@@ -232,9 +232,9 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	fmt.Printf("[DEBUG HANDLER] Successfully parsed request: %+v\n", request)
-	
+
 	// Get username from JWT claim
 	userID, _ := c.Get("userName")
 	_, ok := userID.(string)
@@ -245,7 +245,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get existing threat model - should be available from middleware
 	existingTM, exists := c.Get("threatModel")
 	if !exists {
@@ -260,7 +260,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	tm, ok := existingTM.(ThreatModel)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, Error{
@@ -269,7 +269,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Ensure ID in the URL matches the one in the body
 	uuid, err := ParseUUID(id)
 	if err != nil {
@@ -280,11 +280,11 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		return
 	}
 	request.Id = uuid
-	
+
 	// Preserve creation time but update modification time
 	request.CreatedAt = tm.CreatedAt
 	request.ModifiedAt = time.Now().UTC()
-	
+
 	// Get user role from context - should be set by middleware
 	roleValue, exists := c.Get("userRole")
 	userRole, ok := roleValue.(Role)
@@ -296,20 +296,20 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	fmt.Printf("[DEBUG HANDLER] User role: %s\n", userRole)
 	fmt.Printf("[DEBUG HANDLER] Checking authorization for changes to owner/auth fields\n")
-	
+
 	// Rule 2: Writers cannot modify owner or authorization fields
 	ownerChanging := request.Owner != "" && request.Owner != tm.Owner
-	// If writer is trying to change auth field, that's a problem 
+	// If writer is trying to change auth field, that's a problem
 	authChanging := (len(request.Authorization) > 0) && (!authorizationEqual(request.Authorization, tm.Authorization))
-	
+
 	// For writer access check, we need to be more stringent - even presence of the auth field is an issue
 	if userRole == RoleWriter && len(request.Authorization) > 0 {
 		authChanging = true
 	}
-	
+
 	if (ownerChanging || authChanging) && userRole != RoleOwner {
 		fmt.Printf("[DEBUG HANDLER] Access denied: non-owner trying to change owner/auth fields\n")
 		c.JSON(http.StatusForbidden, Error{
@@ -318,7 +318,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Rule 6: Check for duplicate authorization subjects
 	fmt.Printf("[DEBUG HANDLER] Checking for duplicate authorization subjects\n")
 	subjectMap := make(map[string]bool)
@@ -333,7 +333,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		}
 		subjectMap[auth.Subject] = true
 	}
-	
+
 	// Rule 5: If owner is changing, add original owner to authorization with owner role
 	if ownerChanging {
 		fmt.Printf("[DEBUG HANDLER] Owner changing from %s to %s\n", tm.Owner, request.Owner)
@@ -348,7 +348,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 				break
 			}
 		}
-		
+
 		// If the original owner isn't in the list, add them
 		if !originalOwnerFound {
 			fmt.Printf("[DEBUG HANDLER] Adding original owner to auth list with owner role\n")
@@ -358,7 +358,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 			})
 		}
 	}
-	
+
 	// Update in store
 	if err := ThreatModelStore.Update(id, request); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
@@ -367,7 +367,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, request)
 }
 
@@ -376,7 +376,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("id")
 	fmt.Printf("[DEBUG HANDLER] PatchThreatModel called for ID: %s\n", id)
-	
+
 	// Copy the request body for debugging before binding
 	bodyBytes, err := c.GetRawData()
 	if err != nil {
@@ -387,7 +387,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Log the raw request body
 	if len(bodyBytes) > 0 {
 		fmt.Printf("[DEBUG HANDLER] PATCH request body: %s\n", string(bodyBytes))
@@ -401,7 +401,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	var operations []PatchOperation
 	if err := c.ShouldBindJSON(&operations); err != nil {
 		fmt.Printf("[DEBUG HANDLER] PATCH JSON binding error: %v\n", err)
@@ -411,9 +411,9 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	fmt.Printf("[DEBUG HANDLER] Successfully parsed PATCH request with %d operations\n", len(operations))
-	
+
 	// Get username from JWT claim
 	userID, _ := c.Get("userName")
 	userName, ok := userID.(string)
@@ -424,7 +424,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get existing threat model - should be available from middleware
 	existingTMValue, exists := c.Get("threatModel")
 	if !exists {
@@ -439,7 +439,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	existingTM, ok := existingTMValue.(ThreatModel)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, Error{
@@ -448,11 +448,11 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get user role from context - should be set by middleware
 	roleValue, exists := c.Get("userRole")
 	userRole, ok := roleValue.(Role)
-	
+
 	// Convert operations to RFC6902 JSON Patch format
 	patchBytes, err := convertOperationsToJSONPatch(operations)
 	if err != nil {
@@ -462,7 +462,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Convert threat model to JSON
 	originalBytes, err := json.Marshal(existingTM)
 	if err != nil {
@@ -472,7 +472,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Create patch object
 	patch, err := jsonpatch.DecodePatch(patchBytes)
 	if err != nil {
@@ -482,7 +482,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Apply patch
 	modifiedBytes, err := patch.Apply(originalBytes)
 	if err != nil {
@@ -492,7 +492,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Deserialize back into threat model
 	var modifiedTM ThreatModel
 	if err := json.Unmarshal(modifiedBytes, &modifiedTM); err != nil {
@@ -502,11 +502,11 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Check if owner or authorization is changing, which requires owner role
 	ownerChanging := modifiedTM.Owner != existingTM.Owner
 	authChanging := !authorizationEqual(existingTM.Authorization, modifiedTM.Authorization)
-	
+
 	if (ownerChanging || authChanging) && (!exists || !ok || userRole != RoleOwner) {
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
@@ -514,7 +514,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Check for duplicate authorization subjects
 	if authChanging || ownerChanging {
 		subjectMap := make(map[string]bool)
@@ -529,7 +529,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 			subjectMap[auth.Subject] = true
 		}
 	}
-	
+
 	// Custom rule 1: If owner is changing, add original owner to authorization with owner role
 	if ownerChanging {
 		// Check if the original owner is already in the authorization list
@@ -542,7 +542,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 				break
 			}
 		}
-		
+
 		// If the original owner isn't in the list, add them
 		if !originalOwnerFound {
 			modifiedTM.Authorization = append(modifiedTM.Authorization, Authorization{
@@ -551,7 +551,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 			})
 		}
 	}
-	
+
 	// Validate patched threat model
 	if err := validatePatchedThreatModel(existingTM, modifiedTM, userName); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
@@ -560,14 +560,14 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Preserve the original ID
 	modifiedTM.Id = existingTM.Id
-	
+
 	// Preserve creation time but update modification time
 	modifiedTM.CreatedAt = existingTM.CreatedAt
 	modifiedTM.ModifiedAt = time.Now().UTC()
-	
+
 	// Update in store
 	if err := ThreatModelStore.Update(id, modifiedTM); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
@@ -576,7 +576,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, modifiedTM)
 }
 
@@ -584,7 +584,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("id")
-	
+
 	// Get the user making the request
 	userID, _ := c.Get("userName")
 	userName, ok := userID.(string)
@@ -595,7 +595,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get threat model directly
 	tm, err := ThreatModelStore.Get(id)
 	if err != nil {
@@ -605,7 +605,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Check authorization in handler for delete
 	// Verify owner access directly to ensure test compatibility
 	// For deletion, only the owner can delete the resource
@@ -618,7 +618,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 				break
 			}
 		}
-		
+
 		if !hasOwnerRole {
 			c.JSON(http.StatusForbidden, Error{
 				Error:   "forbidden",
@@ -627,7 +627,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	// Delete from store
 	if err := ThreatModelStore.Delete(id); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
@@ -636,7 +636,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.Status(http.StatusNoContent)
 }
 
@@ -645,12 +645,12 @@ func parseIntParam(val string, fallback int) int {
 	if val == "" {
 		return fallback
 	}
-	
+
 	i, err := parseInt(val, fallback)
 	if err != nil {
 		return fallback
 	}
-	
+
 	return i
 }
 
@@ -666,33 +666,33 @@ func authorizationEqual(a, b []Authorization) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	
+
 	// Create maps for easier comparison
 	mapA := make(map[string]AuthorizationRole)
 	mapB := make(map[string]AuthorizationRole)
-	
+
 	for _, auth := range a {
 		mapA[auth.Subject] = auth.Role
 	}
-	
+
 	for _, auth := range b {
 		mapB[auth.Subject] = auth.Role
 	}
-	
+
 	// Check if all entries in mapA exist with same role in mapB
 	for subject, role := range mapA {
 		if mapB[subject] != role {
 			return false
 		}
 	}
-	
+
 	// Check if all entries in mapB exist with same role in mapA
 	for subject, role := range mapB {
 		if mapA[subject] != role {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -700,12 +700,12 @@ func authorizationEqual(a, b []Authorization) bool {
 func validatePatchedThreatModel(original, patched ThreatModel, userName string) error {
 	// Add debug logging
 	fmt.Printf("[DEBUG] Validating patched threat model: %+v\n", patched)
-	
+
 	// 1. Ensure ID is not changed
 	if patched.Id != original.Id {
 		return fmt.Errorf("cannot change threat model ID")
 	}
-	
+
 	// 2. Check if user has the owner role (either by being the owner or having the owner role in authorization)
 	hasOwnerRole := (original.Owner == userName)
 	if !hasOwnerRole {
@@ -716,32 +716,32 @@ func validatePatchedThreatModel(original, patched ThreatModel, userName string) 
 			}
 		}
 	}
-	
+
 	// Only users with owner role can change the owner field
 	if !hasOwnerRole && patched.Owner != original.Owner {
 		return fmt.Errorf("only the owner can transfer ownership")
 	}
-	
+
 	// 3. Ensure creation date is not changed
 	if !patched.CreatedAt.Equal(original.CreatedAt) {
 		return fmt.Errorf("creation timestamp cannot be modified")
 	}
-	
+
 	// 4. Validate required fields
 	if patched.Name == "" {
 		return fmt.Errorf("name is required")
 	}
-	
+
 	// 5. Validate authorization entries
 	for _, auth := range patched.Authorization {
 		if auth.Subject == "" {
 			return fmt.Errorf("authorization subject cannot be empty")
 		}
 	}
-	
+
 	// According to the new rules, we don't need to check that:
 	// - The owner field needs to match an entry in authorization
 	// - Multiple owner roles are not allowed
-	
+
 	return nil
 }

@@ -10,23 +10,23 @@ import (
 func TestLoggerLevels(t *testing.T) {
 	// Create a buffer to capture log output
 	var buf bytes.Buffer
-	
+
 	// Create test logger with the buffer as output
 	logger := &Logger{
 		level:  LogLevelInfo, // Set level to INFO
 		isDev:  false,
 		writer: &buf,
 	}
-	
+
 	// Test messages
 	logger.Debug("This debug message should not appear")
 	logger.Info("This info message should appear")
 	logger.Warn("This warning message should appear")
 	logger.Error("This error message should appear")
-	
+
 	// Get output
 	output := buf.String()
-	
+
 	// Check logs
 	if strings.Contains(output, "This debug message should not appear") {
 		t.Error("Debug message should not appear when log level is INFO")
@@ -46,20 +46,20 @@ func TestLoggerLevels(t *testing.T) {
 func TestLoggerFormat(t *testing.T) {
 	// Create a buffer to capture log output
 	var buf bytes.Buffer
-	
+
 	// Create test logger with the buffer as output
 	logger := &Logger{
 		level:  LogLevelDebug,
 		isDev:  false,
 		writer: &buf,
 	}
-	
+
 	// Test formatted message
 	logger.Info("User %s logged in from %s", "john", "192.168.1.1")
-	
+
 	// Get output
 	output := buf.String()
-	
+
 	// Check formatting
 	if !strings.Contains(output, "User john logged in from 192.168.1.1") {
 		t.Error("Formatted message not found in output")
@@ -70,15 +70,15 @@ func TestLoggerFormat(t *testing.T) {
 func TestLoggerConfig(t *testing.T) {
 	// Test valid configuration
 	_, err := NewLogger(Config{
-		Level:          LogLevelDebug,
-		IsDev:          true,
-		LogDir:         t.TempDir(), // Use temp dir for testing
-		MaxAgeDays:     7,
-		MaxSizeMB:      10,
-		MaxBackups:     3,
+		Level:            LogLevelDebug,
+		IsDev:            true,
+		LogDir:           t.TempDir(), // Use temp dir for testing
+		MaxAgeDays:       7,
+		MaxSizeMB:        10,
+		MaxBackups:       3,
 		AlsoLogToConsole: false,
 	})
-	
+
 	if err != nil {
 		t.Errorf("Failed to create logger with valid config: %v", err)
 	}
@@ -88,28 +88,28 @@ func TestLoggerConfig(t *testing.T) {
 func TestLoggerInitialization(t *testing.T) {
 	// Reset global logger
 	globalLogger = nil
-	
+
 	// Initialize with custom config
 	err := Initialize(Config{
-		Level:          LogLevelDebug,
-		IsDev:          true,
-		LogDir:         t.TempDir(),
-		MaxAgeDays:     7,
-		MaxSizeMB:      10,
-		MaxBackups:     3,
+		Level:            LogLevelDebug,
+		IsDev:            true,
+		LogDir:           t.TempDir(),
+		MaxAgeDays:       7,
+		MaxSizeMB:        10,
+		MaxBackups:       3,
 		AlsoLogToConsole: false,
 	})
-	
+
 	if err != nil {
 		t.Errorf("Failed to initialize logger: %v", err)
 	}
-	
+
 	// Get logger
 	logger := Get()
 	if logger == nil {
 		t.Error("Failed to get global logger")
 	}
-	
+
 	// Should be able to log without errors
 	logger.Info("Test message")
 }
@@ -166,28 +166,28 @@ func (c *mockGinContext) Request() interface{} {
 func TestContextLogger(t *testing.T) {
 	// Create a buffer to capture log output
 	var buf bytes.Buffer
-	
+
 	// Create test logger with the buffer as output
 	logger := &Logger{
 		level:  LogLevelDebug,
 		isDev:  false,
 		writer: &buf,
 	}
-	
+
 	// Create mock context
 	ctx := newMockGinContext()
 	ctx.headers["X-Request-ID"] = "test-request-id"
 	ctx.values["userName"] = "testuser"
-	
+
 	// Create context logger
 	ctxLogger := logger.WithContext(ctx)
-	
+
 	// Test log
 	ctxLogger.Info("Test message")
-	
+
 	// Get output
 	output := buf.String()
-	
+
 	// Check output
 	if !strings.Contains(output, "test-request-id") {
 		t.Error("Request ID not found in log output")
@@ -201,21 +201,21 @@ func TestContextLogger(t *testing.T) {
 func TestGetContextLogger(t *testing.T) {
 	// Create mock context
 	ctx := newMockGinContext()
-	
+
 	// Test get context logger
 	logger := GetContextLogger(ctx)
-	
+
 	// Verify logger is not nil
 	if logger == nil {
 		t.Error("GetContextLogger returned nil")
 	}
-	
+
 	// Test with logger in context
 	mockLogger := NewFallbackLogger()
 	ctx.Set("logger", mockLogger)
-	
+
 	logger2 := GetContextLogger(ctx)
-	
+
 	// Verify returns same logger
 	if logger2 != mockLogger {
 		t.Error("GetContextLogger did not return context logger")

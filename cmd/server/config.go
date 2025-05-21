@@ -21,17 +21,17 @@ type Config struct {
 
 // ServerConfig holds HTTP server configuration
 type ServerConfig struct {
-	Port             string
-	Interface        string        // Interface to listen on
-	ReadTimeout      time.Duration
-	WriteTimeout     time.Duration
-	IdleTimeout      time.Duration
-	LogLevel         string
-	TLSEnabled       bool          // Enable/disable TLS
-	TLSCertFile      string        // Path to TLS certificate file
-	TLSKeyFile       string        // Path to TLS private key file
-	TLSSubjectName   string        // Subject name for certificate validation
-	HTTPToHTTPSRedirect bool       // Whether to redirect HTTP to HTTPS
+	Port                string
+	Interface           string // Interface to listen on
+	ReadTimeout         time.Duration
+	WriteTimeout        time.Duration
+	IdleTimeout         time.Duration
+	LogLevel            string
+	TLSEnabled          bool   // Enable/disable TLS
+	TLSCertFile         string // Path to TLS certificate file
+	TLSKeyFile          string // Path to TLS private key file
+	TLSSubjectName      string // Subject name for certificate validation
+	HTTPToHTTPSRedirect bool   // Whether to redirect HTTP to HTTPS
 }
 
 // AuthConfig holds authentication configuration
@@ -52,12 +52,12 @@ type DatabaseConfig struct {
 
 // LoggingConfig holds logging configuration
 type LoggingConfig struct {
-	Level           logging.LogLevel
-	IsDev           bool
-	LogDir          string
-	MaxAgeDays      int
-	MaxSizeMB       int
-	MaxBackups      int
+	Level            logging.LogLevel
+	IsDev            bool
+	LogDir           string
+	MaxAgeDays       int
+	MaxSizeMB        int
+	MaxBackups       int
 	AlsoLogToConsole bool
 }
 
@@ -110,7 +110,7 @@ func LoadConfig() Config {
 
 	// Parse log level
 	logLevelStr := getEnv("LOG_LEVEL", "info")
-	
+
 	// Get hostname for default TLS subject name
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -119,16 +119,16 @@ func LoadConfig() Config {
 
 	return Config{
 		Server: ServerConfig{
-			Port:               getEnv("SERVER_PORT", "8080"),
-			Interface:          getEnv("SERVER_INTERFACE", "0.0.0.0"),
-			ReadTimeout:        parseDuration(getEnv("SERVER_READ_TIMEOUT", "5s")),
-			WriteTimeout:       parseDuration(getEnv("SERVER_WRITE_TIMEOUT", "10s")),
-			IdleTimeout:        parseDuration(getEnv("SERVER_IDLE_TIMEOUT", "60s")),
-			LogLevel:           logLevelStr,
-			TLSEnabled:         getEnv("TLS_ENABLED", "false") == "true",
-			TLSCertFile:        getEnv("TLS_CERT_FILE", ""),
-			TLSKeyFile:         getEnv("TLS_KEY_FILE", ""),
-			TLSSubjectName:     getEnv("TLS_SUBJECT_NAME", hostname),
+			Port:                getEnv("SERVER_PORT", "8080"),
+			Interface:           getEnv("SERVER_INTERFACE", "0.0.0.0"),
+			ReadTimeout:         parseDuration(getEnv("SERVER_READ_TIMEOUT", "5s")),
+			WriteTimeout:        parseDuration(getEnv("SERVER_WRITE_TIMEOUT", "10s")),
+			IdleTimeout:         parseDuration(getEnv("SERVER_IDLE_TIMEOUT", "60s")),
+			LogLevel:            logLevelStr,
+			TLSEnabled:          getEnv("TLS_ENABLED", "false") == "true",
+			TLSCertFile:         getEnv("TLS_CERT_FILE", ""),
+			TLSKeyFile:          getEnv("TLS_KEY_FILE", ""),
+			TLSSubjectName:      getEnv("TLS_SUBJECT_NAME", hostname),
 			HTTPToHTTPSRedirect: getEnv("TLS_HTTP_REDIRECT", "true") == "true",
 		},
 		Auth: AuthConfig{

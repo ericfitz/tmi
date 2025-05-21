@@ -91,7 +91,11 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback() // Rollback if not committed
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			log.Printf("Error rolling back transaction: %v", err)
+		}
+	}() // Rollback if not committed
 
 	// 1. Get all threat models from PostgreSQL
 	rows, err := tx.QueryContext(ctx, `
@@ -100,7 +104,11 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	if err != nil {
 		return fmt.Errorf("failed to get threat models: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
 
 	// 2. For each threat model, get its authorization data and store in Redis
 	for rows.Next() {
@@ -117,7 +125,11 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 		if err != nil {
 			return fmt.Errorf("failed to get threat model access: %w", err)
 		}
-		defer accessRows.Close()
+		defer func() {
+			if err := accessRows.Close(); err != nil {
+				log.Printf("Error closing accessRows: %v", err)
+			}
+		}()
 
 		// Create a map of user emails to roles
 		roles := make(map[string]string)
@@ -160,7 +172,11 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	if err != nil {
 		return fmt.Errorf("failed to get threats: %w", err)
 	}
-	defer threatRows.Close()
+	defer func() {
+		if err := threatRows.Close(); err != nil {
+			log.Printf("Error closing threatRows: %v", err)
+		}
+	}()
 
 	// 5. Store the threat-to-threat-model mapping in Redis
 	for threatRows.Next() {
@@ -186,7 +202,11 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	if err != nil {
 		return fmt.Errorf("failed to get diagrams: %w", err)
 	}
-	defer diagramRows.Close()
+	defer func() {
+		if err := diagramRows.Close(); err != nil {
+			log.Printf("Error closing diagramRows: %v", err)
+		}
+	}()
 
 	// 7. Store the diagram-to-threat-model mapping in Redis
 	for diagramRows.Next() {

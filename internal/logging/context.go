@@ -50,7 +50,7 @@ func GetContextLogger(c GinContextLike) SimpleLogger {
 			return logger
 		}
 	}
-	
+
 	// Return fallback logger
 	return NewFallbackLogger()
 }

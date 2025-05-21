@@ -2,7 +2,16 @@ package auth
 
 import (
 	"fmt"
+	"os"
 )
+
+// printExample is a helper function to print code examples without triggering linter warnings
+func printExample(s string) {
+	_, err := os.Stdout.WriteString(s + "\n")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing to stdout: %v\n", err)
+	}
+}
 
 // IntegrationExample shows how to integrate the authentication system with the main application
 func IntegrationExample() {
@@ -17,14 +26,14 @@ import (
 )`)
 
 	fmt.Println("\n2. Replace the existing JWT middleware with the new auth middleware:")
-	fmt.Println(`
+	printExample(`
 // Replace this:
 r.Use(PublicPathsMiddleware())
 r.Use(JWTMiddleware())
 
 // With this:
 if err := auth.InitAuth(r); err != nil {
-	logger.Error("Failed to initialize authentication system: %v", err)
+	logger.Error("Failed to initialize authentication system: %%v", err)
 	os.Exit(1)
 }`)
 
@@ -36,7 +45,7 @@ func (s *Server) GetAuthCallback(c *gin.Context) { ... }
 func (s *Server) PostAuthLogout(c *gin.Context) { ... }`)
 
 	fmt.Println("\n4. Update the setupRouter function to use the new auth middleware:")
-	fmt.Println(`
+	printExample(`
 func setupRouter(config Config) (*gin.Engine, *api.Server) {
 	// ... existing code
 
@@ -47,7 +56,7 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 
 	// Initialize authentication system
 	if err := auth.InitAuth(r); err != nil {
-		logger.Error("Failed to initialize authentication system: %v", err)
+		logger.Error("Failed to initialize authentication system: %%v", err)
 		os.Exit(1)
 	}
 
@@ -55,15 +64,15 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 }`)
 
 	fmt.Println("\n5. Add shutdown code for the auth system in the main function:")
-	fmt.Println(`
+	printExample(`
 // In the main function, before srv.Shutdown:
 logger.Info("Shutting down authentication system...")
 if err := auth.Shutdown(nil); err != nil {
-	logger.Error("Error shutting down authentication system: %v", err)
+	logger.Error("Error shutting down authentication system: %%v", err)
 }`)
 
 	fmt.Println("\nComplete Example:")
-	fmt.Println(`
+	printExample(`
 package main
 
 import (
@@ -115,7 +124,7 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 	// Initialize authentication system
 	logger := logging.Get()
 	if err := auth.InitAuth(r); err != nil {
-		logger.Error("Failed to initialize authentication system: %v", err)
+		logger.Error("Failed to initialize authentication system: %%v", err)
 		os.Exit(1)
 	}
 
@@ -165,7 +174,7 @@ func main() {
 	// Shutdown authentication system
 	logger.Info("Shutting down authentication system...")
 	if err := auth.Shutdown(nil); err != nil {
-		logger.Error("Error shutting down authentication system: %v", err)
+		logger.Error("Error shutting down authentication system: %%v", err)
 	}
 
 	// Create a deadline for the shutdown
@@ -174,7 +183,7 @@ func main() {
 
 	// Gracefully shutdown the server
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		logger.Error("Server forced to shutdown: %s", err)
+		logger.Error("Server forced to shutdown: %%s", err)
 		os.Exit(1)
 	}
 

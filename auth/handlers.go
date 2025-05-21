@@ -430,7 +430,7 @@ func exchangeCodeForTokens(ctx context.Context, provider OAuthProviderConfig, co
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer closeBody(resp.Body)
 
 	// Parse the response
 	if resp.StatusCode != http.StatusOK {
@@ -462,7 +462,7 @@ func getUserInfo(ctx context.Context, provider OAuthProviderConfig, accessToken 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer closeBody(resp.Body)
 
 	// Parse the response
 	if resp.StatusCode != http.StatusOK {

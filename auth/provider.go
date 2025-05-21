@@ -108,11 +108,14 @@ func (p *BaseProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
 
+	// Calculate expiration duration once to avoid time drift
+	expiresIn := int(time.Until(token.Expiry).Seconds())
+
 	return &TokenResponse{
 		AccessToken:  token.AccessToken,
 		TokenType:    token.TokenType,
 		RefreshToken: token.RefreshToken,
-		ExpiresIn:    int(token.Expiry.Sub(time.Now()).Seconds()),
+		ExpiresIn:    expiresIn,
 		IDToken:      token.Extra("id_token").(string),
 	}, nil
 }
@@ -131,7 +134,7 @@ func (p *BaseProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer closeBody(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -260,7 +263,7 @@ func (p *GithubProvider) ExchangeCode(ctx context.Context, code string) (*TokenR
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
-	defer resp.Body.Close()
+	defer closeBody(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -299,7 +302,7 @@ func (p *GithubProvider) GetUserInfo(ctx context.Context, accessToken string) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer closeBody(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -330,7 +333,7 @@ func (p *GithubProvider) GetUserInfo(ctx context.Context, accessToken string) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user emails: %w", err)
 	}
-	defer resp.Body.Close()
+	defer closeBody(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

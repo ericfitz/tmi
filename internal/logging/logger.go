@@ -163,9 +163,9 @@ func Get() *Logger {
 	if globalLogger == nil {
 		// Initialize with defaults if not already initialized
 		err := Initialize(Config{
-			Level:           LogLevelInfo,
-			IsDev:           false,
-			MaxAgeDays:      7,
+			Level:            LogLevelInfo,
+			IsDev:            false,
+			MaxAgeDays:       7,
 			AlsoLogToConsole: true,
 		})
 		if err != nil {
@@ -207,7 +207,7 @@ func (l *Logger) writeLog(level LogLevel, message string) {
 
 	// Get timestamp
 	timestamp := time.Now().Format(time.RFC3339)
-	
+
 	// Get caller info if in dev mode
 	callerInfo := ""
 	if l.isDev {
@@ -270,14 +270,14 @@ func (l *Logger) WithContext(c GinContextLike) *ContextLogger {
 			setter.Header("X-Request-ID", requestID)
 		}
 	}
-	
+
 	// Get user info if available
 	userID, _ := c.Get("userName")
-	
+
 	// Get path and method if available
 	path := "unknown"
 	method := "unknown"
-	
+
 	// Try to extract path and method from Request if available
 	if reqGetter, ok := c.(interface{ Request() interface{} }); ok {
 		if req := reqGetter.Request(); req != nil {
@@ -322,15 +322,15 @@ type ContextLogger struct {
 // formatContextMessage formats a message with request context
 func (cl *ContextLogger) formatContextMessage(msg string) string {
 	contextInfo := fmt.Sprintf("[%s] %s %s", cl.requestID, cl.method, cl.path)
-	
+
 	if cl.userID != "<nil>" && cl.userID != "" {
 		contextInfo += fmt.Sprintf(" user=%s", cl.userID)
 	}
-	
+
 	if cl.clientIP != "" {
 		contextInfo += fmt.Sprintf(" ip=%s", cl.clientIP)
 	}
-	
+
 	return fmt.Sprintf("%s | %s", contextInfo, msg)
 }
 
@@ -383,20 +383,20 @@ func LoggerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger
 		logger := Get().WithContext(c)
-		
+
 		// Store logger in context for handlers to use
 		c.Set("logger", logger)
-		
+
 		// Log request start
 		logger.Debug("Request started")
-		
+
 		// Process request
 		start := time.Now()
 		c.Next()
-		
+
 		// Calculate duration
 		latency := time.Since(start)
-		
+
 		// Get status from gin context
 		var statusCode int
 		if w, ok := c.Writer.(interface{ Status() int }); ok {
@@ -404,7 +404,7 @@ func LoggerMiddleware() gin.HandlerFunc {
 		} else {
 			statusCode = 0 // Unknown
 		}
-		
+
 		// Log request completion based on status code
 		switch {
 		case statusCode >= 500:
@@ -430,15 +430,15 @@ func Recoverer() gin.HandlerFunc {
 				} else {
 					logger = Get().WithContext(c)
 				}
-				
+
 				// Get stack trace
 				buf := make([]byte, 2048)
 				n := runtime.Stack(buf, false)
 				stackTrace := string(buf[:n])
-				
+
 				// Log error with stack trace
 				logger.Error("Panic recovered: %v\nStack trace:\n%s", err, stackTrace)
-				
+
 				// Return error to client
 				c.AbortWithStatus(500)
 			}

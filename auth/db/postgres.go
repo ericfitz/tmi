@@ -59,10 +59,13 @@ func NewPostgresDB(cfg PostgresConfig) (*PostgresDB, error) {
 }
 
 // Close closes the database connection
-func (db *PostgresDB) Close() {
+func (db *PostgresDB) Close() error {
 	if db.db != nil {
-		db.db.Close()
+		if err := db.db.Close(); err != nil {
+			return fmt.Errorf("error closing database connection: %w", err)
+		}
 	}
+	return nil
 }
 
 // GetDB returns the database connection

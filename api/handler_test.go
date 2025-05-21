@@ -19,8 +19,8 @@ func TestUpdateThreatModel(t *testing.T) {
 	// Reset stores to ensure clean state
 	ResetStores()
 	InitTestFixtures()
-	
-	// Setup Gin 
+
+	// Setup Gin
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -29,11 +29,11 @@ func TestUpdateThreatModel(t *testing.T) {
 		c.Set("userRole", RoleOwner)
 		c.Next()
 	})
-	
+
 	// Register handler
 	handler := NewThreatModelHandler()
 	router.PUT("/threat_models/:id", handler.UpdateThreatModel)
-	
+
 	// Create a simplified update payload
 	updatePayload := map[string]interface{}{
 		"id":    TestFixtures.ThreatModelID,
@@ -50,28 +50,28 @@ func TestUpdateThreatModel(t *testing.T) {
 			},
 		},
 	}
-	
+
 	jsonData, err := json.Marshal(updatePayload)
 	require.NoError(t, err)
-	
+
 	// Debug print the JSON
 	t.Logf("Request JSON: %s", string(jsonData))
-	
+
 	// Create request
 	req, _ := http.NewRequest("PUT", "/threat_models/"+TestFixtures.ThreatModelID, bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
-	
+
 	// Send request
 	router.ServeHTTP(w, req)
-	
+
 	// Print the response for debugging
 	t.Logf("Response status: %d", w.Code)
 	t.Logf("Response body: %s", w.Body.String())
-	
+
 	// Verify response
 	assert.Equal(t, http.StatusOK, w.Code, "Update request should succeed")
-	
+
 	// Verify the name was changed
 	tm, err := ThreatModelStore.Get(TestFixtures.ThreatModelID)
 	require.NoError(t, err)
@@ -84,8 +84,8 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 	// Initialize test fixtures
 	ResetStores()
 	InitTestFixtures()
-	
-	// Setup Gin 
+
+	// Setup Gin
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -94,18 +94,18 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 		c.Set("userRole", RoleOwner)
 		c.Next()
 	})
-	
+
 	// Register handler
 	handler := NewThreatModelHandler()
 	router.PUT("/threat_models/:id", handler.UpdateThreatModel)
-	
+
 	// Get the current threat model
 	origTM, err := ThreatModelStore.Get(TestFixtures.ThreatModelID)
 	require.NoError(t, err)
-	
+
 	// Create an update payload with a new owner
 	newOwner := "new-owner@example.com"
-	
+
 	// Create a more minimal payload with just the essential fields
 	updatePayload := map[string]interface{}{
 		"id":          TestFixtures.ThreatModelID,
@@ -114,7 +114,7 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 		"owner":       newOwner,
 		"authorization": []map[string]interface{}{
 			{
-				"subject": TestFixtures.WriterUser, 
+				"subject": TestFixtures.WriterUser,
 				"role":    "writer",
 			},
 			{
@@ -123,33 +123,33 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 			},
 		},
 	}
-	
+
 	jsonData, err := json.Marshal(updatePayload)
 	require.NoError(t, err)
-	
+
 	// Debug print the JSON
 	t.Logf("Request JSON: %s", string(jsonData))
-	
+
 	// Create request
 	req, _ := http.NewRequest("PUT", "/threat_models/"+TestFixtures.ThreatModelID, bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
-	
+
 	// Send request
 	router.ServeHTTP(w, req)
-	
+
 	// Print the response for debugging
 	t.Logf("Response status: %d", w.Code)
 	t.Logf("Response body: %s", w.Body.String())
-	
+
 	// Verify response
 	assert.Equal(t, http.StatusOK, w.Code, "Owner change request should succeed")
-	
+
 	// Verify the owner was changed
 	tm, err := ThreatModelStore.Get(TestFixtures.ThreatModelID)
 	require.NoError(t, err)
 	assert.Equal(t, newOwner, tm.Owner, "Owner should be updated to the new owner")
-	
+
 	// Check that the original owner was preserved in authorization
 	originalOwnerFound := false
 	for _, auth := range tm.Authorization {
@@ -167,8 +167,8 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 	// Initialize test fixtures
 	ResetStores()
 	InitTestFixtures()
-	
-	// Setup Gin 
+
+	// Setup Gin
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -177,11 +177,11 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 		c.Set("userRole", RoleOwner)
 		c.Next()
 	})
-	
+
 	// Register handler
 	handler := NewThreatModelHandler()
 	router.PUT("/threat_models/:id", handler.UpdateThreatModel)
-	
+
 	// Create an update payload with duplicate subjects
 	updatePayload := map[string]interface{}{
 		"id":    TestFixtures.ThreatModelID,
@@ -198,28 +198,28 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 			},
 		},
 	}
-	
+
 	jsonData, err := json.Marshal(updatePayload)
 	require.NoError(t, err)
-	
+
 	// Debug print the JSON
 	t.Logf("Request JSON: %s", string(jsonData))
-	
+
 	// Create request
 	req, _ := http.NewRequest("PUT", "/threat_models/"+TestFixtures.ThreatModelID, bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
-	
+
 	// Send request
 	router.ServeHTTP(w, req)
-	
+
 	// Print the response for debugging
 	t.Logf("Response status: %d", w.Code)
 	t.Logf("Response body: %s", w.Body.String())
-	
+
 	// Verify response shows a bad request
 	assert.Equal(t, http.StatusBadRequest, w.Code, "Request with duplicate subjects should be rejected")
-	
+
 	// Parse the response
 	var resp struct {
 		Error   string `json:"error"`
@@ -227,7 +227,7 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 	}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	
+
 	// Check the error message
 	assert.Equal(t, "invalid_input", resp.Error, "Error code should be 'invalid_input'")
 	assert.Contains(t, resp.Message, "Duplicate authorization subject", "Message should mention duplicate subject")

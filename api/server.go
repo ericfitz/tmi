@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,7 +14,7 @@ type Server struct {
 	threatModelHandler *ThreatModelHandler
 	diagramHandler     *DiagramHandler
 	// WebSocket hub
-	wsHub              *WebSocketHub
+	wsHub *WebSocketHub
 }
 
 // NewServer creates a new API server instance
@@ -40,7 +40,7 @@ type ServerInfo struct {
 func (s *Server) RegisterHandlers(r *gin.Engine) {
 	// Register WebSocket handler - it needs a custom route because it's not part of the OpenAPI spec
 	r.GET("/ws/diagrams/:id", s.HandleWebSocket)
-	
+
 	// Register server info endpoint
 	r.GET("/api/server-info", s.HandleServerInfo)
 }
@@ -53,7 +53,7 @@ func (s *Server) HandleWebSocket(c *gin.Context) {
 			c.Set("user_name", userName)
 		}
 	}
-	
+
 	// Handle WebSocket connection
 	s.wsHub.HandleWS(c)
 }
@@ -69,32 +69,32 @@ func (s *Server) HandleServerInfo(c *gin.Context) {
 	tlsEnabled := false
 	tlsSubjectName := ""
 	serverPort := "8080"
-	
+
 	// Try to extract from request context
 	if val, exists := c.Get("tlsEnabled"); exists {
 		if enabled, ok := val.(bool); ok {
 			tlsEnabled = enabled
 		}
 	}
-	
+
 	if val, exists := c.Get("tlsSubjectName"); exists {
 		if name, ok := val.(string); ok {
 			tlsSubjectName = name
 		}
 	}
-	
+
 	if val, exists := c.Get("serverPort"); exists {
 		if port, ok := val.(string); ok {
 			serverPort = port
 		}
 	}
-	
+
 	// Determine websocket protocol
 	scheme := "ws"
 	if tlsEnabled {
 		scheme = "wss"
 	}
-	
+
 	// Determine host
 	host := c.Request.Host
 	if tlsSubjectName != "" && tlsEnabled {
@@ -105,14 +105,14 @@ func (s *Server) HandleServerInfo(c *gin.Context) {
 			host = fmt.Sprintf("%s:%s", host, serverPort)
 		}
 	}
-	
+
 	// Build WebSocket URL
 	wsURL := fmt.Sprintf("%s://%s/ws", scheme, host)
-	
+
 	// Return server info
 	c.JSON(http.StatusOK, ServerInfo{
-		TLSEnabled: tlsEnabled,
-		TLSSubjectName: tlsSubjectName,
+		TLSEnabled:       tlsEnabled,
+		TLSSubjectName:   tlsSubjectName,
 		WebSocketBaseURL: wsURL,
 	})
 }

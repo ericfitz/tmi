@@ -76,7 +76,9 @@ func (m *Manager) Close() error {
 	var errs []error
 
 	if m.postgres != nil {
-		m.postgres.Close()
+		if err := m.postgres.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close postgres: %w", err))
+		}
 	}
 
 	if m.redis != nil {

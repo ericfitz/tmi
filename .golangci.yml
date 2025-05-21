@@ -1,0 +1,26 @@
+# golangci-lint v2 configuration
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocyclo
+    - gosec
+    - misspell
+    - unconvert
+    - unparam
+  disable:
+    - lll
+    - revive
+
+formatters:
+  enable:
+    - goimports
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

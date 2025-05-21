@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/ericfitz/tmi/auth/db"
@@ -84,11 +85,11 @@ func (s *Service) GenerateTokens(ctx context.Context, user User) (TokenPair, err
 
 	// Generate a refresh token
 	refreshToken := uuid.New().String()
-	refreshExpiration := time.Now().Add(30 * 24 * time.Hour) // 30 days
+	refreshDuration := 30 * 24 * time.Hour // 30 days
 
 	// Store the refresh token in Redis
 	refreshKey := fmt.Sprintf("refresh_token:%s", refreshToken)
-	err = s.dbManager.Redis().Set(ctx, refreshKey, user.Email, refreshExpiration.Sub(time.Now()))
+	err = s.dbManager.Redis().Set(ctx, refreshKey, user.Email, refreshDuration)
 	if err != nil {
 		return TokenPair{}, fmt.Errorf("failed to store refresh token: %w", err)
 	}
@@ -320,7 +321,11 @@ func (s *Service) GetUserProviders(ctx context.Context, userID string) ([]UserPr
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user providers: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
 
 	var providers []UserProvider
 	for rows.Next() {

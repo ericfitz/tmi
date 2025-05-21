@@ -580,15 +580,14 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 	if len(operationsBytes) > 0 {
 		// Look for owner or authorization changes in the operations
 		for _, op := range operations {
-			if op.Path == "/owner" || strings.HasPrefix(op.Path, "/authorization") {
-				if op.Op == "replace" || op.Op == "add" {
-					if op.Path == "/owner" {
-						if ownerVal, ok := op.Value.(string); ok {
-							requestBody["owner"] = ownerVal
-						}
-					} else if op.Path == "/authorization" {
-						requestBody["authorization"] = op.Value
+			if op.Op == "replace" || op.Op == "add" {
+				switch op.Path {
+				case "/owner":
+					if ownerVal, ok := op.Value.(string); ok {
+						requestBody["owner"] = ownerVal
 					}
+				case "/authorization":
+					requestBody["authorization"] = op.Value
 				}
 			}
 		}
@@ -773,16 +772,8 @@ func validatePatchedDiagram(original, patched Diagram, userName string) error {
 	// In the updated API spec, Owner and Authorization are not part of the Diagram struct
 	// For testing purposes, we'll check against TestFixtures
 
-	// Check if user is the owner or has owner role in authorization
-	hasOwnerRole := (TestFixtures.Owner == userName)
-	if !hasOwnerRole {
-		for _, auth := range TestFixtures.DiagramAuth {
-			if auth.Subject == userName && auth.Role == Owner {
-				hasOwnerRole = true
-				break
-			}
-		}
-	}
+	// This check is now handled in the middleware and update handlers
+	// No need to check owner role here
 
 	// Only users with owner role can change the owner field
 	// This check is now handled in the middleware and update handlers

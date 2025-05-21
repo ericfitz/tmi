@@ -10,12 +10,12 @@ func parseInt(val string, fallback int) (int, error) {
 	if val == "" {
 		return fallback, nil
 	}
-	
+
 	i, err := strconv.Atoi(val)
 	if err != nil {
 		return fallback, err
 	}
-	
+
 	return i, nil
 }
 
@@ -27,14 +27,14 @@ func applyJsonPatch(doc interface{}, operations []PatchOperation) (interface{}, 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Parse the document as a generic JSON object
 	var docMap map[string]interface{}
 	err = json.Unmarshal(docJson, &docMap)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Apply each operation
 	for _, op := range operations {
 		switch op.Op {
@@ -52,7 +52,7 @@ func applyJsonPatch(doc interface{}, operations []PatchOperation) (interface{}, 
 			// Implementation would test if value at path equals op.Value
 		}
 	}
-	
+
 	// In a real implementation, you would apply the patch operations
 	// For simplicity, we're just returning the original document
 	return doc, nil
