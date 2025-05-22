@@ -13,7 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ericfitz/tmi/api" // Your module path
+	"github.com/ericfitz/tmi/api"  // Your module path
+	"github.com/ericfitz/tmi/auth" // Import auth package
 	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -149,7 +150,10 @@ func JWTMiddleware() gin.HandlerFunc {
 
 		// Get JWT secret from config (in production, use environment variables)
 		// Note: In a real implementation, this would come from the server's config
-		jwtSecret := []byte(getEnv("JWT_SECRET", "secret"))
+		jwtSecret := []byte(os.Getenv("JWT_SECRET"))
+		if len(jwtSecret) == 0 {
+			jwtSecret = []byte("secret")
+		}
 
 		// Validate the token
 		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
@@ -580,11 +584,25 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 		config: config,
 	}
 
-	// Register generated routes with our server implementation
-	api.RegisterGinHandlers(r, server)
-
 	// Register WebSocket and custom routes
 	apiServer.RegisterHandlers(r)
+
+	// Initialize auth package with database connections
+	// This must be done before registering API routes to avoid conflicts
+	logger := logging.Get()
+	logger.Info("Initializing authentication system with database connections")
+	if err := auth.InitAuth(r); err != nil {
+		logger.Error("Failed to initialize authentication system: %v", err)
+		// Continue anyway for development purposes
+	}
+
+	// Register API routes except for auth routes which are handled by the auth package
+	// Create a custom router that skips auth routes
+	customRouter := &customGinRouter{
+		router:     r,
+		skipRoutes: []string{"/auth/login", "/auth/callback", "/auth/logout"},
+	}
+	api.RegisterGinHandlers(customRouter, server)
 
 	// Add development routes when in dev mode
 	if config.Logging.IsDev {
@@ -594,6 +612,62 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 	}
 
 	return r, apiServer
+}
+
+// customGinRouter is a wrapper around gin.Engine that skips certain routes
+type customGinRouter struct {
+	router     *gin.Engine
+	skipRoutes []string
+}
+
+// GET implements the GinRouter interface
+func (r *customGinRouter) GET(path string, handlers ...gin.HandlerFunc) gin.IRoutes {
+	for _, skipRoute := range r.skipRoutes {
+		if path == skipRoute {
+			return r.router // Skip this route
+		}
+	}
+	return r.router.GET(path, handlers...)
+}
+
+// POST implements the GinRouter interface
+func (r *customGinRouter) POST(path string, handlers ...gin.HandlerFunc) gin.IRoutes {
+	for _, skipRoute := range r.skipRoutes {
+		if path == skipRoute {
+			return r.router // Skip this route
+		}
+	}
+	return r.router.POST(path, handlers...)
+}
+
+// PUT implements the GinRouter interface
+func (r *customGinRouter) PUT(path string, handlers ...gin.HandlerFunc) gin.IRoutes {
+	for _, skipRoute := range r.skipRoutes {
+		if path == skipRoute {
+			return r.router // Skip this route
+		}
+	}
+	return r.router.PUT(path, handlers...)
+}
+
+// DELETE implements the GinRouter interface
+func (r *customGinRouter) DELETE(path string, handlers ...gin.HandlerFunc) gin.IRoutes {
+	for _, skipRoute := range r.skipRoutes {
+		if path == skipRoute {
+			return r.router // Skip this route
+		}
+	}
+	return r.router.DELETE(path, handlers...)
+}
+
+// PATCH implements the GinRouter interface
+func (r *customGinRouter) PATCH(path string, handlers ...gin.HandlerFunc) gin.IRoutes {
+	for _, skipRoute := range r.skipRoutes {
+		if path == skipRoute {
+			return r.router // Skip this route
+		}
+	}
+	return r.router.PATCH(path, handlers...)
 }
 
 func main() {
@@ -779,4 +853,9 @@ func main() {
 	}
 
 	logger.Info("Server gracefully stopped")
+
+	// Shutdown auth system
+	if err := auth.Shutdown(nil); err != nil {
+		logger.Error("Error shutting down auth system: %v", err)
+	}
 }
