@@ -10,114 +10,56 @@ The implementation has successfully completed:
 - Phase 4: Create ThreatModelDiagramHandler
 - Phase 5: Update Data Models and Relationships
 - Phase 6: Update Handler Implementation for Schema Changes
+- Phase 7: Implement Tests for ThreatModelDiagramHandler
 
 The main gaps are:
 
-1. Missing tests for ThreatModelDiagramHandler
-2. Placeholder implementations for collaboration features
-3. Lack of comprehensive documentation
-4. No performance or security testing
+1. Placeholder implementations for collaboration features (WebSocket integration)
+2. Lack of comprehensive documentation
+3. No performance or security testing
 
 ## Implementation Plan
 
 ```mermaid
 graph TD
-    A[Phase 1: Testing] --> B[Phase 2: Collaboration Features]
-    B --> C[Phase 3: Documentation]
-    C --> D[Phase 4: Performance & Security]
-    D --> E[Phase 5: Final Review & Release]
+    A[Phase 1: Collaboration Features] --> B[Phase 2: Documentation]
+    B --> C[Phase 3: Performance & Security]
+    C --> D[Phase 4: Final Review & Release]
 ```
 
-### Phase 1: Testing (Estimated time: 1-2 weeks)
-
-#### 1.1 Create Test Suite for ThreatModelDiagramHandler
+### Phase 1: Collaboration Features (Estimated time: 2-3 weeks)
 
 ```mermaid
 graph TD
-    A[Create Test Setup] --> B[Test Basic CRUD Operations]
-    B --> C[Test Authorization Rules]
-    C --> D[Test Error Handling]
-    D --> E[Test Edge Cases]
-```
-
-**Tasks:**
-
-1. Create a new file `api/threat_model_diagram_handlers_test.go`
-2. Implement test setup functions similar to those in `diagram_handlers_test.go`:
-
-   - `setupThreatModelDiagramRouter()`
-   - `setupThreatModelDiagramRouterWithUser(userName string)`
-   - `createTestThreatModelWithDiagram(t *testing.T, router *gin.Engine, name string, description string)`
-
-3. Implement tests for basic CRUD operations:
-
-   - `TestGetThreatModelDiagrams`: Test listing diagrams within a threat model
-   - `TestCreateThreatModelDiagram`: Test creating a diagram within a threat model
-   - `TestGetThreatModelDiagramByID`: Test retrieving a specific diagram from a threat model
-   - `TestUpdateThreatModelDiagram`: Test updating a diagram within a threat model
-   - `TestPatchThreatModelDiagram`: Test partially updating a diagram within a threat model
-   - `TestDeleteThreatModelDiagram`: Test deleting a diagram from a threat model
-
-4. Implement tests for authorization rules:
-
-   - `TestThreatModelDiagramReadWriteDeletePermissions`: Test access levels for different operations
-   - `TestThreatModelDiagramWriterCanUpdateNonOwnerFields`: Test that writers can update non-owner fields
-
-5. Implement tests for error handling:
-
-   - `TestThreatModelDiagramNotFound`: Test behavior when a diagram is not found
-   - `TestThreatModelNotFound`: Test behavior when a threat model is not found
-   - `TestInvalidThreatModelDiagramInput`: Test behavior with invalid input
-
-6. Implement tests for edge cases:
-   - `TestDiagramNotInThreatModel`: Test behavior when a diagram ID is valid but not associated with the threat model
-   - `TestThreatModelDiagramWithoutGraphData`: Test behavior with a diagram that has no graph data
-
-#### 1.2 Create Tests for Collaboration Endpoints
-
-**Tasks:**
-
-1. Implement tests for collaboration endpoints:
-
-   - `TestGetThreatModelDiagramCollaborate`: Test retrieving collaboration session status
-   - `TestPostThreatModelDiagramCollaborate`: Test joining/starting a collaboration session
-   - `TestDeleteThreatModelDiagramCollaborate`: Test leaving a collaboration session
-
-2. Test collaboration with different user roles:
-   - `TestThreatModelDiagramCollaborationPermissions`: Test that readers can join but not start sessions, writers can start and join sessions
-
-### Phase 2: Collaboration Features (Estimated time: 2-3 weeks)
-
-```mermaid
-graph TD
-    A[Design Collaboration Architecture] --> B[Implement Session Management]
-    B --> C[Implement WebSocket Handlers]
+    A[Integrate Existing WebSocket Implementation] --> B[Fix URL Path Inconsistencies]
+    B --> C[Implement Session Management]
     C --> D[Implement Conflict Resolution]
     D --> E[Implement Client-Side Integration]
 ```
 
 **Tasks:**
 
-1. Design collaboration architecture:
+1. Integrate existing WebSocket implementation:
 
-   - Define collaboration session data structure
-   - Define WebSocket message formats
-   - Design conflict resolution strategy
+   - Review existing WebSocket functionality in `websocket.go`
+   - Identify integration points with ThreatModelDiagramHandler
+   - Update ThreatModelDiagramHandler to use the WebSocketHub
 
-2. Implement session management:
+2. Fix URL path inconsistencies:
 
-   - Update `GetThreatModelDiagramCollaborate` to return actual session information
-   - Update `PostThreatModelDiagramCollaborate` to create or join a session
-   - Update `DeleteThreatModelDiagramCollaborate` to leave a session
+   - Resolve discrepancy between WebSocket handler path ("/ws/diagrams/:id") and the path returned by ThreatModelDiagramHandler ("/threat_models/:id/diagrams/:diagram_id/ws")
+   - Update server.go to register WebSocket handlers at the correct paths
+   - Ensure consistent URL patterns across the API
 
-3. Implement WebSocket handlers:
+3. Implement session management:
 
-   - Create a WebSocket handler for diagram collaboration
-   - Implement message broadcasting to all session participants
-   - Implement user presence notifications
+   - Update `GetThreatModelDiagramCollaborate` to return actual session information from WebSocketHub
+   - Update `PostThreatModelDiagramCollaborate` to create or join a session using WebSocketHub
+   - Update `DeleteThreatModelDiagramCollaborate` to leave a session using WebSocketHub
 
 4. Implement conflict resolution:
 
+   - Enhance the existing DiagramOperation handling in websocket.go
    - Implement operational transformation or similar algorithm
    - Handle concurrent edits to the same diagram
    - Ensure consistency across all clients
@@ -126,7 +68,7 @@ graph TD
    - Create example client code for connecting to collaboration sessions
    - Document WebSocket API for client developers
 
-### Phase 3: Documentation (Estimated time: 1 week)
+### Phase 2: Documentation (Estimated time: 1 week)
 
 ```mermaid
 graph TD
@@ -160,7 +102,7 @@ graph TD
    - Best practices for error handling
    - Performance considerations
 
-### Phase 4: Performance & Security (Estimated time: 1-2 weeks)
+### Phase 3: Performance & Security (Estimated time: 1-2 weeks)
 
 ```mermaid
 graph TD
@@ -201,7 +143,7 @@ graph TD
    - Implement additional security measures if needed
    - Document security considerations for API users
 
-### Phase 5: Final Review & Release (Estimated time: 1 week)
+### Phase 4: Final Review & Release (Estimated time: 1 week)
 
 ```mermaid
 graph TD
@@ -246,9 +188,9 @@ graph TD
 
 1. **High Priority**:
 
-   - Creating tests for ThreatModelDiagramHandler
-   - Implementing real collaboration features
+   - Implementing real collaboration features by integrating ThreatModelDiagramHandler with WebSocket functionality
    - Fixing any security issues
+   - Resolving WebSocket URL path inconsistencies
 
 2. **Medium Priority**:
 
