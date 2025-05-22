@@ -15,6 +15,7 @@
 !generate-api
 !oapi-codegen-config.yaml
 !.golangci.yml
+!docs/*
 
 # Include subdirectories (but avoid overriding specific ignores)
 !*/
