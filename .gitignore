@@ -1,26 +1,26 @@
 # Ignore everything
 *
 
-# But not these files...
-!/.gitignore
-!/*.md
+# Include specific files and patterns
+!.gitignore
+!*.md
 !*.go
 !go.sum
 !go.mod
-!/license.txt
-!/tmi-openapi.json
-!/.env.example
-!/static/*
+!license.txt
+!tmi-openapi.json
+!.env.example
+!static/*
 !Makefile
 !generate-api
 !oapi-codegen-config.yaml
 !.golangci.yml
 
-# ...even if they are in subdirectories
+# Include subdirectories (but avoid overriding specific ignores)
 !*/
 
-# But still ignore specific patterns
+# Explicitly ignore unwanted files and directories
 *.log
 logs/
-.env.dev
 .DS_Store
+.env.dev
