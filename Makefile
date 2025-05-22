@@ -1,4 +1,4 @@
-.PHONY: build test lint clean
+.PHONY: build test lint clean dev dev-db dev-redis
 
 # Default build target
 VERSION := 0.1.0
@@ -32,3 +32,18 @@ gen-api:
 # Clean build artifacts
 clean:
 	rm -rf ./bin/*
+
+# Start development environment
+dev:
+	@echo "Starting TMI development environment..."
+	@./scripts/start-dev.sh
+
+# Start development database only
+dev-db:
+	@echo "Starting development database..."
+	@./scripts/start-dev-db.sh
+
+# Start development Redis only
+dev-redis:
+	@echo "Starting development Redis..."
+	@./scripts/start-dev-redis.sh

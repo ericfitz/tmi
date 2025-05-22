@@ -22,3 +22,5 @@
 # But still ignore specific patterns
 *.log
 logs/
+.env.dev
+.DS_Store
