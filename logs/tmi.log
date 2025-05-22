@@ -66,3 +66,8 @@
 [INFO] 2025-04-09T17:54:02-04:00 [logger.go:249] Server listening on 127.0.0.1:8080
 [INFO] 2025-04-09T17:54:05-04:00 [logger.go:249] Shutting down server...
 [INFO] 2025-04-09T17:54:05-04:00 [logger.go:249] Server gracefully stopped
+[INFO] 2025-05-21T21:37:35-04:00 [logger.go:249] Starting TMI API server
+[INFO] 2025-05-21T21:37:35-04:00 [logger.go:249] Environment: development
+[INFO] 2025-05-21T21:37:35-04:00 [logger.go:249] Log level: info
+[INFO] 2025-05-21T21:37:35-04:00 [logger.go:249] Adding development-only endpoints
+[INFO] 2025-05-21T21:37:35-04:00 [logger.go:249] Server listening on 127.0.0.1:8080

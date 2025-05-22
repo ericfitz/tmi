@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/logging"
 	_ "github.com/jackc/pgx/v4/stdlib" // pgx driver for database/sql
 )
 
@@ -27,18 +28,24 @@ type PostgresDB struct {
 
 // NewPostgresDB creates a new PostgreSQL database connection
 func NewPostgresDB(cfg PostgresConfig) (*PostgresDB, error) {
+	logger := logging.Get()
+	logger.Debug("Initializing PostgreSQL connection to %s:%s/%s", cfg.Host, cfg.Port, cfg.Database)
+
 	connString := fmt.Sprintf(
 		"postgres://%s:%s@%s:%s/%s?sslmode=%s",
 		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Database, cfg.SSLMode,
 	)
 
 	// Open database connection
+	logger.Debug("Opening PostgreSQL connection")
 	db, err := sql.Open("pgx", connString)
 	if err != nil {
+		logger.Error("Failed to open PostgreSQL connection: %v", err)
 		return nil, fmt.Errorf("failed to open postgres connection: %w", err)
 	}
 
 	// Set connection pool parameters
+	logger.Debug("Setting PostgreSQL connection pool parameters: maxOpen=10, maxIdle=2, maxLifetime=1h, maxIdleTime=30m")
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(2)
 	db.SetConnMaxLifetime(time.Hour)
@@ -48,9 +55,12 @@ func NewPostgresDB(cfg PostgresConfig) (*PostgresDB, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	logger.Debug("Testing PostgreSQL connection with ping")
 	if err := db.PingContext(ctx); err != nil {
+		logger.Error("Failed to ping PostgreSQL: %v", err)
 		return nil, fmt.Errorf("failed to ping postgres: %w", err)
 	}
+	logger.Debug("PostgreSQL connection established successfully")
 
 	return &PostgresDB{
 		db:  db,
@@ -60,10 +70,15 @@ func NewPostgresDB(cfg PostgresConfig) (*PostgresDB, error) {
 
 // Close closes the database connection
 func (db *PostgresDB) Close() error {
+	logger := logging.Get()
+	logger.Debug("Closing PostgreSQL connection to %s:%s/%s", db.cfg.Host, db.cfg.Port, db.cfg.Database)
+
 	if db.db != nil {
 		if err := db.db.Close(); err != nil {
+			logger.Error("Error closing PostgreSQL connection: %v", err)
 			return fmt.Errorf("error closing database connection: %w", err)
 		}
+		logger.Debug("PostgreSQL connection closed successfully")
 	}
 	return nil
 }
@@ -75,5 +90,29 @@ func (db *PostgresDB) GetDB() *sql.DB {
 
 // Ping checks if the database connection is alive
 func (db *PostgresDB) Ping(ctx context.Context) error {
-	return db.db.PingContext(ctx)
+	logger := logging.Get()
+	logger.Debug("Pinging PostgreSQL connection to %s:%s/%s", db.cfg.Host, db.cfg.Port, db.cfg.Database)
+
+	err := db.db.PingContext(ctx)
+	if err != nil {
+		logger.Error("PostgreSQL ping failed: %v", err)
+	} else {
+		logger.Debug("PostgreSQL ping successful")
+	}
+	return err
+}
+
+// LogStats logs statistics about the database connection pool
+func (db *PostgresDB) LogStats() {
+	logger := logging.Get()
+	stats := db.db.Stats()
+	logger.Debug("PostgreSQL connection pool stats: open=%d, inUse=%d, idle=%d, waitCount=%d, waitDuration=%s, maxIdleClosed=%d, maxLifetimeClosed=%d",
+		stats.OpenConnections,
+		stats.InUse,
+		stats.Idle,
+		stats.WaitCount,
+		stats.WaitDuration,
+		stats.MaxIdleClosed,
+		stats.MaxLifetimeClosed,
+	)
 }
