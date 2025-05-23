@@ -1,13 +1,18 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dbschema"
+	"github.com/ericfitz/tmi/internal/logging"
+	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/joho/godotenv"
 )
 
@@ -43,7 +48,11 @@ func main() {
 	if err := dbManager.InitPostgres(pgConfig); err != nil {
 		log.Fatalf("Failed to connect to PostgreSQL: %v", err)
 	}
-	defer dbManager.Close()
+	defer func() {
+		if err := dbManager.Close(); err != nil {
+			log.Printf("Error closing database manager: %v", err)
+		}
+	}()
 
 	// Get migrations path
 	migrationsPath := filepath.Join("auth", "migrations")
@@ -81,6 +90,72 @@ func main() {
 	}
 
 	fmt.Println("\nDatabase schema setup complete!")
+
+	// Validate the schema after migrations
+	validateSchema(pgConfig)
+}
+
+// validateSchema validates the database schema after migrations
+func validateSchema(pgConfig db.PostgresConfig) {
+	// Initialize logger for schema validation
+	if err := logging.Initialize(logging.Config{
+		Level:            logging.ParseLogLevel("info"),
+		IsDev:            true,
+		AlsoLogToConsole: true,
+	}); err != nil {
+		log.Printf("Warning: Failed to initialize logger: %v", err)
+		return
+	}
+	logger := logging.Get()
+	defer func() {
+		if err := logger.Close(); err != nil {
+			log.Printf("Error closing logger: %v", err)
+		}
+	}()
+
+	// Create database connection for validation
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		pgConfig.User, pgConfig.Password, pgConfig.Host, pgConfig.Port, pgConfig.Database, pgConfig.SSLMode)
+
+	db, err := sql.Open("pgx", connStr)
+	if err != nil {
+		logger.Error("Failed to open database connection for validation: %v", err)
+		return
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			logger.Error("Error closing database: %v", err)
+		}
+	}()
+
+	// Validate the schema
+	fmt.Println("\n" + strings.Repeat("=", 60))
+	fmt.Println("Validating database schema...")
+	fmt.Println(strings.Repeat("=", 60))
+
+	results, err := dbschema.ValidateSchema(db)
+	if err != nil {
+		logger.Error("Failed to validate schema: %v", err)
+		return
+	}
+
+	dbschema.LogValidationResults(results)
+
+	// Check if all validations passed
+	allValid := true
+	for _, result := range results {
+		if !result.Valid {
+			allValid = false
+			break
+		}
+	}
+
+	if allValid {
+		fmt.Println("\n✅ Database schema validation PASSED!")
+	} else {
+		fmt.Println("\n❌ Database schema validation FAILED!")
+		fmt.Println("   Please review the errors above.")
+	}
 }
 
 func getEnv(key, defaultValue string) string {

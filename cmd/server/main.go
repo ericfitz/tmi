@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,9 +16,11 @@ import (
 
 	"github.com/ericfitz/tmi/api"  // Your module path
 	"github.com/ericfitz/tmi/auth" // Import auth package
+	"github.com/ericfitz/tmi/internal/dbschema"
 	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
 // Server holds dependencies for the API server
@@ -596,6 +599,14 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 		// Continue anyway for development purposes
 	}
 
+	// Validate database schema after auth initialization
+	logger.Info("Validating database schema...")
+	if err := validateDatabaseSchema(config); err != nil {
+		logger.Error("Database schema validation failed: %v", err)
+		// In production, you might want to exit here
+		// os.Exit(1)
+	}
+
 	// Register API routes except for auth routes which are handled by the auth package
 	// Create a custom router that skips auth routes
 	customRouter := &customGinRouter{
@@ -858,4 +869,54 @@ func main() {
 	if err := auth.Shutdown(nil); err != nil {
 		logger.Error("Error shutting down auth system: %v", err)
 	}
+}
+
+// validateDatabaseSchema validates the database schema matches expectations
+func validateDatabaseSchema(config Config) error {
+	// Get database configuration with defaults
+	host := getEnv("POSTGRES_HOST", "localhost")
+	port := getEnv("POSTGRES_PORT", "5432")
+	user := getEnv("POSTGRES_USER", "postgres")
+	password := getEnv("POSTGRES_PASSWORD", "postgres")
+	dbName := getEnv("POSTGRES_DB", "tmi")
+	sslMode := getEnv("POSTGRES_SSLMODE", "disable")
+
+	// Create database connection string
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		user, password, host, port, dbName, sslMode)
+
+	// Open database connection
+	db, err := sql.Open("pgx", connStr)
+	if err != nil {
+		return fmt.Errorf("failed to open database connection: %w", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			// Log error but don't fail validation
+			fmt.Printf("Error closing database: %v\n", err)
+		}
+	}()
+
+	// Test connection
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	// Validate schema
+	results, err := dbschema.ValidateSchema(db)
+	if err != nil {
+		return fmt.Errorf("failed to validate schema: %w", err)
+	}
+
+	// Log results
+	dbschema.LogValidationResults(results)
+
+	// Check if any validation failed
+	for _, result := range results {
+		if !result.Valid {
+			return fmt.Errorf("schema validation failed for table %s", result.TableName)
+		}
+	}
+
+	return nil
 }

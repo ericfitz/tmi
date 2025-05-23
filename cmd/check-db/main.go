@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
+	"github.com/ericfitz/tmi/internal/dbschema"
+	"github.com/ericfitz/tmi/internal/logging"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/joho/godotenv"
 )
@@ -15,6 +18,21 @@ func main() {
 	if err := godotenv.Load(".env.dev"); err != nil {
 		log.Printf("Warning: Could not load .env.dev: %v", err)
 	}
+
+	// Initialize logger for consistent logging
+	if err := logging.Initialize(logging.Config{
+		Level:            logging.ParseLogLevel("info"),
+		IsDev:            true,
+		AlsoLogToConsole: true,
+	}); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	logger := logging.Get()
+	defer func() {
+		if err := logger.Close(); err != nil {
+			log.Printf("Error closing logger: %v", err)
+		}
+	}()
 
 	// Get database configuration
 	host := getEnv("POSTGRES_HOST", "localhost")
@@ -30,83 +48,78 @@ func main() {
 
 	db, err := sql.Open("pgx", connStr)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Error("Failed to connect to database: %v", err)
+		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			logger.Error("Error closing database: %v", err)
+		}
+	}()
 
 	// Test connection
 	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+		logger.Error("Failed to ping database: %v", err)
+		os.Exit(1)
 	}
 
-	fmt.Printf("✓ Successfully connected to database '%s'\n\n", dbName)
+	logger.Info("Successfully connected to database '%s'", dbName)
 
-	// Check if tables exist
-	tables := []string{
-		"users",
-		"user_providers",
-		"threat_models",
-		"threat_model_access",
-		"threats",
-		"diagrams",
-		"schema_migrations",
+	// Validate schema using shared validation
+	logger.Info("Starting database schema validation...")
+	results, err := dbschema.ValidateSchema(db)
+	if err != nil {
+		logger.Error("Failed to validate schema: %v", err)
+		os.Exit(1)
 	}
 
-	fmt.Println("Checking tables:")
-	allTablesExist := true
+	// Log validation results
+	dbschema.LogValidationResults(results)
+
+	// Check if all validations passed
+	allValid := true
+	errorCount := 0
+	warningCount := 0
+
+	for _, result := range results {
+		if !result.Valid {
+			allValid = false
+			errorCount += len(result.Errors)
+		}
+		warningCount += len(result.Warnings)
+	}
+
+	// Print summary
+	fmt.Println("\n" + strings.Repeat("=", 60))
+	fmt.Println("VALIDATION SUMMARY")
+	fmt.Println(strings.Repeat("=", 60))
+
+	// Get row counts for each table
+	fmt.Println("\nTable Row Counts:")
+	tables := dbschema.GetExpectedSchema()
 	for _, table := range tables {
-		var exists bool
-		query := `SELECT EXISTS (
-			SELECT FROM information_schema.tables 
-			WHERE table_schema = 'public' 
-			AND table_name = $1
-		)`
-		err := db.QueryRow(query, table).Scan(&exists)
-		if err != nil {
-			fmt.Printf("  ✗ Error checking table '%s': %v\n", table, err)
-			allTablesExist = false
-		} else if exists {
-			// Get row count
-			var count int
-			countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", table)
-			db.QueryRow(countQuery).Scan(&count)
-			fmt.Printf("  ✓ Table '%s' exists (rows: %d)\n", table, count)
+		var count int
+		// Use parameterized query to avoid SQL injection
+		countQuery := "SELECT COUNT(*) FROM " + table.Name
+		if err := db.QueryRow(countQuery).Scan(&count); err != nil {
+			fmt.Printf("  %-25s: Error counting rows\n", table.Name)
 		} else {
-			fmt.Printf("  ✗ Table '%s' does not exist\n", table)
-			allTablesExist = false
+			fmt.Printf("  %-25s: %d rows\n", table.Name, count)
 		}
 	}
 
-	fmt.Println("\nChecking indexes:")
-	// Check some key indexes
-	indexes := []string{
-		"idx_users_email",
-		"idx_user_providers_user_id",
-		"idx_threat_models_owner_email",
-		"idx_threat_model_access_threat_model_id",
-	}
+	fmt.Printf("\nValidation Results:\n")
+	fmt.Printf("  Tables Checked: %d\n", len(results))
+	fmt.Printf("  Errors Found:   %d\n", errorCount)
+	fmt.Printf("  Warnings:       %d\n", warningCount)
 
-	for _, index := range indexes {
-		var exists bool
-		query := `SELECT EXISTS (
-			SELECT FROM pg_indexes 
-			WHERE schemaname = 'public' 
-			AND indexname = $1
-		)`
-		err := db.QueryRow(query, index).Scan(&exists)
-		if err != nil {
-			fmt.Printf("  ✗ Error checking index '%s': %v\n", index, err)
-		} else if exists {
-			fmt.Printf("  ✓ Index '%s' exists\n", index)
-		} else {
-			fmt.Printf("  ✗ Index '%s' does not exist\n", index)
-		}
-	}
-
-	if allTablesExist {
-		fmt.Println("\n✅ Database schema is properly set up!")
+	if allValid {
+		fmt.Println("\n✅ Database schema validation PASSED!")
+		fmt.Println("   All tables match the expected schema.")
 	} else {
-		fmt.Println("\n❌ Database schema is incomplete. Please run the setup script.")
+		fmt.Println("\n❌ Database schema validation FAILED!")
+		fmt.Println("   Please review the errors above and run migrations or setup scripts.")
+		os.Exit(1)
 	}
 }
 

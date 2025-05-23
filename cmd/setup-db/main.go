@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
+	"github.com/ericfitz/tmi/internal/dbschema"
+	"github.com/ericfitz/tmi/internal/logging"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/joho/godotenv"
 )
@@ -47,7 +50,9 @@ func main() {
 			log.Printf("Warning: Could not create database (it may already exist): %v", err)
 		}
 	}
-	db.Close()
+	if err := db.Close(); err != nil {
+		log.Printf("Warning: Error closing initial database connection: %v", err)
+	}
 
 	// Now connect to the target database
 	connStr = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
@@ -57,7 +62,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing database: %v", err)
+		}
+	}()
 
 	// Test connection
 	if err := db.Ping(); err != nil {
@@ -253,7 +262,11 @@ func main() {
 		log.Printf("Warning: Could not list tables: %v", err)
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
 
 	fmt.Println("\nExisting tables:")
 	tableCount := 0
@@ -272,6 +285,50 @@ func main() {
 		fmt.Println("\n⚠️  Some operations failed. Please check the logs above.")
 		fmt.Println("This might be due to foreign key constraints.")
 		fmt.Println("You may need to manually adjust the schema or run the script again.")
+	}
+
+	// Initialize logger for schema validation
+	if err := logging.Initialize(logging.Config{
+		Level:            logging.ParseLogLevel("info"),
+		IsDev:            true,
+		AlsoLogToConsole: true,
+	}); err != nil {
+		log.Printf("Warning: Failed to initialize logger: %v", err)
+	} else {
+		logger := logging.Get()
+		defer func() {
+			if err := logger.Close(); err != nil {
+				log.Printf("Error closing logger: %v", err)
+			}
+		}()
+
+		// Validate the schema after setup
+		fmt.Println("\n" + strings.Repeat("=", 60))
+		fmt.Println("Validating database schema...")
+		fmt.Println(strings.Repeat("=", 60))
+
+		results, err := dbschema.ValidateSchema(db)
+		if err != nil {
+			logger.Error("Failed to validate schema: %v", err)
+		} else {
+			dbschema.LogValidationResults(results)
+
+			// Check if all validations passed
+			allValid := true
+			for _, result := range results {
+				if !result.Valid {
+					allValid = false
+					break
+				}
+			}
+
+			if allValid {
+				fmt.Println("\n✅ Database schema validation PASSED!")
+			} else {
+				fmt.Println("\n❌ Database schema validation FAILED!")
+				fmt.Println("   Please review the errors above.")
+			}
+		}
 	}
 }
 
