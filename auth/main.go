@@ -91,11 +91,16 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
+
+	// Defer a rollback function that only executes if the transaction hasn't been committed
+	committed := false
 	defer func() {
-		if err := tx.Rollback(); err != nil {
-			log.Printf("Error rolling back transaction: %v", err)
+		if !committed {
+			if err := tx.Rollback(); err != nil {
+				log.Printf("Error rolling back transaction: %v", err)
+			}
 		}
-	}() // Rollback if not committed
+	}()
 
 	// 1. Get all threat models from PostgreSQL
 	rows, err := tx.QueryContext(ctx, `
@@ -229,6 +234,7 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
+	committed = true // Mark as committed
 
 	return nil
 }

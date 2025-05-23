@@ -90,6 +90,7 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 
 		// Public paths that don't require authentication
 		if c.Request.URL.Path == "/" ||
+			c.Request.URL.Path == "/version" ||
 			c.Request.URL.Path == "/auth/login" ||
 			c.Request.URL.Path == "/auth/callback" ||
 			c.Request.URL.Path == "/site.webmanifest" ||
