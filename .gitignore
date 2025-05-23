@@ -16,6 +16,7 @@
 !oapi-codegen-config.yaml
 !.golangci.yml
 !docs/*
+!make-containers.sh
 
 # Include subdirectories (but avoid overriding specific ignores)
 !*/
