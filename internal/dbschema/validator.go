@@ -446,7 +446,7 @@ func validateTableConstraints(db *sql.DB, expectedTable TableSchema, result *Val
 		case "CHECK":
 			found := false
 			for _, actualCheck := range actualChecks {
-				if strings.Contains(actualCheck.Definition, expectedConstraint.Definition) {
+				if checkConstraintMatches(expectedConstraint.Definition, actualCheck.Definition) {
 					found = true
 					logger.Debug("Found matching check constraint: %s", expectedConstraint.Name)
 					break
@@ -504,6 +504,131 @@ func columnsMatch(cols1, cols2 []string) bool {
 	}
 
 	return true
+}
+
+// checkConstraintMatches checks if an expected constraint definition matches the actual PostgreSQL definition
+// PostgreSQL reformats CHECK constraints with type casts and array syntax, so we need to handle these variations
+func checkConstraintMatches(expected, actual string) bool {
+	// Normalize both strings for comparison
+	expected = strings.ToLower(strings.TrimSpace(expected))
+	actual = strings.ToLower(strings.TrimSpace(actual))
+
+	// Direct match
+	if strings.Contains(actual, expected) {
+		return true
+	}
+
+	// Handle IN clause variations
+	// Expected: "provider IN ('google', 'github', 'microsoft', 'apple', 'facebook', 'twitter')"
+	// Actual: "CHECK (((provider)::text = ANY ((ARRAY['google'::character varying, ...]::text[])))"
+	if strings.Contains(expected, " in (") {
+		// Extract the column name and values from expected
+		parts := strings.SplitN(expected, " in ", 2)
+		if len(parts) == 2 {
+			column := strings.TrimSpace(parts[0])
+			valuesStr := strings.Trim(parts[1], "()")
+
+			// Check if actual contains the column and all the values
+			if strings.Contains(actual, column) {
+				// Remove quotes and split values
+				valuesStr = strings.ReplaceAll(valuesStr, "'", "")
+				values := strings.Split(valuesStr, ",")
+
+				allFound := true
+				for _, val := range values {
+					val = strings.TrimSpace(val)
+					if !strings.Contains(actual, val) {
+						allFound = false
+						break
+					}
+				}
+
+				if allFound {
+					return true
+				}
+			}
+		}
+	}
+
+	// Handle != comparisons
+	// Expected: "provider_user_id != ''"
+	// Actual: "CHECK (((provider_user_id)::text <> ''::text))"
+	if strings.Contains(expected, " != ") {
+		// PostgreSQL converts != to <>
+		expectedWithAngleBrackets := strings.ReplaceAll(expected, " != ", " <> ")
+		if strings.Contains(actual, expectedWithAngleBrackets) {
+			return true
+		}
+
+		// Also check if the column and the comparison value are present
+		parts := strings.Split(expected, " != ")
+		if len(parts) == 2 {
+			column := strings.TrimSpace(parts[0])
+			value := strings.Trim(parts[1], "'")
+			if strings.Contains(actual, column) && strings.Contains(actual, "<>") && strings.Contains(actual, value) {
+				return true
+			}
+		}
+	}
+
+	// Handle > comparisons
+	// Expected: "expires_at > created_at"
+	// Actual might have type casts but should contain both column names and >
+	if strings.Contains(expected, " > ") {
+		parts := strings.Split(expected, " > ")
+		if len(parts) == 2 {
+			col1 := strings.TrimSpace(parts[0])
+			col2 := strings.TrimSpace(parts[1])
+			if strings.Contains(actual, col1) && strings.Contains(actual, col2) && strings.Contains(actual, ">") {
+				return true
+			}
+		}
+	}
+
+	// Handle OR conditions with IS NULL
+	// Expected: "severity IS NULL OR severity IN ('low', 'medium', 'high', 'critical')"
+	if strings.Contains(expected, " is null or ") {
+		// Check if the pattern matches
+		parts := strings.Split(expected, " or ")
+		if len(parts) == 2 {
+			nullPart := strings.TrimSpace(parts[0])
+			inPart := strings.TrimSpace(parts[1])
+
+			// Extract column from null check
+			nullParts := strings.Split(nullPart, " is null")
+			if len(nullParts) > 0 {
+				column := strings.TrimSpace(nullParts[0])
+
+				// Check if actual contains the column, IS NULL, and the values
+				if strings.Contains(actual, column) && strings.Contains(actual, "is null") {
+					// Extract values from IN clause
+					if strings.Contains(inPart, " in (") {
+						inParts := strings.SplitN(inPart, " in ", 2)
+						if len(inParts) == 2 {
+							valuesStr := strings.Trim(inParts[1], "()")
+							valuesStr = strings.ReplaceAll(valuesStr, "'", "")
+							values := strings.Split(valuesStr, ",")
+
+							allFound := true
+							for _, val := range values {
+								val = strings.TrimSpace(val)
+								if !strings.Contains(actual, val) {
+									allFound = false
+									break
+								}
+							}
+
+							if allFound {
+								return true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return false
 }
 
 // LogValidationResults logs the validation results
