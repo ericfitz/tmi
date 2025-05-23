@@ -43,7 +43,7 @@ func GetExpectedSchema() []TableSchema {
 		{
 			Name: "users",
 			Columns: []ColumnSchema{
-				{Name: "id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
+				{Name: "id", DataType: "uuid", IsNullable: false, IsPrimaryKey: true},
 				{Name: "email", DataType: "character varying", IsNullable: false},
 				{Name: "name", DataType: "character varying", IsNullable: false},
 				{Name: "created_at", DataType: "timestamp without time zone", IsNullable: false},
@@ -60,8 +60,8 @@ func GetExpectedSchema() []TableSchema {
 		{
 			Name: "user_providers",
 			Columns: []ColumnSchema{
-				{Name: "id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
-				{Name: "user_id", DataType: "character varying", IsNullable: false},
+				{Name: "id", DataType: "uuid", IsNullable: false, IsPrimaryKey: true},
+				{Name: "user_id", DataType: "uuid", IsNullable: false},
 				{Name: "provider", DataType: "character varying", IsNullable: false},
 				{Name: "provider_user_id", DataType: "character varying", IsNullable: false},
 				{Name: "email", DataType: "character varying", IsNullable: false},
@@ -75,6 +75,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_user_providers_user_id", Columns: []string{"user_id"}, IsUnique: false},
 				{Name: "idx_user_providers_provider_lookup", Columns: []string{"provider", "provider_user_id"}, IsUnique: false},
 				{Name: "idx_user_providers_email", Columns: []string{"email"}, IsUnique: false},
+				{Name: "idx_user_providers_user_id_is_primary", Columns: []string{"user_id", "is_primary"}, IsUnique: false},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -83,12 +84,22 @@ func GetExpectedSchema() []TableSchema {
 					ForeignTable:   "users",
 					ForeignColumns: []string{"id"},
 				},
+				{
+					Name:       "user_providers_provider_check",
+					Type:       "CHECK",
+					Definition: "provider IN ('google', 'github', 'microsoft', 'apple', 'facebook', 'twitter')",
+				},
+				{
+					Name:       "user_providers_provider_user_id_check",
+					Type:       "CHECK",
+					Definition: "provider_user_id != ''",
+				},
 			},
 		},
 		{
 			Name: "threat_models",
 			Columns: []ColumnSchema{
-				{Name: "id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
+				{Name: "id", DataType: "uuid", IsNullable: false, IsPrimaryKey: true},
 				{Name: "owner_email", DataType: "character varying", IsNullable: false},
 				{Name: "name", DataType: "character varying", IsNullable: false},
 				{Name: "description", DataType: "text", IsNullable: true},
@@ -111,8 +122,8 @@ func GetExpectedSchema() []TableSchema {
 		{
 			Name: "threat_model_access",
 			Columns: []ColumnSchema{
-				{Name: "id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
-				{Name: "threat_model_id", DataType: "character varying", IsNullable: false},
+				{Name: "id", DataType: "uuid", IsNullable: false, IsPrimaryKey: true},
+				{Name: "threat_model_id", DataType: "uuid", IsNullable: false},
 				{Name: "user_email", DataType: "character varying", IsNullable: false},
 				{Name: "role", DataType: "character varying", IsNullable: false},
 				{Name: "created_at", DataType: "timestamp without time zone", IsNullable: false},
@@ -148,8 +159,8 @@ func GetExpectedSchema() []TableSchema {
 		{
 			Name: "threats",
 			Columns: []ColumnSchema{
-				{Name: "id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
-				{Name: "threat_model_id", DataType: "character varying", IsNullable: false},
+				{Name: "id", DataType: "uuid", IsNullable: false, IsPrimaryKey: true},
+				{Name: "threat_model_id", DataType: "uuid", IsNullable: false},
 				{Name: "name", DataType: "character varying", IsNullable: false},
 				{Name: "description", DataType: "text", IsNullable: true},
 				{Name: "severity", DataType: "character varying", IsNullable: true},
@@ -164,6 +175,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_threats_threat_model_id", Columns: []string{"threat_model_id"}, IsUnique: false},
 				{Name: "idx_threats_severity", Columns: []string{"severity"}, IsUnique: false},
 				{Name: "idx_threats_risk_level", Columns: []string{"risk_level"}, IsUnique: false},
+				{Name: "idx_threats_threat_model_id_created_at", Columns: []string{"threat_model_id", "created_at"}, IsUnique: false},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -172,13 +184,28 @@ func GetExpectedSchema() []TableSchema {
 					ForeignTable:   "threat_models",
 					ForeignColumns: []string{"id"},
 				},
+				{
+					Name:       "threats_severity_check",
+					Type:       "CHECK",
+					Definition: "severity IS NULL OR severity IN ('low', 'medium', 'high', 'critical')",
+				},
+				{
+					Name:       "threats_likelihood_check",
+					Type:       "CHECK",
+					Definition: "likelihood IS NULL OR likelihood IN ('low', 'medium', 'high')",
+				},
+				{
+					Name:       "threats_risk_level_check",
+					Type:       "CHECK",
+					Definition: "risk_level IS NULL OR risk_level IN ('low', 'medium', 'high', 'critical')",
+				},
 			},
 		},
 		{
 			Name: "diagrams",
 			Columns: []ColumnSchema{
-				{Name: "id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
-				{Name: "threat_model_id", DataType: "character varying", IsNullable: false},
+				{Name: "id", DataType: "uuid", IsNullable: false, IsPrimaryKey: true},
+				{Name: "threat_model_id", DataType: "uuid", IsNullable: false},
 				{Name: "name", DataType: "character varying", IsNullable: false},
 				{Name: "type", DataType: "character varying", IsNullable: true},
 				{Name: "content", DataType: "text", IsNullable: true},
@@ -190,6 +217,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "diagrams_pkey", Columns: []string{"id"}, IsUnique: true},
 				{Name: "idx_diagrams_threat_model_id", Columns: []string{"threat_model_id"}, IsUnique: false},
 				{Name: "idx_diagrams_type", Columns: []string{"type"}, IsUnique: false},
+				{Name: "idx_diagrams_threat_model_id_type", Columns: []string{"threat_model_id", "type"}, IsUnique: false},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -197,6 +225,11 @@ func GetExpectedSchema() []TableSchema {
 					Type:           "FOREIGN KEY",
 					ForeignTable:   "threat_models",
 					ForeignColumns: []string{"id"},
+				},
+				{
+					Name:       "diagrams_type_check",
+					Type:       "CHECK",
+					Definition: "type IS NULL OR type IN ('data_flow', 'architecture', 'sequence', 'component', 'deployment')",
 				},
 			},
 		},
@@ -208,6 +241,35 @@ func GetExpectedSchema() []TableSchema {
 			},
 			Indexes: []IndexSchema{
 				{Name: "schema_migrations_pkey", Columns: []string{"version"}, IsUnique: true},
+			},
+		},
+		{
+			Name: "refresh_tokens",
+			Columns: []ColumnSchema{
+				{Name: "id", DataType: "uuid", IsNullable: false, IsPrimaryKey: true},
+				{Name: "user_id", DataType: "uuid", IsNullable: false},
+				{Name: "token", DataType: "character varying", IsNullable: false},
+				{Name: "expires_at", DataType: "timestamp without time zone", IsNullable: false},
+				{Name: "created_at", DataType: "timestamp without time zone", IsNullable: false},
+			},
+			Indexes: []IndexSchema{
+				{Name: "refresh_tokens_pkey", Columns: []string{"id"}, IsUnique: true},
+				{Name: "refresh_tokens_token_key", Columns: []string{"token"}, IsUnique: true},
+				{Name: "idx_refresh_tokens_user_id", Columns: []string{"user_id"}, IsUnique: false},
+				{Name: "idx_refresh_tokens_token", Columns: []string{"token"}, IsUnique: false},
+			},
+			Constraints: []ConstraintSchema{
+				{
+					Name:           "refresh_tokens_user_id_fkey",
+					Type:           "FOREIGN KEY",
+					ForeignTable:   "users",
+					ForeignColumns: []string{"id"},
+				},
+				{
+					Name:       "refresh_tokens_expires_at_check",
+					Type:       "CHECK",
+					Definition: "expires_at > created_at",
+				},
 			},
 		},
 	}
@@ -235,6 +297,8 @@ func normalizeDataType(dataType string) string {
 		return "bigint"
 	case strings.Contains(dataType, "int4"):
 		return "integer"
+	case dataType == "uuid":
+		return "uuid"
 	default:
 		return dataType
 	}

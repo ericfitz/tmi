@@ -89,10 +89,12 @@ func main() {
 		log.Println("All migrations completed successfully")
 	}
 
-	fmt.Println("\nDatabase schema setup complete!")
+	fmt.Println("\nDatabase migration complete!")
 
-	// Validate the schema after migrations
-	validateSchema(pgConfig)
+	// Only validate schema if we're not rolling back
+	if !*down {
+		validateSchema(pgConfig)
+	}
 }
 
 // validateSchema validates the database schema after migrations
@@ -143,18 +145,25 @@ func validateSchema(pgConfig db.PostgresConfig) {
 
 	// Check if all validations passed
 	allValid := true
+	errorCount := 0
 	for _, result := range results {
 		if !result.Valid {
 			allValid = false
-			break
+			errorCount += len(result.Errors)
 		}
 	}
 
 	if allValid {
 		fmt.Println("\n✅ Database schema validation PASSED!")
+		fmt.Println("   All migrations have been applied successfully.")
 	} else {
 		fmt.Println("\n❌ Database schema validation FAILED!")
+		fmt.Printf("   Found %d schema errors.\n", errorCount)
 		fmt.Println("   Please review the errors above.")
+		fmt.Println("\n   This might indicate:")
+		fmt.Println("   - Missing migrations")
+		fmt.Println("   - Manual database changes that need to be captured in migrations")
+		fmt.Println("   - Outdated schema expectations in internal/dbschema/schema.go")
 	}
 }
 

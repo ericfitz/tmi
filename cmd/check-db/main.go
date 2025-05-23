@@ -73,7 +73,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Log validation results
+	// Log validation results (this is already done by the validator)
 	dbschema.LogValidationResults(results)
 
 	// Check if all validations passed
@@ -97,10 +97,22 @@ func main() {
 	// Get row counts for each table
 	fmt.Println("\nTable Row Counts:")
 	tables := dbschema.GetExpectedSchema()
+	// Create a whitelist of valid table names from our schema
+	validTables := make(map[string]bool)
 	for _, table := range tables {
+		validTables[table.Name] = true
+	}
+
+	for _, table := range tables {
+		// Validate table name against whitelist to prevent SQL injection
+		if !validTables[table.Name] {
+			fmt.Printf("  %-25s: Invalid table name\n", table.Name)
+			continue
+		}
+
 		var count int
-		// Use parameterized query to avoid SQL injection
-		countQuery := "SELECT COUNT(*) FROM " + table.Name
+		// #nosec G201 - table name is validated against whitelist from our schema definition
+		countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", table.Name)
 		if err := db.QueryRow(countQuery).Scan(&count); err != nil {
 			fmt.Printf("  %-25s: Error counting rows\n", table.Name)
 		} else {

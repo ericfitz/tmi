@@ -75,169 +75,22 @@ func main() {
 
 	log.Printf("Connected to database %s successfully", dbName)
 
-	// Execute SQL statements in order
-	statements := []struct {
-		name string
-		sql  string
-	}{
-		{
-			name: "Create users table",
-			sql: `CREATE TABLE IF NOT EXISTS users (
-				id VARCHAR(36) PRIMARY KEY,
-				email VARCHAR(255) UNIQUE NOT NULL,
-				name VARCHAR(255) NOT NULL,
-				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				last_login TIMESTAMP
-			)`,
-		},
-		{
-			name: "Create users email index",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
-		},
-		{
-			name: "Create users last_login index",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_users_last_login ON users(last_login)`,
-		},
-		{
-			name: "Create user_providers table",
-			sql: `CREATE TABLE IF NOT EXISTS user_providers (
-				id VARCHAR(36) PRIMARY KEY,
-				user_id VARCHAR(36) NOT NULL,
-				provider VARCHAR(50) NOT NULL,
-				provider_user_id VARCHAR(255) NOT NULL,
-				email VARCHAR(255) NOT NULL,
-				is_primary BOOLEAN DEFAULT FALSE,
-				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				last_login TIMESTAMP,
-				FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-				UNIQUE(user_id, provider)
-			)`,
-		},
-		{
-			name: "Create user_providers indexes",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_user_providers_user_id ON user_providers(user_id)`,
-		},
-		{
-			name: "Create user_providers provider lookup index",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_user_providers_provider_lookup ON user_providers(provider, provider_user_id)`,
-		},
-		{
-			name: "Create user_providers email index",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_user_providers_email ON user_providers(email)`,
-		},
-		{
-			name: "Create threat_models table",
-			sql: `CREATE TABLE IF NOT EXISTS threat_models (
-				id VARCHAR(36) PRIMARY KEY,
-				owner_email VARCHAR(255) NOT NULL,
-				name VARCHAR(255) NOT NULL,
-				description TEXT,
-				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-			)`,
-		},
-		{
-			name: "Create threat_models owner_email index",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_threat_models_owner_email ON threat_models(owner_email)`,
-		},
-		{
-			name: "Create threat_model_access table",
-			sql: `CREATE TABLE IF NOT EXISTS threat_model_access (
-				id VARCHAR(36) PRIMARY KEY,
-				threat_model_id VARCHAR(36) NOT NULL,
-				user_email VARCHAR(255) NOT NULL,
-				role VARCHAR(50) NOT NULL CHECK (role IN ('owner', 'writer', 'reader')),
-				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				FOREIGN KEY (threat_model_id) REFERENCES threat_models(id) ON DELETE CASCADE,
-				UNIQUE(threat_model_id, user_email)
-			)`,
-		},
-		{
-			name: "Create threat_model_access indexes",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_threat_model_access_threat_model_id ON threat_model_access(threat_model_id)`,
-		},
-		{
-			name: "Create threat_model_access user_email index",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_threat_model_access_user_email ON threat_model_access(user_email)`,
-		},
-		{
-			name: "Create threat_model_access role index",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_threat_model_access_role ON threat_model_access(role)`,
-		},
-		{
-			name: "Create threats table",
-			sql: `CREATE TABLE IF NOT EXISTS threats (
-				id VARCHAR(36) PRIMARY KEY,
-				threat_model_id VARCHAR(36) NOT NULL,
-				name VARCHAR(255) NOT NULL,
-				description TEXT,
-				severity VARCHAR(50),
-				likelihood VARCHAR(50),
-				risk_level VARCHAR(50),
-				mitigation TEXT,
-				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				FOREIGN KEY (threat_model_id) REFERENCES threat_models(id) ON DELETE CASCADE
-			)`,
-		},
-		{
-			name: "Create threats indexes",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_threats_threat_model_id ON threats(threat_model_id)`,
-		},
-		{
-			name: "Create threats severity index",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_threats_severity ON threats(severity)`,
-		},
-		{
-			name: "Create threats risk_level index",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_threats_risk_level ON threats(risk_level)`,
-		},
-		{
-			name: "Create diagrams table",
-			sql: `CREATE TABLE IF NOT EXISTS diagrams (
-				id VARCHAR(36) PRIMARY KEY,
-				threat_model_id VARCHAR(36) NOT NULL,
-				name VARCHAR(255) NOT NULL,
-				type VARCHAR(50),
-				content TEXT,
-				metadata JSONB,
-				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				FOREIGN KEY (threat_model_id) REFERENCES threat_models(id) ON DELETE CASCADE
-			)`,
-		},
-		{
-			name: "Create diagrams indexes",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_diagrams_threat_model_id ON diagrams(threat_model_id)`,
-		},
-		{
-			name: "Create diagrams type index",
-			sql:  `CREATE INDEX IF NOT EXISTS idx_diagrams_type ON diagrams(type)`,
-		},
-		{
-			name: "Create schema_migrations table",
-			sql: `CREATE TABLE IF NOT EXISTS schema_migrations (
-				version BIGINT NOT NULL PRIMARY KEY,
-				dirty BOOLEAN NOT NULL DEFAULT FALSE
-			)`,
-		},
-		{
-			name: "Insert migration version",
-			sql:  `INSERT INTO schema_migrations (version, dirty) VALUES (6, false) ON CONFLICT (version) DO NOTHING`,
-		},
-	}
+	// Get SQL statements from the schema
+	statements := dbschema.GenerateCreateTableSQL()
 
 	// Execute each statement
 	successCount := 0
 	failureCount := 0
 
-	for _, stmt := range statements {
-		log.Printf("Executing: %s", stmt.name)
-		_, err := db.Exec(stmt.sql)
+	for i, stmt := range statements {
+		// Extract a name for logging
+		name := extractStatementName(stmt)
+		log.Printf("Executing: %s", name)
+
+		_, err := db.Exec(stmt)
 		if err != nil {
 			log.Printf("  ❌ Failed: %v", err)
+			log.Printf("  Statement %d: %s", i, stmt)
 			failureCount++
 			// Don't stop on errors, continue with other statements
 		} else {
@@ -337,4 +190,40 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// extractStatementName extracts a descriptive name from a SQL statement
+func extractStatementName(stmt string) string {
+	stmt = strings.TrimSpace(stmt)
+	upper := strings.ToUpper(stmt)
+
+	if strings.HasPrefix(upper, "CREATE EXTENSION") {
+		return "Enable UUID extension"
+	} else if strings.HasPrefix(upper, "CREATE TABLE") {
+		// Extract table name
+		parts := strings.Fields(stmt)
+		for i, part := range parts {
+			if strings.ToUpper(part) == "TABLE" && i+2 < len(parts) {
+				tableName := strings.Trim(parts[i+2], "(")
+				return fmt.Sprintf("Create %s table", tableName)
+			}
+		}
+	} else if strings.HasPrefix(upper, "CREATE INDEX") || strings.HasPrefix(upper, "CREATE UNIQUE INDEX") {
+		// Extract index name
+		parts := strings.Fields(stmt)
+		for i, part := range parts {
+			if strings.ToUpper(part) == "INDEX" && i+2 < len(parts) {
+				indexName := parts[i+2]
+				return fmt.Sprintf("Create index %s", indexName)
+			}
+		}
+	} else if strings.HasPrefix(upper, "INSERT INTO SCHEMA_MIGRATIONS") {
+		return "Insert migration version"
+	}
+
+	// Default: return first few words
+	if len(stmt) > 50 {
+		return stmt[:50] + "..."
+	}
+	return stmt
 }
