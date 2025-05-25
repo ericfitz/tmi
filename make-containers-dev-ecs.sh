@@ -3,12 +3,15 @@
 # --- Configuration ---
 PG_CONTAINER_NAME="tmi-postgresql"
 REDIS_CONTAINER_NAME="tmi-redis"
+APP_CONTAINER_NAME="tmi-app-dev"
 PG_IMAGE="bitnami/postgresql:latest"
 REDIS_IMAGE="bitnami/redis:latest"
 PG_HOST_PORT="5432"
 PG_CONTAINER_PORT="5432"
 REDIS_HOST_PORT="6379"
 REDIS_CONTAINER_PORT="6379"
+APP_HOST_PORT="8080"
+APP_CONTAINER_PORT="8080"
 PG_USER="postgres"
 PG_PASSWORD="postgres"
 
@@ -17,6 +20,7 @@ ECR_REGISTRY="706702818127.dkr.ecr.us-east-1.amazonaws.com"
 ECR_REGION="us-east-1"
 ECR_PG_REPOSITORY="efitz/tmi-postgresql-dev"
 ECR_REDIS_REPOSITORY="efitz/tmi-redis-dev"
+ECR_APP_REPOSITORY="efitz/tmi-app-dev"
 
 # --- Script Setup ---
 set -e           # Exit immediately if a command exits with a non-zero status.
@@ -88,6 +92,15 @@ else
     echo "${REDIS_CONTAINER_NAME} not found or not running."
 fi
 
+if docker ps -a --format "{{.Names}}" | grep -Eq "^${APP_CONTAINER_NAME}$"; then
+    echo "Stopping existing ${APP_CONTAINER_NAME}..."
+    docker stop "${APP_CONTAINER_NAME}" > /dev/null
+    echo "Removing existing ${APP_CONTAINER_NAME}..."
+    docker rm "${APP_CONTAINER_NAME}" > /dev/null
+else
+    echo "${APP_CONTAINER_NAME} not found or not running."
+fi
+
 echo "Previous containers cleaned up (if they existed)."
 
 # --- Pull and Push PostgreSQL Image to ECR ---
@@ -142,6 +155,34 @@ if [ $? -ne 0 ]; then
 fi
 echo "Successfully pushed Redis image to ECR: ${ECR_REDIS_URI}"
 
+# --- Build and Push TMI Application Image to ECR ---
+echo ""
+echo "--- Processing TMI Application Image ---"
+echo "Building TMI application image: ${APP_CONTAINER_NAME}"
+
+# Build the application image using the development Dockerfile
+docker build -f Dockerfile.dev -t "${APP_CONTAINER_NAME}" .
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to build ${APP_CONTAINER_NAME} image."
+    exit 1
+fi
+
+# Tag for ECR
+ECR_APP_URI="${ECR_REGISTRY}/${ECR_APP_REPOSITORY}:latest"
+echo "Tagging for ECR: ${ECR_APP_URI}"
+docker tag "${APP_CONTAINER_NAME}" "${ECR_APP_URI}"
+
+# Push to ECR
+echo "Pushing TMI application image to ECR..."
+docker push "${ECR_APP_URI}"
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to push TMI application image to ECR."
+    exit 1
+fi
+echo "Successfully pushed TMI application image to ECR: ${ECR_APP_URI}"
+
 # --- Create tmi-postgresql Container ---
 echo ""
 echo "--- Creating tmi-postgresql container ---"
@@ -183,6 +224,35 @@ if [ $? -ne 0 ]; then
 fi
 echo "${REDIS_CONTAINER_NAME} container created successfully."
 
+# --- Create tmi-app-dev Container ---
+echo ""
+echo "--- Creating tmi-app-dev container ---"
+echo "Image: ${APP_CONTAINER_NAME}"
+echo "Port: 0.0.0.0:${APP_HOST_PORT}:${APP_CONTAINER_PORT}"
+echo "Environment: development"
+
+docker run -d \
+  --name "${APP_CONTAINER_NAME}" \
+  -p "0.0.0.0:${APP_HOST_PORT}:${APP_CONTAINER_PORT}" \
+  -e "ENV=development" \
+  -e "LOG_LEVEL=debug" \
+  -e "POSTGRES_HOST=host.docker.internal" \
+  -e "POSTGRES_PORT=${PG_HOST_PORT}" \
+  -e "POSTGRES_USER=${PG_USER}" \
+  -e "POSTGRES_PASSWORD=${PG_PASSWORD}" \
+  -e "POSTGRES_DB=tmi" \
+  -e "REDIS_HOST=host.docker.internal" \
+  -e "REDIS_PORT=${REDIS_HOST_PORT}" \
+  -e "JWT_SECRET=dev-secret-key" \
+  --restart=unless-stopped \
+  "${APP_CONTAINER_NAME}"
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to create ${APP_CONTAINER_NAME} container."
+    exit 1
+fi
+echo "${APP_CONTAINER_NAME} container created successfully."
+
 # --- Verification ---
 echo ""
 echo "--- Verification ---"
@@ -190,7 +260,7 @@ echo "Waiting a few seconds for containers to initialize..."
 sleep 5 # Give containers a moment to start up
 
 echo "Checking running Docker containers:"
-docker ps -f name="${PG_CONTAINER_NAME}" -f name="${REDIS_CONTAINER_NAME}"
+docker ps -f name="${PG_CONTAINER_NAME}" -f name="${REDIS_CONTAINER_NAME}" -f name="${APP_CONTAINER_NAME}"
 
 echo ""
 echo "Checking ECR repositories for pushed images..."
@@ -210,23 +280,35 @@ aws ecr describe-images \
     --output table 2>/dev/null || echo "No images found in Redis repository"
 
 echo ""
+echo "TMI Application images:"
+aws ecr describe-images \
+    --repository-name "${ECR_APP_REPOSITORY}" \
+    --region "${ECR_REGION}" \
+    --query 'imageDetails[*].[imageTags[0],imagePushedAt,imageSizeInBytes]' \
+    --output table 2>/dev/null || echo "No images found in TMI Application repository"
+
+echo ""
 echo "--- Setup Complete! ---"
 echo "Local containers are running:"
 echo "  PostgreSQL: localhost:${PG_HOST_PORT} (User: ${PG_USER}, Password: ${PG_PASSWORD})"
 echo "  Redis: localhost:${REDIS_HOST_PORT} (No password required)"
+echo "  TMI Application: localhost:${APP_HOST_PORT} (Development mode)"
 echo ""
 echo "Images pushed to ECR:"
 echo "  PostgreSQL: ${ECR_PG_URI}"
 echo "  Redis: ${ECR_REDIS_URI}"
+echo "  TMI Application: ${ECR_APP_URI}"
 echo ""
 echo "To stop these containers:"
-echo "  docker stop ${PG_CONTAINER_NAME} ${REDIS_CONTAINER_NAME}"
+echo "  docker stop ${PG_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} ${APP_CONTAINER_NAME}"
 echo "To remove these containers:"
-echo "  docker rm ${PG_CONTAINER_NAME} ${REDIS_CONTAINER_NAME}"
+echo "  docker rm ${PG_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} ${APP_CONTAINER_NAME}"
 echo "To view logs:"
 echo "  docker logs ${PG_CONTAINER_NAME}"
 echo "  docker logs ${REDIS_CONTAINER_NAME}"
+echo "  docker logs ${APP_CONTAINER_NAME}"
 echo ""
 echo "For ECS deployment, use the ECR URIs:"
 echo "  PostgreSQL: ${ECR_PG_URI}"
 echo "  Redis: ${ECR_REDIS_URI}"
+echo "  TMI Application: ${ECR_APP_URI}"

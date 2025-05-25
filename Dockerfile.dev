@@ -1,0 +1,36 @@
+# TMI application (development configuration) using Bitnami Golang
+FROM bitnami/golang:latest
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the application with development flags
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X github.com/ericfitz/tmi/api.VersionMajor=0 -X github.com/ericfitz/tmi/api.VersionMinor=1 -X github.com/ericfitz/tmi/api.VersionPatch=0 -X github.com/ericfitz/tmi/api.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'development') -X github.com/ericfitz/tmi/api.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    -o server \
+    ./cmd/server
+
+# Expose port 8080
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/ || exit 1
+
+# Set environment variables for development
+ENV ENV=development
+ENV LOG_LEVEL=debug
+ENV SERVER_PORT=8080
+ENV SERVER_INTERFACE=0.0.0.0
+
+# Run the application
+CMD ["./server"]

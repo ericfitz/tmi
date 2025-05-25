@@ -17,6 +17,8 @@
 !.golangci.yml
 !docs/*
 !make-containers-dev*.sh
+!Dockerfile*
+!.dockerignore
 
 # Include subdirectories (but avoid overriding specific ignores)
 !*/
