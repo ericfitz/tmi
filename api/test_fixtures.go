@@ -114,50 +114,29 @@ func InitTestFixtures() {
 		// Diagrams: &diagrams, // TODO: Fix after schema changes
 	}
 
-	// Create a test diagram with cells (graphData)
-	// TODO: Fix cells structure after schema changes
-	cells := []DfdDiagram_Cells_Item{ /*
-		{
-			Id:     "node1",
-			Value:  stringPointer("Web Server"),
-			Vertex: true,
-			Edge:   false,
-			Geometry: &struct {
-				Height   float32     `json:"height"`
-				Metadata *[]Metadata `json:"metadata,omitempty"`
-				Width    float32     `json:"width"`
-				X        float32     `json:"x"`
-				Y        float32     `json:"y"`
-			}{
-				Height:   40,
-				Metadata: &[]Metadata{},
-				Width:    80,
-				X:        100,
-				Y:        200,
-			},
-			Style: stringPointer("rounded=1;fillColor=#ffffff;"),
-		},
-		{
-			Id:     "node2",
-			Value:  stringPointer("Database"),
-			Vertex: true,
-			Edge:   false,
-			Geometry: &struct {
-				Height   float32     `json:"height"`
-				Metadata *[]Metadata `json:"metadata,omitempty"`
-				Width    float32     `json:"width"`
-				X        float32     `json:"x"`
-				Y        float32     `json:"y"`
-			}{
-				Height:   40,
-				Metadata: &[]Metadata{},
-				Width:    80,
-				X:        300,
-				Y:        200,
-			},
-			Style: stringPointer("rounded=1;fillColor=#ffffff;"),
-		},
-	*/ }
+	// Create a test diagram with cells using new union types
+	cells := []DfdDiagram_Cells_Item{}
+	
+	// Create test nodes using helper functions
+	if node1, err := CreateNode(NewUUID().String(), Process, 100, 200, 80, 40); err == nil {
+		cells = append(cells, node1)
+	}
+	
+	if node2, err := CreateNode(NewUUID().String(), Store, 300, 200, 80, 40); err == nil {
+		cells = append(cells, node2)
+	}
+	
+	// Create a test edge connecting the nodes
+	if len(cells) >= 2 {
+		// Extract IDs from the nodes to create an edge
+		if node1Data, err := cells[0].AsNode(); err == nil {
+			if node2Data, err := cells[1].AsNode(); err == nil {
+				if edge, err := CreateEdge(NewUUID().String(), EdgeShapeEdge, node1Data.Id.String(), node2Data.Id.String()); err == nil {
+					cells = append(cells, edge)
+				}
+			}
+		}
+	}
 
 	// Create diagram with new UUID
 	uuid2 := NewUUID()
