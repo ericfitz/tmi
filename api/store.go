@@ -8,21 +8,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// Store provides a generic thread-safe in-memory store
-type Store[T any] struct {
+// DataStore provides a generic thread-safe in-memory store
+type DataStore[T any] struct {
 	data  map[string]T
 	mutex sync.RWMutex
 }
 
-// NewStore creates a new store for a specific type
-func NewStore[T any]() *Store[T] {
-	return &Store[T]{
+// NewDataStore creates a new store for a specific type
+func NewDataStore[T any]() *DataStore[T] {
+	return &DataStore[T]{
 		data: make(map[string]T),
 	}
 }
 
 // Get retrieves an item by ID
-func (s *Store[T]) Get(id string) (T, error) {
+func (s *DataStore[T]) Get(id string) (T, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -36,7 +36,7 @@ func (s *Store[T]) Get(id string) (T, error) {
 }
 
 // List returns all items, optionally filtered and paginated
-func (s *Store[T]) List(offset, limit int, filter func(T) bool) []T {
+func (s *DataStore[T]) List(offset, limit int, filter func(T) bool) []T {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -63,7 +63,7 @@ func (s *Store[T]) List(offset, limit int, filter func(T) bool) []T {
 }
 
 // Create adds a new item with a generated UUID
-func (s *Store[T]) Create(item T, idSetter func(T, string) T) (T, error) {
+func (s *DataStore[T]) Create(item T, idSetter func(T, string) T) (T, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -79,7 +79,7 @@ func (s *Store[T]) Create(item T, idSetter func(T, string) T) (T, error) {
 }
 
 // Update replaces an existing item
-func (s *Store[T]) Update(id string, item T) error {
+func (s *DataStore[T]) Update(id string, item T) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -92,7 +92,7 @@ func (s *Store[T]) Update(id string, item T) error {
 }
 
 // Delete removes an item by ID
-func (s *Store[T]) Delete(id string) error {
+func (s *DataStore[T]) Delete(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -105,7 +105,7 @@ func (s *Store[T]) Delete(id string) error {
 }
 
 // Count returns the total number of items
-func (s *Store[T]) Count() int {
+func (s *DataStore[T]) Count() int {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	return len(s.data)
@@ -128,7 +128,7 @@ func UpdateTimestamps[T WithTimestamps](entity T, isNew bool) T {
 }
 
 // DiagramStore stores diagrams
-var DiagramStore = NewStore[Diagram]()
+var DiagramStore = NewDataStore[DfdDiagram]()
 
 // ThreatModelStore stores threat models
-var ThreatModelStore = NewStore[ThreatModel]()
+var ThreatModelStore = NewDataStore[ThreatModel]()

@@ -178,7 +178,7 @@ func TestRejectDuplicateSubjects(t *testing.T) {
 		if err != nil {
 			c.JSON(http.StatusNotFound, Error{
 				Error:   "not_found",
-				Message: "Threat model not found",
+				ErrorDescription: "Threat model not found",
 			})
 			return
 		}
@@ -188,7 +188,7 @@ func TestRejectDuplicateSubjects(t *testing.T) {
 		if err := c.ShouldBindJSON(&request); err != nil {
 			c.JSON(http.StatusBadRequest, Error{
 				Error:   "invalid_input",
-				Message: err.Error(),
+				ErrorDescription: err.Error(),
 			})
 			return
 		}
@@ -199,7 +199,7 @@ func TestRejectDuplicateSubjects(t *testing.T) {
 			if _, exists := subjectMap[auth.Subject]; exists {
 				c.JSON(http.StatusBadRequest, Error{
 					Error:   "invalid_input",
-					Message: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
+					ErrorDescription: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
 				})
 				return
 			}

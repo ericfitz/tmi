@@ -36,7 +36,7 @@ func (h *DiagramHandler) GetDiagrams(c *gin.Context) {
 	}
 
 	// Filter by user access
-	filter := func(d Diagram) bool {
+	filter := func(d DfdDiagram) bool {
 		// If no user is authenticated, only show public diagrams (if any)
 		if userName == "" {
 			return false
@@ -84,7 +84,7 @@ func (h *DiagramHandler) GetDiagramByID(c *gin.Context) {
 	if _, err := ParseUUID(id); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_id",
-			Message: "Invalid diagram ID format, must be a valid UUID",
+			ErrorDescription: "Invalid diagram ID format, must be a valid UUID",
 		})
 		return
 	}
@@ -94,7 +94,7 @@ func (h *DiagramHandler) GetDiagramByID(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found",
+			ErrorDescription: "Diagram not found",
 		})
 		return
 	}
@@ -114,7 +114,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] Error reading request body: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Failed to read request body: " + err.Error(),
+			ErrorDescription: "Failed to read request body: " + err.Error(),
 		})
 		return
 	}
@@ -128,7 +128,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] Empty request body received\n")
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Request body is empty",
+			ErrorDescription: "Request body is empty",
 		})
 		return
 	}
@@ -143,7 +143,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] JSON binding error: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: err.Error(),
+			ErrorDescription: err.Error(),
 		})
 		return
 	}
@@ -152,7 +152,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 	if len(request.Name) == 0 || len(request.Name) > 255 {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Name must be between 1 and 255 characters",
+			ErrorDescription: "Name must be between 1 and 255 characters",
 		})
 		return
 	}
@@ -161,7 +161,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 	if request.Description != nil && len(*request.Description) > 5000 {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Description must be at most 5000 characters",
+			ErrorDescription: "Description must be at most 5000 characters",
 		})
 		return
 	}
@@ -174,7 +174,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 	if !ok {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:   "unauthorized",
-			Message: "Authentication required",
+			ErrorDescription: "Authentication required",
 		})
 		return
 	}
@@ -187,7 +187,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 			if auth.Subject == "" {
 				c.JSON(http.StatusBadRequest, Error{
 					Error:   "invalid_input",
-					Message: fmt.Sprintf("Authorization subject at index %d cannot be empty", i),
+					ErrorDescription: fmt.Sprintf("Authorization subject at index %d cannot be empty", i),
 				})
 				return
 			}
@@ -195,7 +195,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 			if len(auth.Subject) > 255 {
 				c.JSON(http.StatusBadRequest, Error{
 					Error:   "invalid_input",
-					Message: fmt.Sprintf("Authorization subject '%s' exceeds maximum length of 255 characters", auth.Subject),
+					ErrorDescription: fmt.Sprintf("Authorization subject '%s' exceeds maximum length of 255 characters", auth.Subject),
 				})
 				return
 			}
@@ -204,7 +204,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 			if auth.Role != RoleReader && auth.Role != RoleWriter && auth.Role != RoleOwner {
 				c.JSON(http.StatusBadRequest, Error{
 					Error: "invalid_input",
-					Message: fmt.Sprintf("Invalid role '%s' for subject '%s'. Must be one of: reader, writer, owner",
+					ErrorDescription: fmt.Sprintf("Invalid role '%s' for subject '%s'. Must be one of: reader, writer, owner",
 						auth.Role, auth.Subject),
 				})
 				return
@@ -214,7 +214,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 			if _, exists := authMap[auth.Subject]; exists {
 				c.JSON(http.StatusBadRequest, Error{
 					Error:   "invalid_input",
-					Message: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
+					ErrorDescription: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
 				})
 				return
 			}
@@ -236,7 +236,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 			if auth.Subject == userName {
 				c.JSON(http.StatusBadRequest, Error{
 					Error:   "invalid_input",
-					Message: fmt.Sprintf("Duplicate authorization subject with owner: %s", auth.Subject),
+					ErrorDescription: fmt.Sprintf("Duplicate authorization subject with owner: %s", auth.Subject),
 				})
 				return
 			}
@@ -246,16 +246,17 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 
 	// Create new diagram
 	now := time.Now().UTC()
-	cells := []Cell{}
+	cells := []DfdDiagram_Cells_Item{}
 	metadata := []Metadata{}
 
-	d := Diagram{
+	d := DfdDiagram{
 		Name:        request.Name,
 		Description: request.Description,
 		CreatedAt:   now,
 		ModifiedAt:  now,
-		GraphData:   &cells,
+		Cells:       cells,
 		Metadata:    &metadata,
+		Type:        DfdDiagramTypeDFD100,
 	}
 
 	// In the updated API spec, Owner and Authorization are not part of the Diagram struct
@@ -283,9 +284,9 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 	}
 
 	// Add to store
-	idSetter := func(d Diagram, id string) Diagram {
+	idSetter := func(d DfdDiagram, id string) DfdDiagram {
 		uuid, _ := ParseUUID(id)
-		d.Id = uuid
+		d.Id = &uuid
 		return d
 	}
 
@@ -293,13 +294,15 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to create diagram",
+			ErrorDescription: "Failed to create diagram",
 		})
 		return
 	}
 
 	// Set the Location header
-	c.Header("Location", "/diagrams/"+createdDiagram.Id.String())
+	if createdDiagram.Id != nil {
+		c.Header("Location", "/diagrams/"+createdDiagram.Id.String())
+	}
 	c.JSON(http.StatusCreated, createdDiagram)
 }
 
@@ -315,7 +318,7 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] Error reading request body: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Failed to read request body: " + err.Error(),
+			ErrorDescription: "Failed to read request body: " + err.Error(),
 		})
 		return
 	}
@@ -329,17 +332,17 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] Empty request body received\n")
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Request body is empty",
+			ErrorDescription: "Request body is empty",
 		})
 		return
 	}
 
-	var request Diagram
+	var request DfdDiagram
 	if err := c.ShouldBindJSON(&request); err != nil {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] JSON binding error: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: err.Error(),
+			ErrorDescription: err.Error(),
 		})
 		return
 	}
@@ -350,7 +353,7 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 	if _, exists := c.Get("userName"); !exists {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:   "unauthorized",
-			Message: "Authentication required",
+			ErrorDescription: "Authentication required",
 		})
 		return
 	}
@@ -364,17 +367,20 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusNotFound, Error{
 				Error:   "not_found",
-				Message: "Diagram not found",
+				ErrorDescription: "Diagram not found",
 			})
 			return
 		}
 	}
 
-	d, ok := existingDiagram.(Diagram)
-	if !ok {
+	// Type assert existingDiagram to DfdDiagram
+	var d DfdDiagram
+	if existingDiagramTyped, ok := existingDiagram.(DfdDiagram); ok {
+		d = existingDiagramTyped
+	} else {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to process diagram",
+			ErrorDescription: "Invalid diagram type",
 		})
 		return
 	}
@@ -384,11 +390,11 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_id",
-			Message: "Invalid ID format",
+			ErrorDescription: "Invalid ID format",
 		})
 		return
 	}
-	request.Id = uuid
+	request.Id = &uuid
 
 	// Preserve creation time but update modification time
 	request.CreatedAt = d.CreatedAt
@@ -401,7 +407,7 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 	if err := json.Unmarshal(diagramBytes, &responseMap); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to process diagram data",
+			ErrorDescription: "Failed to process diagram data",
 		})
 		return
 	}
@@ -425,7 +431,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] Error reading PATCH request body: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Failed to read request body: " + err.Error(),
+			ErrorDescription: "Failed to read request body: " + err.Error(),
 		})
 		return
 	}
@@ -439,7 +445,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] Empty PATCH request body received\n")
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Request body is empty",
+			ErrorDescription: "Request body is empty",
 		})
 		return
 	}
@@ -449,7 +455,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] PATCH JSON binding error: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Invalid JSON Patch format: " + err.Error(),
+			ErrorDescription: "Invalid JSON Patch format: " + err.Error(),
 		})
 		return
 	}
@@ -462,7 +468,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 	if !ok {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:   "unauthorized",
-			Message: "Authentication required",
+			ErrorDescription: "Authentication required",
 		})
 		return
 	}
@@ -476,17 +482,17 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusNotFound, Error{
 				Error:   "not_found",
-				Message: "Diagram not found",
+				ErrorDescription: "Diagram not found",
 			})
 			return
 		}
 	}
 
-	existingDiagram, ok := existingDiagramValue.(Diagram)
+	existingDiagram, ok := existingDiagramValue.(DfdDiagram)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to process diagram",
+			ErrorDescription: "Failed to process diagram",
 		})
 		return
 	}
@@ -500,7 +506,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_format",
-			Message: "Failed to convert patch operations: " + err.Error(),
+			ErrorDescription: "Failed to convert patch operations: " + err.Error(),
 		})
 		return
 	}
@@ -510,7 +516,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to serialize diagram",
+			ErrorDescription: "Failed to serialize diagram",
 		})
 		return
 	}
@@ -520,7 +526,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 	if err := json.Unmarshal(originalBytes, &originalMap); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to process diagram data",
+			ErrorDescription: "Failed to process diagram data",
 		})
 		return
 	}
@@ -534,7 +540,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to serialize diagram with auth data",
+			ErrorDescription: "Failed to serialize diagram with auth data",
 		})
 		return
 	}
@@ -544,7 +550,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_patch",
-			Message: "Invalid JSON Patch: " + err.Error(),
+			ErrorDescription: "Invalid JSON Patch: " + err.Error(),
 		})
 		return
 	}
@@ -557,18 +563,18 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] Patch apply error: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "patch_failed",
-			Message: "Failed to apply patch: " + err.Error(),
+			ErrorDescription: "Failed to apply patch: " + err.Error(),
 		})
 		return
 	}
 	fmt.Printf("[DEBUG DIAGRAM HANDLER] Modified JSON after patch: %s\n", string(modifiedBytes))
 
 	// Deserialize back into diagram
-	var modifiedDiagram Diagram
+	var modifiedDiagram DfdDiagram
 	if err := json.Unmarshal(modifiedBytes, &modifiedDiagram); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to deserialize patched diagram",
+			ErrorDescription: "Failed to deserialize patched diagram",
 		})
 		return
 	}
@@ -615,7 +621,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 	if (ownerChanging || authChanging) && (!exists || !ok || userRole != RoleOwner) {
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
-			Message: "Only the owner can change ownership or authorization",
+			ErrorDescription: "Only the owner can change ownership or authorization",
 		})
 		return
 	}
@@ -630,7 +636,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 						if _, exists := subjectMap[subject]; exists {
 							c.JSON(http.StatusBadRequest, Error{
 								Error:   "invalid_input",
-								Message: fmt.Sprintf("Duplicate authorization subject: %s", subject),
+								ErrorDescription: fmt.Sprintf("Duplicate authorization subject: %s", subject),
 							})
 							return
 						}
@@ -698,7 +704,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 	if err := validatePatchedDiagram(existingDiagram, modifiedDiagram, userName); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "validation_failed",
-			Message: err.Error(),
+			ErrorDescription: err.Error(),
 		})
 		return
 	}
@@ -714,7 +720,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 	if err := DiagramStore.Update(id, modifiedDiagram); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to update diagram",
+			ErrorDescription: "Failed to update diagram",
 		})
 		return
 	}
@@ -727,7 +733,7 @@ func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
 	if err := json.Unmarshal(diagramBytes, &responseMap); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to process diagram data",
+			ErrorDescription: "Failed to process diagram data",
 		})
 		return
 	}
@@ -752,7 +758,7 @@ func (h *DiagramHandler) DeleteDiagram(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusNotFound, Error{
 				Error:   "not_found",
-				Message: "Diagram not found",
+				ErrorDescription: "Diagram not found",
 			})
 			return
 		}
@@ -765,7 +771,7 @@ func (h *DiagramHandler) DeleteDiagram(c *gin.Context) {
 	if err := DiagramStore.Delete(id); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to delete diagram",
+			ErrorDescription: "Failed to delete diagram",
 		})
 		return
 	}
@@ -774,9 +780,9 @@ func (h *DiagramHandler) DeleteDiagram(c *gin.Context) {
 }
 
 // validatePatchedDiagram performs validation on the patched diagram
-func validatePatchedDiagram(original, patched Diagram, userName string) error {
+func validatePatchedDiagram(original, patched DfdDiagram, userName string) error {
 	// 1. Ensure ID is not changed
-	if patched.Id != original.Id {
+	if patched.Id != nil && original.Id != nil && *patched.Id != *original.Id {
 		return fmt.Errorf("cannot change diagram ID")
 	}
 
@@ -815,7 +821,7 @@ func (h *DiagramHandler) GetDiagramCollaborate(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_id",
-			Message: "Invalid ID format",
+			ErrorDescription: "Invalid ID format",
 		})
 		return
 	}
@@ -865,9 +871,10 @@ func (h *DiagramHandler) GetDiagramCollaborate(c *gin.Context) {
 	}
 
 	// Return collaboration session details
+	sessionUUID, _ := ParseUUID(sessionID)
 	session := CollaborationSession{
 		DiagramId:    id,
-		SessionId:    sessionID,
+		SessionId:    &sessionUUID,
 		WebsocketUrl: fmt.Sprintf("/ws/diagrams/%s", id),
 		Participants: participants,
 	}
@@ -883,7 +890,7 @@ func (h *DiagramHandler) PostDiagramCollaborate(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_id",
-			Message: "Invalid ID format",
+			ErrorDescription: "Invalid ID format",
 		})
 		return
 	}
@@ -953,9 +960,10 @@ func (h *DiagramHandler) PostDiagramCollaborate(c *gin.Context) {
 	}
 
 	// Return the collaboration session
+	sessionUUID, _ := ParseUUID(sessionID)
 	session := CollaborationSession{
 		DiagramId:    id,
-		SessionId:    sessionID,
+		SessionId:    &sessionUUID,
 		WebsocketUrl: fmt.Sprintf("/ws/diagrams/%s", id),
 		Participants: participants,
 	}

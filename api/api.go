@@ -4,17 +4,12 @@
 package api
 
 import (
-	"bytes"
-	"compress/gzip"
-	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
-	"path"
-	"strings"
 	"time"
 
-	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v4"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -30,11 +25,79 @@ const (
 	OK    ApiInfoStatusCode = "OK"
 )
 
+// Defines values for AuthTokenResponseTokenType.
+const (
+	Bearer AuthTokenResponseTokenType = "Bearer"
+)
+
 // Defines values for AuthorizationRole.
 const (
 	Owner  AuthorizationRole = "owner"
 	Reader AuthorizationRole = "reader"
 	Writer AuthorizationRole = "writer"
+)
+
+// Defines values for BaseDiagramType.
+const (
+	BaseDiagramTypeDFD100 BaseDiagramType = "DFD-1.0.0"
+)
+
+// Defines values for DfdDiagramType.
+const (
+	DfdDiagramTypeDFD100 DfdDiagramType = "DFD-1.0.0"
+)
+
+// Defines values for EdgeShape.
+const (
+	EdgeShapeEdge EdgeShape = "edge"
+)
+
+// Defines values for EdgeAttrsLineSourceMarkerName.
+const (
+	EdgeAttrsLineSourceMarkerNameBlock   EdgeAttrsLineSourceMarkerName = "block"
+	EdgeAttrsLineSourceMarkerNameCircle  EdgeAttrsLineSourceMarkerName = "circle"
+	EdgeAttrsLineSourceMarkerNameClassic EdgeAttrsLineSourceMarkerName = "classic"
+	EdgeAttrsLineSourceMarkerNameDiamond EdgeAttrsLineSourceMarkerName = "diamond"
+)
+
+// Defines values for EdgeAttrsLineTargetMarkerName.
+const (
+	EdgeAttrsLineTargetMarkerNameBlock   EdgeAttrsLineTargetMarkerName = "block"
+	EdgeAttrsLineTargetMarkerNameCircle  EdgeAttrsLineTargetMarkerName = "circle"
+	EdgeAttrsLineTargetMarkerNameClassic EdgeAttrsLineTargetMarkerName = "classic"
+	EdgeAttrsLineTargetMarkerNameDiamond EdgeAttrsLineTargetMarkerName = "diamond"
+)
+
+// Defines values for NodeShape.
+const (
+	Actor            NodeShape = "actor"
+	Process          NodeShape = "process"
+	SecurityBoundary NodeShape = "security-boundary"
+	Store            NodeShape = "store"
+	TextBox          NodeShape = "text-box"
+)
+
+// Defines values for PortConfigurationGroupsPosition.
+const (
+	Bottom PortConfigurationGroupsPosition = "bottom"
+	Left   PortConfigurationGroupsPosition = "left"
+	Right  PortConfigurationGroupsPosition = "right"
+	Top    PortConfigurationGroupsPosition = "top"
+)
+
+// Defines values for SourceParametersRefType.
+const (
+	Branch SourceParametersRefType = "branch"
+	Commit SourceParametersRefType = "commit"
+	Tag    SourceParametersRefType = "tag"
+)
+
+// Defines values for SourceType.
+const (
+	Git       SourceType = "git"
+	Mercurial SourceType = "mercurial"
+	Other     SourceType = "other"
+	Svn       SourceType = "svn"
 )
 
 // Defines values for ThreatSeverity.
@@ -85,13 +148,13 @@ type ApiInfo struct {
 		// Version API version
 		Version string `json:"version"`
 	} `json:"api"`
-	Operator *struct {
+	Operator struct {
 		// Contact Operator contact information from environment variables
 		Contact string `json:"contact"`
 
 		// Name Operator name from environment variables
 		Name string `json:"name"`
-	} `json:"operator,omitempty"`
+	} `json:"operator"`
 	Service struct {
 		// Build Current build number
 		Build string `json:"build"`
@@ -111,6 +174,24 @@ type ApiInfo struct {
 // ApiInfoStatusCode Status code indicating if the API is functioning correctly
 type ApiInfoStatusCode string
 
+// AuthTokenResponse JWT token response for authentication endpoints
+type AuthTokenResponse struct {
+	// AccessToken JWT access token
+	AccessToken string `json:"access_token"`
+
+	// ExpiresIn Access token expiration time in seconds
+	ExpiresIn int `json:"expires_in"`
+
+	// RefreshToken Refresh token for obtaining new access tokens
+	RefreshToken string `json:"refresh_token"`
+
+	// TokenType Token type
+	TokenType AuthTokenResponseTokenType `json:"token_type"`
+}
+
+// AuthTokenResponseTokenType Token type
+type AuthTokenResponseTokenType string
+
 // Authorization A user-role pair defining access permissions
 type Authorization struct {
 	// Role Role: reader (view), writer (edit), owner (full control)
@@ -123,54 +204,54 @@ type Authorization struct {
 // AuthorizationRole Role: reader (view), writer (edit), owner (full control)
 type AuthorizationRole string
 
-// Cell defines model for Cell.
+// BaseDiagram Base diagram object with common properties
+type BaseDiagram struct {
+	// CreatedAt Creation timestamp (ISO3339)
+	CreatedAt time.Time `json:"created_at"`
+
+	// Description Description of the diagram
+	Description *string `json:"description,omitempty"`
+
+	// Id Unique identifier for the diagram (UUID)
+	Id *openapi_types.UUID `json:"id,omitempty"`
+
+	// Metadata Key-value pairs for additional diagram metadata
+	Metadata *[]Metadata `json:"metadata,omitempty"`
+
+	// ModifiedAt Last modification timestamp (ISO3339)
+	ModifiedAt time.Time `json:"modified_at"`
+
+	// Name Name of the diagram
+	Name string `json:"name"`
+
+	// Type Type of diagram with version
+	Type BaseDiagramType `json:"type"`
+}
+
+// BaseDiagramType Type of diagram with version
+type BaseDiagramType string
+
+// Cell Base schema for all diagram cells (nodes and edges) following X6 structure
 type Cell struct {
-	// Edge Indicates if the cell is an edge (true) or not (false).
-	Edge bool `json:"edge"`
+	// Data Application-specific metadata stored with the cell
+	Data *[]Metadata `json:"data,omitempty"`
 
-	// Geometry The cell's geometry (position and size), typically for vertices; null for edges.
-	Geometry *struct {
-		// Height Height of the cell.
-		Height float32 `json:"height"`
+	// Id Unique identifier of the cell (UUID)
+	Id openapi_types.UUID `json:"id"`
 
-		// Metadata Key-value pairs for additional cell metadata
-		Metadata *[]Metadata `json:"metadata,omitempty"`
+	// Shape Shape type identifier that determines cell structure and behavior
+	Shape string `json:"shape"`
 
-		// Width Width of the cell.
-		Width float32 `json:"width"`
+	// Visible Whether the cell is visible in the diagram
+	Visible *bool `json:"visible,omitempty"`
 
-		// X X-coordinate of the cell's top-left corner.
-		X float32 `json:"x"`
-
-		// Y Y-coordinate of the cell's top-left corner.
-		Y float32 `json:"y"`
-	} `json:"geometry"`
-
-	// Id Unique identifier of the cell (vertex or edge).
-	Id string `json:"id"`
-
-	// Parent ID of the parent cell (for grouping); null if no parent.
-	Parent *string `json:"parent"`
-
-	// Source ID of the source vertex (for edges); null for vertices.
-	Source *string `json:"source"`
-
-	// Style The style string defining the cell's appearance (e.g., CSS-like properties).
-	Style *string `json:"style"`
-
-	// Target ID of the target vertex (for edges); null for vertices.
-	Target *string `json:"target"`
-
-	// Value The label or value associated with the cell (optional for edges).
-	Value *string `json:"value"`
-
-	// Vertex Indicates if the cell is a vertex (true) or not (false).
-	Vertex bool `json:"vertex"`
+	// ZIndex Z-order layer for rendering (higher values render on top)
+	ZIndex *float32 `json:"zIndex,omitempty"`
 }
 
 // CollaborationSession Details of an active collaboration session for a diagram
 type CollaborationSession struct {
-	// DiagramId UUID of the associated diagram
+	// DiagramId Unique identifier of the associated diagram (UUID)
 	DiagramId openapi_types.UUID `json:"diagram_id"`
 
 	// Participants List of active participants
@@ -182,41 +263,180 @@ type CollaborationSession struct {
 		UserId *string `json:"user_id,omitempty"`
 	} `json:"participants"`
 
-	// SessionId Unique identifier for the session
-	SessionId string `json:"session_id"`
+	// SessionId Unique identifier for the session (UUID)
+	SessionId *openapi_types.UUID `json:"session_id,omitempty"`
 
-	// ThreatModelId UUID of the associated threat model
+	// ThreatModelId Unique identifier of the associated threat model (UUID)
 	ThreatModelId openapi_types.UUID `json:"threat_model_id"`
 
 	// WebsocketUrl WebSocket URL for real-time updates
 	WebsocketUrl string `json:"websocket_url"`
 }
 
-// Diagram A diagram object supporting collaborative editing
-type Diagram struct {
-	// CreatedAt Creation timestamp (ISO8601)
+// DfdDiagram defines model for DfdDiagram.
+type DfdDiagram struct {
+	// Cells List of diagram cells (nodes and edges) following X6 structure
+	Cells []DfdDiagram_Cells_Item `json:"cells"`
+
+	// CreatedAt Creation timestamp (ISO3339)
 	CreatedAt time.Time `json:"created_at"`
 
 	// Description Description of the diagram
 	Description *string `json:"description,omitempty"`
 
-	// GraphData List of graph cells
-	GraphData *[]Cell `json:"graphData,omitempty"`
-
-	// Id Unique identifier for the diagram
-	Id openapi_types.UUID `json:"id"`
+	// Id Unique identifier for the diagram (UUID)
+	Id *openapi_types.UUID `json:"id,omitempty"`
 
 	// Metadata Key-value pairs for additional diagram metadata
 	Metadata *[]Metadata `json:"metadata,omitempty"`
 
-	// ModifiedAt Last modification timestamp (ISO8601)
+	// ModifiedAt Last modification timestamp (ISO3339)
 	ModifiedAt time.Time `json:"modified_at"`
 
 	// Name Name of the diagram
 	Name string `json:"name"`
 
-	// Version Diagram version number
-	Version *float32 `json:"version,omitempty"`
+	// Type DFD diagram type with version
+	Type DfdDiagramType `json:"type"`
+}
+
+// DfdDiagram_Cells_Item defines model for DfdDiagram.cells.Item.
+type DfdDiagram_Cells_Item struct {
+	union json.RawMessage
+}
+
+// DfdDiagramType DFD diagram type with version
+type DfdDiagramType string
+
+// Diagram defines model for Diagram.
+type Diagram struct {
+	union json.RawMessage
+}
+
+// Document defines model for Document.
+type Document struct {
+	// Description Description of document purpose or content
+	Description *string `json:"description"`
+
+	// Id Unique identifier for the document (UUID)
+	Id *openapi_types.UUID `json:"id,omitempty"`
+
+	// Metadata Key-value pairs for additional document metadata
+	Metadata *[]Metadata `json:"metadata,omitempty"`
+
+	// Name Document name
+	Name string `json:"name"`
+
+	// Url URL location of the document
+	Url string `json:"url"`
+}
+
+// Edge defines model for Edge.
+type Edge struct {
+	// Attrs Visual attributes for an edge
+	Attrs *EdgeAttrs `json:"attrs,omitempty"`
+
+	// Data Application-specific metadata stored with the cell
+	Data *[]Metadata `json:"data,omitempty"`
+
+	// Id Unique identifier of the cell (UUID)
+	Id openapi_types.UUID `json:"id"`
+
+	// Labels Text labels positioned along the edge
+	Labels *[]EdgeLabel `json:"labels,omitempty"`
+
+	// Shape Edge type identifier
+	Shape EdgeShape `json:"shape"`
+
+	// Source Connection point for an edge (source or target)
+	Source EdgeTerminal `json:"source"`
+
+	// Target Connection point for an edge (source or target)
+	Target EdgeTerminal `json:"target"`
+
+	// Vertices Intermediate waypoints for edge routing
+	Vertices *[]Point `json:"vertices,omitempty"`
+
+	// Visible Whether the cell is visible in the diagram
+	Visible *bool `json:"visible,omitempty"`
+
+	// ZIndex Z-order layer for rendering (higher values render on top)
+	ZIndex *float32 `json:"zIndex,omitempty"`
+}
+
+// EdgeShape Edge type identifier
+type EdgeShape string
+
+// EdgeAttrs Visual attributes for an edge
+type EdgeAttrs struct {
+	// Line Line styling attributes
+	Line *struct {
+		// SourceMarker Source marker configuration
+		SourceMarker *struct {
+			// Name Marker type
+			Name *EdgeAttrsLineSourceMarkerName `json:"name,omitempty"`
+
+			// Size Marker size in pixels
+			Size *float32 `json:"size,omitempty"`
+		} `json:"sourceMarker,omitempty"`
+
+		// Stroke Line color
+		Stroke *string `json:"stroke,omitempty"`
+
+		// StrokeDasharray Dash pattern for the line
+		StrokeDasharray *string `json:"strokeDasharray"`
+
+		// StrokeWidth Line width in pixels
+		StrokeWidth *float32 `json:"strokeWidth,omitempty"`
+
+		// TargetMarker Arrowhead marker configuration
+		TargetMarker *struct {
+			// Name Marker type
+			Name *EdgeAttrsLineTargetMarkerName `json:"name,omitempty"`
+
+			// Size Marker size in pixels
+			Size *float32 `json:"size,omitempty"`
+		} `json:"targetMarker,omitempty"`
+	} `json:"line,omitempty"`
+}
+
+// EdgeAttrsLineSourceMarkerName Marker type
+type EdgeAttrsLineSourceMarkerName string
+
+// EdgeAttrsLineTargetMarkerName Marker type
+type EdgeAttrsLineTargetMarkerName string
+
+// EdgeLabel Label positioned along an edge
+type EdgeLabel struct {
+	// Attrs Label styling attributes
+	Attrs *struct {
+		// Text Text styling
+		Text *struct {
+			// Fill Text color
+			Fill *string `json:"fill,omitempty"`
+
+			// FontFamily Font family
+			FontFamily *string `json:"fontFamily,omitempty"`
+
+			// FontSize Font size in pixels
+			FontSize *float32 `json:"fontSize,omitempty"`
+
+			// Text Label text content
+			Text *string `json:"text,omitempty"`
+		} `json:"text,omitempty"`
+	} `json:"attrs,omitempty"`
+
+	// Position Position along the edge (0 = start, 1 = end)
+	Position *float32 `json:"position,omitempty"`
+}
+
+// EdgeTerminal Connection point for an edge (source or target)
+type EdgeTerminal struct {
+	// Cell ID of the connected node (UUID)
+	Cell openapi_types.UUID `json:"cell"`
+
+	// Port ID of the specific port on the node (optional)
+	Port *string `json:"port"`
 }
 
 // Error Standard error response format
@@ -224,14 +444,17 @@ type Error struct {
 	// Error Error code
 	Error string `json:"error"`
 
-	// Message Error description
-	Message string `json:"message"`
+	// ErrorDescription Human-readable error description
+	ErrorDescription string `json:"error_description"`
+
+	// ErrorUri URI to documentation about the error
+	ErrorUri *string `json:"error_uri,omitempty"`
 }
 
 // ListItem A simplified item for list endpoints, containing name and ID
 type ListItem struct {
-	// Id Unique identifier of the resource
-	Id openapi_types.UUID `json:"id"`
+	// Id Unique identifier of the resource (UUID)
+	Id *openapi_types.UUID `json:"id,omitempty"`
 
 	// Name Name of the resource
 	Name string `json:"name"`
@@ -246,22 +469,190 @@ type Metadata struct {
 	Value string `json:"value"`
 }
 
+// Node defines model for Node.
+type Node struct {
+	// Angle Rotation angle in degrees
+	Angle *float32 `json:"angle,omitempty"`
+
+	// Attrs Visual attributes for a node
+	Attrs *NodeAttrs `json:"attrs,omitempty"`
+
+	// Data Application-specific metadata stored with the cell
+	Data *[]Metadata `json:"data,omitempty"`
+
+	// Height Height of the node in pixels
+	Height float32 `json:"height"`
+
+	// Id Unique identifier of the cell (UUID)
+	Id openapi_types.UUID `json:"id"`
+
+	// Parent ID of the parent cell for nested/grouped nodes (UUID)
+	Parent *openapi_types.UUID `json:"parent"`
+
+	// Ports Port configuration for node connections
+	Ports *PortConfiguration `json:"ports,omitempty"`
+
+	// Shape Node type determining its visual representation and behavior
+	Shape NodeShape `json:"shape"`
+
+	// Visible Whether the cell is visible in the diagram
+	Visible *bool `json:"visible,omitempty"`
+
+	// Width Width of the node in pixels
+	Width float32 `json:"width"`
+
+	// X X coordinate of the node's position
+	X float32 `json:"x"`
+
+	// Y Y coordinate of the node's position
+	Y float32 `json:"y"`
+
+	// ZIndex Z-order layer for rendering (higher values render on top)
+	ZIndex *float32 `json:"zIndex,omitempty"`
+}
+
+// NodeShape Node type determining its visual representation and behavior
+type NodeShape string
+
+// NodeAttrs Visual attributes for a node
+type NodeAttrs struct {
+	// Body Body/shape styling attributes
+	Body *struct {
+		// Fill Fill color
+		Fill *string `json:"fill,omitempty"`
+
+		// Stroke Stroke color
+		Stroke *string `json:"stroke,omitempty"`
+
+		// StrokeDasharray Dash pattern for strokes
+		StrokeDasharray *string `json:"strokeDasharray"`
+
+		// StrokeWidth Stroke width in pixels
+		StrokeWidth *float32 `json:"strokeWidth,omitempty"`
+	} `json:"body,omitempty"`
+
+	// Text Text/label styling attributes
+	Text *struct {
+		// Fill Text color
+		Fill *string `json:"fill,omitempty"`
+
+		// FontFamily Font family
+		FontFamily *string `json:"fontFamily,omitempty"`
+
+		// FontSize Font size in pixels
+		FontSize *float32 `json:"fontSize,omitempty"`
+
+		// Text Label text content
+		Text *string `json:"text,omitempty"`
+	} `json:"text,omitempty"`
+}
+
+// PaginatedResponse Paginated response wrapper for list endpoints
+type PaginatedResponse struct {
+	// Data Array of items for the current page
+	Data []interface{} `json:"data"`
+
+	// Pagination Pagination metadata
+	Pagination struct {
+		// HasMore Whether there are more items available beyond this page
+		HasMore bool `json:"has_more"`
+
+		// Limit Maximum number of items per page
+		Limit int `json:"limit"`
+
+		// Offset Number of items skipped from the beginning
+		Offset int `json:"offset"`
+
+		// Total Total number of items across all pages
+		Total int `json:"total"`
+	} `json:"pagination"`
+}
+
+// Point A 2D point with x and y coordinates
+type Point struct {
+	// X X coordinate
+	X float32 `json:"x"`
+
+	// Y Y coordinate
+	Y float32 `json:"y"`
+}
+
+// PortConfiguration Port configuration for node connections
+type PortConfiguration struct {
+	// Groups Port group definitions
+	Groups *map[string]struct {
+		// Position Port position on the node
+		Position *PortConfigurationGroupsPosition `json:"position,omitempty"`
+	} `json:"groups,omitempty"`
+
+	// Items Individual port instances
+	Items *[]struct {
+		// Group Port group this port belongs to
+		Group string `json:"group"`
+
+		// Id Unique port identifier
+		Id string `json:"id"`
+	} `json:"items,omitempty"`
+}
+
+// PortConfigurationGroupsPosition Port position on the node
+type PortConfigurationGroupsPosition string
+
+// Source defines model for Source.
+type Source struct {
+	// Description Description of the referenced source code
+	Description *string `json:"description"`
+
+	// Id Unique identifier for the source code reference (UUID)
+	Id *openapi_types.UUID `json:"id,omitempty"`
+
+	// Metadata Key-value pairs for additional source metadata
+	Metadata *[]Metadata `json:"metadata,omitempty"`
+
+	// Name Name for the source code reference
+	Name *string `json:"name,omitempty"`
+
+	// Parameters repo-specific parameters for retrieving the source
+	Parameters *struct {
+		// RefType Reference type (branch, tag, or commit)
+		RefType SourceParametersRefType `json:"refType"`
+
+		// RefValue Reference value (branch name, tag value, or commit id)
+		RefValue string `json:"refValue"`
+
+		// SubPath Sub-path within the repository
+		SubPath *string `json:"subPath,omitempty"`
+	} `json:"parameters,omitempty"`
+
+	// Type Source code repository type
+	Type *SourceType `json:"type,omitempty"`
+
+	// Url URL to retrieve the referenced source code
+	Url string `json:"url"`
+}
+
+// SourceParametersRefType Reference type (branch, tag, or commit)
+type SourceParametersRefType string
+
+// SourceType Source code repository type
+type SourceType string
+
 // Threat A threat within a threat model
 type Threat struct {
-	// CellId UUID of the associated cell (if applicable)
-	CellId *openapi_types.UUID `json:"cell_id,omitempty"`
+	// CellId Unique identifier of the associated cell (if applicable) (UUID)
+	CellId *openapi_types.UUID `json:"cell_id"`
 
 	// CreatedAt Creation timestamp (RFC3339)
 	CreatedAt time.Time `json:"created_at"`
 
-	// Description Description of the threat
+	// Description Description of the threat and risk to the organization
 	Description *string `json:"description,omitempty"`
 
-	// DiagramId UUID of the associated diagram (if applicable)
-	DiagramId *openapi_types.UUID `json:"diagram_id,omitempty"`
+	// DiagramId Unique identifier of the associated diagram (if applicable) (UUID)
+	DiagramId *openapi_types.UUID `json:"diagram_id"`
 
-	// Id Unique identifier for the threat
-	Id openapi_types.UUID `json:"id"`
+	// Id Unique identifier for the threat (UUID)
+	Id *openapi_types.UUID `json:"id,omitempty"`
 
 	// IssueUrl URL to an issue in an issue tracking system for this threat
 	IssueUrl *string `json:"issue_url,omitempty"`
@@ -270,7 +661,10 @@ type Threat struct {
 	Metadata *[]Metadata `json:"metadata,omitempty"`
 
 	// Mitigated Whether the threat has been mitigated
-	Mitigated *bool `json:"mitigated,omitempty"`
+	Mitigated bool `json:"mitigated"`
+
+	// Mitigation Recommended or planned mitigation(s) for the threat
+	Mitigation *string `json:"mitigation,omitempty"`
 
 	// ModifiedAt Last modification timestamp (RFC3339)
 	ModifiedAt time.Time `json:"modified_at"`
@@ -279,7 +673,7 @@ type Threat struct {
 	Name string `json:"name"`
 
 	// Priority Priority level for addressing the threat
-	Priority *string `json:"priority,omitempty"`
+	Priority string `json:"priority"`
 
 	// Score Numeric score representing the risk or impact of the threat
 	Score *float32 `json:"score,omitempty"`
@@ -288,9 +682,9 @@ type Threat struct {
 	Severity ThreatSeverity `json:"severity"`
 
 	// Status Current status of the threat
-	Status *string `json:"status,omitempty"`
+	Status string `json:"status"`
 
-	// ThreatModelId UUID of the parent threat model
+	// ThreatModelId Unique identifier of the parent threat model (UUID)
 	ThreatModelId openapi_types.UUID `json:"threat_model_id"`
 
 	// ThreatType Type or category of the threat
@@ -314,11 +708,14 @@ type ThreatModel struct {
 	// Description Description of the threat model
 	Description *string `json:"description,omitempty"`
 
-	// Diagrams List of diagram UUIDs associated with this threat model
-	Diagrams *[]openapi_types.UUID `json:"diagrams,omitempty"`
+	// Diagrams List of diagram objects associated with this threat model
+	Diagrams *[]Diagram `json:"diagrams,omitempty"`
 
-	// Id Unique identifier for the threat model
-	Id openapi_types.UUID `json:"id"`
+	// Documents List of documents related to the threat model
+	Documents *[]Document `json:"documents,omitempty"`
+
+	// Id Unique identifier for the threat model (UUID)
+	Id *openapi_types.UUID `json:"id,omitempty"`
 
 	// IssueUrl URL to an issue in an issue tracking system for this threat model
 	IssueUrl *string `json:"issue_url,omitempty"`
@@ -335,6 +732,9 @@ type ThreatModel struct {
 	// Owner Username or identifier of the current owner (may be email address or other format)
 	Owner string `json:"owner"`
 
+	// SourceCode List of source code repositories related to the threat model
+	SourceCode *[]Source `json:"sourceCode,omitempty"`
+
 	// ThreatModelFramework The framework used for this threat model
 	ThreatModelFramework ThreatModelThreatModelFramework `json:"threat_model_framework"`
 
@@ -345,8 +745,8 @@ type ThreatModel struct {
 // ThreatModelThreatModelFramework The framework used for this threat model
 type ThreatModelThreatModelFramework string
 
-// GetAuthCallbackParams defines parameters for GetAuthCallback.
-type GetAuthCallbackParams struct {
+// HandleOAuthCallbackParams defines parameters for HandleOAuthCallback.
+type HandleOAuthCallbackParams struct {
 	// Code Authorization code from the OAuth provider
 	Code string `form:"code" json:"code"`
 
@@ -354,10 +754,28 @@ type GetAuthCallbackParams struct {
 	State *string `form:"state,omitempty" json:"state,omitempty"`
 }
 
-// GetAuthLoginParams defines parameters for GetAuthLogin.
-type GetAuthLoginParams struct {
+// InitiateOAuthLoginParams defines parameters for InitiateOAuthLogin.
+type InitiateOAuthLoginParams struct {
 	// RedirectUri Optional URI to redirect to after login
 	RedirectUri *string `form:"redirect_uri,omitempty" json:"redirect_uri,omitempty"`
+}
+
+// RefreshTokenJSONBody defines parameters for RefreshToken.
+type RefreshTokenJSONBody struct {
+	// RefreshToken Valid refresh token
+	RefreshToken string `json:"refresh_token"`
+}
+
+// ExchangeTokenJSONBody defines parameters for ExchangeToken.
+type ExchangeTokenJSONBody struct {
+	// Code Authorization code from OAuth provider
+	Code string `json:"code"`
+
+	// Provider OAuth provider identifier
+	Provider string `json:"provider"`
+
+	// RedirectUri Redirect URI used in the authorization request
+	RedirectUri *string `json:"redirect_uri,omitempty"`
 }
 
 // GetThreatModelsParams defines parameters for GetThreatModels.
@@ -370,6 +788,30 @@ type GetThreatModelsParams struct {
 
 	// Sort Sort order (e.g., created_at:desc, name:asc)
 	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Owner Filter by owner username or email
+	Owner *string `form:"owner,omitempty" json:"owner,omitempty"`
+
+	// Name Filter by threat model name (partial match)
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Description Filter by threat model description (partial match)
+	Description *string `form:"description,omitempty" json:"description,omitempty"`
+
+	// IssueUrl Filter by issue URL (partial match)
+	IssueUrl *string `form:"issue_url,omitempty" json:"issue_url,omitempty"`
+
+	// CreatedAfter Filter threat models created after this date (RFC3339 format)
+	CreatedAfter *time.Time `form:"created_after,omitempty" json:"created_after,omitempty"`
+
+	// CreatedBefore Filter threat models created before this date (RFC3339 format)
+	CreatedBefore *time.Time `form:"created_before,omitempty" json:"created_before,omitempty"`
+
+	// ModifiedAfter Filter threat models modified after this date (RFC3339 format)
+	ModifiedAfter *time.Time `form:"modified_after,omitempty" json:"modified_after,omitempty"`
+
+	// ModifiedBefore Filter threat models modified before this date (RFC3339 format)
+	ModifiedBefore *time.Time `form:"modified_before,omitempty" json:"modified_before,omitempty"`
 }
 
 // PostThreatModelsJSONBody defines parameters for PostThreatModels.
@@ -406,6 +848,27 @@ type GetThreatModelsThreatModelIdDiagramsParams struct {
 
 	// Sort Sort order (e.g., created_at:desc, name:asc)
 	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Name Filter by diagram name (partial match)
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Description Filter by diagram description (partial match)
+	Description *string `form:"description,omitempty" json:"description,omitempty"`
+
+	// CreatedAfter Filter diagrams created after this date (RFC3339 format)
+	CreatedAfter *time.Time `form:"created_after,omitempty" json:"created_after,omitempty"`
+
+	// CreatedBefore Filter diagrams created before this date (RFC3339 format)
+	CreatedBefore *time.Time `form:"created_before,omitempty" json:"created_before,omitempty"`
+
+	// ModifiedAfter Filter diagrams modified after this date (RFC3339 format)
+	ModifiedAfter *time.Time `form:"modified_after,omitempty" json:"modified_after,omitempty"`
+
+	// ModifiedBefore Filter diagrams modified before this date (RFC3339 format)
+	ModifiedBefore *time.Time `form:"modified_before,omitempty" json:"modified_before,omitempty"`
+
+	// Owner Filter by owner username or email
+	Owner *string `form:"owner,omitempty" json:"owner,omitempty"`
 }
 
 // PostThreatModelsThreatModelIdDiagramsJSONBody defines parameters for PostThreatModelsThreatModelIdDiagrams.
@@ -432,6 +895,12 @@ type PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBody = []struct {
 // PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp defines parameters for PatchThreatModelsThreatModelIdDiagramsDiagramId.
 type PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp string
 
+// RefreshTokenJSONRequestBody defines body for RefreshToken for application/json ContentType.
+type RefreshTokenJSONRequestBody RefreshTokenJSONBody
+
+// ExchangeTokenJSONRequestBody defines body for ExchangeToken for application/json ContentType.
+type ExchangeTokenJSONRequestBody ExchangeTokenJSONBody
+
 // PostThreatModelsJSONRequestBody defines body for PostThreatModels for application/json ContentType.
 type PostThreatModelsJSONRequestBody PostThreatModelsJSONBody
 
@@ -450,6 +919,127 @@ type PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody = PatchThrea
 // PutThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody defines body for PutThreatModelsThreatModelIdDiagramsDiagramId for application/json ContentType.
 type PutThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody = Diagram
 
+// AsNode returns the union data inside the DfdDiagram_Cells_Item as a Node
+func (t DfdDiagram_Cells_Item) AsNode() (Node, error) {
+	var body Node
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromNode overwrites any union data inside the DfdDiagram_Cells_Item as the provided Node
+func (t *DfdDiagram_Cells_Item) FromNode(v Node) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeNode performs a merge with any union data inside the DfdDiagram_Cells_Item, using the provided Node
+func (t *DfdDiagram_Cells_Item) MergeNode(v Node) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEdge returns the union data inside the DfdDiagram_Cells_Item as a Edge
+func (t DfdDiagram_Cells_Item) AsEdge() (Edge, error) {
+	var body Edge
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEdge overwrites any union data inside the DfdDiagram_Cells_Item as the provided Edge
+func (t *DfdDiagram_Cells_Item) FromEdge(v Edge) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEdge performs a merge with any union data inside the DfdDiagram_Cells_Item, using the provided Edge
+func (t *DfdDiagram_Cells_Item) MergeEdge(v Edge) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t DfdDiagram_Cells_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *DfdDiagram_Cells_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsDfdDiagram returns the union data inside the Diagram as a DfdDiagram
+func (t Diagram) AsDfdDiagram() (DfdDiagram, error) {
+	var body DfdDiagram
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDfdDiagram overwrites any union data inside the Diagram as the provided DfdDiagram
+func (t *Diagram) FromDfdDiagram(v DfdDiagram) error {
+	v.Type = "DFD-1.0.0"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDfdDiagram performs a merge with any union data inside the Diagram, using the provided DfdDiagram
+func (t *Diagram) MergeDfdDiagram(v DfdDiagram) error {
+	v.Type = "DFD-1.0.0"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t Diagram) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t Diagram) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "DFD-1.0.0":
+		return t.AsDfdDiagram()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t Diagram) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *Diagram) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Get API information
@@ -457,13 +1047,25 @@ type ServerInterface interface {
 	GetApiInfo(ctx echo.Context) error
 	// Handle OAuth callback
 	// (GET /auth/callback)
-	GetAuthCallback(ctx echo.Context, params GetAuthCallbackParams) error
+	HandleOAuthCallback(ctx echo.Context, params HandleOAuthCallbackParams) error
 	// Initiate OAuth login
 	// (GET /auth/login)
-	GetAuthLogin(ctx echo.Context, params GetAuthLoginParams) error
+	InitiateOAuthLogin(ctx echo.Context, params InitiateOAuthLoginParams) error
 	// Logout user
 	// (POST /auth/logout)
-	PostAuthLogout(ctx echo.Context) error
+	LogoutUser(ctx echo.Context) error
+	// Get current user information
+	// (GET /auth/me)
+	GetCurrentUser(ctx echo.Context) error
+	// List available OAuth providers
+	// (GET /auth/providers)
+	GetAuthProviders(ctx echo.Context) error
+	// Refresh JWT token
+	// (POST /auth/refresh)
+	RefreshToken(ctx echo.Context) error
+	// Exchange authorization code for JWT
+	// (POST /auth/token)
+	ExchangeToken(ctx echo.Context) error
 	// List threat models
 	// (GET /threat_models)
 	GetThreatModels(ctx echo.Context, params GetThreatModelsParams) error
@@ -525,12 +1127,12 @@ func (w *ServerInterfaceWrapper) GetApiInfo(ctx echo.Context) error {
 	return err
 }
 
-// GetAuthCallback converts echo context to params.
-func (w *ServerInterfaceWrapper) GetAuthCallback(ctx echo.Context) error {
+// HandleOAuthCallback converts echo context to params.
+func (w *ServerInterfaceWrapper) HandleOAuthCallback(ctx echo.Context) error {
 	var err error
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params GetAuthCallbackParams
+	var params HandleOAuthCallbackParams
 	// ------------- Required query parameter "code" -------------
 
 	err = runtime.BindQueryParameter("form", true, true, "code", ctx.QueryParams(), &params.Code)
@@ -546,16 +1148,16 @@ func (w *ServerInterfaceWrapper) GetAuthCallback(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetAuthCallback(ctx, params)
+	err = w.Handler.HandleOAuthCallback(ctx, params)
 	return err
 }
 
-// GetAuthLogin converts echo context to params.
-func (w *ServerInterfaceWrapper) GetAuthLogin(ctx echo.Context) error {
+// InitiateOAuthLogin converts echo context to params.
+func (w *ServerInterfaceWrapper) InitiateOAuthLogin(ctx echo.Context) error {
 	var err error
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params GetAuthLoginParams
+	var params InitiateOAuthLoginParams
 	// ------------- Optional query parameter "redirect_uri" -------------
 
 	err = runtime.BindQueryParameter("form", true, false, "redirect_uri", ctx.QueryParams(), &params.RedirectUri)
@@ -564,18 +1166,56 @@ func (w *ServerInterfaceWrapper) GetAuthLogin(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetAuthLogin(ctx, params)
+	err = w.Handler.InitiateOAuthLogin(ctx, params)
 	return err
 }
 
-// PostAuthLogout converts echo context to params.
-func (w *ServerInterfaceWrapper) PostAuthLogout(ctx echo.Context) error {
+// LogoutUser converts echo context to params.
+func (w *ServerInterfaceWrapper) LogoutUser(ctx echo.Context) error {
 	var err error
 
 	ctx.Set(BearerAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostAuthLogout(ctx)
+	err = w.Handler.LogoutUser(ctx)
+	return err
+}
+
+// GetCurrentUser converts echo context to params.
+func (w *ServerInterfaceWrapper) GetCurrentUser(ctx echo.Context) error {
+	var err error
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetCurrentUser(ctx)
+	return err
+}
+
+// GetAuthProviders converts echo context to params.
+func (w *ServerInterfaceWrapper) GetAuthProviders(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetAuthProviders(ctx)
+	return err
+}
+
+// RefreshToken converts echo context to params.
+func (w *ServerInterfaceWrapper) RefreshToken(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.RefreshToken(ctx)
+	return err
+}
+
+// ExchangeToken converts echo context to params.
+func (w *ServerInterfaceWrapper) ExchangeToken(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.ExchangeToken(ctx)
 	return err
 }
 
@@ -606,6 +1246,62 @@ func (w *ServerInterfaceWrapper) GetThreatModels(ctx echo.Context) error {
 	err = runtime.BindQueryParameter("form", true, false, "sort", ctx.QueryParams(), &params.Sort)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter sort: %s", err))
+	}
+
+	// ------------- Optional query parameter "owner" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "owner", ctx.QueryParams(), &params.Owner)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter owner: %s", err))
+	}
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "name", ctx.QueryParams(), &params.Name)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter name: %s", err))
+	}
+
+	// ------------- Optional query parameter "description" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "description", ctx.QueryParams(), &params.Description)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter description: %s", err))
+	}
+
+	// ------------- Optional query parameter "issue_url" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "issue_url", ctx.QueryParams(), &params.IssueUrl)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter issue_url: %s", err))
+	}
+
+	// ------------- Optional query parameter "created_after" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "created_after", ctx.QueryParams(), &params.CreatedAfter)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter created_after: %s", err))
+	}
+
+	// ------------- Optional query parameter "created_before" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "created_before", ctx.QueryParams(), &params.CreatedBefore)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter created_before: %s", err))
+	}
+
+	// ------------- Optional query parameter "modified_after" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "modified_after", ctx.QueryParams(), &params.ModifiedAfter)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter modified_after: %s", err))
+	}
+
+	// ------------- Optional query parameter "modified_before" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "modified_before", ctx.QueryParams(), &params.ModifiedBefore)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter modified_before: %s", err))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -730,6 +1426,55 @@ func (w *ServerInterfaceWrapper) GetThreatModelsThreatModelIdDiagrams(ctx echo.C
 	err = runtime.BindQueryParameter("form", true, false, "sort", ctx.QueryParams(), &params.Sort)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter sort: %s", err))
+	}
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "name", ctx.QueryParams(), &params.Name)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter name: %s", err))
+	}
+
+	// ------------- Optional query parameter "description" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "description", ctx.QueryParams(), &params.Description)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter description: %s", err))
+	}
+
+	// ------------- Optional query parameter "created_after" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "created_after", ctx.QueryParams(), &params.CreatedAfter)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter created_after: %s", err))
+	}
+
+	// ------------- Optional query parameter "created_before" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "created_before", ctx.QueryParams(), &params.CreatedBefore)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter created_before: %s", err))
+	}
+
+	// ------------- Optional query parameter "modified_after" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "modified_after", ctx.QueryParams(), &params.ModifiedAfter)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter modified_after: %s", err))
+	}
+
+	// ------------- Optional query parameter "modified_before" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "modified_before", ctx.QueryParams(), &params.ModifiedBefore)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter modified_before: %s", err))
+	}
+
+	// ------------- Optional query parameter "owner" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "owner", ctx.QueryParams(), &params.Owner)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter owner: %s", err))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -966,9 +1711,13 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	}
 
 	router.GET(baseURL+"/", wrapper.GetApiInfo)
-	router.GET(baseURL+"/auth/callback", wrapper.GetAuthCallback)
-	router.GET(baseURL+"/auth/login", wrapper.GetAuthLogin)
-	router.POST(baseURL+"/auth/logout", wrapper.PostAuthLogout)
+	router.GET(baseURL+"/auth/callback", wrapper.HandleOAuthCallback)
+	router.GET(baseURL+"/auth/login", wrapper.InitiateOAuthLogin)
+	router.POST(baseURL+"/auth/logout", wrapper.LogoutUser)
+	router.GET(baseURL+"/auth/me", wrapper.GetCurrentUser)
+	router.GET(baseURL+"/auth/providers", wrapper.GetAuthProviders)
+	router.POST(baseURL+"/auth/refresh", wrapper.RefreshToken)
+	router.POST(baseURL+"/auth/token", wrapper.ExchangeToken)
 	router.GET(baseURL+"/threat_models", wrapper.GetThreatModels)
 	router.POST(baseURL+"/threat_models", wrapper.PostThreatModels)
 	router.DELETE(baseURL+"/threat_models/:threat_model_id", wrapper.DeleteThreatModelsThreatModelId)
@@ -985,171 +1734,4 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 	router.POST(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 
-}
-
-// Base64 encoded, gzipped, json marshaled Swagger object
-var swaggerSpec = []string{
-
-	"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",
-}
-
-// GetSwagger returns the content of the embedded swagger specification file
-// or error if failed to decode
-func decodeSpec() ([]byte, error) {
-	zipped, err := base64.StdEncoding.DecodeString(strings.Join(swaggerSpec, ""))
-	if err != nil {
-		return nil, fmt.Errorf("error base64 decoding spec: %w", err)
-	}
-	zr, err := gzip.NewReader(bytes.NewReader(zipped))
-	if err != nil {
-		return nil, fmt.Errorf("error decompressing spec: %w", err)
-	}
-	var buf bytes.Buffer
-	_, err = buf.ReadFrom(zr)
-	if err != nil {
-		return nil, fmt.Errorf("error decompressing spec: %w", err)
-	}
-
-	return buf.Bytes(), nil
-}
-
-var rawSpec = decodeSpecCached()
-
-// a naive cached of a decoded swagger spec
-func decodeSpecCached() func() ([]byte, error) {
-	data, err := decodeSpec()
-	return func() ([]byte, error) {
-		return data, err
-	}
-}
-
-// Constructs a synthetic filesystem for resolving external references when loading openapi specifications.
-func PathToRawSpec(pathToFile string) map[string]func() ([]byte, error) {
-	res := make(map[string]func() ([]byte, error))
-	if len(pathToFile) > 0 {
-		res[pathToFile] = rawSpec
-	}
-
-	return res
-}
-
-// GetSwagger returns the Swagger specification corresponding to the generated code
-// in this file. The external references of Swagger specification are resolved.
-// The logic of resolving external references is tightly connected to "import-mapping" feature.
-// Externally referenced files must be embedded in the corresponding golang packages.
-// Urls can be supported but this task was out of the scope.
-func GetSwagger() (swagger *openapi3.T, err error) {
-	resolvePath := PathToRawSpec("")
-
-	loader := openapi3.NewLoader()
-	loader.IsExternalRefsAllowed = true
-	loader.ReadFromURIFunc = func(loader *openapi3.Loader, url *url.URL) ([]byte, error) {
-		pathToFile := url.String()
-		pathToFile = path.Clean(pathToFile)
-		getSpec, ok := resolvePath[pathToFile]
-		if !ok {
-			err1 := fmt.Errorf("path not found: %s", pathToFile)
-			return nil, err1
-		}
-		return getSpec()
-	}
-	var specData []byte
-	specData, err = rawSpec()
-	if err != nil {
-		return
-	}
-	swagger, err = loader.LoadFromData(specData)
-	if err != nil {
-		return
-	}
-	return
 }

@@ -82,7 +82,7 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Threat model not found",
+			ErrorDescription: "Threat model not found",
 		})
 		return
 	}
@@ -103,7 +103,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: err.Error(),
+			ErrorDescription: err.Error(),
 		})
 		return
 	}
@@ -114,7 +114,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	if !ok || userName == "" {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:   "unauthorized",
-			Message: "Authentication required",
+			ErrorDescription: "Authentication required",
 		})
 		return
 	}
@@ -130,7 +130,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 			if _, exists := authMap[auth.Subject]; exists {
 				c.JSON(http.StatusBadRequest, Error{
 					Error:   "invalid_input",
-					Message: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
+					ErrorDescription: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
 				})
 				return
 			}
@@ -152,7 +152,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 			if auth.Subject == userName {
 				c.JSON(http.StatusBadRequest, Error{
 					Error:   "invalid_input",
-					Message: fmt.Sprintf("Duplicate authorization subject with owner: %s", auth.Subject),
+					ErrorDescription: fmt.Sprintf("Duplicate authorization subject with owner: %s", auth.Subject),
 				})
 				return
 			}
@@ -182,7 +182,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to create threat model",
+			ErrorDescription: "Failed to create threat model",
 		})
 		return
 	}
@@ -204,7 +204,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		fmt.Printf("[DEBUG HANDLER] Error reading request body: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Failed to read request body: " + err.Error(),
+			ErrorDescription: "Failed to read request body: " + err.Error(),
 		})
 		return
 	}
@@ -218,7 +218,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		fmt.Printf("[DEBUG HANDLER] Empty request body received\n")
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Request body is empty",
+			ErrorDescription: "Request body is empty",
 		})
 		return
 	}
@@ -228,7 +228,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		fmt.Printf("[DEBUG HANDLER] JSON binding error: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: err.Error(),
+			ErrorDescription: err.Error(),
 		})
 		return
 	}
@@ -241,7 +241,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	if !ok {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:   "unauthorized",
-			Message: "Authentication required",
+			ErrorDescription: "Authentication required",
 		})
 		return
 	}
@@ -255,7 +255,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusNotFound, Error{
 				Error:   "not_found",
-				Message: "Threat model not found",
+				ErrorDescription: "Threat model not found",
 			})
 			return
 		}
@@ -265,7 +265,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	if !ok {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to process threat model",
+			ErrorDescription: "Failed to process threat model",
 		})
 		return
 	}
@@ -275,7 +275,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_id",
-			Message: "Invalid ID format",
+			ErrorDescription: "Invalid ID format",
 		})
 		return
 	}
@@ -292,7 +292,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		fmt.Printf("[DEBUG HANDLER] User role not found in context\n")
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to determine user role",
+			ErrorDescription: "Failed to determine user role",
 		})
 		return
 	}
@@ -314,7 +314,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		fmt.Printf("[DEBUG HANDLER] Access denied: non-owner trying to change owner/auth fields\n")
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
-			Message: "Only the owner can change ownership or authorization",
+			ErrorDescription: "Only the owner can change ownership or authorization",
 		})
 		return
 	}
@@ -327,7 +327,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 			fmt.Printf("[DEBUG HANDLER] Duplicate subject found: %s\n", auth.Subject)
 			c.JSON(http.StatusBadRequest, Error{
 				Error:   "invalid_input",
-				Message: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
+				ErrorDescription: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
 			})
 			return
 		}
@@ -363,7 +363,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	if err := ThreatModelStore.Update(id, request); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to update threat model",
+			ErrorDescription: "Failed to update threat model",
 		})
 		return
 	}
@@ -383,7 +383,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		fmt.Printf("[DEBUG HANDLER] Error reading PATCH request body: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Failed to read request body: " + err.Error(),
+			ErrorDescription: "Failed to read request body: " + err.Error(),
 		})
 		return
 	}
@@ -397,7 +397,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		fmt.Printf("[DEBUG HANDLER] Empty PATCH request body received\n")
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Request body is empty",
+			ErrorDescription: "Request body is empty",
 		})
 		return
 	}
@@ -407,7 +407,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		fmt.Printf("[DEBUG HANDLER] PATCH JSON binding error: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Invalid JSON Patch format: " + err.Error(),
+			ErrorDescription: "Invalid JSON Patch format: " + err.Error(),
 		})
 		return
 	}
@@ -420,7 +420,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	if !ok || userName == "" {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:   "unauthorized",
-			Message: "Authentication required",
+			ErrorDescription: "Authentication required",
 		})
 		return
 	}
@@ -434,7 +434,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusNotFound, Error{
 				Error:   "not_found",
-				Message: "Threat model not found",
+				ErrorDescription: "Threat model not found",
 			})
 			return
 		}
@@ -444,7 +444,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	if !ok {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to process threat model",
+			ErrorDescription: "Failed to process threat model",
 		})
 		return
 	}
@@ -458,7 +458,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_format",
-			Message: "Failed to convert patch operations: " + err.Error(),
+			ErrorDescription: "Failed to convert patch operations: " + err.Error(),
 		})
 		return
 	}
@@ -468,7 +468,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to serialize threat model",
+			ErrorDescription: "Failed to serialize threat model",
 		})
 		return
 	}
@@ -478,7 +478,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_patch",
-			Message: "Invalid JSON Patch: " + err.Error(),
+			ErrorDescription: "Invalid JSON Patch: " + err.Error(),
 		})
 		return
 	}
@@ -488,7 +488,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "patch_failed",
-			Message: "Failed to apply patch: " + err.Error(),
+			ErrorDescription: "Failed to apply patch: " + err.Error(),
 		})
 		return
 	}
@@ -498,7 +498,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	if err := json.Unmarshal(modifiedBytes, &modifiedTM); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to deserialize patched threat model",
+			ErrorDescription: "Failed to deserialize patched threat model",
 		})
 		return
 	}
@@ -510,7 +510,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	if (ownerChanging || authChanging) && (!exists || !ok || userRole != RoleOwner) {
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
-			Message: "Only the owner can change ownership or authorization",
+			ErrorDescription: "Only the owner can change ownership or authorization",
 		})
 		return
 	}
@@ -522,7 +522,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 			if _, exists := subjectMap[auth.Subject]; exists {
 				c.JSON(http.StatusBadRequest, Error{
 					Error:   "invalid_input",
-					Message: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
+					ErrorDescription: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
 				})
 				return
 			}
@@ -556,7 +556,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	if err := validatePatchedThreatModel(existingTM, modifiedTM, userName); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "validation_failed",
-			Message: err.Error(),
+			ErrorDescription: err.Error(),
 		})
 		return
 	}
@@ -572,7 +572,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	if err := ThreatModelStore.Update(id, modifiedTM); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to update threat model",
+			ErrorDescription: "Failed to update threat model",
 		})
 		return
 	}
@@ -591,7 +591,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	if !ok || userName == "" {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:   "unauthorized",
-			Message: "Authentication required",
+			ErrorDescription: "Authentication required",
 		})
 		return
 	}
@@ -601,7 +601,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Threat model not found",
+			ErrorDescription: "Threat model not found",
 		})
 		return
 	}
@@ -622,7 +622,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 		if !hasOwnerRole {
 			c.JSON(http.StatusForbidden, Error{
 				Error:   "forbidden",
-				Message: "Only the owner can delete a threat model",
+				ErrorDescription: "Only the owner can delete a threat model",
 			})
 			return
 		}
@@ -632,7 +632,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	if err := ThreatModelStore.Delete(id); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to delete threat model",
+			ErrorDescription: "Failed to delete threat model",
 		})
 		return
 	}

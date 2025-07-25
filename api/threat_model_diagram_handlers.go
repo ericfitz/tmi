@@ -36,7 +36,7 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Threat model not found",
+			ErrorDescription: "Threat model not found",
 		})
 		return
 	}
@@ -45,13 +45,13 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	if err := CheckThreatModelAccess(userName, tm, RoleReader); err != nil {
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
-			Message: "You don't have sufficient permissions to access this threat model",
+			ErrorDescription: "You don't have sufficient permissions to access this threat model",
 		})
 		return
 	}
 
 	// Get diagrams associated with this threat model
-	var diagrams []Diagram
+	var diagrams []DfdDiagram
 	if tm.Diagrams != nil {
 		for _, diagramID := range *tm.Diagrams {
 			diagram, err := DiagramStore.Get(diagramID.String())
@@ -100,7 +100,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: err.Error(),
+			ErrorDescription: err.Error(),
 		})
 		return
 	}
@@ -111,7 +111,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	if !ok || userName == "" {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:   "unauthorized",
-			Message: "Authentication required",
+			ErrorDescription: "Authentication required",
 		})
 		return
 	}
@@ -121,7 +121,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Threat model not found",
+			ErrorDescription: "Threat model not found",
 		})
 		return
 	}
@@ -130,7 +130,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	if err := CheckThreatModelAccess(userName, tm, RoleWriter); err != nil {
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
-			Message: "You don't have sufficient permissions to create diagrams in this threat model",
+			ErrorDescription: "You don't have sufficient permissions to create diagrams in this threat model",
 		})
 		return
 	}
@@ -160,7 +160,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to create diagram",
+			ErrorDescription: "Failed to create diagram",
 		})
 		return
 	}
@@ -183,7 +183,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		}
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to update threat model with new diagram",
+			ErrorDescription: "Failed to update threat model with new diagram",
 		})
 		return
 	}
@@ -207,7 +207,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Threat model not found",
+			ErrorDescription: "Threat model not found",
 		})
 		return
 	}
@@ -216,7 +216,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 	if err := CheckThreatModelAccess(userName, tm, RoleReader); err != nil {
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
-			Message: "You don't have sufficient permissions to access this threat model",
+			ErrorDescription: "You don't have sufficient permissions to access this threat model",
 		})
 		return
 	}
@@ -235,7 +235,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 	if !diagramFound {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found in this threat model",
+			ErrorDescription: "Diagram not found in this threat model",
 		})
 		return
 	}
@@ -245,7 +245,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found",
+			ErrorDescription: "Diagram not found",
 		})
 		return
 	}
@@ -267,7 +267,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Threat model not found",
+			ErrorDescription: "Threat model not found",
 		})
 		return
 	}
@@ -276,7 +276,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	if err := CheckThreatModelAccess(userName, tm, RoleWriter); err != nil {
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
-			Message: "You don't have sufficient permissions to update diagrams in this threat model",
+			ErrorDescription: "You don't have sufficient permissions to update diagrams in this threat model",
 		})
 		return
 	}
@@ -295,7 +295,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	if !diagramFound {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found in this threat model",
+			ErrorDescription: "Diagram not found in this threat model",
 		})
 		return
 	}
@@ -305,7 +305,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found",
+			ErrorDescription: "Diagram not found",
 		})
 		return
 	}
@@ -315,7 +315,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	if err := c.ShouldBindJSON(&updatedDiagram); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: err.Error(),
+			ErrorDescription: err.Error(),
 		})
 		return
 	}
@@ -325,7 +325,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_id",
-			Message: "Invalid diagram ID format",
+			ErrorDescription: "Invalid diagram ID format",
 		})
 		return
 	}
@@ -339,7 +339,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	if err := DiagramStore.Update(diagramId, updatedDiagram); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to update diagram",
+			ErrorDescription: "Failed to update diagram",
 		})
 		return
 	}
@@ -364,7 +364,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Threat model not found",
+			ErrorDescription: "Threat model not found",
 		})
 		return
 	}
@@ -373,7 +373,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	if err := CheckThreatModelAccess(userName, tm, RoleWriter); err != nil {
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
-			Message: "You don't have sufficient permissions to update diagrams in this threat model",
+			ErrorDescription: "You don't have sufficient permissions to update diagrams in this threat model",
 		})
 		return
 	}
@@ -392,7 +392,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	if !diagramFound {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found in this threat model",
+			ErrorDescription: "Diagram not found in this threat model",
 		})
 		return
 	}
@@ -402,7 +402,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found",
+			ErrorDescription: "Diagram not found",
 		})
 		return
 	}
@@ -412,7 +412,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	if err := c.ShouldBindJSON(&operations); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
 			Error:   "invalid_input",
-			Message: "Invalid JSON Patch format: " + err.Error(),
+			ErrorDescription: "Invalid JSON Patch format: " + err.Error(),
 		})
 		return
 	}
@@ -428,7 +428,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	if err := DiagramStore.Update(diagramId, existingDiagram); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to update diagram",
+			ErrorDescription: "Failed to update diagram",
 		})
 		return
 	}
@@ -450,7 +450,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Threat model not found",
+			ErrorDescription: "Threat model not found",
 		})
 		return
 	}
@@ -460,7 +460,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 	if err := CheckThreatModelAccess(userName, tm, RoleOwner); err != nil {
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
-			Message: "Only the owner can delete diagrams from a threat model",
+			ErrorDescription: "Only the owner can delete diagrams from a threat model",
 		})
 		return
 	}
@@ -481,7 +481,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 	if !diagramFound {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found in this threat model",
+			ErrorDescription: "Diagram not found in this threat model",
 		})
 		return
 	}
@@ -490,7 +490,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 	if err := DiagramStore.Delete(diagramId); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to delete diagram",
+			ErrorDescription: "Failed to delete diagram",
 		})
 		return
 	}
@@ -504,7 +504,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 	if err := ThreatModelStore.Update(threatModelId, tm); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:   "server_error",
-			Message: "Failed to update threat model after diagram deletion",
+			ErrorDescription: "Failed to update threat model after diagram deletion",
 		})
 		return
 	}
@@ -529,7 +529,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Threat model not found",
+			ErrorDescription: "Threat model not found",
 		})
 		return
 	}
@@ -538,7 +538,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	if err := CheckThreatModelAccess(userName, tm, RoleReader); err != nil {
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
-			Message: "You don't have sufficient permissions to access this threat model",
+			ErrorDescription: "You don't have sufficient permissions to access this threat model",
 		})
 		return
 	}
@@ -557,7 +557,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	if !diagramFound {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found in this threat model",
+			ErrorDescription: "Diagram not found in this threat model",
 		})
 		return
 	}
@@ -567,7 +567,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found",
+			ErrorDescription: "Diagram not found",
 		})
 		return
 	}
@@ -600,7 +600,7 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Threat model not found",
+			ErrorDescription: "Threat model not found",
 		})
 		return
 	}
@@ -609,7 +609,7 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 	if err := CheckThreatModelAccess(userName, tm, RoleReader); err != nil {
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
-			Message: "You don't have sufficient permissions to access this threat model",
+			ErrorDescription: "You don't have sufficient permissions to access this threat model",
 		})
 		return
 	}
@@ -628,7 +628,7 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 	if !diagramFound {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found in this threat model",
+			ErrorDescription: "Diagram not found in this threat model",
 		})
 		return
 	}
@@ -638,7 +638,7 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found",
+			ErrorDescription: "Diagram not found",
 		})
 		return
 	}
@@ -676,7 +676,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	if err != nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Threat model not found",
+			ErrorDescription: "Threat model not found",
 		})
 		return
 	}
@@ -685,7 +685,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	if err := CheckThreatModelAccess(userName, tm, RoleReader); err != nil {
 		c.JSON(http.StatusForbidden, Error{
 			Error:   "forbidden",
-			Message: "You don't have sufficient permissions to access this threat model",
+			ErrorDescription: "You don't have sufficient permissions to access this threat model",
 		})
 		return
 	}
@@ -704,7 +704,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	if !diagramFound {
 		c.JSON(http.StatusNotFound, Error{
 			Error:   "not_found",
-			Message: "Diagram not found in this threat model",
+			ErrorDescription: "Diagram not found in this threat model",
 		})
 		return
 	}

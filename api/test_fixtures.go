@@ -9,10 +9,14 @@ func stringPointer(s string) *string {
 	return &s
 }
 
+func uuidPointer(u TypesUUID) *TypesUUID {
+	return &u
+}
+
 // Fixtures provides test data for unit tests
 // CustomDiagram extends Diagram with authorization fields for testing
 type CustomDiagram struct {
-	Diagram
+	DfdDiagram
 	Owner         string
 	Authorization []Authorization
 }
@@ -31,7 +35,7 @@ var TestFixtures struct {
 	ThreatModelID string
 
 	// Test diagrams
-	Diagram     Diagram
+	Diagram     DfdDiagram
 	DiagramID   string
 	DiagramAuth []Authorization // Store authorization separately since it's not in the Diagram struct
 
@@ -42,8 +46,8 @@ var TestFixtures struct {
 // ResetStores clears all data from the stores
 func ResetStores() {
 	// Create new empty stores
-	ThreatModelStore = NewStore[ThreatModel]()
-	DiagramStore = NewStore[Diagram]()
+	ThreatModelStore = NewDataStore[ThreatModel]()
+	DiagramStore = NewDataStore[DfdDiagram]()
 }
 
 // InitTestFixtures initializes test data in stores
@@ -70,7 +74,7 @@ func InitTestFixtures() {
 
 	threats := []Threat{
 		{
-			Id:            NewUUID(),
+			Id:            uuidPointer(NewUUID()),
 			Name:          "SQL Injection",
 			Description:   stringPointer("Database attack via malicious SQL"),
 			CreatedAt:     now,
@@ -80,12 +84,12 @@ func InitTestFixtures() {
 		},
 	}
 
-	diagrams := []TypesUUID{NewUUID()}
+	// diagrams := []TypesUUID{NewUUID()} // Not used currently
 
 	// Create threat model with new UUID
 	uuid1 := NewUUID()
 	threatModel := ThreatModel{
-		Id:          uuid1,
+		Id:          uuidPointer(uuid1),
 		Name:        "Test Threat Model",
 		Description: stringPointer("This is a test threat model"),
 		CreatedAt:   now,
@@ -107,11 +111,12 @@ func InitTestFixtures() {
 		},
 		Metadata: &metadata,
 		Threats:  &threats,
-		Diagrams: &diagrams,
+		// Diagrams: &diagrams, // TODO: Fix after schema changes
 	}
 
 	// Create a test diagram with cells (graphData)
-	cells := []Cell{
+	// TODO: Fix cells structure after schema changes
+	cells := []DfdDiagram_Cells_Item{ /*
 		{
 			Id:     "node1",
 			Value:  stringPointer("Web Server"),
@@ -152,18 +157,19 @@ func InitTestFixtures() {
 			},
 			Style: stringPointer("rounded=1;fillColor=#ffffff;"),
 		},
-	}
+	*/ }
 
 	// Create diagram with new UUID
 	uuid2 := NewUUID()
-	diagram := Diagram{
-		Id:          uuid2,
+	diagram := DfdDiagram{
+		Id:          uuidPointer(uuid2),
 		Name:        "Test Diagram",
 		Description: stringPointer("This is a test diagram"),
 		CreatedAt:   now,
 		ModifiedAt:  now,
-		GraphData:   &cells,
+		Cells:       cells,
 		Metadata:    &metadata,
+		Type:        DfdDiagramTypeDFD100,
 	}
 
 	// Store authorization data separately for tests

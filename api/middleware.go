@@ -167,7 +167,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			logger.Warn("Authentication required but userName not found in context for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:   "unauthorized",
-				Message: "Authentication required",
+				ErrorDescription: "Authentication required",
 			})
 			return
 		}
@@ -177,7 +177,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:   "unauthorized",
-				Message: "Invalid authentication",
+				ErrorDescription: "Invalid authentication",
 			})
 			return
 		}
@@ -266,7 +266,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 				userName, userRole, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
 				Error:   "forbidden",
-				Message: "You don't have sufficient permissions to perform this action",
+				ErrorDescription: "You don't have sufficient permissions to perform this action",
 			})
 			return
 		}
@@ -303,7 +303,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 			logger.Warn("Authentication required but userName not found in context for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:   "unauthorized",
-				Message: "Authentication required",
+				ErrorDescription: "Authentication required",
 			})
 			return
 		}
@@ -313,7 +313,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:   "unauthorized",
-				Message: "Invalid authentication",
+				ErrorDescription: "Invalid authentication",
 			})
 			return
 		}
@@ -408,7 +408,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 				userName, userRole, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
 				Error:   "forbidden",
-				Message: "You don't have sufficient permissions to perform this action",
+				ErrorDescription: "You don't have sufficient permissions to perform this action",
 			})
 			return
 		}
@@ -425,7 +425,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 }
 
 // GetUserRoleForDiagram determines the role of the user for a given diagram
-func GetUserRoleForDiagram(userName string, diagram Diagram) Role {
+func GetUserRoleForDiagram(userName string, diagram DfdDiagram) Role {
 	// Diagrams use the owner and authorization data fields from their parent threat model
 	// Find the parent threat model for this diagram
 	// In a real implementation, we would look up the parent threat model
@@ -489,7 +489,7 @@ func LogRequest(c *gin.Context, prefix string) {
 }
 
 // CheckDiagramAccess checks if a user has required access to a diagram
-func CheckDiagramAccess(userName string, diagram Diagram, requiredRole Role) error {
+func CheckDiagramAccess(userName string, diagram DfdDiagram, requiredRole Role) error {
 	userRole := GetUserRoleForDiagram(userName, diagram)
 
 	// If no role found, access is denied
