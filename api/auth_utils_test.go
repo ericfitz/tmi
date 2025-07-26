@@ -535,3 +535,407 @@ func TestValidateAuthorizationEntriesWithFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestAccessCheck(t *testing.T) {
+	tests := []struct {
+		name         string
+		principal    string
+		requiredRole Role
+		authData     AuthorizationData
+		expected     bool
+	}{
+		{
+			name:         "valid type - owner has access",
+			principal:    "owner1",
+			requiredRole: RoleReader,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner1",
+				Authorization: []Authorization{
+					{Subject: "user1", Role: RoleReader},
+				},
+			},
+			expected: true,
+		},
+		{
+			name:         "valid type - owner has access for any required role",
+			principal:    "owner1",
+			requiredRole: RoleOwner,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner1",
+				Authorization: []Authorization{
+					{Subject: "user1", Role: RoleReader},
+				},
+			},
+			expected: true,
+		},
+		{
+			name:         "valid type - user has exact required role",
+			principal:    "user1",
+			requiredRole: RoleReader,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner1",
+				Authorization: []Authorization{
+					{Subject: "user1", Role: RoleReader},
+				},
+			},
+			expected: true,
+		},
+		{
+			name:         "valid type - user has higher role than required",
+			principal:    "user1",
+			requiredRole: RoleReader,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner1",
+				Authorization: []Authorization{
+					{Subject: "user1", Role: RoleWriter},
+				},
+			},
+			expected: true,
+		},
+		{
+			name:         "valid type - user has lower role than required",
+			principal:    "user1",
+			requiredRole: RoleWriter,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner1",
+				Authorization: []Authorization{
+					{Subject: "user1", Role: RoleReader},
+				},
+			},
+			expected: false,
+		},
+		{
+			name:         "valid type - principal not in authorization list",
+			principal:    "user2",
+			requiredRole: RoleReader,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner1",
+				Authorization: []Authorization{
+					{Subject: "user1", Role: RoleReader},
+				},
+			},
+			expected: false,
+		},
+		{
+			name:         "invalid authorization type",
+			principal:    "owner1",
+			requiredRole: RoleReader,
+			authData: AuthorizationData{
+				Type:  "invalid-type",
+				Owner: "owner1",
+				Authorization: []Authorization{
+					{Subject: "user1", Role: RoleReader},
+				},
+			},
+			expected: false,
+		},
+		{
+			name:         "empty authorization list",
+			principal:    "user1",
+			requiredRole: RoleReader,
+			authData: AuthorizationData{
+				Type:          AuthTypeTMI10,
+				Owner:         "owner1",
+				Authorization: []Authorization{},
+			},
+			expected: false,
+		},
+		{
+			name:         "multiple users in authorization list",
+			principal:    "user2",
+			requiredRole: RoleWriter,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner1",
+				Authorization: []Authorization{
+					{Subject: "user1", Role: RoleReader},
+					{Subject: "user2", Role: RoleWriter},
+					{Subject: "user3", Role: RoleOwner},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := AccessCheck(tt.principal, tt.requiredRole, tt.authData)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestHasRequiredRole(t *testing.T) {
+	tests := []struct {
+		name         string
+		userRole     Role
+		requiredRole Role
+		expected     bool
+	}{
+		{
+			name:         "reader has reader access",
+			userRole:     RoleReader,
+			requiredRole: RoleReader,
+			expected:     true,
+		},
+		{
+			name:         "writer has reader access",
+			userRole:     RoleWriter,
+			requiredRole: RoleReader,
+			expected:     true,
+		},
+		{
+			name:         "owner has reader access",
+			userRole:     RoleOwner,
+			requiredRole: RoleReader,
+			expected:     true,
+		},
+		{
+			name:         "reader lacks writer access",
+			userRole:     RoleReader,
+			requiredRole: RoleWriter,
+			expected:     false,
+		},
+		{
+			name:         "writer has writer access",
+			userRole:     RoleWriter,
+			requiredRole: RoleWriter,
+			expected:     true,
+		},
+		{
+			name:         "owner has writer access",
+			userRole:     RoleOwner,
+			requiredRole: RoleWriter,
+			expected:     true,
+		},
+		{
+			name:         "reader lacks owner access",
+			userRole:     RoleReader,
+			requiredRole: RoleOwner,
+			expected:     false,
+		},
+		{
+			name:         "writer lacks owner access",
+			userRole:     RoleWriter,
+			requiredRole: RoleOwner,
+			expected:     false,
+		},
+		{
+			name:         "owner has owner access",
+			userRole:     RoleOwner,
+			requiredRole: RoleOwner,
+			expected:     true,
+		},
+		{
+			name:         "invalid user role",
+			userRole:     "invalid",
+			requiredRole: RoleReader,
+			expected:     false,
+		},
+		{
+			name:         "invalid required role",
+			userRole:     RoleReader,
+			requiredRole: "invalid",
+			expected:     false,
+		},
+		{
+			name:         "both roles invalid",
+			userRole:     "invalid1",
+			requiredRole: "invalid2",
+			expected:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := hasRequiredRole(tt.userRole, tt.requiredRole)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestExtractAuthData(t *testing.T) {
+	// Save original test fixtures
+	originalOwner := TestFixtures.Owner
+	originalAuth := TestFixtures.ThreatModel.Authorization
+	
+	// Restore after test
+	defer func() {
+		TestFixtures.Owner = originalOwner
+		TestFixtures.ThreatModel.Authorization = originalAuth
+	}()
+
+	tests := []struct {
+		name           string
+		setupFixtures  func()
+		resource       interface{}
+		expectedOwner  string
+		expectedAuth   []Authorization
+		expectedType   string
+		expectError    bool
+	}{
+		{
+			name: "valid test fixtures",
+			setupFixtures: func() {
+				TestFixtures.Owner = "testowner"
+				TestFixtures.ThreatModel.Authorization = []Authorization{
+					{Subject: "user1", Role: RoleReader},
+					{Subject: "user2", Role: RoleWriter},
+				}
+			},
+			resource:      "dummy",
+			expectedOwner: "testowner",
+			expectedAuth: []Authorization{
+				{Subject: "user1", Role: RoleReader},
+				{Subject: "user2", Role: RoleWriter},
+			},
+			expectedType: AuthTypeTMI10,
+			expectError:  false,
+		},
+		{
+			name: "empty test fixtures",
+			setupFixtures: func() {
+				TestFixtures.Owner = ""
+				TestFixtures.ThreatModel.Authorization = nil
+			},
+			resource:    "dummy",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup test fixtures
+			tt.setupFixtures()
+
+			// Test the function
+			authData, err := ExtractAuthData(tt.resource)
+
+			if tt.expectError {
+				require.Error(t, err)
+				reqErr, ok := err.(*RequestError)
+				require.True(t, ok, "Expected RequestError")
+				assert.Equal(t, http.StatusInternalServerError, reqErr.Status)
+				assert.Equal(t, "server_error", reqErr.Code)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedType, authData.Type)
+				assert.Equal(t, tt.expectedOwner, authData.Owner)
+				assert.Equal(t, tt.expectedAuth, authData.Authorization)
+			}
+		})
+	}
+}
+
+func TestCheckResourceAccess(t *testing.T) {
+	// Save original test fixtures
+	originalOwner := TestFixtures.Owner
+	originalAuth := TestFixtures.ThreatModel.Authorization
+	
+	// Restore after test
+	defer func() {
+		TestFixtures.Owner = originalOwner
+		TestFixtures.ThreatModel.Authorization = originalAuth
+	}()
+
+	tests := []struct {
+		name           string
+		setupFixtures  func()
+		userName       string
+		requiredRole   Role
+		resource       interface{}
+		expectedAccess bool
+		expectError    bool
+	}{
+		{
+			name: "owner has access",
+			setupFixtures: func() {
+				TestFixtures.Owner = "owner1"
+				TestFixtures.ThreatModel.Authorization = []Authorization{
+					{Subject: "user1", Role: RoleReader},
+				}
+			},
+			userName:       "owner1",
+			requiredRole:   RoleReader,
+			resource:       "dummy",
+			expectedAccess: true,
+			expectError:    false,
+		},
+		{
+			name: "user has sufficient role",
+			setupFixtures: func() {
+				TestFixtures.Owner = "owner1"
+				TestFixtures.ThreatModel.Authorization = []Authorization{
+					{Subject: "user1", Role: RoleWriter},
+				}
+			},
+			userName:       "user1",
+			requiredRole:   RoleReader,
+			resource:       "dummy",
+			expectedAccess: true,
+			expectError:    false,
+		},
+		{
+			name: "user lacks sufficient role",
+			setupFixtures: func() {
+				TestFixtures.Owner = "owner1"
+				TestFixtures.ThreatModel.Authorization = []Authorization{
+					{Subject: "user1", Role: RoleReader},
+				}
+			},
+			userName:       "user1",
+			requiredRole:   RoleWriter,
+			resource:       "dummy",
+			expectedAccess: false,
+			expectError:    false,
+		},
+		{
+			name: "user not in authorization list",
+			setupFixtures: func() {
+				TestFixtures.Owner = "owner1"
+				TestFixtures.ThreatModel.Authorization = []Authorization{
+					{Subject: "user1", Role: RoleReader},
+				}
+			},
+			userName:       "user2",
+			requiredRole:   RoleReader,
+			resource:       "dummy",
+			expectedAccess: false,
+			expectError:    false,
+		},
+		{
+			name: "extraction error",
+			setupFixtures: func() {
+				TestFixtures.Owner = ""
+				TestFixtures.ThreatModel.Authorization = nil
+			},
+			userName:     "user1",
+			requiredRole: RoleReader,
+			resource:     "dummy",
+			expectError:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup test fixtures
+			tt.setupFixtures()
+
+			// Test the function
+			hasAccess, err := CheckResourceAccess(tt.userName, tt.resource, tt.requiredRole)
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedAccess, hasAccess)
+			}
+		})
+	}
+}

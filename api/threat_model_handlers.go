@@ -3,9 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -34,26 +32,22 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		userName = ""
 	}
 
-	// Filter by user access
+	// Filter by user access using new authorization utilities
 	filter := func(tm ThreatModel) bool {
 		// If no user is authenticated, only show public threat models (if any)
 		if userName == "" {
 			return false
 		}
 
-		// Check if the user is the owner
-		if tm.Owner == userName {
-			return true
+		// Create authorization data for the threat model
+		authData := AuthorizationData{
+			Type:          AuthTypeTMI10,
+			Owner:         tm.Owner,
+			Authorization: tm.Authorization,
 		}
 
-		// Check if the user has access through authorization
-		for _, auth := range tm.Authorization {
-			if auth.Subject == userName {
-				return true
-			}
-		}
-
-		return false
+		// Check if user has at least reader access
+		return AccessCheck(userName, RoleReader, authData)
 	}
 
 	// Get threat models from store with filtering
@@ -76,18 +70,38 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("id")
 
-	// Get threat model from store
-	tm, err := ThreatModelStore.Get(id)
-	if err != nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Threat model not found",
-		})
+	// Validate ID format
+	if _, err := ParseUUID(id); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
 		return
 	}
 
-	// Authorization is handled by middleware
-	// The middleware has already verified the user has appropriate access
+	// Get threat model from store
+	tm, err := ThreatModelStore.Get(id)
+	if err != nil {
+		HandleRequestError(c, NotFoundError("Threat model not found"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Check authorization using new utilities
+	hasAccess, err := CheckResourceAccess(userName, tm, RoleReader)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if !hasAccess {
+		HandleRequestError(c, ForbiddenError("Insufficient permissions to access this threat model"))
+		return
+	}
+
 	c.JSON(http.StatusOK, tm)
 }
 
@@ -115,6 +129,12 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// Create new threat model
 	now := time.Now().UTC()
 	threatIDs := []Threat{}
+
+	// Validate authorization entries with format checking
+	if err := ValidateAuthorizationEntriesWithFormat(request.Authorization); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	// Validate authorization list for duplicates
 	if err := ValidateDuplicateSubjects(request.Authorization); err != nil {
@@ -159,10 +179,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 
 	createdTM, err := ThreatModelStore.Create(tm, idSetter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to create threat model",
-		})
+		HandleRequestError(c, ServerError("Failed to create threat model"))
 		return
 	}
 
@@ -177,38 +194,10 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	id := c.Param("id")
 	fmt.Printf("[DEBUG HANDLER] UpdateThreatModel called for ID: %s\n", id)
 
-	// Copy the request body for debugging before binding
-	bodyBytes, err := c.GetRawData()
+	// Parse request body using utility
+	request, err := ParseRequestBody[ThreatModel](c)
 	if err != nil {
-		fmt.Printf("[DEBUG HANDLER] Error reading request body: %v\n", err)
-		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_input",
-			ErrorDescription: "Failed to read request body: " + err.Error(),
-		})
-		return
-	}
-
-	// Log the raw request body
-	if len(bodyBytes) > 0 {
-		fmt.Printf("[DEBUG HANDLER] Request body: %s\n", string(bodyBytes))
-		// Reset the body for later binding
-		c.Request.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
-	} else {
-		fmt.Printf("[DEBUG HANDLER] Empty request body received\n")
-		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_input",
-			ErrorDescription: "Request body is empty",
-		})
-		return
-	}
-
-	var request ThreatModel
-	if err := c.ShouldBindJSON(&request); err != nil {
-		fmt.Printf("[DEBUG HANDLER] JSON binding error: %v\n", err)
-		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_input",
-			ErrorDescription: err.Error(),
-		})
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -222,37 +211,17 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	}
 	_ = userName // We don't use userName directly in this function
 
-	// Get existing threat model - should be available from middleware
-	existingTM, exists := c.Get("threatModel")
-	if !exists {
-		// If not in context, fetch it directly
-		var err error
-		existingTM, err = ThreatModelStore.Get(id)
-		if err != nil {
-			c.JSON(http.StatusNotFound, Error{
-				Error:            "not_found",
-				ErrorDescription: "Threat model not found",
-			})
-			return
-		}
-	}
-
-	tm, ok := existingTM.(ThreatModel)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to process threat model",
-		})
+	// Get existing threat model
+	tm, err := ThreatModelStore.Get(id)
+	if err != nil {
+		HandleRequestError(c, NotFoundError("Threat model not found"))
 		return
 	}
 
-	// Ensure ID in the URL matches the one in the body
+	// Validate ID format and ensure it matches URL
 	uuid, err := ParseUUID(id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_id",
-			ErrorDescription: "Invalid ID format",
-		})
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format"))
 		return
 	}
 	request.Id = &uuid
@@ -261,86 +230,58 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	request.CreatedAt = tm.CreatedAt
 	request.ModifiedAt = time.Now().UTC()
 
-	// Get user role from context - should be set by middleware
-	roleValue, exists := c.Get("userRole")
-	userRole, ok := roleValue.(Role)
-	if !exists || !ok {
-		fmt.Printf("[DEBUG HANDLER] User role not found in context\n")
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to determine user role",
-		})
+	// Check if user has write access to the threat model
+	hasWriteAccess, err := CheckResourceAccess(userName, tm, RoleWriter)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
-	fmt.Printf("[DEBUG HANDLER] User role: %s\n", userRole)
-	fmt.Printf("[DEBUG HANDLER] Checking authorization for changes to owner/auth fields\n")
+	if !hasWriteAccess {
+		HandleRequestError(c, ForbiddenError("Insufficient permissions to update this threat model"))
+		return
+	}
 
-	// Rule 2: Writers cannot modify owner or authorization fields
+	// Check if user has owner access for sensitive fields
 	ownerChanging := request.Owner != "" && request.Owner != tm.Owner
-	// If writer is trying to change auth field, that's a problem
 	authChanging := (len(request.Authorization) > 0) && (!authorizationEqual(request.Authorization, tm.Authorization))
 
-	// For writer access check, we need to be more stringent - even presence of the auth field is an issue
-	if userRole == RoleWriter && len(request.Authorization) > 0 {
-		authChanging = true
-	}
-
-	if (ownerChanging || authChanging) && userRole != RoleOwner {
-		fmt.Printf("[DEBUG HANDLER] Access denied: non-owner trying to change owner/auth fields\n")
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "Only the owner can change ownership or authorization",
-		})
-		return
-	}
-
-	// Rule 6: Check for duplicate authorization subjects
-	fmt.Printf("[DEBUG HANDLER] Checking for duplicate authorization subjects\n")
-	subjectMap := make(map[string]bool)
-	for _, auth := range request.Authorization {
-		if _, exists := subjectMap[auth.Subject]; exists {
-			fmt.Printf("[DEBUG HANDLER] Duplicate subject found: %s\n", auth.Subject)
-			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_input",
-				ErrorDescription: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
-			})
+	if ownerChanging || authChanging {
+		hasOwnerAccess, err := CheckResourceAccess(userName, tm, RoleOwner)
+		if err != nil {
+			HandleRequestError(c, err)
 			return
 		}
-		subjectMap[auth.Subject] = true
+
+		if !hasOwnerAccess {
+			HandleRequestError(c, ForbiddenError("Only the owner can change ownership or authorization"))
+			return
+		}
 	}
 
-	// Rule 5: If owner is changing, add original owner to authorization with owner role
-	if ownerChanging {
-		fmt.Printf("[DEBUG HANDLER] Owner changing from %s to %s\n", tm.Owner, request.Owner)
-		// Check if the original owner is already in the authorization list
-		originalOwnerFound := false
-		for i := range request.Authorization {
-			if request.Authorization[i].Subject == tm.Owner {
-				fmt.Printf("[DEBUG HANDLER] Original owner found in auth list, ensuring owner role\n")
-				// Make sure the original owner has the Owner role
-				request.Authorization[i].Role = RoleOwner
-				originalOwnerFound = true
-				break
-			}
+	// Validate authorization changes if present
+	if authChanging {
+		// Validate authorization entries with format checking
+		if err := ValidateAuthorizationEntriesWithFormat(request.Authorization); err != nil {
+			HandleRequestError(c, err)
+			return
 		}
 
-		// If the original owner isn't in the list, add them
-		if !originalOwnerFound {
-			fmt.Printf("[DEBUG HANDLER] Adding original owner to auth list with owner role\n")
-			request.Authorization = append(request.Authorization, Authorization{
-				Subject: tm.Owner,
-				Role:    RoleOwner,
-			})
+		// Check for duplicate authorization subjects
+		if err := ValidateDuplicateSubjects(request.Authorization); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
+
+		// If owner is changing, apply ownership transfer rule
+		if ownerChanging {
+			request.Authorization = ApplyOwnershipTransferRule(request.Authorization, tm.Owner, request.Owner)
 		}
 	}
 
 	// Update in store
 	if err := ThreatModelStore.Update(id, request); err != nil {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to update threat model",
-		})
+		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
 	}
 
@@ -360,7 +301,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	}
 	fmt.Printf("[DEBUG HANDLER] Successfully parsed PATCH request with %d operations\n", len(operations))
 
-	userName, userRole, err := ValidateAuthenticatedUser(c)
+	userName, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -383,16 +324,33 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// Phase 4: Preserve critical fields and validate authorization
 	modifiedTM = h.preserveThreatModelCriticalFields(modifiedTM, existingTM)
 
-	// Check authorization for changes
+	// Check if user has write access to the threat model
+	hasWriteAccess, err := CheckResourceAccess(userName, existingTM, RoleWriter)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if !hasWriteAccess {
+		HandleRequestError(c, ForbiddenError("Insufficient permissions to update this threat model"))
+		return
+	}
+
+	// Check authorization for sensitive changes
 	ownerChanging := modifiedTM.Owner != existingTM.Owner
 	authChanging := !authorizationEqual(existingTM.Authorization, modifiedTM.Authorization)
 
-	if (ownerChanging || authChanging) && userRole != RoleOwner {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "Only the owner can change ownership or authorization",
-		})
-		return
+	if ownerChanging || authChanging {
+		hasOwnerAccess, err := CheckResourceAccess(userName, existingTM, RoleOwner)
+		if err != nil {
+			HandleRequestError(c, err)
+			return
+		}
+
+		if !hasOwnerAccess {
+			HandleRequestError(c, ForbiddenError("Only the owner can change ownership or authorization"))
+			return
+		}
 	}
 
 	// Phase 5: Apply business rules
@@ -427,6 +385,12 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("id")
 
+	// Validate ID format
+	if _, err := ParseUUID(id); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+
 	// Get the user making the request
 	userName, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
@@ -434,44 +398,28 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 		return
 	}
 
-	// Get threat model directly
+	// Get threat model from store
 	tm, err := ThreatModelStore.Get(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Threat model not found",
-		})
+		HandleRequestError(c, NotFoundError("Threat model not found"))
 		return
 	}
 
-	// Check authorization in handler for delete
-	// Verify owner access directly to ensure test compatibility
-	// For deletion, only the owner can delete the resource
-	if tm.Owner != userName {
-		// Check if the user has owner role in the authorization list
-		hasOwnerRole := false
-		for _, auth := range tm.Authorization {
-			if auth.Subject == userName && auth.Role == RoleOwner {
-				hasOwnerRole = true
-				break
-			}
-		}
+	// Check if user has owner access (required for deletion)
+	hasOwnerAccess, err := CheckResourceAccess(userName, tm, RoleOwner)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
-		if !hasOwnerRole {
-			c.JSON(http.StatusForbidden, Error{
-				Error:            "forbidden",
-				ErrorDescription: "Only the owner can delete a threat model",
-			})
-			return
-		}
+	if !hasOwnerAccess {
+		HandleRequestError(c, ForbiddenError("Only the owner can delete a threat model"))
+		return
 	}
 
 	// Delete from store
 	if err := ThreatModelStore.Delete(id); err != nil {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to delete threat model",
-		})
+		HandleRequestError(c, ServerError("Failed to delete threat model"))
 		return
 	}
 

@@ -49,7 +49,7 @@ func GenerateCreateTableSQL() []string {
 )`)
 
 	// Insert initial migration version
-	statements = append(statements, `INSERT INTO schema_migrations (version, dirty) VALUES (8, false) ON CONFLICT (version) DO NOTHING`)
+	statements = append(statements, `INSERT INTO schema_migrations (version, dirty) VALUES (15, false) ON CONFLICT (version) DO NOTHING`)
 
 	return statements
 }
@@ -183,6 +183,22 @@ func mapDataTypeToSQLWithLength(dataType string, columnName string, tableName st
 			return "VARCHAR(20)" // Enum-like values are short
 		case columnName == "type" && tableName == "diagrams":
 			return "VARCHAR(50)" // Diagram types are short
+		case columnName == "type" && tableName == "sources":
+			return "VARCHAR(50)" // Source types are short
+		case columnName == "entity_type" && tableName == "metadata":
+			return "VARCHAR(50)" // Entity types are short
+		case columnName == "url":
+			return "VARCHAR(1024)" // URLs can be long
+		case columnName == "websocket_url":
+			return "VARCHAR(1024)" // WebSocket URLs can be long
+		case columnName == "key" && tableName == "metadata":
+			return "VARCHAR(256)" // Metadata keys
+		case columnName == "value" && tableName == "metadata":
+			return "VARCHAR(1024)" // Metadata values
+		case columnName == "name" && (tableName == "documents" || tableName == "sources"):
+			return "VARCHAR(256)" // Document and source names
+		case columnName == "description":
+			return "VARCHAR(1024)" // Descriptions can be longer
 		default:
 			return "VARCHAR(255)" // Default length
 		}
@@ -207,6 +223,18 @@ func getForeignKeyColumn(_ TableSchema, constraint ConstraintSchema) string {
 	case "diagrams_threat_model_id_fkey":
 		return "threat_model_id"
 	case "refresh_tokens_user_id_fkey":
+		return "user_id"
+	case "documents_threat_model_id_fkey":
+		return "threat_model_id"
+	case "sources_threat_model_id_fkey":
+		return "threat_model_id"
+	case "collaboration_sessions_threat_model_id_fkey":
+		return "threat_model_id"
+	case "collaboration_sessions_diagram_id_fkey":
+		return "diagram_id"
+	case "session_participants_session_id_fkey":
+		return "session_id"
+	case "session_participants_user_id_fkey":
 		return "user_id"
 	default:
 		// Try to infer from constraint name

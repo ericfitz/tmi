@@ -419,29 +419,41 @@ func (h *DiagramHandler) DeleteDiagram(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("id")
 
-	// Get diagram - should be available via middleware
-	_, exists := c.Get("diagram")
-	if !exists {
-		// If not in context, fetch it directly
-		_, err := DiagramStore.Get(id)
-		if err != nil {
-			c.JSON(http.StatusNotFound, Error{
-				Error:            "not_found",
-				ErrorDescription: "Diagram not found",
-			})
-			return
-		}
+	// Validate ID format
+	if _, err := ParseUUID(id); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
 	}
 
-	// Role check is done by middleware
-	// The middleware already verifies owner access for delete operations
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Get diagram from store
+	diagram, err := DiagramStore.Get(id)
+	if err != nil {
+		HandleRequestError(c, NotFoundError("Diagram not found"))
+		return
+	}
+
+	// Check if user has owner access (required for deletion)
+	hasOwnerAccess, err := CheckResourceAccess(userName, diagram, RoleOwner)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if !hasOwnerAccess {
+		HandleRequestError(c, ForbiddenError("Only the owner can delete a diagram"))
+		return
+	}
 
 	// Delete from store
 	if err := DiagramStore.Delete(id); err != nil {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to delete diagram",
-		})
+		HandleRequestError(c, ServerError("Failed to delete diagram"))
 		return
 	}
 
