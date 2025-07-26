@@ -75,13 +75,13 @@ type AuthUser struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-// SetCreatedAt implements WithTimestamps interface
-func (d *Diagram) SetCreatedAt(t time.Time) {
+// SetCreatedAt implements WithTimestamps interface for DfdDiagram
+func (d *DfdDiagram) SetCreatedAt(t time.Time) {
 	d.CreatedAt = t
 }
 
-// SetModifiedAt implements WithTimestamps interface
-func (d *Diagram) SetModifiedAt(t time.Time) {
+// SetModifiedAt implements WithTimestamps interface for DfdDiagram
+func (d *DfdDiagram) SetModifiedAt(t time.Time) {
 	d.ModifiedAt = t
 }
 

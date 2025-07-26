@@ -29,7 +29,7 @@ func (e *TestEntity) SetModifiedAt(t time.Time) {
 // TestStore_CRUD tests basic CRUD operations on the store
 func TestStore_CRUD(t *testing.T) {
 	// Create a new store
-	store := NewStore[TestEntity]()
+	store := NewDataStore[TestEntity]()
 
 	// Test create
 	entity := TestEntity{Name: "Test Entity"}
@@ -75,7 +75,7 @@ func TestStore_CRUD(t *testing.T) {
 
 // TestStore_Filtering tests filtering functionality
 func TestStore_Filtering(t *testing.T) {
-	store := NewStore[TestEntity]()
+	store := NewDataStore[TestEntity]()
 
 	idSetter := func(e TestEntity, id string) TestEntity {
 		e.ID = id

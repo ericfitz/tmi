@@ -81,7 +81,7 @@ func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 }
 
 // createTestThreatModelWithDiagram creates a test threat model with a diagram and returns both
-func createTestThreatModelWithDiagram(t *testing.T, router *gin.Engine, tmName, tmDescription, diagName, diagDescription string) (ThreatModel, Diagram) {
+func createTestThreatModelWithDiagram(t *testing.T, router *gin.Engine, tmName, tmDescription, diagName, diagDescription string) (ThreatModel, DfdDiagram) {
 	// First create a threat model
 	tmReqBody, _ := json.Marshal(map[string]interface{}{
 		"name":        tmName,
@@ -112,8 +112,12 @@ func createTestThreatModelWithDiagram(t *testing.T, router *gin.Engine, tmName, 
 	router.ServeHTTP(diagW, diagReq)
 	assert.Equal(t, http.StatusCreated, diagW.Code)
 
-	var diagram Diagram
-	err = json.Unmarshal(diagW.Body.Bytes(), &diagram)
+	var diagramUnion Diagram
+	err = json.Unmarshal(diagW.Body.Bytes(), &diagramUnion)
+	require.NoError(t, err)
+
+	// Convert union type to DfdDiagram for return
+	diagram, err := diagramUnion.AsDfdDiagram()
 	require.NoError(t, err)
 
 	return tm, diagram
@@ -194,8 +198,12 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, diagW.Code)
 
 	// Parse response
-	var diagram Diagram
-	err = json.Unmarshal(diagW.Body.Bytes(), &diagram)
+	var diagramUnion Diagram
+	err = json.Unmarshal(diagW.Body.Bytes(), &diagramUnion)
+	require.NoError(t, err)
+
+	// Convert union type to DfdDiagram for field access
+	diagram, err := diagramUnion.AsDfdDiagram()
 	require.NoError(t, err)
 
 	// Check fields
@@ -217,10 +225,13 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 	// Check that the diagram ID is in the threat model's diagrams array
 	diagramFound := false
 	if updatedTM.Diagrams != nil {
-		for _, id := range *updatedTM.Diagrams {
-			if id.String() == diagram.Id.String() {
-				diagramFound = true
-				break
+		for _, diagramUnion := range *updatedTM.Diagrams {
+			// Convert union type to DfdDiagram to get the ID
+			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+				if dfdDiag.Id.String() == diagram.Id.String() {
+					diagramFound = true
+					break
+				}
 			}
 		}
 	}
@@ -244,8 +255,12 @@ func TestGetThreatModelDiagramByID(t *testing.T) {
 	assert.Equal(t, http.StatusOK, getW.Code)
 
 	// Parse response
-	var retrievedDiagram Diagram
-	err := json.Unmarshal(getW.Body.Bytes(), &retrievedDiagram)
+	var retrievedDiagramUnion Diagram
+	err := json.Unmarshal(getW.Body.Bytes(), &retrievedDiagramUnion)
+	require.NoError(t, err)
+
+	// Convert union type to DfdDiagram for field access
+	retrievedDiagram, err := retrievedDiagramUnion.AsDfdDiagram()
 	require.NoError(t, err)
 
 	// Check fields
@@ -278,8 +293,12 @@ func TestUpdateThreatModelDiagram(t *testing.T) {
 	assert.Equal(t, http.StatusOK, updateW.Code)
 
 	// Parse response
-	var resultDiagram Diagram
-	err := json.Unmarshal(updateW.Body.Bytes(), &resultDiagram)
+	var resultDiagramUnion Diagram
+	err := json.Unmarshal(updateW.Body.Bytes(), &resultDiagramUnion)
+	require.NoError(t, err)
+
+	// Convert union type to DfdDiagram for field access
+	resultDiagram, err := resultDiagramUnion.AsDfdDiagram()
 	require.NoError(t, err)
 
 	// Check fields
@@ -323,8 +342,12 @@ func TestPatchThreatModelDiagram(t *testing.T) {
 	assert.Equal(t, http.StatusOK, patchW.Code)
 
 	// Parse response
-	var patchedDiagram Diagram
-	err := json.Unmarshal(patchW.Body.Bytes(), &patchedDiagram)
+	var patchedDiagramUnion Diagram
+	err := json.Unmarshal(patchW.Body.Bytes(), &patchedDiagramUnion)
+	require.NoError(t, err)
+
+	// Convert union type to DfdDiagram for field access
+	patchedDiagram, err := patchedDiagramUnion.AsDfdDiagram()
 	require.NoError(t, err)
 
 	// Check fields - note that the current implementation doesn't actually apply the patch operations
@@ -363,10 +386,13 @@ func TestDeleteThreatModelDiagram(t *testing.T) {
 	// Check that the diagram ID is not in the threat model's diagrams array
 	diagramFound := false
 	if updatedTM.Diagrams != nil {
-		for _, id := range *updatedTM.Diagrams {
-			if id.String() == diagram.Id.String() {
-				diagramFound = true
-				break
+		for _, diagramUnion := range *updatedTM.Diagrams {
+			// Convert union type to DfdDiagram to get the ID
+			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+				if dfdDiag.Id.String() == diagram.Id.String() {
+					diagramFound = true
+					break
+				}
 			}
 		}
 	}
@@ -414,7 +440,7 @@ func TestThreatModelDiagramNotFound(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "not_found", errResp.Error)
-	assert.Contains(t, errResp.Message, "Diagram not found")
+	assert.Contains(t, errResp.ErrorDescription, "Diagram not found")
 }
 
 // TestThreatModelNotFound tests behavior when a threat model is not found
@@ -435,7 +461,7 @@ func TestThreatModelNotFound(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "not_found", errResp.Error)
-	assert.Contains(t, errResp.Message, "Threat model not found")
+	assert.Contains(t, errResp.ErrorDescription, "Threat model not found")
 }
 
 // TestDiagramNotInThreatModel tests behavior when a diagram ID is valid but not associated with the threat model
@@ -461,7 +487,7 @@ func TestDiagramNotInThreatModel(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "not_found", errResp.Error)
-	assert.Contains(t, errResp.Message, "Diagram not found in this threat model")
+	assert.Contains(t, errResp.ErrorDescription, "Diagram not found in this threat model")
 }
 
 // TestThreatModelDiagramReadWriteDeletePermissions tests access levels for different operations

@@ -21,18 +21,27 @@ func TestDiagramStoreAndAuth(t *testing.T) {
 	uuid, _ := ParseUUID(diagramID)
 	now := CurrentTime()
 
-	// Create a diagram with the new structure (without Owner and Authorization fields)
-	diagram := Diagram{
-		Id:          uuid,
+	// Create a DfdDiagram with the new structure (without Owner and Authorization fields)
+	dfdDiagram := DfdDiagram{
+		Id:          &uuid,
 		Name:        "Debug Diagram",
 		Description: stringPointer("For debugging"),
 		CreatedAt:   now,
 		ModifiedAt:  now,
+		Cells:       []DfdDiagram_Cells_Item{},
+	}
+
+	// Convert to union type for API compatibility
+	var diagram Diagram
+	err := diagram.FromDfdDiagram(dfdDiagram)
+	if err != nil {
+		panic(err) // In test code, panic is acceptable for setup errors
 	}
 
 	// Set up the parent threat model with owner and authorization
+	tmUuid := NewUUID()
 	TestFixtures.ThreatModel = ThreatModel{
-		Id:    NewUUID(),
+		Id:    &tmUuid,
 		Name:  "Parent Threat Model",
 		Owner: "owner@example.com",
 		Authorization: []Authorization{
@@ -44,10 +53,10 @@ func TestDiagramStoreAndAuth(t *testing.T) {
 	}
 
 	// Insert the diagram directly into the store using our helper function
-	InsertDiagramForTest(diagramID, diagram)
+	InsertDiagramForTest(diagramID, dfdDiagram)
 
 	// Now update using the API
-	err := DiagramStore.Update(diagramID, diagram)
+	err = DiagramStore.Update(diagramID, dfdDiagram)
 	if err != nil {
 		t.Fatalf("Failed to store diagram: %v", err)
 	}

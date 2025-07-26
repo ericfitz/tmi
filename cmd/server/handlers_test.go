@@ -38,23 +38,24 @@ func setupTestRouter() *gin.Engine {
 
 	// Create a test diagram with the expected name
 	now := time.Now().UTC()
-	cells := []api.Cell{}
+	cells := []api.DfdDiagram_Cells_Item{}
 	metadata := []api.Metadata{}
 
-	diagram := api.Diagram{
-		Id:          api.NewUUID(),
+	uuid := api.NewUUID()
+	diagram := api.DfdDiagram{
+		Id:          &uuid,
 		Name:        "Workflow Diagram",
 		Description: stringPtr("This is a workflow diagram"),
 		CreatedAt:   now,
 		ModifiedAt:  now,
-		GraphData:   &cells,
+		Cells:       cells,
 		Metadata:    &metadata,
 	}
 
 	// Add the diagram to the store using the Create method
-	idSetter := func(d api.Diagram, id string) api.Diagram {
+	idSetter := func(d api.DfdDiagram, id string) api.DfdDiagram {
 		uuid, _ := api.ParseUUID(id)
-		d.Id = uuid
+		d.Id = &uuid
 		return d
 	}
 	_, err := api.DiagramStore.Create(diagram, idSetter)
@@ -89,8 +90,17 @@ func TestGetDiagrams(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, response)
-	// The first diagram will be the one created by TestPostDiagrams
-	assert.Equal(t, "Test Diagram", response[0].Name)
+
+	// Check that we have at least one diagram and that the "Workflow Diagram" exists
+	// (which is created by setupTestRouter)
+	found := false
+	for _, item := range response {
+		if item.Name == "Workflow Diagram" {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "Should contain the 'Workflow Diagram' created by setupTestRouter")
 }
 
 func TestPostDiagrams(t *testing.T) {
@@ -117,10 +127,14 @@ func TestPostDiagrams(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 
 	// Verify the response contains the created diagram
-	var response api.Diagram
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-
+	var responseUnion api.Diagram
+	err := json.Unmarshal(w.Body.Bytes(), &responseUnion)
 	assert.NoError(t, err)
+
+	// Convert union type to DfdDiagram for field access
+	response, err := responseUnion.AsDfdDiagram()
+	assert.NoError(t, err)
+
 	assert.Equal(t, diagram.Name, response.Name)
 	assert.Equal(t, *diagram.Description, *response.Description)
 	assert.NotEmpty(t, response.Id)
@@ -148,9 +162,13 @@ func TestGetDiagramsId(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, createW.Code)
 
 	// Extract the ID of the created diagram
-	var createdDiagram api.Diagram
-	if err := json.Unmarshal(createW.Body.Bytes(), &createdDiagram); err != nil {
+	var createdDiagramUnion api.Diagram
+	if err := json.Unmarshal(createW.Body.Bytes(), &createdDiagramUnion); err != nil {
 		t.Fatalf("Failed to unmarshal created diagram: %v", err)
+	}
+	createdDiagram, err := createdDiagramUnion.AsDfdDiagram()
+	if err != nil {
+		t.Fatalf("Failed to convert created diagram: %v", err)
 	}
 	id := createdDiagram.Id.String()
 
@@ -165,10 +183,14 @@ func TestGetDiagramsId(t *testing.T) {
 	assert.Equal(t, http.StatusOK, getW.Code)
 
 	// Check response body
-	var response api.Diagram
-	unmarshalErr := json.Unmarshal(getW.Body.Bytes(), &response)
-
+	var responseUnion api.Diagram
+	unmarshalErr := json.Unmarshal(getW.Body.Bytes(), &responseUnion)
 	assert.NoError(t, unmarshalErr)
+
+	// Convert union type to DfdDiagram for field access
+	response, err := responseUnion.AsDfdDiagram()
+	assert.NoError(t, err)
+
 	assert.Equal(t, id, response.Id.String())
 	assert.Equal(t, diagramReq.Name, response.Name)
 	assert.Equal(t, *diagramReq.Description, *response.Description)

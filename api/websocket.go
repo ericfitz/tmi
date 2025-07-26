@@ -301,8 +301,8 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	userName, exists := c.Get("user_name")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:   "unauthorized",
-			Message: "User not authenticated",
+			Error:            "unauthorized",
+			ErrorDescription: "User not authenticated",
 		})
 		return
 	}
@@ -419,14 +419,9 @@ func validateCell(cell *Cell) error {
 		return fmt.Errorf("cell cannot be nil")
 	}
 
-	// Validate ID is not empty
-	if cell.Id == "" {
+	// Validate ID is not empty (check for zero UUID)
+	if cell.Id.String() == "00000000-0000-0000-0000-000000000000" {
 		return fmt.Errorf("cell ID is required")
-	}
-
-	// Validate ID length
-	if len(cell.Id) > 100 {
-		return fmt.Errorf("cell ID exceeds maximum length")
 	}
 
 	return nil
@@ -524,10 +519,9 @@ func applyDiagramOperation(diagramID string, op DiagramOperation) error {
 		return err
 	}
 
-	// Ensure graphData array exists
-	if diagram.GraphData == nil {
-		cells := []Cell{}
-		diagram.GraphData = &cells
+	// Ensure cells array exists (no longer need to check since Cells is not a pointer)
+	if diagram.Cells == nil {
+		diagram.Cells = []DfdDiagram_Cells_Item{}
 	}
 
 	// Update diagram based on operation type
@@ -535,45 +529,48 @@ func applyDiagramOperation(diagramID string, op DiagramOperation) error {
 	case "add":
 		// Add a new component
 		if op.Component != nil {
-			// Use the component directly since it's already a Cell
-			cell := *op.Component
-			*diagram.GraphData = append(*diagram.GraphData, cell)
+			// Convert Cell to DfdDiagram_Cells_Item using conversion utility
+			converter := NewCellConverter()
+			cellItem, err := converter.ConvertCellToUnionItem(*op.Component)
+			if err != nil {
+				return fmt.Errorf("failed to convert cell: %w", err)
+			}
+			diagram.Cells = append(diagram.Cells, cellItem)
 		}
 	case "update":
 		// Update an existing cell
-		for i := range *diagram.GraphData {
-			cell := &(*diagram.GraphData)[i]
-			if cell.Id == op.ComponentID {
-				// Update existing cell with new properties
-				if op.Properties != nil {
-					// Update cell properties based on the operation
-					// This is a simplified version - in a real implementation,
-					// you would map the properties to the appropriate Cell fields
-					if value, ok := op.Properties["value"]; ok {
-						if strValue, ok := value.(string); ok {
-							cell.Value = &strValue
+		converter := NewCellConverter()
+		for i := range diagram.Cells {
+			cellItem := &diagram.Cells[i]
+			// Convert to Cell to check ID
+			if cell, err := converter.ConvertUnionItemToCell(*cellItem); err == nil {
+				if cell.Id.String() == op.ComponentID {
+					// Update existing cell with new properties from op.Component
+					if op.Component != nil {
+						// Replace the entire cell with the updated version
+						if updatedCellItem, err := converter.ConvertCellToUnionItem(*op.Component); err == nil {
+							diagram.Cells[i] = updatedCellItem
 						}
 					}
-					if style, ok := op.Properties["style"]; ok {
-						if strStyle, ok := style.(string); ok {
-							cell.Style = &strStyle
-						}
-					}
+					break
 				}
-				break
 			}
 		}
 	case "remove":
 		// Remove a cell
-		for i, cell := range *diagram.GraphData {
-			if cell.Id == op.ComponentID {
-				// Remove by replacing with last element and truncating
-				lastIndex := len(*diagram.GraphData) - 1
-				if i != lastIndex {
-					(*diagram.GraphData)[i] = (*diagram.GraphData)[lastIndex]
+		converter := NewCellConverter()
+		for i, cellItem := range diagram.Cells {
+			// Convert to Cell to check ID
+			if cell, err := converter.ConvertUnionItemToCell(cellItem); err == nil {
+				if cell.Id.String() == op.ComponentID {
+					// Remove by replacing with last element and truncating
+					lastIndex := len(diagram.Cells) - 1
+					if i != lastIndex {
+						diagram.Cells[i] = diagram.Cells[lastIndex]
+					}
+					diagram.Cells = diagram.Cells[:lastIndex]
+					break
 				}
-				*diagram.GraphData = (*diagram.GraphData)[:lastIndex]
-				break
 			}
 		}
 	}

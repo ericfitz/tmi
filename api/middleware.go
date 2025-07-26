@@ -166,7 +166,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		if !exists {
 			logger.Warn("Authentication required but userName not found in context for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-				Error:   "unauthorized",
+				Error:            "unauthorized",
 				ErrorDescription: "Authentication required",
 			})
 			return
@@ -176,7 +176,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		if !ok || userName == "" {
 			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-				Error:   "unauthorized",
+				Error:            "unauthorized",
 				ErrorDescription: "Invalid authentication",
 			})
 			return
@@ -265,7 +265,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			logger.Warn("Access denied for user %s with role %s, required role: %s",
 				userName, userRole, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
-				Error:   "forbidden",
+				Error:            "forbidden",
 				ErrorDescription: "You don't have sufficient permissions to perform this action",
 			})
 			return
@@ -302,7 +302,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 		if !exists {
 			logger.Warn("Authentication required but userName not found in context for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-				Error:   "unauthorized",
+				Error:            "unauthorized",
 				ErrorDescription: "Authentication required",
 			})
 			return
@@ -312,7 +312,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 		if !ok || userName == "" {
 			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-				Error:   "unauthorized",
+				Error:            "unauthorized",
 				ErrorDescription: "Invalid authentication",
 			})
 			return
@@ -407,7 +407,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 			logger.Warn("Access denied for user %s with role %s, required role: %s",
 				userName, userRole, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
-				Error:   "forbidden",
+				Error:            "forbidden",
 				ErrorDescription: "You don't have sufficient permissions to perform this action",
 			})
 			return

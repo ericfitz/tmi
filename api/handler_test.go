@@ -222,13 +222,13 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 
 	// Parse the response
 	var resp struct {
-		Error   string `json:"error"`
-		Message string `json:"message"`
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
 	}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 
 	// Check the error message
 	assert.Equal(t, "invalid_input", resp.Error, "Error code should be 'invalid_input'")
-	assert.Contains(t, resp.Message, "Duplicate authorization subject", "Message should mention duplicate subject")
+	assert.Contains(t, resp.ErrorDescription, "Duplicate authorization subject", "Message should mention duplicate subject")
 }

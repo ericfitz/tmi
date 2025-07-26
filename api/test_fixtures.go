@@ -116,16 +116,16 @@ func InitTestFixtures() {
 
 	// Create a test diagram with cells using new union types
 	cells := []DfdDiagram_Cells_Item{}
-	
+
 	// Create test nodes using helper functions
 	if node1, err := CreateNode(NewUUID().String(), Process, 100, 200, 80, 40); err == nil {
 		cells = append(cells, node1)
 	}
-	
+
 	if node2, err := CreateNode(NewUUID().String(), Store, 300, 200, 80, 40); err == nil {
 		cells = append(cells, node2)
 	}
-	
+
 	// Create a test edge connecting the nodes
 	if len(cells) >= 2 {
 		// Extract IDs from the nodes to create an edge

@@ -164,7 +164,7 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 	operatorName := os.Getenv("TMI_OPERATOR_NAME")
 	operatorContact := os.Getenv("TMI_OPERATOR_CONTACT")
 	if operatorName != "" || operatorContact != "" {
-		apiInfo.Operator = &struct {
+		apiInfo.Operator = struct {
 			Contact string `json:"contact"`
 			Name    string `json:"name"`
 		}{
@@ -184,8 +184,8 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 		if err != nil {
 			logger.Error("Failed to marshal API info: %v", err)
 			c.JSON(http.StatusInternalServerError, Error{
-				Error:   "server_error",
-				Message: "Failed to generate API info",
+				Error:            "server_error",
+				ErrorDescription: "Failed to generate API info",
 			})
 			return
 		}

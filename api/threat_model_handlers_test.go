@@ -178,6 +178,11 @@ func TestPatchThreatModel(t *testing.T) {
 	// Perform the patch
 	r.ServeHTTP(patchW, patchReq)
 
+	// Debug: Print response if not OK
+	if patchW.Code != http.StatusOK {
+		t.Logf("PATCH failed with status %d, body: %s", patchW.Code, patchW.Body.String())
+	}
+
 	// Assert response
 	assert.Equal(t, http.StatusOK, patchW.Code)
 
@@ -260,7 +265,7 @@ func TestCreateThreatModelWithDuplicateSubjects(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "invalid_input", errResp.Error)
-	assert.Contains(t, errResp.Message, "Duplicate authorization subject")
+	assert.Contains(t, errResp.ErrorDescription, "Duplicate authorization subject")
 }
 
 // TestCreateThreatModelWithDuplicateOwner tests creating a threat model with a subject that duplicates the owner
@@ -294,7 +299,7 @@ func TestCreateThreatModelWithDuplicateOwner(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "invalid_input", errResp.Error)
-	assert.Contains(t, errResp.Message, "Duplicate authorization subject with owner")
+	assert.Contains(t, errResp.ErrorDescription, "Duplicate authorization subject with owner")
 }
 
 // TestUpdateThreatModelOwnerChange tests the rule that when the owner changes, the original owner
@@ -403,7 +408,7 @@ func TestUpdateThreatModelWithDuplicateSubjects(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "invalid_input", errResp.Error)
-	assert.Contains(t, errResp.Message, "Duplicate authorization subject")
+	assert.Contains(t, errResp.ErrorDescription, "Duplicate authorization subject")
 }
 
 // TestNonOwnerCannotChangeOwner tests that a non-owner user cannot change the owner
@@ -454,7 +459,7 @@ func TestNonOwnerCannotChangeOwner(t *testing.T) {
 
 	assert.Equal(t, "forbidden", errResp.Error)
 	// The error message might vary based on the implementation, but it should be a forbidden error
-	// assert.Contains(t, errResp.Message, "Only the owner can transfer ownership")
+	// assert.Contains(t, errResp.ErrorDescription, "Only the owner can transfer ownership")
 }
 
 // TestOwnershipTransferViaPatching tests changing ownership via PATCH operation
@@ -576,7 +581,7 @@ func TestDuplicateSubjectViaPatching(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "invalid_input", errResp.Error)
-	assert.Contains(t, errResp.Message, "Duplicate authorization subject")
+	assert.Contains(t, errResp.ErrorDescription, "Duplicate authorization subject")
 }
 
 // TestReadWriteDeletePermissions tests access levels for different operations

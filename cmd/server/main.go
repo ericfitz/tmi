@@ -131,8 +131,8 @@ func JWTMiddleware() gin.HandlerFunc {
 		if authHeader == "" {
 			logger.Warn("Authentication failed: Missing Authorization header for path: %s", c.Request.URL.Path)
 			c.JSON(http.StatusUnauthorized, api.Error{
-				Error:   "unauthorized",
-				Message: "Missing Authorization header",
+				Error:            "unauthorized",
+				ErrorDescription: "Missing Authorization header",
 			})
 			c.Abort()
 			return
@@ -143,8 +143,8 @@ func JWTMiddleware() gin.HandlerFunc {
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			logger.Warn("Authentication failed: Invalid Authorization header format for path: %s", c.Request.URL.Path)
 			c.JSON(http.StatusUnauthorized, api.Error{
-				Error:   "unauthorized",
-				Message: "Invalid Authorization header format",
+				Error:            "unauthorized",
+				ErrorDescription: "Invalid Authorization header format",
 			})
 			c.Abort()
 			return
@@ -171,8 +171,8 @@ func JWTMiddleware() gin.HandlerFunc {
 		if err != nil || !token.Valid {
 			logger.Warn("Authentication failed: Invalid or expired token - %v", err)
 			c.JSON(http.StatusUnauthorized, api.Error{
-				Error:   "unauthorized",
-				Message: "Invalid or expired token",
+				Error:            "unauthorized",
+				ErrorDescription: "Invalid or expired token",
 			})
 			c.Abort()
 			return
@@ -324,8 +324,8 @@ func (s *Server) GetAuthCallback(c *gin.Context) {
 	if err != nil {
 		logger.Error("Failed to sign JWT token: %v", err)
 		c.JSON(http.StatusInternalServerError, api.Error{
-			Error:   "server_error",
-			Message: "Failed to generate authentication token",
+			Error:            "server_error",
+			ErrorDescription: "Failed to generate authentication token",
 		})
 		return
 	}
@@ -353,8 +353,8 @@ func DevUserInfoHandler() gin.HandlerFunc {
 		userID, exists := c.Get("userName")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, api.Error{
-				Error:   "unauthorized",
-				Message: "Not authenticated",
+				Error:            "unauthorized",
+				ErrorDescription: "Not authenticated",
 			})
 			return
 		}
@@ -362,8 +362,8 @@ func DevUserInfoHandler() gin.HandlerFunc {
 		userName, ok := userID.(string)
 		if !ok || userName == "" {
 			c.JSON(http.StatusUnauthorized, api.Error{
-				Error:   "unauthorized",
-				Message: "Invalid user context",
+				Error:            "unauthorized",
+				ErrorDescription: "Invalid user context",
 			})
 			return
 		}

@@ -29,9 +29,9 @@ func (h *DiagramHandler) GetDiagrams(c *gin.Context) {
 	offset := parseIntParam(c.DefaultQuery("offset", "0"), 0)
 
 	// Get username from JWT claim
-	userID, _ := c.Get("userName")
-	userName, ok := userID.(string)
-	if !ok {
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		// For listing endpoints, we allow unauthenticated users but return empty results
 		userName = ""
 	}
 
@@ -82,20 +82,14 @@ func (h *DiagramHandler) GetDiagramByID(c *gin.Context) {
 
 	// Validate ID format (UUID)
 	if _, err := ParseUUID(id); err != nil {
-		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_id",
-			ErrorDescription: "Invalid diagram ID format, must be a valid UUID",
-		})
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
 		return
 	}
 
 	// Get diagram from store
 	d, err := DiagramStore.Get(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:   "not_found",
-			ErrorDescription: "Diagram not found",
-		})
+		HandleRequestError(c, NotFoundError("Diagram not found"))
 		return
 	}
 
@@ -113,7 +107,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 	if err != nil {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] Error reading request body: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_input",
+			Error:            "invalid_input",
 			ErrorDescription: "Failed to read request body: " + err.Error(),
 		})
 		return
@@ -127,121 +121,62 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 	} else {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] Empty request body received\n")
 		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_input",
+			Error:            "invalid_input",
 			ErrorDescription: "Request body is empty",
 		})
 		return
 	}
 
-	var request struct {
+	type CreateDiagramRequest struct {
 		Name          string          `json:"name" binding:"required,min=1,max=255"`
 		Description   *string         `json:"description,omitempty"`
 		Authorization []Authorization `json:"authorization,omitempty"`
 	}
 
-	if err := c.ShouldBindJSON(&request); err != nil {
+	request, err := ParseRequestBody[CreateDiagramRequest](c)
+	if err != nil {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] JSON binding error: %v\n", err)
-		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_input",
-			ErrorDescription: err.Error(),
-		})
+		HandleRequestError(c, err)
 		return
 	}
 
 	// Validate name format (no control characters, reasonable length)
 	if len(request.Name) == 0 || len(request.Name) > 255 {
-		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_input",
-			ErrorDescription: "Name must be between 1 and 255 characters",
-		})
+		HandleRequestError(c, InvalidInputError("Name must be between 1 and 255 characters"))
 		return
 	}
 
 	// Validate description if provided (reasonable length)
 	if request.Description != nil && len(*request.Description) > 5000 {
-		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_input",
-			ErrorDescription: "Description must be at most 5000 characters",
-		})
+		HandleRequestError(c, InvalidInputError("Description must be at most 5000 characters"))
 		return
 	}
 
 	fmt.Printf("[DEBUG DIAGRAM HANDLER] Successfully parsed request: %+v\n", request)
 
 	// Get username from JWT claim
-	userID, _ := c.Get("userName")
-	userName, ok := userID.(string)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:   "unauthorized",
-			ErrorDescription: "Authentication required",
-		})
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
-	// Check for duplicate authorization subjects in the request itself first
-	if len(request.Authorization) > 0 {
-		authMap := make(map[string]bool)
-		for i, auth := range request.Authorization {
-			// Validate subject format
-			if auth.Subject == "" {
-				c.JSON(http.StatusBadRequest, Error{
-					Error:   "invalid_input",
-					ErrorDescription: fmt.Sprintf("Authorization subject at index %d cannot be empty", i),
-				})
-				return
-			}
-
-			if len(auth.Subject) > 255 {
-				c.JSON(http.StatusBadRequest, Error{
-					Error:   "invalid_input",
-					ErrorDescription: fmt.Sprintf("Authorization subject '%s' exceeds maximum length of 255 characters", auth.Subject),
-				})
-				return
-			}
-
-			// Validate role is valid
-			if auth.Role != RoleReader && auth.Role != RoleWriter && auth.Role != RoleOwner {
-				c.JSON(http.StatusBadRequest, Error{
-					Error: "invalid_input",
-					ErrorDescription: fmt.Sprintf("Invalid role '%s' for subject '%s'. Must be one of: reader, writer, owner",
-						auth.Role, auth.Subject),
-				})
-				return
-			}
-
-			// Check for duplicates
-			if _, exists := authMap[auth.Subject]; exists {
-				c.JSON(http.StatusBadRequest, Error{
-					Error:   "invalid_input",
-					ErrorDescription: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
-				})
-				return
-			}
-			authMap[auth.Subject] = true
-		}
+	// Validate authorization entries with format checking
+	if err := ValidateAuthorizationEntriesWithFormat(request.Authorization); err != nil {
+		HandleRequestError(c, err)
+		return
 	}
 
-	// Create authorizations array with owner as first entry
-	authorizations := []Authorization{
-		{
-			Subject: userName,
-			Role:    RoleOwner,
-		},
+	// Validate authorization list for duplicates
+	if err := ValidateDuplicateSubjects(request.Authorization); err != nil {
+		HandleRequestError(c, err)
+		return
 	}
 
-	// Add any additional authorization subjects from the request, checking for duplicates with owner
-	if len(request.Authorization) > 0 {
-		for _, auth := range request.Authorization {
-			if auth.Subject == userName {
-				c.JSON(http.StatusBadRequest, Error{
-					Error:   "invalid_input",
-					ErrorDescription: fmt.Sprintf("Duplicate authorization subject with owner: %s", auth.Subject),
-				})
-				return
-			}
-			authorizations = append(authorizations, auth)
-		}
+	// Validate that owner is not duplicated in authorization list
+	if err := ValidateOwnerNotInAuthList(userName, request.Authorization); err != nil {
+		HandleRequestError(c, err)
+		return
 	}
 
 	// Create new diagram
@@ -292,10 +227,7 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 
 	createdDiagram, err := DiagramStore.Create(d, idSetter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:   "server_error",
-			ErrorDescription: "Failed to create diagram",
-		})
+		HandleRequestError(c, ServerError("Failed to create diagram"))
 		return
 	}
 
@@ -317,7 +249,7 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 	if err != nil {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] Error reading request body: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_input",
+			Error:            "invalid_input",
 			ErrorDescription: "Failed to read request body: " + err.Error(),
 		})
 		return
@@ -331,7 +263,7 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 	} else {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] Empty request body received\n")
 		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_input",
+			Error:            "invalid_input",
 			ErrorDescription: "Request body is empty",
 		})
 		return
@@ -341,7 +273,7 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 	if err := c.ShouldBindJSON(&request); err != nil {
 		fmt.Printf("[DEBUG DIAGRAM HANDLER] JSON binding error: %v\n", err)
 		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_input",
+			Error:            "invalid_input",
 			ErrorDescription: err.Error(),
 		})
 		return
@@ -350,13 +282,12 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 	fmt.Printf("[DEBUG DIAGRAM HANDLER] Successfully parsed request: %+v\n", request)
 
 	// Get username from JWT claim (just verify it exists)
-	if _, exists := c.Get("userName"); !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:   "unauthorized",
-			ErrorDescription: "Authentication required",
-		})
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
+	_ = userName // We don't need the username for this function
 
 	// Get existing diagram - should be available from middleware
 	existingDiagram, exists := c.Get("diagram")
@@ -366,7 +297,7 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 		existingDiagram, err = DiagramStore.Get(id)
 		if err != nil {
 			c.JSON(http.StatusNotFound, Error{
-				Error:   "not_found",
+				Error:            "not_found",
 				ErrorDescription: "Diagram not found",
 			})
 			return
@@ -378,10 +309,7 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 	if existingDiagramTyped, ok := existingDiagram.(DfdDiagram); ok {
 		d = existingDiagramTyped
 	} else {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:   "server_error",
-			ErrorDescription: "Invalid diagram type",
-		})
+		HandleRequestError(c, ServerError("Invalid diagram type"))
 		return
 	}
 
@@ -389,7 +317,7 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 	uuid, err := ParseUUID(id)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_id",
+			Error:            "invalid_id",
 			ErrorDescription: "Invalid ID format",
 		})
 		return
@@ -406,7 +334,7 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 	diagramBytes, _ := json.Marshal(request)
 	if err := json.Unmarshal(diagramBytes, &responseMap); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:   "server_error",
+			Error:            "server_error",
 			ErrorDescription: "Failed to process diagram data",
 		})
 		return
@@ -420,329 +348,70 @@ func (h *DiagramHandler) UpdateDiagram(c *gin.Context) {
 }
 
 // PatchDiagram partially updates a diagram
+
 func (h *DiagramHandler) PatchDiagram(c *gin.Context) {
-	// Parse ID from URL parameter
 	id := c.Param("id")
 	fmt.Printf("[DEBUG DIAGRAM HANDLER] PatchDiagram called for ID: %s\n", id)
 
-	// Copy the request body for debugging before binding
-	bodyBytes, err := c.GetRawData()
+	// Phase 1: Parse request and validate user
+	operations, err := ParsePatchRequest(c)
 	if err != nil {
-		fmt.Printf("[DEBUG DIAGRAM HANDLER] Error reading PATCH request body: %v\n", err)
-		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_input",
-			ErrorDescription: "Failed to read request body: " + err.Error(),
-		})
+		HandleRequestError(c, err)
 		return
 	}
-
-	// Log the raw request body
-	if len(bodyBytes) > 0 {
-		fmt.Printf("[DEBUG DIAGRAM HANDLER] PATCH request body: %s\n", string(bodyBytes))
-		// Reset the body for later binding
-		c.Request.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
-	} else {
-		fmt.Printf("[DEBUG DIAGRAM HANDLER] Empty PATCH request body received\n")
-		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_input",
-			ErrorDescription: "Request body is empty",
-		})
-		return
-	}
-
-	var operations []PatchOperation
-	if err := c.ShouldBindJSON(&operations); err != nil {
-		fmt.Printf("[DEBUG DIAGRAM HANDLER] PATCH JSON binding error: %v\n", err)
-		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_input",
-			ErrorDescription: "Invalid JSON Patch format: " + err.Error(),
-		})
-		return
-	}
-
 	fmt.Printf("[DEBUG DIAGRAM HANDLER] Successfully parsed PATCH request with %d operations\n", len(operations))
 
-	// Get username from JWT claim
-	userID, _ := c.Get("userName")
-	userName, ok := userID.(string)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:   "unauthorized",
-			ErrorDescription: "Authentication required",
-		})
-		return
-	}
-
-	// Get existing diagram - should be available from middleware
-	existingDiagramValue, exists := c.Get("diagram")
-	if !exists {
-		// If not in context, fetch it directly
-		var err error
-		existingDiagramValue, err = DiagramStore.Get(id)
-		if err != nil {
-			c.JSON(http.StatusNotFound, Error{
-				Error:   "not_found",
-				ErrorDescription: "Diagram not found",
-			})
-			return
-		}
-	}
-
-	existingDiagram, ok := existingDiagramValue.(DfdDiagram)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:   "server_error",
-			ErrorDescription: "Failed to process diagram",
-		})
-		return
-	}
-
-	// Get user role from context - should be set by middleware
-	roleValue, exists := c.Get("userRole")
-	userRole, ok := roleValue.(Role)
-
-	// Convert operations to RFC6902 JSON Patch format
-	patchBytes, err := convertOperationsToJSONPatch(operations)
+	userName, userRole, err := ValidateAuthenticatedUser(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_format",
-			ErrorDescription: "Failed to convert patch operations: " + err.Error(),
-		})
+		HandleRequestError(c, err)
 		return
 	}
 
-	// Convert diagram to a map first
-	originalBytes, err := json.Marshal(existingDiagram)
+	// Phase 2: Get existing diagram
+	existingDiagram, err := h.getExistingDiagram(c, id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:   "server_error",
-			ErrorDescription: "Failed to serialize diagram",
-		})
+		HandleRequestError(c, err)
 		return
 	}
 
-	// Convert to map and add owner and authorization fields
-	var originalMap map[string]interface{}
-	if err := json.Unmarshal(originalBytes, &originalMap); err != nil {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:   "server_error",
-			ErrorDescription: "Failed to process diagram data",
-		})
+	// Phase 3: Validate authorization for patch operations
+	if err := ValidatePatchAuthorization(operations, userRole); err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
-	// Add owner and authorization fields from TestFixtures
-	originalMap["owner"] = TestFixtures.Owner
-	originalMap["authorization"] = TestFixtures.DiagramAuth
-
-	// Convert back to JSON with the added fields
-	originalBytes, err = json.Marshal(originalMap)
+	// Phase 4: Apply patch operations with diagram-specific handling
+	modifiedDiagram, err := h.applyDiagramPatch(existingDiagram, operations)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:   "server_error",
-			ErrorDescription: "Failed to serialize diagram with auth data",
-		})
+		HandleRequestError(c, err)
 		return
 	}
 
-	// Create patch object
-	patch, err := jsonpatch.DecodePatch(patchBytes)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_patch",
-			ErrorDescription: "Invalid JSON Patch: " + err.Error(),
-		})
+	// Phase 5: Apply business rules and validation
+	if err := h.applyDiagramBusinessRules(operations, userName); err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
-	// Apply patch
-	fmt.Printf("[DEBUG DIAGRAM HANDLER] Applying patch: %s to original: %s\n",
-		string(patchBytes), string(originalBytes))
-	modifiedBytes, err := patch.Apply(originalBytes)
-	if err != nil {
-		fmt.Printf("[DEBUG DIAGRAM HANDLER] Patch apply error: %v\n", err)
-		c.JSON(http.StatusBadRequest, Error{
-			Error:   "patch_failed",
-			ErrorDescription: "Failed to apply patch: " + err.Error(),
-		})
-		return
-	}
-	fmt.Printf("[DEBUG DIAGRAM HANDLER] Modified JSON after patch: %s\n", string(modifiedBytes))
-
-	// Deserialize back into diagram
-	var modifiedDiagram DfdDiagram
-	if err := json.Unmarshal(modifiedBytes, &modifiedDiagram); err != nil {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:   "server_error",
-			ErrorDescription: "Failed to deserialize patched diagram",
-		})
+	// Phase 6: Validate the patched diagram
+	if err := ValidatePatchedEntity(existingDiagram, modifiedDiagram, userName, validatePatchedDiagram); err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
-	// Check if owner or authorization is changing, which requires owner role
-	// In the updated API spec, Owner and Authorization are not part of the Diagram struct
-	// For testing purposes, we'll check the request body
-
-	// Parse the request body to check for owner or authorization changes
-	requestBody := make(map[string]interface{})
-
-	// We've already read the body earlier, so we need to use the operations variable
-	// Convert operations to JSON to check for owner/auth changes
-	operationsBytes, _ := json.Marshal(operations)
-	if len(operationsBytes) > 0 {
-		// Look for owner or authorization changes in the operations
-		for _, op := range operations {
-			if op.Op == "replace" || op.Op == "add" {
-				switch op.Path {
-				case "/owner":
-					if ownerVal, ok := op.Value.(string); ok {
-						requestBody["owner"] = ownerVal
-					}
-				case "/authorization":
-					requestBody["authorization"] = op.Value
-				}
-			}
-		}
-	}
-
-	ownerChanging := false
-	authChanging := false
-
-	// Check if owner is changing
-	if newOwner, ok := requestBody["owner"].(string); ok && newOwner != "" {
-		ownerChanging = newOwner != TestFixtures.Owner
-	}
-
-	// Check if authorization is changing
-	if _, ok := requestBody["authorization"]; ok {
-		authChanging = true
-	}
-
-	if (ownerChanging || authChanging) && (!exists || !ok || userRole != RoleOwner) {
-		c.JSON(http.StatusForbidden, Error{
-			Error:   "forbidden",
-			ErrorDescription: "Only the owner can change ownership or authorization",
-		})
-		return
-	}
-
-	// Check for duplicate authorization subjects
-	if authChanging || ownerChanging {
-		if authList, ok := requestBody["authorization"].([]interface{}); ok {
-			subjectMap := make(map[string]bool)
-			for _, authItem := range authList {
-				if auth, ok := authItem.(map[string]interface{}); ok {
-					if subject, ok := auth["subject"].(string); ok {
-						if _, exists := subjectMap[subject]; exists {
-							c.JSON(http.StatusBadRequest, Error{
-								Error:   "invalid_input",
-								ErrorDescription: fmt.Sprintf("Duplicate authorization subject: %s", subject),
-							})
-							return
-						}
-						subjectMap[subject] = true
-					}
-				}
-			}
-		}
-	}
-
-	// Custom rule 1: If owner is changing, add original owner to authorization with owner role
-	if ownerChanging {
-		// Get the new owner from the request
-		var newOwner string
-		if ownerVal, ok := requestBody["owner"].(string); ok {
-			newOwner = ownerVal
-		}
-
-		// Store the original owner
-		originalOwner := TestFixtures.ThreatModel.Owner
-
-		// Update the parent threat model with the new owner
-		TestFixtures.ThreatModel.Owner = newOwner
-
-		// Check if the original owner is already in the authorization list
-		originalOwnerFound := false
-
-		// Get the authorization list from the request
-		if authList, ok := requestBody["authorization"].([]interface{}); ok {
-			// Convert the authorization list to our internal format
-			var newAuthList []Authorization
-
-			for _, authItem := range authList {
-				if auth, ok := authItem.(map[string]interface{}); ok {
-					subject, _ := auth["subject"].(string)
-					role, _ := auth["role"].(string)
-
-					newAuthList = append(newAuthList, Authorization{
-						Subject: subject,
-						Role:    AuthorizationRole(role),
-					})
-
-					if subject == originalOwner {
-						originalOwnerFound = true
-						// Make sure the original owner has the Owner role
-						newAuthList[len(newAuthList)-1].Role = Owner
-					}
-				}
-			}
-
-			// If the original owner isn't in the list, add them
-			if !originalOwnerFound {
-				newAuthList = append(newAuthList, Authorization{
-					Subject: originalOwner,
-					Role:    RoleOwner,
-				})
-			}
-
-			// Update the parent threat model with the new authorization list
-			TestFixtures.ThreatModel.Authorization = newAuthList
-		}
-	}
-
-	// Validate patched diagram
-	if err := validatePatchedDiagram(existingDiagram, modifiedDiagram, userName); err != nil {
-		c.JSON(http.StatusBadRequest, Error{
-			Error:   "validation_failed",
-			ErrorDescription: err.Error(),
-		})
-		return
-	}
-
-	// Preserve the original ID
-	modifiedDiagram.Id = existingDiagram.Id
-
-	// Preserve creation time but update modification time
-	modifiedDiagram.CreatedAt = existingDiagram.CreatedAt
-	modifiedDiagram.ModifiedAt = time.Now().UTC()
+	// Phase 7: Preserve critical fields and update
+	modifiedDiagram = h.preserveDiagramCriticalFields(modifiedDiagram, existingDiagram)
 
 	// Update in store
 	if err := DiagramStore.Update(id, modifiedDiagram); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:   "server_error",
+			Error:            "server_error",
 			ErrorDescription: "Failed to update diagram",
 		})
 		return
 	}
 
-	// Create a response that includes the owner and authorization fields from the parent threat model
-	responseMap := make(map[string]interface{})
-
-	// First marshal the diagram to get its JSON representation
-	diagramBytes, _ := json.Marshal(modifiedDiagram)
-	if err := json.Unmarshal(diagramBytes, &responseMap); err != nil {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:   "server_error",
-			ErrorDescription: "Failed to process diagram data",
-		})
-		return
-	}
-
-	// Add the owner and authorization fields from the parent threat model
-	responseMap["owner"] = TestFixtures.ThreatModel.Owner
-	responseMap["authorization"] = TestFixtures.ThreatModel.Authorization
-
-	c.JSON(http.StatusOK, responseMap)
+	c.JSON(http.StatusOK, modifiedDiagram)
 }
 
 // DeleteDiagram deletes a diagram
@@ -757,7 +426,7 @@ func (h *DiagramHandler) DeleteDiagram(c *gin.Context) {
 		_, err := DiagramStore.Get(id)
 		if err != nil {
 			c.JSON(http.StatusNotFound, Error{
-				Error:   "not_found",
+				Error:            "not_found",
 				ErrorDescription: "Diagram not found",
 			})
 			return
@@ -770,7 +439,7 @@ func (h *DiagramHandler) DeleteDiagram(c *gin.Context) {
 	// Delete from store
 	if err := DiagramStore.Delete(id); err != nil {
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:   "server_error",
+			Error:            "server_error",
 			ErrorDescription: "Failed to delete diagram",
 		})
 		return
@@ -813,6 +482,166 @@ func validatePatchedDiagram(original, patched DfdDiagram, userName string) error
 	return nil
 }
 
+// Helper functions for diagram patching
+
+// getExistingDiagram retrieves the existing diagram from context or store
+func (h *DiagramHandler) getExistingDiagram(c *gin.Context, id string) (DfdDiagram, error) {
+	var zero DfdDiagram
+
+	// Try to get from context first (set by middleware)
+	existingDiagramValue, exists := c.Get("diagram")
+	if exists {
+		if diagram, ok := existingDiagramValue.(DfdDiagram); ok {
+			return diagram, nil
+		}
+	}
+
+	// If not in context, fetch it directly
+	diagram, err := DiagramStore.Get(id)
+	if err != nil {
+		return zero, &RequestError{
+			Status:  http.StatusNotFound,
+			Code:    "not_found",
+			Message: "Diagram not found",
+		}
+	}
+
+	return diagram, nil
+}
+
+// applyDiagramPatch applies patch operations to a diagram with diagram-specific handling
+func (h *DiagramHandler) applyDiagramPatch(original DfdDiagram, operations []PatchOperation) (DfdDiagram, error) {
+	var zero DfdDiagram
+
+	// Convert diagram to map and add auth fields for patch compatibility
+	originalBytes, err := json.Marshal(original)
+	if err != nil {
+		return zero, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to serialize diagram",
+		}
+	}
+
+	var originalMap map[string]interface{}
+	if err := json.Unmarshal(originalBytes, &originalMap); err != nil {
+		return zero, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to process diagram data",
+		}
+	}
+
+	// Add owner and authorization fields from TestFixtures for patch compatibility
+	originalMap["owner"] = TestFixtures.Owner
+	originalMap["authorization"] = TestFixtures.DiagramAuth
+
+	// Convert back to bytes with auth fields
+	originalWithAuthBytes, err := json.Marshal(originalMap)
+	if err != nil {
+		return zero, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to serialize diagram with auth data",
+		}
+	}
+
+	// Apply patch operations using helper
+	modifiedBytes, err := h.applyPatchToBytes(originalWithAuthBytes, operations)
+	if err != nil {
+		return zero, err
+	}
+
+	// Deserialize back into diagram
+	var modified DfdDiagram
+	if err := json.Unmarshal(modifiedBytes, &modified); err != nil {
+		return zero, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to deserialize patched diagram",
+		}
+	}
+
+	return modified, nil
+}
+
+// applyPatchToBytes applies patch operations to JSON bytes
+func (h *DiagramHandler) applyPatchToBytes(originalBytes []byte, operations []PatchOperation) ([]byte, error) {
+	// Convert operations to RFC6902 JSON Patch format
+	patchBytes, err := convertOperationsToJSONPatch(operations)
+	if err != nil {
+		return nil, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_format",
+			Message: "Failed to convert patch operations: " + err.Error(),
+		}
+	}
+
+	// Create patch object
+	patch, err := jsonpatch.DecodePatch(patchBytes)
+	if err != nil {
+		return nil, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_patch",
+			Message: "Invalid JSON Patch: " + err.Error(),
+		}
+	}
+
+	// Apply patch
+	fmt.Printf("[DEBUG DIAGRAM HANDLER] Applying patch: %s to original: %s\n",
+		string(patchBytes), string(originalBytes))
+	modifiedBytes, err := patch.Apply(originalBytes)
+	if err != nil {
+		fmt.Printf("[DEBUG DIAGRAM HANDLER] Patch apply error: %v\n", err)
+		return nil, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "patch_failed",
+			Message: "Failed to apply patch: " + err.Error(),
+		}
+	}
+	fmt.Printf("[DEBUG DIAGRAM HANDLER] Modified JSON after patch: %s\n", string(modifiedBytes))
+
+	return modifiedBytes, nil
+}
+
+// applyDiagramBusinessRules applies diagram-specific business rules for patch operations
+func (h *DiagramHandler) applyDiagramBusinessRules(operations []PatchOperation, userName string) error {
+	// Extract ownership changes from operations
+	newOwner, newAuth, hasOwnerChange, hasAuthChange := ExtractOwnershipChangesFromOperations(operations)
+
+	// Apply duplicate subject validation
+	if hasAuthChange {
+		if err := ValidateDuplicateSubjects(newAuth); err != nil {
+			return err
+		}
+	}
+
+	// Apply ownership transfer rule if owner is changing
+	if hasOwnerChange {
+		originalOwner := TestFixtures.ThreatModel.Owner
+
+		// Update the parent threat model with the new owner
+		TestFixtures.ThreatModel.Owner = newOwner
+
+		// Apply ownership transfer rule
+		if hasAuthChange {
+			updatedAuth := ApplyOwnershipTransferRule(newAuth, originalOwner, newOwner)
+			TestFixtures.ThreatModel.Authorization = updatedAuth
+		}
+	}
+
+	return nil
+}
+
+// preserveDiagramCriticalFields preserves critical fields that shouldn't change during patching
+func (h *DiagramHandler) preserveDiagramCriticalFields(modified, original DfdDiagram) DfdDiagram {
+	// Preserve the original ID and timestamps
+	modified.Id = original.Id
+	modified.CreatedAt = original.CreatedAt
+	modified.ModifiedAt = time.Now().UTC()
+	return modified
+}
+
 // GetDiagramCollaborate handles diagram collaboration endpoint
 func (h *DiagramHandler) GetDiagramCollaborate(c *gin.Context) {
 	// Parse ID from URL parameter
@@ -820,7 +649,7 @@ func (h *DiagramHandler) GetDiagramCollaborate(c *gin.Context) {
 	id, err := ParseUUID(idStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_id",
+			Error:            "invalid_id",
 			ErrorDescription: "Invalid ID format",
 		})
 		return
@@ -889,16 +718,16 @@ func (h *DiagramHandler) PostDiagramCollaborate(c *gin.Context) {
 	id, err := ParseUUID(idStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:   "invalid_id",
+			Error:            "invalid_id",
 			ErrorDescription: "Invalid ID format",
 		})
 		return
 	}
 
 	// Get username from JWT claim
-	userID, _ := c.Get("userName")
-	userName, ok := userID.(string)
-	if !ok {
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		// For collaboration, allow anonymous users
 		userName = "anonymous"
 	}
 
@@ -977,9 +806,9 @@ func (h *DiagramHandler) DeleteDiagramCollaborate(c *gin.Context) {
 	idStr := c.Param("id")
 
 	// Get username from JWT claim
-	userID, _ := c.Get("userName")
-	userName, ok := userID.(string)
-	if !ok {
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		// For collaboration, allow anonymous users
 		userName = "anonymous"
 	}
 

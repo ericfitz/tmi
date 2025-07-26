@@ -12,15 +12,18 @@ func TestDiagramStoreAuth(t *testing.T) {
 	// Initialize test fixtures
 	InitTestFixtures()
 
-	// Create a diagram with the new structure (without Owner and Authorization fields)
-	d := Diagram{
-		Id:   NewUUID(),
-		Name: "Debug Diagram",
+	// Create a DfdDiagram with the new structure (without Owner and Authorization fields)
+	dUuid := NewUUID()
+	d := DfdDiagram{
+		Id:    &dUuid,
+		Name:  "Debug Diagram",
+		Cells: []DfdDiagram_Cells_Item{},
 	}
 
 	// Set up the parent threat model with owner and authorization
+	tmUuid := NewUUID()
 	TestFixtures.ThreatModel = ThreatModel{
-		Id:    NewUUID(),
+		Id:    &tmUuid,
 		Name:  "Parent Threat Model",
 		Owner: "test@example.com",
 		Authorization: []Authorization{
@@ -52,18 +55,20 @@ func TestPatchOperation(t *testing.T) {
 	uuid, _ := ParseUUID(diagramID)
 	now := CurrentTime()
 
-	// Create a diagram with the new structure (without Owner and Authorization fields)
-	diagram := Diagram{
-		Id:          uuid,
+	// Create a DfdDiagram with the new structure (without Owner and Authorization fields)
+	diagram := DfdDiagram{
+		Id:          &uuid,
 		Name:        "Debug Diagram",
 		Description: stringPointer("For debugging"),
 		CreatedAt:   now,
 		ModifiedAt:  now,
+		Cells:       []DfdDiagram_Cells_Item{},
 	}
 
 	// Set up the parent threat model with owner and authorization
+	tmUuid := NewUUID()
 	TestFixtures.ThreatModel = ThreatModel{
-		Id:    NewUUID(),
+		Id:    &tmUuid,
 		Name:  "Parent Threat Model",
 		Owner: "test@example.com",
 		Authorization: []Authorization{
@@ -113,11 +118,17 @@ func TestPatchOperation(t *testing.T) {
 		t.Fatalf("Failed to apply patch: %v", err)
 	}
 
-	// Unmarshal result
-	var modifiedDiagram Diagram
-	err = json.Unmarshal(modifiedBytes, &modifiedDiagram)
+	// Unmarshal result into union type first
+	var modifiedDiagramUnion Diagram
+	err = json.Unmarshal(modifiedBytes, &modifiedDiagramUnion)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal modified diagram: %v", err)
+	}
+
+	// Convert to DfdDiagram for store operations
+	modifiedDiagram, err := modifiedDiagramUnion.AsDfdDiagram()
+	if err != nil {
+		t.Fatalf("Failed to convert modified diagram: %v", err)
 	}
 
 	// Check that the patch applied correctly

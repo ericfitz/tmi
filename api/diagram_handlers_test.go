@@ -77,8 +77,12 @@ func TestCreateDiagram(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 
 	// Parse response
-	var d Diagram
-	err := json.Unmarshal(w.Body.Bytes(), &d)
+	var dUnion Diagram
+	err := json.Unmarshal(w.Body.Bytes(), &dUnion)
+	require.NoError(t, err)
+
+	// Convert union type to DfdDiagram for field access
+	d, err := dUnion.AsDfdDiagram()
 	require.NoError(t, err)
 
 	// Check fields
@@ -96,7 +100,7 @@ func TestCreateDiagram(t *testing.T) {
 }
 
 // createTestDiagram creates a test diagram and returns it
-func createTestDiagram(t *testing.T, router *gin.Engine, name string, description string) Diagram {
+func createTestDiagram(t *testing.T, router *gin.Engine, name string, description string) DfdDiagram {
 	reqBody, _ := json.Marshal(map[string]interface{}{
 		"name":        name,
 		"description": description,
@@ -110,8 +114,12 @@ func createTestDiagram(t *testing.T, router *gin.Engine, name string, descriptio
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var d Diagram
-	err := json.Unmarshal(w.Body.Bytes(), &d)
+	var dUnion Diagram
+	err := json.Unmarshal(w.Body.Bytes(), &dUnion)
+	require.NoError(t, err)
+
+	// Convert union type to DfdDiagram for return
+	d, err := dUnion.AsDfdDiagram()
 	require.NoError(t, err)
 
 	return d
@@ -152,7 +160,7 @@ func TestCreateDiagramWithDuplicateSubjects(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "invalid_input", errResp.Error)
-	assert.Contains(t, errResp.Message, "Duplicate authorization subject")
+	assert.Contains(t, errResp.ErrorDescription, "Duplicate authorization subject")
 }
 
 // TestCreateDiagramWithDuplicateOwner tests creating a diagram with a subject that duplicates the owner
@@ -186,7 +194,7 @@ func TestCreateDiagramWithDuplicateOwner(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "invalid_input", errResp.Error)
-	assert.Contains(t, errResp.Message, "Duplicate authorization subject with owner")
+	assert.Contains(t, errResp.ErrorDescription, "Duplicate authorization subject with owner")
 }
 
 // Note: TestUpdateDiagramOwnerChange has been removed because diagrams don't have direct owner and authorization fields
@@ -348,8 +356,12 @@ func TestDiagramWriterCanUpdateNonOwnerFields(t *testing.T) {
 	assert.Equal(t, http.StatusOK, updateW.Code)
 
 	// Parse response
-	var resultDiagram Diagram
-	err := json.Unmarshal(updateW.Body.Bytes(), &resultDiagram)
+	var resultDiagramUnion Diagram
+	err := json.Unmarshal(updateW.Body.Bytes(), &resultDiagramUnion)
+	require.NoError(t, err)
+
+	// Convert union type to DfdDiagram for field access
+	resultDiagram, err := resultDiagramUnion.AsDfdDiagram()
 	require.NoError(t, err)
 
 	// Verify the non-owner fields were updated

@@ -177,7 +177,7 @@ func TestRejectDuplicateSubjects(t *testing.T) {
 		_, err := ThreatModelStore.Get(id)
 		if err != nil {
 			c.JSON(http.StatusNotFound, Error{
-				Error:   "not_found",
+				Error:            "not_found",
 				ErrorDescription: "Threat model not found",
 			})
 			return
@@ -187,7 +187,7 @@ func TestRejectDuplicateSubjects(t *testing.T) {
 		var request ThreatModel
 		if err := c.ShouldBindJSON(&request); err != nil {
 			c.JSON(http.StatusBadRequest, Error{
-				Error:   "invalid_input",
+				Error:            "invalid_input",
 				ErrorDescription: err.Error(),
 			})
 			return
@@ -198,7 +198,7 @@ func TestRejectDuplicateSubjects(t *testing.T) {
 		for _, auth := range request.Authorization {
 			if _, exists := subjectMap[auth.Subject]; exists {
 				c.JSON(http.StatusBadRequest, Error{
-					Error:   "invalid_input",
+					Error:            "invalid_input",
 					ErrorDescription: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
 				})
 				return
@@ -246,14 +246,14 @@ func TestRejectDuplicateSubjects(t *testing.T) {
 
 	// Parse the response to check error message
 	var resp struct {
-		Error   string `json:"error"`
-		Message string `json:"message"`
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
 	}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "invalid_input", resp.Error, "Error code should be 'invalid_input'")
-	assert.Contains(t, resp.Message, "Duplicate authorization subject", "Message should mention duplicate subject")
+	assert.Contains(t, resp.ErrorDescription, "Duplicate authorization subject", "Message should mention duplicate subject")
 }
 
 // Now for diagram tests
@@ -319,7 +319,7 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 		"name":        "Updated Diagram Name",
 		"description": "Updated description by writer",
 		// Include graphData from the original diagram
-		"graphData": origD.GraphData,
+		"cells": origD.Cells,
 	}
 
 	jsonData, err := json.Marshal(updatePayload)
@@ -362,7 +362,7 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 		"name":        "Reader's Update Attempt",
 		"description": "This update should be rejected",
 		// Include graphData from the original diagram
-		"graphData": origD.GraphData,
+		"cells": origD.Cells,
 	}
 
 	readerJsonData, err := json.Marshal(readerUpdatePayload)
