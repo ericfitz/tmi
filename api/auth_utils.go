@@ -3,7 +3,6 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"reflect"
 )
 
 // ValidateDuplicateSubjects checks for duplicate subjects in authorization list
