@@ -1,6 +1,9 @@
 # TMI application (development configuration) using Bitnami Golang
 FROM bitnami/golang:latest
 
+# Update and patch the base image
+RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Set working directory
 WORKDIR /app
 

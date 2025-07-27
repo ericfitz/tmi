@@ -1,4 +1,4 @@
-.PHONY: build test lint clean dev dev-db dev-redis
+.PHONY: build test lint clean dev dev-db dev-redis dev-app build-postgres build-redis
 
 # Default build target
 VERSION := 0.1.0
@@ -47,3 +47,18 @@ dev-db:
 dev-redis:
 	@echo "Starting development Redis..."
 	@./scripts/start-dev-redis.sh
+
+# Build development Docker container for app
+dev-app:
+	@echo "Building TMI development Docker container..."
+	docker build -f Dockerfile.dev -t tmi-app .
+
+# Build custom PostgreSQL Docker container
+build-postgres:
+	@echo "Building custom PostgreSQL Docker container..."
+	docker build -f Dockerfile.postgres -t tmi-postgres .
+
+# Build custom Redis Docker container
+build-redis:
+	@echo "Building custom Redis Docker container..."
+	docker build -f Dockerfile.redis -t tmi-redis .

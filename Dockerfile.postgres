@@ -1,0 +1,5 @@
+# Custom PostgreSQL image with security patches
+FROM bitnami/postgresql:latest
+
+# Update and patch the base image
+RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
