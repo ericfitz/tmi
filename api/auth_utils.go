@@ -277,7 +277,7 @@ func ValidateResourceAccess(requiredRole Role) gin.HandlerFunc {
 		// For now, we'll use a generic resource placeholder
 		// In practice, this would extract the specific resource from context or ID
 		var resource interface{}
-		
+
 		// Check resource access
 		hasAccess, err := CheckResourceAccess(userName, resource, requiredRole)
 		if err != nil {

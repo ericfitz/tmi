@@ -68,6 +68,57 @@ const (
 	EdgeAttrsLineTargetMarkerNameDiamond EdgeAttrsLineTargetMarkerName = "diamond"
 )
 
+// Defines values for EdgeConnector0.
+const (
+	EdgeConnector0Jumpover EdgeConnector0 = "jumpover"
+	EdgeConnector0Normal   EdgeConnector0 = "normal"
+	EdgeConnector0Rounded  EdgeConnector0 = "rounded"
+	EdgeConnector0Smooth   EdgeConnector0 = "smooth"
+)
+
+// Defines values for EdgeConnector1ArgsJump.
+const (
+	Arc   EdgeConnector1ArgsJump = "arc"
+	Cubic EdgeConnector1ArgsJump = "cubic"
+	Gap   EdgeConnector1ArgsJump = "gap"
+)
+
+// Defines values for EdgeConnector1Name.
+const (
+	EdgeConnector1NameJumpover EdgeConnector1Name = "jumpover"
+	EdgeConnector1NameNormal   EdgeConnector1Name = "normal"
+	EdgeConnector1NameRounded  EdgeConnector1Name = "rounded"
+	EdgeConnector1NameSmooth   EdgeConnector1Name = "smooth"
+)
+
+// Defines values for EdgeRouter0.
+const (
+	EdgeRouter0Er        EdgeRouter0 = "er"
+	EdgeRouter0Manhattan EdgeRouter0 = "manhattan"
+	EdgeRouter0Metro     EdgeRouter0 = "metro"
+	EdgeRouter0Normal    EdgeRouter0 = "normal"
+	EdgeRouter0OneSide   EdgeRouter0 = "oneSide"
+	EdgeRouter0Orth      EdgeRouter0 = "orth"
+)
+
+// Defines values for EdgeRouter1ArgsDirections.
+const (
+	EdgeRouter1ArgsDirectionsBottom EdgeRouter1ArgsDirections = "bottom"
+	EdgeRouter1ArgsDirectionsLeft   EdgeRouter1ArgsDirections = "left"
+	EdgeRouter1ArgsDirectionsRight  EdgeRouter1ArgsDirections = "right"
+	EdgeRouter1ArgsDirectionsTop    EdgeRouter1ArgsDirections = "top"
+)
+
+// Defines values for EdgeRouter1Name.
+const (
+	EdgeRouter1NameEr        EdgeRouter1Name = "er"
+	EdgeRouter1NameManhattan EdgeRouter1Name = "manhattan"
+	EdgeRouter1NameMetro     EdgeRouter1Name = "metro"
+	EdgeRouter1NameNormal    EdgeRouter1Name = "normal"
+	EdgeRouter1NameOneSide   EdgeRouter1Name = "oneSide"
+	EdgeRouter1NameOrth      EdgeRouter1Name = "orth"
+)
+
 // Defines values for NodeShape.
 const (
 	Actor            NodeShape = "actor"
@@ -79,10 +130,10 @@ const (
 
 // Defines values for PortConfigurationGroupsPosition.
 const (
-	Bottom PortConfigurationGroupsPosition = "bottom"
-	Left   PortConfigurationGroupsPosition = "left"
-	Right  PortConfigurationGroupsPosition = "right"
-	Top    PortConfigurationGroupsPosition = "top"
+	PortConfigurationGroupsPositionBottom PortConfigurationGroupsPosition = "bottom"
+	PortConfigurationGroupsPositionLeft   PortConfigurationGroupsPosition = "left"
+	PortConfigurationGroupsPositionRight  PortConfigurationGroupsPosition = "right"
+	PortConfigurationGroupsPositionTop    PortConfigurationGroupsPosition = "top"
 )
 
 // Defines values for SourceParametersRefType.
@@ -231,22 +282,44 @@ type BaseDiagram struct {
 // BaseDiagramType Type of diagram with version
 type BaseDiagramType string
 
-// Cell Base schema for all diagram cells (nodes and edges) following X6 structure
+// Cell Base schema for all diagram cells (nodes and edges) fully compatible with AntV X6 graph library. This schema includes all X6 native properties plus convenience properties for easier integration. X6-specific properties like markup, tools, router, and connector are supported for advanced customization.
 type Cell struct {
-	// Data Application-specific metadata stored with the cell
-	Data *[]Metadata `json:"data,omitempty"`
+	// Data Flexible data storage compatible with X6, with reserved metadata namespace
+	Data *Cell_Data `json:"data,omitempty"`
 
 	// Id Unique identifier of the cell (UUID)
 	Id openapi_types.UUID `json:"id"`
 
+	// Markup SVG/HTML markup definition for custom shape rendering in X6
+	Markup *[]MarkupElement `json:"markup,omitempty"`
+
 	// Shape Shape type identifier that determines cell structure and behavior
 	Shape string `json:"shape"`
+
+	// Tools Interactive tools attached to the cell for user interaction
+	Tools *[]CellTool `json:"tools,omitempty"`
 
 	// Visible Whether the cell is visible in the diagram
 	Visible *bool `json:"visible,omitempty"`
 
 	// ZIndex Z-order layer for rendering (higher values render on top)
 	ZIndex *float32 `json:"zIndex,omitempty"`
+}
+
+// Cell_Data Flexible data storage compatible with X6, with reserved metadata namespace
+type Cell_Data struct {
+	// Metadata Reserved namespace for structured business metadata
+	Metadata             *[]Metadata            `json:"_metadata,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// CellTool Interactive tool configuration for X6 cells
+type CellTool struct {
+	// Args Tool-specific configuration arguments
+	Args *map[string]interface{} `json:"args,omitempty"`
+
+	// Name Tool identifier (e.g., 'boundary', 'button', 'remove')
+	Name string `json:"name"`
 }
 
 // CollaborationSession Details of an active collaboration session for a diagram
@@ -336,14 +409,29 @@ type Edge struct {
 	// Attrs Visual attributes for an edge
 	Attrs *EdgeAttrs `json:"attrs,omitempty"`
 
-	// Data Application-specific metadata stored with the cell
-	Data *[]Metadata `json:"data,omitempty"`
+	// Connector Edge connector style configuration for visual appearance
+	Connector *EdgeConnector `json:"connector,omitempty"`
+
+	// Data Flexible data storage compatible with X6, with reserved metadata namespace
+	Data *Edge_Data `json:"data,omitempty"`
+
+	// DefaultLabel Label positioned along an edge
+	DefaultLabel *EdgeLabel `json:"defaultLabel,omitempty"`
 
 	// Id Unique identifier of the cell (UUID)
 	Id openapi_types.UUID `json:"id"`
 
+	// Label Convenience property: Simple text label that automatically creates appropriate attrs.text.text structure
+	Label *string `json:"label,omitempty"`
+
 	// Labels Text labels positioned along the edge
 	Labels *[]EdgeLabel `json:"labels,omitempty"`
+
+	// Markup SVG/HTML markup definition for custom shape rendering in X6
+	Markup *[]MarkupElement `json:"markup,omitempty"`
+
+	// Router Edge routing algorithm configuration for pathfinding
+	Router *EdgeRouter `json:"router,omitempty"`
 
 	// Shape Edge type identifier
 	Shape EdgeShape `json:"shape"`
@@ -351,8 +439,29 @@ type Edge struct {
 	// Source Connection point for an edge (source or target)
 	Source EdgeTerminal `json:"source"`
 
+	// Style Convenience property: Simplified styling options that automatically create appropriate attrs structure
+	Style *struct {
+		// FontColor Label text color
+		FontColor *string `json:"fontColor,omitempty"`
+
+		// FontSize Label font size in pixels
+		FontSize *float32 `json:"fontSize,omitempty"`
+
+		// Stroke Line color
+		Stroke *string `json:"stroke,omitempty"`
+
+		// StrokeDasharray Line dash pattern (e.g., '5 5' for dashed)
+		StrokeDasharray *string `json:"strokeDasharray,omitempty"`
+
+		// StrokeWidth Line width in pixels
+		StrokeWidth *float32 `json:"strokeWidth,omitempty"`
+	} `json:"style,omitempty"`
+
 	// Target Connection point for an edge (source or target)
 	Target EdgeTerminal `json:"target"`
+
+	// Tools Interactive tools attached to the cell for user interaction
+	Tools *[]CellTool `json:"tools,omitempty"`
 
 	// Vertices Intermediate waypoints for edge routing
 	Vertices *[]Point `json:"vertices,omitempty"`
@@ -362,6 +471,13 @@ type Edge struct {
 
 	// ZIndex Z-order layer for rendering (higher values render on top)
 	ZIndex *float32 `json:"zIndex,omitempty"`
+}
+
+// Edge_Data Flexible data storage compatible with X6, with reserved metadata namespace
+type Edge_Data struct {
+	// Metadata Reserved namespace for structured business metadata
+	Metadata             *[]Metadata            `json:"_metadata,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
 // EdgeShape Edge type identifier
@@ -406,6 +522,45 @@ type EdgeAttrsLineSourceMarkerName string
 // EdgeAttrsLineTargetMarkerName Marker type
 type EdgeAttrsLineTargetMarkerName string
 
+// EdgeConnector Edge connector style configuration for visual appearance
+type EdgeConnector struct {
+	union json.RawMessage
+}
+
+// EdgeConnector0 Built-in connector name
+type EdgeConnector0 string
+
+// EdgeConnector1 Connector with custom configuration
+type EdgeConnector1 struct {
+	// Args Connector-specific arguments
+	Args *EdgeConnector_1_Args `json:"args,omitempty"`
+
+	// Name Connector style name
+	Name EdgeConnector1Name `json:"name"`
+}
+
+// EdgeConnector1ArgsJump Jump style for jumpover connectors
+type EdgeConnector1ArgsJump string
+
+// EdgeConnector_1_Args Connector-specific arguments
+type EdgeConnector_1_Args struct {
+	// Jump Jump style for jumpover connectors
+	Jump *EdgeConnector1ArgsJump `json:"jump,omitempty"`
+
+	// Precision Precision for smooth connectors
+	Precision *float32 `json:"precision,omitempty"`
+
+	// Radius Radius for rounded connectors
+	Radius *float32 `json:"radius,omitempty"`
+
+	// Size Jump size for jumpover connectors
+	Size                 *float32               `json:"size,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// EdgeConnector1Name Connector style name
+type EdgeConnector1Name string
+
 // EdgeLabel Label positioned along an edge
 type EdgeLabel struct {
 	// Attrs Label styling attributes
@@ -429,6 +584,42 @@ type EdgeLabel struct {
 	// Position Position along the edge (0 = start, 1 = end)
 	Position *float32 `json:"position,omitempty"`
 }
+
+// EdgeRouter Edge routing algorithm configuration for pathfinding
+type EdgeRouter struct {
+	union json.RawMessage
+}
+
+// EdgeRouter0 Built-in router name
+type EdgeRouter0 string
+
+// EdgeRouter1 Router with custom configuration
+type EdgeRouter1 struct {
+	// Args Router-specific arguments
+	Args *EdgeRouter_1_Args `json:"args,omitempty"`
+
+	// Name Router algorithm name
+	Name EdgeRouter1Name `json:"name"`
+}
+
+// EdgeRouter1ArgsDirections defines model for EdgeRouter.1.Args.Directions.
+type EdgeRouter1ArgsDirections string
+
+// EdgeRouter_1_Args Router-specific arguments
+type EdgeRouter_1_Args struct {
+	// Directions Allowed routing directions
+	Directions *[]EdgeRouter1ArgsDirections `json:"directions,omitempty"`
+
+	// Padding Padding around obstacles for routing
+	Padding *float32 `json:"padding,omitempty"`
+
+	// Step Grid step size for orthogonal routing
+	Step                 *float32               `json:"step,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// EdgeRouter1Name Router algorithm name
+type EdgeRouter1Name string
 
 // EdgeTerminal Connection point for an edge (source or target)
 type EdgeTerminal struct {
@@ -460,6 +651,21 @@ type ListItem struct {
 	Name string `json:"name"`
 }
 
+// MarkupElement SVG/HTML markup element for custom shape definitions in X6
+type MarkupElement struct {
+	// Attrs Element attributes and styling properties
+	Attrs *map[string]interface{} `json:"attrs,omitempty"`
+
+	// Children Nested child elements
+	Children *[]MarkupElement `json:"children,omitempty"`
+
+	// Selector CSS selector for targeting this element in styling
+	Selector *string `json:"selector,omitempty"`
+
+	// TagName SVG or HTML tag name (e.g., 'rect', 'circle', 'path', 'text')
+	TagName string `json:"tagName"`
+}
+
 // Metadata A key-value pair for extensible metadata
 type Metadata struct {
 	// Key Metadata key
@@ -477,8 +683,8 @@ type Node struct {
 	// Attrs Visual attributes for a node
 	Attrs *NodeAttrs `json:"attrs,omitempty"`
 
-	// Data Application-specific metadata stored with the cell
-	Data *[]Metadata `json:"data,omitempty"`
+	// Data Flexible data storage compatible with X6, with reserved metadata namespace
+	Data *Node_Data `json:"data,omitempty"`
 
 	// Height Height of the node in pixels
 	Height float32 `json:"height"`
@@ -486,14 +692,59 @@ type Node struct {
 	// Id Unique identifier of the cell (UUID)
 	Id openapi_types.UUID `json:"id"`
 
+	// Label Convenience property: Simple text label that automatically creates appropriate attrs.text.text structure
+	Label *string `json:"label,omitempty"`
+
+	// Markup SVG/HTML markup definition for custom shape rendering in X6
+	Markup *[]MarkupElement `json:"markup,omitempty"`
+
 	// Parent ID of the parent cell for nested/grouped nodes (UUID)
 	Parent *openapi_types.UUID `json:"parent"`
 
 	// Ports Port configuration for node connections
 	Ports *PortConfiguration `json:"ports,omitempty"`
 
+	// Position Convenience property: Position as a single object (alternative to separate x/y properties)
+	Position *struct {
+		// X X coordinate
+		X float32 `json:"x"`
+
+		// Y Y coordinate
+		Y float32 `json:"y"`
+	} `json:"position,omitempty"`
+
 	// Shape Node type determining its visual representation and behavior
 	Shape NodeShape `json:"shape"`
+
+	// Size Convenience property: Size as a single object (alternative to separate width/height properties)
+	Size *struct {
+		// Height Height in pixels
+		Height float32 `json:"height"`
+
+		// Width Width in pixels
+		Width float32 `json:"width"`
+	} `json:"size,omitempty"`
+
+	// Style Convenience property: Simplified styling options that automatically create appropriate attrs structure
+	Style *struct {
+		// Fill Background fill color
+		Fill *string `json:"fill,omitempty"`
+
+		// FontColor Text color
+		FontColor *string `json:"fontColor,omitempty"`
+
+		// FontSize Text font size in pixels
+		FontSize *float32 `json:"fontSize,omitempty"`
+
+		// Stroke Border/outline color
+		Stroke *string `json:"stroke,omitempty"`
+
+		// StrokeWidth Border/outline width in pixels
+		StrokeWidth *float32 `json:"strokeWidth,omitempty"`
+	} `json:"style,omitempty"`
+
+	// Tools Interactive tools attached to the cell for user interaction
+	Tools *[]CellTool `json:"tools,omitempty"`
 
 	// Visible Whether the cell is visible in the diagram
 	Visible *bool `json:"visible,omitempty"`
@@ -509,6 +760,13 @@ type Node struct {
 
 	// ZIndex Z-order layer for rendering (higher values render on top)
 	ZIndex *float32 `json:"zIndex,omitempty"`
+}
+
+// Node_Data Flexible data storage compatible with X6, with reserved metadata namespace
+type Node_Data struct {
+	// Metadata Reserved namespace for structured business metadata
+	Metadata             *[]Metadata            `json:"_metadata,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
 // NodeShape Node type determining its visual representation and behavior
@@ -919,6 +1177,421 @@ type PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody = PatchThrea
 // PutThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody defines body for PutThreatModelsThreatModelIdDiagramsDiagramId for application/json ContentType.
 type PutThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody = Diagram
 
+// Getter for additional properties for Cell_Data. Returns the specified
+// element and whether it was found
+func (a Cell_Data) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for Cell_Data
+func (a *Cell_Data) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for Cell_Data to handle AdditionalProperties
+func (a *Cell_Data) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["_metadata"]; found {
+		err = json.Unmarshal(raw, &a.Metadata)
+		if err != nil {
+			return fmt.Errorf("error reading '_metadata': %w", err)
+		}
+		delete(object, "_metadata")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for Cell_Data to handle AdditionalProperties
+func (a Cell_Data) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Metadata != nil {
+		object["_metadata"], err = json.Marshal(a.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '_metadata': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for Edge_Data. Returns the specified
+// element and whether it was found
+func (a Edge_Data) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for Edge_Data
+func (a *Edge_Data) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for Edge_Data to handle AdditionalProperties
+func (a *Edge_Data) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["_metadata"]; found {
+		err = json.Unmarshal(raw, &a.Metadata)
+		if err != nil {
+			return fmt.Errorf("error reading '_metadata': %w", err)
+		}
+		delete(object, "_metadata")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for Edge_Data to handle AdditionalProperties
+func (a Edge_Data) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Metadata != nil {
+		object["_metadata"], err = json.Marshal(a.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '_metadata': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for EdgeConnector_1_Args. Returns the specified
+// element and whether it was found
+func (a EdgeConnector_1_Args) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for EdgeConnector_1_Args
+func (a *EdgeConnector_1_Args) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for EdgeConnector_1_Args to handle AdditionalProperties
+func (a *EdgeConnector_1_Args) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["jump"]; found {
+		err = json.Unmarshal(raw, &a.Jump)
+		if err != nil {
+			return fmt.Errorf("error reading 'jump': %w", err)
+		}
+		delete(object, "jump")
+	}
+
+	if raw, found := object["precision"]; found {
+		err = json.Unmarshal(raw, &a.Precision)
+		if err != nil {
+			return fmt.Errorf("error reading 'precision': %w", err)
+		}
+		delete(object, "precision")
+	}
+
+	if raw, found := object["radius"]; found {
+		err = json.Unmarshal(raw, &a.Radius)
+		if err != nil {
+			return fmt.Errorf("error reading 'radius': %w", err)
+		}
+		delete(object, "radius")
+	}
+
+	if raw, found := object["size"]; found {
+		err = json.Unmarshal(raw, &a.Size)
+		if err != nil {
+			return fmt.Errorf("error reading 'size': %w", err)
+		}
+		delete(object, "size")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for EdgeConnector_1_Args to handle AdditionalProperties
+func (a EdgeConnector_1_Args) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Jump != nil {
+		object["jump"], err = json.Marshal(a.Jump)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'jump': %w", err)
+		}
+	}
+
+	if a.Precision != nil {
+		object["precision"], err = json.Marshal(a.Precision)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'precision': %w", err)
+		}
+	}
+
+	if a.Radius != nil {
+		object["radius"], err = json.Marshal(a.Radius)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'radius': %w", err)
+		}
+	}
+
+	if a.Size != nil {
+		object["size"], err = json.Marshal(a.Size)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'size': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for EdgeRouter_1_Args. Returns the specified
+// element and whether it was found
+func (a EdgeRouter_1_Args) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for EdgeRouter_1_Args
+func (a *EdgeRouter_1_Args) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for EdgeRouter_1_Args to handle AdditionalProperties
+func (a *EdgeRouter_1_Args) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["directions"]; found {
+		err = json.Unmarshal(raw, &a.Directions)
+		if err != nil {
+			return fmt.Errorf("error reading 'directions': %w", err)
+		}
+		delete(object, "directions")
+	}
+
+	if raw, found := object["padding"]; found {
+		err = json.Unmarshal(raw, &a.Padding)
+		if err != nil {
+			return fmt.Errorf("error reading 'padding': %w", err)
+		}
+		delete(object, "padding")
+	}
+
+	if raw, found := object["step"]; found {
+		err = json.Unmarshal(raw, &a.Step)
+		if err != nil {
+			return fmt.Errorf("error reading 'step': %w", err)
+		}
+		delete(object, "step")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for EdgeRouter_1_Args to handle AdditionalProperties
+func (a EdgeRouter_1_Args) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Directions != nil {
+		object["directions"], err = json.Marshal(a.Directions)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'directions': %w", err)
+		}
+	}
+
+	if a.Padding != nil {
+		object["padding"], err = json.Marshal(a.Padding)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'padding': %w", err)
+		}
+	}
+
+	if a.Step != nil {
+		object["step"], err = json.Marshal(a.Step)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'step': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for Node_Data. Returns the specified
+// element and whether it was found
+func (a Node_Data) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for Node_Data
+func (a *Node_Data) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for Node_Data to handle AdditionalProperties
+func (a *Node_Data) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["_metadata"]; found {
+		err = json.Unmarshal(raw, &a.Metadata)
+		if err != nil {
+			return fmt.Errorf("error reading '_metadata': %w", err)
+		}
+		delete(object, "_metadata")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for Node_Data to handle AdditionalProperties
+func (a Node_Data) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Metadata != nil {
+		object["_metadata"], err = json.Marshal(a.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '_metadata': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
 // AsNode returns the union data inside the DfdDiagram_Cells_Item as a Node
 func (t DfdDiagram_Cells_Item) AsNode() (Node, error) {
 	var body Node
@@ -1036,6 +1709,130 @@ func (t Diagram) MarshalJSON() ([]byte, error) {
 }
 
 func (t *Diagram) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsEdgeConnector0 returns the union data inside the EdgeConnector as a EdgeConnector0
+func (t EdgeConnector) AsEdgeConnector0() (EdgeConnector0, error) {
+	var body EdgeConnector0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEdgeConnector0 overwrites any union data inside the EdgeConnector as the provided EdgeConnector0
+func (t *EdgeConnector) FromEdgeConnector0(v EdgeConnector0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEdgeConnector0 performs a merge with any union data inside the EdgeConnector, using the provided EdgeConnector0
+func (t *EdgeConnector) MergeEdgeConnector0(v EdgeConnector0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEdgeConnector1 returns the union data inside the EdgeConnector as a EdgeConnector1
+func (t EdgeConnector) AsEdgeConnector1() (EdgeConnector1, error) {
+	var body EdgeConnector1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEdgeConnector1 overwrites any union data inside the EdgeConnector as the provided EdgeConnector1
+func (t *EdgeConnector) FromEdgeConnector1(v EdgeConnector1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEdgeConnector1 performs a merge with any union data inside the EdgeConnector, using the provided EdgeConnector1
+func (t *EdgeConnector) MergeEdgeConnector1(v EdgeConnector1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EdgeConnector) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *EdgeConnector) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsEdgeRouter0 returns the union data inside the EdgeRouter as a EdgeRouter0
+func (t EdgeRouter) AsEdgeRouter0() (EdgeRouter0, error) {
+	var body EdgeRouter0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEdgeRouter0 overwrites any union data inside the EdgeRouter as the provided EdgeRouter0
+func (t *EdgeRouter) FromEdgeRouter0(v EdgeRouter0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEdgeRouter0 performs a merge with any union data inside the EdgeRouter, using the provided EdgeRouter0
+func (t *EdgeRouter) MergeEdgeRouter0(v EdgeRouter0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEdgeRouter1 returns the union data inside the EdgeRouter as a EdgeRouter1
+func (t EdgeRouter) AsEdgeRouter1() (EdgeRouter1, error) {
+	var body EdgeRouter1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEdgeRouter1 overwrites any union data inside the EdgeRouter as the provided EdgeRouter1
+func (t *EdgeRouter) FromEdgeRouter1(v EdgeRouter1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEdgeRouter1 performs a merge with any union data inside the EdgeRouter, using the provided EdgeRouter1
+func (t *EdgeRouter) MergeEdgeRouter1(v EdgeRouter1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EdgeRouter) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *EdgeRouter) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

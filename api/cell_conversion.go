@@ -4,6 +4,47 @@ import (
 	"fmt"
 )
 
+// Helper functions to convert between data types
+func cellDataToEdgeData(data *Cell_Data) *Edge_Data {
+	if data == nil {
+		return nil
+	}
+	return &Edge_Data{
+		Metadata:             data.Metadata,
+		AdditionalProperties: data.AdditionalProperties,
+	}
+}
+
+func cellDataToNodeData(data *Cell_Data) *Node_Data {
+	if data == nil {
+		return nil
+	}
+	return &Node_Data{
+		Metadata:             data.Metadata,
+		AdditionalProperties: data.AdditionalProperties,
+	}
+}
+
+func nodeDataToCellData(data *Node_Data) *Cell_Data {
+	if data == nil {
+		return nil
+	}
+	return &Cell_Data{
+		Metadata:             data.Metadata,
+		AdditionalProperties: data.AdditionalProperties,
+	}
+}
+
+func edgeDataToCellData(data *Edge_Data) *Cell_Data {
+	if data == nil {
+		return nil
+	}
+	return &Cell_Data{
+		Metadata:             data.Metadata,
+		AdditionalProperties: data.AdditionalProperties,
+	}
+}
+
 // CellConverter provides conversion utilities between Cell struct and union types
 type CellConverter struct{}
 
@@ -24,7 +65,7 @@ func (c *CellConverter) ConvertCellToUnionItem(cell Cell) (DfdDiagram_Cells_Item
 		edge := Edge{
 			Id:    cell.Id,
 			Shape: EdgeShape(cell.Shape),
-			Data:  cell.Data,
+			Data:  cellDataToEdgeData(cell.Data),
 		}
 
 		// Set optional fields if they exist
@@ -44,7 +85,7 @@ func (c *CellConverter) ConvertCellToUnionItem(cell Cell) (DfdDiagram_Cells_Item
 		node := Node{
 			Id:     cell.Id,
 			Shape:  NodeShape(cell.Shape),
-			Data:   cell.Data,
+			Data:   cellDataToNodeData(cell.Data),
 			Height: 40.0, // Default values since Cell doesn't have these
 			Width:  80.0,
 			X:      0.0,
@@ -87,7 +128,7 @@ func (c *CellConverter) nodeToCell(node Node) Cell {
 	return Cell{
 		Id:      node.Id,
 		Shape:   string(node.Shape),
-		Data:    node.Data,
+		Data:    nodeDataToCellData(node.Data),
 		Visible: node.Visible,
 		ZIndex:  node.ZIndex,
 	}
@@ -98,7 +139,7 @@ func (c *CellConverter) edgeToCell(edge Edge) Cell {
 	return Cell{
 		Id:      edge.Id,
 		Shape:   string(edge.Shape),
-		Data:    edge.Data,
+		Data:    edgeDataToCellData(edge.Data),
 		Visible: edge.Visible,
 		ZIndex:  edge.ZIndex,
 	}

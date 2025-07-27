@@ -764,7 +764,7 @@ func TestExtractAuthData(t *testing.T) {
 	// Save original test fixtures
 	originalOwner := TestFixtures.Owner
 	originalAuth := TestFixtures.ThreatModel.Authorization
-	
+
 	// Restore after test
 	defer func() {
 		TestFixtures.Owner = originalOwner
@@ -772,13 +772,13 @@ func TestExtractAuthData(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name           string
-		setupFixtures  func()
-		resource       interface{}
-		expectedOwner  string
-		expectedAuth   []Authorization
-		expectedType   string
-		expectError    bool
+		name          string
+		setupFixtures func()
+		resource      interface{}
+		expectedOwner string
+		expectedAuth  []Authorization
+		expectedType  string
+		expectError   bool
 	}{
 		{
 			name: "valid test fixtures",
@@ -837,7 +837,7 @@ func TestCheckResourceAccess(t *testing.T) {
 	// Save original test fixtures
 	originalOwner := TestFixtures.Owner
 	originalAuth := TestFixtures.ThreatModel.Authorization
-	
+
 	// Restore after test
 	defer func() {
 		TestFixtures.Owner = originalOwner

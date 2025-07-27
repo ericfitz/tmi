@@ -17,6 +17,11 @@ func TestGetExpectedSchema(t *testing.T) {
 		"diagrams",
 		"schema_migrations",
 		"refresh_tokens",
+		"documents",
+		"sources",
+		"metadata",
+		"collaboration_sessions",
+		"session_participants",
 	}
 
 	if len(schemas) != len(expectedTables) {
