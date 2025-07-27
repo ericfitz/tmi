@@ -587,6 +587,7 @@ func checkConstraintMatches(expected, actual string) bool {
 
 	// Handle OR conditions with IS NULL
 	// Expected: "severity IS NULL OR severity IN ('low', 'medium', 'high', 'critical')"
+	// Expected: "expires_at IS NULL OR expires_at > created_at"
 	if strings.Contains(expected, " is null or ") {
 		// Check if the pattern matches
 		parts := strings.Split(expected, " or ")
@@ -599,9 +600,9 @@ func checkConstraintMatches(expected, actual string) bool {
 			if len(nullParts) > 0 {
 				column := strings.TrimSpace(nullParts[0])
 
-				// Check if actual contains the column, IS NULL, and the values
+				// Check if actual contains the column, IS NULL, and the condition
 				if strings.Contains(actual, column) && strings.Contains(actual, "is null") {
-					// Extract values from IN clause
+					// Handle IN clause: "severity IN ('low', 'medium', 'high', 'critical')"
 					if strings.Contains(inPart, " in (") {
 						inParts := strings.SplitN(inPart, " in ", 2)
 						if len(inParts) == 2 {
@@ -623,6 +624,45 @@ func checkConstraintMatches(expected, actual string) bool {
 							}
 						}
 					}
+					
+					// Handle comparison: "expires_at > created_at"
+					if strings.Contains(inPart, " > ") {
+						compParts := strings.Split(inPart, " > ")
+						if len(compParts) == 2 {
+							col1 := strings.TrimSpace(compParts[0])
+							col2 := strings.TrimSpace(compParts[1])
+							if strings.Contains(actual, col1) && strings.Contains(actual, col2) && strings.Contains(actual, ">") {
+								return true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Handle LENGTH/TRIM patterns
+	// Expected: "LENGTH(TRIM(name)) > 0"
+	// Actual: "length(TRIM(BOTH FROM name)) > 0" or "length(trim(both from name)) > 0"
+	if strings.Contains(expected, "length(trim(") && strings.Contains(expected, ")) >") {
+		// Extract column name from expected pattern
+		// Pattern: "length(trim(column_name)) > value"
+		start := strings.Index(expected, "length(trim(") + len("length(trim(")
+		end := strings.Index(expected[start:], "))")
+		if end > 0 {
+			column := expected[start : start+end]
+			
+			// Extract comparison value
+			parts := strings.Split(expected, ")) >")
+			if len(parts) == 2 {
+				value := strings.TrimSpace(parts[1])
+				
+				// Check if actual contains the column name, trim function, and comparison
+				if strings.Contains(actual, column) && 
+				   (strings.Contains(actual, "trim(both from") || strings.Contains(actual, "trim(")) &&
+				   strings.Contains(actual, "length(") &&
+				   strings.Contains(actual, "> "+value) {
+					return true
 				}
 			}
 		}
