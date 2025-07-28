@@ -250,3 +250,23 @@ func (c *Config) ValidateConfig() error {
 
 	return nil
 }
+
+// GetEnabledProviders returns a slice of enabled OAuth providers
+func (c *Config) GetEnabledProviders() []OAuthProviderConfig {
+	var enabled []OAuthProviderConfig
+	for _, provider := range c.OAuth.Providers {
+		if provider.Enabled {
+			enabled = append(enabled, provider)
+		}
+	}
+	return enabled
+}
+
+// GetProvider returns a specific OAuth provider configuration
+func (c *Config) GetProvider(providerID string) (OAuthProviderConfig, bool) {
+	provider, exists := c.OAuth.Providers[providerID]
+	if !exists || !provider.Enabled {
+		return OAuthProviderConfig{}, false
+	}
+	return provider, true
+}

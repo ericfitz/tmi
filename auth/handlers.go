@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	mathrand "math/rand"
 	"net/http"
 	"net/url"
 	"strings"
@@ -36,6 +37,7 @@ func (h *Handlers) RegisterRoutes(router *gin.Engine) {
 		auth.GET("/providers", h.GetProviders)
 		auth.GET("/authorize/:provider", h.Authorize)
 		auth.GET("/callback", h.Callback)
+		auth.POST("/exchange/:provider", h.Exchange)
 		auth.POST("/token", h.Token)
 		auth.POST("/refresh", h.Refresh)
 		auth.POST("/logout", h.Logout)
@@ -50,36 +52,55 @@ func (h *Handlers) AuthMiddleware() *Middleware {
 
 // ProviderInfo contains information about an OAuth provider
 type ProviderInfo struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Icon string `json:"icon"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Icon        string `json:"icon"`
+	AuthURL     string `json:"auth_url"`
+	RedirectURI string `json:"redirect_uri"`
+	ClientID    string `json:"client_id"`
 }
 
 // GetProviders returns the available OAuth providers
 func (h *Handlers) GetProviders(c *gin.Context) {
 	providers := make([]ProviderInfo, 0, len(h.config.OAuth.Providers))
 
-	for id := range h.config.OAuth.Providers {
+	for id, providerConfig := range h.config.OAuth.Providers {
+		if !providerConfig.Enabled {
+			continue
+		}
+
 		var name, icon string
 		switch id {
 		case "google":
 			name = "Google"
-			icon = "google"
+			icon = "fa-brands fa-google"
 		case "github":
 			name = "GitHub"
-			icon = "github"
+			icon = "fa-brands fa-github"
 		case "microsoft":
 			name = "Microsoft"
-			icon = "microsoft"
+			icon = "fa-brands fa-microsoft"
 		default:
-			name = id
-			icon = id
+			name = providerConfig.Name
+			if name == "" {
+				name = id
+			}
+			icon = providerConfig.Icon
+			if icon == "" {
+				icon = id
+			}
 		}
 
+		// Build the authorization URL for this provider
+		authURL := fmt.Sprintf("%s/auth/authorize/%s", getBaseURL(c), id)
+
 		providers = append(providers, ProviderInfo{
-			ID:   id,
-			Name: name,
-			Icon: icon,
+			ID:          id,
+			Name:        name,
+			Icon:        icon,
+			AuthURL:     authURL,
+			RedirectURI: h.config.OAuth.CallbackURL,
+			ClientID:    providerConfig.ClientID,
 		})
 	}
 
@@ -111,6 +132,9 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		return
 	}
 
+	// Get optional client callback URL from query parameter
+	clientCallback := c.Query("client_callback")
+
 	// Generate a state parameter to prevent CSRF
 	state, err := generateRandomState()
 	if err != nil {
@@ -120,10 +144,27 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		return
 	}
 
-	// Store the state in Redis with a 10-minute expiration
+	// Store the state and client callback in Redis with a 10-minute expiration
 	stateKey := fmt.Sprintf("oauth_state:%s", state)
 	ctx := c.Request.Context()
-	err = h.service.dbManager.Redis().Set(ctx, stateKey, providerID, 10*time.Minute)
+	
+	// Store both provider ID and client callback URL (if provided)
+	stateData := map[string]string{
+		"provider": providerID,
+	}
+	if clientCallback != "" {
+		stateData["client_callback"] = clientCallback
+	}
+	
+	stateJSON, err := json.Marshal(stateData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to encode state data",
+		})
+		return
+	}
+	
+	err = h.service.dbManager.Redis().Set(ctx, stateKey, string(stateJSON), 10*time.Minute)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to store state parameter",
@@ -151,10 +192,10 @@ func (h *Handlers) Callback(c *gin.Context) {
 		return
 	}
 
-	// Verify the state parameter
+	// Verify the state parameter and retrieve stored data
 	stateKey := fmt.Sprintf("oauth_state:%s", state)
 	ctx := c.Request.Context()
-	providerID, err := h.service.dbManager.Redis().Get(ctx, stateKey)
+	stateDataJSON, err := h.service.dbManager.Redis().Get(ctx, stateKey)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid state parameter",
@@ -164,6 +205,19 @@ func (h *Handlers) Callback(c *gin.Context) {
 
 	// Delete the state from Redis
 	_ = h.service.dbManager.Redis().Del(ctx, stateKey)
+
+	// Parse the state data (handle both old and new formats)
+	var stateData map[string]string
+	var providerID, clientCallback string
+	
+	if err := json.Unmarshal([]byte(stateDataJSON), &stateData); err != nil {
+		// Handle legacy format where stateData is just the provider ID
+		providerID = stateDataJSON
+	} else {
+		// Handle new format with structured data
+		providerID = stateData["provider"]
+		clientCallback = stateData["client_callback"]
+	}
 
 	// Get the provider
 	provider, err := h.getProvider(providerID)
@@ -267,7 +321,166 @@ func (h *Handlers) Callback(c *gin.Context) {
 		return
 	}
 
-	// Return the tokens
+	// If client callback URL is provided, redirect there with tokens
+	if clientCallback != "" {
+		redirectURL, err := buildClientRedirectURL(clientCallback, tokenPair, state)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("Failed to build redirect URL: %v", err),
+			})
+			return
+		}
+		c.Redirect(http.StatusFound, redirectURL)
+		return
+	}
+
+	// Fallback: Return tokens as JSON (legacy behavior)
+	c.JSON(http.StatusOK, tokenPair)
+}
+
+// Exchange handles authorization code exchange for any provider
+func (h *Handlers) Exchange(c *gin.Context) {
+	providerID := c.Param("provider")
+
+	var req struct {
+		Code        string `json:"code" binding:"required"`
+		State       string `json:"state"`
+		RedirectURI string `json:"redirect_uri" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request: missing required fields",
+		})
+		return
+	}
+
+	// Get the provider
+	provider, err := h.getProvider(providerID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid provider: %s", providerID),
+		})
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// Optional: Verify state parameter if using state validation
+	if req.State != "" {
+		stateKey := fmt.Sprintf("oauth_state:%s", req.State)
+		storedProvider, err := h.service.dbManager.Redis().Get(ctx, stateKey)
+		if err != nil || storedProvider != providerID {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Invalid state parameter",
+			})
+			return
+		}
+		// Clean up state
+		_ = h.service.dbManager.Redis().Del(ctx, stateKey)
+	}
+
+	// Exchange authorization code for tokens
+	tokenResponse, err := provider.ExchangeCode(ctx, req.Code)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to exchange authorization code: %v", err),
+		})
+		return
+	}
+
+	// Validate ID token if present
+	var claims *IDTokenClaims
+	if tokenResponse.IDToken != "" {
+		claims, err = provider.ValidateIDToken(ctx, tokenResponse.IDToken)
+		if err != nil {
+			// Log error but continue - we can get user info from userinfo endpoint
+			fmt.Printf("Failed to validate ID token: %v\n", err)
+		}
+	}
+
+	// Get user info from provider
+	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get user info: %v", err),
+		})
+		return
+	}
+
+	// Extract email from userInfo or claims
+	email := userInfo.Email
+	if email == "" && claims != nil {
+		email = claims.Email
+	}
+	if email == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get user email from provider",
+		})
+		return
+	}
+
+	// Extract name
+	name := userInfo.Name
+	if name == "" && claims != nil {
+		name = claims.Name
+	}
+	if name == "" {
+		name = email
+	}
+
+	// Get or create user
+	user, err := h.service.GetUserByEmail(ctx, email)
+	if err != nil {
+		// Create new user
+		user = User{
+			Email:     email,
+			Name:      name,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			LastLogin: time.Now(),
+		}
+
+		user, err = h.service.CreateUser(ctx, user)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("Failed to create user: %v", err),
+			})
+			return
+		}
+	} else {
+		// Update last login
+		user.LastLogin = time.Now()
+		err = h.service.UpdateUser(ctx, user)
+		if err != nil {
+			// Log error but continue
+			fmt.Printf("Failed to update user last login: %v\n", err)
+		}
+	}
+
+	// Link provider to user
+	providerUserID := userInfo.ID
+	if providerUserID == "" && claims != nil {
+		providerUserID = claims.Subject
+	}
+	if providerUserID != "" {
+		err = h.service.LinkUserProvider(ctx, user.ID, providerID, providerUserID, email)
+		if err != nil {
+			// Log error but continue
+			fmt.Printf("Failed to link user provider: %v\n", err)
+		}
+	}
+
+	// Generate TMI JWT tokens
+	tokenPair, err := h.service.GenerateTokens(ctx, user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
+		})
+		return
+	}
+
+	// Return TMI tokens
 	c.JSON(http.StatusOK, tokenPair)
 }
 
@@ -397,6 +610,25 @@ func (h *Handlers) Me(c *gin.Context) {
 
 // Helper functions
 
+// getBaseURL constructs the base URL for the current request
+func getBaseURL(c *gin.Context) string {
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	return fmt.Sprintf("%s://%s", scheme, c.Request.Host)
+}
+
+// generateState generates a random state parameter (method on Handlers)
+func (h *Handlers) generateState() string {
+	state, err := generateRandomState()
+	if err != nil {
+		// Fallback to a simple UUID-like string
+		return fmt.Sprintf("state_%d_%d", time.Now().UnixNano(), mathrand.Int63())
+	}
+	return state
+}
+
 // generateRandomState generates a random state parameter
 func generateRandomState() (string, error) {
 	b := make([]byte, 32)
@@ -404,6 +636,40 @@ func generateRandomState() (string, error) {
 		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+// buildClientRedirectURL builds the redirect URL for the client with tokens
+func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state string) (string, error) {
+	// Parse the client callback URL
+	parsedURL, err := url.Parse(clientCallback)
+	if err != nil {
+		return "", fmt.Errorf("invalid client callback URL: %v", err)
+	}
+
+	// Build query parameters with tokens
+	params := url.Values{}
+	params.Set("access_token", tokenPair.AccessToken)
+	params.Set("refresh_token", tokenPair.RefreshToken)
+	params.Set("expires_in", fmt.Sprintf("%d", tokenPair.ExpiresIn))
+	params.Set("token_type", tokenPair.TokenType)
+	
+	// Include the original state parameter
+	if state != "" {
+		params.Set("state", state)
+	}
+
+	// Preserve any existing query parameters from client callback URL
+	existingParams := parsedURL.Query()
+	for key, values := range existingParams {
+		for _, value := range values {
+			params.Add(key, value)
+		}
+	}
+
+	// Set the combined query parameters
+	parsedURL.RawQuery = params.Encode()
+
+	return parsedURL.String(), nil
 }
 
 // exchangeCodeForTokens exchanges an authorization code for tokens

@@ -93,6 +93,11 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 			c.Request.URL.Path == "/version" ||
 			c.Request.URL.Path == "/auth/login" ||
 			c.Request.URL.Path == "/auth/callback" ||
+			c.Request.URL.Path == "/auth/providers" ||
+			c.Request.URL.Path == "/auth/token" ||
+			c.Request.URL.Path == "/auth/refresh" ||
+			strings.HasPrefix(c.Request.URL.Path, "/auth/authorize/") ||
+			strings.HasPrefix(c.Request.URL.Path, "/auth/exchange/") ||
 			c.Request.URL.Path == "/site.webmanifest" ||
 			c.Request.URL.Path == "/favicon.ico" ||
 			c.Request.URL.Path == "/favicon.svg" ||

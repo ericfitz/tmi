@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 	"time"
-
-	"github.com/ericfitz/tmi/auth/db"
 )
 
 // Mock Redis implementation for the service
@@ -44,27 +42,6 @@ func (r *mockRedis) Expire(ctx context.Context, key string, expiration time.Dura
 }
 
 func TestAuthMiddleware(t *testing.T) {
-	// Skip this test for now
-	t.Skip("Skipping test that requires database access")
-}
-
-// Mock database manager for testing
-func newMockDBManager() *db.Manager {
-	// Use our mock manager that doesn't actually connect to databases
-	return db.NewMockManager()
-}
-
-func TestGenerateTokens(t *testing.T) {
-	// Skip this test for now
-	t.Skip("Skipping test that requires database access")
-}
-
-func TestOAuthProvider(t *testing.T) {
-	// Skip this test for now
-	t.Skip("Skipping test that requires database access")
-}
-
-func TestUserProviderOperations(t *testing.T) {
 	// Skip this test for now
 	t.Skip("Skipping test that requires database access")
 }
