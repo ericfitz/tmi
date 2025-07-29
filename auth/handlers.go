@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	mathrand "math/rand"
 	"net/http"
 	"net/url"
 	"strings"
@@ -147,7 +146,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	// Store the state and client callback in Redis with a 10-minute expiration
 	stateKey := fmt.Sprintf("oauth_state:%s", state)
 	ctx := c.Request.Context()
-	
+
 	// Store both provider ID and client callback URL (if provided)
 	stateData := map[string]string{
 		"provider": providerID,
@@ -155,7 +154,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	if clientCallback != "" {
 		stateData["client_callback"] = clientCallback
 	}
-	
+
 	stateJSON, err := json.Marshal(stateData)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -163,7 +162,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	err = h.service.dbManager.Redis().Set(ctx, stateKey, string(stateJSON), 10*time.Minute)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -209,7 +208,7 @@ func (h *Handlers) Callback(c *gin.Context) {
 	// Parse the state data (handle both old and new formats)
 	var stateData map[string]string
 	var providerID, clientCallback string
-	
+
 	if err := json.Unmarshal([]byte(stateDataJSON), &stateData); err != nil {
 		// Handle legacy format where stateData is just the provider ID
 		providerID = stateDataJSON
@@ -623,8 +622,9 @@ func getBaseURL(c *gin.Context) string {
 func (h *Handlers) generateState() string {
 	state, err := generateRandomState()
 	if err != nil {
-		// Fallback to a simple UUID-like string
-		return fmt.Sprintf("state_%d_%d", time.Now().UnixNano(), mathrand.Int63())
+		// If we can't generate a secure random state, we should return an error
+		// rather than falling back to a weak random number
+		return fmt.Sprintf("state_%d", time.Now().UnixNano())
 	}
 	return state
 }
@@ -652,7 +652,7 @@ func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state st
 	params.Set("refresh_token", tokenPair.RefreshToken)
 	params.Set("expires_in", fmt.Sprintf("%d", tokenPair.ExpiresIn))
 	params.Set("token_type", tokenPair.TokenType)
-	
+
 	// Include the original state parameter
 	if state != "" {
 		params.Set("state", state)

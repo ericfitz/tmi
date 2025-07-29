@@ -285,8 +285,8 @@ func TestRefreshTokenHandler(t *testing.T) {
 		expectedError  string
 	}{
 		{
-			name: "Missing refresh token",
-			requestBody: map[string]interface{}{},
+			name:           "Missing refresh token",
+			requestBody:    map[string]interface{}{},
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "Invalid request",
 		},
@@ -462,11 +462,11 @@ func TestClientCallbackURLBuilder(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotEmpty(t, result)
-				
+
 				// Parse the result URL to verify all parameters are present
 				parsedURL, err := url.Parse(result)
 				require.NoError(t, err)
-				
+
 				params := parsedURL.Query()
 				assert.Equal(t, "access_token_123", params.Get("access_token"))
 				assert.Equal(t, "refresh_token_456", params.Get("refresh_token"))
@@ -537,12 +537,12 @@ func TestAuthorizeWithClientCallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url := "/auth/authorize/" + tt.provider
+			reqURL := "/auth/authorize/" + tt.provider
 			if tt.clientCallback != "" {
-				url += "?client_callback=" + url.QueryEscape(tt.clientCallback)
+				reqURL += "?client_callback=" + url.QueryEscape(tt.clientCallback)
 			}
 
-			req := httptest.NewRequest("GET", url, nil)
+			req := httptest.NewRequest("GET", reqURL, nil)
 			w := httptest.NewRecorder()
 
 			router.ServeHTTP(w, req)
@@ -574,7 +574,7 @@ func TestCallbackWithClientRedirect(t *testing.T) {
 	// 2. Client callback URL extraction from state
 	// 3. Redirect to client callback with tokens
 	// 4. Fallback to JSON response when no client callback
-	
+
 	t.Logf("Would test OAuth callback with client_redirect functionality")
 	t.Logf("Including state validation, token generation, and client redirect")
 }

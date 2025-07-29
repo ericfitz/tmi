@@ -1,144 +1,86 @@
 # TMI Development Setup
 
-This document describes how to set up and run the TMI service for local development.
-
-## Prerequisites
-
-- Go 1.16 or higher
-- Docker
-- PostgreSQL Docker container named `tmi-postgresql` with ID `b63643222cd56b8893eb1c8cb830b8ef4bb8da065744d121403b6079b503f1a4`
-- Redis Docker container named `tmi-redis` with ID `fc9b4ed4d1d3d71d50244d34a348655ea1e6cfb6f294deaacf207386c955a1b7`
-
-## Development Environment Configuration
-
-The development environment uses a local PostgreSQL Docker container for the database and a Redis Docker container for caching. The configuration is stored in the `.env.dev` file, which contains sensitive information like database and Redis passwords and should not be committed to the repository.
-
-### Setting Up the Development Environment
-
-1. Copy the example environment file to create your development configuration:
-
-   ```bash
-   cp .env.example .env.dev
-   ```
-
-2. Edit `.env.dev` and update the database and Redis configuration to match your local Docker containers:
-
-   ```
-   # PostgreSQL configuration
-   POSTGRES_HOST=localhost
-   POSTGRES_PORT=5432
-   POSTGRES_USER=postgres
-   POSTGRES_PASSWORD=your-postgres-password-here
-   POSTGRES_DB=tmi
-   POSTGRES_SSLMODE=disable
-
-   # Redis configuration
-   REDIS_HOST=localhost
-   REDIS_PORT=6379
-   REDIS_PASSWORD=your-redis-password-here
-   REDIS_DB=0
-   ```
-
-3. Make sure the scripts are executable:
-   ```bash
-   chmod +x scripts/start-dev-db.sh scripts/start-dev-redis.sh scripts/start-dev.sh
-   ```
-
-## Starting the Development Server
-
-To start the TMI service with the development configuration, you can use either the script directly or the Makefile target:
+## Quick Start
 
 ```bash
-# Using the script directly
-./scripts/start-dev.sh
-
-# Using the Makefile target
+# Start development environment
 make dev
 ```
 
-This script will:
+This will:
+1. Start PostgreSQL & Redis containers via Docker
+2. Generate `config-development.yaml` if it doesn't exist
+3. Start the TMI server with development configuration
 
-1. Check if the PostgreSQL Docker container is running and start it if needed
-2. Check if the Redis Docker container is running and start it if needed
-3. Start the TMI service with the development configuration from `.env.dev`
+## Configuration
 
-## Manual Steps
+TMI uses YAML configuration files with environment variable overrides.
 
-If you prefer to start the services manually:
+**Generated files:**
+- `config-development.yaml` - Development configuration
+- `config-production.yaml` - Production template  
+- `docker-compose.env` - Container environment variables
 
-1. Ensure the PostgreSQL Docker container is running:
+**Environment variables for secrets:**
+```bash
+TMI_DATABASE_POSTGRES_PASSWORD         # Database password (automatically set to 'postgres' for dev)
+```
 
-   ```bash
-   # Using the script directly
-   ./scripts/start-dev-db.sh
+**OAuth credentials are stored directly in `config-development.yaml` for development convenience.**
 
-   # Using the Makefile target
-   make dev-db
-   ```
+## OAuth Setup
 
-2. Ensure the Redis Docker container is running:
+For authentication, configure OAuth applications:
 
-   ```bash
-   # Using the script directly
-   ./scripts/start-dev-redis.sh
+### Google OAuth
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create OAuth 2.0 credentials
+3. Add redirect URI: `http://localhost:8080/auth/callback`
+4. Update the OAuth credentials in `config-development.yaml`
 
-   # Using the Makefile target
-   make dev-redis
-   ```
+### GitHub OAuth (Optional)
+1. Go to GitHub Settings → Developer settings → OAuth Apps
+2. Create new OAuth App with callback: `http://localhost:8080/auth/callback`
+3. Set `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID` and `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET`
 
-3. Start the TMI service with the development configuration:
-   ```bash
-   go run cmd/server/main.go --env=.env.dev
-   ```
+## Database Containers
 
-## Troubleshooting
+Development uses Docker containers:
 
-### Database Connection Issues
+```bash
+make dev-db      # Start PostgreSQL only
+make dev-redis   # Start Redis only
+```
 
-If you encounter database connection issues:
+**Connection details:**
+- PostgreSQL: `localhost:5432`, user: `postgres`, password: `postgres`, database: `tmi`
+- Redis: `localhost:6379`, no password
 
-1. Verify the PostgreSQL Docker container is running:
+## Available Commands
 
-   ```bash
-   docker ps | grep tmi-postgresql
-   ```
+```bash
+make dev          # Start development server
+make build        # Build production binary
+make test         # Run tests
+make lint         # Run linter
+make gen-config   # Generate config templates
+```
 
-2. Check the container logs for any errors:
+## Production Deployment
 
-   ```bash
-   docker logs b63643222cd56b8893eb1c8cb830b8ef4bb8da065744d121403b6079b503f1a4
-   ```
+For production, use:
 
-3. Verify the database connection settings in `.env.dev` match the Docker container configuration.
+```bash
+# Build optimized binary
+make build
 
-### Redis Connection Issues
+# Deploy with production config
+./bin/server --config=config-production.yaml
+```
 
-If you encounter Redis connection issues:
+Set production environment variables:
+- `TMI_AUTH_JWT_SECRET` - Secure random key
+- `TMI_DATABASE_POSTGRES_PASSWORD` - Database password  
+- OAuth client credentials for your production domain
 
-1. Verify the Redis Docker container is running:
-
-   ```bash
-   docker ps | grep tmi-redis
-   ```
-
-2. Check the container logs for any errors:
-
-   ```bash
-   docker logs fc9b4ed4d1d3d71d50244d34a348655ea1e6cfb6f294deaacf207386c955a1b7
-   ```
-
-3. Verify the Redis connection settings in `.env.dev` match the Docker container configuration.
-
-4. Test the Redis connection:
-
-   ```bash
-   docker exec fc9b4ed4d1d3d71d50244d34a348655ea1e6cfb6f294deaacf207386c955a1b7 redis-cli ping
-   ```
-
-### Service Startup Issues
-
-If the TMI service fails to start:
-
-1. Check the logs for any error messages
-2. Verify that all required environment variables are set in `.env.dev`
-3. Ensure the database migrations can run successfully
+See [DEPLOYMENT.md](DEPLOYMENT.md) for complete production setup instructions.

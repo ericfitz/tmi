@@ -624,7 +624,7 @@ func checkConstraintMatches(expected, actual string) bool {
 							}
 						}
 					}
-					
+
 					// Handle comparison: "expires_at > created_at"
 					if strings.Contains(inPart, " > ") {
 						compParts := strings.Split(inPart, " > ")
@@ -651,17 +651,17 @@ func checkConstraintMatches(expected, actual string) bool {
 		end := strings.Index(expected[start:], "))")
 		if end > 0 {
 			column := expected[start : start+end]
-			
+
 			// Extract comparison value
 			parts := strings.Split(expected, ")) >")
 			if len(parts) == 2 {
 				value := strings.TrimSpace(parts[1])
-				
+
 				// Check if actual contains the column name, trim function, and comparison
-				if strings.Contains(actual, column) && 
-				   (strings.Contains(actual, "trim(both from") || strings.Contains(actual, "trim(")) &&
-				   strings.Contains(actual, "length(") &&
-				   strings.Contains(actual, "> "+value) {
+				if strings.Contains(actual, column) &&
+					(strings.Contains(actual, "trim(both from") || strings.Contains(actual, "trim(")) &&
+					strings.Contains(actual, "length(") &&
+					strings.Contains(actual, "> "+value) {
 					return true
 				}
 			}

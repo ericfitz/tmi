@@ -9,7 +9,6 @@
 !go.mod
 !license.txt
 !tmi-openapi.json
-!.env.example
 !static/*
 !Makefile
 !generate-api
@@ -27,5 +26,5 @@
 *.log
 logs/
 .DS_Store
-.env.dev
 bin/*
+config-development.yaml

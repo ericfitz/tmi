@@ -1,13 +1,12 @@
-.PHONY: build test lint clean dev dev-db dev-redis dev-app build-postgres build-redis
+.PHONY: build test lint clean dev dev-db dev-redis dev-app build-postgres build-redis gen-config
 
 # Default build target
 VERSION := 0.1.0
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "development")
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS := -ldflags "-X github.com/ericfitz/tmi/api.VersionMajor=0 -X github.com/ericfitz/tmi/api.VersionMinor=1 -X github.com/ericfitz/tmi/api.VersionPatch=0 -X github.com/ericfitz/tmi/api.GitCommit=$(COMMIT) -X github.com/ericfitz/tmi/api.BuildDate=$(BUILD_DATE)"
 
 build:
-	go build $(LDFLAGS) -o bin/server github.com/ericfitz/tmi/cmd/server
+	go build -o bin/server github.com/ericfitz/tmi/cmd/server
 
 # Run tests
 test:
@@ -62,3 +61,8 @@ build-postgres:
 build-redis:
 	@echo "Building custom Redis Docker container..."
 	docker build -f Dockerfile.redis -t tmi-redis .
+
+# Generate configuration files
+gen-config:
+	@echo "Generating configuration files..."
+	go run github.com/ericfitz/tmi/cmd/server --generate-config

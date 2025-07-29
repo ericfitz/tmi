@@ -91,7 +91,7 @@ func TestTokenValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := service.ValidateToken(tt.token)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
@@ -127,7 +127,7 @@ func TestConfigValidation(t *testing.T) {
 					Database: "test",
 				},
 				Redis: RedisConfig{
-					Host: "localhost", 
+					Host: "localhost",
 					Port: "6379",
 				},
 				JWT: JWTConfig{
@@ -156,7 +156,7 @@ func TestConfigValidation(t *testing.T) {
 					Database: "test",
 				},
 				Redis: RedisConfig{
-					Host: "localhost", 
+					Host: "localhost",
 					Port: "6379",
 				},
 				JWT: JWTConfig{
@@ -186,7 +186,7 @@ func TestConfigValidation(t *testing.T) {
 					Database: "test",
 				},
 				Redis: RedisConfig{
-					Host: "localhost", 
+					Host: "localhost",
 					Port: "6379",
 				},
 				JWT: JWTConfig{
@@ -211,7 +211,7 @@ func TestConfigValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.config.ValidateConfig()
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				if tt.errorMsg != "" {
@@ -278,7 +278,7 @@ func TestJWTDuration(t *testing.T) {
 	duration := config.GetJWTDuration()
 	assert.Equal(t, time.Hour, duration)
 
-	// Test zero value 
+	// Test zero value
 	config.JWT.ExpirationSeconds = 0
 	duration = config.GetJWTDuration()
 	assert.Equal(t, 0*time.Second, duration) // GetJWTDuration doesn't provide defaults

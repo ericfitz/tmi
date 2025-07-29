@@ -16,6 +16,7 @@ import (
 
 	"github.com/ericfitz/tmi/api"  // Your module path
 	"github.com/ericfitz/tmi/auth" // Import auth package
+	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/dbschema"
 	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
@@ -26,7 +27,7 @@ import (
 // Server holds dependencies for the API server
 type Server struct {
 	// Configuration
-	config Config
+	config *config.Config
 
 	// Add other dependencies like database clients, services, etc.
 }
@@ -157,9 +158,9 @@ func JWTMiddleware() gin.HandlerFunc {
 
 		tokenStr := parts[1]
 
-		// Get JWT secret from config (in production, use environment variables)
-		// Note: In a real implementation, this would come from the server's config
-		jwtSecret := []byte(os.Getenv("JWT_SECRET"))
+		// Get JWT secret from config
+		// Note: We'll need to pass the config to the middleware or get it from context
+		jwtSecret := []byte(os.Getenv("TMI_AUTH_JWT_SECRET"))
 		if len(jwtSecret) == 0 {
 			jwtSecret = []byte("secret")
 		}
@@ -293,7 +294,7 @@ func (s *Server) GetAuthLogin(c *gin.Context) {
 	}
 
 	// In production, redirect to the actual OAuth provider
-	c.Redirect(http.StatusFound, s.config.Auth.OAuthURL)
+	c.Redirect(http.StatusFound, s.config.Auth.OAuth.CallbackURL)
 }
 
 func (s *Server) GetAuthCallback(c *gin.Context) {
@@ -323,7 +324,7 @@ func (s *Server) GetAuthCallback(c *gin.Context) {
 
 	// Sign the token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	jwtSecret := []byte(s.config.Auth.JWTSecret)
+	jwtSecret := []byte(s.config.Auth.JWT.Secret)
 	tokenStr, err := token.SignedString(jwtSecret)
 
 	if err != nil {
@@ -546,12 +547,12 @@ func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *
 	handler.DeleteDiagramCollaborate(c, threatModelId, diagramId)
 }
 
-func setupRouter(config Config) (*gin.Engine, *api.Server) {
+func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Create a gin router without default middleware
 	r := gin.New()
 
 	// Configure gin based on log level
-	if config.Server.LogLevel == "debug" {
+	if config.Logging.Level == "debug" {
 		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
@@ -600,7 +601,7 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 	// This must be done before registering API routes to avoid conflicts
 	logger := logging.Get()
 	logger.Info("Initializing authentication system with database connections")
-	if err := auth.InitAuth(r); err != nil {
+	if err := auth.InitAuthWithConfig(r, config); err != nil {
 		logger.Error("Failed to initialize authentication system: %v", err)
 		// Continue anyway for development purposes
 	}
@@ -688,29 +689,35 @@ func (r *customGinRouter) PATCH(path string, handlers ...gin.HandlerFunc) gin.IR
 }
 
 func main() {
-	// Get environment file path from command line if provided
-	envFile := ""
-	if len(os.Args) > 1 && strings.HasPrefix(os.Args[1], "--env=") {
-		envFile = strings.TrimPrefix(os.Args[1], "--env=")
+	// Parse command line flags
+	configFile, generateConfig, err := config.ParseFlags()
+	if err != nil {
+		log.Fatalf("Error parsing flags: %v", err)
 	}
 
-	// Load environment variables from file (will use .env by default)
-	if err := LoadEnvFile(envFile); err != nil {
-		log.Printf("Warning: %v", err)
+	// Generate example config files if requested
+	if generateConfig {
+		if err := config.GenerateExampleConfig(); err != nil {
+			log.Fatalf("Error generating config: %v", err)
+		}
+		return
 	}
 
 	// Load configuration
-	config := LoadConfig()
+	cfg, err := config.Load(configFile)
+	if err != nil {
+		log.Fatalf("Error loading configuration: %v", err)
+	}
 
 	// Initialize logger
 	if err := logging.Initialize(logging.Config{
-		Level:            config.Logging.Level,
-		IsDev:            config.Logging.IsDev,
-		LogDir:           config.Logging.LogDir,
-		MaxAgeDays:       config.Logging.MaxAgeDays,
-		MaxSizeMB:        config.Logging.MaxSizeMB,
-		MaxBackups:       config.Logging.MaxBackups,
-		AlsoLogToConsole: config.Logging.AlsoLogToConsole,
+		Level:            cfg.GetLogLevel(),
+		IsDev:            cfg.Logging.IsDev,
+		LogDir:           cfg.Logging.LogDir,
+		MaxAgeDays:       cfg.Logging.MaxAgeDays,
+		MaxSizeMB:        cfg.Logging.MaxSizeMB,
+		MaxBackups:       cfg.Logging.MaxBackups,
+		AlsoLogToConsole: cfg.Logging.AlsoLogToConsole,
 	}); err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
@@ -725,31 +732,31 @@ func main() {
 
 	// Log startup information
 	logger.Info("Starting TMI API server")
-	logger.Info("Environment: %s", map[bool]string{true: "development", false: "production"}[config.Logging.IsDev])
-	logger.Info("Log level: %s", config.Server.LogLevel)
+	logger.Info("Environment: %s", map[bool]string{true: "development", false: "production"}[cfg.Logging.IsDev])
+	logger.Info("Log level: %s", cfg.Logging.Level)
 
 	// Create a context that will be canceled on shutdown signal
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	// Setup router with config
-	r, apiServer := setupRouter(config)
+	r, apiServer := setupRouter(cfg)
 
 	// Add HTTPS redirect middleware if enabled
-	if config.Server.TLSEnabled && config.Server.HTTPToHTTPSRedirect {
+	if cfg.Server.TLSEnabled && cfg.Server.HTTPToHTTPSRedirect {
 		r.Use(HTTPSRedirectMiddleware(
-			config.Server.TLSEnabled,
-			config.Server.TLSSubjectName,
-			config.Server.Port,
+			cfg.Server.TLSEnabled,
+			cfg.Server.TLSSubjectName,
+			cfg.Server.Port,
 		))
 	}
 
 	// Add middleware to provide server configuration to handlers
 	r.Use(func(c *gin.Context) {
-		c.Set("tlsEnabled", config.Server.TLSEnabled)
-		c.Set("tlsSubjectName", config.Server.TLSSubjectName)
-		c.Set("serverPort", config.Server.Port)
-		c.Set("isDev", config.Logging.IsDev)
+		c.Set("tlsEnabled", cfg.Server.TLSEnabled)
+		c.Set("tlsSubjectName", cfg.Server.TLSSubjectName)
+		c.Set("serverPort", cfg.Server.Port)
+		c.Set("isDev", cfg.Logging.IsDev)
 		c.Next()
 	})
 
@@ -757,28 +764,28 @@ func main() {
 	apiServer.StartWebSocketHub(ctx)
 
 	// Prepare address
-	addr := fmt.Sprintf("%s:%s", config.Server.Interface, config.Server.Port)
+	addr := fmt.Sprintf("%s:%s", cfg.Server.Interface, cfg.Server.Port)
 
 	// Validate TLS configuration if enabled
-	if config.Server.TLSEnabled {
-		if config.Server.TLSCertFile == "" || config.Server.TLSKeyFile == "" {
+	if cfg.Server.TLSEnabled {
+		if cfg.Server.TLSCertFile == "" || cfg.Server.TLSKeyFile == "" {
 			logger.Error("TLS enabled but certificate or key file not specified")
 			os.Exit(1)
 		}
 
 		// Check that files exist
-		if _, err := os.Stat(config.Server.TLSCertFile); os.IsNotExist(err) {
-			logger.Error("TLS certificate file not found: %s", config.Server.TLSCertFile)
+		if _, err := os.Stat(cfg.Server.TLSCertFile); os.IsNotExist(err) {
+			logger.Error("TLS certificate file not found: %s", cfg.Server.TLSCertFile)
 			os.Exit(1)
 		}
 
-		if _, err := os.Stat(config.Server.TLSKeyFile); os.IsNotExist(err) {
-			logger.Error("TLS key file not found: %s", config.Server.TLSKeyFile)
+		if _, err := os.Stat(cfg.Server.TLSKeyFile); os.IsNotExist(err) {
+			logger.Error("TLS key file not found: %s", cfg.Server.TLSKeyFile)
 			os.Exit(1)
 		}
 
 		// Load certificate to verify it's valid
-		cert, err := tls.LoadX509KeyPair(config.Server.TLSCertFile, config.Server.TLSKeyFile)
+		cert, err := tls.LoadX509KeyPair(cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile)
 		if err != nil {
 			logger.Error("Failed to load TLS certificate and key: %s", err)
 			os.Exit(1)
@@ -794,9 +801,9 @@ func main() {
 				logger.Info("TLS certificate expires: %s", x509Cert.NotAfter.Format(time.RFC3339))
 
 				// Warn if subject name doesn't match
-				if x509Cert.Subject.CommonName != config.Server.TLSSubjectName {
+				if x509Cert.Subject.CommonName != cfg.Server.TLSSubjectName {
 					logger.Warn("Certificate subject name (%s) doesn't match configured TLS_SUBJECT_NAME (%s)",
-						x509Cert.Subject.CommonName, config.Server.TLSSubjectName)
+						x509Cert.Subject.CommonName, cfg.Server.TLSSubjectName)
 				}
 
 				// Check certificate expiration
@@ -815,10 +822,10 @@ func main() {
 
 	// Configure TLS if enabled
 	var tlsConfig *tls.Config
-	if config.Server.TLSEnabled {
+	if cfg.Server.TLSEnabled {
 		tlsConfig = &tls.Config{
 			MinVersion: tls.VersionTLS12,
-			ServerName: config.Server.TLSSubjectName,
+			ServerName: cfg.Server.TLSSubjectName,
 		}
 	}
 
@@ -826,9 +833,9 @@ func main() {
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      r,
-		ReadTimeout:  config.Server.ReadTimeout,
-		WriteTimeout: config.Server.WriteTimeout,
-		IdleTimeout:  config.Server.IdleTimeout,
+		ReadTimeout:  cfg.Server.ReadTimeout,
+		WriteTimeout: cfg.Server.WriteTimeout,
+		IdleTimeout:  cfg.Server.IdleTimeout,
 		TLSConfig:    tlsConfig,
 	}
 
@@ -836,11 +843,11 @@ func main() {
 	go func() {
 		var err error
 
-		if config.Server.TLSEnabled {
+		if cfg.Server.TLSEnabled {
 			logger.Info("Server listening on %s with TLS enabled", addr)
 			logger.Info("Using certificate: %s, key: %s, subject name: %s",
-				config.Server.TLSCertFile, config.Server.TLSKeyFile, config.Server.TLSSubjectName)
-			err = srv.ListenAndServeTLS(config.Server.TLSCertFile, config.Server.TLSKeyFile)
+				cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile, cfg.Server.TLSSubjectName)
+			err = srv.ListenAndServeTLS(cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile)
 		} else {
 			logger.Info("Server listening on %s", addr)
 			err = srv.ListenAndServe()
@@ -878,14 +885,14 @@ func main() {
 }
 
 // validateDatabaseSchema validates the database schema matches expectations
-func validateDatabaseSchema(config Config) error {
-	// Get database configuration with defaults
-	host := getEnv("POSTGRES_HOST", "localhost")
-	port := getEnv("POSTGRES_PORT", "5432")
-	user := getEnv("POSTGRES_USER", "postgres")
-	password := getEnv("POSTGRES_PASSWORD", "postgres")
-	dbName := getEnv("POSTGRES_DB", "tmi")
-	sslMode := getEnv("POSTGRES_SSLMODE", "disable")
+func validateDatabaseSchema(cfg *config.Config) error {
+	// Get database configuration from config
+	host := cfg.Database.Postgres.Host
+	port := cfg.Database.Postgres.Port
+	user := cfg.Database.Postgres.User
+	password := cfg.Database.Postgres.Password
+	dbName := cfg.Database.Postgres.Database
+	sslMode := cfg.Database.Postgres.SSLMode
 
 	// Create database connection string
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
