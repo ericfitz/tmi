@@ -114,8 +114,8 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 	}
 }
 
-// JWT Middleware
-func JWTMiddleware() gin.HandlerFunc {
+// JWT Middleware factory function that takes config
+func JWTMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get a context-aware logger
 		logger := logging.GetContextLogger(c)
@@ -158,12 +158,8 @@ func JWTMiddleware() gin.HandlerFunc {
 
 		tokenStr := parts[1]
 
-		// Get JWT secret from config
-		// Note: We'll need to pass the config to the middleware or get it from context
-		jwtSecret := []byte(os.Getenv("TMI_AUTH_JWT_SECRET"))
-		if len(jwtSecret) == 0 {
-			jwtSecret = []byte("secret")
-		}
+		// Get JWT secret from config (same source as auth service)
+		jwtSecret := []byte(cfg.Auth.JWT.Secret)
 
 		// Validate the token
 		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
@@ -573,8 +569,8 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.StaticFile("/favicon.svg", "./static/favicon.svg")
 
 	// Security middleware with public path handling
-	r.Use(PublicPathsMiddleware()) // Identify public paths first
-	r.Use(JWTMiddleware())         // JWT auth with public path skipping
+	r.Use(PublicPathsMiddleware())  // Identify public paths first
+	r.Use(JWTMiddleware(config))    // JWT auth with public path skipping
 
 	// Create API server with handlers
 	apiServer := api.NewServer()
