@@ -52,6 +52,9 @@ func ResetStores() {
 
 // InitTestFixtures initializes test data in stores
 func InitTestFixtures() {
+	// Initialize in-memory stores for testing
+	InitializeInMemoryStores()
+
 	// Clear any existing test data first
 	ResetStores()
 
@@ -178,14 +181,32 @@ func InitTestFixtures() {
 	TestFixtures.DiagramID = dID
 	TestFixtures.DiagramAuth = diagramAuth
 
-	// Add directly to the underlying map
-	ThreatModelStore.mutex.Lock()
-	ThreatModelStore.data[tmID] = threatModel
-	ThreatModelStore.mutex.Unlock()
+	// Add to stores (handling both in-memory and database stores)
+	if inMemoryTMStore, ok := ThreatModelStore.(*DataStore[ThreatModel]); ok {
+		inMemoryTMStore.mutex.Lock()
+		inMemoryTMStore.data[tmID] = threatModel
+		inMemoryTMStore.mutex.Unlock()
+	} else {
+		// For database stores, use the interface
+		ThreatModelStore.Create(threatModel, func(tm ThreatModel, _ string) ThreatModel {
+			parsedId, _ := ParseUUID(tmID)
+			tm.Id = &parsedId
+			return tm
+		})
+	}
 
-	DiagramStore.mutex.Lock()
-	DiagramStore.data[dID] = diagram
-	DiagramStore.mutex.Unlock()
+	if inMemoryDStore, ok := DiagramStore.(*DataStore[DfdDiagram]); ok {
+		inMemoryDStore.mutex.Lock()
+		inMemoryDStore.data[dID] = diagram
+		inMemoryDStore.mutex.Unlock()
+	} else {
+		// For database stores, use the interface
+		DiagramStore.Create(diagram, func(d DfdDiagram, _ string) DfdDiagram {
+			parsedId, _ := ParseUUID(dID)
+			d.Id = &parsedId
+			return d
+		})
+	}
 
 	TestFixtures.Initialized = true
 }

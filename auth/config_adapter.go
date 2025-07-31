@@ -110,6 +110,9 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) error {
 	// Start background job for periodic cache rebuilding
 	go startCacheRebuildJob(context.Background(), dbManager)
 
+	// Store global reference to database manager
+	globalDBManager = dbManager
+
 	log.Println("Authentication system initialized successfully")
 	return nil
 }

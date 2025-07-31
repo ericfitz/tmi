@@ -11,6 +11,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Global database manager for access from other packages
+var globalDBManager *db.Manager
+
 // InitAuth initializes the authentication system
 func InitAuth(router *gin.Engine) error {
 	// Load configuration
@@ -56,6 +59,9 @@ func InitAuth(router *gin.Engine) error {
 
 	// Start background job for periodic cache rebuilding
 	go startCacheRebuildJob(context.Background(), dbManager)
+
+	// Store global reference to database manager
+	globalDBManager = dbManager
 
 	log.Println("Authentication system initialized successfully")
 	return nil
@@ -239,10 +245,15 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	return nil
 }
 
+// GetDatabaseManager returns the global database manager
+func GetDatabaseManager() *db.Manager {
+	return globalDBManager
+}
+
 // Shutdown gracefully shuts down the authentication system
-func Shutdown(dbManager *db.Manager) error {
-	if dbManager != nil {
-		return dbManager.Close()
+func Shutdown(ctx context.Context) error {
+	if globalDBManager != nil {
+		return globalDBManager.Close()
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"fmt"
 	"sync"
 	"time"
@@ -127,8 +128,37 @@ func UpdateTimestamps[T WithTimestamps](entity T, isNew bool) T {
 	return entity
 }
 
-// DiagramStore stores diagrams
-var DiagramStore = NewDataStore[DfdDiagram]()
+// Store interfaces to allow switching between in-memory and database implementations
+type ThreatModelStoreInterface interface {
+	Get(id string) (ThreatModel, error)
+	List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel
+	Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error)
+	Update(id string, item ThreatModel) error
+	Delete(id string) error
+	Count() int
+}
 
-// ThreatModelStore stores threat models
-var ThreatModelStore = NewDataStore[ThreatModel]()
+type DiagramStoreInterface interface {
+	Get(id string) (DfdDiagram, error)
+	List(offset, limit int, filter func(DfdDiagram) bool) []DfdDiagram
+	Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error)
+	Update(id string, item DfdDiagram) error
+	Delete(id string) error
+	Count() int
+}
+
+// Global store instances (will be initialized in main.go)
+var ThreatModelStore ThreatModelStoreInterface
+var DiagramStore DiagramStoreInterface
+
+// InitializeInMemoryStores initializes stores with in-memory implementations
+func InitializeInMemoryStores() {
+	ThreatModelStore = NewDataStore[ThreatModel]()
+	DiagramStore = NewDataStore[DfdDiagram]()
+}
+
+// InitializeDatabaseStores initializes stores with database implementations
+func InitializeDatabaseStores(db *sql.DB) {
+	ThreatModelStore = NewThreatModelDatabaseStore(db)
+	DiagramStore = NewDiagramDatabaseStore(db)
+}

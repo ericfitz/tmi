@@ -602,6 +602,17 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		// Continue anyway for development purposes
 	}
 
+	// Initialize database stores for API data persistence
+	logger.Info("Initializing database stores for threat models and diagrams")
+	dbManager := auth.GetDatabaseManager()
+	if dbManager != nil && dbManager.Postgres() != nil {
+		logger.Info("Using database-backed stores for data persistence")
+		api.InitializeDatabaseStores(dbManager.Postgres().GetDB())
+	} else {
+		logger.Warn("Database not available, falling back to in-memory stores")
+		api.InitializeInMemoryStores()
+	}
+
 	// Validate database schema after auth initialization
 	logger.Info("Validating database schema...")
 	if err := validateDatabaseSchema(config); err != nil {

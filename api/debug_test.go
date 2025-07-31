@@ -79,10 +79,8 @@ func TestPatchOperation(t *testing.T) {
 		},
 	}
 
-	// Store directly
-	DiagramStore.mutex.Lock()
-	DiagramStore.data[diagramID] = diagram
-	DiagramStore.mutex.Unlock()
+	// Store using test helper
+	InsertDiagramForTest(diagramID, diagram)
 
 	// Create a patch operation that doesn't involve authorization
 	// since diagrams no longer have owner or authorization fields

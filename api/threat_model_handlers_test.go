@@ -78,6 +78,7 @@ func TestCreateThreatModel(t *testing.T) {
 	assert.NotNil(t, tm.Description)
 	assert.Equal(t, "This is a test threat model", *tm.Description)
 	assert.Equal(t, "test@example.com", tm.Owner)
+	assert.Equal(t, "test@example.com", tm.CreatedBy)
 	assert.NotEmpty(t, tm.Id)
 	assert.Len(t, tm.Authorization, 1)
 	assert.Equal(t, "test@example.com", tm.Authorization[0].Subject)

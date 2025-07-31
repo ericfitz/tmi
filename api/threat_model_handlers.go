@@ -165,6 +165,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		CreatedAt:     now,
 		ModifiedAt:    now,
 		Owner:         userName,
+		CreatedBy:     userName,
 		Authorization: authorizations,
 		Metadata:      &[]Metadata{},
 		Threats:       &threatIDs,
