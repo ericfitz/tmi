@@ -646,6 +646,17 @@ func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state st
 		return "", fmt.Errorf("invalid client callback URL: %v", err)
 	}
 
+	// Validate that this is a proper absolute URL for OAuth callbacks
+	if parsedURL.Scheme == "" {
+		return "", fmt.Errorf("invalid client callback URL: missing scheme")
+	}
+	if parsedURL.Host == "" {
+		return "", fmt.Errorf("invalid client callback URL: missing host")
+	}
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return "", fmt.Errorf("invalid client callback URL: scheme must be http or https")
+	}
+
 	// Build query parameters with tokens
 	params := url.Values{}
 	params.Set("access_token", tokenPair.AccessToken)

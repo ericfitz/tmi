@@ -12,7 +12,7 @@ func InsertDiagramForTest(id string, diagram DfdDiagram) {
 	} else {
 		// For database stores, we use the regular interface
 		// This is a test helper limitation when using database stores
-		DiagramStore.Create(diagram, func(d DfdDiagram, generatedId string) DfdDiagram {
+		_, _ = DiagramStore.Create(diagram, func(d DfdDiagram, generatedId string) DfdDiagram {
 			// Override the generated ID with the test ID
 			parsedId, _ := ParseUUID(id)
 			d.Id = &parsedId

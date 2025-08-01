@@ -1,4 +1,4 @@
-.PHONY: build test lint clean dev dev-db dev-redis dev-app build-postgres build-redis gen-config
+.PHONY: build test lint clean dev dev-db dev-redis dev-app build-postgres build-redis gen-config dev-observability test-telemetry benchmark-telemetry validate-otel-config
 
 # Default build target
 VERSION := 0.1.0
@@ -66,3 +66,51 @@ build-redis:
 gen-config:
 	@echo "Generating configuration files..."
 	go run github.com/ericfitz/tmi/cmd/server --generate-config
+
+# OpenTelemetry and Observability targets
+
+# Start local observability stack
+dev-observability:
+	@echo "Starting TMI Observability Stack..."
+	@./scripts/start-observability.sh
+
+# Stop observability stack
+stop-observability:
+	@echo "Stopping TMI Observability Stack..."
+	@./scripts/stop-observability.sh
+
+# Run telemetry-specific tests
+test-telemetry:
+	@echo "Running telemetry tests..."
+	go test ./internal/telemetry/... -v
+
+# Run telemetry integration tests
+test-telemetry-integration:
+	@echo "Running telemetry integration tests..."
+	go test ./internal/telemetry/... -tags=integration -v
+
+# Run telemetry benchmarks
+benchmark-telemetry:
+	@echo "Running telemetry benchmarks..."
+	go test ./internal/telemetry/... -bench=. -benchmem
+
+# Validate OpenTelemetry configuration
+validate-otel-config:
+	@echo "Validating OpenTelemetry configuration..."
+	go run ./internal/telemetry/cmd/validate-config
+
+# Generate sample telemetry data for testing
+generate-telemetry-data:
+	@echo "Generating sample telemetry data..."
+	go run ./internal/telemetry/cmd/generate-data
+
+# Export telemetry data
+export-telemetry:
+	@echo "Exporting telemetry data..."
+	curl -s http://localhost:8080/metrics > /tmp/tmi-metrics.txt
+	@echo "Metrics exported to /tmp/tmi-metrics.txt"
+
+# Clean up telemetry data
+clean-telemetry:
+	@echo "Cleaning up telemetry data..."
+	docker-compose -f docker-compose.observability.yml down -v

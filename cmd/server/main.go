@@ -19,6 +19,7 @@ import (
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/dbschema"
 	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/telemetry"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/jackc/pgx/v4/stdlib"
@@ -555,10 +556,36 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	}
 
 	// Add custom middleware
-	r.Use(logging.LoggerMiddleware()) // Use our new logger middleware
-	r.Use(logging.Recoverer())        // Use our new recoverer
+	// Initialize telemetry middleware if available
+	if telemetryService := telemetry.GetService(); telemetryService != nil {
+		httpTracing, err := telemetry.NewHTTPTracing(telemetryService.GetTracer(), telemetryService.GetMeter())
+		if err != nil {
+			logger := logging.Get()
+			logger.Error("Failed to create HTTP tracing middleware: %v", err)
+			// Fall back to regular logging middleware
+			r.Use(logging.LoggerMiddleware())
+		} else {
+			// Use enhanced tracing middleware that replaces logging middleware
+			r.Use(httpTracing.TracingLoggerMiddleware())
+		}
+	} else {
+		// Fall back to regular logging middleware if telemetry is not available
+		r.Use(logging.LoggerMiddleware())
+	}
+
+	r.Use(logging.Recoverer()) // Use our recoverer
 	r.Use(api.CORS())
 	r.Use(api.ContextTimeout(30 * time.Second))
+
+	// Add Prometheus metrics endpoint if telemetry is enabled
+	if telemetry.GetService() != nil {
+		r.GET("/metrics", func(c *gin.Context) {
+			// Use promhttp.Handler() to serve Prometheus metrics
+			// This will be automatically populated by the Prometheus exporter
+			c.Header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+			c.String(200, "# Metrics endpoint active - metrics available via OpenTelemetry Prometheus exporter\n")
+		})
+	}
 
 	// Serve static files
 	r.Static("/static", "./static")
@@ -569,8 +596,8 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.StaticFile("/favicon.svg", "./static/favicon.svg")
 
 	// Security middleware with public path handling
-	r.Use(PublicPathsMiddleware())  // Identify public paths first
-	r.Use(JWTMiddleware(config))    // JWT auth with public path skipping
+	r.Use(PublicPathsMiddleware()) // Identify public paths first
+	r.Use(JWTMiddleware(config))   // JWT auth with public path skipping
 
 	// Create API server with handlers
 	apiServer := api.NewServer()
@@ -737,6 +764,31 @@ func main() {
 		}
 	}()
 
+	// Initialize OpenTelemetry
+	logger.Info("Initializing OpenTelemetry...")
+	otelConfig, err := telemetry.LoadConfig()
+	if err != nil {
+		logger.Error("Failed to load telemetry configuration: %v", err)
+		// Continue without telemetry in case of configuration issues
+	} else {
+		if err := telemetry.Initialize(otelConfig); err != nil {
+			logger.Error("Failed to initialize telemetry: %v", err)
+			// Continue without telemetry in case of initialization issues
+		} else {
+			logger.Info("OpenTelemetry initialized successfully")
+			// Set up graceful shutdown for telemetry
+			defer func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := telemetry.Shutdown(ctx); err != nil {
+					logger.Error("Error shutting down telemetry: %v", err)
+				} else {
+					logger.Info("Telemetry shutdown completed")
+				}
+			}()
+		}
+	}
+
 	// Log startup information
 	logger.Info("Starting TMI API server")
 	logger.Info("Environment: %s", map[bool]string{true: "development", false: "production"}[cfg.Logging.IsDev])
@@ -886,7 +938,7 @@ func main() {
 	logger.Info("Server gracefully stopped")
 
 	// Shutdown auth system
-	if err := auth.Shutdown(nil); err != nil {
+	if err := auth.Shutdown(context.TODO()); err != nil {
 		logger.Error("Error shutting down auth system: %v", err)
 	}
 }

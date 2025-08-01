@@ -13,9 +13,9 @@ import (
 
 // DatabaseStore provides a database-backed store implementation
 type DatabaseStore[T any] struct {
-	db       *sql.DB
-	mutex    sync.RWMutex
-	tableName string
+	db         *sql.DB
+	mutex      sync.RWMutex
+	tableName  string
 	entityType string
 }
 
@@ -30,7 +30,7 @@ func NewDatabaseStore[T any](database *sql.DB, tableName, entityType string) *Da
 
 // ThreatModelDatabaseStore handles threat model database operations
 type ThreatModelDatabaseStore struct {
-	db *sql.DB
+	db    *sql.DB
 	mutex sync.RWMutex
 }
 
@@ -58,12 +58,12 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		       threat_model_framework, issue_url, created_at, updated_at
 		FROM threat_models 
 		WHERE id = $1`
-	
+
 	err := s.db.QueryRow(query, id).Scan(
 		&uuid, &name, &description, &ownerEmail, &createdBy,
 		&threatModelFramework, &issueUrl, &createdAt, &updatedAt,
 	)
-	
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return tm, fmt.Errorf("threat model with ID %s not found", id)
@@ -89,7 +89,7 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		return tm, fmt.Errorf("failed to load threats: %w", err)
 	}
 
-	// Load diagrams  
+	// Load diagrams
 	diagrams, err := s.loadDiagrams(id)
 	if err != nil {
 		return tm, fmt.Errorf("failed to load diagrams: %w", err)
@@ -102,19 +102,19 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	}
 
 	tm = ThreatModel{
-		Id:                     &uuid,
-		Name:                   name,
-		Description:            description,
-		Owner:                  ownerEmail,
-		CreatedBy:              createdBy,
-		ThreatModelFramework:   framework,
-		IssueUrl:               issueUrl,
-		CreatedAt:              createdAt,
-		ModifiedAt:             updatedAt,
-		Authorization:          authorization,
-		Metadata:               &metadata,
-		Threats:                &threats,
-		Diagrams:               &diagrams,
+		Id:                   &uuid,
+		Name:                 name,
+		Description:          description,
+		Owner:                ownerEmail,
+		CreatedBy:            createdBy,
+		ThreatModelFramework: framework,
+		IssueUrl:             issueUrl,
+		CreatedAt:            createdAt,
+		ModifiedAt:           updatedAt,
+		Authorization:        authorization,
+		Metadata:             &metadata,
+		Threats:              &threats,
+		Diagrams:             &diagrams,
 	}
 
 	return tm, nil
@@ -126,18 +126,23 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 	defer s.mutex.RUnlock()
 
 	var results []ThreatModel
-	
+
 	query := `
 		SELECT id, name, description, owner_email, created_by,
 		       threat_model_framework, issue_url, created_at, updated_at
 		FROM threat_models 
 		ORDER BY created_at DESC`
-	
+
 	rows, err := s.db.Query(query)
 	if err != nil {
 		return results
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Error closing rows, but don't fail the operation
+			_ = err
+		}
+	}()
 
 	for rows.Next() {
 		var tm ThreatModel
@@ -168,16 +173,16 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 		}
 
 		tm = ThreatModel{
-			Id:                     &uuid,
-			Name:                   name,
-			Description:            description,
-			Owner:                  ownerEmail,
-			CreatedBy:              createdBy,
-			ThreatModelFramework:   framework,
-			IssueUrl:               issueUrl,
-			CreatedAt:              createdAt,
-			ModifiedAt:             updatedAt,
-			Authorization:          authorization,
+			Id:                   &uuid,
+			Name:                 name,
+			Description:          description,
+			Owner:                ownerEmail,
+			CreatedBy:            createdBy,
+			ThreatModelFramework: framework,
+			IssueUrl:             issueUrl,
+			CreatedAt:            createdAt,
+			ModifiedAt:           updatedAt,
+			Authorization:        authorization,
 		}
 
 		// Apply filter if provided
@@ -209,7 +214,12 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 	if err != nil {
 		return item, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			// Error rolling back transaction, but don't fail the operation
+			_ = err
+		}
+	}()
 
 	// Generate ID if not set
 	id := uuid.New()
@@ -228,7 +238,7 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 		INSERT INTO threat_models (id, name, description, owner_email, created_by, 
 		                          threat_model_framework, issue_url, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
-	
+
 	_, err = tx.Exec(query,
 		id, item.Name, item.Description, item.Owner, item.CreatedBy,
 		framework, item.IssueUrl, item.CreatedAt, item.ModifiedAt,
@@ -267,7 +277,12 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			// Error rolling back transaction, but don't fail the operation
+			_ = err
+		}
+	}()
 
 	// Get framework value
 	framework := string(item.ThreatModelFramework)
@@ -281,7 +296,7 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 		SET name = $2, description = $3, owner_email = $4, created_by = $5,
 		    threat_model_framework = $6, issue_url = $7, updated_at = $8
 		WHERE id = $1`
-	
+
 	result, err := tx.Exec(query,
 		id, item.Name, item.Description, item.Owner, item.CreatedBy,
 		framework, item.IssueUrl, item.ModifiedAt,
@@ -361,12 +376,17 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string) ([]Au
 		SELECT user_email, role 
 		FROM threat_model_access 
 		WHERE threat_model_id = $1`
-	
+
 	rows, err := s.db.Query(query, threatModelId)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Error closing rows, but don't fail the operation
+			_ = err
+		}
+	}()
 
 	var authorization []Authorization
 	for rows.Next() {
@@ -390,12 +410,17 @@ func (s *ThreatModelDatabaseStore) loadMetadata(threatModelId string) ([]Metadat
 		SELECT key, value 
 		FROM metadata 
 		WHERE entity_type = 'threat_model' AND entity_id = $1`
-	
+
 	rows, err := s.db.Query(query, threatModelId)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Error closing rows, but don't fail the operation
+			_ = err
+		}
+	}()
 
 	var metadata []Metadata
 	for rows.Next() {
@@ -418,12 +443,17 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 		SELECT id, name, description, severity, mitigation, created_at, updated_at
 		FROM threats 
 		WHERE threat_model_id = $1`
-	
+
 	rows, err := s.db.Query(query, threatModelId)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Error closing rows, but don't fail the operation
+			_ = err
+		}
+	}()
 
 	var threats []Threat
 	for rows.Next() {
@@ -431,7 +461,7 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 		var name string
 		var description, severityStr, mitigation *string
 		var createdAt, modifiedAt time.Time
-		
+
 		if err := rows.Scan(&id, &name, &description, &severityStr, &mitigation, &createdAt, &modifiedAt); err != nil {
 			continue
 		}
@@ -480,7 +510,7 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 			VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (threat_model_id, user_email) 
 			DO UPDATE SET role = $3, updated_at = $5`
-		
+
 		now := time.Now().UTC()
 		_, err := tx.Exec(query, threatModelId, auth.Subject, string(auth.Role), now, now)
 		if err != nil {
@@ -502,7 +532,7 @@ func (s *ThreatModelDatabaseStore) saveMetadataTx(tx *sql.Tx, threatModelId stri
 			VALUES ('threat_model', $1, $2, $3, $4, $5)
 			ON CONFLICT (entity_type, entity_id, key)
 			DO UPDATE SET value = $3, updated_at = $5`
-		
+
 		now := time.Now().UTC()
 		_, err := tx.Exec(query, threatModelId, meta.Key, meta.Value, now, now)
 		if err != nil {
@@ -537,7 +567,7 @@ func (s *ThreatModelDatabaseStore) updateMetadataTx(tx *sql.Tx, threatModelId st
 
 // DiagramDatabaseStore handles diagram database operations
 type DiagramDatabaseStore struct {
-	db *sql.DB
+	db    *sql.DB
 	mutex sync.RWMutex
 }
 
@@ -565,12 +595,12 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 		SELECT id, threat_model_id, name, type, content, cells, metadata, created_at, updated_at
 		FROM diagrams 
 		WHERE id = $1`
-	
+
 	err := s.db.QueryRow(query, id).Scan(
-		&diagramUuid, &threatModelId, &name, &diagramType, &description, 
+		&diagramUuid, &threatModelId, &name, &diagramType, &description,
 		&cellsJSON, &metadataJSON, &createdAt, &updatedAt,
 	)
-	
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return diagram, fmt.Errorf("diagram with ID %s not found", id)
@@ -654,7 +684,7 @@ func (s *DiagramDatabaseStore) Create(item DfdDiagram, idSetter func(DfdDiagram,
 	query := `
 		INSERT INTO diagrams (id, threat_model_id, name, type, content, cells, metadata, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
-	
+
 	_, err = s.db.Exec(query,
 		id, threatModelId, item.Name, string(item.Type), item.Description,
 		cellsJSON, metadataJSON, item.CreatedAt, item.ModifiedAt,
@@ -690,7 +720,7 @@ func (s *DiagramDatabaseStore) Update(id string, item DfdDiagram) error {
 		UPDATE diagrams 
 		SET name = $2, type = $3, content = $4, cells = $5, metadata = $6, updated_at = $7
 		WHERE id = $1`
-	
+
 	result, err := s.db.Exec(query,
 		id, item.Name, string(item.Type), item.Description,
 		cellsJSON, metadataJSON, item.ModifiedAt,

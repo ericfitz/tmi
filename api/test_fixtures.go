@@ -188,7 +188,7 @@ func InitTestFixtures() {
 		inMemoryTMStore.mutex.Unlock()
 	} else {
 		// For database stores, use the interface
-		ThreatModelStore.Create(threatModel, func(tm ThreatModel, _ string) ThreatModel {
+		_, _ = ThreatModelStore.Create(threatModel, func(tm ThreatModel, _ string) ThreatModel {
 			parsedId, _ := ParseUUID(tmID)
 			tm.Id = &parsedId
 			return tm
@@ -201,7 +201,7 @@ func InitTestFixtures() {
 		inMemoryDStore.mutex.Unlock()
 	} else {
 		// For database stores, use the interface
-		DiagramStore.Create(diagram, func(d DfdDiagram, _ string) DfdDiagram {
+		_, _ = DiagramStore.Create(diagram, func(d DfdDiagram, _ string) DfdDiagram {
 			parsedId, _ := ParseUUID(dID)
 			d.Id = &parsedId
 			return d
