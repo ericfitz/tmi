@@ -108,6 +108,10 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "created_by", DataType: "character varying", IsNullable: false},
 				{Name: "threat_model_framework", DataType: "character varying", IsNullable: false},
 				{Name: "issue_url", DataType: "character varying", IsNullable: true},
+				{Name: "document_count", DataType: "integer", IsNullable: false},
+				{Name: "source_count", DataType: "integer", IsNullable: false},
+				{Name: "diagram_count", DataType: "integer", IsNullable: false},
+				{Name: "threat_count", DataType: "integer", IsNullable: false},
 			},
 			Indexes: []IndexSchema{
 				{Name: "threat_models_pkey", Columns: []string{"id"}, IsUnique: true},
