@@ -2567,22 +2567,146 @@
       "post": {
         "tags": ["Authentication"],
         "summary": "Logout user",
-        "description": "Invalidates the user's JWT and ends the session",
+        "description": "Invalidates the user's JWT token by adding it to a blacklist, effectively ending the session. Once logged out, the token cannot be used for further authenticated requests until it naturally expires. The token blacklist is maintained in Redis with automatic cleanup based on token expiration times.",
         "operationId": "logoutUser",
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "description": "Empty request body - token is provided via Authorization header",
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "example": {}
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
-            "description": "Session ended successfully"
+            "description": "User logged out successfully. The JWT token has been invalidated and added to the blacklist.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Unique request identifier for tracking",
+                "schema": {
+                  "type": "string",
+                  "example": "req_abc123def456"
+                }
+              }
+            }
           },
           "401": {
-            "$ref": "#/components/responses/Error"
+            "description": "Authentication failed - invalid, missing, or malformed token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "missing_token": {
+                    "summary": "Missing Authorization header",
+                    "value": {
+                      "error": "unauthorized",
+                      "error_description": "Missing Authorization header"
+                    }
+                  },
+                  "invalid_format": {
+                    "summary": "Invalid Authorization header format",
+                    "value": {
+                      "error": "unauthorized",
+                      "error_description": "Invalid Authorization header format"
+                    }
+                  },
+                  "malformed_token": {
+                    "summary": "Malformed JWT token",
+                    "value": {
+                      "error": "unauthorized",
+                      "error_description": "Invalid token format"
+                    }
+                  },
+                  "blacklisted_token": {
+                    "summary": "Token already blacklisted",
+                    "value": {
+                      "error": "unauthorized",
+                      "error_description": "Token has been revoked"
+                    }
+                  }
+                }
+              }
+            }
           },
           "500": {
-            "$ref": "#/components/responses/Error"
+            "description": "Internal server error - token blacklisting failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "blacklist_error": {
+                    "summary": "Failed to blacklist token",
+                    "value": {
+                      "error": "server_error",
+                      "error_description": "Failed to logout"
+                    }
+                  },
+                  "service_error": {
+                    "summary": "Authentication service error",
+                    "value": {
+                      "error": "server_error",
+                      "error_description": "Authentication service error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "examples": {
+          "successful_logout": {
+            "summary": "Successful logout with valid token",
+            "description": "A user successfully logs out with a valid JWT token",
+            "value": {
+              "request": {
+                "method": "POST",
+                "url": "/auth/logout",
+                "headers": {
+                  "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiZXhwIjoxNjkwMjIyNDAwLCJpYXQiOjE2OTAyMTg4MDB9.signature",
+                  "Content-Type": "application/json"
+                },
+                "body": "{}"
+              },
+              "response": {
+                "status": 204,
+                "body": ""
+              }
+            }
+          },
+          "logout_without_token": {
+            "summary": "Logout attempt without token",
+            "description": "Attempting to logout without providing an Authorization header",
+            "value": {
+              "request": {
+                "method": "POST",
+                "url": "/auth/logout",
+                "headers": {
+                  "Content-Type": "application/json"
+                },
+                "body": "{}"
+              },
+              "response": {
+                "status": 401,
+                "body": {
+                  "error": "unauthorized",
+                  "error_description": "Missing Authorization header"
+                }
+              }
+            }
           }
         }
       }

@@ -1,0 +1,156 @@
+# TMI Example Configuration File
+# 
+# This file provides an example configuration for the TMI server.
+# Copy this to config-development.yaml or config-production.yaml and customize.
+# Environment variables can override any value using the TMI_ prefix.
+# 
+# Examples:
+#   TMI_SERVER_PORT=9090
+#   TMI_DATABASE_POSTGRES_PASSWORD=secret123
+#   TMI_AUTH_JWT_SECRET=your-jwt-secret
+#   TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID=your-google-client-id
+#
+
+server:
+    port: "8080"                    # Server port
+    interface: "0.0.0.0"            # Interface to bind to (0.0.0.0 for all)
+    read_timeout: "5s"              # HTTP read timeout
+    write_timeout: "10s"            # HTTP write timeout  
+    idle_timeout: "1m0s"            # HTTP idle timeout
+    tls_enabled: false              # Enable HTTPS/TLS
+    tls_cert_file: ""               # Path to TLS certificate file
+    tls_key_file: ""                # Path to TLS key file
+    tls_subject_name: "localhost"   # TLS certificate subject name
+    http_to_https_redirect: true    # Redirect HTTP to HTTPS when TLS enabled
+
+database:
+    postgres:
+        host: "localhost"           # PostgreSQL host
+        port: "5432"                # PostgreSQL port
+        user: "postgres"            # PostgreSQL username
+        password: ""                # PostgreSQL password (set via env var)
+        database: "tmi"             # PostgreSQL database name
+        sslmode: "disable"          # SSL mode (disable/require/prefer)
+    redis:
+        host: "localhost"           # Redis host
+        port: "6379"                # Redis port
+        password: ""                # Redis password (if required)
+        db: 0                       # Redis database number
+
+auth:
+    jwt:
+        secret: "CHANGE_ME"         # JWT signing secret (MUST be changed)
+        expiration_seconds: 3600    # JWT token expiration (1 hour)
+        signing_method: "HS256"     # JWT signing method
+    oauth:
+        callback_url: "http://localhost:8080/auth/callback"  # OAuth callback URL
+        providers:
+            github:
+                id: "github"
+                name: "GitHub"
+                enabled: false
+                icon: "github"
+                client_id: ""       # Set via env var TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID
+                client_secret: ""   # Set via env var TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET
+                authorization_url: "https://github.com/login/oauth/authorize"
+                token_url: "https://github.com/login/oauth/access_token"
+                userinfo_url: "https://api.github.com/user"
+                issuer: ""
+                jwks_url: ""
+                scopes:
+                    - "user:email"
+                additional_params: {}
+                email_claim: "email"
+                name_claim: "name"
+                subject_claim: "id"
+            google:
+                id: "google"
+                name: "Google"
+                enabled: false
+                icon: "google"
+                client_id: ""       # Set via env var TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID
+                client_secret: ""   # Set via env var TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET
+                authorization_url: "https://accounts.google.com/o/oauth2/auth"
+                token_url: "https://oauth2.googleapis.com/token"
+                userinfo_url: "https://www.googleapis.com/oauth2/v3/userinfo"
+                issuer: "https://accounts.google.com"
+                jwks_url: "https://www.googleapis.com/oauth2/v3/certs"
+                scopes:
+                    - "openid"
+                    - "profile"
+                    - "email"
+                additional_params: {}
+                email_claim: "email"
+                name_claim: "name"
+                subject_claim: "sub"
+            microsoft:
+                id: "microsoft"
+                name: "Microsoft"
+                enabled: false      # Disabled by default
+                icon: "microsoft"
+                client_id: ""
+                client_secret: ""
+                authorization_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+                token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+                userinfo_url: "https://graph.microsoft.com/v1.0/me"
+                issuer: "https://login.microsoftonline.com/common/v2.0"
+                jwks_url: "https://login.microsoftonline.com/common/discovery/v2.0/keys"
+                scopes:
+                    - "openid"
+                    - "profile"
+                    - "email"
+                    - "User.Read"
+                additional_params: {}
+                email_claim: "email"
+                name_claim: "name"
+                subject_claim: "sub"
+            test:
+                id: "test"
+                name: "Test Provider" 
+                enabled: true       # Enable for configuration testing
+                icon: "flask-vial"
+                client_id: "test-client-id"
+                client_secret: "test-oauth-secret-12345"
+                authorization_url: "http://localhost:8080/auth/test/authorize"
+                token_url: "http://localhost:8080/auth/test/token"
+                userinfo_url: ""
+                issuer: "test-oauth-provider"
+                jwks_url: ""
+                scopes:
+                    - "profile"
+                    - "email"
+                additional_params: {}
+                email_claim: "email"
+                name_claim: "name"
+                subject_claim: "sub"
+
+logging:
+    level: "info"                   # Log level (debug/info/warn/error)
+    is_dev: true                    # Development mode (includes file/line info)
+    is_test: false                  # Test mode (uses in-memory stores)
+    log_dir: "logs"                 # Directory for log files
+    max_age_days: 7                 # Max age of log files in days
+    max_size_mb: 100                # Max size of log files in MB
+    max_backups: 10                 # Max number of log file backups
+    also_log_to_console: true       # Also log to console/stdout
+
+telemetry:
+    enabled: false                  # Enable OpenTelemetry (set to true for production)
+    service_name: "tmi-api"         # Service name for telemetry
+    service_version: "1.0.0"        # Service version
+    environment: "development"      # Environment name
+    tracing:
+        enabled: false              # Enable distributed tracing
+        sample_rate: 1.0            # Trace sampling rate (0.0-1.0)
+        endpoint: "http://localhost:4318"  # OTLP endpoint
+    metrics:
+        enabled: false              # Enable metrics collection
+        interval: "30s"             # Metrics collection interval
+        endpoint: "http://localhost:4318"  # OTLP endpoint
+    logging:
+        enabled: false              # Enable structured logging export
+        endpoint: "http://localhost:4318"  # OTLP endpoint
+        correlation_enabled: true   # Enable log-trace correlation
+    resource_attributes:
+        deployment.environment: "development"
+        service.instance.id: "local-dev"

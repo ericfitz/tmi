@@ -22,6 +22,7 @@ import (
 	"github.com/ericfitz/tmi/internal/telemetry"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/labstack/echo/v4"
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
@@ -29,6 +30,9 @@ import (
 type Server struct {
 	// Configuration
 	config *config.Config
+
+	// Token blacklist for logout functionality
+	tokenBlacklist *auth.TokenBlacklist
 
 	// Add other dependencies like database clients, services, etc.
 }
@@ -116,8 +120,8 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 	}
 }
 
-// JWT Middleware factory function that takes config
-func JWTMiddleware(cfg *config.Config) gin.HandlerFunc {
+// JWT Middleware factory function that takes config and token blacklist
+func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get a context-aware logger
 		logger := logging.GetContextLogger(c)
@@ -180,6 +184,29 @@ func JWTMiddleware(cfg *config.Config) gin.HandlerFunc {
 			})
 			c.Abort()
 			return
+		}
+
+		// Check if token is blacklisted
+		if tokenBlacklist != nil {
+			isBlacklisted, err := tokenBlacklist.IsTokenBlacklisted(c.Request.Context(), tokenStr)
+			if err != nil {
+				logger.Error("Failed to check token blacklist: %v", err)
+				c.JSON(http.StatusInternalServerError, api.Error{
+					Error:            "server_error",
+					ErrorDescription: "Authentication service error",
+				})
+				c.Abort()
+				return
+			}
+			if isBlacklisted {
+				logger.Warn("Authentication failed: Token is blacklisted")
+				c.JSON(http.StatusUnauthorized, api.Error{
+					Error:            "unauthorized",
+					ErrorDescription: "Token has been revoked",
+				})
+				c.Abort()
+				return
+			}
 		}
 
 		// Extract claims and add to context
@@ -344,7 +371,105 @@ func (s *Server) GetAuthCallback(c *gin.Context) {
 }
 
 func (s *Server) PostAuthLogout(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	
+	// Get the JWT token from the Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		logger.Warn("Logout attempted without Authorization header")
+		c.JSON(http.StatusUnauthorized, api.Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Missing Authorization header",
+		})
+		return
+	}
+
+	// Parse the header format
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		logger.Warn("Logout attempted with invalid Authorization header format")
+		c.JSON(http.StatusUnauthorized, api.Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid Authorization header format",
+		})
+		return
+	}
+
+	tokenStr := parts[1]
+
+	// Validate token format before attempting to blacklist
+	// Parse the token to check if it's valid JWT format
+	_, _, err := new(jwt.Parser).ParseUnverified(tokenStr, jwt.MapClaims{})
+	if err != nil {
+		logger.Warn("Logout attempted with malformed token: %v", err)
+		c.JSON(http.StatusUnauthorized, api.Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid token format",
+		})
+		return
+	}
+
+	// Blacklist the token if blacklist service is available
+	if s.tokenBlacklist != nil {
+		if err := s.tokenBlacklist.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
+			logger.Error("Failed to blacklist token: %v", err)
+			c.JSON(http.StatusInternalServerError, api.Error{
+				Error:            "server_error",
+				ErrorDescription: "Failed to logout",
+			})
+			return
+		}
+		logger.Info("Token successfully blacklisted for user logout")
+	} else {
+		logger.Warn("Token blacklist service not available - logout will not invalidate token")
+	}
+
 	c.Status(http.StatusNoContent)
+}
+
+// LogoutUser implements the API interface for logout
+func (s *Server) LogoutUser(ctx echo.Context) error {
+	// Convert echo context to gin for compatibility with existing middleware
+	// Since we're using gin middleware, we need to extract the token from echo context
+	authHeader := ctx.Request().Header.Get("Authorization")
+	if authHeader == "" {
+		return ctx.JSON(http.StatusUnauthorized, api.Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Missing Authorization header",
+		})
+	}
+
+	// Parse the header format
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return ctx.JSON(http.StatusUnauthorized, api.Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid Authorization header format",
+		})
+	}
+
+	tokenStr := parts[1]
+
+	// Validate token format before attempting to blacklist
+	_, _, err := new(jwt.Parser).ParseUnverified(tokenStr, jwt.MapClaims{})
+	if err != nil {
+		return ctx.JSON(http.StatusUnauthorized, api.Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid token format",
+		})
+	}
+
+	// Blacklist the token if blacklist service is available
+	if s.tokenBlacklist != nil {
+		if err := s.tokenBlacklist.BlacklistToken(ctx.Request().Context(), tokenStr); err != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.Error{
+				Error:            "server_error",
+				ErrorDescription: "Failed to logout",
+			})
+		}
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
 }
 
 // Dev-mode only endpoint to get current user info
@@ -844,10 +969,35 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 
 	// Security middleware with public path handling
 	r.Use(PublicPathsMiddleware()) // Identify public paths first
-	r.Use(JWTMiddleware(config))   // JWT auth with public path skipping
 
 	// Create API server with handlers
 	apiServer := api.NewServer()
+
+	// Setup server with handlers
+	server := &Server{
+		config: config,
+	}
+
+	// Initialize auth package with database connections
+	// This must be done before registering API routes to avoid conflicts
+	logger := logging.Get()
+	logger.Info("Initializing authentication system with database connections")
+	if err := auth.InitAuthWithConfig(r, config); err != nil {
+		logger.Error("Failed to initialize authentication system: %v", err)
+		// Continue anyway for development purposes
+	}
+
+	// Initialize token blacklist service
+	dbManager := auth.GetDatabaseManager()
+	if dbManager != nil && dbManager.Redis() != nil {
+		logger.Info("Initializing token blacklist service")
+		server.tokenBlacklist = auth.NewTokenBlacklist(dbManager.Redis().GetClient())
+	} else {
+		logger.Warn("Redis not available - token blacklist service disabled")
+	}
+
+	// Now add JWT middleware with token blacklist support
+	r.Use(JWTMiddleware(config, server.tokenBlacklist)) // JWT auth with public path skipping
 
 	// Add server middleware to make API server available in context
 	r.Use(func(c *gin.Context) {
@@ -859,26 +1009,12 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.Use(api.ThreatModelMiddleware())
 	r.Use(api.DiagramMiddleware())
 
-	// Setup server with handlers
-	server := &Server{
-		config: config,
-	}
-
 	// Register WebSocket and custom routes
 	apiServer.RegisterHandlers(r)
 
-	// Initialize auth package with database connections
-	// This must be done before registering API routes to avoid conflicts
-	logger := logging.Get()
-	logger.Info("Initializing authentication system with database connections")
-	if err := auth.InitAuthWithConfig(r, config); err != nil {
-		logger.Error("Failed to initialize authentication system: %v", err)
-		// Continue anyway for development purposes
-	}
-
 	// Initialize database stores for API data persistence
 	logger.Info("Initializing database stores for threat models and diagrams")
-	dbManager := auth.GetDatabaseManager()
+	dbManager = auth.GetDatabaseManager()
 
 	// Check if we're in test mode
 	if config.IsTestMode() {

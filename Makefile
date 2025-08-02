@@ -1,4 +1,4 @@
-.PHONY: build test lint clean dev dev-db dev-redis dev-app build-postgres build-redis gen-config dev-observability test-telemetry benchmark-telemetry validate-otel-config
+.PHONY: build test test-one lint clean dev prod dev-db dev-redis dev-app build-postgres build-redis gen-config dev-observability test-telemetry benchmark-telemetry validate-otel-config
 
 # Default build target
 VERSION := 0.1.0
@@ -8,9 +8,9 @@ BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 build:
 	go build -o bin/server github.com/ericfitz/tmi/cmd/server
 
-# Run tests
+# Run tests with test configuration
 test:
-	go test ./...
+	TMI_LOGGING_IS_TEST=true go test ./...
 
 # Run specific test
 test-one:
@@ -18,7 +18,7 @@ test-one:
 		echo "Usage: make test-one name=TestName"; \
 		exit 1; \
 	fi
-	go test ./... -run $(name)
+	TMI_LOGGING_IS_TEST=true go test ./... -run $(name)
 
 # Run linter
 lint:
@@ -36,6 +36,11 @@ clean:
 dev:
 	@echo "Starting TMI development environment..."
 	@./scripts/start-dev.sh
+
+# Start production environment
+prod:
+	@echo "Starting TMI production environment..."
+	@./scripts/start-prod.sh
 
 # Start development database only
 dev-db:

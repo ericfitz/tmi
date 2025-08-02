@@ -18,6 +18,7 @@
 !make-containers-dev*.sh
 !Dockerfile*
 !.dockerignore
+!config-example.yaml
 
 # Include subdirectories (but avoid overriding specific ignores)
 !*/
