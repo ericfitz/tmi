@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -107,8 +108,16 @@ func (s *Service) initTracing() error {
 
 	// OTLP HTTP exporter
 	if s.config.TracingEndpoint != "" {
+		// Extract just the host:port from the URL for WithEndpoint
+		endpoint := s.config.TracingEndpoint
+		if strings.HasPrefix(endpoint, "http://") {
+			endpoint = strings.TrimPrefix(endpoint, "http://")
+		} else if strings.HasPrefix(endpoint, "https://") {
+			endpoint = strings.TrimPrefix(endpoint, "https://")
+		}
+		
 		opts := []otlptracehttp.Option{
-			otlptracehttp.WithEndpoint(s.config.TracingEndpoint),
+			otlptracehttp.WithEndpoint(endpoint),
 			otlptracehttp.WithInsecure(), // TODO: Make configurable
 		}
 
@@ -194,8 +203,16 @@ func (s *Service) initMetrics() error {
 
 	// OTLP HTTP exporter for push-based metrics
 	if s.config.MetricsEndpoint != "" {
+		// Extract just the host:port from the URL for WithEndpoint
+		endpoint := s.config.MetricsEndpoint
+		if strings.HasPrefix(endpoint, "http://") {
+			endpoint = strings.TrimPrefix(endpoint, "http://")
+		} else if strings.HasPrefix(endpoint, "https://") {
+			endpoint = strings.TrimPrefix(endpoint, "https://")
+		}
+		
 		opts := []otlpmetrichttp.Option{
-			otlpmetrichttp.WithEndpoint(s.config.MetricsEndpoint),
+			otlpmetrichttp.WithEndpoint(endpoint),
 			otlpmetrichttp.WithInsecure(), // TODO: Make configurable
 		}
 
