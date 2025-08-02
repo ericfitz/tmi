@@ -882,6 +882,14 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	if dbManager != nil && dbManager.Postgres() != nil {
 		logger.Info("Using database-backed stores for data persistence")
 		api.InitializeDatabaseStores(dbManager.Postgres().GetDB())
+
+		// Test database connection
+		if err := dbManager.Postgres().GetDB().Ping(); err != nil {
+			logger.Error("Database ping failed, falling back to in-memory stores: %v", err)
+			api.InitializeInMemoryStores()
+		} else {
+			logger.Info("Database connection verified successfully")
+		}
 	} else {
 		logger.Warn("Database not available, falling back to in-memory stores")
 		api.InitializeInMemoryStores()

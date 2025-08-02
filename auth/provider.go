@@ -78,6 +78,8 @@ func NewProvider(config OAuthProviderConfig, callbackURL string) (Provider, erro
 		return NewGithubProvider(config, callbackURL)
 	case "microsoft":
 		return NewMicrosoftProvider(config, callbackURL)
+	case "test":
+		return newTestProvider(config, callbackURL), nil
 	default:
 		// Generic OIDC provider for any standard-compliant provider
 		return NewGenericOIDCProvider(config, callbackURL)

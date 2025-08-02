@@ -180,6 +180,8 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 
 	createdTM, err := ThreatModelStore.Create(tm, idSetter)
 	if err != nil {
+		// Log the actual error for debugging
+		fmt.Printf("[ERROR] Failed to create threat model: %v\n", err)
 		HandleRequestError(c, ServerError("Failed to create threat model"))
 		return
 	}

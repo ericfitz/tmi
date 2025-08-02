@@ -105,10 +105,15 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "description", DataType: "text", IsNullable: true},
 				{Name: "created_at", DataType: "timestamp without time zone", IsNullable: false},
 				{Name: "updated_at", DataType: "timestamp without time zone", IsNullable: false},
+				{Name: "created_by", DataType: "character varying", IsNullable: false},
+				{Name: "threat_model_framework", DataType: "character varying", IsNullable: false},
+				{Name: "issue_url", DataType: "character varying", IsNullable: true},
 			},
 			Indexes: []IndexSchema{
 				{Name: "threat_models_pkey", Columns: []string{"id"}, IsUnique: true},
 				{Name: "idx_threat_models_owner_email", Columns: []string{"owner_email"}, IsUnique: false},
+				{Name: "idx_threat_models_framework", Columns: []string{"threat_model_framework"}, IsUnique: false},
+				{Name: "idx_threat_models_created_by", Columns: []string{"created_by"}, IsUnique: false},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -116,6 +121,11 @@ func GetExpectedSchema() []TableSchema {
 					Type:           "FOREIGN KEY",
 					ForeignTable:   "users",
 					ForeignColumns: []string{"email"},
+				},
+				{
+					Name:       "threat_models_threat_model_framework_check",
+					Type:       "CHECK",
+					Definition: "threat_model_framework IN ('CIA', 'STRIDE', 'LINDDUN', 'DIE', 'PLOT4ai')",
 				},
 			},
 		},
