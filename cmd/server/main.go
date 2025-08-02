@@ -879,20 +879,27 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Initialize database stores for API data persistence
 	logger.Info("Initializing database stores for threat models and diagrams")
 	dbManager := auth.GetDatabaseManager()
-	if dbManager != nil && dbManager.Postgres() != nil {
+
+	// Check if we're in test mode
+	if config.IsTestMode() {
+		logger.Info("Running in test mode - using in-memory stores")
+		api.InitializeInMemoryStores()
+	} else {
+		// In development or production, require database
+		if dbManager == nil || dbManager.Postgres() == nil {
+			logger.Error("Database not available - database is required in non-test mode")
+			os.Exit(1)
+		}
+
 		logger.Info("Using database-backed stores for data persistence")
 		api.InitializeDatabaseStores(dbManager.Postgres().GetDB())
 
 		// Test database connection
 		if err := dbManager.Postgres().GetDB().Ping(); err != nil {
-			logger.Error("Database ping failed, falling back to in-memory stores: %v", err)
-			api.InitializeInMemoryStores()
-		} else {
-			logger.Info("Database connection verified successfully")
+			logger.Error("Database connection failed: %v", err)
+			os.Exit(1)
 		}
-	} else {
-		logger.Warn("Database not available, falling back to in-memory stores")
-		api.InitializeInMemoryStores()
+		logger.Info("Database connection verified successfully")
 	}
 
 	// Validate database schema after auth initialization

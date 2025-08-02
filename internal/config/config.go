@@ -1,6 +1,7 @@
 package config
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"reflect"
@@ -102,6 +103,7 @@ type OAuthProviderConfig struct {
 type LoggingConfig struct {
 	Level            string `yaml:"level" env:"TMI_LOGGING_LEVEL"`
 	IsDev            bool   `yaml:"is_dev" env:"TMI_LOGGING_IS_DEV"`
+	IsTest           bool   `yaml:"is_test" env:"TMI_LOGGING_IS_TEST"`
 	LogDir           string `yaml:"log_dir" env:"TMI_LOGGING_LOG_DIR"`
 	MaxAgeDays       int    `yaml:"max_age_days" env:"TMI_LOGGING_MAX_AGE_DAYS"`
 	MaxSizeMB        int    `yaml:"max_size_mb" env:"TMI_LOGGING_MAX_SIZE_MB"`
@@ -219,6 +221,7 @@ func getDefaultConfig() *Config {
 		Logging: LoggingConfig{
 			Level:            "info",
 			IsDev:            true,
+			IsTest:           false,
 			LogDir:           "logs",
 			MaxAgeDays:       7,
 			MaxSizeMB:        100,
@@ -509,6 +512,16 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// IsTestMode returns true if running in test mode
+func (c *Config) IsTestMode() bool {
+	return c.Logging.IsTest || isRunningInTest()
+}
+
+// isRunningInTest detects if we're running under 'go test'
+func isRunningInTest() bool {
+	return flag.Lookup("test.v") != nil
 }
 
 // GetJWTDuration returns the JWT expiration duration
