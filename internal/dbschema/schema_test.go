@@ -134,3 +134,71 @@ func TestCompareDataTypes(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckConstraintMatches(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected string
+		actual   string
+		match    bool
+	}{
+		{
+			name:     "TRIM function with BOTH FROM",
+			expected: "LENGTH(TRIM(name)) > 0",
+			actual:   "CHECK ((length(TRIM(BOTH FROM name)) > 0))",
+			match:    true,
+		},
+		{
+			name:     "Complex AND constraint with TRIM",
+			expected: "LENGTH(TRIM(key)) > 0 AND LENGTH(key) <= 128",
+			actual:   "CHECK (((length(TRIM(BOTH FROM key)) > 0) AND (length(key) <= 128)))",
+			match:    true,
+		},
+		{
+			name:     "Regex pattern with type casting",
+			expected: "key ~ '^[a-zA-Z0-9_-]+$'",
+			actual:   "CHECK (((key)::text ~ '^[a-zA-Z0-9_-]+$'::text))",
+			match:    true,
+		},
+		{
+			name:     "IN clause with type casting",
+			expected: "provider IN ('google', 'github', 'microsoft')",
+			actual:   "CHECK (((provider)::text = ANY ((ARRAY['google'::character varying, 'github'::character varying, 'microsoft'::character varying])::text[])))",
+			match:    true,
+		},
+		{
+			name:     "NOT EQUAL with type casting",
+			expected: "provider_user_id != ''",
+			actual:   "CHECK (((provider_user_id)::text <> ''::text))",
+			match:    true,
+		},
+		{
+			name:     "OR condition with IS NULL",
+			expected: "severity IS NULL OR severity IN ('low', 'medium', 'high')",
+			actual:   "CHECK (((severity IS NULL) OR ((severity)::text = ANY ((ARRAY['low'::character varying, 'medium'::character varying, 'high'::character varying])::text[]))))",
+			match:    true,
+		},
+		{
+			name:     "Date comparison",
+			expected: "expires_at > created_at",
+			actual:   "CHECK ((expires_at > created_at))",
+			match:    true,
+		},
+		{
+			name:     "Non-matching constraint",
+			expected: "LENGTH(TRIM(name)) > 5",
+			actual:   "CHECK ((length(TRIM(BOTH FROM name)) > 10))",
+			match:    false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := checkConstraintMatches(test.expected, test.actual)
+			if result != test.match {
+				t.Errorf("checkConstraintMatches(%q, %q) = %v, expected %v",
+					test.expected, test.actual, result, test.match)
+			}
+		})
+	}
+}

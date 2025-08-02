@@ -668,6 +668,80 @@ func checkConstraintMatches(expected, actual string) bool {
 		}
 	}
 
+	// Handle complex AND constraints with LENGTH/TRIM
+	// Expected: "LENGTH(TRIM(key)) > 0 AND LENGTH(key) <= 128"
+	// Actual: "((length(TRIM(BOTH FROM key)) > 0) AND (length(key) <= 128))" or similar variations
+	if strings.Contains(expected, " and ") {
+		parts := strings.Split(expected, " and ")
+		if len(parts) == 2 {
+			part1 := strings.TrimSpace(parts[0])
+			part2 := strings.TrimSpace(parts[1])
+
+			// Check if both parts of the AND condition are present in the actual constraint
+			match1 := false
+			match2 := false
+
+			// Check first part (likely LENGTH(TRIM(...)) > 0)
+			if strings.Contains(part1, "length(trim(") && strings.Contains(part1, ")) >") {
+				start := strings.Index(part1, "length(trim(") + len("length(trim(")
+				end := strings.Index(part1[start:], "))")
+				if end > 0 {
+					column := part1[start : start+end]
+					compParts := strings.Split(part1, ")) >")
+					if len(compParts) == 2 {
+						value := strings.TrimSpace(compParts[1])
+						if strings.Contains(actual, column) &&
+							(strings.Contains(actual, "trim(both from") || strings.Contains(actual, "trim(")) &&
+							strings.Contains(actual, "length(") &&
+							strings.Contains(actual, "> "+value) {
+							match1 = true
+						}
+					}
+				}
+			}
+
+			// Check second part (likely LENGTH(column) <= value)
+			if strings.Contains(part2, "length(") && strings.Contains(part2, ") <=") {
+				start := strings.Index(part2, "length(") + len("length(")
+				end := strings.Index(part2[start:], ")")
+				if end > 0 {
+					column := part2[start : start+end]
+					compParts := strings.Split(part2, ") <=")
+					if len(compParts) == 2 {
+						value := strings.TrimSpace(compParts[1])
+						if strings.Contains(actual, column) &&
+							strings.Contains(actual, "length(") &&
+							strings.Contains(actual, "<= "+value) {
+							match2 = true
+						}
+					}
+				}
+			}
+
+			if match1 && match2 {
+				return true
+			}
+		}
+	}
+
+	// Handle regex patterns with potential type casting
+	// Expected: "key ~ '^[a-zA-Z0-9_-]+$'"
+	// Actual: "((key)::text ~ '^[a-zA-Z0-9_-]+$'::text)" or similar
+	if strings.Contains(expected, " ~ ") {
+		parts := strings.Split(expected, " ~ ")
+		if len(parts) == 2 {
+			column := strings.TrimSpace(parts[0])
+			pattern := strings.Trim(parts[1], "'")
+
+			// Check if actual contains the column, regex operator, and pattern
+			if strings.Contains(actual, column) &&
+				strings.Contains(actual, "~") &&
+				strings.Contains(actual, pattern) {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
