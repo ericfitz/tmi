@@ -31,7 +31,7 @@ func TestLogoutEndpoint(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	tokenBlacklist := auth.NewTokenBlacklist(rdb)
 

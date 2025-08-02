@@ -22,8 +22,8 @@ import (
 	"github.com/ericfitz/tmi/internal/telemetry"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/labstack/echo/v4"
 	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/labstack/echo/v4"
 )
 
 // Server holds dependencies for the API server
@@ -372,7 +372,7 @@ func (s *Server) GetAuthCallback(c *gin.Context) {
 
 func (s *Server) PostAuthLogout(c *gin.Context) {
 	logger := logging.GetContextLogger(c)
-	
+
 	// Get the JWT token from the Authorization header
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {

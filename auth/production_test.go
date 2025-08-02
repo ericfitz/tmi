@@ -21,5 +21,5 @@ func TestTestProviderNotAvailableInProduction(t *testing.T) {
 		}
 	}()
 
-	NewProvider(config, "http://localhost:8080/auth/callback")
+	_, _ = NewProvider(config, "http://localhost:8080/auth/callback")
 }

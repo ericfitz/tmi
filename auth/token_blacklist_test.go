@@ -22,7 +22,7 @@ func TestTokenBlacklist(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	// Create token blacklist
 	tb := NewTokenBlacklist(rdb)
@@ -85,10 +85,10 @@ func TestTokenBlacklist(t *testing.T) {
 	})
 
 	t.Run("InvalidToken", func(t *testing.T) {
-		invalidToken := "invalid.jwt.token"
+		invalidJWT := "invalid.jwt.token"
 
 		// Try to blacklist invalid token
-		err = tb.BlacklistToken(ctx, invalidToken)
+		err = tb.BlacklistToken(ctx, invalidJWT)
 		assert.Error(t, err)
 	})
 
@@ -122,11 +122,11 @@ func TestTokenBlacklist(t *testing.T) {
 
 	t.Run("HashingConsistency", func(t *testing.T) {
 		// Test that the same token produces the same hash
-		tokenString := "test.jwt.token"
-		
-		hash1 := tb.hashToken(tokenString)
-		hash2 := tb.hashToken(tokenString)
-		
+		testJWT := "test.jwt.token"
+
+		hash1 := tb.hashToken(testJWT)
+		hash2 := tb.hashToken(testJWT)
+
 		assert.Equal(t, hash1, hash2)
 		assert.NotEmpty(t, hash1)
 	})
@@ -142,11 +142,11 @@ func TestNewTokenBlacklist(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	// Create token blacklist
 	tb := NewTokenBlacklist(rdb)
-	
+
 	assert.NotNil(t, tb)
 	assert.Equal(t, rdb, tb.redis)
 }

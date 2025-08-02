@@ -115,7 +115,7 @@ func (s *Service) initTracing() error {
 		} else if strings.HasPrefix(endpoint, "https://") {
 			endpoint = strings.TrimPrefix(endpoint, "https://")
 		}
-		
+
 		opts := []otlptracehttp.Option{
 			otlptracehttp.WithEndpoint(endpoint),
 			otlptracehttp.WithInsecure(), // TODO: Make configurable
@@ -210,7 +210,7 @@ func (s *Service) initMetrics() error {
 		} else if strings.HasPrefix(endpoint, "https://") {
 			endpoint = strings.TrimPrefix(endpoint, "https://")
 		}
-		
+
 		opts := []otlpmetrichttp.Option{
 			otlpmetrichttp.WithEndpoint(endpoint),
 			otlpmetrichttp.WithInsecure(), // TODO: Make configurable

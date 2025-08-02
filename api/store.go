@@ -129,13 +129,26 @@ func UpdateTimestamps[T WithTimestamps](entity T, isNew bool) T {
 }
 
 // Store interfaces to allow switching between in-memory and database implementations
+// ThreatModelWithCounts extends ThreatModel with count information
+type ThreatModelWithCounts struct {
+	ThreatModel
+	DocumentCount int
+	SourceCount   int
+	DiagramCount  int
+	ThreatCount   int
+}
+
 type ThreatModelStoreInterface interface {
 	Get(id string) (ThreatModel, error)
 	List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel
+	ListWithCounts(offset, limit int, filter func(ThreatModel) bool) []ThreatModelWithCounts
 	Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error)
 	Update(id string, item ThreatModel) error
 	Delete(id string) error
 	Count() int
+	UpdateCounts(threatModelID string) error
+	CountSubEntitiesFromPayload(tm ThreatModel) (documentCount, sourceCount, diagramCount, threatCount int)
+	UpdateCountsWithValues(threatModelID string, documentCount, sourceCount, diagramCount, threatCount int) error
 }
 
 type DiagramStoreInterface interface {
@@ -151,9 +164,69 @@ type DiagramStoreInterface interface {
 var ThreatModelStore ThreatModelStoreInterface
 var DiagramStore DiagramStoreInterface
 
+// ThreatModelInMemoryStore wraps DataStore to implement count management methods
+type ThreatModelInMemoryStore struct {
+	*DataStore[ThreatModel]
+}
+
+// NewThreatModelInMemoryStore creates a new in-memory threat model store
+func NewThreatModelInMemoryStore() *ThreatModelInMemoryStore {
+	return &ThreatModelInMemoryStore{
+		DataStore: NewDataStore[ThreatModel](),
+	}
+}
+
+// UpdateCounts is a no-op for in-memory store (counts are calculated on-the-fly)
+func (s *ThreatModelInMemoryStore) UpdateCounts(threatModelID string) error {
+	// In-memory store doesn't need to update counts as they're calculated dynamically
+	return nil
+}
+
+// UpdateCountsWithValues is a no-op for in-memory store
+func (s *ThreatModelInMemoryStore) UpdateCountsWithValues(threatModelID string, documentCount, sourceCount, diagramCount, threatCount int) error {
+	// In-memory store doesn't need to update counts as they're calculated dynamically
+	return nil
+}
+
+// ListWithCounts returns threat models with dynamically calculated counts
+func (s *ThreatModelInMemoryStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool) []ThreatModelWithCounts {
+	models := s.List(offset, limit, filter)
+	result := make([]ThreatModelWithCounts, 0, len(models))
+
+	for _, tm := range models {
+		docCount, srcCount, diagCount, threatCount := s.CountSubEntitiesFromPayload(tm)
+		result = append(result, ThreatModelWithCounts{
+			ThreatModel:   tm,
+			DocumentCount: docCount,
+			SourceCount:   srcCount,
+			DiagramCount:  diagCount,
+			ThreatCount:   threatCount,
+		})
+	}
+
+	return result
+}
+
+// CountSubEntitiesFromPayload counts entities from a threat model payload
+func (s *ThreatModelInMemoryStore) CountSubEntitiesFromPayload(tm ThreatModel) (documentCount, sourceCount, diagramCount, threatCount int) {
+	if tm.Documents != nil {
+		documentCount = len(*tm.Documents)
+	}
+	if tm.SourceCode != nil {
+		sourceCount = len(*tm.SourceCode)
+	}
+	if tm.Diagrams != nil {
+		diagramCount = len(*tm.Diagrams)
+	}
+	if tm.Threats != nil {
+		threatCount = len(*tm.Threats)
+	}
+	return
+}
+
 // InitializeInMemoryStores initializes stores with in-memory implementations
 func InitializeInMemoryStores() {
-	ThreatModelStore = NewDataStore[ThreatModel]()
+	ThreatModelStore = NewThreatModelInMemoryStore()
 	DiagramStore = NewDataStore[DfdDiagram]()
 }
 

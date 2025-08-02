@@ -45,8 +45,8 @@ var TestFixtures struct {
 
 // ResetStores clears all data from the stores
 func ResetStores() {
-	// Create new empty stores
-	ThreatModelStore = NewDataStore[ThreatModel]()
+	// Create new empty stores using the proper constructors
+	ThreatModelStore = NewThreatModelInMemoryStore()
 	DiagramStore = NewDataStore[DfdDiagram]()
 }
 
@@ -182,7 +182,7 @@ func InitTestFixtures() {
 	TestFixtures.DiagramAuth = diagramAuth
 
 	// Add to stores (handling both in-memory and database stores)
-	if inMemoryTMStore, ok := ThreatModelStore.(*DataStore[ThreatModel]); ok {
+	if inMemoryTMStore, ok := ThreatModelStore.(*ThreatModelInMemoryStore); ok {
 		inMemoryTMStore.mutex.Lock()
 		inMemoryTMStore.data[tmID] = threatModel
 		inMemoryTMStore.mutex.Unlock()

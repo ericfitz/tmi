@@ -50,15 +50,49 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		return AccessCheck(userName, RoleReader, authData)
 	}
 
-	// Get threat models from store with filtering
-	models := ThreatModelStore.List(offset, limit, filter)
+	// Get threat models from store with filtering and counts
+	modelsWithCounts := ThreatModelStore.ListWithCounts(offset, limit, filter)
 
-	// Convert to list items for API response
-	items := make([]ListItem, 0, len(models))
-	for _, tm := range models {
-		items = append(items, ListItem{
-			Id:   tm.Id,
-			Name: tm.Name,
+	// Convert to TMListItems for API response
+	items := make([]TMListItem, 0, len(modelsWithCounts))
+	for _, tmWithCounts := range modelsWithCounts {
+		tm := tmWithCounts.ThreatModel
+		// Convert framework to TMListItem enum
+		var framework TMListItemThreatModelFramework
+		if tm.ThreatModelFramework != "" {
+			switch tm.ThreatModelFramework {
+			case ThreatModelThreatModelFrameworkCIA:
+				framework = TMListItemThreatModelFrameworkCIA
+			case ThreatModelThreatModelFrameworkDIE:
+				framework = TMListItemThreatModelFrameworkDIE
+			case ThreatModelThreatModelFrameworkLINDDUN:
+				framework = TMListItemThreatModelFrameworkLINDDUN
+			case ThreatModelThreatModelFrameworkPLOT4ai:
+				framework = TMListItemThreatModelFrameworkPLOT4ai
+			case ThreatModelThreatModelFrameworkSTRIDE:
+				framework = TMListItemThreatModelFrameworkSTRIDE
+			default:
+				framework = TMListItemThreatModelFrameworkSTRIDE // Default fallback
+			}
+		} else {
+			framework = TMListItemThreatModelFrameworkSTRIDE // Default fallback
+		}
+
+		items = append(items, TMListItem{
+			Id:                   tm.Id,
+			Name:                 tm.Name,
+			Description:          tm.Description,
+			CreatedAt:            tm.CreatedAt,
+			ModifiedAt:           tm.ModifiedAt,
+			Owner:                tm.Owner,
+			CreatedBy:            tm.CreatedBy,
+			ThreatModelFramework: framework,
+			IssueUrl:             tm.IssueUrl,
+			// Count fields from database
+			DocumentCount: tmWithCounts.DocumentCount,
+			SourceCount:   tmWithCounts.SourceCount,
+			DiagramCount:  tmWithCounts.DiagramCount,
+			ThreatCount:   tmWithCounts.ThreatCount,
 		})
 	}
 
@@ -186,6 +220,12 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Initialize counts for new threat model (all start at 0)
+	if err := ThreatModelStore.UpdateCountsWithValues(createdTM.Id.String(), 0, 0, 0, 0); err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("[WARNING] Failed to initialize counts for threat model %s: %v\n", createdTM.Id.String(), err)
+	}
+
 	// Set the Location header
 	c.Header("Location", "/threat_models/"+createdTM.Id.String())
 	c.JSON(http.StatusCreated, createdTM)
@@ -282,10 +322,19 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		}
 	}
 
+	// Count sub-entities from payload for PUT operations
+	docCount, srcCount, diagCount, threatCount := ThreatModelStore.CountSubEntitiesFromPayload(request)
+
 	// Update in store
 	if err := ThreatModelStore.Update(id, request); err != nil {
 		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
+	}
+
+	// Update counts in database using the counted values from payload
+	if err := ThreatModelStore.UpdateCountsWithValues(id, docCount, srcCount, diagCount, threatCount); err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("[WARNING] Failed to update counts for threat model %s: %v\n", id, err)
 	}
 
 	c.JSON(http.StatusOK, request)
@@ -378,6 +427,12 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 			ErrorDescription: "Failed to update threat model",
 		})
 		return
+	}
+
+	// For PATCH operations, recompute absolute counts from database
+	if err := ThreatModelStore.UpdateCounts(id); err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("[WARNING] Failed to update counts for threat model %s: %v\n", id, err)
 	}
 
 	c.JSON(http.StatusOK, modifiedTM)

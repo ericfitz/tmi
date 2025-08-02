@@ -1320,6 +1320,94 @@
         },
         "required": ["name", "id"]
       },
+      "TMListItem": {
+        "type": "object",
+        "description": "Enhanced item for threat model list endpoints with key metadata and counts",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier of the threat model (UUID)",
+            "maxLength": 36,
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the threat model",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the threat model",
+            "maxLength": 1024
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation timestamp (RFC3339)",
+            "maxLength": 24
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last modification timestamp (RFC3339)",
+            "maxLength": 24
+          },
+          "owner": {
+            "type": "string",
+            "description": "Username or identifier of the current owner"
+          },
+          "created_by": {
+            "type": "string",
+            "description": "Username or identifier of the creator",
+            "maxLength": 256
+          },
+          "threat_model_framework": {
+            "type": "string",
+            "enum": ["CIA", "STRIDE", "LINDDUN", "DIE", "PLOT4ai"],
+            "description": "The framework used for this threat model"
+          },
+          "issue_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to an issue in an issue tracking system",
+            "maxLength": 1024
+          },
+          "document_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of documents associated with this threat model"
+          },
+          "source_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of source code entries associated with this threat model"
+          },
+          "diagram_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of diagrams associated with this threat model"
+          },
+          "threat_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of threats defined in this threat model"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "modified_at",
+          "owner",
+          "created_by",
+          "threat_model_framework",
+          "document_count",
+          "source_count",
+          "diagram_count",
+          "threat_count"
+        ]
+      },
       "Point": {
         "type": "object",
         "description": "A 2D point with x and y coordinates",
@@ -2715,7 +2803,7 @@
       "get": {
         "tags": ["Threat Models"],
         "summary": "List threat models",
-        "description": "Returns a list of threat models accessible to the authenticated user as name-ID pairs",
+        "description": "Returns a list of threat models accessible to the authenticated user with enhanced metadata and entity counts",
         "security": [
           {
             "bearerAuth": []
@@ -2820,7 +2908,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Paginated list of threat models as name-ID pairs",
+            "description": "Paginated list of threat models with enhanced metadata and entity counts",
             "content": {
               "application/json": {
                 "schema": {
@@ -2833,7 +2921,7 @@
                         "data": {
                           "type": "array",
                           "items": {
-                            "$ref": "#/components/schemas/ListItem"
+                            "$ref": "#/components/schemas/TMListItem"
                           }
                         }
                       }
@@ -2843,8 +2931,19 @@
                 "example": {
                   "data": [
                     {
+                      "id": "550e8400-e29b-41d4-a716-446655440000",
                       "name": "System Threat Model",
-                      "id": "550e8400-e29b-41d4-a716-446655440000"
+                      "description": "Comprehensive threat model for our web application system",
+                      "created_at": "2025-04-06T12:00:00Z",
+                      "modified_at": "2025-04-06T14:30:00Z",
+                      "owner": "user@example.com",
+                      "created_by": "admin@example.com",
+                      "threat_model_framework": "STRIDE",
+                      "issue_url": "https://github.com/example/issues/123",
+                      "document_count": 3,
+                      "source_count": 2,
+                      "diagram_count": 1,
+                      "threat_count": 15
                     }
                   ],
                   "pagination": {

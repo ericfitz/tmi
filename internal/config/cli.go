@@ -44,5 +44,3 @@ func GenerateExampleConfig() error {
 	fmt.Println("Note: Environment variables can override any YAML setting using TMI_ prefix.")
 	return nil
 }
-
-

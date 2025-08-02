@@ -151,6 +151,15 @@ const (
 	Svn       SourceType = "svn"
 )
 
+// Defines values for TMListItemThreatModelFramework.
+const (
+	TMListItemThreatModelFrameworkCIA     TMListItemThreatModelFramework = "CIA"
+	TMListItemThreatModelFrameworkDIE     TMListItemThreatModelFramework = "DIE"
+	TMListItemThreatModelFrameworkLINDDUN TMListItemThreatModelFramework = "LINDDUN"
+	TMListItemThreatModelFrameworkPLOT4ai TMListItemThreatModelFramework = "PLOT4ai"
+	TMListItemThreatModelFrameworkSTRIDE  TMListItemThreatModelFramework = "STRIDE"
+)
+
 // Defines values for ThreatSeverity.
 const (
 	Critical ThreatSeverity = "Critical"
@@ -163,11 +172,11 @@ const (
 
 // Defines values for ThreatModelThreatModelFramework.
 const (
-	CIA     ThreatModelThreatModelFramework = "CIA"
-	DIE     ThreatModelThreatModelFramework = "DIE"
-	LINDDUN ThreatModelThreatModelFramework = "LINDDUN"
-	PLOT4ai ThreatModelThreatModelFramework = "PLOT4ai"
-	STRIDE  ThreatModelThreatModelFramework = "STRIDE"
+	ThreatModelThreatModelFrameworkCIA     ThreatModelThreatModelFramework = "CIA"
+	ThreatModelThreatModelFrameworkDIE     ThreatModelThreatModelFramework = "DIE"
+	ThreatModelThreatModelFrameworkLINDDUN ThreatModelThreatModelFramework = "LINDDUN"
+	ThreatModelThreatModelFrameworkPLOT4ai ThreatModelThreatModelFramework = "PLOT4ai"
+	ThreatModelThreatModelFrameworkSTRIDE  ThreatModelThreatModelFramework = "STRIDE"
 )
 
 // Defines values for AuthorizeOAuthProviderParamsProvider.
@@ -919,6 +928,51 @@ type SourceParametersRefType string
 // SourceType Source code repository type
 type SourceType string
 
+// TMListItem Enhanced item for threat model list endpoints with key metadata and counts
+type TMListItem struct {
+	// CreatedAt Creation timestamp (RFC3339)
+	CreatedAt time.Time `json:"created_at"`
+
+	// CreatedBy Username or identifier of the creator
+	CreatedBy string `json:"created_by"`
+
+	// Description Description of the threat model
+	Description *string `json:"description,omitempty"`
+
+	// DiagramCount Number of diagrams associated with this threat model
+	DiagramCount int `json:"diagram_count"`
+
+	// DocumentCount Number of documents associated with this threat model
+	DocumentCount int `json:"document_count"`
+
+	// Id Unique identifier of the threat model (UUID)
+	Id *openapi_types.UUID `json:"id,omitempty"`
+
+	// IssueUrl URL to an issue in an issue tracking system
+	IssueUrl *string `json:"issue_url,omitempty"`
+
+	// ModifiedAt Last modification timestamp (RFC3339)
+	ModifiedAt time.Time `json:"modified_at"`
+
+	// Name Name of the threat model
+	Name string `json:"name"`
+
+	// Owner Username or identifier of the current owner
+	Owner string `json:"owner"`
+
+	// SourceCount Number of source code entries associated with this threat model
+	SourceCount int `json:"source_count"`
+
+	// ThreatCount Number of threats defined in this threat model
+	ThreatCount int `json:"threat_count"`
+
+	// ThreatModelFramework The framework used for this threat model
+	ThreatModelFramework TMListItemThreatModelFramework `json:"threat_model_framework"`
+}
+
+// TMListItemThreatModelFramework The framework used for this threat model
+type TMListItemThreatModelFramework string
+
 // Threat A threat within a threat model
 type Threat struct {
 	// CellId Unique identifier of the associated cell (if applicable) (UUID)
@@ -1068,6 +1122,9 @@ type InitiateOAuthLoginParams struct {
 	// RedirectUri Optional URI to redirect to after login
 	RedirectUri *string `form:"redirect_uri,omitempty" json:"redirect_uri,omitempty"`
 }
+
+// LogoutUserJSONBody defines parameters for LogoutUser.
+type LogoutUserJSONBody = map[string]interface{}
 
 // RefreshTokenJSONBody defines parameters for RefreshToken.
 type RefreshTokenJSONBody struct {
@@ -1244,6 +1301,9 @@ type PatchThreatModelThreatApplicationJSONPatchPlusJSONBodyOp string
 
 // ExchangeOAuthCodeJSONRequestBody defines body for ExchangeOAuthCode for application/json ContentType.
 type ExchangeOAuthCodeJSONRequestBody ExchangeOAuthCodeJSONBody
+
+// LogoutUserJSONRequestBody defines body for LogoutUser for application/json ContentType.
+type LogoutUserJSONRequestBody = LogoutUserJSONBody
 
 // RefreshTokenJSONRequestBody defines body for RefreshToken for application/json ContentType.
 type RefreshTokenJSONRequestBody RefreshTokenJSONBody

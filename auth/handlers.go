@@ -42,7 +42,7 @@ func (h *Handlers) RegisterRoutes(router *gin.Engine) {
 		auth.POST("/logout", h.Logout)
 		auth.GET("/me", h.AuthMiddleware().AuthRequired(), h.Me)
 	}
-	
+
 	// Register test provider routes (only in dev/test builds)
 	h.registerTestProviderRoutes(router)
 }

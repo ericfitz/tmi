@@ -55,13 +55,16 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 
 	query := `
 		SELECT id, name, description, owner_email, created_by, 
-		       threat_model_framework, issue_url, created_at, updated_at
+		       threat_model_framework, issue_url, created_at, updated_at,
+		       document_count, source_count, diagram_count, threat_count
 		FROM threat_models 
 		WHERE id = $1`
 
+	var documentCount, sourceCount, diagramCount, threatCount int
 	err := s.db.QueryRow(query, id).Scan(
 		&uuid, &name, &description, &ownerEmail, &createdBy,
 		&threatModelFramework, &issueUrl, &createdAt, &updatedAt,
+		&documentCount, &sourceCount, &diagramCount, &threatCount,
 	)
 
 	if err != nil {
@@ -98,7 +101,7 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	// Convert framework to enum
 	framework := ThreatModelThreatModelFramework(threatModelFramework)
 	if threatModelFramework == "" {
-		framework = STRIDE // default
+		framework = ThreatModelThreatModelFrameworkSTRIDE // default
 	}
 
 	tm = ThreatModel{
@@ -129,7 +132,8 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 
 	query := `
 		SELECT id, name, description, owner_email, created_by,
-		       threat_model_framework, issue_url, created_at, updated_at
+		       threat_model_framework, issue_url, created_at, updated_at,
+		       document_count, source_count, diagram_count, threat_count
 		FROM threat_models 
 		ORDER BY created_at DESC`
 
@@ -151,10 +155,12 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 		var description, issueUrl *string
 		var threatModelFramework string
 		var createdAt, updatedAt time.Time
+		var documentCount, sourceCount, diagramCount, threatCount int
 
 		err := rows.Scan(
 			&uuid, &name, &description, &ownerEmail, &createdBy,
 			&threatModelFramework, &issueUrl, &createdAt, &updatedAt,
+			&documentCount, &sourceCount, &diagramCount, &threatCount,
 		)
 		if err != nil {
 			continue
@@ -169,7 +175,7 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 		// Convert framework to enum
 		framework := ThreatModelThreatModelFramework(threatModelFramework)
 		if threatModelFramework == "" {
-			framework = STRIDE // default
+			framework = ThreatModelThreatModelFrameworkSTRIDE // default
 		}
 
 		tm = ThreatModel{
@@ -194,6 +200,99 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 	// Apply pagination
 	if offset >= len(results) {
 		return []ThreatModel{}
+	}
+
+	end := offset + limit
+	if end > len(results) || limit <= 0 {
+		end = len(results)
+	}
+
+	return results[offset:end]
+}
+
+// ListWithCounts returns filtered and paginated threat models with count information
+func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool) []ThreatModelWithCounts {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var results []ThreatModelWithCounts
+
+	query := `
+		SELECT id, name, description, owner_email, created_by,
+		       threat_model_framework, issue_url, created_at, updated_at,
+		       document_count, source_count, diagram_count, threat_count
+		FROM threat_models 
+		ORDER BY created_at DESC`
+
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return results
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Error closing rows, but don't fail the operation
+			_ = err
+		}
+	}()
+
+	for rows.Next() {
+		var tm ThreatModel
+		var uuid uuid.UUID
+		var name, ownerEmail, createdBy string
+		var description, issueUrl *string
+		var threatModelFramework string
+		var createdAt, updatedAt time.Time
+		var documentCount, sourceCount, diagramCount, threatCount int
+
+		err := rows.Scan(
+			&uuid, &name, &description, &ownerEmail, &createdBy,
+			&threatModelFramework, &issueUrl, &createdAt, &updatedAt,
+			&documentCount, &sourceCount, &diagramCount, &threatCount,
+		)
+		if err != nil {
+			continue
+		}
+
+		// Load authorization for filtering
+		authorization, err := s.loadAuthorization(uuid.String())
+		if err != nil {
+			continue
+		}
+
+		// Convert framework to enum
+		framework := ThreatModelThreatModelFramework(threatModelFramework)
+		if threatModelFramework == "" {
+			framework = ThreatModelThreatModelFrameworkSTRIDE // default
+		}
+
+		tm = ThreatModel{
+			Id:                   &uuid,
+			Name:                 name,
+			Description:          description,
+			Owner:                ownerEmail,
+			CreatedBy:            createdBy,
+			ThreatModelFramework: framework,
+			IssueUrl:             issueUrl,
+			CreatedAt:            createdAt,
+			ModifiedAt:           updatedAt,
+			Authorization:        authorization,
+		}
+
+		// Apply filter if provided
+		if filter == nil || filter(tm) {
+			results = append(results, ThreatModelWithCounts{
+				ThreatModel:   tm,
+				DocumentCount: documentCount,
+				SourceCount:   sourceCount,
+				DiagramCount:  diagramCount,
+				ThreatCount:   threatCount,
+			})
+		}
+	}
+
+	// Apply pagination
+	if offset >= len(results) {
+		return []ThreatModelWithCounts{}
 	}
 
 	end := offset + limit
@@ -367,6 +466,139 @@ func (s *ThreatModelDatabaseStore) Count() int {
 		return 0
 	}
 	return count
+}
+
+// UpdateCounts recomputes and updates all count fields for a threat model
+func (s *ThreatModelDatabaseStore) UpdateCounts(threatModelID string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Compute counts from related tables
+	documentCount, err := s.countDocuments(threatModelID)
+	if err != nil {
+		return fmt.Errorf("failed to count documents: %w", err)
+	}
+
+	sourceCount, err := s.countSources(threatModelID)
+	if err != nil {
+		return fmt.Errorf("failed to count sources: %w", err)
+	}
+
+	diagramCount, err := s.countDiagrams(threatModelID)
+	if err != nil {
+		return fmt.Errorf("failed to count diagrams: %w", err)
+	}
+
+	threatCount, err := s.countThreats(threatModelID)
+	if err != nil {
+		return fmt.Errorf("failed to count threats: %w", err)
+	}
+
+	// Update the counts in the threat_models table
+	return s.updateCountFields(threatModelID, documentCount, sourceCount, diagramCount, threatCount)
+}
+
+// UpdateCountsWithValues updates count fields with specific provided values (for PUT operations)
+func (s *ThreatModelDatabaseStore) UpdateCountsWithValues(threatModelID string, documentCount, sourceCount, diagramCount, threatCount int) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	return s.updateCountFields(threatModelID, documentCount, sourceCount, diagramCount, threatCount)
+}
+
+// CountSubEntitiesFromPayload counts entities from a threat model payload during PUT operations
+func (s *ThreatModelDatabaseStore) CountSubEntitiesFromPayload(tm ThreatModel) (documentCount, sourceCount, diagramCount, threatCount int) {
+	if tm.Documents != nil {
+		documentCount = len(*tm.Documents)
+	}
+	if tm.SourceCode != nil {
+		sourceCount = len(*tm.SourceCode)
+	}
+	if tm.Diagrams != nil {
+		diagramCount = len(*tm.Diagrams)
+	}
+	if tm.Threats != nil {
+		threatCount = len(*tm.Threats)
+	}
+	return
+}
+
+// updateCountFields updates the count fields in the threat_models table with constraint violation handling
+func (s *ThreatModelDatabaseStore) updateCountFields(threatModelID string, documentCount, sourceCount, diagramCount, threatCount int) error {
+	query := `
+		UPDATE threat_models 
+		SET document_count = $2, source_count = $3, diagram_count = $4, threat_count = $5
+		WHERE id = $1`
+
+	_, err := s.db.Exec(query, threatModelID, documentCount, sourceCount, diagramCount, threatCount)
+	if err != nil {
+		// Check if this is a constraint violation
+		if isConstraintViolation(err) {
+			// Log the constraint violation but don't fail the operation
+			fmt.Printf("[ERROR] Count constraint violation for threat model %s: doc=%d, src=%d, diag=%d, threat=%d - %v\n",
+				threatModelID, documentCount, sourceCount, diagramCount, threatCount, err)
+		}
+		return fmt.Errorf("failed to update count fields: %w", err)
+	}
+
+	return nil
+}
+
+// Helper functions to count related entities
+func (s *ThreatModelDatabaseStore) countDocuments(threatModelID string) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM documents WHERE threat_model_id = $1`
+	err := s.db.QueryRow(query, threatModelID).Scan(&count)
+	return count, err
+}
+
+func (s *ThreatModelDatabaseStore) countSources(threatModelID string) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM sources WHERE threat_model_id = $1`
+	err := s.db.QueryRow(query, threatModelID).Scan(&count)
+	return count, err
+}
+
+func (s *ThreatModelDatabaseStore) countDiagrams(threatModelID string) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM diagrams WHERE threat_model_id = $1`
+	err := s.db.QueryRow(query, threatModelID).Scan(&count)
+	return count, err
+}
+
+func (s *ThreatModelDatabaseStore) countThreats(threatModelID string) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM threats WHERE threat_model_id = $1`
+	err := s.db.QueryRow(query, threatModelID).Scan(&count)
+	return count, err
+}
+
+// isConstraintViolation checks if an error is a PostgreSQL constraint violation
+func isConstraintViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Check for PostgreSQL constraint violation error codes
+	errStr := err.Error()
+	return containsAny(errStr, []string{
+		"check constraint",
+		"constraint violation",
+		"violates check constraint",
+	})
+}
+
+// containsAny checks if a string contains any of the given substrings
+func containsAny(s string, substrings []string) bool {
+	for _, substr := range substrings {
+		if len(s) >= len(substr) {
+			for i := 0; i <= len(s)-len(substr); i++ {
+				if s[i:i+len(substr)] == substr {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // Helper methods for loading related data
