@@ -1012,28 +1012,32 @@ func main() {
 	}()
 
 	// Initialize OpenTelemetry
-	logger.Info("Initializing OpenTelemetry...")
-	otelConfig, err := telemetry.LoadConfig()
-	if err != nil {
-		logger.Error("Failed to load telemetry configuration: %v", err)
-		// Continue without telemetry in case of configuration issues
-	} else {
-		if err := telemetry.Initialize(otelConfig); err != nil {
-			logger.Error("Failed to initialize telemetry: %v", err)
-			// Continue without telemetry in case of initialization issues
+	if cfg.Telemetry.Enabled {
+		logger.Info("Initializing OpenTelemetry...")
+		otelConfig, err := telemetry.LoadFromRuntimeConfig(cfg.GetTelemetryConfig())
+		if err != nil {
+			logger.Error("Failed to load telemetry configuration: %v", err)
+			// Continue without telemetry in case of configuration issues
 		} else {
-			logger.Info("OpenTelemetry initialized successfully")
-			// Set up graceful shutdown for telemetry
-			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-				if err := telemetry.Shutdown(ctx); err != nil {
-					logger.Error("Error shutting down telemetry: %v", err)
-				} else {
-					logger.Info("Telemetry shutdown completed")
-				}
-			}()
+			if err := telemetry.Initialize(otelConfig); err != nil {
+				logger.Error("Failed to initialize telemetry: %v", err)
+				// Continue without telemetry in case of initialization issues
+			} else {
+				logger.Info("OpenTelemetry initialized successfully")
+				// Set up graceful shutdown for telemetry
+				defer func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+					defer cancel()
+					if err := telemetry.Shutdown(ctx); err != nil {
+						logger.Error("Error shutting down telemetry: %v", err)
+					} else {
+						logger.Info("Telemetry shutdown completed")
+					}
+				}()
+			}
 		}
+	} else {
+		logger.Info("OpenTelemetry disabled by configuration")
 	}
 
 	// Log startup information

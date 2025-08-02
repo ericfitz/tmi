@@ -3,6 +3,7 @@ package telemetry
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -53,18 +54,18 @@ func LoadConfig() (*Config, error) {
 		// Default tracing configuration
 		TracingEnabled:    getBoolEnv("OTEL_TRACING_ENABLED", true),
 		TracingSampleRate: getFloatEnv("OTEL_TRACING_SAMPLE_RATE", 1.0),
-		TracingEndpoint:   getEnv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:4318/v1/traces"),
+		TracingEndpoint:   getEnv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:4318"),
 		TracingHeaders:    parseHeaders(getEnv("OTEL_EXPORTER_OTLP_TRACES_HEADERS", "")),
 
 		// Default metrics configuration
 		MetricsEnabled:  getBoolEnv("OTEL_METRICS_ENABLED", true),
 		MetricsInterval: getDurationEnv("OTEL_METRICS_INTERVAL", 30*time.Second),
-		MetricsEndpoint: getEnv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://localhost:4318/v1/metrics"),
+		MetricsEndpoint: getEnv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://localhost:4318"),
 		MetricsHeaders:  parseHeaders(getEnv("OTEL_EXPORTER_OTLP_METRICS_HEADERS", "")),
 
 		// Default logging configuration
 		LoggingEnabled:        getBoolEnv("OTEL_LOGGING_ENABLED", true),
-		LoggingEndpoint:       getEnv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "http://localhost:4318/v1/logs"),
+		LoggingEndpoint:       getEnv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "http://localhost:4318"),
 		LogCorrelationEnabled: getBoolEnv("OTEL_LOG_CORRELATION_ENABLED", true),
 		LoggingHeaders:        parseHeaders(getEnv("OTEL_EXPORTER_OTLP_LOGS_HEADERS", "")),
 
@@ -75,6 +76,50 @@ func LoadConfig() (*Config, error) {
 		IsDevelopment:   strings.ToLower(getEnv("OTEL_ENVIRONMENT", "development")) == "development",
 		ConsoleExporter: getBoolEnv("OTEL_CONSOLE_EXPORTER", false),
 		DebugMode:       getBoolEnv("OTEL_DEBUG", false),
+	}
+
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid telemetry configuration: %w", err)
+	}
+
+	return config, nil
+}
+
+// LoadFromRuntimeConfig creates telemetry configuration from the main runtime configuration
+func LoadFromRuntimeConfig(runtimeConfig interface{}) (*Config, error) {
+	// Use reflection to extract fields from the runtime config
+	// This allows us to avoid importing the config package (circular dependency)
+	rv := reflect.ValueOf(runtimeConfig)
+	if rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+	}
+
+	config := &Config{
+		ServiceName:    getStringField(rv, "ServiceName", "tmi-api"),
+		ServiceVersion: getStringField(rv, "ServiceVersion", "1.0.0"),
+		Environment:    getStringField(rv, "Environment", "development"),
+
+		TracingEnabled:    getBoolField(rv, "TracingEnabled", false),
+		TracingSampleRate: getFloat64Field(rv, "TracingSampleRate", 1.0),
+		TracingEndpoint:   getStringField(rv, "TracingEndpoint", "http://localhost:4318"),
+		TracingHeaders:    getStringMapField(rv, "TracingHeaders"),
+
+		MetricsEnabled:  getBoolField(rv, "MetricsEnabled", false),
+		MetricsInterval: getDurationField(rv, "MetricsInterval", 30*time.Second),
+		MetricsEndpoint: getStringField(rv, "MetricsEndpoint", "http://localhost:4318"),
+		MetricsHeaders:  getStringMapField(rv, "MetricsHeaders"),
+
+		LoggingEnabled:        getBoolField(rv, "LoggingEnabled", false),
+		LoggingEndpoint:       getStringField(rv, "LoggingEndpoint", "http://localhost:4318"),
+		LogCorrelationEnabled: getBoolField(rv, "LogCorrelationEnabled", true),
+		LoggingHeaders:        getStringMapField(rv, "LoggingHeaders"),
+
+		ResourceAttributes: getStringMapField(rv, "ResourceAttributes"),
+
+		IsDevelopment:   getBoolField(rv, "IsDevelopment", true),
+		ConsoleExporter: getBoolField(rv, "ConsoleExporter", false),
+		DebugMode:       getBoolField(rv, "DebugMode", false),
 	}
 
 	// Validate configuration
@@ -240,4 +285,67 @@ func parseResourceAttributes() map[string]string {
 	}
 
 	return attributes
+}
+
+// Reflection helper functions for runtime config extraction
+
+func getStringField(rv reflect.Value, fieldName, defaultValue string) string {
+	field := rv.FieldByName(fieldName)
+	if !field.IsValid() || field.Kind() != reflect.String {
+		return defaultValue
+	}
+	value := field.String()
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+func getBoolField(rv reflect.Value, fieldName string, defaultValue bool) bool {
+	field := rv.FieldByName(fieldName)
+	if !field.IsValid() || field.Kind() != reflect.Bool {
+		return defaultValue
+	}
+	return field.Bool()
+}
+
+func getFloat64Field(rv reflect.Value, fieldName string, defaultValue float64) float64 {
+	field := rv.FieldByName(fieldName)
+	if !field.IsValid() || field.Kind() != reflect.Float64 {
+		return defaultValue
+	}
+	return field.Float()
+}
+
+func getDurationField(rv reflect.Value, fieldName string, defaultValue time.Duration) time.Duration {
+	field := rv.FieldByName(fieldName)
+	if !field.IsValid() {
+		return defaultValue
+	}
+
+	switch field.Kind() {
+	case reflect.Int64:
+		// time.Duration is int64 under the hood
+		return time.Duration(field.Int())
+	default:
+		return defaultValue
+	}
+}
+
+func getStringMapField(rv reflect.Value, fieldName string) map[string]string {
+	field := rv.FieldByName(fieldName)
+	if !field.IsValid() || field.Kind() != reflect.Map {
+		return make(map[string]string)
+	}
+
+	result := make(map[string]string)
+	for _, key := range field.MapKeys() {
+		if key.Kind() == reflect.String {
+			value := field.MapIndex(key)
+			if value.IsValid() && value.Kind() == reflect.String {
+				result[key.String()] = value.String()
+			}
+		}
+	}
+	return result
 }

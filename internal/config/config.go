@@ -14,10 +14,11 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Auth     AuthConfig     `yaml:"auth"`
-	Logging  LoggingConfig  `yaml:"logging"`
+	Server    ServerConfig    `yaml:"server"`
+	Database  DatabaseConfig  `yaml:"database"`
+	Auth      AuthConfig      `yaml:"auth"`
+	Logging   LoggingConfig   `yaml:"logging"`
+	Telemetry TelemetryConfig `yaml:"telemetry"`
 }
 
 // ServerConfig holds HTTP server configuration
@@ -108,6 +109,42 @@ type LoggingConfig struct {
 	AlsoLogToConsole bool   `yaml:"also_log_to_console" env:"TMI_LOGGING_ALSO_LOG_TO_CONSOLE"`
 }
 
+// TelemetryConfig holds OpenTelemetry configuration
+type TelemetryConfig struct {
+	Enabled            bool                   `yaml:"enabled" env:"OTEL_ENABLED"`
+	ServiceName        string                 `yaml:"service_name" env:"OTEL_SERVICE_NAME"`
+	ServiceVersion     string                 `yaml:"service_version" env:"OTEL_SERVICE_VERSION"`
+	Environment        string                 `yaml:"environment" env:"OTEL_ENVIRONMENT"`
+	Tracing            TelemetryTracingConfig `yaml:"tracing"`
+	Metrics            TelemetryMetricsConfig `yaml:"metrics"`
+	Logging            TelemetryLoggingConfig `yaml:"logging"`
+	ResourceAttributes map[string]string      `yaml:"resource_attributes"`
+}
+
+// TelemetryTracingConfig holds tracing-specific configuration
+type TelemetryTracingConfig struct {
+	Enabled    bool              `yaml:"enabled" env:"OTEL_TRACING_ENABLED"`
+	SampleRate float64           `yaml:"sample_rate" env:"OTEL_TRACING_SAMPLE_RATE"`
+	Endpoint   string            `yaml:"endpoint" env:"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"`
+	Headers    map[string]string `yaml:"headers"`
+}
+
+// TelemetryMetricsConfig holds metrics-specific configuration
+type TelemetryMetricsConfig struct {
+	Enabled  bool              `yaml:"enabled" env:"OTEL_METRICS_ENABLED"`
+	Interval time.Duration     `yaml:"interval" env:"OTEL_METRICS_INTERVAL"`
+	Endpoint string            `yaml:"endpoint" env:"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"`
+	Headers  map[string]string `yaml:"headers"`
+}
+
+// TelemetryLoggingConfig holds logging-specific configuration
+type TelemetryLoggingConfig struct {
+	Enabled            bool              `yaml:"enabled" env:"OTEL_LOGGING_ENABLED"`
+	Endpoint           string            `yaml:"endpoint" env:"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"`
+	CorrelationEnabled bool              `yaml:"correlation_enabled" env:"OTEL_LOG_CORRELATION_ENABLED"`
+	Headers            map[string]string `yaml:"headers"`
+}
+
 // Load loads configuration from YAML file with environment variable overrides
 func Load(configFile string) (*Config, error) {
 	config := getDefaultConfig()
@@ -187,6 +224,31 @@ func getDefaultConfig() *Config {
 			MaxSizeMB:        100,
 			MaxBackups:       10,
 			AlsoLogToConsole: true,
+		},
+		Telemetry: TelemetryConfig{
+			Enabled:        false,
+			ServiceName:    "tmi-api",
+			ServiceVersion: "1.0.0",
+			Environment:    "development",
+			Tracing: TelemetryTracingConfig{
+				Enabled:    false,
+				SampleRate: 1.0,
+				Endpoint:   "http://localhost:4318",
+				Headers:    make(map[string]string),
+			},
+			Metrics: TelemetryMetricsConfig{
+				Enabled:  false,
+				Interval: 30 * time.Second,
+				Endpoint: "http://localhost:4318",
+				Headers:  make(map[string]string),
+			},
+			Logging: TelemetryLoggingConfig{
+				Enabled:            false,
+				Endpoint:           "http://localhost:4318",
+				CorrelationEnabled: true,
+				Headers:            make(map[string]string),
+			},
+			ResourceAttributes: make(map[string]string),
 		},
 	}
 }
@@ -477,4 +539,62 @@ func (c *Config) GetOAuthProvider(providerID string) (OAuthProviderConfig, bool)
 		return OAuthProviderConfig{}, false
 	}
 	return provider, true
+}
+
+// GetTelemetryConfig converts the runtime TelemetryConfig to the format expected by the telemetry package
+func (c *Config) GetTelemetryConfig() *TelemetryRuntimeConfig {
+	return &TelemetryRuntimeConfig{
+		ServiceName:    c.Telemetry.ServiceName,
+		ServiceVersion: c.Telemetry.ServiceVersion,
+		Environment:    c.Telemetry.Environment,
+
+		TracingEnabled:    c.Telemetry.Enabled && c.Telemetry.Tracing.Enabled,
+		TracingSampleRate: c.Telemetry.Tracing.SampleRate,
+		TracingEndpoint:   c.Telemetry.Tracing.Endpoint,
+		TracingHeaders:    c.Telemetry.Tracing.Headers,
+
+		MetricsEnabled:  c.Telemetry.Enabled && c.Telemetry.Metrics.Enabled,
+		MetricsInterval: c.Telemetry.Metrics.Interval,
+		MetricsEndpoint: c.Telemetry.Metrics.Endpoint,
+		MetricsHeaders:  c.Telemetry.Metrics.Headers,
+
+		LoggingEnabled:        c.Telemetry.Enabled && c.Telemetry.Logging.Enabled,
+		LoggingEndpoint:       c.Telemetry.Logging.Endpoint,
+		LogCorrelationEnabled: c.Telemetry.Logging.CorrelationEnabled,
+		LoggingHeaders:        c.Telemetry.Logging.Headers,
+
+		ResourceAttributes: c.Telemetry.ResourceAttributes,
+
+		IsDevelopment:   strings.ToLower(c.Telemetry.Environment) == "development",
+		ConsoleExporter: false, // Can be added to config if needed
+		DebugMode:       false, // Can be added to config if needed
+	}
+}
+
+// TelemetryRuntimeConfig matches the structure expected by the telemetry package
+type TelemetryRuntimeConfig struct {
+	ServiceName    string
+	ServiceVersion string
+	Environment    string
+
+	TracingEnabled    bool
+	TracingSampleRate float64
+	TracingEndpoint   string
+	TracingHeaders    map[string]string
+
+	MetricsEnabled  bool
+	MetricsInterval time.Duration
+	MetricsEndpoint string
+	MetricsHeaders  map[string]string
+
+	LoggingEnabled        bool
+	LoggingEndpoint       string
+	LogCorrelationEnabled bool
+	LoggingHeaders        map[string]string
+
+	ResourceAttributes map[string]string
+
+	IsDevelopment   bool
+	ConsoleExporter bool
+	DebugMode       bool
 }
