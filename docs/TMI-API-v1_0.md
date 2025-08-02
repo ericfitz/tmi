@@ -46,6 +46,86 @@ This document describes a RESTful API with WebSocket support for threat modeling
 - `**DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate**`: Leaves a session.
 - **WebSocket**: `wss://api.example.com/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws` for real-time updates.
 
+### Threat Sub-Resources
+
+- `**GET /threat_models/{threat_model_id}/threats**`: Lists threats within a threat model (supports pagination).
+- `**POST /threat_models/{threat_model_id}/threats**`: Creates a new threat within the threat model.
+- `**GET /threat_models/{threat_model_id}/threats/{threat_id}**`: Retrieves a specific threat's details.
+- `**PUT /threat_models/{threat_model_id}/threats/{threat_id}**`: Fully updates a threat.
+- `**PATCH /threat_models/{threat_model_id}/threats/{threat_id}**`: Partially updates a threat (JSON Patch).
+- `**DELETE /threat_models/{threat_model_id}/threats/{threat_id}**`: Deletes a threat.
+
+### Document Sub-Resources
+
+- `**GET /threat_models/{threat_model_id}/documents**`: Lists documents within a threat model (supports pagination).
+- `**POST /threat_models/{threat_model_id}/documents**`: Creates a new document within the threat model.
+- `**GET /threat_models/{threat_model_id}/documents/{document_id}**`: Retrieves a specific document's details.
+- `**PUT /threat_models/{threat_model_id}/documents/{document_id}**`: Fully updates a document.
+- `**DELETE /threat_models/{threat_model_id}/documents/{document_id}**`: Deletes a document.
+
+### Source Code Sub-Resources
+
+- `**GET /threat_models/{threat_model_id}/sources**`: Lists source code references within a threat model (supports pagination).
+- `**POST /threat_models/{threat_model_id}/sources**`: Creates a new source code reference within the threat model.
+- `**GET /threat_models/{threat_model_id}/sources/{source_id}**`: Retrieves a specific source reference's details.
+- `**PUT /threat_models/{threat_model_id}/sources/{source_id}**`: Fully updates a source reference.
+- `**DELETE /threat_models/{threat_model_id}/sources/{source_id}**`: Deletes a source reference.
+
+### Metadata Management
+
+#### Threat Model Metadata
+- `**GET /threat_models/{threat_model_id}/metadata**`: Lists all metadata for a threat model.
+- `**POST /threat_models/{threat_model_id}/metadata**`: Creates or updates multiple metadata entries.
+- `**GET /threat_models/{threat_model_id}/metadata/{key}**`: Retrieves a specific metadata value.
+- `**PUT /threat_models/{threat_model_id}/metadata/{key}**`: Sets a metadata key-value pair.
+- `**DELETE /threat_models/{threat_model_id}/metadata/{key}**`: Deletes a metadata entry.
+
+#### Diagram Metadata
+- `**GET /diagrams/{diagram_id}/metadata**`: Lists all metadata for a diagram.
+- `**POST /diagrams/{diagram_id}/metadata**`: Creates or updates multiple metadata entries.
+- `**GET /diagrams/{diagram_id}/metadata/{key}**`: Retrieves a specific metadata value.
+- `**PUT /diagrams/{diagram_id}/metadata/{key}**`: Sets a metadata key-value pair.
+- `**DELETE /diagrams/{diagram_id}/metadata/{key}**`: Deletes a metadata entry.
+
+#### Threat Metadata
+- `**GET /threat_models/{threat_model_id}/threats/{threat_id}/metadata**`: Lists all metadata for a threat.
+- `**POST /threat_models/{threat_model_id}/threats/{threat_id}/metadata**`: Creates or updates multiple metadata entries.
+- `**GET /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key}**`: Retrieves a specific metadata value.
+- `**PUT /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key}**`: Sets a metadata key-value pair.
+- `**DELETE /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key}**`: Deletes a metadata entry.
+
+#### Document Metadata
+- `**GET /threat_models/{threat_model_id}/documents/{document_id}/metadata**`: Lists all metadata for a document.
+- `**POST /threat_models/{threat_model_id}/documents/{document_id}/metadata**`: Creates or updates multiple metadata entries.
+- `**GET /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key}**`: Retrieves a specific metadata value.
+- `**PUT /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key}**`: Sets a metadata key-value pair.
+- `**DELETE /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key}**`: Deletes a metadata entry.
+
+#### Source Metadata
+- `**GET /threat_models/{threat_model_id}/sources/{source_id}/metadata**`: Lists all metadata for a source reference.
+- `**POST /threat_models/{threat_model_id}/sources/{source_id}/metadata**`: Creates or updates multiple metadata entries.
+- `**GET /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key}**`: Retrieves a specific metadata value.
+- `**PUT /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key}**`: Sets a metadata key-value pair.
+- `**DELETE /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key}**`: Deletes a metadata entry.
+
+#### Cell Metadata
+- `**GET /diagrams/{diagram_id}/cells/{cell_id}/metadata**`: Lists all metadata for a diagram cell.
+- `**POST /diagrams/{diagram_id}/cells/{cell_id}/metadata**`: Creates or updates multiple metadata entries.
+- `**GET /diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}**`: Retrieves a specific metadata value.
+- `**PUT /diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}**`: Sets a metadata key-value pair.
+- `**DELETE /diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}**`: Deletes a metadata entry.
+- `**PATCH /diagrams/{diagram_id}/cells/{cell_id}**`: Partially updates a cell (JSON Patch).
+
+### Batch Operations
+
+- `**POST /threat_models/{threat_model_id}/threats/bulk**`: Creates multiple threats in a single request.
+- `**PUT /threat_models/{threat_model_id}/threats/bulk**`: Updates multiple threats in a single request.
+- `**POST /threat_models/{threat_model_id}/threats/batch/patch**`: Applies JSON Patch operations to multiple threats.
+- `**DELETE /threat_models/{threat_model_id}/threats/batch**`: Deletes multiple threats by ID.
+- `**POST /threat_models/{threat_model_id}/documents/bulk**`: Creates multiple documents in a single request.
+- `**POST /threat_models/{threat_model_id}/sources/bulk**`: Creates multiple source references in a single request.
+- `**POST /diagrams/{diagram_id}/cells/batch/patch**`: Applies JSON Patch operations to multiple cells.
+
 ## Data Models
 
 ### ApiInfo
@@ -154,6 +234,33 @@ This document describes a RESTful API with WebSocket support for threat modeling
   - `name`: String - Name of the resource.
   - `id`: UUID - Unique identifier of the resource.
 
+### Document
+
+- **Fields**:
+  - `id`: UUID - Unique identifier for the document.
+  - `threat_model_id`: UUID - Parent threat model ID.
+  - `name`: String - Name of the document.
+  - `description`: String - Description of the document.
+  - `url`: String (URI) - URL to the document resource.
+  - `document_type`: String - Type or category of the document.
+  - `created_at`, `modified_at`: ISO8601 timestamps - Creation and modification times.
+  - `metadata`: Array of `{key: string, value: string}` - Extensible metadata.
+
+### Source
+
+- **Fields**:
+  - `id`: UUID - Unique identifier for the source code reference.
+  - `threat_model_id`: UUID - Parent threat model ID.
+  - `name`: String - Name of the source code reference.
+  - `description`: String - Description of the source code reference.
+  - `url`: String (URI) - URL to the source code (repository, file, etc.).
+  - `repository`: String - Repository name or identifier.
+  - `branch`: String - Branch name in the repository.
+  - `file_path`: String - Path to the specific file or directory.
+  - `line_number`: Number - Specific line number (if applicable).
+  - `created_at`, `modified_at`: ISO8601 timestamps - Creation and modification times.
+  - `metadata`: Array of `{key: string, value: string}` - Extensible metadata.
+
 ## Behavior and Implementation Choices
 
 ### Authentication
@@ -184,6 +291,17 @@ This document describes a RESTful API with WebSocket support for threat modeling
 - **Diagram Linking**: `diagrams` field references existing diagram UUIDs.
 - **Threats**: Embedded within `ThreatModel`, managed via `PUT` or `PATCH`.
 
+### Sub-Resource Management
+
+- **Authorization Inheritance**: All sub-resources (threats, documents, sources) inherit permissions from their parent threat model.
+- **Granular Access**: Individual sub-resources can be accessed directly via their specific endpoints while maintaining parent authorization.
+- **Consistency**: Sub-resource operations automatically maintain referential integrity with parent threat models.
+- **Pagination**: List operations support `limit` and `offset` parameters for large datasets.
+- **PATCH Support**: Threats support JSON Patch operations for granular updates; documents and sources use full replacement (PUT).
+- **Metadata**: All sub-resources support extensible key-value metadata through dedicated endpoints.
+- **Bulk Operations**: Multiple sub-resources can be created, updated, or deleted in single requests for efficiency.
+- **Validation**: Server enforces data consistency, required fields, and format validation for all sub-resource operations.
+
 ### Design Choices
 
 - **REST + WebSocket**: REST for structure; WebSocket for real-time diagram editing.
@@ -200,7 +318,9 @@ This document describes a RESTful API with WebSocket support for threat modeling
 - **Scalability**: Stateless JWTs and WebSocket sessions support horizontal scaling.
 - **Future Enhancements**:
   - Diagrams: Versioning, audit logs, advanced conflict resolution.
-  - Threat Models: Separate threat endpoints, export functionality.
+  - Sub-Resources: Advanced search and filtering, relationship mapping, export functionality.
+  - Caching: Redis-based performance optimization, cache warming strategies.
+  - Monitoring: Request tracing, performance metrics, usage analytics.
 
 ## Usage Examples
 
@@ -667,4 +787,292 @@ Authorization: Bearer <JWT>
 }
 ```
 
-This API provides a robust foundation for an Angular-based tool supporting threat modeling with collaborative diagramming.
+### Sub-Resource Operations
+
+#### Create a Threat
+
+```http
+POST /threat_models/550e8400-e29b-41d4-a716-446655440000/threats
+Authorization: Bearer <JWT>
+Content-Type: application/json
+
+{
+  "name": "SQL Injection Vulnerability",
+  "description": "User input is not properly sanitized before database queries",
+  "severity": "High",
+  "threat_type": "Input Validation",
+  "mitigation": "Implement parameterized queries and input validation"
+}
+```
+
+**Response** (201):
+
+```json
+{
+  "id": "789f0123-e45d-67e8-90ab-123456789012",
+  "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "SQL Injection Vulnerability",
+  "description": "User input is not properly sanitized before database queries",
+  "severity": "High",
+  "threat_type": "Input Validation",
+  "mitigation": "Implement parameterized queries and input validation",
+  "created_at": "2025-08-02T12:00:00Z",
+  "modified_at": "2025-08-02T12:00:00Z",
+  "metadata": []
+}
+```
+
+#### List Threats with Pagination
+
+```http
+GET /threat_models/550e8400-e29b-41d4-a716-446655440000/threats?limit=10&offset=0
+Authorization: Bearer <JWT>
+```
+
+**Response** (200):
+
+```json
+{
+  "threats": [
+    {
+      "id": "789f0123-e45d-67e8-90ab-123456789012",
+      "name": "SQL Injection Vulnerability",
+      "severity": "High",
+      "status": "Open"
+    }
+  ],
+  "total_count": 1
+}
+```
+
+#### Update a Threat with JSON Patch
+
+```http
+PATCH /threat_models/550e8400-e29b-41d4-a716-446655440000/threats/789f0123-e45d-67e8-90ab-123456789012
+Authorization: Bearer <JWT>
+Content-Type: application/json-patch+json
+
+[
+  {
+    "op": "replace",
+    "path": "/severity",
+    "value": "Critical"
+  },
+  {
+    "op": "replace",
+    "path": "/status",
+    "value": "In Progress"
+  }
+]
+```
+
+**Response** (200):
+
+```json
+{
+  "id": "789f0123-e45d-67e8-90ab-123456789012",
+  "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "SQL Injection Vulnerability",
+  "severity": "Critical",
+  "status": "In Progress",
+  "modified_at": "2025-08-02T12:30:00Z"
+}
+```
+
+#### Create a Document
+
+```http
+POST /threat_models/550e8400-e29b-41d4-a716-446655440000/documents
+Authorization: Bearer <JWT>
+Content-Type: application/json
+
+{
+  "name": "Security Requirements Document",
+  "description": "Detailed security requirements for the application",
+  "url": "https://docs.example.com/security-requirements.pdf",
+  "document_type": "Requirements"
+}
+```
+
+**Response** (201):
+
+```json
+{
+  "id": "abc12345-def6-7890-abcd-ef1234567890",
+  "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Security Requirements Document",
+  "description": "Detailed security requirements for the application",
+  "url": "https://docs.example.com/security-requirements.pdf",
+  "document_type": "Requirements",
+  "created_at": "2025-08-02T12:00:00Z",
+  "modified_at": "2025-08-02T12:00:00Z",
+  "metadata": []
+}
+```
+
+#### Create a Source Code Reference
+
+```http
+POST /threat_models/550e8400-e29b-41d4-a716-446655440000/sources
+Authorization: Bearer <JWT>
+Content-Type: application/json
+
+{
+  "name": "User Authentication Module",
+  "description": "Core authentication logic implementation",
+  "url": "https://github.com/example/app/blob/main/src/auth/user.go",
+  "repository": "example/app",
+  "branch": "main",
+  "file_path": "src/auth/user.go",
+  "line_number": 45
+}
+```
+
+**Response** (201):
+
+```json
+{
+  "id": "fed09876-5432-10ab-cdef-098765432101",
+  "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "User Authentication Module",
+  "description": "Core authentication logic implementation",
+  "url": "https://github.com/example/app/blob/main/src/auth/user.go",
+  "repository": "example/app",
+  "branch": "main",
+  "file_path": "src/auth/user.go",
+  "line_number": 45,
+  "created_at": "2025-08-02T12:00:00Z",
+  "modified_at": "2025-08-02T12:00:00Z",
+  "metadata": []
+}
+```
+
+#### Add Metadata to a Threat
+
+```http
+POST /threat_models/550e8400-e29b-41d4-a716-446655440000/threats/789f0123-e45d-67e8-90ab-123456789012/metadata
+Authorization: Bearer <JWT>
+Content-Type: application/json
+
+{
+  "priority": "P1",
+  "owner": "security-team",
+  "due_date": "2025-08-15"
+}
+```
+
+**Response** (201):
+
+```json
+{
+  "metadata": [
+    {"key": "priority", "value": "P1"},
+    {"key": "owner", "value": "security-team"},
+    {"key": "due_date", "value": "2025-08-15"}
+  ]
+}
+```
+
+#### Get Specific Metadata Value
+
+```http
+GET /threat_models/550e8400-e29b-41d4-a716-446655440000/threats/789f0123-e45d-67e8-90ab-123456789012/metadata/priority
+Authorization: Bearer <JWT>
+```
+
+**Response** (200):
+
+```json
+{
+  "key": "priority",
+  "value": "P1"
+}
+```
+
+#### Bulk Create Threats
+
+```http
+POST /threat_models/550e8400-e29b-41d4-a716-446655440000/threats/bulk
+Authorization: Bearer <JWT>
+Content-Type: application/json
+
+[
+  {
+    "name": "Cross-Site Scripting (XSS)",
+    "description": "Malicious scripts executed in user browsers",
+    "severity": "Medium",
+    "threat_type": "Input Validation"
+  },
+  {
+    "name": "Cross-Site Request Forgery (CSRF)",
+    "description": "Unauthorized commands transmitted from trusted user",
+    "severity": "Medium",
+    "threat_type": "Authentication"
+  }
+]
+```
+
+**Response** (201):
+
+```json
+{
+  "created": [
+    {
+      "id": "111a2222-b333-c444-d555-e66666666666",
+      "name": "Cross-Site Scripting (XSS)",
+      "severity": "Medium"
+    },
+    {
+      "id": "777f8888-e999-1000-a111-b22222222222",
+      "name": "Cross-Site Request Forgery (CSRF)",
+      "severity": "Medium"
+    }
+  ],
+  "count": 2
+}
+```
+
+#### Batch Patch Multiple Threats
+
+```http
+POST /threat_models/550e8400-e29b-41d4-a716-446655440000/threats/batch/patch
+Authorization: Bearer <JWT>
+Content-Type: application/json
+
+{
+  "operations": [
+    {
+      "threat_id": "111a2222-b333-c444-d555-e66666666666",
+      "patches": [
+        {"op": "replace", "path": "/status", "value": "Resolved"}
+      ]
+    },
+    {
+      "threat_id": "777f8888-e999-1000-a111-b22222222222",
+      "patches": [
+        {"op": "replace", "path": "/severity", "value": "High"}
+      ]
+    }
+  ]
+}
+```
+
+**Response** (200):
+
+```json
+{
+  "updated": [
+    {
+      "id": "111a2222-b333-c444-d555-e66666666666",
+      "status": "Resolved"
+    },
+    {
+      "id": "777f8888-e999-1000-a111-b22222222222",
+      "severity": "High"
+    }
+  ],
+  "count": 2
+}
+```
+
+This API provides a robust foundation for an Angular-based tool supporting threat modeling with collaborative diagramming and comprehensive sub-resource management.

@@ -1,9 +1,12 @@
 package api
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 
+	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -295,4 +298,141 @@ func ValidateResourceAccess(requiredRole Role) gin.HandlerFunc {
 		// Access granted, continue
 		c.Next()
 	}
+}
+
+// GetInheritedAuthData retrieves authorization data for a threat model from the database
+// This function implements authorization inheritance by fetching threat model permissions
+// that apply to all sub-resources within that threat model
+func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string) (*AuthorizationData, error) {
+	logger := logging.Get()
+	logger.Debug("Retrieving inherited authorization data for threat model %s", threatModelID)
+
+	// Query threat model to get owner
+	threatModelQuery := `
+		SELECT owner_email, created_by
+		FROM threat_models 
+		WHERE id = $1
+	`
+
+	var ownerEmail, createdBy string
+	err := db.QueryRow(threatModelQuery, threatModelID).Scan(&ownerEmail, &createdBy)
+	if err != nil {
+		logger.Error("Failed to query threat model %s: %v", threatModelID, err)
+		return nil, fmt.Errorf("failed to query threat model: %w", err)
+	}
+
+	// Query threat model access table to get authorization list
+	accessQuery := `
+		SELECT user_email, role 
+		FROM threat_model_access 
+		WHERE threat_model_id = $1
+		ORDER BY role DESC, user_email ASC
+	`
+
+	rows, err := db.Query(accessQuery, threatModelID)
+	if err != nil {
+		logger.Error("Failed to query threat model access for %s: %v", threatModelID, err)
+		return nil, fmt.Errorf("failed to query threat model access: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			logger.Error("Failed to close rows: %v", closeErr)
+		}
+	}()
+
+	var authorization []Authorization
+	for rows.Next() {
+		var userEmail string
+		var role string
+
+		if err := rows.Scan(&userEmail, &role); err != nil {
+			logger.Error("Failed to scan threat model access row: %v", err)
+			return nil, fmt.Errorf("failed to scan access row: %w", err)
+		}
+
+		// Convert string role to Role type
+		var roleType Role
+		switch role {
+		case "owner":
+			roleType = RoleOwner
+		case "writer":
+			roleType = RoleWriter
+		case "reader":
+			roleType = RoleReader
+		default:
+			logger.Error("Invalid role %s found for user %s in threat model %s", role, userEmail, threatModelID)
+			continue // Skip invalid roles
+		}
+
+		authorization = append(authorization, Authorization{
+			Subject: userEmail,
+			Role:    roleType,
+		})
+	}
+
+	if err = rows.Err(); err != nil {
+		logger.Error("Error iterating threat model access rows: %v", err)
+		return nil, fmt.Errorf("error iterating access rows: %w", err)
+	}
+
+	// Build authorization data
+	authData := &AuthorizationData{
+		Type:          AuthTypeTMI10,
+		Owner:         ownerEmail,
+		Authorization: authorization,
+	}
+
+	logger.Debug("Retrieved authorization data for threat model %s: owner=%s, %d access entries",
+		threatModelID, ownerEmail, len(authorization))
+
+	return authData, nil
+}
+
+// CheckSubResourceAccess validates if a user has the required access to a sub-resource
+// This function implements authorization inheritance with Redis caching for performance
+func CheckSubResourceAccess(ctx context.Context, db *sql.DB, cache *CacheService, principal, threatModelID string, requiredRole Role) (bool, error) {
+	logger := logging.Get()
+	logger.Debug("Checking sub-resource access for user %s on threat model %s (required role: %s)",
+		principal, threatModelID, requiredRole)
+
+	// Try to get authorization data from cache first
+	var authData *AuthorizationData
+	var err error
+
+	if cache != nil {
+		authData, err = cache.GetCachedAuthData(ctx, threatModelID)
+		if err != nil {
+			logger.Error("Failed to get cached auth data: %v", err)
+			// Continue without cache - don't fail the request
+		}
+	}
+
+	// If not in cache, get from database
+	if authData == nil {
+		authData, err = GetInheritedAuthData(ctx, db, threatModelID)
+		if err != nil {
+			logger.Error("Failed to get inherited auth data for threat model %s: %v", threatModelID, err)
+			return false, fmt.Errorf("failed to get authorization data: %w", err)
+		}
+
+		// Cache the result for future requests
+		if cache != nil {
+			if cacheErr := cache.CacheAuthData(ctx, threatModelID, *authData); cacheErr != nil {
+				logger.Error("Failed to cache auth data: %v", cacheErr)
+				// Don't fail the request if caching fails
+			}
+		}
+	}
+
+	// Perform access check using the authorization data
+	hasAccess := AccessCheck(principal, requiredRole, *authData)
+
+	logger.Debug("Access check result for user %s on threat model %s: %t", principal, threatModelID, hasAccess)
+	return hasAccess, nil
+}
+
+// CheckSubResourceAccessWithoutCache validates sub-resource access without caching
+// This is useful for testing or when caching is not available
+func CheckSubResourceAccessWithoutCache(ctx context.Context, db *sql.DB, principal, threatModelID string, requiredRole Role) (bool, error) {
+	return CheckSubResourceAccess(ctx, db, nil, principal, threatModelID, requiredRole)
 }

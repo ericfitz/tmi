@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -515,4 +516,151 @@ func CheckDiagramAccess(userName string, diagram DfdDiagram, requiredRole Role) 
 	}
 
 	return ErrAccessDenied
+}
+
+// ValidateSubResourceAccess creates middleware for sub-resource authorization with caching
+// This middleware validates access to sub-resources (threats, documents, sources) by inheriting
+// permissions from their parent threat model
+func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Role) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		logger := logging.GetContextLogger(c)
+		logger.Debug("ValidateSubResourceAccess processing request: %s %s", c.Request.Method, c.Request.URL.Path)
+
+		// Skip for public paths
+		if isPublic, exists := c.Get("isPublicPath"); exists && isPublic.(bool) {
+			logger.Debug("ValidateSubResourceAccess skipping for public path: %s", c.Request.URL.Path)
+			c.Next()
+			return
+		}
+
+		// Get username from the request context
+		userID, exists := c.Get("userName")
+		if !exists {
+			logger.Warn("Authentication required but userName not found in context for path: %s", c.Request.URL.Path)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
+				Error:            "unauthorized",
+				ErrorDescription: "Authentication required",
+			})
+			return
+		}
+
+		userName, ok := userID.(string)
+		if !ok || userName == "" {
+			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
+				Error:            "unauthorized",
+				ErrorDescription: "Invalid authentication",
+			})
+			return
+		}
+
+		// Extract threat model ID from the path
+		// Sub-resource paths typically follow patterns like:
+		// /threat_models/{id}/threats/{threat_id}
+		// /threat_models/{id}/documents/{doc_id}
+		// /threat_models/{id}/sources/{source_id}
+		threatModelID := extractThreatModelIDFromPath(c.Request.URL.Path)
+		if threatModelID == "" {
+			logger.Debug("No threat model ID found in path, skipping sub-resource auth: %s", c.Request.URL.Path)
+			c.Next()
+			return
+		}
+
+		// Check sub-resource access using inherited authorization
+		hasAccess, err := CheckSubResourceAccess(c.Request.Context(), db, cache, userName, threatModelID, requiredRole)
+		if err != nil {
+			logger.Error("Failed to check sub-resource access for user %s on threat model %s: %v",
+				userName, threatModelID, err)
+			c.AbortWithStatusJSON(http.StatusInternalServerError, Error{
+				Error:            "server_error",
+				ErrorDescription: "Failed to validate permissions",
+			})
+			return
+		}
+
+		if !hasAccess {
+			logger.Warn("Access denied for user %s on threat model %s (required role: %s)",
+				userName, threatModelID, requiredRole)
+			c.AbortWithStatusJSON(http.StatusForbidden, Error{
+				Error:            "forbidden",
+				ErrorDescription: "You don't have sufficient permissions to perform this action",
+			})
+			return
+		}
+
+		// Set the threat model ID in context for handlers to use
+		c.Set("threatModelID", threatModelID)
+		c.Set("userRole", requiredRole) // The actual role could be higher
+
+		logger.Debug("Sub-resource access granted for user %s on threat model %s", userName, threatModelID)
+		c.Next()
+	}
+}
+
+// extractThreatModelIDFromPath extracts the threat model ID from sub-resource paths
+func extractThreatModelIDFromPath(path string) string {
+	// Handle paths like:
+	// /threat_models/{threat_model_id}/threats
+	// /threat_models/{threat_model_id}/threats/{threat_id}
+	// /threat_models/{threat_model_id}/documents
+	// /threat_models/{threat_model_id}/documents/{doc_id}
+	// /threat_models/{threat_model_id}/sources
+	// /threat_models/{threat_model_id}/sources/{source_id}
+	// /threat_models/{threat_model_id}/metadata
+	// /threat_models/{threat_model_id}/metadata/{key}
+
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+
+	// Must have at least: threat_models, {id}, {sub_resource}
+	if len(parts) < 3 {
+		return ""
+	}
+
+	// Check if it starts with threat_models
+	if parts[0] != "threat_models" {
+		return ""
+	}
+
+	// Second part should be the threat model ID
+	threatModelID := parts[1]
+	if threatModelID == "" {
+		return ""
+	}
+
+	// Third part should be a sub-resource type
+	if len(parts) < 3 {
+		return ""
+	}
+
+	subResource := parts[2]
+	validSubResources := []string{"threats", "documents", "sources", "metadata", "diagrams"}
+
+	isValidSubResource := false
+	for _, valid := range validSubResources {
+		if subResource == valid {
+			isValidSubResource = true
+			break
+		}
+	}
+
+	if !isValidSubResource {
+		return ""
+	}
+
+	return threatModelID
+}
+
+// ValidateSubResourceAccessReader creates middleware for read-only sub-resource access
+func ValidateSubResourceAccessReader(db *sql.DB, cache *CacheService) gin.HandlerFunc {
+	return ValidateSubResourceAccess(db, cache, RoleReader)
+}
+
+// ValidateSubResourceAccessWriter creates middleware for write sub-resource access
+func ValidateSubResourceAccessWriter(db *sql.DB, cache *CacheService) gin.HandlerFunc {
+	return ValidateSubResourceAccess(db, cache, RoleWriter)
+}
+
+// ValidateSubResourceAccessOwner creates middleware for owner-only sub-resource access
+func ValidateSubResourceAccessOwner(db *sql.DB, cache *CacheService) gin.HandlerFunc {
+	return ValidateSubResourceAccess(db, cache, RoleOwner)
 }

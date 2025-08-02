@@ -78,6 +78,43 @@ func (b *RedisKeyBuilder) CacheDiagramKey(diagramID string) string {
 	return fmt.Sprintf("cache:diagram:%s", diagramID)
 }
 
+// Sub-resource cache keys
+
+// CacheThreatKey builds a individual threat cache key
+func (b *RedisKeyBuilder) CacheThreatKey(threatID string) string {
+	return fmt.Sprintf("cache:threat:%s", threatID)
+}
+
+// CacheDocumentKey builds a document cache key
+func (b *RedisKeyBuilder) CacheDocumentKey(docID string) string {
+	return fmt.Sprintf("cache:document:%s", docID)
+}
+
+// CacheSourceKey builds a source code cache key
+func (b *RedisKeyBuilder) CacheSourceKey(sourceID string) string {
+	return fmt.Sprintf("cache:source:%s", sourceID)
+}
+
+// CacheMetadataKey builds a metadata collection cache key
+func (b *RedisKeyBuilder) CacheMetadataKey(entityType, entityID string) string {
+	return fmt.Sprintf("cache:metadata:%s:%s", entityType, entityID)
+}
+
+// CacheCellsKey builds a diagram cells collection cache key
+func (b *RedisKeyBuilder) CacheCellsKey(diagramID string) string {
+	return fmt.Sprintf("cache:cells:%s", diagramID)
+}
+
+// CacheAuthKey builds an authorization data cache key
+func (b *RedisKeyBuilder) CacheAuthKey(threatModelID string) string {
+	return fmt.Sprintf("cache:auth:%s", threatModelID)
+}
+
+// CacheListKey builds a paginated list cache key
+func (b *RedisKeyBuilder) CacheListKey(entityType, parentID string, offset, limit int) string {
+	return fmt.Sprintf("cache:list:%s:%s:%d:%d", entityType, parentID, offset, limit)
+}
+
 // Temporary operation keys
 
 // TempExportKey builds a temporary export job key

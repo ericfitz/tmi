@@ -544,6 +544,252 @@ func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *
 	handler.DeleteDiagramCollaborate(c, threatModelId, diagramId)
 }
 
+// Diagram Metadata handlers
+func (s *Server) GetDiagramsIdMetadata(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostDiagramsIdMetadata(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) GetDiagramsIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PutDiagramsIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) DeleteDiagramsIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostDiagramsIdMetadataBulk(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+// Diagram Cell Metadata handlers
+func (s *Server) GetDiagramsIdCellsCellIdMetadata(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostDiagramsIdCellsCellIdMetadata(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) GetDiagramsIdCellsCellIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PutDiagramsIdCellsCellIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) DeleteDiagramsIdCellsCellIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PatchDiagramsIdCellsCellId(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostDiagramsIdCellsBatchPatch(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+// Threat Model Diagram Metadata handlers
+func (s *Server) GetThreatModelsThreatModelIdDiagramsDiagramIdMetadata(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdMetadata(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) GetThreatModelsThreatModelIdDiagramsDiagramIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PutThreatModelsThreatModelIdDiagramsDiagramIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdMetadataBulk(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+// Threat Model Threats handlers
+func (s *Server) GetThreatModelsThreatModelIdThreats(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdThreats(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) GetThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PutThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PatchThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) DeleteThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdThreatsBulk(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PutThreatModelsThreatModelIdThreatsBulk(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+// Threat Model Threat Metadata handlers
+func (s *Server) GetThreatModelsThreatModelIdThreatsThreatIdMetadata(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdThreatsThreatIdMetadata(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) GetThreatModelsThreatModelIdThreatsThreatIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PutThreatModelsThreatModelIdThreatsThreatIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) DeleteThreatModelsThreatModelIdThreatsThreatIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdThreatsThreatIdMetadataBulk(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+// Threat Model Documents handlers
+func (s *Server) GetThreatModelsThreatModelIdDocuments(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdDocuments(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) GetThreatModelsThreatModelIdDocumentsDocumentId(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PutThreatModelsThreatModelIdDocumentsDocumentId(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) DeleteThreatModelsThreatModelIdDocumentsDocumentId(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdDocumentsBulk(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+// Threat Model Document Metadata handlers
+func (s *Server) GetThreatModelsThreatModelIdDocumentsDocumentIdMetadata(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdDocumentsDocumentIdMetadata(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) GetThreatModelsThreatModelIdDocumentsDocumentIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PutThreatModelsThreatModelIdDocumentsDocumentIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) DeleteThreatModelsThreatModelIdDocumentsDocumentIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdDocumentsDocumentIdMetadataBulk(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+// Threat Model Sources handlers
+func (s *Server) GetThreatModelsThreatModelIdSources(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdSources(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) GetThreatModelsThreatModelIdSourcesSourceId(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PutThreatModelsThreatModelIdSourcesSourceId(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) DeleteThreatModelsThreatModelIdSourcesSourceId(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdSourcesBulk(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+// Threat Model Source Metadata handlers
+func (s *Server) GetThreatModelsThreatModelIdSourcesSourceIdMetadata(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdSourcesSourceIdMetadata(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) GetThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PutThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) DeleteThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) PostThreatModelsThreatModelIdSourcesSourceIdMetadataBulk(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+// Batch Operations handlers
+func (s *Server) PostThreatModelsThreatModelIdThreatsBatchPatch(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
+func (s *Server) DeleteThreatModelsThreatModelIdThreatsBatch(c *gin.Context) {
+	c.JSON(501, gin.H{"error": "not implemented"})
+}
+
 func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Create a gin router without default middleware
 	r := gin.New()
