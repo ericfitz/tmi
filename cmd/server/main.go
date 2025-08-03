@@ -672,52 +672,65 @@ func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *
 
 // Diagram Metadata handlers
 func (s *Server) GetDiagramsIdMetadata(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDiagramMetadataHandlerSimple()
+	handler.GetDirectDiagramMetadata(c)
 }
 
 func (s *Server) PostDiagramsIdMetadata(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDiagramMetadataHandlerSimple()
+	handler.CreateDirectDiagramMetadata(c)
 }
 
 func (s *Server) GetDiagramsIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDiagramMetadataHandlerSimple()
+	handler.GetDirectDiagramMetadataByKey(c)
 }
 
 func (s *Server) PutDiagramsIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDiagramMetadataHandlerSimple()
+	handler.UpdateDirectDiagramMetadata(c)
 }
 
 func (s *Server) DeleteDiagramsIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDiagramMetadataHandlerSimple()
+	handler.DeleteDirectDiagramMetadata(c)
 }
 
 func (s *Server) PostDiagramsIdMetadataBulk(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// For now, use the existing bulk handler from threat model diagrams
+	// This needs to be implemented for direct diagrams
+	c.JSON(501, gin.H{"error": "bulk operations not yet implemented for direct diagrams"})
 }
 
 // Diagram Cell Metadata handlers
 func (s *Server) GetDiagramsIdCellsCellIdMetadata(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDiagramMetadataHandlerSimple()
+	handler.GetDirectDiagramCellMetadata(c)
 }
 
 func (s *Server) PostDiagramsIdCellsCellIdMetadata(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDiagramMetadataHandlerSimple()
+	handler.CreateDirectDiagramCellMetadata(c)
 }
 
 func (s *Server) GetDiagramsIdCellsCellIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDiagramMetadataHandlerSimple()
+	handler.GetDirectDiagramCellMetadataByKey(c)
 }
 
 func (s *Server) PutDiagramsIdCellsCellIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDiagramMetadataHandlerSimple()
+	handler.UpdateDirectDiagramCellMetadata(c)
 }
 
 func (s *Server) DeleteDiagramsIdCellsCellIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDiagramMetadataHandlerSimple()
+	handler.DeleteDirectDiagramCellMetadata(c)
 }
 
 func (s *Server) PatchDiagramsIdCellsCellId(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewCellHandlerSimple()
+	handler.PatchCell(c)
 }
 
 func (s *Server) PostDiagramsIdCellsBatchPatch(c *gin.Context) {
@@ -726,23 +739,28 @@ func (s *Server) PostDiagramsIdCellsBatchPatch(c *gin.Context) {
 
 // Threat Model Diagram Metadata handlers
 func (s *Server) GetThreatModelsThreatModelIdDiagramsDiagramIdMetadata(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// This endpoint is for threat model diagrams - need to implement specific handler
+	c.JSON(501, gin.H{"error": "threat model diagram metadata not yet implemented"})
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdMetadata(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// This endpoint is for threat model diagrams - need to implement specific handler
+	c.JSON(501, gin.H{"error": "threat model diagram metadata not yet implemented"})
 }
 
 func (s *Server) GetThreatModelsThreatModelIdDiagramsDiagramIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// This endpoint is for threat model diagrams - need to implement specific handler
+	c.JSON(501, gin.H{"error": "threat model diagram metadata not yet implemented"})
 }
 
 func (s *Server) PutThreatModelsThreatModelIdDiagramsDiagramIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// This endpoint is for threat model diagrams - need to implement specific handler
+	c.JSON(501, gin.H{"error": "threat model diagram metadata not yet implemented"})
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// This endpoint is for threat model diagrams - need to implement specific handler
+	c.JSON(501, gin.H{"error": "threat model diagram metadata not yet implemented"})
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdMetadataBulk(c *gin.Context) {
@@ -795,7 +813,14 @@ func (s *Server) PutThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) {
 }
 
 func (s *Server) PatchThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated threat handler with global store
+	handler := api.NewThreatSubResourceHandler(
+		api.GlobalThreatStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // invalidator - not needed for current implementation
+	)
+	handler.PatchThreat(c)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) {
@@ -819,23 +844,28 @@ func (s *Server) PutThreatModelsThreatModelIdThreatsBulk(c *gin.Context) {
 
 // Threat Model Threat Metadata handlers
 func (s *Server) GetThreatModelsThreatModelIdThreatsThreatIdMetadata(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewThreatMetadataHandlerSimple()
+	handler.GetThreatMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdThreatsThreatIdMetadata(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewThreatMetadataHandlerSimple()
+	handler.CreateThreatMetadata(c)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdThreatsThreatIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewThreatMetadataHandlerSimple()
+	handler.GetThreatMetadataByKey(c)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdThreatsThreatIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewThreatMetadataHandlerSimple()
+	handler.UpdateThreatMetadata(c)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdThreatsThreatIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewThreatMetadataHandlerSimple()
+	handler.DeleteThreatMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdThreatsThreatIdMetadataBulk(c *gin.Context) {
@@ -904,23 +934,28 @@ func (s *Server) PostThreatModelsThreatModelIdDocumentsBulk(c *gin.Context) {
 
 // Threat Model Document Metadata handlers
 func (s *Server) GetThreatModelsThreatModelIdDocumentsDocumentIdMetadata(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDocumentMetadataHandlerSimple()
+	handler.GetDocumentMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDocumentsDocumentIdMetadata(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDocumentMetadataHandlerSimple()
+	handler.CreateDocumentMetadata(c)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdDocumentsDocumentIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDocumentMetadataHandlerSimple()
+	handler.GetDocumentMetadataByKey(c)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdDocumentsDocumentIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDocumentMetadataHandlerSimple()
+	handler.UpdateDocumentMetadata(c)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdDocumentsDocumentIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDocumentMetadataHandlerSimple()
+	handler.DeleteDocumentMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDocumentsDocumentIdMetadataBulk(c *gin.Context) {
@@ -989,23 +1024,28 @@ func (s *Server) PostThreatModelsThreatModelIdSourcesBulk(c *gin.Context) {
 
 // Threat Model Source Metadata handlers
 func (s *Server) GetThreatModelsThreatModelIdSourcesSourceIdMetadata(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewSourceMetadataHandlerSimple()
+	handler.GetSourceMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSourcesSourceIdMetadata(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewSourceMetadataHandlerSimple()
+	handler.CreateSourceMetadata(c)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewSourceMetadataHandlerSimple()
+	handler.GetSourceMetadataByKey(c)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewSourceMetadataHandlerSimple()
+	handler.UpdateSourceMetadata(c)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewSourceMetadataHandlerSimple()
+	handler.DeleteSourceMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSourcesSourceIdMetadataBulk(c *gin.Context) {

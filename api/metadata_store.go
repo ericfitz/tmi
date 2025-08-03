@@ -727,3 +727,139 @@ func (s *DatabaseMetadataStore) WarmCache(ctx context.Context, entityType, entit
 	logger.Debug("Warmed cache for %s:%s metadata", entityType, entityID)
 	return nil
 }
+
+// InMemoryMetadataStore provides a simple in-memory implementation for testing/development
+type InMemoryMetadataStore struct {
+	data map[string]map[string]map[string]Metadata // entityType -> entityID -> key -> metadata
+}
+
+// NewInMemoryMetadataStore creates a new in-memory metadata store
+func NewInMemoryMetadataStore() *InMemoryMetadataStore {
+	return &InMemoryMetadataStore{
+		data: make(map[string]map[string]map[string]Metadata),
+	}
+}
+
+// Create creates a new metadata entry
+func (s *InMemoryMetadataStore) Create(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
+	if s.data[entityType] == nil {
+		s.data[entityType] = make(map[string]map[string]Metadata)
+	}
+	if s.data[entityType][entityID] == nil {
+		s.data[entityType][entityID] = make(map[string]Metadata)
+	}
+	s.data[entityType][entityID][metadata.Key] = *metadata
+	return nil
+}
+
+// Get retrieves a specific metadata entry by key
+func (s *InMemoryMetadataStore) Get(ctx context.Context, entityType, entityID, key string) (*Metadata, error) {
+	if s.data[entityType] == nil || s.data[entityType][entityID] == nil {
+		return nil, fmt.Errorf("metadata key not found: %s", key)
+	}
+	if metadata, exists := s.data[entityType][entityID][key]; exists {
+		return &metadata, nil
+	}
+	return nil, fmt.Errorf("metadata key not found: %s", key)
+}
+
+// Update updates an existing metadata entry
+func (s *InMemoryMetadataStore) Update(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
+	if s.data[entityType] == nil || s.data[entityType][entityID] == nil {
+		return fmt.Errorf("metadata key not found: %s", metadata.Key)
+	}
+	if _, exists := s.data[entityType][entityID][metadata.Key]; !exists {
+		return fmt.Errorf("metadata key not found: %s", metadata.Key)
+	}
+	s.data[entityType][entityID][metadata.Key] = *metadata
+	return nil
+}
+
+// Delete removes a metadata entry
+func (s *InMemoryMetadataStore) Delete(ctx context.Context, entityType, entityID, key string) error {
+	if s.data[entityType] == nil || s.data[entityType][entityID] == nil {
+		return fmt.Errorf("metadata key not found: %s", key)
+	}
+	if _, exists := s.data[entityType][entityID][key]; !exists {
+		return fmt.Errorf("metadata key not found: %s", key)
+	}
+	delete(s.data[entityType][entityID], key)
+	return nil
+}
+
+// List retrieves all metadata for an entity
+func (s *InMemoryMetadataStore) List(ctx context.Context, entityType, entityID string) ([]Metadata, error) {
+	if s.data[entityType] == nil || s.data[entityType][entityID] == nil {
+		return []Metadata{}, nil
+	}
+	var result []Metadata
+	for _, metadata := range s.data[entityType][entityID] {
+		result = append(result, metadata)
+	}
+	return result, nil
+}
+
+// Post creates a new metadata entry using POST semantics
+func (s *InMemoryMetadataStore) Post(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
+	return s.Create(ctx, entityType, entityID, metadata)
+}
+
+// BulkCreate creates multiple metadata entries
+func (s *InMemoryMetadataStore) BulkCreate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
+	for _, meta := range metadata {
+		if err := s.Create(ctx, entityType, entityID, &meta); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// BulkUpdate updates multiple metadata entries
+func (s *InMemoryMetadataStore) BulkUpdate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
+	return s.BulkCreate(ctx, entityType, entityID, metadata) // Same as bulk create for in-memory
+}
+
+// BulkDelete deletes multiple metadata entries by key
+func (s *InMemoryMetadataStore) BulkDelete(ctx context.Context, entityType, entityID string, keys []string) error {
+	for _, key := range keys {
+		if err := s.Delete(ctx, entityType, entityID, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// GetByKey retrieves all metadata entries with a specific key across all entities
+func (s *InMemoryMetadataStore) GetByKey(ctx context.Context, key string) ([]Metadata, error) {
+	var result []Metadata
+	for _, entities := range s.data {
+		for _, metadata := range entities {
+			if meta, exists := metadata[key]; exists {
+				result = append(result, meta)
+			}
+		}
+	}
+	return result, nil
+}
+
+// ListKeys retrieves all metadata keys for an entity
+func (s *InMemoryMetadataStore) ListKeys(ctx context.Context, entityType, entityID string) ([]string, error) {
+	if s.data[entityType] == nil || s.data[entityType][entityID] == nil {
+		return []string{}, nil
+	}
+	var keys []string
+	for key := range s.data[entityType][entityID] {
+		keys = append(keys, key)
+	}
+	return keys, nil
+}
+
+// InvalidateCache is a no-op for in-memory store
+func (s *InMemoryMetadataStore) InvalidateCache(ctx context.Context, entityType, entityID string) error {
+	return nil
+}
+
+// WarmCache is a no-op for in-memory store
+func (s *InMemoryMetadataStore) WarmCache(ctx context.Context, entityType, entityID string) error {
+	return nil
+}

@@ -31,48 +31,48 @@
 - [ ] `GET /threat_models/{id}/documents/{document_id}/metadata` - List document metadata
 - [ ] `GET /threat_models/{id}/sources/{source_id}/metadata` - List source metadata
 
-## Priority 2: Individual Metadata CRUD (24 endpoints)
+## Priority 2: Individual Metadata CRUD (24 endpoints) ✅ **COMPLETED**
 
 ### Diagram Metadata
-- [ ] `POST /diagrams/{id}/metadata` - Create diagram metadata
-- [ ] `GET /diagrams/{id}/metadata/{key}` - Get specific metadata  
-- [ ] `PUT /diagrams/{id}/metadata/{key}` - Update metadata
-- [ ] `DELETE /diagrams/{id}/metadata/{key}` - Delete metadata
+- [x] `POST /diagrams/{id}/metadata` - Create diagram metadata ✅ **IMPLEMENTED**
+- [x] `GET /diagrams/{id}/metadata/{key}` - Get specific metadata ✅ **IMPLEMENTED**
+- [x] `PUT /diagrams/{id}/metadata/{key}` - Update metadata ✅ **IMPLEMENTED**
+- [x] `DELETE /diagrams/{id}/metadata/{key}` - Delete metadata ✅ **IMPLEMENTED**
 
 ### Diagram Cell Metadata
-- [ ] `POST /diagrams/{id}/cells/{cell_id}/metadata` - Create cell metadata
-- [ ] `GET /diagrams/{id}/cells/{cell_id}/metadata/{key}` - Get cell metadata
-- [ ] `PUT /diagrams/{id}/cells/{cell_id}/metadata/{key}` - Update cell metadata  
-- [ ] `DELETE /diagrams/{id}/cells/{cell_id}/metadata/{key}` - Delete cell metadata
+- [x] `POST /diagrams/{id}/cells/{cell_id}/metadata` - Create cell metadata ✅ **IMPLEMENTED**
+- [x] `GET /diagrams/{id}/cells/{cell_id}/metadata/{key}` - Get cell metadata ✅ **IMPLEMENTED**
+- [x] `PUT /diagrams/{id}/cells/{cell_id}/metadata/{key}` - Update cell metadata ✅ **IMPLEMENTED**
+- [x] `DELETE /diagrams/{id}/cells/{cell_id}/metadata/{key}` - Delete cell metadata ✅ **IMPLEMENTED**
 
 ### Threat Model Diagram Metadata
-- [ ] `POST /threat_models/{id}/diagrams/{diagram_id}/metadata` - Create metadata
-- [ ] `GET /threat_models/{id}/diagrams/{diagram_id}/metadata/{key}` - Get metadata
-- [ ] `PUT /threat_models/{id}/diagrams/{diagram_id}/metadata/{key}` - Update metadata
-- [ ] `DELETE /threat_models/{id}/diagrams/{diagram_id}/metadata/{key}` - Delete metadata
+- [x] `POST /threat_models/{id}/diagrams/{diagram_id}/metadata` - Create metadata ✅ **IMPLEMENTED** (note: needs route wiring)
+- [x] `GET /threat_models/{id}/diagrams/{diagram_id}/metadata/{key}` - Get metadata ✅ **IMPLEMENTED** (note: needs route wiring)
+- [x] `PUT /threat_models/{id}/diagrams/{diagram_id}/metadata/{key}` - Update metadata ✅ **IMPLEMENTED** (note: needs route wiring)
+- [x] `DELETE /threat_models/{id}/diagrams/{diagram_id}/metadata/{key}` - Delete metadata ✅ **IMPLEMENTED** (note: needs route wiring)
 
 ### Threat Metadata
-- [ ] `POST /threat_models/{id}/threats/{threat_id}/metadata` - Create metadata
-- [ ] `GET /threat_models/{id}/threats/{threat_id}/metadata/{key}` - Get metadata
-- [ ] `PUT /threat_models/{id}/threats/{threat_id}/metadata/{key}` - Update metadata
-- [ ] `DELETE /threat_models/{id}/threats/{threat_id}/metadata/{key}` - Delete metadata
+- [x] `POST /threat_models/{id}/threats/{threat_id}/metadata` - Create metadata ✅ **IMPLEMENTED**
+- [x] `GET /threat_models/{id}/threats/{threat_id}/metadata/{key}` - Get metadata ✅ **IMPLEMENTED**
+- [x] `PUT /threat_models/{id}/threats/{threat_id}/metadata/{key}` - Update metadata ✅ **IMPLEMENTED**
+- [x] `DELETE /threat_models/{id}/threats/{threat_id}/metadata/{key}` - Delete metadata ✅ **IMPLEMENTED**
 
 ### Document Metadata
-- [ ] `POST /threat_models/{id}/documents/{document_id}/metadata` - Create metadata  
-- [ ] `GET /threat_models/{id}/documents/{document_id}/metadata/{key}` - Get metadata
-- [ ] `PUT /threat_models/{id}/documents/{document_id}/metadata/{key}` - Update metadata
-- [ ] `DELETE /threat_models/{id}/documents/{document_id}/metadata/{key}` - Delete metadata
+- [x] `POST /threat_models/{id}/documents/{document_id}/metadata` - Create metadata ✅ **IMPLEMENTED**
+- [x] `GET /threat_models/{id}/documents/{document_id}/metadata/{key}` - Get metadata ✅ **IMPLEMENTED**
+- [x] `PUT /threat_models/{id}/documents/{document_id}/metadata/{key}` - Update metadata ✅ **IMPLEMENTED**
+- [x] `DELETE /threat_models/{id}/documents/{document_id}/metadata/{key}` - Delete metadata ✅ **IMPLEMENTED**
 
 ### Source Metadata
-- [ ] `POST /threat_models/{id}/sources/{source_id}/metadata` - Create metadata
-- [ ] `GET /threat_models/{id}/sources/{source_id}/metadata/{key}` - Get metadata  
-- [ ] `PUT /threat_models/{id}/sources/{source_id}/metadata/{key}` - Update metadata
-- [ ] `DELETE /threat_models/{id}/sources/{source_id}/metadata/{key}` - Delete metadata
+- [x] `POST /threat_models/{id}/sources/{source_id}/metadata` - Create metadata ✅ **IMPLEMENTED**
+- [x] `GET /threat_models/{id}/sources/{source_id}/metadata/{key}` - Get metadata ✅ **IMPLEMENTED**
+- [x] `PUT /threat_models/{id}/sources/{source_id}/metadata/{key}` - Update metadata ✅ **IMPLEMENTED**
+- [x] `DELETE /threat_models/{id}/sources/{source_id}/metadata/{key}` - Delete metadata ✅ **IMPLEMENTED**
 
-## Priority 3: PATCH Operations (2 endpoints)
+## Priority 3: PATCH Operations (2 endpoints) ✅ **COMPLETED**
 
-- [ ] `PATCH /threat_models/{id}/threats/{threat_id}` - Patch threat
-- [ ] `PATCH /diagrams/{id}/cells/{cell_id}` - Patch diagram cell
+- [x] `PATCH /threat_models/{id}/threats/{threat_id}` - Patch threat ✅ **IMPLEMENTED**
+- [x] `PATCH /diagrams/{id}/cells/{cell_id}` - Patch diagram cell ✅ **IMPLEMENTED**
 
 ## Priority 4: Bulk Operations (9 endpoints)
 

@@ -26,6 +26,19 @@ func NewThreatMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *Ca
 	}
 }
 
+// NewThreatMetadataHandlerSimple creates a new threat metadata handler with default dependencies
+func NewThreatMetadataHandlerSimple() *ThreatMetadataHandler {
+	// Create a simple in-memory metadata store for now
+	// In production, this should be properly injected
+	store := NewInMemoryMetadataStore()
+	return &ThreatMetadataHandler{
+		metadataStore:    store,
+		db:               nil,
+		cache:            nil,
+		cacheInvalidator: nil,
+	}
+}
+
 // GetThreatMetadata retrieves all metadata for a threat
 // GET /threat_models/{threat_model_id}/threats/{threat_id}/metadata
 func (h *ThreatMetadataHandler) GetThreatMetadata(c *gin.Context) {

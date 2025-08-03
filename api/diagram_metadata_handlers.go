@@ -26,14 +26,29 @@ func NewDiagramMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *C
 	}
 }
 
-// GetDiagramMetadata retrieves all metadata for a diagram
-// GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata
-func (h *DiagramMetadataHandler) GetDiagramMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
-	logger.Debug("GetDiagramMetadata - retrieving metadata for diagram")
+// NewDiagramMetadataHandlerSimple creates a new diagram metadata handler with default dependencies
+func NewDiagramMetadataHandlerSimple() *DiagramMetadataHandler {
+	// Create a simple in-memory metadata store for now
+	// In production, this should be properly injected
+	store := NewInMemoryMetadataStore()
+	return &DiagramMetadataHandler{
+		metadataStore:    store,
+		db:               nil,
+		cache:            nil,
+		cacheInvalidator: nil,
+	}
+}
 
-	// Extract diagram ID from URL
-	diagramID := c.Param("diagram_id")
+// Direct diagram metadata handlers for /diagrams/:id/metadata endpoints
+
+// GetDirectDiagramMetadata retrieves all metadata for a diagram via direct route
+// GET /diagrams/{id}/metadata
+func (h *DiagramMetadataHandler) GetDirectDiagramMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("GetDirectDiagramMetadata - retrieving metadata for diagram")
+
+	// Extract diagram ID from URL (using 'id' parameter for direct routes)
+	diagramID := c.Param("id")
 	if diagramID == "" {
 		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
 		return
@@ -66,14 +81,14 @@ func (h *DiagramMetadataHandler) GetDiagramMetadata(c *gin.Context) {
 	c.JSON(http.StatusOK, metadata)
 }
 
-// GetDiagramMetadataByKey retrieves a specific metadata entry by key
-// GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key}
-func (h *DiagramMetadataHandler) GetDiagramMetadataByKey(c *gin.Context) {
+// GetDirectDiagramMetadataByKey retrieves a specific metadata entry by key via direct route
+// GET /diagrams/{id}/metadata/{key}
+func (h *DiagramMetadataHandler) GetDirectDiagramMetadataByKey(c *gin.Context) {
 	logger := logging.GetContextLogger(c)
-	logger.Debug("GetDiagramMetadataByKey - retrieving specific metadata entry")
+	logger.Debug("GetDirectDiagramMetadataByKey - retrieving specific metadata entry")
 
 	// Extract diagram ID and key from URL
-	diagramID := c.Param("diagram_id")
+	diagramID := c.Param("id")
 	key := c.Param("key")
 
 	if diagramID == "" {
@@ -112,14 +127,14 @@ func (h *DiagramMetadataHandler) GetDiagramMetadataByKey(c *gin.Context) {
 	c.JSON(http.StatusOK, metadata)
 }
 
-// CreateDiagramMetadata creates a new metadata entry for a diagram
-// POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata
-func (h *DiagramMetadataHandler) CreateDiagramMetadata(c *gin.Context) {
+// CreateDirectDiagramMetadata creates a new metadata entry for a diagram via direct route
+// POST /diagrams/{id}/metadata
+func (h *DiagramMetadataHandler) CreateDirectDiagramMetadata(c *gin.Context) {
 	logger := logging.GetContextLogger(c)
-	logger.Debug("CreateDiagramMetadata - creating new metadata entry")
+	logger.Debug("CreateDirectDiagramMetadata - creating new metadata entry")
 
 	// Extract diagram ID from URL
-	diagramID := c.Param("diagram_id")
+	diagramID := c.Param("id")
 	if diagramID == "" {
 		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
 		return
@@ -177,14 +192,14 @@ func (h *DiagramMetadataHandler) CreateDiagramMetadata(c *gin.Context) {
 	c.JSON(http.StatusCreated, createdMetadata)
 }
 
-// UpdateDiagramMetadata updates an existing metadata entry
-// PUT /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key}
-func (h *DiagramMetadataHandler) UpdateDiagramMetadata(c *gin.Context) {
+// UpdateDirectDiagramMetadata updates an existing metadata entry via direct route
+// PUT /diagrams/{id}/metadata/{key}
+func (h *DiagramMetadataHandler) UpdateDirectDiagramMetadata(c *gin.Context) {
 	logger := logging.GetContextLogger(c)
-	logger.Debug("UpdateDiagramMetadata - updating metadata entry")
+	logger.Debug("UpdateDirectDiagramMetadata - updating metadata entry")
 
 	// Extract diagram ID and key from URL
-	diagramID := c.Param("diagram_id")
+	diagramID := c.Param("id")
 	key := c.Param("key")
 
 	if diagramID == "" {
@@ -246,14 +261,14 @@ func (h *DiagramMetadataHandler) UpdateDiagramMetadata(c *gin.Context) {
 	c.JSON(http.StatusOK, updatedMetadata)
 }
 
-// DeleteDiagramMetadata deletes a metadata entry
-// DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key}
-func (h *DiagramMetadataHandler) DeleteDiagramMetadata(c *gin.Context) {
+// DeleteDirectDiagramMetadata deletes a metadata entry via direct route
+// DELETE /diagrams/{id}/metadata/{key}
+func (h *DiagramMetadataHandler) DeleteDirectDiagramMetadata(c *gin.Context) {
 	logger := logging.GetContextLogger(c)
-	logger.Debug("DeleteDiagramMetadata - deleting metadata entry")
+	logger.Debug("DeleteDirectDiagramMetadata - deleting metadata entry")
 
 	// Extract diagram ID and key from URL
-	diagramID := c.Param("diagram_id")
+	diagramID := c.Param("id")
 	key := c.Param("key")
 
 	if diagramID == "" {
@@ -291,16 +306,78 @@ func (h *DiagramMetadataHandler) DeleteDiagramMetadata(c *gin.Context) {
 	c.JSON(http.StatusNoContent, nil)
 }
 
-// BulkCreateDiagramMetadata creates multiple metadata entries in a single request
-// POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/bulk
-func (h *DiagramMetadataHandler) BulkCreateDiagramMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
-	logger.Debug("BulkCreateDiagramMetadata - creating multiple metadata entries")
+// Direct diagram cell metadata handlers for /diagrams/:id/cells/:cell_id/metadata endpoints
 
-	// Extract diagram ID from URL
-	diagramID := c.Param("diagram_id")
+// GetDirectDiagramCellMetadata retrieves all metadata for a diagram cell via direct route
+// GET /diagrams/{id}/cells/{cell_id}/metadata
+func (h *DiagramMetadataHandler) GetDirectDiagramCellMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("GetDirectDiagramCellMetadata - retrieving metadata for diagram cell")
+
+	// Extract diagram ID and cell ID from URL
+	diagramID := c.Param("id")
+	cellID := c.Param("cell_id")
+
 	if diagramID == "" {
 		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+	if cellID == "" {
+		HandleRequestError(c, InvalidIDError("Missing cell ID"))
+		return
+	}
+
+	// Validate diagram ID format
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Cell ID is expected to be a string (not necessarily UUID)
+	// No additional validation required
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	logger.Debug("Retrieving metadata for cell %s in diagram %s (user: %s)", cellID, diagramID, userName)
+
+	// Get metadata from store using cell entity type
+	metadata, err := h.metadataStore.List(c.Request.Context(), "cell", cellID)
+	if err != nil {
+		logger.Error("Failed to retrieve cell metadata for %s: %v", cellID, err)
+		HandleRequestError(c, ServerError("Failed to retrieve metadata"))
+		return
+	}
+
+	logger.Debug("Successfully retrieved %d metadata items for cell %s", len(metadata), cellID)
+	c.JSON(http.StatusOK, metadata)
+}
+
+// GetDirectDiagramCellMetadataByKey retrieves a specific metadata entry by key for a diagram cell
+// GET /diagrams/{id}/cells/{cell_id}/metadata/{key}
+func (h *DiagramMetadataHandler) GetDirectDiagramCellMetadataByKey(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("GetDirectDiagramCellMetadataByKey - retrieving specific metadata entry for cell")
+
+	// Extract parameters from URL
+	diagramID := c.Param("id")
+	cellID := c.Param("cell_id")
+	key := c.Param("key")
+
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+	if cellID == "" {
+		HandleRequestError(c, InvalidIDError("Missing cell ID"))
+		return
+	}
+	if key == "" {
+		HandleRequestError(c, InvalidInputError("Missing metadata key"))
 		return
 	}
 
@@ -317,62 +394,211 @@ func (h *DiagramMetadataHandler) BulkCreateDiagramMetadata(c *gin.Context) {
 		return
 	}
 
-	// Parse request body as array of metadata
-	metadataList, err := ParseRequestBody[[]Metadata](c)
+	logger.Debug("Retrieving metadata key '%s' for cell %s in diagram %s (user: %s)", key, cellID, diagramID, userName)
+
+	// Get metadata entry from store
+	metadata, err := h.metadataStore.Get(c.Request.Context(), "cell", cellID, key)
+	if err != nil {
+		logger.Error("Failed to retrieve cell metadata key '%s' for %s: %v", key, cellID, err)
+		HandleRequestError(c, NotFoundError("Metadata entry not found"))
+		return
+	}
+
+	logger.Debug("Successfully retrieved metadata key '%s' for cell %s", key, cellID)
+	c.JSON(http.StatusOK, metadata)
+}
+
+// CreateDirectDiagramCellMetadata creates a new metadata entry for a diagram cell
+// POST /diagrams/{id}/cells/{cell_id}/metadata
+func (h *DiagramMetadataHandler) CreateDirectDiagramCellMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("CreateDirectDiagramCellMetadata - creating new metadata entry for cell")
+
+	// Extract parameters from URL
+	diagramID := c.Param("id")
+	cellID := c.Param("cell_id")
+
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+	if cellID == "" {
+		HandleRequestError(c, InvalidIDError("Missing cell ID"))
+		return
+	}
+
+	// Validate diagram ID format
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	if len(metadataList) == 0 {
-		HandleRequestError(c, InvalidInputError("No metadata entries provided"))
+	// Parse request body
+	metadata, err := ParseRequestBody[Metadata](c)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
-	if len(metadataList) > 20 {
-		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+	// Validate required fields
+	if metadata.Key == "" {
+		HandleRequestError(c, InvalidInputError("Metadata key is required"))
+		return
+	}
+	if metadata.Value == "" {
+		HandleRequestError(c, InvalidInputError("Metadata value is required"))
 		return
 	}
 
-	// Validate all metadata entries
-	for i, metadata := range metadataList {
-		if metadata.Key == "" {
-			HandleRequestError(c, InvalidInputError("Metadata key is required for all entries"))
-			return
-		}
-		if metadata.Value == "" {
-			HandleRequestError(c, InvalidInputError("Metadata value is required for all entries"))
-			return
-		}
+	logger.Debug("Creating metadata key '%s' for cell %s in diagram %s (user: %s)", metadata.Key, cellID, diagramID, userName)
 
-		// Check for duplicate keys within the request
-		for j := i + 1; j < len(metadataList); j++ {
-			if metadataList[j].Key == metadata.Key {
-				HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
-				return
-			}
-		}
-	}
-
-	logger.Debug("Bulk creating %d metadata entries for diagram %s (user: %s)",
-		len(metadataList), diagramID, userName)
-
-	// Create metadata entries in store
-	if err := h.metadataStore.BulkCreate(c.Request.Context(), "diagram", diagramID, metadataList); err != nil {
-		logger.Error("Failed to bulk create diagram metadata for %s: %v", diagramID, err)
-		HandleRequestError(c, ServerError("Failed to create metadata entries"))
+	// Create metadata entry in store
+	if err := h.metadataStore.Create(c.Request.Context(), "cell", cellID, &metadata); err != nil {
+		logger.Error("Failed to create cell metadata key '%s' for %s: %v", metadata.Key, cellID, err)
+		HandleRequestError(c, ServerError("Failed to create metadata"))
 		return
 	}
 
 	// Retrieve the created metadata to return with timestamps
-	createdMetadata, err := h.metadataStore.List(c.Request.Context(), "diagram", diagramID)
+	createdMetadata, err := h.metadataStore.Get(c.Request.Context(), "cell", cellID, metadata.Key)
 	if err != nil {
 		// Log error but still return success since creation succeeded
 		logger.Error("Failed to retrieve created metadata: %v", err)
-		c.JSON(http.StatusCreated, metadataList)
+		c.JSON(http.StatusCreated, metadata)
 		return
 	}
 
-	logger.Debug("Successfully bulk created %d metadata entries for diagram %s", len(metadataList), diagramID)
+	logger.Debug("Successfully created metadata key '%s' for cell %s", metadata.Key, cellID)
 	c.JSON(http.StatusCreated, createdMetadata)
+}
+
+// UpdateDirectDiagramCellMetadata updates an existing metadata entry for a diagram cell
+// PUT /diagrams/{id}/cells/{cell_id}/metadata/{key}
+func (h *DiagramMetadataHandler) UpdateDirectDiagramCellMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("UpdateDirectDiagramCellMetadata - updating metadata entry for cell")
+
+	// Extract parameters from URL
+	diagramID := c.Param("id")
+	cellID := c.Param("cell_id")
+	key := c.Param("key")
+
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+	if cellID == "" {
+		HandleRequestError(c, InvalidIDError("Missing cell ID"))
+		return
+	}
+	if key == "" {
+		HandleRequestError(c, InvalidInputError("Missing metadata key"))
+		return
+	}
+
+	// Validate diagram ID format
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse request body
+	metadata, err := ParseRequestBody[Metadata](c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Validate required fields
+	if metadata.Value == "" {
+		HandleRequestError(c, InvalidInputError("Metadata value is required"))
+		return
+	}
+
+	// Ensure the key matches the URL parameter
+	metadata.Key = key
+
+	logger.Debug("Updating metadata key '%s' for cell %s in diagram %s (user: %s)", key, cellID, diagramID, userName)
+
+	// Update metadata entry in store
+	if err := h.metadataStore.Update(c.Request.Context(), "cell", cellID, &metadata); err != nil {
+		logger.Error("Failed to update cell metadata key '%s' for %s: %v", key, cellID, err)
+		HandleRequestError(c, ServerError("Failed to update metadata"))
+		return
+	}
+
+	// Retrieve the updated metadata to return
+	updatedMetadata, err := h.metadataStore.Get(c.Request.Context(), "cell", cellID, key)
+	if err != nil {
+		logger.Error("Failed to retrieve updated metadata: %v", err)
+		HandleRequestError(c, ServerError("Failed to retrieve updated metadata"))
+		return
+	}
+
+	logger.Debug("Successfully updated metadata key '%s' for cell %s", key, cellID)
+	c.JSON(http.StatusOK, updatedMetadata)
+}
+
+// DeleteDirectDiagramCellMetadata deletes a metadata entry for a diagram cell
+// DELETE /diagrams/{id}/cells/{cell_id}/metadata/{key}
+func (h *DiagramMetadataHandler) DeleteDirectDiagramCellMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("DeleteDirectDiagramCellMetadata - deleting metadata entry for cell")
+
+	// Extract parameters from URL
+	diagramID := c.Param("id")
+	cellID := c.Param("cell_id")
+	key := c.Param("key")
+
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+	if cellID == "" {
+		HandleRequestError(c, InvalidIDError("Missing cell ID"))
+		return
+	}
+	if key == "" {
+		HandleRequestError(c, InvalidInputError("Missing metadata key"))
+		return
+	}
+
+	// Validate diagram ID format
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	logger.Debug("Deleting metadata key '%s' for cell %s in diagram %s (user: %s)", key, cellID, diagramID, userName)
+
+	// Delete metadata entry from store
+	if err := h.metadataStore.Delete(c.Request.Context(), "cell", cellID, key); err != nil {
+		logger.Error("Failed to delete cell metadata key '%s' for %s: %v", key, cellID, err)
+		HandleRequestError(c, ServerError("Failed to delete metadata"))
+		return
+	}
+
+	logger.Debug("Successfully deleted metadata key '%s' for cell %s", key, cellID)
+	c.JSON(http.StatusNoContent, nil)
 }
