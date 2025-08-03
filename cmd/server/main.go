@@ -809,7 +809,14 @@ func (s *Server) PostThreatModelsThreatModelIdThreatsThreatIdMetadataBulk(c *gin
 
 // Threat Model Documents handlers
 func (s *Server) GetThreatModelsThreatModelIdDocuments(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated document handler with global store
+	handler := api.NewDocumentSubResourceHandler(
+		api.GlobalDocumentStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.GetDocuments(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDocuments(c *gin.Context) {
@@ -859,7 +866,14 @@ func (s *Server) PostThreatModelsThreatModelIdDocumentsDocumentIdMetadataBulk(c 
 
 // Threat Model Sources handlers
 func (s *Server) GetThreatModelsThreatModelIdSources(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated source handler with global store
+	handler := api.NewSourceSubResourceHandler(
+		api.GlobalSourceStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.GetSources(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSources(c *gin.Context) {

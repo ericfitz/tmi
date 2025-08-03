@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"sync"
@@ -163,6 +164,8 @@ type DiagramStoreInterface interface {
 // Global store instances (will be initialized in main.go)
 var ThreatModelStore ThreatModelStoreInterface
 var DiagramStore DiagramStoreInterface
+var GlobalDocumentStore DocumentStore
+var GlobalSourceStore SourceStore
 
 // ThreatModelInMemoryStore wraps DataStore to implement count management methods
 type ThreatModelInMemoryStore struct {
@@ -228,10 +231,150 @@ func (s *ThreatModelInMemoryStore) CountSubEntitiesFromPayload(tm ThreatModel) (
 func InitializeInMemoryStores() {
 	ThreatModelStore = NewThreatModelInMemoryStore()
 	DiagramStore = NewDataStore[DfdDiagram]()
+	GlobalDocumentStore = NewInMemoryDocumentStore()
+	GlobalSourceStore = NewInMemorySourceStore()
 }
 
 // InitializeDatabaseStores initializes stores with database implementations
 func InitializeDatabaseStores(db *sql.DB) {
 	ThreatModelStore = NewThreatModelDatabaseStore(db)
 	DiagramStore = NewDiagramDatabaseStore(db)
+	GlobalDocumentStore = NewDatabaseDocumentStore(db, nil, nil)
+	GlobalSourceStore = NewDatabaseSourceStore(db, nil, nil)
+}
+
+// InMemoryDocumentStore provides a simple in-memory implementation for testing
+type InMemoryDocumentStore struct {
+	*DataStore[Document]
+}
+
+// NewInMemoryDocumentStore creates a simple in-memory document store for testing
+func NewInMemoryDocumentStore() *InMemoryDocumentStore {
+	return &InMemoryDocumentStore{
+		DataStore: NewDataStore[Document](),
+	}
+}
+
+// List implements DocumentStore interface for in-memory testing
+func (s *InMemoryDocumentStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Document, error) {
+	filter := func(doc Document) bool {
+		// Simple filtering - in real implementation this would check threat_model_id relationship
+		return true
+	}
+	return s.DataStore.List(offset, limit, filter), nil
+}
+
+// ParseUUIDOrNil parses a UUID string, returning a nil UUID on error
+func ParseUUIDOrNil(s string) uuid.UUID {
+	if u, err := uuid.Parse(s); err == nil {
+		return u
+	}
+	return uuid.Nil
+}
+
+// Create implements DocumentStore interface for in-memory testing
+func (s *InMemoryDocumentStore) Create(ctx context.Context, document *Document, threatModelID string) error {
+	_, err := s.DataStore.Create(*document, func(doc Document, id string) Document {
+		if doc.Id == nil {
+			uuid := ParseUUIDOrNil(id)
+			doc.Id = &uuid
+		}
+		return doc
+	})
+	return err
+}
+
+// Implement other required methods with simple implementations
+func (s *InMemoryDocumentStore) Get(ctx context.Context, id string) (*Document, error) {
+	doc, err := s.DataStore.Get(id)
+	return &doc, err
+}
+
+func (s *InMemoryDocumentStore) Update(ctx context.Context, document *Document, threatModelID string) error {
+	return s.DataStore.Update(document.Id.String(), *document)
+}
+
+func (s *InMemoryDocumentStore) Delete(ctx context.Context, id string) error {
+	return s.DataStore.Delete(id)
+}
+
+func (s *InMemoryDocumentStore) BulkCreate(ctx context.Context, documents []Document, threatModelID string) error {
+	for _, doc := range documents {
+		if err := s.Create(ctx, &doc, threatModelID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *InMemoryDocumentStore) InvalidateCache(ctx context.Context, id string) error {
+	return nil // No-op for in-memory
+}
+
+func (s *InMemoryDocumentStore) WarmCache(ctx context.Context, threatModelID string) error {
+	return nil // No-op for in-memory
+}
+
+// InMemorySourceStore provides a simple in-memory implementation for testing
+type InMemorySourceStore struct {
+	*DataStore[Source]
+}
+
+// NewInMemorySourceStore creates a simple in-memory source store for testing
+func NewInMemorySourceStore() *InMemorySourceStore {
+	return &InMemorySourceStore{
+		DataStore: NewDataStore[Source](),
+	}
+}
+
+// List implements SourceStore interface for in-memory testing
+func (s *InMemorySourceStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Source, error) {
+	filter := func(src Source) bool {
+		// Simple filtering - in real implementation this would check threat_model_id relationship
+		return true
+	}
+	return s.DataStore.List(offset, limit, filter), nil
+}
+
+// Create implements SourceStore interface for in-memory testing
+func (s *InMemorySourceStore) Create(ctx context.Context, source *Source, threatModelID string) error {
+	_, err := s.DataStore.Create(*source, func(src Source, id string) Source {
+		if src.Id == nil {
+			uuid := ParseUUIDOrNil(id)
+			src.Id = &uuid
+		}
+		return src
+	})
+	return err
+}
+
+// Implement other required methods with simple implementations
+func (s *InMemorySourceStore) Get(ctx context.Context, id string) (*Source, error) {
+	src, err := s.DataStore.Get(id)
+	return &src, err
+}
+
+func (s *InMemorySourceStore) Update(ctx context.Context, source *Source, threatModelID string) error {
+	return s.DataStore.Update(source.Id.String(), *source)
+}
+
+func (s *InMemorySourceStore) Delete(ctx context.Context, id string) error {
+	return s.DataStore.Delete(id)
+}
+
+func (s *InMemorySourceStore) BulkCreate(ctx context.Context, sources []Source, threatModelID string) error {
+	for _, src := range sources {
+		if err := s.Create(ctx, &src, threatModelID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *InMemorySourceStore) InvalidateCache(ctx context.Context, id string) error {
+	return nil // No-op for in-memory
+}
+
+func (s *InMemorySourceStore) WarmCache(ctx context.Context, threatModelID string) error {
+	return nil // No-op for in-memory
 }
