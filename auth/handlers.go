@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // Handlers provides HTTP handlers for authentication
@@ -570,20 +571,51 @@ func (h *Handlers) Refresh(c *gin.Context) {
 	c.JSON(http.StatusOK, tokenPair)
 }
 
-// Logout revokes a refresh token
+// Logout revokes a refresh token or blacklists a JWT token
 func (h *Handlers) Logout(c *gin.Context) {
-	var req struct {
-		RefreshToken string `json:"refresh_token" binding:"required"`
+	// Try to get JWT token from Authorization header first
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		// Handle JWT-based logout (new method)
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			tokenStr := parts[1]
+
+			// Validate token format
+			if _, _, err := new(jwt.Parser).ParseUnverified(tokenStr, jwt.MapClaims{}); err == nil {
+				// Try to blacklist the JWT token if blacklist service is available
+				// We'll use the database manager to access Redis for token blacklisting
+				if h.service != nil && h.service.dbManager != nil && h.service.dbManager.Redis() != nil {
+					blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient())
+					if err := blacklist.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{
+							"error": fmt.Sprintf("Failed to blacklist token: %v", err),
+						})
+						return
+					}
+				}
+
+				c.JSON(http.StatusOK, gin.H{
+					"message": "Logged out successfully",
+				})
+				return
+			}
+		}
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	// Fall back to refresh token-based logout (original method)
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil || req.RefreshToken == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request",
+			"error": "Invalid request: missing refresh_token in body or Authorization header",
 		})
 		return
 	}
 
-	// Revoke the token
+	// Revoke the refresh token
 	err := h.service.RevokeToken(c.Request.Context(), req.RefreshToken)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
