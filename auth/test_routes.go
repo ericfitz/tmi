@@ -6,17 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterTestRoutes registers the test OAuth provider routes
-// This is only available in dev and test builds
-func (h *Handlers) RegisterTestRoutes(router *gin.Engine) {
-	testAuth := router.Group("/auth/test")
-	{
-		testAuth.GET("/authorize", gin.WrapF(HandleTestAuthorize))
-		testAuth.POST("/token", gin.WrapF(HandleTestToken))
-	}
-}
-
 // registerTestProviderRoutes is called from RegisterRoutes when in dev/test builds
+// The test provider uses the standard /auth/authorize/test route, not separate routes
 func (h *Handlers) registerTestProviderRoutes(router *gin.Engine) {
-	h.RegisterTestRoutes(router)
+	// No additional routes needed - test provider uses standard OAuth endpoints
 }
