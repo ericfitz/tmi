@@ -34,7 +34,7 @@ func (h *SourceSubResourceHandler) GetSources(c *gin.Context) {
 	logger.Debug("GetSources - retrieving source code references for threat model")
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("threat_model_id")
+	threatModelID := c.Param("id")
 	if threatModelID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
 		return
@@ -129,7 +129,7 @@ func (h *SourceSubResourceHandler) CreateSource(c *gin.Context) {
 	logger.Debug("CreateSource - creating new source code reference")
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("threat_model_id")
+	threatModelID := c.Param("id")
 	if threatModelID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
 		return
@@ -202,7 +202,7 @@ func (h *SourceSubResourceHandler) UpdateSource(c *gin.Context) {
 	}
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("threat_model_id")
+	threatModelID := c.Param("id")
 	if _, err := ParseUUID(threatModelID); err != nil {
 		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
 		return
@@ -290,7 +290,7 @@ func (h *SourceSubResourceHandler) BulkCreateSources(c *gin.Context) {
 	logger.Debug("BulkCreateSources - creating multiple source code references")
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("threat_model_id")
+	threatModelID := c.Param("id")
 	if threatModelID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
 		return

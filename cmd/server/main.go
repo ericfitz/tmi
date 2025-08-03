@@ -751,19 +751,47 @@ func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdMetadataBulk(c *g
 
 // Threat Model Threats handlers
 func (s *Server) GetThreatModelsThreatModelIdThreats(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated threat handler with global store
+	handler := api.NewThreatSubResourceHandler(
+		api.GlobalThreatStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.GetThreats(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdThreats(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated threat handler with global store
+	handler := api.NewThreatSubResourceHandler(
+		api.GlobalThreatStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.CreateThreat(c)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated threat handler with global store
+	handler := api.NewThreatSubResourceHandler(
+		api.GlobalThreatStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.GetThreat(c)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated threat handler with global store
+	handler := api.NewThreatSubResourceHandler(
+		api.GlobalThreatStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.UpdateThreat(c)
 }
 
 func (s *Server) PatchThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) {
@@ -771,7 +799,14 @@ func (s *Server) PatchThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) {
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated threat handler with global store
+	handler := api.NewThreatSubResourceHandler(
+		api.GlobalThreatStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.DeleteThreat(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdThreatsBulk(c *gin.Context) {
@@ -820,19 +855,47 @@ func (s *Server) GetThreatModelsThreatModelIdDocuments(c *gin.Context) {
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDocuments(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated document handler with global store
+	handler := api.NewDocumentSubResourceHandler(
+		api.GlobalDocumentStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.CreateDocument(c)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdDocumentsDocumentId(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated document handler with global store
+	handler := api.NewDocumentSubResourceHandler(
+		api.GlobalDocumentStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.GetDocument(c)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdDocumentsDocumentId(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated document handler with global store
+	handler := api.NewDocumentSubResourceHandler(
+		api.GlobalDocumentStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.UpdateDocument(c)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdDocumentsDocumentId(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated document handler with global store
+	handler := api.NewDocumentSubResourceHandler(
+		api.GlobalDocumentStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.DeleteDocument(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDocumentsBulk(c *gin.Context) {
@@ -877,19 +940,47 @@ func (s *Server) GetThreatModelsThreatModelIdSources(c *gin.Context) {
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSources(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated source handler with global store
+	handler := api.NewSourceSubResourceHandler(
+		api.GlobalSourceStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.CreateSource(c)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdSourcesSourceId(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated source handler with global store
+	handler := api.NewSourceSubResourceHandler(
+		api.GlobalSourceStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.GetSource(c)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdSourcesSourceId(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated source handler with global store
+	handler := api.NewSourceSubResourceHandler(
+		api.GlobalSourceStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.UpdateSource(c)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdSourcesSourceId(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	// Use the dedicated source handler with global store
+	handler := api.NewSourceSubResourceHandler(
+		api.GlobalSourceStore,
+		nil, // db - not needed for current implementation
+		nil, // cache - not needed for current implementation
+		nil, // cacheInvalidator - not needed for current implementation
+	)
+	handler.DeleteSource(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSourcesBulk(c *gin.Context) {

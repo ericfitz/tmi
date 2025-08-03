@@ -166,6 +166,7 @@ var ThreatModelStore ThreatModelStoreInterface
 var DiagramStore DiagramStoreInterface
 var GlobalDocumentStore DocumentStore
 var GlobalSourceStore SourceStore
+var GlobalThreatStore ThreatStore
 
 // ThreatModelInMemoryStore wraps DataStore to implement count management methods
 type ThreatModelInMemoryStore struct {
@@ -233,6 +234,7 @@ func InitializeInMemoryStores() {
 	DiagramStore = NewDataStore[DfdDiagram]()
 	GlobalDocumentStore = NewInMemoryDocumentStore()
 	GlobalSourceStore = NewInMemorySourceStore()
+	GlobalThreatStore = NewInMemoryThreatStore()
 }
 
 // InitializeDatabaseStores initializes stores with database implementations
@@ -241,6 +243,7 @@ func InitializeDatabaseStores(db *sql.DB) {
 	DiagramStore = NewDiagramDatabaseStore(db)
 	GlobalDocumentStore = NewDatabaseDocumentStore(db, nil, nil)
 	GlobalSourceStore = NewDatabaseSourceStore(db, nil, nil)
+	GlobalThreatStore = NewDatabaseThreatStore(db, nil, nil)
 }
 
 // InMemoryDocumentStore provides a simple in-memory implementation for testing
@@ -376,5 +379,95 @@ func (s *InMemorySourceStore) InvalidateCache(ctx context.Context, id string) er
 }
 
 func (s *InMemorySourceStore) WarmCache(ctx context.Context, threatModelID string) error {
+	return nil // No-op for in-memory
+}
+
+// InMemoryThreatStore provides a simple in-memory implementation for testing
+type InMemoryThreatStore struct {
+	*DataStore[Threat]
+}
+
+// NewInMemoryThreatStore creates a simple in-memory threat store for testing
+func NewInMemoryThreatStore() *InMemoryThreatStore {
+	return &InMemoryThreatStore{
+		DataStore: NewDataStore[Threat](),
+	}
+}
+
+// List implements ThreatStore interface for in-memory testing
+func (s *InMemoryThreatStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Threat, error) {
+	filter := func(threat Threat) bool {
+		// Simple filtering - in real implementation this would check threat_model_id relationship
+		return true
+	}
+	return s.DataStore.List(offset, limit, filter), nil
+}
+
+// Create implements ThreatStore interface for in-memory testing
+func (s *InMemoryThreatStore) Create(ctx context.Context, threat *Threat) error {
+	_, err := s.DataStore.Create(*threat, func(t Threat, id string) Threat {
+		if t.Id == nil {
+			uuid := ParseUUIDOrNil(id)
+			t.Id = &uuid
+		}
+		return t
+	})
+	return err
+}
+
+// Get implements ThreatStore interface for in-memory testing
+func (s *InMemoryThreatStore) Get(ctx context.Context, id string) (*Threat, error) {
+	threat, err := s.DataStore.Get(id)
+	return &threat, err
+}
+
+// Update implements ThreatStore interface for in-memory testing
+func (s *InMemoryThreatStore) Update(ctx context.Context, threat *Threat) error {
+	return s.DataStore.Update(threat.Id.String(), *threat)
+}
+
+// Delete implements ThreatStore interface for in-memory testing
+func (s *InMemoryThreatStore) Delete(ctx context.Context, id string) error {
+	return s.DataStore.Delete(id)
+}
+
+// Patch implements ThreatStore interface for in-memory testing
+func (s *InMemoryThreatStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error) {
+	// Simple implementation - just return the current threat
+	threat, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	// In a real implementation, apply the patch operations here
+	return threat, nil
+}
+
+// BulkCreate implements ThreatStore interface for in-memory testing
+func (s *InMemoryThreatStore) BulkCreate(ctx context.Context, threats []Threat) error {
+	for _, threat := range threats {
+		if err := s.Create(ctx, &threat); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// BulkUpdate implements ThreatStore interface for in-memory testing
+func (s *InMemoryThreatStore) BulkUpdate(ctx context.Context, threats []Threat) error {
+	for _, threat := range threats {
+		if err := s.Update(ctx, &threat); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// InvalidateCache implements ThreatStore interface for in-memory testing
+func (s *InMemoryThreatStore) InvalidateCache(ctx context.Context, id string) error {
+	return nil // No-op for in-memory
+}
+
+// WarmCache implements ThreatStore interface for in-memory testing
+func (s *InMemoryThreatStore) WarmCache(ctx context.Context, threatModelID string) error {
 	return nil // No-op for in-memory
 }
