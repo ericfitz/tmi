@@ -79,7 +79,11 @@ func NewProvider(config OAuthProviderConfig, callbackURL string) (Provider, erro
 	case "microsoft":
 		return NewMicrosoftProvider(config, callbackURL)
 	case "test":
-		return newTestProvider(config, callbackURL), nil
+		provider := newTestProvider(config, callbackURL)
+		if provider == nil {
+			return nil, fmt.Errorf("test provider is not available in production builds")
+		}
+		return provider, nil
 	default:
 		// Generic OIDC provider for any standard-compliant provider
 		return NewGenericOIDCProvider(config, callbackURL)

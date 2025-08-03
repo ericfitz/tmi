@@ -3,6 +3,7 @@
 package auth
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -14,12 +15,18 @@ func TestTestProviderNotAvailableInProduction(t *testing.T) {
 		ClientID: "test-client-id",
 	}
 
-	// This should panic in production builds
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("Expected panic when using test provider in production, but no panic occurred")
-		}
-	}()
-
-	_, _ = NewProvider(config, "http://localhost:8080/auth/callback")
+	// This should return an error in production builds (not panic)
+	provider, err := NewProvider(config, "http://localhost:8080/auth/callback")
+	
+	if err == nil {
+		t.Error("Expected error when using test provider in production, but no error occurred")
+	}
+	
+	if provider != nil {
+		t.Error("Expected nil provider when test provider is not available in production")
+	}
+	
+	if !strings.Contains(err.Error(), "not available in production") {
+		t.Errorf("Expected error to contain 'not available in production', got: %s", err.Error())
+	}
 }

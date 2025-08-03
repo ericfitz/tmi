@@ -132,9 +132,16 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	// Get the provider
 	provider, err := h.getProvider(providerID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+		// Return 404 for unavailable providers (like test provider in production)
+		if strings.Contains(err.Error(), "not available in production") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Provider not available",
+			})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+		}
 		return
 	}
 
@@ -228,9 +235,16 @@ func (h *Handlers) Callback(c *gin.Context) {
 	// Get the provider
 	provider, err := h.getProvider(providerID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+		// Return 404 for unavailable providers (like test provider in production)
+		if strings.Contains(err.Error(), "not available in production") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Provider not available",
+			})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+		}
 		return
 	}
 
@@ -364,9 +378,16 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	// Get the provider
 	provider, err := h.getProvider(providerID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("Invalid provider: %s", providerID),
-		})
+		// Return 404 for unavailable providers (like test provider in production)
+		if strings.Contains(err.Error(), "not available in production") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Provider not available",
+			})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("Invalid provider: %s", providerID),
+			})
+		}
 		return
 	}
 
