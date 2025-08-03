@@ -83,6 +83,9 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 		case "microsoft":
 			name = "Microsoft"
 			icon = "fa-brands fa-microsoft"
+		case "test":
+			name = "Test Provider"
+			icon = "fa-solid fa-flask-vial"
 		default:
 			name = providerConfig.Name
 			if name == "" {

@@ -404,7 +404,7 @@ func NewMicrosoftProvider(config OAuthProviderConfig, callbackURL string) (*Micr
 	ctx := context.Background()
 	var provider *oidc.Provider
 	var err error
-	
+
 	// Try to create OIDC provider, but if it fails due to issuer mismatch, we'll skip OIDC verification
 	// This is a common issue with Microsoft's multi-tenant setup
 	provider, err = oidc.NewProvider(ctx, "https://login.microsoftonline.com/common/v2.0")

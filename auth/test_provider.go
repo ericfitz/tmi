@@ -30,25 +30,48 @@ func NewTestProvider(config OAuthProviderConfig, callbackURL string) *TestProvid
 		ClientID:     config.ClientID,
 		ClientSecret: testSecret,
 		RedirectURL:  callbackURL,
-		Scopes:       []string{"profile", "email"},
+		Scopes:       config.Scopes,
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  "/auth/test/authorize",
-			TokenURL: "/auth/test/token",
+			AuthURL:  config.AuthorizationURL,
+			TokenURL: config.TokenURL,
 		},
 	}
 
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+	
 	return &TestProvider{
 		BaseProvider: &BaseProvider{
 			config:       config,
 			oauth2Config: baseConfig,
+			httpClient:   httpClient,
 		},
 		clientSecret: testSecret,
 	}
 }
 
 // GetAuthorizationURL returns the test authorization URL
+// For the test provider, we'll create a direct callback URL instead of an external redirect
 func (p *TestProvider) GetAuthorizationURL(state string) string {
-	return p.oauth2Config.AuthCodeURL(state)
+	// For test provider, generate a fake auth code and redirect directly to callback
+	authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
+	
+	callbackURL := p.oauth2Config.RedirectURL
+	if callbackURL == "" {
+		// Fallback to default callback
+		callbackURL = "http://localhost:8080/auth/callback"
+	}
+	
+	// Parse the callback URL and add query parameters
+	if parsedURL, err := url.Parse(callbackURL); err == nil {
+		params := url.Values{}
+		params.Add("code", authCode)
+		params.Add("state", state)
+		parsedURL.RawQuery = params.Encode()
+		return parsedURL.String()
+	}
+	
+	// Fallback if URL parsing fails
+	return fmt.Sprintf("%s?code=%s&state=%s", callbackURL, authCode, state)
 }
 
 // ExchangeCode simulates token exchange and always succeeds
