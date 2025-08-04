@@ -602,3 +602,499 @@ func (h *DiagramMetadataHandler) DeleteDirectDiagramCellMetadata(c *gin.Context)
 	logger.Debug("Successfully deleted metadata key '%s' for cell %s", key, cellID)
 	c.JSON(http.StatusNoContent, nil)
 }
+
+// Threat model diagram metadata handlers for /threat_models/:id/diagrams/:diagram_id/metadata endpoints
+
+// GetThreatModelDiagramMetadata retrieves all metadata for a diagram within a threat model
+// GET /threat_models/{id}/diagrams/{diagram_id}/metadata
+func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("GetThreatModelDiagramMetadata - retrieving metadata for diagram in threat model")
+
+	// Extract threat model ID and diagram ID from URL
+	threatModelID := c.Param("id")
+	diagramID := c.Param("diagram_id")
+
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+
+	// Validate threat model ID and diagram ID formats
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	logger.Debug("Retrieving metadata for diagram %s in threat model %s (user: %s)", diagramID, threatModelID, userName)
+
+	// Get metadata from store using diagram entity type
+	metadata, err := h.metadataStore.List(c.Request.Context(), "diagram", diagramID)
+	if err != nil {
+		logger.Error("Failed to retrieve diagram metadata for %s: %v", diagramID, err)
+		HandleRequestError(c, ServerError("Failed to retrieve metadata"))
+		return
+	}
+
+	logger.Debug("Successfully retrieved %d metadata items for diagram %s", len(metadata), diagramID)
+	c.JSON(http.StatusOK, metadata)
+}
+
+// GetThreatModelDiagramMetadataByKey retrieves a specific metadata entry by key for a diagram within a threat model
+// GET /threat_models/{id}/diagrams/{diagram_id}/metadata/{key}
+func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadataByKey(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("GetThreatModelDiagramMetadataByKey - retrieving specific metadata entry for diagram in threat model")
+
+	// Extract threat model ID, diagram ID, and key from URL
+	threatModelID := c.Param("id")
+	diagramID := c.Param("diagram_id")
+	key := c.Param("key")
+
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+	if key == "" {
+		HandleRequestError(c, InvalidInputError("Missing metadata key"))
+		return
+	}
+
+	// Validate threat model ID and diagram ID formats
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	logger.Debug("Retrieving metadata key '%s' for diagram %s in threat model %s (user: %s)", key, diagramID, threatModelID, userName)
+
+	// Get metadata entry from store
+	metadata, err := h.metadataStore.Get(c.Request.Context(), "diagram", diagramID, key)
+	if err != nil {
+		logger.Error("Failed to retrieve diagram metadata key '%s' for %s: %v", key, diagramID, err)
+		HandleRequestError(c, NotFoundError("Metadata entry not found"))
+		return
+	}
+
+	logger.Debug("Successfully retrieved metadata key '%s' for diagram %s", key, diagramID)
+	c.JSON(http.StatusOK, metadata)
+}
+
+// CreateThreatModelDiagramMetadata creates a new metadata entry for a diagram within a threat model
+// POST /threat_models/{id}/diagrams/{diagram_id}/metadata
+func (h *DiagramMetadataHandler) CreateThreatModelDiagramMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("CreateThreatModelDiagramMetadata - creating new metadata entry for diagram in threat model")
+
+	// Extract threat model ID and diagram ID from URL
+	threatModelID := c.Param("id")
+	diagramID := c.Param("diagram_id")
+
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+
+	// Validate threat model ID and diagram ID formats
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse request body
+	metadata, err := ParseRequestBody[Metadata](c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Validate required fields
+	if metadata.Key == "" {
+		HandleRequestError(c, InvalidInputError("Metadata key is required"))
+		return
+	}
+	if metadata.Value == "" {
+		HandleRequestError(c, InvalidInputError("Metadata value is required"))
+		return
+	}
+
+	logger.Debug("Creating metadata key '%s' for diagram %s in threat model %s (user: %s)", metadata.Key, diagramID, threatModelID, userName)
+
+	// Create metadata entry in store
+	if err := h.metadataStore.Create(c.Request.Context(), "diagram", diagramID, &metadata); err != nil {
+		logger.Error("Failed to create diagram metadata key '%s' for %s: %v", metadata.Key, diagramID, err)
+		HandleRequestError(c, ServerError("Failed to create metadata"))
+		return
+	}
+
+	// Retrieve the created metadata to return with timestamps
+	createdMetadata, err := h.metadataStore.Get(c.Request.Context(), "diagram", diagramID, metadata.Key)
+	if err != nil {
+		// Log error but still return success since creation succeeded
+		logger.Error("Failed to retrieve created metadata: %v", err)
+		c.JSON(http.StatusCreated, metadata)
+		return
+	}
+
+	logger.Debug("Successfully created metadata key '%s' for diagram %s", metadata.Key, diagramID)
+	c.JSON(http.StatusCreated, createdMetadata)
+}
+
+// UpdateThreatModelDiagramMetadata updates an existing metadata entry for a diagram within a threat model
+// PUT /threat_models/{id}/diagrams/{diagram_id}/metadata/{key}
+func (h *DiagramMetadataHandler) UpdateThreatModelDiagramMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("UpdateThreatModelDiagramMetadata - updating metadata entry for diagram in threat model")
+
+	// Extract threat model ID, diagram ID, and key from URL
+	threatModelID := c.Param("id")
+	diagramID := c.Param("diagram_id")
+	key := c.Param("key")
+
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+	if key == "" {
+		HandleRequestError(c, InvalidInputError("Missing metadata key"))
+		return
+	}
+
+	// Validate threat model ID and diagram ID formats
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse request body
+	metadata, err := ParseRequestBody[Metadata](c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Validate required fields
+	if metadata.Value == "" {
+		HandleRequestError(c, InvalidInputError("Metadata value is required"))
+		return
+	}
+
+	// Ensure the key matches the URL parameter
+	metadata.Key = key
+
+	logger.Debug("Updating metadata key '%s' for diagram %s in threat model %s (user: %s)", key, diagramID, threatModelID, userName)
+
+	// Update metadata entry in store
+	if err := h.metadataStore.Update(c.Request.Context(), "diagram", diagramID, &metadata); err != nil {
+		logger.Error("Failed to update diagram metadata key '%s' for %s: %v", key, diagramID, err)
+		HandleRequestError(c, ServerError("Failed to update metadata"))
+		return
+	}
+
+	// Retrieve the updated metadata to return
+	updatedMetadata, err := h.metadataStore.Get(c.Request.Context(), "diagram", diagramID, key)
+	if err != nil {
+		logger.Error("Failed to retrieve updated metadata: %v", err)
+		HandleRequestError(c, ServerError("Failed to retrieve updated metadata"))
+		return
+	}
+
+	logger.Debug("Successfully updated metadata key '%s' for diagram %s", key, diagramID)
+	c.JSON(http.StatusOK, updatedMetadata)
+}
+
+// DeleteThreatModelDiagramMetadata deletes a metadata entry for a diagram within a threat model
+// DELETE /threat_models/{id}/diagrams/{diagram_id}/metadata/{key}
+func (h *DiagramMetadataHandler) DeleteThreatModelDiagramMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("DeleteThreatModelDiagramMetadata - deleting metadata entry for diagram in threat model")
+
+	// Extract threat model ID, diagram ID, and key from URL
+	threatModelID := c.Param("id")
+	diagramID := c.Param("diagram_id")
+	key := c.Param("key")
+
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+	if key == "" {
+		HandleRequestError(c, InvalidInputError("Missing metadata key"))
+		return
+	}
+
+	// Validate threat model ID and diagram ID formats
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	logger.Debug("Deleting metadata key '%s' for diagram %s in threat model %s (user: %s)", key, diagramID, threatModelID, userName)
+
+	// Delete metadata entry from store
+	if err := h.metadataStore.Delete(c.Request.Context(), "diagram", diagramID, key); err != nil {
+		logger.Error("Failed to delete diagram metadata key '%s' for %s: %v", key, diagramID, err)
+		HandleRequestError(c, ServerError("Failed to delete metadata"))
+		return
+	}
+
+	logger.Debug("Successfully deleted metadata key '%s' for diagram %s", key, diagramID)
+	c.JSON(http.StatusNoContent, nil)
+}
+
+// BulkCreateDirectDiagramMetadata creates multiple metadata entries for a diagram via direct route
+// POST /diagrams/{id}/metadata/bulk
+func (h *DiagramMetadataHandler) BulkCreateDirectDiagramMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("BulkCreateDirectDiagramMetadata - creating multiple metadata entries")
+
+	// Extract diagram ID from URL
+	diagramID := c.Param("id")
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+
+	// Validate diagram ID format
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse request body as array of metadata
+	metadataList, err := ParseRequestBody[[]Metadata](c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if len(metadataList) == 0 {
+		HandleRequestError(c, InvalidInputError("No metadata entries provided"))
+		return
+	}
+
+	if len(metadataList) > 20 {
+		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+		return
+	}
+
+	// Validate all metadata entries
+	for i, metadata := range metadataList {
+		if metadata.Key == "" {
+			HandleRequestError(c, InvalidInputError("Metadata key is required for all entries"))
+			return
+		}
+		if metadata.Value == "" {
+			HandleRequestError(c, InvalidInputError("Metadata value is required for all entries"))
+			return
+		}
+
+		// Check for duplicate keys within the request
+		for j := i + 1; j < len(metadataList); j++ {
+			if metadataList[j].Key == metadata.Key {
+				HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
+				return
+			}
+		}
+	}
+
+	logger.Debug("Bulk creating %d metadata entries for diagram %s (user: %s)",
+		len(metadataList), diagramID, userName)
+
+	// Create metadata entries in store
+	if err := h.metadataStore.BulkCreate(c.Request.Context(), "diagram", diagramID, metadataList); err != nil {
+		logger.Error("Failed to bulk create diagram metadata for %s: %v", diagramID, err)
+		HandleRequestError(c, ServerError("Failed to create metadata entries"))
+		return
+	}
+
+	// Retrieve the created metadata to return with timestamps
+	createdMetadata, err := h.metadataStore.List(c.Request.Context(), "diagram", diagramID)
+	if err != nil {
+		// Log error but still return success since creation succeeded
+		logger.Error("Failed to retrieve created metadata: %v", err)
+		c.JSON(http.StatusCreated, metadataList)
+		return
+	}
+
+	logger.Debug("Successfully bulk created %d metadata entries for diagram %s", len(metadataList), diagramID)
+	c.JSON(http.StatusCreated, createdMetadata)
+}
+
+// BulkCreateThreatModelDiagramMetadata creates multiple metadata entries for a diagram within a threat model
+// POST /threat_models/{id}/diagrams/{diagram_id}/metadata/bulk
+func (h *DiagramMetadataHandler) BulkCreateThreatModelDiagramMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("BulkCreateThreatModelDiagramMetadata - creating multiple metadata entries for diagram in threat model")
+
+	// Extract threat model ID and diagram ID from URL
+	threatModelID := c.Param("id")
+	diagramID := c.Param("diagram_id")
+
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+
+	// Validate threat model ID and diagram ID formats
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse request body as array of metadata
+	metadataList, err := ParseRequestBody[[]Metadata](c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if len(metadataList) == 0 {
+		HandleRequestError(c, InvalidInputError("No metadata entries provided"))
+		return
+	}
+
+	if len(metadataList) > 20 {
+		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+		return
+	}
+
+	// Validate all metadata entries
+	for i, metadata := range metadataList {
+		if metadata.Key == "" {
+			HandleRequestError(c, InvalidInputError("Metadata key is required for all entries"))
+			return
+		}
+		if metadata.Value == "" {
+			HandleRequestError(c, InvalidInputError("Metadata value is required for all entries"))
+			return
+		}
+
+		// Check for duplicate keys within the request
+		for j := i + 1; j < len(metadataList); j++ {
+			if metadataList[j].Key == metadata.Key {
+				HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
+				return
+			}
+		}
+	}
+
+	logger.Debug("Bulk creating %d metadata entries for diagram %s in threat model %s (user: %s)",
+		len(metadataList), diagramID, threatModelID, userName)
+
+	// Create metadata entries in store
+	if err := h.metadataStore.BulkCreate(c.Request.Context(), "diagram", diagramID, metadataList); err != nil {
+		logger.Error("Failed to bulk create diagram metadata for %s: %v", diagramID, err)
+		HandleRequestError(c, ServerError("Failed to create metadata entries"))
+		return
+	}
+
+	// Retrieve the created metadata to return with timestamps
+	createdMetadata, err := h.metadataStore.List(c.Request.Context(), "diagram", diagramID)
+	if err != nil {
+		// Log error but still return success since creation succeeded
+		logger.Error("Failed to retrieve created metadata: %v", err)
+		c.JSON(http.StatusCreated, metadataList)
+		return
+	}
+
+	logger.Debug("Successfully bulk created %d metadata entries for diagram %s", len(metadataList), diagramID)
+	c.JSON(http.StatusCreated, createdMetadata)
+}
