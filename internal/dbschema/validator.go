@@ -506,50 +506,54 @@ func columnsMatch(cols1, cols2 []string) bool {
 	return true
 }
 
-// checkConstraintMatches checks if an expected constraint definition matches the actual PostgreSQL definition
-// PostgreSQL reformats CHECK constraints with type casts and array syntax, so we need to handle these variations
-func checkConstraintMatches(expected, actual string) bool {
-	// Normalize both strings for comparison
-	expected = strings.ToLower(strings.TrimSpace(expected))
-	actual = strings.ToLower(strings.TrimSpace(actual))
+// normalizeConstraint normalizes constraint strings for comparison
+func normalizeConstraint(constraint string) string {
+	return strings.ToLower(strings.TrimSpace(constraint))
+}
 
-	// Direct match
-	if strings.Contains(actual, expected) {
-		return true
+// matchDirectConstraint checks for direct string matching
+func matchDirectConstraint(expected, actual string) bool {
+	return strings.Contains(actual, expected)
+}
+
+// matchInClauseConstraint handles IN clause variations
+// Expected: "provider IN ('google', 'github', 'microsoft', 'apple', 'facebook', 'twitter')"
+// Actual: "CHECK (((provider)::text = ANY ((ARRAY['google'::character varying, ...]::text[])))"
+func matchInClauseConstraint(expected, actual string) bool {
+	if !strings.Contains(expected, " in (") {
+		return false
 	}
 
-	// Handle IN clause variations
-	// Expected: "provider IN ('google', 'github', 'microsoft', 'apple', 'facebook', 'twitter')"
-	// Actual: "CHECK (((provider)::text = ANY ((ARRAY['google'::character varying, ...]::text[])))"
-	if strings.Contains(expected, " in (") {
-		// Extract the column name and values from expected
-		parts := strings.SplitN(expected, " in ", 2)
-		if len(parts) == 2 {
-			column := strings.TrimSpace(parts[0])
-			valuesStr := strings.Trim(parts[1], "()")
+	// Extract the column name and values from expected
+	parts := strings.SplitN(expected, " in ", 2)
+	if len(parts) != 2 {
+		return false
+	}
 
-			// Check if actual contains the column and all the values
-			if strings.Contains(actual, column) {
-				// Remove quotes and split values
-				valuesStr = strings.ReplaceAll(valuesStr, "'", "")
-				values := strings.Split(valuesStr, ",")
+	column := strings.TrimSpace(parts[0])
+	valuesStr := strings.Trim(parts[1], "()")
 
-				allFound := true
-				for _, val := range values {
-					val = strings.TrimSpace(val)
-					if !strings.Contains(actual, val) {
-						allFound = false
-						break
-					}
-				}
+	// Check if actual contains the column and all the values
+	if !strings.Contains(actual, column) {
+		return false
+	}
 
-				if allFound {
-					return true
-				}
-			}
+	// Remove quotes and split values
+	valuesStr = strings.ReplaceAll(valuesStr, "'", "")
+	values := strings.Split(valuesStr, ",")
+
+	for _, val := range values {
+		val = strings.TrimSpace(val)
+		if !strings.Contains(actual, val) {
+			return false
 		}
 	}
 
+	return true
+}
+
+// matchComparisonConstraint handles comparison operators (!=, >, <=, etc.)
+func matchComparisonConstraint(expected, actual string) bool {
 	// Handle != comparisons
 	// Expected: "provider_user_id != ''"
 	// Actual: "CHECK (((provider_user_id)::text <> ''::text))"
@@ -585,161 +589,188 @@ func checkConstraintMatches(expected, actual string) bool {
 		}
 	}
 
-	// Handle OR conditions with IS NULL
-	// Expected: "severity IS NULL OR severity IN ('low', 'medium', 'high', 'critical')"
-	// Expected: "expires_at IS NULL OR expires_at > created_at"
-	if strings.Contains(expected, " is null or ") {
-		// Check if the pattern matches
-		parts := strings.Split(expected, " or ")
-		if len(parts) == 2 {
-			nullPart := strings.TrimSpace(parts[0])
-			inPart := strings.TrimSpace(parts[1])
+	return false
+}
 
-			// Extract column from null check
-			nullParts := strings.Split(nullPart, " is null")
-			if len(nullParts) > 0 {
-				column := strings.TrimSpace(nullParts[0])
+// matchNullOrConstraint handles OR conditions with IS NULL
+// Expected: "severity IS NULL OR severity IN ('low', 'medium', 'high', 'critical')"
+// Expected: "expires_at IS NULL OR expires_at > created_at"
+func matchNullOrConstraint(expected, actual string) bool {
+	if !strings.Contains(expected, " is null or ") {
+		return false
+	}
 
-				// Check if actual contains the column, IS NULL, and the condition
-				if strings.Contains(actual, column) && strings.Contains(actual, "is null") {
-					// Handle IN clause: "severity IN ('low', 'medium', 'high', 'critical')"
-					if strings.Contains(inPart, " in (") {
-						inParts := strings.SplitN(inPart, " in ", 2)
-						if len(inParts) == 2 {
-							valuesStr := strings.Trim(inParts[1], "()")
-							valuesStr = strings.ReplaceAll(valuesStr, "'", "")
-							values := strings.Split(valuesStr, ",")
+	// Check if the pattern matches
+	parts := strings.Split(expected, " or ")
+	if len(parts) != 2 {
+		return false
+	}
 
-							allFound := true
-							for _, val := range values {
-								val = strings.TrimSpace(val)
-								if !strings.Contains(actual, val) {
-									allFound = false
-									break
-								}
-							}
+	nullPart := strings.TrimSpace(parts[0])
+	inPart := strings.TrimSpace(parts[1])
 
-							if allFound {
-								return true
-							}
-						}
-					}
+	// Extract column from null check
+	nullParts := strings.Split(nullPart, " is null")
+	if len(nullParts) == 0 {
+		return false
+	}
 
-					// Handle comparison: "expires_at > created_at"
-					if strings.Contains(inPart, " > ") {
-						compParts := strings.Split(inPart, " > ")
-						if len(compParts) == 2 {
-							col1 := strings.TrimSpace(compParts[0])
-							col2 := strings.TrimSpace(compParts[1])
-							if strings.Contains(actual, col1) && strings.Contains(actual, col2) && strings.Contains(actual, ">") {
-								return true
-							}
-						}
-					}
+	column := strings.TrimSpace(nullParts[0])
+
+	// Check if actual contains the column, IS NULL, and the condition
+	if !strings.Contains(actual, column) || !strings.Contains(actual, "is null") {
+		return false
+	}
+
+	// Handle IN clause: "severity IN ('low', 'medium', 'high', 'critical')"
+	if strings.Contains(inPart, " in (") {
+		return matchInClauseConstraint(inPart, actual)
+	}
+
+	// Handle comparison: "expires_at > created_at"
+	if strings.Contains(inPart, " > ") {
+		return matchComparisonConstraint(inPart, actual)
+	}
+
+	return false
+}
+
+// matchLengthTrimConstraint handles LENGTH/TRIM patterns
+// Expected: "LENGTH(TRIM(name)) > 0"
+// Actual: "length(TRIM(BOTH FROM name)) > 0" or "length(trim(both from name)) > 0"
+func matchLengthTrimConstraint(expected, actual string) bool {
+	if !strings.Contains(expected, "length(trim(") || !strings.Contains(expected, ")) >") {
+		return false
+	}
+
+	// Extract column name from expected pattern
+	// Pattern: "length(trim(column_name)) > value"
+	start := strings.Index(expected, "length(trim(") + len("length(trim(")
+	end := strings.Index(expected[start:], "))")
+	if end <= 0 {
+		return false
+	}
+
+	column := expected[start : start+end]
+
+	// Extract comparison value
+	parts := strings.Split(expected, ")) >")
+	if len(parts) != 2 {
+		return false
+	}
+
+	value := strings.TrimSpace(parts[1])
+
+	// Check if actual contains the column name, trim function, and comparison
+	return strings.Contains(actual, column) &&
+		(strings.Contains(actual, "trim(both from") || strings.Contains(actual, "trim(")) &&
+		strings.Contains(actual, "length(") &&
+		strings.Contains(actual, "> "+value)
+}
+
+// matchRegexConstraint handles regex patterns with potential type casting
+// Expected: "key ~ '^[a-zA-Z0-9_-]+$'"
+// Actual: "((key)::text ~ '^[a-zA-Z0-9_-]+$'::text)" or similar
+func matchRegexConstraint(expected, actual string) bool {
+	if !strings.Contains(expected, " ~ ") {
+		return false
+	}
+
+	parts := strings.Split(expected, " ~ ")
+	if len(parts) != 2 {
+		return false
+	}
+
+	column := strings.TrimSpace(parts[0])
+	pattern := strings.Trim(parts[1], "'")
+
+	// Check if actual contains the column, regex operator, and pattern
+	return strings.Contains(actual, column) &&
+		strings.Contains(actual, "~") &&
+		strings.Contains(actual, pattern)
+}
+
+// matchComplexAndConstraint handles complex AND constraints with LENGTH/TRIM
+// Expected: "LENGTH(TRIM(key)) > 0 AND LENGTH(key) <= 128"
+// Actual: "((length(TRIM(BOTH FROM key)) > 0) AND (length(key) <= 128))" or similar variations
+func matchComplexAndConstraint(expected, actual string) bool {
+	if !strings.Contains(expected, " and ") {
+		return false
+	}
+
+	parts := strings.Split(expected, " and ")
+	if len(parts) != 2 {
+		return false
+	}
+
+	part1 := strings.TrimSpace(parts[0])
+	part2 := strings.TrimSpace(parts[1])
+
+	// Check if both parts match using existing matchers
+	match1 := matchLengthTrimConstraint(part1, actual)
+	match2 := false
+
+	// Check second part (likely LENGTH(column) <= value)
+	if strings.Contains(part2, "length(") && strings.Contains(part2, ") <=") {
+		start := strings.Index(part2, "length(") + len("length(")
+		end := strings.Index(part2[start:], ")")
+		if end > 0 {
+			column := part2[start : start+end]
+			compParts := strings.Split(part2, ") <=")
+			if len(compParts) == 2 {
+				value := strings.TrimSpace(compParts[1])
+				if strings.Contains(actual, column) &&
+					strings.Contains(actual, "length(") &&
+					strings.Contains(actual, "<= "+value) {
+					match2 = true
 				}
 			}
 		}
+	}
+
+	return match1 && match2
+}
+
+// checkConstraintMatches checks if an expected constraint definition matches the actual PostgreSQL definition
+// PostgreSQL reformats CHECK constraints with type casts and array syntax, so we need to handle these variations
+func checkConstraintMatches(expected, actual string) bool {
+	// Normalize both strings for comparison
+	expected = normalizeConstraint(expected)
+	actual = normalizeConstraint(actual)
+
+	// Direct match
+	if matchDirectConstraint(expected, actual) {
+		return true
+	}
+
+	// Handle IN clause variations
+	if matchInClauseConstraint(expected, actual) {
+		return true
+	}
+
+	// Handle comparison operators
+	if matchComparisonConstraint(expected, actual) {
+		return true
+	}
+
+	// Handle OR conditions with IS NULL
+	if matchNullOrConstraint(expected, actual) {
+		return true
 	}
 
 	// Handle LENGTH/TRIM patterns
-	// Expected: "LENGTH(TRIM(name)) > 0"
-	// Actual: "length(TRIM(BOTH FROM name)) > 0" or "length(trim(both from name)) > 0"
-	if strings.Contains(expected, "length(trim(") && strings.Contains(expected, ")) >") {
-		// Extract column name from expected pattern
-		// Pattern: "length(trim(column_name)) > value"
-		start := strings.Index(expected, "length(trim(") + len("length(trim(")
-		end := strings.Index(expected[start:], "))")
-		if end > 0 {
-			column := expected[start : start+end]
-
-			// Extract comparison value
-			parts := strings.Split(expected, ")) >")
-			if len(parts) == 2 {
-				value := strings.TrimSpace(parts[1])
-
-				// Check if actual contains the column name, trim function, and comparison
-				if strings.Contains(actual, column) &&
-					(strings.Contains(actual, "trim(both from") || strings.Contains(actual, "trim(")) &&
-					strings.Contains(actual, "length(") &&
-					strings.Contains(actual, "> "+value) {
-					return true
-				}
-			}
-		}
+	if matchLengthTrimConstraint(expected, actual) {
+		return true
 	}
 
-	// Handle complex AND constraints with LENGTH/TRIM
-	// Expected: "LENGTH(TRIM(key)) > 0 AND LENGTH(key) <= 128"
-	// Actual: "((length(TRIM(BOTH FROM key)) > 0) AND (length(key) <= 128))" or similar variations
-	if strings.Contains(expected, " and ") {
-		parts := strings.Split(expected, " and ")
-		if len(parts) == 2 {
-			part1 := strings.TrimSpace(parts[0])
-			part2 := strings.TrimSpace(parts[1])
-
-			// Check if both parts of the AND condition are present in the actual constraint
-			match1 := false
-			match2 := false
-
-			// Check first part (likely LENGTH(TRIM(...)) > 0)
-			if strings.Contains(part1, "length(trim(") && strings.Contains(part1, ")) >") {
-				start := strings.Index(part1, "length(trim(") + len("length(trim(")
-				end := strings.Index(part1[start:], "))")
-				if end > 0 {
-					column := part1[start : start+end]
-					compParts := strings.Split(part1, ")) >")
-					if len(compParts) == 2 {
-						value := strings.TrimSpace(compParts[1])
-						if strings.Contains(actual, column) &&
-							(strings.Contains(actual, "trim(both from") || strings.Contains(actual, "trim(")) &&
-							strings.Contains(actual, "length(") &&
-							strings.Contains(actual, "> "+value) {
-							match1 = true
-						}
-					}
-				}
-			}
-
-			// Check second part (likely LENGTH(column) <= value)
-			if strings.Contains(part2, "length(") && strings.Contains(part2, ") <=") {
-				start := strings.Index(part2, "length(") + len("length(")
-				end := strings.Index(part2[start:], ")")
-				if end > 0 {
-					column := part2[start : start+end]
-					compParts := strings.Split(part2, ") <=")
-					if len(compParts) == 2 {
-						value := strings.TrimSpace(compParts[1])
-						if strings.Contains(actual, column) &&
-							strings.Contains(actual, "length(") &&
-							strings.Contains(actual, "<= "+value) {
-							match2 = true
-						}
-					}
-				}
-			}
-
-			if match1 && match2 {
-				return true
-			}
-		}
+	// Handle complex AND constraints
+	if matchComplexAndConstraint(expected, actual) {
+		return true
 	}
 
-	// Handle regex patterns with potential type casting
-	// Expected: "key ~ '^[a-zA-Z0-9_-]+$'"
-	// Actual: "((key)::text ~ '^[a-zA-Z0-9_-]+$'::text)" or similar
-	if strings.Contains(expected, " ~ ") {
-		parts := strings.Split(expected, " ~ ")
-		if len(parts) == 2 {
-			column := strings.TrimSpace(parts[0])
-			pattern := strings.Trim(parts[1], "'")
-
-			// Check if actual contains the column, regex operator, and pattern
-			if strings.Contains(actual, column) &&
-				strings.Contains(actual, "~") &&
-				strings.Contains(actual, pattern) {
-				return true
-			}
-		}
+	// Handle regex patterns
+	if matchRegexConstraint(expected, actual) {
+		return true
 	}
 
 	return false
