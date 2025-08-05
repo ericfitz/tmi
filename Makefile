@@ -1,4 +1,4 @@
-.PHONY: build test test-one lint clean dev prod dev-db dev-redis dev-app build-postgres build-redis gen-config dev-observability test-telemetry benchmark-telemetry validate-otel-config
+.PHONY: build test test-one lint clean dev prod dev-db dev-redis dev-app build-postgres build-redis gen-config dev-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup
 
 # Default build target
 VERSION := 0.1.0
@@ -19,6 +19,16 @@ test-one:
 		exit 1; \
 	fi
 	TMI_LOGGING_IS_TEST=true go test ./... -run $(name)
+
+# Run integration tests with automatic database setup
+test-integration:
+	@echo "Running integration tests with automatic database setup..."
+	./scripts/integration-test.sh
+
+# Cleanup integration test containers only
+test-integration-cleanup:
+	@echo "Cleaning up integration test containers..."
+	./scripts/integration-test.sh --cleanup-only
 
 # Run linter
 lint:

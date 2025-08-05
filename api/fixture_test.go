@@ -64,11 +64,12 @@ func TestGetFixturesDiagram(t *testing.T) {
 	assert.NoError(t, err, "Test diagram should exist in the store")
 	assert.Equal(t, TestFixtures.Diagram.Name, d.Name)
 
-	// Setup router with owner user
+	// Setup router with owner user using sub-entity pattern
 	r := setupDiagramRouterWithUser(TestFixtures.OwnerUser)
 
-	// Request the diagram using current ID
-	req, _ := http.NewRequest("GET", "/diagrams/"+TestFixtures.DiagramID, nil)
+	// Request the diagram using current ID via sub-entity endpoint
+	diagramURL := fmt.Sprintf("/threat_models/%s/diagrams/%s", TestFixtures.ThreatModelID, TestFixtures.DiagramID)
+	req, _ := http.NewRequest("GET", diagramURL, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 

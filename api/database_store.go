@@ -729,8 +729,78 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 }
 
 func (s *ThreatModelDatabaseStore) loadDiagrams(threatModelId string) ([]Diagram, error) {
-	// For now, return empty diagrams - we'll implement diagram loading separately
-	return []Diagram{}, nil
+	query := `
+		SELECT id, name, type, content, cells, metadata, created_at, updated_at
+		FROM diagrams 
+		WHERE threat_model_id = $1`
+
+	rows, err := s.db.Query(query, threatModelId)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Error closing rows, but don't fail the operation
+			_ = err
+		}
+	}()
+
+	var diagrams []Diagram
+	for rows.Next() {
+		var diagramUuid uuid.UUID
+		var name, diagramType string
+		var description *string
+		var cellsJSON, metadataJSON []byte
+		var createdAt, updatedAt time.Time
+
+		if err := rows.Scan(&diagramUuid, &name, &diagramType, &description, &cellsJSON, &metadataJSON, &createdAt, &updatedAt); err != nil {
+			continue
+		}
+
+		// Parse cells JSON
+		var cells []DfdDiagram_Cells_Item
+		if cellsJSON != nil {
+			if err := json.Unmarshal(cellsJSON, &cells); err != nil {
+				continue // Skip this diagram if cells can't be parsed
+			}
+		}
+
+		// Parse metadata JSON
+		var metadata []Metadata
+		if metadataJSON != nil {
+			if err := json.Unmarshal(metadataJSON, &metadata); err != nil {
+				continue // Skip this diagram if metadata can't be parsed
+			}
+		}
+
+		// Convert type to enum
+		diagType := DfdDiagramTypeDFD100 // default
+		if diagramType != "" {
+			diagType = DfdDiagramType(diagramType)
+		}
+
+		// Create DfdDiagram
+		dfdDiagram := DfdDiagram{
+			Id:          &diagramUuid,
+			Name:        name,
+			Description: description,
+			Type:        diagType,
+			Cells:       cells,
+			Metadata:    &metadata,
+			CreatedAt:   createdAt,
+			ModifiedAt:  updatedAt,
+		}
+
+		// Convert to Diagram union type
+		var diagramUnion Diagram
+		if err := diagramUnion.FromDfdDiagram(dfdDiagram); err != nil {
+			continue // Skip this diagram if union conversion fails
+		}
+
+		diagrams = append(diagrams, diagramUnion)
+	}
+
+	return diagrams, nil
 }
 
 func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId string, authorization []Authorization) error {
@@ -875,6 +945,10 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 		ModifiedAt:  updatedAt,
 	}
 
+	// Store threat model ID in context for later use
+	// This is a workaround since DfdDiagram doesn't have ThreatModelId field
+	// We'll add it to metadata or handle it in the handler
+
 	return diagram, nil
 }
 
@@ -884,8 +958,8 @@ func (s *DiagramDatabaseStore) List(offset, limit int, filter func(DfdDiagram) b
 	return []DfdDiagram{}
 }
 
-// Create adds a new diagram
-func (s *DiagramDatabaseStore) Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
+// CreateWithThreatModel adds a new diagram with a specific threat model ID
+func (s *DiagramDatabaseStore) CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -910,17 +984,18 @@ func (s *DiagramDatabaseStore) Create(item DfdDiagram, idSetter func(DfdDiagram,
 		}
 	}
 
-	// Note: This Create method for diagrams has a design limitation
-	// Diagrams should be created through threat models, not independently
-	// For now, we'll use a placeholder threat_model_id
-	threatModelId := uuid.Nil // This should be properly set in production
+	// Parse the threat model ID
+	threatModelUUID, err := uuid.Parse(threatModelID)
+	if err != nil {
+		return item, fmt.Errorf("invalid threat model ID format: %w", err)
+	}
 
 	query := `
 		INSERT INTO diagrams (id, threat_model_id, name, type, content, cells, metadata, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	_, err = s.db.Exec(query,
-		id, threatModelId, item.Name, string(item.Type), item.Description,
+		id, threatModelUUID, item.Name, string(item.Type), item.Description,
 		cellsJSON, metadataJSON, item.CreatedAt, item.ModifiedAt,
 	)
 	if err != nil {
@@ -928,6 +1003,13 @@ func (s *DiagramDatabaseStore) Create(item DfdDiagram, idSetter func(DfdDiagram,
 	}
 
 	return item, nil
+}
+
+// Create adds a new diagram (maintains backward compatibility)
+func (s *DiagramDatabaseStore) Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
+	// This method uses uuid.Nil for backward compatibility
+	// New code should use CreateWithThreatModel instead
+	return s.CreateWithThreatModel(item, uuid.Nil.String(), idSetter)
 }
 
 // Update modifies an existing diagram

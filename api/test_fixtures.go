@@ -114,7 +114,7 @@ func InitTestFixtures() {
 		},
 		Metadata: &metadata,
 		Threats:  &threats,
-		// Diagrams: &diagrams, // TODO: Fix after schema changes
+		// Diagrams will be set after creating the diagram
 	}
 
 	// Create a test diagram with cells using new union types
@@ -181,14 +181,24 @@ func InitTestFixtures() {
 	TestFixtures.DiagramID = dID
 	TestFixtures.DiagramAuth = diagramAuth
 
+	// Associate the diagram with the threat model by adding it to the Diagrams array
+	var diagramUnion Diagram
+	if err := diagramUnion.FromDfdDiagram(diagram); err == nil {
+		diagrams := []Diagram{diagramUnion}
+		threatModel.Diagrams = &diagrams
+		TestFixtures.ThreatModel = threatModel
+	}
+
 	// Add to stores (handling both in-memory and database stores)
+	// Use the updated threat model that has the diagram association
+	updatedThreatModel := TestFixtures.ThreatModel
 	if inMemoryTMStore, ok := ThreatModelStore.(*ThreatModelInMemoryStore); ok {
 		inMemoryTMStore.mutex.Lock()
-		inMemoryTMStore.data[tmID] = threatModel
+		inMemoryTMStore.data[tmID] = updatedThreatModel
 		inMemoryTMStore.mutex.Unlock()
 	} else {
 		// For database stores, use the interface
-		_, _ = ThreatModelStore.Create(threatModel, func(tm ThreatModel, _ string) ThreatModel {
+		_, _ = ThreatModelStore.Create(updatedThreatModel, func(tm ThreatModel, _ string) ThreatModel {
 			parsedId, _ := ParseUUID(tmID)
 			tm.Id = &parsedId
 			return tm

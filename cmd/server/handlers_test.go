@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/ericfitz/tmi/api"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setupTestRouter() *gin.Engine {
@@ -107,14 +109,36 @@ func TestPostDiagrams(t *testing.T) {
 	// Setup
 	r := setupTestRouter()
 
-	// Test request body
-	diagram := api.DiagramRequest{
+	// Step 1: Create a threat model first
+	threatModel := api.PostThreatModelsJSONBody{
+		Name:        "Test Threat Model for Diagram",
+		Description: stringPtr("Test threat model for diagram creation"),
+	}
+
+	tmBody, _ := json.Marshal(threatModel)
+	tmReq, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(tmBody))
+	tmReq.Header.Set("Content-Type", "application/json")
+	tmReq.Header.Add("Authorization", "Bearer test-token")
+
+	tmW := httptest.NewRecorder()
+	r.ServeHTTP(tmW, tmReq)
+
+	require.Equal(t, http.StatusCreated, tmW.Code, "Failed to create threat model: %s", tmW.Body.String())
+
+	var tmResponse api.ThreatModel
+	err := json.Unmarshal(tmW.Body.Bytes(), &tmResponse)
+	require.NoError(t, err)
+	threatModelID := tmResponse.Id.String()
+
+	// Step 2: Create diagram through threat model sub-entity endpoint  
+	diagram := api.PostThreatModelsThreatModelIdDiagramsJSONBody{
 		Name:        "Test Diagram",
 		Description: stringPtr("Test diagram description"),
 	}
 
 	body, _ := json.Marshal(diagram)
-	req, _ := http.NewRequest("POST", "/diagrams", bytes.NewBuffer(body))
+	diagramURL := fmt.Sprintf("/threat_models/%s/diagrams", threatModelID)
+	req, _ := http.NewRequest("POST", diagramURL, bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Add("Authorization", "Bearer test-token")
 
@@ -128,7 +152,7 @@ func TestPostDiagrams(t *testing.T) {
 
 	// Verify the response contains the created diagram
 	var responseUnion api.Diagram
-	err := json.Unmarshal(w.Body.Bytes(), &responseUnion)
+	err = json.Unmarshal(w.Body.Bytes(), &responseUnion)
 	assert.NoError(t, err)
 
 	// Convert union type to DfdDiagram for field access
@@ -144,14 +168,36 @@ func TestGetDiagramsId(t *testing.T) {
 	// Setup
 	r := setupTestRouter()
 
-	// First, create a new diagram
-	diagramReq := api.DiagramRequest{
+	// Step 1: Create a threat model first
+	threatModel := api.PostThreatModelsJSONBody{
+		Name:        "Test Threat Model for GetById",
+		Description: stringPtr("Test threat model for diagram retrieval"),
+	}
+
+	tmBody, _ := json.Marshal(threatModel)
+	tmReq, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(tmBody))
+	tmReq.Header.Set("Content-Type", "application/json")
+	tmReq.Header.Add("Authorization", "Bearer test-token")
+
+	tmW := httptest.NewRecorder()
+	r.ServeHTTP(tmW, tmReq)
+
+	require.Equal(t, http.StatusCreated, tmW.Code, "Failed to create threat model: %s", tmW.Body.String())
+
+	var tmResponse api.ThreatModel
+	err := json.Unmarshal(tmW.Body.Bytes(), &tmResponse)
+	require.NoError(t, err)
+	threatModelID := tmResponse.Id.String()
+
+	// Step 2: Create a new diagram through sub-entity endpoint
+	diagramReq := api.PostThreatModelsThreatModelIdDiagramsJSONBody{
 		Name:        "Test Diagram for GetById",
 		Description: stringPtr("This is a test diagram for GetById"),
 	}
 
 	body, _ := json.Marshal(diagramReq)
-	createReq, _ := http.NewRequest("POST", "/diagrams", bytes.NewBuffer(body))
+	diagramURL := fmt.Sprintf("/threat_models/%s/diagrams", threatModelID)
+	createReq, _ := http.NewRequest("POST", diagramURL, bytes.NewBuffer(body))
 	createReq.Header.Set("Content-Type", "application/json")
 	createReq.Header.Add("Authorization", "Bearer test-token")
 
@@ -172,8 +218,9 @@ func TestGetDiagramsId(t *testing.T) {
 	}
 	id := createdDiagram.Id.String()
 
-	// Now test getting the diagram by ID
-	getReq, _ := http.NewRequest("GET", "/diagrams/"+id, nil)
+	// Step 3: Test getting the diagram by ID through sub-entity endpoint
+	getDiagramURL := fmt.Sprintf("/threat_models/%s/diagrams/%s", threatModelID, id)
+	getReq, _ := http.NewRequest("GET", getDiagramURL, nil)
 	getReq.Header.Add("Authorization", "Bearer test-token")
 
 	getW := httptest.NewRecorder()

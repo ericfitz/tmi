@@ -21,6 +21,8 @@ This repository contains API documentation and Go implementation for a Collabora
 - Build: `make build` (creates bin/server executable)
 - Test: `make test` (runs all tests)
 - Test specific: `make test-one name=TestName`
+- Integration tests: `make test-integration` (runs database integration tests with automatic setup/cleanup)
+- Integration cleanup: `make test-integration-cleanup` (cleans up integration test containers)
 - Lint: `make lint` (runs golangci-lint)
 - Generate API: `make gen-api` (uses oapi-codegen with config from oapi-codegen-config.yaml)
 - Development: `make dev` (starts full dev environment with DB and Redis)

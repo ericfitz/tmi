@@ -274,12 +274,17 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	})
 
 	// Add middleware and handler
+	ownerRouter.Use(ThreatModelMiddleware())
 	ownerRouter.Use(DiagramMiddleware())
-	handler := NewDiagramHandler()
-	ownerRouter.GET("/diagrams/:id", handler.GetDiagramByID)
+	threatModelDiagramHandler := NewThreatModelDiagramHandler()
+	ownerRouter.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("id")
+		diagramID := c.Param("diagram_id")
+		threatModelDiagramHandler.GetDiagramByID(c, threatModelID, diagramID)
+	})
 
-	// Create and send request
-	ownerReq, _ := http.NewRequest("GET", "/diagrams/"+TestFixtures.DiagramID, nil)
+	// Create and send request using sub-entity endpoint
+	ownerReq, _ := http.NewRequest("GET", "/threat_models/"+TestFixtures.ThreatModelID+"/diagrams/"+TestFixtures.DiagramID, nil)
 	ownerW := httptest.NewRecorder()
 	ownerRouter.ServeHTTP(ownerW, ownerReq)
 
@@ -296,12 +301,21 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	})
 
 	// Add middleware and handler
+	writerRouter.Use(ThreatModelMiddleware())
 	writerRouter.Use(DiagramMiddleware())
-	writerRouter.GET("/diagrams/:id", handler.GetDiagramByID)
-	writerRouter.PUT("/diagrams/:id", handler.UpdateDiagram)
+	writerRouter.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("id")
+		diagramID := c.Param("diagram_id")
+		threatModelDiagramHandler.GetDiagramByID(c, threatModelID, diagramID)
+	})
+	writerRouter.PUT("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("id")
+		diagramID := c.Param("diagram_id")
+		threatModelDiagramHandler.UpdateDiagram(c, threatModelID, diagramID)
+	})
 
 	// First verify the writer can access the diagram
-	writerGetReq, _ := http.NewRequest("GET", "/diagrams/"+TestFixtures.DiagramID, nil)
+	writerGetReq, _ := http.NewRequest("GET", "/threat_models/"+TestFixtures.ThreatModelID+"/diagrams/"+TestFixtures.DiagramID, nil)
 	writerGetW := httptest.NewRecorder()
 	writerRouter.ServeHTTP(writerGetW, writerGetReq)
 
@@ -325,8 +339,8 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	jsonData, err := json.Marshal(updatePayload)
 	require.NoError(t, err)
 
-	// Create and send request
-	writerPutReq, _ := http.NewRequest("PUT", "/diagrams/"+TestFixtures.DiagramID, bytes.NewBuffer(jsonData))
+	// Create and send request using sub-entity endpoint
+	writerPutReq, _ := http.NewRequest("PUT", "/threat_models/"+TestFixtures.ThreatModelID+"/diagrams/"+TestFixtures.DiagramID, bytes.NewBuffer(jsonData))
 	writerPutReq.Header.Set("Content-Type", "application/json")
 	writerPutW := httptest.NewRecorder()
 	writerRouter.ServeHTTP(writerPutW, writerPutReq)
@@ -344,12 +358,21 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	})
 
 	// Add middleware and handler
+	readerRouter.Use(ThreatModelMiddleware())
 	readerRouter.Use(DiagramMiddleware())
-	readerRouter.GET("/diagrams/:id", handler.GetDiagramByID)
-	readerRouter.PUT("/diagrams/:id", handler.UpdateDiagram)
+	readerRouter.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("id")
+		diagramID := c.Param("diagram_id")
+		threatModelDiagramHandler.GetDiagramByID(c, threatModelID, diagramID)
+	})
+	readerRouter.PUT("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("id")
+		diagramID := c.Param("diagram_id")
+		threatModelDiagramHandler.UpdateDiagram(c, threatModelID, diagramID)
+	})
 
 	// First verify the reader can access the diagram
-	readerGetReq, _ := http.NewRequest("GET", "/diagrams/"+TestFixtures.DiagramID, nil)
+	readerGetReq, _ := http.NewRequest("GET", "/threat_models/"+TestFixtures.ThreatModelID+"/diagrams/"+TestFixtures.DiagramID, nil)
 	readerGetW := httptest.NewRecorder()
 	readerRouter.ServeHTTP(readerGetW, readerGetReq)
 
@@ -368,8 +391,8 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	readerJsonData, err := json.Marshal(readerUpdatePayload)
 	require.NoError(t, err)
 
-	// Create and send request
-	readerPutReq, _ := http.NewRequest("PUT", "/diagrams/"+TestFixtures.DiagramID, bytes.NewBuffer(readerJsonData))
+	// Create and send request using sub-entity endpoint
+	readerPutReq, _ := http.NewRequest("PUT", "/threat_models/"+TestFixtures.ThreatModelID+"/diagrams/"+TestFixtures.DiagramID, bytes.NewBuffer(readerJsonData))
 	readerPutReq.Header.Set("Content-Type", "application/json")
 	readerPutW := httptest.NewRecorder()
 	readerRouter.ServeHTTP(readerPutW, readerPutReq)
@@ -387,11 +410,16 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	})
 
 	// Add middleware and handler
+	unauthorizedRouter.Use(ThreatModelMiddleware())
 	unauthorizedRouter.Use(DiagramMiddleware())
-	unauthorizedRouter.GET("/diagrams/:id", handler.GetDiagramByID)
+	unauthorizedRouter.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("id")
+		diagramID := c.Param("diagram_id")
+		threatModelDiagramHandler.GetDiagramByID(c, threatModelID, diagramID)
+	})
 
-	// Create and send request
-	unauthorizedReq, _ := http.NewRequest("GET", "/diagrams/"+TestFixtures.DiagramID, nil)
+	// Create and send request using sub-entity endpoint
+	unauthorizedReq, _ := http.NewRequest("GET", "/threat_models/"+TestFixtures.ThreatModelID+"/diagrams/"+TestFixtures.DiagramID, nil)
 	unauthorizedW := httptest.NewRecorder()
 	unauthorizedRouter.ServeHTTP(unauthorizedW, unauthorizedReq)
 

@@ -154,6 +154,17 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 
 	fmt.Printf("[DEBUG DIAGRAM HANDLER] Successfully parsed request: %+v\n", request)
 
+	// Get threat model ID from URL parameter
+	threatModelId := c.Param("threat_model_id")
+	if threatModelId == "" {
+		// Try the alternative parameter name used in some routes
+		threatModelId = c.Param("id")
+	}
+	if threatModelId == "" {
+		HandleRequestError(c, InvalidInputError("Missing threat model ID in URL"))
+		return
+	}
+
 	// Get username from JWT claim
 	userName, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
@@ -176,6 +187,32 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 	// Validate that owner is not duplicated in authorization list
 	if err := ValidateOwnerNotInAuthList(userName, request.Authorization); err != nil {
 		HandleRequestError(c, err)
+		return
+	}
+
+	// Validate threat model ID format
+	_, err = ParseUUID(threatModelId)
+	if err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+
+	// Verify threat model exists and user has access
+	threatModel, err := ThreatModelStore.Get(threatModelId)
+	if err != nil {
+		HandleRequestError(c, NotFoundError("Threat model not found"))
+		return
+	}
+
+	// Check if user has write access to the threat model
+	hasWriteAccess, err := CheckResourceAccess(userName, threatModel, RoleWriter)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if !hasWriteAccess {
+		HandleRequestError(c, ForbiddenError("Insufficient permissions to create diagrams in this threat model"))
 		return
 	}
 
@@ -225,6 +262,23 @@ func (h *DiagramHandler) CreateDiagram(c *gin.Context) {
 		return d
 	}
 
+	// Check if DiagramStore supports CreateWithThreatModel method
+	if dbStore, ok := DiagramStore.(*DiagramDatabaseStore); ok {
+		createdDiagram, err := dbStore.CreateWithThreatModel(d, threatModelId, idSetter)
+		if err != nil {
+			HandleRequestError(c, ServerError("Failed to create diagram"))
+			return
+		}
+
+		// Set the Location header
+		if createdDiagram.Id != nil {
+			c.Header("Location", "/diagrams/"+createdDiagram.Id.String())
+		}
+		c.JSON(http.StatusCreated, createdDiagram)
+		return
+	}
+
+	// Fallback to regular Create method for non-database stores
 	createdDiagram, err := DiagramStore.Create(d, idSetter)
 	if err != nil {
 		HandleRequestError(c, ServerError("Failed to create diagram"))

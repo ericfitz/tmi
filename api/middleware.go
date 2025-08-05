@@ -427,10 +427,52 @@ func DiagramMiddleware() gin.HandlerFunc {
 
 // GetUserRoleForDiagram determines the role of the user for a given diagram
 func GetUserRoleForDiagram(userName string, diagram DfdDiagram) Role {
-	// Diagrams use the owner and authorization data fields from their parent threat model
-	// Find the parent threat model for this diagram
-	// In a real implementation, we would look up the parent threat model
-	// For testing purposes, we'll use the TestFixtures.ThreatModel
+	// Diagrams inherit permissions from their parent threat model
+	// For database-backed diagrams, we need to find the parent threat model
+
+	// Try to find the parent threat model from the database
+	if dbStore, ok := DiagramStore.(*DiagramDatabaseStore); ok {
+		// This is a database-backed diagram
+		// Query the database directly to get the threat model ID for this diagram
+		if diagram.Id != nil {
+			diagramID := diagram.Id.String()
+
+			// Query the database to get the threat model ID
+			var threatModelID string
+			query := `SELECT threat_model_id FROM diagrams WHERE id = $1`
+			err := dbStore.db.QueryRow(query, diagramID).Scan(&threatModelID)
+			if err != nil {
+				// If we can't find the threat model, deny access
+				return ""
+			}
+
+			// Get the threat model from the store
+			if tmStore, ok := ThreatModelStore.(*ThreatModelDatabaseStore); ok {
+				threatModel, err := tmStore.Get(threatModelID)
+				if err != nil {
+					// If we can't get the threat model, deny access
+					return ""
+				}
+
+				// Check if the user is the owner
+				if userName == threatModel.Owner {
+					return RoleOwner
+				}
+
+				// Check authorization entries
+				for _, auth := range threatModel.Authorization {
+					if auth.Subject == userName {
+						return auth.Role
+					}
+				}
+
+				// No access found
+				return ""
+			}
+		}
+	}
+
+	// Fallback to TestFixtures for non-database stores
 	parentThreatModel := TestFixtures.ThreatModel
 
 	// Check if the user is the owner

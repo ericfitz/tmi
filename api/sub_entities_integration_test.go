@@ -152,6 +152,7 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	// Register API handlers directly
 	threatModelHandler := NewThreatModelHandler()
 	diagramHandler := NewDiagramHandler()
+	threatModelDiagramHandler := NewThreatModelDiagramHandler()
 
 	// Threat Model routes
 	router.GET("/threat_models", threatModelHandler.GetThreatModels)
@@ -161,13 +162,30 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	router.PATCH("/threat_models/:id", threatModelHandler.PatchThreatModel)
 	router.DELETE("/threat_models/:id", threatModelHandler.DeleteThreatModel)
 
-	// Diagram routes
-	router.GET("/diagrams", diagramHandler.GetDiagrams)
-	router.POST("/diagrams", diagramHandler.CreateDiagram)
-	router.GET("/diagrams/:id", diagramHandler.GetDiagramByID)
-	router.PUT("/diagrams/:id", diagramHandler.UpdateDiagram)
-	router.PATCH("/diagrams/:id", diagramHandler.PatchDiagram)
-	router.DELETE("/diagrams/:id", diagramHandler.DeleteDiagram)
+	// Threat Model Diagram routes (proper sub-entity endpoints) - use consistent parameter names
+	router.POST("/threat_models/:id/diagrams", diagramHandler.CreateDiagram)
+	router.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("id")
+		diagramID := c.Param("diagram_id")
+		threatModelDiagramHandler.GetDiagramByID(c, threatModelID, diagramID)
+	})
+
+	// All diagram operations should go through threat model sub-entity endpoints
+	router.PUT("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("id")
+		diagramID := c.Param("diagram_id")
+		threatModelDiagramHandler.UpdateDiagram(c, threatModelID, diagramID)
+	})
+	router.PATCH("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("id")
+		diagramID := c.Param("diagram_id")
+		threatModelDiagramHandler.PatchDiagram(c, threatModelID, diagramID)
+	})
+	router.DELETE("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("id")
+		diagramID := c.Param("diagram_id")
+		threatModelDiagramHandler.DeleteDiagram(c, threatModelID, diagramID)
+	})
 
 	// Sub-entity routes would be registered here
 	// For now, we'll test the basic threat model and diagram functionality
@@ -359,28 +377,32 @@ func testDatabaseThreatModelPUT(t *testing.T, suite *SubEntityIntegrationTestSui
 
 // testDatabaseDiagramPOST tests creating diagrams with database persistence
 func testDatabaseDiagramPOST(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// Create diagram
+	// Create diagram using the proper sub-entity endpoint
 	requestBody := map[string]interface{}{
-		"name":            "Database Integration Test Diagram",
-		"description":     "A diagram created during database integration testing",
-		"threat_model_id": suite.threatModelID,
+		"name":        "Database Integration Test Diagram",
+		"description": "A diagram created during database integration testing",
 	}
 
-	req := suite.makeAuthenticatedRequest("POST", "/diagrams", requestBody)
+	// Step 1: Create diagram using threat model ID
+	path := fmt.Sprintf("/threat_models/%s/diagrams", suite.threatModelID)
+	req := suite.makeAuthenticatedRequest("POST", path, requestBody)
 	w := suite.executeRequest(req)
 	response := suite.assertJSONResponse(t, w, http.StatusCreated)
 
-	// Verify response
-	assert.NotEmpty(t, response["id"], "Response should contain ID")
+	// Verify response contains diagram ID
+	assert.NotEmpty(t, response["id"], "Response should contain diagram ID")
+	diagramID := response["id"].(string)
+	suite.testDiagramID = diagramID // Save for potential future tests
+
+	// Verify basic response fields
 	assert.Equal(t, requestBody["name"], response["name"])
 	assert.Equal(t, requestBody["description"], response["description"])
-	assert.Equal(t, requestBody["threat_model_id"], response["threat_model_id"])
 	assert.NotEmpty(t, response["created_at"], "Response should contain created_at")
 	assert.NotEmpty(t, response["modified_at"], "Response should contain modified_at")
 
-	// Verify database persistence by retrieving the diagram
-	diagramID := response["id"].(string)
-	getReq := suite.makeAuthenticatedRequest("GET", "/diagrams/"+diagramID, nil)
+	// Step 2: Verify database persistence by retrieving the specific diagram using proper endpoint
+	getDiagramPath := fmt.Sprintf("/threat_models/%s/diagrams/%s", suite.threatModelID, diagramID)
+	getReq := suite.makeAuthenticatedRequest("GET", getDiagramPath, nil)
 	getW := suite.executeRequest(getReq)
 	getResponse := suite.assertJSONResponse(t, getW, http.StatusOK)
 
@@ -388,41 +410,30 @@ func testDatabaseDiagramPOST(t *testing.T, suite *SubEntityIntegrationTestSuite)
 	assert.Equal(t, diagramID, getResponse["id"])
 	assert.Equal(t, requestBody["name"], getResponse["name"])
 	assert.Equal(t, requestBody["description"], getResponse["description"])
-	assert.Equal(t, requestBody["threat_model_id"], getResponse["threat_model_id"])
 }
 
 // testDatabaseDiagramGET tests retrieving diagrams from database
 func testDatabaseDiagramGET(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// First create a diagram
+	// Step 1: Create a diagram using threat model ID
 	requestBody := map[string]interface{}{
-		"name":            "GET Test Database Diagram",
-		"threat_model_id": suite.threatModelID,
+		"name": "GET Test Database Diagram",
 	}
 
-	req := suite.makeAuthenticatedRequest("POST", "/diagrams", requestBody)
+	path := fmt.Sprintf("/threat_models/%s/diagrams", suite.threatModelID)
+	req := suite.makeAuthenticatedRequest("POST", path, requestBody)
 	w := suite.executeRequest(req)
 	createResponse := suite.assertJSONResponse(t, w, http.StatusCreated)
 	diagramID := createResponse["id"].(string)
 
-	// Test GET by ID - should retrieve from database
-	req = suite.makeAuthenticatedRequest("GET", "/diagrams/"+diagramID, nil)
+	// Step 2: Test GET specific diagram using proper endpoint - should retrieve from database
+	getDiagramPath := fmt.Sprintf("/threat_models/%s/diagrams/%s", suite.threatModelID, diagramID)
+	req = suite.makeAuthenticatedRequest("GET", getDiagramPath, nil)
 	w = suite.executeRequest(req)
 	response := suite.assertJSONResponse(t, w, http.StatusOK)
 
 	// Verify response matches database data
 	assert.Equal(t, diagramID, response["id"])
 	assert.Equal(t, requestBody["name"], response["name"])
-	assert.Equal(t, requestBody["threat_model_id"], response["threat_model_id"])
-
-	// Test GET all diagrams - should retrieve from database
-	req = suite.makeAuthenticatedRequest("GET", "/diagrams", nil)
-	w = suite.executeRequest(req)
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	var listResponse []interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &listResponse)
-	require.NoError(t, err)
-	assert.GreaterOrEqual(t, len(listResponse), 1, "Should return at least one diagram from database")
 }
 
 // createParentThreatModel creates a parent threat model for testing sub-entities
@@ -476,9 +487,10 @@ func (suite *SubEntityIntegrationTestSuite) TeardownSubEntityIntegrationTest(t *
 func createSubEntityTestUserWithToken(t *testing.T, authService *auth.Service) (*auth.User, string) {
 	ctx := context.Background()
 
-	// Create test user data
-	userEmail := fmt.Sprintf("sub-entity-test-user-%d@test.tmi", time.Now().Unix())
+	// Create test user data with unique timestamp and random UUID to avoid duplicates
+	timestamp := time.Now().UnixNano() // Use nanoseconds for better uniqueness
 	userID := uuid.New().String()
+	userEmail := fmt.Sprintf("sub-entity-test-user-%d-%s@test.tmi", timestamp, userID[:8])
 
 	// Create test user struct
 	testUser := auth.User{
