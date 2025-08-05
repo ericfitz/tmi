@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
+	"os"
 	"testing"
 	"time"
 
@@ -18,6 +18,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// getEnvOrDefault returns the environment variable value or a default value if not set
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
 
 // SubEntityIntegrationTestSuite manages database setup and teardown for sub-entity integration tests
 type SubEntityIntegrationTestSuite struct {
@@ -40,19 +48,19 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 		t.Skip("Skipping sub-entity integration test in short mode")
 	}
 
-	// Create test database configuration
+	// Create test database configuration using environment variables
 	postgresConfig := db.PostgresConfig{
-		Host:     "localhost",
-		Port:     "5432",
-		User:     "tmi_test",
-		Password: "test123",
-		Database: "tmi_test",
+		Host:     getEnvOrDefault("TEST_DB_HOST", "localhost"),
+		Port:     getEnvOrDefault("TEST_DB_PORT", "5432"),
+		User:     getEnvOrDefault("TEST_DB_USER", "tmi_test"),
+		Password: getEnvOrDefault("TEST_DB_PASSWORD", "test123"),
+		Database: getEnvOrDefault("TEST_DB_NAME", "tmi_test"),
 		SSLMode:  "disable",
 	}
 
 	redisConfig := db.RedisConfig{
-		Host:     "localhost",
-		Port:     "6379",
+		Host:     getEnvOrDefault("TEST_REDIS_HOST", "localhost"),
+		Port:     getEnvOrDefault("TEST_REDIS_PORT", "6379"),
 		Password: "",
 		DB:       2, // Use DB 2 for sub-entity testing
 	}
@@ -70,6 +78,16 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 			Secret:            "test-secret-key-for-sub-entity-integration-testing",
 			ExpirationSeconds: 3600,
 			SigningMethod:     "HS256",
+		},
+		OAuth: auth.OAuthConfig{
+			CallbackURL: "http://localhost:8080/auth/callback",
+			Providers: map[string]auth.OAuthProviderConfig{
+				"test": {
+					ClientID:     "test-client-id",
+					ClientSecret: "test-client-secret",
+					Enabled:      true,
+				},
+			},
 		},
 		Postgres: auth.PostgresConfig{
 			Host:     postgresConfig.Host,
@@ -120,16 +138,39 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 		c.Next()
 	})
 
-	// Add middleware for threat models
+	// Add middleware for threat models and diagrams
 	router.Use(ThreatModelMiddleware())
+	router.Use(DiagramMiddleware())
 
-	// Register threat model handlers (needed for creating parent threat model)
+	// Initialize database stores for real database testing
+	InitializeDatabaseStores(dbManager.Postgres().GetDB())
+
+	// Initialize API server and register custom WebSocket handlers
+	server := NewServer()
+	server.RegisterHandlers(router)
+
+	// Register API handlers directly
 	threatModelHandler := NewThreatModelHandler()
+	diagramHandler := NewDiagramHandler()
+
+	// Threat Model routes
+	router.GET("/threat_models", threatModelHandler.GetThreatModels)
 	router.POST("/threat_models", threatModelHandler.CreateThreatModel)
 	router.GET("/threat_models/:id", threatModelHandler.GetThreatModelByID)
+	router.PUT("/threat_models/:id", threatModelHandler.UpdateThreatModel)
+	router.PATCH("/threat_models/:id", threatModelHandler.PatchThreatModel)
+	router.DELETE("/threat_models/:id", threatModelHandler.DeleteThreatModel)
 
-	// Register sub-entity handlers
-	registerSubEntityHandlers(router)
+	// Diagram routes
+	router.GET("/diagrams", diagramHandler.GetDiagrams)
+	router.POST("/diagrams", diagramHandler.CreateDiagram)
+	router.GET("/diagrams/:id", diagramHandler.GetDiagramByID)
+	router.PUT("/diagrams/:id", diagramHandler.UpdateDiagram)
+	router.PATCH("/diagrams/:id", diagramHandler.PatchDiagram)
+	router.DELETE("/diagrams/:id", diagramHandler.DeleteDiagram)
+
+	// Sub-entity routes would be registered here
+	// For now, we'll test the basic threat model and diagram functionality
 
 	suite := &SubEntityIntegrationTestSuite{
 		dbManager:   dbManager,
@@ -145,121 +186,276 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	return suite
 }
 
-// registerSubEntityHandlers registers all sub-entity handlers with mock implementations
-func registerSubEntityHandlers(router *gin.Engine) {
-	// For integration testing, we'll use mock handlers that test database operations
-	// but work with the in-memory stores that are initialized by InitTestFixtures()
+// Database Integration Tests
 
-	// Since the actual handlers require database connections and cache services,
-	// we'll create simple mock handlers that simulate the API behavior for testing
+// TestDatabaseThreatModelIntegration tests threat model CRUD against actual PostgreSQL database
+func TestDatabaseThreatModelIntegration(t *testing.T) {
+	suite := SetupSubEntityIntegrationTest(t)
+	defer suite.TeardownSubEntityIntegrationTest(t)
 
-	// Mock threat handlers
-	registerMockThreatHandlers(router)
-	// Mock document handlers
-	registerMockDocumentHandlers(router)
-	// Mock source handlers
-	registerMockSourceHandlers(router)
-	// Mock diagram handlers
-	registerMockDiagramHandlers(router)
-	// Mock metadata handlers
-	registerMockMetadataHandlers(router)
+	t.Run("POST /threat_models", func(t *testing.T) {
+		testDatabaseThreatModelPOST(t, suite)
+	})
+
+	t.Run("GET /threat_models", func(t *testing.T) {
+		testDatabaseThreatModelGET(t, suite)
+	})
+
+	t.Run("PUT /threat_models/:id", func(t *testing.T) {
+		testDatabaseThreatModelPUT(t, suite)
+	})
 }
 
-// registerMockThreatHandlers registers mock threat handlers for testing
-func registerMockThreatHandlers(router *gin.Engine) {
-	// Mock implementations that work with the test stores
-	router.GET("/threat_models/:threat_model_id/threats", mockGetThreats)
-	router.POST("/threat_models/:threat_model_id/threats", mockCreateThreat)
-	router.GET("/threat_models/:threat_model_id/threats/:threat_id", mockGetThreat)
-	router.PUT("/threat_models/:threat_model_id/threats/:threat_id", mockUpdateThreat)
-	router.PATCH("/threat_models/:threat_model_id/threats/:threat_id", mockPatchThreat)
-	router.DELETE("/threat_models/:threat_model_id/threats/:threat_id", mockDeleteThreat)
-	router.POST("/threat_models/:threat_model_id/threats/bulk", mockBulkCreateThreats)
-	router.PUT("/threat_models/:threat_model_id/threats/bulk", mockBulkUpdateThreats)
+// TestDatabaseDiagramIntegration tests diagram CRUD against actual PostgreSQL database
+func TestDatabaseDiagramIntegration(t *testing.T) {
+	suite := SetupSubEntityIntegrationTest(t)
+	defer suite.TeardownSubEntityIntegrationTest(t)
+
+	t.Run("POST /diagrams", func(t *testing.T) {
+		testDatabaseDiagramPOST(t, suite)
+	})
+
+	t.Run("GET /diagrams", func(t *testing.T) {
+		testDatabaseDiagramGET(t, suite)
+	})
 }
 
-// registerMockDocumentHandlers registers mock document handlers for testing
-func registerMockDocumentHandlers(router *gin.Engine) {
-	router.GET("/threat_models/:threat_model_id/documents", mockGetDocuments)
-	router.POST("/threat_models/:threat_model_id/documents", mockCreateDocument)
-	router.GET("/threat_models/:threat_model_id/documents/:document_id", mockGetDocument)
-	router.PUT("/threat_models/:threat_model_id/documents/:document_id", mockUpdateDocument)
-	router.DELETE("/threat_models/:threat_model_id/documents/:document_id", mockDeleteDocument)
-	router.POST("/threat_models/:threat_model_id/documents/bulk", mockBulkCreateDocuments)
+// testDatabaseThreatModelPOST tests creating threat models via POST with database persistence
+func testDatabaseThreatModelPOST(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+	// Test data
+	requestBody := map[string]interface{}{
+		"name":                   "Database Integration Test Threat Model",
+		"description":            "A threat model created during database integration testing",
+		"owner":                  suite.testUser.Email,
+		"created_by":             suite.testUser.Email,
+		"threat_model_framework": "STRIDE",
+		"document_count":         0,
+		"source_count":           0,
+		"diagram_count":          0,
+		"threat_count":           0,
+	}
+
+	// Make request
+	req := suite.makeAuthenticatedRequest("POST", "/threat_models", requestBody)
+	w := suite.executeRequest(req)
+
+	// Verify response
+	response := suite.assertJSONResponse(t, w, http.StatusCreated)
+
+	// Verify response contains expected fields
+	assert.NotEmpty(t, response["id"], "Response should contain ID")
+	assert.Equal(t, requestBody["name"], response["name"])
+	assert.Equal(t, requestBody["description"], response["description"])
+	assert.Equal(t, requestBody["owner"], response["owner"])
+	assert.NotEmpty(t, response["created_at"], "Response should contain created_at")
+	assert.NotEmpty(t, response["modified_at"], "Response should contain modified_at")
+
+	// Verify the data was actually persisted to the database
+	// by making a GET request for the same threat model
+	threatModelID := response["id"].(string)
+	getReq := suite.makeAuthenticatedRequest("GET", "/threat_models/"+threatModelID, nil)
+	getW := suite.executeRequest(getReq)
+	getResponse := suite.assertJSONResponse(t, getW, http.StatusOK)
+
+	// Verify the persisted data matches what we created
+	assert.Equal(t, threatModelID, getResponse["id"])
+	assert.Equal(t, requestBody["name"], getResponse["name"])
+	assert.Equal(t, requestBody["description"], getResponse["description"])
+	assert.Equal(t, requestBody["owner"], getResponse["owner"])
 }
 
-// registerMockSourceHandlers registers mock source handlers for testing
-func registerMockSourceHandlers(router *gin.Engine) {
-	router.GET("/threat_models/:threat_model_id/sources", mockGetSources)
-	router.POST("/threat_models/:threat_model_id/sources", mockCreateSource)
-	router.GET("/threat_models/:threat_model_id/sources/:source_id", mockGetSource)
-	router.PUT("/threat_models/:threat_model_id/sources/:source_id", mockUpdateSource)
-	router.DELETE("/threat_models/:threat_model_id/sources/:source_id", mockDeleteSource)
-	router.POST("/threat_models/:threat_model_id/sources/bulk", mockBulkCreateSources)
+// testDatabaseThreatModelGET tests retrieving threat models from database
+func testDatabaseThreatModelGET(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+	// First create a threat model via API (which should persist to database)
+	requestBody := map[string]interface{}{
+		"name":                   "GET Test Database Threat Model",
+		"owner":                  suite.testUser.Email,
+		"created_by":             suite.testUser.Email,
+		"threat_model_framework": "STRIDE",
+		"document_count":         0,
+		"source_count":           0,
+		"diagram_count":          0,
+		"threat_count":           0,
+	}
+
+	req := suite.makeAuthenticatedRequest("POST", "/threat_models", requestBody)
+	w := suite.executeRequest(req)
+	createResponse := suite.assertJSONResponse(t, w, http.StatusCreated)
+	threatModelID := createResponse["id"].(string)
+
+	// Test GET by ID - should retrieve from database
+	req = suite.makeAuthenticatedRequest("GET", "/threat_models/"+threatModelID, nil)
+	w = suite.executeRequest(req)
+	response := suite.assertJSONResponse(t, w, http.StatusOK)
+
+	// Verify response matches database data
+	assert.Equal(t, threatModelID, response["id"])
+	assert.Equal(t, requestBody["name"], response["name"])
+	assert.Equal(t, requestBody["owner"], response["owner"])
+
+	// Test GET all threat models - should retrieve from database
+	req = suite.makeAuthenticatedRequest("GET", "/threat_models", nil)
+	w = suite.executeRequest(req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var listResponse []interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &listResponse)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(listResponse), 1, "Should return at least one threat model from database")
 }
 
-// registerMockDiagramHandlers registers mock diagram handlers for testing
-func registerMockDiagramHandlers(router *gin.Engine) {
-	router.GET("/threat_models/:threat_model_id/diagrams", mockGetDiagrams)
-	router.POST("/threat_models/:threat_model_id/diagrams", mockCreateDiagram)
-	router.GET("/threat_models/:threat_model_id/diagrams/:diagram_id", mockGetDiagram)
-	router.PUT("/threat_models/:threat_model_id/diagrams/:diagram_id", mockUpdateDiagram)
-	router.DELETE("/threat_models/:threat_model_id/diagrams/:diagram_id", mockDeleteDiagram)
+// testDatabaseThreatModelPUT tests updating threat models in database
+func testDatabaseThreatModelPUT(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+	// First create a threat model
+	requestBody := map[string]interface{}{
+		"name":                   "PUT Test Database Threat Model",
+		"owner":                  suite.testUser.Email,
+		"created_by":             suite.testUser.Email,
+		"threat_model_framework": "STRIDE",
+		"document_count":         0,
+		"source_count":           0,
+		"diagram_count":          0,
+		"threat_count":           0,
+	}
+
+	req := suite.makeAuthenticatedRequest("POST", "/threat_models", requestBody)
+	w := suite.executeRequest(req)
+	createResponse := suite.assertJSONResponse(t, w, http.StatusCreated)
+	threatModelID := createResponse["id"].(string)
+
+	// Update the threat model
+	updateBody := map[string]interface{}{
+		"id":                     threatModelID,
+		"name":                   "Updated Database Threat Model Name",
+		"description":            "Updated description in database",
+		"owner":                  suite.testUser.Email,
+		"created_by":             suite.testUser.Email,
+		"threat_model_framework": "STRIDE",
+		"document_count":         0,
+		"source_count":           0,
+		"diagram_count":          0,
+		"threat_count":           0,
+	}
+
+	req = suite.makeAuthenticatedRequest("PUT", "/threat_models/"+threatModelID, updateBody)
+	w = suite.executeRequest(req)
+	response := suite.assertJSONResponse(t, w, http.StatusOK)
+
+	// Verify updates in response
+	assert.Equal(t, threatModelID, response["id"])
+	assert.Equal(t, updateBody["name"], response["name"])
+	assert.Equal(t, updateBody["description"], response["description"])
+
+	// Verify updates were persisted to database by fetching again
+	getReq := suite.makeAuthenticatedRequest("GET", "/threat_models/"+threatModelID, nil)
+	getW := suite.executeRequest(getReq)
+	getResponse := suite.assertJSONResponse(t, getW, http.StatusOK)
+
+	// Verify the database contains the updated data
+	assert.Equal(t, threatModelID, getResponse["id"])
+	assert.Equal(t, updateBody["name"], getResponse["name"])
+	assert.Equal(t, updateBody["description"], getResponse["description"])
 }
 
-// registerMockMetadataHandlers registers mock metadata handlers for testing
-func registerMockMetadataHandlers(router *gin.Engine) {
-	// Threat metadata
-	router.GET("/threat_models/:threat_model_id/threats/:threat_id/metadata", mockGetThreatMetadata)
-	router.POST("/threat_models/:threat_model_id/threats/:threat_id/metadata", mockCreateThreatMetadata)
-	router.GET("/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", mockGetThreatMetadataByKey)
-	router.PUT("/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", mockUpdateThreatMetadata)
-	router.DELETE("/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", mockDeleteThreatMetadata)
-	router.POST("/threat_models/:threat_model_id/threats/:threat_id/metadata/bulk", mockBulkCreateThreatMetadata)
+// testDatabaseDiagramPOST tests creating diagrams with database persistence
+func testDatabaseDiagramPOST(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+	// Create diagram
+	requestBody := map[string]interface{}{
+		"name":            "Database Integration Test Diagram",
+		"description":     "A diagram created during database integration testing",
+		"threat_model_id": suite.threatModelID,
+	}
 
-	// Document metadata
-	router.GET("/threat_models/:threat_model_id/documents/:document_id/metadata", mockGetDocumentMetadata)
-	router.POST("/threat_models/:threat_model_id/documents/:document_id/metadata", mockCreateDocumentMetadata)
-	router.GET("/threat_models/:threat_model_id/documents/:document_id/metadata/:key", mockGetDocumentMetadataByKey)
-	router.PUT("/threat_models/:threat_model_id/documents/:document_id/metadata/:key", mockUpdateDocumentMetadata)
-	router.DELETE("/threat_models/:threat_model_id/documents/:document_id/metadata/:key", mockDeleteDocumentMetadata)
-	router.POST("/threat_models/:threat_model_id/documents/:document_id/metadata/bulk", mockBulkCreateDocumentMetadata)
+	req := suite.makeAuthenticatedRequest("POST", "/diagrams", requestBody)
+	w := suite.executeRequest(req)
+	response := suite.assertJSONResponse(t, w, http.StatusCreated)
 
-	// Source metadata
-	router.GET("/threat_models/:threat_model_id/sources/:source_id/metadata", mockGetSourceMetadata)
-	router.POST("/threat_models/:threat_model_id/sources/:source_id/metadata", mockCreateSourceMetadata)
-	router.GET("/threat_models/:threat_model_id/sources/:source_id/metadata/:key", mockGetSourceMetadataByKey)
-	router.PUT("/threat_models/:threat_model_id/sources/:source_id/metadata/:key", mockUpdateSourceMetadata)
-	router.DELETE("/threat_models/:threat_model_id/sources/:source_id/metadata/:key", mockDeleteSourceMetadata)
-	router.POST("/threat_models/:threat_model_id/sources/:source_id/metadata/bulk", mockBulkCreateSourceMetadata)
+	// Verify response
+	assert.NotEmpty(t, response["id"], "Response should contain ID")
+	assert.Equal(t, requestBody["name"], response["name"])
+	assert.Equal(t, requestBody["description"], response["description"])
+	assert.Equal(t, requestBody["threat_model_id"], response["threat_model_id"])
+	assert.NotEmpty(t, response["created_at"], "Response should contain created_at")
+	assert.NotEmpty(t, response["modified_at"], "Response should contain modified_at")
 
-	// Diagram metadata
-	router.GET("/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", mockGetDiagramMetadata)
-	router.POST("/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", mockCreateDiagramMetadata)
-	router.GET("/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/:key", mockGetDiagramMetadataByKey)
-	router.PUT("/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/:key", mockUpdateDiagramMetadata)
-	router.DELETE("/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/:key", mockDeleteDiagramMetadata)
-	router.POST("/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/bulk", mockBulkCreateDiagramMetadata)
+	// Verify database persistence by retrieving the diagram
+	diagramID := response["id"].(string)
+	getReq := suite.makeAuthenticatedRequest("GET", "/diagrams/"+diagramID, nil)
+	getW := suite.executeRequest(getReq)
+	getResponse := suite.assertJSONResponse(t, getW, http.StatusOK)
+
+	// Verify the persisted data matches what we created
+	assert.Equal(t, diagramID, getResponse["id"])
+	assert.Equal(t, requestBody["name"], getResponse["name"])
+	assert.Equal(t, requestBody["description"], getResponse["description"])
+	assert.Equal(t, requestBody["threat_model_id"], getResponse["threat_model_id"])
+}
+
+// testDatabaseDiagramGET tests retrieving diagrams from database
+func testDatabaseDiagramGET(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+	// First create a diagram
+	requestBody := map[string]interface{}{
+		"name":            "GET Test Database Diagram",
+		"threat_model_id": suite.threatModelID,
+	}
+
+	req := suite.makeAuthenticatedRequest("POST", "/diagrams", requestBody)
+	w := suite.executeRequest(req)
+	createResponse := suite.assertJSONResponse(t, w, http.StatusCreated)
+	diagramID := createResponse["id"].(string)
+
+	// Test GET by ID - should retrieve from database
+	req = suite.makeAuthenticatedRequest("GET", "/diagrams/"+diagramID, nil)
+	w = suite.executeRequest(req)
+	response := suite.assertJSONResponse(t, w, http.StatusOK)
+
+	// Verify response matches database data
+	assert.Equal(t, diagramID, response["id"])
+	assert.Equal(t, requestBody["name"], response["name"])
+	assert.Equal(t, requestBody["threat_model_id"], response["threat_model_id"])
+
+	// Test GET all diagrams - should retrieve from database
+	req = suite.makeAuthenticatedRequest("GET", "/diagrams", nil)
+	w = suite.executeRequest(req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var listResponse []interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &listResponse)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(listResponse), 1, "Should return at least one diagram from database")
 }
 
 // createParentThreatModel creates a parent threat model for testing sub-entities
 func (suite *SubEntityIntegrationTestSuite) createParentThreatModel(t *testing.T) {
 	requestBody := map[string]interface{}{
-		"name":        "Integration Test Parent Threat Model",
-		"description": "A threat model created for sub-entity integration testing",
-		"owner":       suite.testUser.Email,
+		"name":                   "Integration Test Parent Threat Model",
+		"description":            "A threat model created for sub-entity integration testing",
+		"owner":                  suite.testUser.Email,
+		"created_by":             suite.testUser.Email,
+		"threat_model_framework": "STRIDE",
+		"document_count":         0,
+		"source_count":           0,
+		"diagram_count":          0,
+		"threat_count":           0,
 	}
 
 	req := suite.makeAuthenticatedRequest("POST", "/threat_models", requestBody)
 	w := suite.executeRequest(req)
 
-	assert.Equal(t, http.StatusCreated, w.Code, "Failed to create parent threat model: %s", w.Body.String())
+	if w.Code != http.StatusCreated {
+		t.Fatalf("Failed to create parent threat model. Status: %d, Body: %s", w.Code, w.Body.String())
+	}
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	require.NoError(t, err)
+	require.NoError(t, err, "Failed to parse response JSON: %s", w.Body.String())
 
-	suite.threatModelID = response["id"].(string)
+	threatModelID, ok := response["id"].(string)
+	if !ok || threatModelID == "" {
+		t.Fatalf("Response should contain a valid threat model ID. Response: %v", response)
+	}
+
+	suite.threatModelID = threatModelID
 	require.NotEmpty(t, suite.threatModelID, "Parent threat model ID should not be empty")
 }
 
@@ -282,7 +478,7 @@ func createSubEntityTestUserWithToken(t *testing.T, authService *auth.Service) (
 
 	// Create test user data
 	userEmail := fmt.Sprintf("sub-entity-test-user-%d@test.tmi", time.Now().Unix())
-	userID := fmt.Sprintf("sub-entity-test-user-%d", time.Now().Unix())
+	userID := uuid.New().String()
 
 	// Create test user struct
 	testUser := auth.User{
@@ -445,615 +641,3 @@ func (suite *SubEntityIntegrationTestSuite) createTestDiagram(t *testing.T) stri
 	suite.testDiagramID = diagramID
 	return diagramID
 }
-
-// Mock handler implementations for sub-entity integration testing
-// These handlers simulate database operations using in-memory stores
-
-// Mock threat handlers
-
-func mockGetThreats(c *gin.Context) {
-	threatModelID := c.Param("threat_model_id")
-
-	// Parse pagination
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-
-	// Mock response - simulate getting threats from database
-	threats := []map[string]interface{}{
-		{
-			"id":              uuid.New().String(),
-			"threat_model_id": threatModelID,
-			"name":            "Mock Threat 1",
-			"description":     "Mock threat for testing",
-			"severity":        "high",
-			"status":          "identified",
-			"threat_type":     "spoofing",
-			"priority":        "high",
-			"mitigated":       false,
-			"created_at":      time.Now(),
-			"modified_at":     time.Now(),
-		},
-	}
-
-	// Apply pagination
-	if offset >= len(threats) {
-		threats = []map[string]interface{}{}
-	} else {
-		end := offset + limit
-		if end > len(threats) {
-			end = len(threats)
-		}
-		threats = threats[offset:end]
-	}
-
-	c.JSON(http.StatusOK, threats)
-}
-
-func mockCreateThreat(c *gin.Context) {
-	threatModelID := c.Param("threat_model_id")
-
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	// Create mock response
-	response := map[string]interface{}{
-		"id":              uuid.New().String(),
-		"threat_model_id": threatModelID,
-		"name":            requestBody["name"],
-		"description":     requestBody["description"],
-		"severity":        requestBody["severity"],
-		"status":          requestBody["status"],
-		"threat_type":     requestBody["threat_type"],
-		"priority":        requestBody["priority"],
-		"mitigated":       requestBody["mitigated"],
-		"mitigation":      requestBody["mitigation"],
-		"score":           requestBody["score"],
-		"created_at":      time.Now(),
-		"modified_at":     time.Now(),
-	}
-
-	c.JSON(http.StatusCreated, response)
-}
-
-func mockGetThreat(c *gin.Context) {
-	threatModelID := c.Param("threat_model_id")
-	threatID := c.Param("threat_id")
-
-	// Mock response
-	response := map[string]interface{}{
-		"id":              threatID,
-		"threat_model_id": threatModelID,
-		"name":            "Mock Threat",
-		"description":     "Mock threat for testing",
-		"severity":        "high",
-		"status":          "identified",
-		"threat_type":     "spoofing",
-		"priority":        "high",
-		"mitigated":       false,
-		"created_at":      time.Now(),
-		"modified_at":     time.Now(),
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-func mockUpdateThreat(c *gin.Context) {
-	threatModelID := c.Param("threat_model_id")
-	threatID := c.Param("threat_id")
-
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	// Create mock response with updated values
-	response := map[string]interface{}{
-		"id":              threatID,
-		"threat_model_id": threatModelID,
-		"name":            requestBody["name"],
-		"description":     requestBody["description"],
-		"severity":        requestBody["severity"],
-		"status":          requestBody["status"],
-		"threat_type":     requestBody["threat_type"],
-		"priority":        requestBody["priority"],
-		"mitigated":       requestBody["mitigated"],
-		"mitigation":      requestBody["mitigation"],
-		"score":           requestBody["score"],
-		"created_at":      time.Now().Add(-time.Hour),
-		"modified_at":     time.Now(),
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-func mockPatchThreat(c *gin.Context) {
-	threatModelID := c.Param("threat_model_id")
-	threatID := c.Param("threat_id")
-
-	var operations []map[string]interface{}
-	if err := c.ShouldBindJSON(&operations); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON patch"})
-		return
-	}
-
-	// Start with a base threat
-	response := map[string]interface{}{
-		"id":              threatID,
-		"threat_model_id": threatModelID,
-		"name":            "Original Threat Name",
-		"description":     "Original description",
-		"severity":        "medium",
-		"status":          "identified",
-		"threat_type":     "spoofing",
-		"priority":        "medium",
-		"mitigated":       false,
-		"score":           5.0,
-		"created_at":      time.Now().Add(-time.Hour),
-		"modified_at":     time.Now(),
-	}
-
-	// Apply patch operations
-	for _, op := range operations {
-		if op["op"] == "replace" {
-			path := op["path"].(string)
-			value := op["value"]
-
-			switch path {
-			case "/name":
-				response["name"] = value
-			case "/description":
-				response["description"] = value
-			case "/severity":
-				response["severity"] = value
-			case "/status":
-				response["status"] = value
-			case "/threat_type":
-				response["threat_type"] = value
-			case "/priority":
-				response["priority"] = value
-			case "/mitigated":
-				response["mitigated"] = value
-			case "/score":
-				response["score"] = value
-			}
-		}
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-func mockDeleteThreat(c *gin.Context) {
-	c.Status(http.StatusNoContent)
-}
-
-func mockBulkCreateThreats(c *gin.Context) {
-	threatModelID := c.Param("threat_model_id")
-
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	threats, ok := requestBody["threats"].([]interface{})
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "threats array required"})
-		return
-	}
-
-	var createdThreats []map[string]interface{}
-	for _, threatInterface := range threats {
-		threat := threatInterface.(map[string]interface{})
-		created := map[string]interface{}{
-			"id":              uuid.New().String(),
-			"threat_model_id": threatModelID,
-			"name":            threat["name"],
-			"description":     threat["description"],
-			"severity":        threat["severity"],
-			"status":          threat["status"],
-			"threat_type":     threat["threat_type"],
-			"priority":        threat["priority"],
-			"mitigated":       threat["mitigated"],
-			"created_at":      time.Now(),
-			"modified_at":     time.Now(),
-		}
-		createdThreats = append(createdThreats, created)
-	}
-
-	c.JSON(http.StatusCreated, map[string]interface{}{
-		"threats": createdThreats,
-	})
-}
-
-func mockBulkUpdateThreats(c *gin.Context) {
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	threats, ok := requestBody["threats"].([]interface{})
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "threats array required"})
-		return
-	}
-
-	var updatedThreats []map[string]interface{}
-	for _, threatInterface := range threats {
-		threat := threatInterface.(map[string]interface{})
-		updated := map[string]interface{}{
-			"id":              threat["id"],
-			"threat_model_id": c.Param("threat_model_id"),
-			"name":            threat["name"],
-			"description":     threat["description"],
-			"severity":        threat["severity"],
-			"status":          threat["status"],
-			"threat_type":     threat["threat_type"],
-			"priority":        threat["priority"],
-			"mitigated":       threat["mitigated"],
-			"mitigation":      threat["mitigation"],
-			"created_at":      time.Now().Add(-time.Hour),
-			"modified_at":     time.Now(),
-		}
-		updatedThreats = append(updatedThreats, updated)
-	}
-
-	c.JSON(http.StatusOK, map[string]interface{}{
-		"threats": updatedThreats,
-	})
-}
-
-// Mock document handlers
-
-func mockGetDocuments(c *gin.Context) {
-	documents := []map[string]interface{}{
-		{
-			"id":          uuid.New().String(),
-			"name":        "Mock Document 1",
-			"url":         "https://example.com/doc1.pdf",
-			"description": "Mock document for testing",
-		},
-	}
-
-	c.JSON(http.StatusOK, documents)
-}
-
-func mockCreateDocument(c *gin.Context) {
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	response := map[string]interface{}{
-		"id":          uuid.New().String(),
-		"name":        requestBody["name"],
-		"url":         requestBody["url"],
-		"description": requestBody["description"],
-	}
-
-	c.JSON(http.StatusCreated, response)
-}
-
-func mockGetDocument(c *gin.Context) {
-	documentID := c.Param("document_id")
-
-	response := map[string]interface{}{
-		"id":          documentID,
-		"name":        "Mock Document",
-		"url":         "https://example.com/mock-doc.pdf",
-		"description": "Mock document for testing",
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-func mockUpdateDocument(c *gin.Context) {
-	documentID := c.Param("document_id")
-
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	response := map[string]interface{}{
-		"id":          documentID,
-		"name":        requestBody["name"],
-		"url":         requestBody["url"],
-		"description": requestBody["description"],
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-func mockDeleteDocument(c *gin.Context) {
-	c.Status(http.StatusNoContent)
-}
-
-func mockBulkCreateDocuments(c *gin.Context) {
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	documents, ok := requestBody["documents"].([]interface{})
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "documents array required"})
-		return
-	}
-
-	var createdDocuments []map[string]interface{}
-	for _, docInterface := range documents {
-		doc := docInterface.(map[string]interface{})
-		created := map[string]interface{}{
-			"id":          uuid.New().String(),
-			"name":        doc["name"],
-			"url":         doc["url"],
-			"description": doc["description"],
-		}
-		createdDocuments = append(createdDocuments, created)
-	}
-
-	c.JSON(http.StatusCreated, map[string]interface{}{
-		"documents": createdDocuments,
-	})
-}
-
-// Mock source handlers
-
-func mockGetSources(c *gin.Context) {
-	sources := []map[string]interface{}{
-		{
-			"id":          uuid.New().String(),
-			"name":        "Mock Source 1",
-			"url":         "https://github.com/example/repo",
-			"description": "Mock source for testing",
-			"type":        "git",
-		},
-	}
-
-	c.JSON(http.StatusOK, sources)
-}
-
-func mockCreateSource(c *gin.Context) {
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	response := map[string]interface{}{
-		"id":          uuid.New().String(),
-		"name":        requestBody["name"],
-		"url":         requestBody["url"],
-		"description": requestBody["description"],
-		"type":        requestBody["type"],
-		"parameters":  requestBody["parameters"],
-	}
-
-	c.JSON(http.StatusCreated, response)
-}
-
-func mockGetSource(c *gin.Context) {
-	sourceID := c.Param("source_id")
-
-	response := map[string]interface{}{
-		"id":          sourceID,
-		"name":        "Mock Source",
-		"url":         "https://github.com/example/mock-repo",
-		"description": "Mock source for testing",
-		"type":        "git",
-		"parameters": map[string]interface{}{
-			"refType":  "branch",
-			"refValue": "main",
-		},
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-func mockUpdateSource(c *gin.Context) {
-	sourceID := c.Param("source_id")
-
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	response := map[string]interface{}{
-		"id":          sourceID,
-		"name":        requestBody["name"],
-		"url":         requestBody["url"],
-		"description": requestBody["description"],
-		"type":        requestBody["type"],
-		"parameters":  requestBody["parameters"],
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-func mockDeleteSource(c *gin.Context) {
-	c.Status(http.StatusNoContent)
-}
-
-func mockBulkCreateSources(c *gin.Context) {
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	sources, ok := requestBody["sources"].([]interface{})
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "sources array required"})
-		return
-	}
-
-	var createdSources []map[string]interface{}
-	for _, sourceInterface := range sources {
-		source := sourceInterface.(map[string]interface{})
-		created := map[string]interface{}{
-			"id":          uuid.New().String(),
-			"name":        source["name"],
-			"url":         source["url"],
-			"description": source["description"],
-			"type":        source["type"],
-			"parameters":  source["parameters"],
-		}
-		createdSources = append(createdSources, created)
-	}
-
-	c.JSON(http.StatusCreated, map[string]interface{}{
-		"sources": createdSources,
-	})
-}
-
-// Mock diagram handlers
-
-func mockGetDiagrams(c *gin.Context) {
-	diagrams := []map[string]interface{}{
-		{
-			"id":          uuid.New().String(),
-			"name":        "Mock Diagram 1",
-			"description": "Mock diagram for testing",
-		},
-	}
-
-	c.JSON(http.StatusOK, diagrams)
-}
-
-func mockCreateDiagram(c *gin.Context) {
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	response := map[string]interface{}{
-		"id":          uuid.New().String(),
-		"name":        requestBody["name"],
-		"description": requestBody["description"],
-	}
-
-	c.JSON(http.StatusCreated, response)
-}
-
-func mockGetDiagram(c *gin.Context) {
-	diagramID := c.Param("diagram_id")
-
-	response := map[string]interface{}{
-		"id":          diagramID,
-		"name":        "Mock Diagram",
-		"description": "Mock diagram for testing",
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-func mockUpdateDiagram(c *gin.Context) {
-	diagramID := c.Param("diagram_id")
-
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	response := map[string]interface{}{
-		"id":          diagramID,
-		"name":        requestBody["name"],
-		"description": requestBody["description"],
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-func mockDeleteDiagram(c *gin.Context) {
-	c.Status(http.StatusNoContent)
-}
-
-// Mock metadata handlers
-
-func mockGetThreatMetadata(c *gin.Context) {
-	metadata := []map[string]interface{}{
-		{"key": "priority", "value": "high"},
-		{"key": "category", "value": "authentication"},
-	}
-	c.JSON(http.StatusOK, metadata)
-}
-
-func mockCreateThreatMetadata(c *gin.Context) {
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-	c.JSON(http.StatusCreated, requestBody)
-}
-
-func mockGetThreatMetadataByKey(c *gin.Context) {
-	key := c.Param("key")
-	response := map[string]interface{}{
-		"key":   key,
-		"value": "mock-value",
-	}
-	c.JSON(http.StatusOK, response)
-}
-
-func mockUpdateThreatMetadata(c *gin.Context) {
-	key := c.Param("key")
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-	response := map[string]interface{}{
-		"key":   key,
-		"value": requestBody["value"],
-	}
-	c.JSON(http.StatusOK, response)
-}
-
-func mockDeleteThreatMetadata(c *gin.Context) {
-	c.Status(http.StatusNoContent)
-}
-
-func mockBulkCreateThreatMetadata(c *gin.Context) {
-	var requestBody map[string]interface{}
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-	c.JSON(http.StatusCreated, requestBody)
-}
-
-// Similar mock handlers for document, source, and diagram metadata
-// For brevity, I'll create simple versions that follow the same pattern
-
-func mockGetDocumentMetadata(c *gin.Context)        { mockGetThreatMetadata(c) }
-func mockCreateDocumentMetadata(c *gin.Context)     { mockCreateThreatMetadata(c) }
-func mockGetDocumentMetadataByKey(c *gin.Context)   { mockGetThreatMetadataByKey(c) }
-func mockUpdateDocumentMetadata(c *gin.Context)     { mockUpdateThreatMetadata(c) }
-func mockDeleteDocumentMetadata(c *gin.Context)     { mockDeleteThreatMetadata(c) }
-func mockBulkCreateDocumentMetadata(c *gin.Context) { mockBulkCreateThreatMetadata(c) }
-
-func mockGetSourceMetadata(c *gin.Context)        { mockGetThreatMetadata(c) }
-func mockCreateSourceMetadata(c *gin.Context)     { mockCreateThreatMetadata(c) }
-func mockGetSourceMetadataByKey(c *gin.Context)   { mockGetThreatMetadataByKey(c) }
-func mockUpdateSourceMetadata(c *gin.Context)     { mockUpdateThreatMetadata(c) }
-func mockDeleteSourceMetadata(c *gin.Context)     { mockDeleteThreatMetadata(c) }
-func mockBulkCreateSourceMetadata(c *gin.Context) { mockBulkCreateThreatMetadata(c) }
-
-func mockGetDiagramMetadata(c *gin.Context)        { mockGetThreatMetadata(c) }
-func mockCreateDiagramMetadata(c *gin.Context)     { mockCreateThreatMetadata(c) }
-func mockGetDiagramMetadataByKey(c *gin.Context)   { mockGetThreatMetadataByKey(c) }
-func mockUpdateDiagramMetadata(c *gin.Context)     { mockUpdateThreatMetadata(c) }
-func mockDeleteDiagramMetadata(c *gin.Context)     { mockDeleteThreatMetadata(c) }
-func mockBulkCreateDiagramMetadata(c *gin.Context) { mockBulkCreateThreatMetadata(c) }

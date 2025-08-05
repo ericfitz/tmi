@@ -335,12 +335,14 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 	// Insert threat model
 	query := `
 		INSERT INTO threat_models (id, name, description, owner_email, created_by, 
-		                          threat_model_framework, issue_url, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+		                          threat_model_framework, issue_url, created_at, updated_at,
+		                          document_count, source_count, diagram_count, threat_count)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
 
 	_, err = tx.Exec(query,
 		id, item.Name, item.Description, item.Owner, item.CreatedBy,
 		framework, item.IssueUrl, item.CreatedAt, item.ModifiedAt,
+		0, 0, 0, 0, // Initialize all counts to 0
 	)
 	if err != nil {
 		return item, fmt.Errorf("failed to insert threat model: %w", err)
