@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 	"runtime/debug"
 	"time"
@@ -74,356 +73,199 @@ func NewSystemMetrics(tracer trace.Tracer, meter metric.Meter) (*SystemMetrics, 
 		meter:  meter,
 	}
 
-	var err error
+	mb := newMetricBuilder(meter)
 
-	// Go runtime metrics
-	s.goGoroutines, err = meter.Int64UpDownCounter(
+	// Build metrics by category
+	s.buildGoRuntimeMetrics(mb)
+	s.buildProcessMetrics(mb)
+	s.buildSystemPerformanceMetrics(mb)
+	s.buildApplicationMetrics(mb)
+	s.buildHealthMetrics(mb)
+	s.buildPerformanceIndicators(mb)
+
+	return s, mb.Error()
+}
+
+// buildGoRuntimeMetrics creates Go runtime related metrics
+func (s *SystemMetrics) buildGoRuntimeMetrics(mb *metricBuilder) {
+	s.goGoroutines = mb.Int64UpDownCounter(
 		"go_goroutines",
-		metric.WithDescription("Number of goroutines"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create goroutines counter: %w", err)
-	}
-
-	s.goThreads, err = meter.Int64UpDownCounter(
+		"Number of goroutines",
+		"1")
+	s.goThreads = mb.Int64UpDownCounter(
 		"go_threads",
-		metric.WithDescription("Number of OS threads"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create threads counter: %w", err)
-	}
-
-	s.goGCDuration, err = meter.Float64Histogram(
+		"Number of OS threads",
+		"1")
+	s.goGCDuration = mb.Float64Histogram(
 		"go_gc_duration_seconds",
-		metric.WithDescription("Time spent in garbage collection"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(0.0001, 0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GC duration histogram: %w", err)
-	}
-
-	s.goGCCount, err = meter.Int64Counter(
+		"Time spent in garbage collection",
+		"s",
+		[]float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5})
+	s.goGCCount = mb.Int64Counter(
 		"go_gc_cycles_total",
-		metric.WithDescription("Total number of GC cycles"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GC count counter: %w", err)
-	}
-
-	s.goMemAlloc, err = meter.Int64UpDownCounter(
+		"Total number of GC cycles",
+		"1")
+	s.goMemAlloc = mb.Int64UpDownCounter(
 		"go_memstats_alloc_bytes",
-		metric.WithDescription("Bytes allocated and in use"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create mem alloc counter: %w", err)
-	}
-
-	s.goMemSys, err = meter.Int64UpDownCounter(
+		"Bytes allocated and in use",
+		"By")
+	s.goMemSys = mb.Int64UpDownCounter(
 		"go_memstats_sys_bytes",
-		metric.WithDescription("Bytes obtained from system"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create mem sys counter: %w", err)
-	}
-
-	s.goMemHeapAlloc, err = meter.Int64UpDownCounter(
+		"Bytes obtained from system",
+		"By")
+	s.goMemHeapAlloc = mb.Int64UpDownCounter(
 		"go_memstats_heap_alloc_bytes",
-		metric.WithDescription("Bytes allocated to heap objects"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create heap alloc counter: %w", err)
-	}
-
-	s.goMemHeapSys, err = meter.Int64UpDownCounter(
+		"Bytes allocated to heap objects",
+		"By")
+	s.goMemHeapSys = mb.Int64UpDownCounter(
 		"go_memstats_heap_sys_bytes",
-		metric.WithDescription("Bytes obtained from system for heap"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create heap sys counter: %w", err)
-	}
-
-	s.goMemHeapIdle, err = meter.Int64UpDownCounter(
+		"Bytes obtained from system for heap",
+		"By")
+	s.goMemHeapIdle = mb.Int64UpDownCounter(
 		"go_memstats_heap_idle_bytes",
-		metric.WithDescription("Bytes in idle heap spans"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create heap idle counter: %w", err)
-	}
-
-	s.goMemHeapInuse, err = meter.Int64UpDownCounter(
+		"Bytes in idle heap spans",
+		"By")
+	s.goMemHeapInuse = mb.Int64UpDownCounter(
 		"go_memstats_heap_inuse_bytes",
-		metric.WithDescription("Bytes in in-use heap spans"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create heap inuse counter: %w", err)
-	}
-
-	s.goMemStackInuse, err = meter.Int64UpDownCounter(
+		"Bytes in in-use heap spans",
+		"By")
+	s.goMemStackInuse = mb.Int64UpDownCounter(
 		"go_memstats_stack_inuse_bytes",
-		metric.WithDescription("Bytes used by stack spans"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stack inuse counter: %w", err)
-	}
-
-	s.goMemStackSys, err = meter.Int64UpDownCounter(
+		"Bytes used by stack spans",
+		"By")
+	s.goMemStackSys = mb.Int64UpDownCounter(
 		"go_memstats_stack_sys_bytes",
-		metric.WithDescription("Bytes obtained from system for stacks"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stack sys counter: %w", err)
-	}
+		"Bytes obtained from system for stacks",
+		"By")
+}
 
-	// Process metrics
-	s.processCPUTime, err = meter.Float64Counter(
+// buildProcessMetrics creates process related metrics
+func (s *SystemMetrics) buildProcessMetrics(mb *metricBuilder) {
+	s.processCPUTime = mb.Float64Counter(
 		"process_cpu_seconds_total",
-		metric.WithDescription("Total user and system CPU time"),
-		metric.WithUnit("s"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create process CPU time counter: %w", err)
-	}
-
-	s.processMemoryRSS, err = meter.Int64UpDownCounter(
+		"Total user and system CPU time",
+		"s")
+	s.processMemoryRSS = mb.Int64UpDownCounter(
 		"process_resident_memory_bytes",
-		metric.WithDescription("Resident memory size in bytes"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create process memory RSS counter: %w", err)
-	}
-
-	s.processMemoryVMS, err = meter.Int64UpDownCounter(
+		"Resident memory size in bytes",
+		"By")
+	s.processMemoryVMS = mb.Int64UpDownCounter(
 		"process_virtual_memory_bytes",
-		metric.WithDescription("Virtual memory size in bytes"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create process memory VMS counter: %w", err)
-	}
-
-	s.processStartTime, err = meter.Int64UpDownCounter(
+		"Virtual memory size in bytes",
+		"By")
+	s.processStartTime = mb.Int64UpDownCounter(
 		"process_start_time_seconds",
-		metric.WithDescription("Start time of the process since unix epoch"),
-		metric.WithUnit("s"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create process start time counter: %w", err)
-	}
-
-	s.processUptime, err = meter.Float64UpDownCounter(
+		"Start time of the process since unix epoch",
+		"s")
+	s.processUptime = mb.Float64UpDownCounter(
 		"process_uptime_seconds",
-		metric.WithDescription("Process uptime in seconds"),
-		metric.WithUnit("s"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create process uptime counter: %w", err)
-	}
-
-	s.processFileDescriptors, err = meter.Int64UpDownCounter(
+		"Process uptime in seconds",
+		"s")
+	s.processFileDescriptors = mb.Int64UpDownCounter(
 		"process_open_fds",
-		metric.WithDescription("Number of open file descriptors"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create process file descriptors counter: %w", err)
-	}
+		"Number of open file descriptors",
+		"1")
+}
 
-	// System performance metrics
-	s.cpuUtilization, err = meter.Float64Histogram(
+// buildSystemPerformanceMetrics creates system performance related metrics
+func (s *SystemMetrics) buildSystemPerformanceMetrics(mb *metricBuilder) {
+	utilizationBuckets := []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99}
+
+	s.cpuUtilization = mb.Float64Histogram(
 		"system_cpu_utilization_ratio",
-		metric.WithDescription("System CPU utilization ratio"),
-		metric.WithUnit("1"),
-		metric.WithExplicitBucketBoundaries(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CPU utilization histogram: %w", err)
-	}
-
-	s.memoryUtilization, err = meter.Float64Histogram(
+		"System CPU utilization ratio",
+		"1",
+		utilizationBuckets)
+	s.memoryUtilization = mb.Float64Histogram(
 		"system_memory_utilization_ratio",
-		metric.WithDescription("System memory utilization ratio"),
-		metric.WithUnit("1"),
-		metric.WithExplicitBucketBoundaries(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create memory utilization histogram: %w", err)
-	}
-
-	s.diskIOOperations, err = meter.Int64Counter(
+		"System memory utilization ratio",
+		"1",
+		utilizationBuckets)
+	s.diskIOOperations = mb.Int64Counter(
 		"system_disk_io_operations_total",
-		metric.WithDescription("Total disk I/O operations"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create disk I/O operations counter: %w", err)
-	}
-
-	s.diskIOBytes, err = meter.Int64Counter(
+		"Total disk I/O operations",
+		"1")
+	s.diskIOBytes = mb.Int64Counter(
 		"system_disk_io_bytes_total",
-		metric.WithDescription("Total disk I/O bytes"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create disk I/O bytes counter: %w", err)
-	}
-
-	s.networkConnections, err = meter.Int64UpDownCounter(
+		"Total disk I/O bytes",
+		"By")
+	s.networkConnections = mb.Int64UpDownCounter(
 		"system_network_connections_active",
-		metric.WithDescription("Number of active network connections"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create network connections counter: %w", err)
-	}
-
-	s.networkIOBytes, err = meter.Int64Counter(
+		"Number of active network connections",
+		"1")
+	s.networkIOBytes = mb.Int64Counter(
 		"system_network_io_bytes_total",
-		metric.WithDescription("Total network I/O bytes"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create network I/O bytes counter: %w", err)
-	}
+		"Total network I/O bytes",
+		"By")
+}
 
-	// Application-specific metrics
-	s.requestQueueSize, err = meter.Int64UpDownCounter(
+// buildApplicationMetrics creates application specific metrics
+func (s *SystemMetrics) buildApplicationMetrics(mb *metricBuilder) {
+	s.requestQueueSize = mb.Int64UpDownCounter(
 		"application_request_queue_size",
-		metric.WithDescription("Size of request processing queue"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request queue size counter: %w", err)
-	}
-
-	s.connectionPoolUsage, err = meter.Float64Histogram(
+		"Size of request processing queue",
+		"1")
+	s.connectionPoolUsage = mb.Float64Histogram(
 		"application_connection_pool_usage_ratio",
-		metric.WithDescription("Connection pool usage ratio"),
-		metric.WithUnit("1"),
-		metric.WithExplicitBucketBoundaries(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create connection pool usage histogram: %w", err)
-	}
-
-	s.cacheMemoryUsage, err = meter.Int64UpDownCounter(
+		"Connection pool usage ratio",
+		"1",
+		[]float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99})
+	s.cacheMemoryUsage = mb.Int64UpDownCounter(
 		"application_cache_memory_bytes",
-		metric.WithDescription("Memory used by application caches"),
-		metric.WithUnit("By"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cache memory usage counter: %w", err)
-	}
-
-	s.backgroundTasks, err = meter.Int64UpDownCounter(
+		"Memory used by application caches",
+		"By")
+	s.backgroundTasks = mb.Int64UpDownCounter(
 		"application_background_tasks_active",
-		metric.WithDescription("Number of active background tasks"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create background tasks counter: %w", err)
-	}
-
-	s.scheduledJobs, err = meter.Int64Counter(
+		"Number of active background tasks",
+		"1")
+	s.scheduledJobs = mb.Int64Counter(
 		"application_scheduled_jobs_total",
-		metric.WithDescription("Total scheduled jobs executed"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create scheduled jobs counter: %w", err)
-	}
+		"Total scheduled jobs executed",
+		"1")
+}
 
-	// Error and health metrics
-	s.systemErrors, err = meter.Int64Counter(
+// buildHealthMetrics creates health and error metrics
+func (s *SystemMetrics) buildHealthMetrics(mb *metricBuilder) {
+	s.systemErrors = mb.Int64Counter(
 		"system_errors_total",
-		metric.WithDescription("Total system-level errors"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create system errors counter: %w", err)
-	}
-
-	s.memoryPressure, err = meter.Int64Counter(
+		"Total system-level errors",
+		"1")
+	s.memoryPressure = mb.Int64Counter(
 		"system_memory_pressure_events_total",
-		metric.WithDescription("Total memory pressure events"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create memory pressure counter: %w", err)
-	}
-
-	s.resourceExhaustion, err = meter.Int64Counter(
+		"Total memory pressure events",
+		"1")
+	s.resourceExhaustion = mb.Int64Counter(
 		"system_resource_exhaustion_events_total",
-		metric.WithDescription("Total resource exhaustion events"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create resource exhaustion counter: %w", err)
-	}
-
-	s.healthCheckResults, err = meter.Int64Counter(
+		"Total resource exhaustion events",
+		"1")
+	s.healthCheckResults = mb.Int64Counter(
 		"system_health_check_results_total",
-		metric.WithDescription("Total health check results"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create health check results counter: %w", err)
-	}
+		"Total health check results",
+		"1")
+}
 
-	// Performance indicators
-	s.responseTimeP99, err = meter.Float64Histogram(
+// buildPerformanceIndicators creates performance indicator metrics
+func (s *SystemMetrics) buildPerformanceIndicators(mb *metricBuilder) {
+	s.responseTimeP99 = mb.Float64Histogram(
 		"application_response_time_p99_seconds",
-		metric.WithDescription("99th percentile response time"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create response time P99 histogram: %w", err)
-	}
-
-	s.throughputPerSecond, err = meter.Float64Histogram(
+		"99th percentile response time",
+		"s",
+		[]float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10})
+	s.throughputPerSecond = mb.Float64Histogram(
 		"application_throughput_per_second",
-		metric.WithDescription("Application throughput per second"),
-		metric.WithUnit("1/s"),
-		metric.WithExplicitBucketBoundaries(1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create throughput histogram: %w", err)
-	}
-
-	s.errorRate, err = meter.Float64Histogram(
+		"Application throughput per second",
+		"1/s",
+		[]float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500})
+	s.errorRate = mb.Float64Histogram(
 		"application_error_rate_ratio",
-		metric.WithDescription("Application error rate ratio"),
-		metric.WithUnit("1"),
-		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create error rate histogram: %w", err)
-	}
-
-	s.availability, err = meter.Float64Histogram(
+		"Application error rate ratio",
+		"1",
+		[]float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5})
+	s.availability = mb.Float64Histogram(
 		"application_availability_ratio",
-		metric.WithDescription("Application availability ratio"),
-		metric.WithUnit("1"),
-		metric.WithExplicitBucketBoundaries(0.90, 0.95, 0.99, 0.995, 0.999, 0.9995, 0.9999, 1.0),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create availability histogram: %w", err)
-	}
-
-	return s, nil
+		"Application availability ratio",
+		"1",
+		[]float64{0.90, 0.95, 0.99, 0.995, 0.999, 0.9995, 0.9999, 1.0})
 }
 
 // CollectRuntimeMetrics collects Go runtime metrics

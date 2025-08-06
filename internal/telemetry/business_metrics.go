@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -76,332 +75,200 @@ func NewBusinessMetrics(tracer trace.Tracer, meter metric.Meter) (*BusinessMetri
 		meter:  meter,
 	}
 
-	var err error
+	mb := newMetricBuilder(meter)
 
-	// Threat Model metrics
-	b.threatModelsTotal, err = meter.Int64UpDownCounter(
+	// Build metrics by category
+	b.buildThreatModelMetrics(mb)
+	b.buildDiagramMetrics(mb)
+	b.buildCollaborationMetrics(mb)
+	b.buildWebSocketMetrics(mb)
+	b.buildAuthorizationMetrics(mb)
+	b.buildAPIMetrics(mb)
+	b.buildUserActivityMetrics(mb)
+	b.buildContentMetrics(mb)
+	b.buildPerformanceMetrics(mb)
+
+	return b, mb.Error()
+}
+
+// buildThreatModelMetrics creates threat model related metrics
+func (b *BusinessMetrics) buildThreatModelMetrics(mb *metricBuilder) {
+	b.threatModelsTotal = mb.Int64UpDownCounter(
 		"threat_models_total",
-		metric.WithDescription("Total number of threat models"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create threat models total counter: %w", err)
-	}
-
-	b.threatModelOperations, err = meter.Int64Counter(
+		"Total number of threat models",
+		"1")
+	b.threatModelOperations = mb.Int64Counter(
 		"threat_model_operations_total",
-		metric.WithDescription("Total threat model operations"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create threat model operations counter: %w", err)
-	}
-
-	b.threatModelDuration, err = meter.Float64Histogram(
+		"Total threat model operations",
+		"1")
+	b.threatModelDuration = mb.Float64Histogram(
 		"threat_model_operation_duration_seconds",
-		metric.WithDescription("Duration of threat model operations"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create threat model duration histogram: %w", err)
-	}
-
-	b.threatModelSize, err = meter.Int64Histogram(
+		"Duration of threat model operations",
+		"s",
+		[]float64{0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60})
+	b.threatModelSize = mb.Int64Histogram(
 		"threat_model_size_bytes",
-		metric.WithDescription("Size of threat models in bytes"),
-		metric.WithUnit("By"),
-		metric.WithExplicitBucketBoundaries(1000, 10000, 100000, 1000000, 10000000),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create threat model size histogram: %w", err)
-	}
+		"Size of threat models in bytes",
+		"By",
+		[]float64{1000, 10000, 100000, 1000000, 10000000})
+}
 
-	// Diagram metrics
-	b.diagramsTotal, err = meter.Int64UpDownCounter(
+// buildDiagramMetrics creates diagram related metrics
+func (b *BusinessMetrics) buildDiagramMetrics(mb *metricBuilder) {
+	b.diagramsTotal = mb.Int64UpDownCounter(
 		"diagrams_total",
-		metric.WithDescription("Total number of diagrams"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create diagrams total counter: %w", err)
-	}
-
-	b.diagramOperations, err = meter.Int64Counter(
+		"Total number of diagrams",
+		"1")
+	b.diagramOperations = mb.Int64Counter(
 		"diagram_operations_total",
-		metric.WithDescription("Total diagram operations"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create diagram operations counter: %w", err)
-	}
-
-	b.diagramCellOperations, err = meter.Int64Counter(
+		"Total diagram operations",
+		"1")
+	b.diagramCellOperations = mb.Int64Counter(
 		"diagram_cell_operations_total",
-		metric.WithDescription("Total diagram cell operations"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create diagram cell operations counter: %w", err)
-	}
-
-	b.cellModifications, err = meter.Int64Counter(
+		"Total diagram cell operations",
+		"1")
+	b.cellModifications = mb.Int64Counter(
 		"diagram_cells_modified_total",
-		metric.WithDescription("Total number of diagram cell modifications"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cell modifications counter: %w", err)
-	}
-
-	b.diagramComplexity, err = meter.Int64Histogram(
+		"Total number of diagram cell modifications",
+		"1")
+	b.diagramComplexity = mb.Int64Histogram(
 		"diagram_complexity",
-		metric.WithDescription("Complexity of diagrams measured by cell count"),
-		metric.WithUnit("1"),
-		metric.WithExplicitBucketBoundaries(1, 5, 10, 25, 50, 100, 250, 500, 1000),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create diagram complexity histogram: %w", err)
-	}
+		"Complexity of diagrams measured by cell count",
+		"1",
+		[]float64{1, 5, 10, 25, 50, 100, 250, 500, 1000})
+}
 
-	// Collaboration metrics
-	b.collaborationSessions, err = meter.Int64UpDownCounter(
+// buildCollaborationMetrics creates collaboration related metrics
+func (b *BusinessMetrics) buildCollaborationMetrics(mb *metricBuilder) {
+	b.collaborationSessions = mb.Int64UpDownCounter(
 		"collaboration_sessions_active",
-		metric.WithDescription("Number of active collaboration sessions"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create collaboration sessions counter: %w", err)
-	}
-
-	b.sessionDuration, err = meter.Float64Histogram(
+		"Number of active collaboration sessions",
+		"1")
+	b.sessionDuration = mb.Float64Histogram(
 		"collaboration_session_duration_seconds",
-		metric.WithDescription("Duration of collaboration sessions"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(10, 30, 60, 300, 600, 1800, 3600, 7200),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create session duration histogram: %w", err)
-	}
-
-	b.activeUsers, err = meter.Int64UpDownCounter(
+		"Duration of collaboration sessions",
+		"s",
+		[]float64{10, 30, 60, 300, 600, 1800, 3600, 7200})
+	b.activeUsers = mb.Int64UpDownCounter(
 		"active_users",
-		metric.WithDescription("Number of active users"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create active users counter: %w", err)
-	}
-
-	b.concurrentEditors, err = meter.Int64UpDownCounter(
+		"Number of active users",
+		"1")
+	b.concurrentEditors = mb.Int64UpDownCounter(
 		"concurrent_editors",
-		metric.WithDescription("Number of concurrent editors"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create concurrent editors counter: %w", err)
-	}
+		"Number of concurrent editors",
+		"1")
+}
 
-	// WebSocket metrics
-	b.websocketConnections, err = meter.Int64UpDownCounter(
+// buildWebSocketMetrics creates WebSocket related metrics
+func (b *BusinessMetrics) buildWebSocketMetrics(mb *metricBuilder) {
+	b.websocketConnections = mb.Int64UpDownCounter(
 		"websocket_connections_active",
-		metric.WithDescription("Number of active WebSocket connections"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create websocket connections counter: %w", err)
-	}
-
-	b.messagesSent, err = meter.Int64Counter(
+		"Number of active WebSocket connections",
+		"1")
+	b.messagesSent = mb.Int64Counter(
 		"websocket_messages_sent_total",
-		metric.WithDescription("Total WebSocket messages sent"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create messages sent counter: %w", err)
-	}
-
-	b.messagesReceived, err = meter.Int64Counter(
+		"Total WebSocket messages sent",
+		"1")
+	b.messagesReceived = mb.Int64Counter(
 		"websocket_messages_received_total",
-		metric.WithDescription("Total WebSocket messages received"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create messages received counter: %w", err)
-	}
-
-	b.broadcastEvents, err = meter.Int64Counter(
+		"Total WebSocket messages received",
+		"1")
+	b.broadcastEvents = mb.Int64Counter(
 		"websocket_broadcast_events_total",
-		metric.WithDescription("Total WebSocket broadcast events"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create broadcast events counter: %w", err)
-	}
+		"Total WebSocket broadcast events",
+		"1")
+}
 
-	// Authorization metrics
-	b.authorizationChecks, err = meter.Int64Counter(
+// buildAuthorizationMetrics creates authorization related metrics
+func (b *BusinessMetrics) buildAuthorizationMetrics(mb *metricBuilder) {
+	b.authorizationChecks = mb.Int64Counter(
 		"authorization_checks_total",
-		metric.WithDescription("Total authorization checks"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create authorization checks counter: %w", err)
-	}
-
-	b.roleBasedAccess, err = meter.Int64Counter(
+		"Total authorization checks",
+		"1")
+	b.roleBasedAccess = mb.Int64Counter(
 		"role_based_access_total",
-		metric.WithDescription("Total role-based access checks"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create role based access counter: %w", err)
-	}
-
-	b.permissionDenials, err = meter.Int64Counter(
+		"Total role-based access checks",
+		"1")
+	b.permissionDenials = mb.Int64Counter(
 		"permission_denials_total",
-		metric.WithDescription("Total permission denials"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create permission denials counter: %w", err)
-	}
+		"Total permission denials",
+		"1")
+}
 
-	// API usage metrics
-	b.apiEndpointUsage, err = meter.Int64Counter(
+// buildAPIMetrics creates API usage related metrics
+func (b *BusinessMetrics) buildAPIMetrics(mb *metricBuilder) {
+	b.apiEndpointUsage = mb.Int64Counter(
 		"api_endpoint_usage_total",
-		metric.WithDescription("Total API endpoint usage"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create API endpoint usage counter: %w", err)
-	}
-
-	b.apiResponseTimes, err = meter.Float64Histogram(
+		"Total API endpoint usage",
+		"1")
+	b.apiResponseTimes = mb.Float64Histogram(
 		"api_response_time_seconds",
-		metric.WithDescription("API response times"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create API response times histogram: %w", err)
-	}
-
-	b.apiErrorRates, err = meter.Int64Counter(
+		"API response times",
+		"s",
+		[]float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5})
+	b.apiErrorRates = mb.Int64Counter(
 		"api_errors_total",
-		metric.WithDescription("Total API errors"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create API errors counter: %w", err)
-	}
+		"Total API errors",
+		"1")
+}
 
-	// User activity metrics
-	b.userSessions, err = meter.Int64UpDownCounter(
+// buildUserActivityMetrics creates user activity related metrics
+func (b *BusinessMetrics) buildUserActivityMetrics(mb *metricBuilder) {
+	b.userSessions = mb.Int64UpDownCounter(
 		"user_sessions_active",
-		metric.WithDescription("Number of active user sessions"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user sessions counter: %w", err)
-	}
-
-	b.userActions, err = meter.Int64Counter(
+		"Number of active user sessions",
+		"1")
+	b.userActions = mb.Int64Counter(
 		"user_actions_total",
-		metric.WithDescription("Total user actions"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user actions counter: %w", err)
-	}
-
-	b.featureUsage, err = meter.Int64Counter(
+		"Total user actions",
+		"1")
+	b.featureUsage = mb.Int64Counter(
 		"feature_usage_total",
-		metric.WithDescription("Total feature usage"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create feature usage counter: %w", err)
-	}
-
-	b.userEngagement, err = meter.Float64Histogram(
+		"Total feature usage",
+		"1")
+	b.userEngagement = mb.Float64Histogram(
 		"user_engagement_duration_seconds",
-		metric.WithDescription("User engagement duration"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(30, 60, 300, 600, 1800, 3600, 7200, 14400),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user engagement histogram: %w", err)
-	}
+		"User engagement duration",
+		"s",
+		[]float64{30, 60, 300, 600, 1800, 3600, 7200, 14400})
+}
 
-	// Content metrics
-	b.documentsTotal, err = meter.Int64UpDownCounter(
+// buildContentMetrics creates content related metrics
+func (b *BusinessMetrics) buildContentMetrics(mb *metricBuilder) {
+	b.documentsTotal = mb.Int64UpDownCounter(
 		"documents_total",
-		metric.WithDescription("Total number of documents"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create documents total counter: %w", err)
-	}
-
-	b.sourceCodeTotal, err = meter.Int64UpDownCounter(
+		"Total number of documents",
+		"1")
+	b.sourceCodeTotal = mb.Int64UpDownCounter(
 		"source_code_total",
-		metric.WithDescription("Total number of source code items"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create source code total counter: %w", err)
-	}
-
-	b.threatsTotal, err = meter.Int64UpDownCounter(
+		"Total number of source code items",
+		"1")
+	b.threatsTotal = mb.Int64UpDownCounter(
 		"threats_total",
-		metric.WithDescription("Total number of threats"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create threats total counter: %w", err)
-	}
-
-	b.metadataOperations, err = meter.Int64Counter(
+		"Total number of threats",
+		"1")
+	b.metadataOperations = mb.Int64Counter(
 		"metadata_operations_total",
-		metric.WithDescription("Total metadata operations"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metadata operations counter: %w", err)
-	}
+		"Total metadata operations",
+		"1")
+}
 
-	// Performance metrics
-	b.operationLatency, err = meter.Float64Histogram(
+// buildPerformanceMetrics creates performance related metrics
+func (b *BusinessMetrics) buildPerformanceMetrics(mb *metricBuilder) {
+	b.operationLatency = mb.Float64Histogram(
 		"business_operation_latency_seconds",
-		metric.WithDescription("Latency of business operations"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create operation latency histogram: %w", err)
-	}
-
-	b.resourceUtilization, err = meter.Float64Histogram(
+		"Latency of business operations",
+		"s",
+		[]float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10})
+	b.resourceUtilization = mb.Float64Histogram(
 		"resource_utilization_ratio",
-		metric.WithDescription("Resource utilization ratios"),
-		metric.WithUnit("1"),
-		metric.WithExplicitBucketBoundaries(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create resource utilization histogram: %w", err)
-	}
-
-	b.errorPatterns, err = meter.Int64Counter(
+		"Resource utilization ratios",
+		"1",
+		[]float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99})
+	b.errorPatterns = mb.Int64Counter(
 		"error_patterns_total",
-		metric.WithDescription("Total error patterns"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create error patterns counter: %w", err)
-	}
-
-	return b, nil
+		"Total error patterns",
+		"1")
 }
 
 // RecordThreatModelOperation records threat model business operations
