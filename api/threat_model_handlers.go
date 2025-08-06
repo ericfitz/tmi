@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -147,9 +148,45 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Authorization []Authorization `json:"authorization,omitempty"`
 	}
 
-	request, err := ParseRequestBody[CreateThreatModelRequest](c)
+	// First, check for prohibited fields by parsing raw JSON
+	var rawRequest map[string]interface{}
+	if err := c.ShouldBindJSON(&rawRequest); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid JSON format"))
+		return
+	}
+
+	// Check for calculated/prohibited fields
+	prohibitedFields := []string{
+		"document_count", "source_count", "diagram_count", "threat_count",
+		"id", "created_at", "modified_at", "created_by", "owner",
+		"diagrams", "documents", "threats", "sourceCode",
+	}
+
+	for _, field := range prohibitedFields {
+		if _, exists := rawRequest[field]; exists {
+			HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+				"Field '%s' is not allowed in POST requests. %s",
+				field, getFieldErrorMessage(field))))
+			return
+		}
+	}
+
+	// Parse the validated raw request into our restricted struct
+	var request CreateThreatModelRequest
+	rawJSON, err := json.Marshal(rawRequest)
 	if err != nil {
-		HandleRequestError(c, err)
+		HandleRequestError(c, InvalidInputError("Failed to process request"))
+		return
+	}
+
+	if err := json.Unmarshal(rawJSON, &request); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request format: "+err.Error()))
+		return
+	}
+
+	// Validate required fields manually
+	if request.Name == "" {
+		HandleRequestError(c, InvalidInputError("Field 'name' is required"))
 		return
 	}
 
@@ -233,14 +270,68 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 
 // UpdateThreatModel fully updates a threat model
 func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
+	// Define allowed fields for PUT requests - excludes calculated and read-only fields
+	type UpdateThreatModelRequest struct {
+		Name                 string                          `json:"name" binding:"required"`
+		Description          *string                         `json:"description,omitempty"`
+		Owner                string                          `json:"owner" binding:"required"`
+		ThreatModelFramework ThreatModelThreatModelFramework `json:"threat_model_framework" binding:"required"`
+		IssueUrl             *string                         `json:"issue_url,omitempty"`
+		Authorization        []Authorization                 `json:"authorization" binding:"required"`
+		Metadata             *[]Metadata                     `json:"metadata,omitempty"`
+	}
+
 	// Parse ID from URL parameter
 	id := c.Param("id")
 	fmt.Printf("[DEBUG HANDLER] UpdateThreatModel called for ID: %s\n", id)
 
-	// Parse request body using utility
-	request, err := ParseRequestBody[ThreatModel](c)
+	// First, check for prohibited fields by parsing raw JSON
+	var rawRequest map[string]interface{}
+	if err := c.ShouldBindJSON(&rawRequest); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid JSON format"))
+		return
+	}
+
+	// Check for calculated/prohibited fields
+	prohibitedFields := []string{
+		"document_count", "source_count", "diagram_count", "threat_count",
+		"id", "created_at", "modified_at", "created_by",
+		"diagrams", "documents", "threats", "sourceCode",
+	}
+
+	for _, field := range prohibitedFields {
+		if _, exists := rawRequest[field]; exists {
+			HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+				"Field '%s' is not allowed in PUT requests. %s",
+				field, getFieldErrorMessage(field))))
+			return
+		}
+	}
+
+	// Parse the validated raw request into our restricted struct
+	var request UpdateThreatModelRequest
+	rawJSON, err := json.Marshal(rawRequest)
 	if err != nil {
-		HandleRequestError(c, err)
+		HandleRequestError(c, InvalidInputError("Failed to process request"))
+		return
+	}
+
+	if err := json.Unmarshal(rawJSON, &request); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request format: "+err.Error()))
+		return
+	}
+
+	// Validate required fields manually since we bypassed gin's binding
+	if request.Name == "" {
+		HandleRequestError(c, InvalidInputError("Field 'name' is required"))
+		return
+	}
+	if request.Owner == "" {
+		HandleRequestError(c, InvalidInputError("Field 'owner' is required"))
+		return
+	}
+	if len(request.Authorization) == 0 {
+		HandleRequestError(c, InvalidInputError("Field 'authorization' is required"))
 		return
 	}
 
@@ -267,11 +358,27 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		HandleRequestError(c, InvalidIDError("Invalid threat model ID format"))
 		return
 	}
-	request.Id = &uuid
 
-	// Preserve creation time but update modification time
-	request.CreatedAt = tm.CreatedAt
-	request.ModifiedAt = time.Now().UTC()
+	// Build full threat model from request
+	updatedTM := ThreatModel{
+		Id:                   &uuid,
+		Name:                 request.Name,
+		Description:          request.Description,
+		Owner:                request.Owner,
+		ThreatModelFramework: request.ThreatModelFramework,
+		IssueUrl:             request.IssueUrl,
+		Authorization:        request.Authorization,
+		Metadata:             request.Metadata,
+		// Preserve server-controlled fields
+		CreatedAt:  tm.CreatedAt,
+		ModifiedAt: time.Now().UTC(),
+		CreatedBy:  tm.CreatedBy,
+		// Preserve sub-entity arrays (managed separately)
+		Diagrams:   tm.Diagrams,
+		Documents:  tm.Documents,
+		Threats:    tm.Threats,
+		SourceCode: tm.SourceCode,
+	}
 
 	// Check if user has write access to the threat model
 	hasWriteAccess, err := CheckResourceAccess(userName, tm, RoleWriter)
@@ -286,8 +393,8 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	}
 
 	// Check if user has owner access for sensitive fields
-	ownerChanging := request.Owner != "" && request.Owner != tm.Owner
-	authChanging := (len(request.Authorization) > 0) && (!authorizationEqual(request.Authorization, tm.Authorization))
+	ownerChanging := updatedTM.Owner != "" && updatedTM.Owner != tm.Owner
+	authChanging := (len(updatedTM.Authorization) > 0) && (!authorizationEqual(updatedTM.Authorization, tm.Authorization))
 
 	if ownerChanging || authChanging {
 		hasOwnerAccess, err := CheckResourceAccess(userName, tm, RoleOwner)
@@ -305,28 +412,28 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Validate authorization changes if present
 	if authChanging {
 		// Validate authorization entries with format checking
-		if err := ValidateAuthorizationEntriesWithFormat(request.Authorization); err != nil {
+		if err := ValidateAuthorizationEntriesWithFormat(updatedTM.Authorization); err != nil {
 			HandleRequestError(c, err)
 			return
 		}
 
 		// Check for duplicate authorization subjects
-		if err := ValidateDuplicateSubjects(request.Authorization); err != nil {
+		if err := ValidateDuplicateSubjects(updatedTM.Authorization); err != nil {
 			HandleRequestError(c, err)
 			return
 		}
 
 		// If owner is changing, apply ownership transfer rule
 		if ownerChanging {
-			request.Authorization = ApplyOwnershipTransferRule(request.Authorization, tm.Owner, request.Owner)
+			updatedTM.Authorization = ApplyOwnershipTransferRule(updatedTM.Authorization, tm.Owner, updatedTM.Owner)
 		}
 	}
 
 	// Count sub-entities from payload for PUT operations
-	docCount, srcCount, diagCount, threatCount := ThreatModelStore.CountSubEntitiesFromPayload(request)
+	docCount, srcCount, diagCount, threatCount := ThreatModelStore.CountSubEntitiesFromPayload(updatedTM)
 
 	// Update in store
-	if err := ThreatModelStore.Update(id, request); err != nil {
+	if err := ThreatModelStore.Update(id, updatedTM); err != nil {
 		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
 	}
@@ -337,7 +444,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		fmt.Printf("[WARNING] Failed to update counts for threat model %s: %v\n", id, err)
 	}
 
-	c.JSON(http.StatusOK, request)
+	c.JSON(http.StatusOK, updatedTM)
 }
 
 // PatchThreatModel partially updates a threat model
@@ -352,6 +459,25 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		return
 	}
 	fmt.Printf("[DEBUG HANDLER] Successfully parsed PATCH request with %d operations\n", len(operations))
+
+	// Validate patch operations against prohibited fields
+	prohibitedPaths := []string{
+		"/document_count", "/source_count", "/diagram_count", "/threat_count",
+		"/id", "/created_at", "/modified_at", "/created_by",
+		"/diagrams", "/documents", "/threats", "/sourceCode",
+	}
+
+	for _, op := range operations {
+		for _, prohibitedPath := range prohibitedPaths {
+			if op.Path == prohibitedPath {
+				fieldName := strings.TrimPrefix(prohibitedPath, "/")
+				HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+					"Field '%s' is not allowed in PATCH requests. %s",
+					fieldName, getFieldErrorMessage(fieldName))))
+				return
+			}
+		}
+	}
 
 	userName, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
@@ -499,6 +625,34 @@ func parseIntParam(val string, fallback int) int {
 }
 
 // Note: Using the PatchOperation type defined in types.go
+
+// getFieldErrorMessage returns a descriptive error message for prohibited fields
+func getFieldErrorMessage(field string) string {
+	switch field {
+	case "document_count", "source_count", "diagram_count", "threat_count":
+		return "Count fields are calculated automatically and cannot be set directly."
+	case "id":
+		return "The ID is read-only and set by the server."
+	case "created_at":
+		return "Creation timestamp is read-only and set by the server."
+	case "modified_at":
+		return "Modification timestamp is managed automatically by the server."
+	case "created_by":
+		return "The creator field is read-only and set during creation."
+	case "owner":
+		return "The owner field is set automatically to the authenticated user during creation."
+	case "diagrams":
+		return "Diagrams must be managed via the /threat_models/:id/diagrams sub-entity endpoints."
+	case "documents":
+		return "Documents must be managed via the /threat_models/:id/documents sub-entity endpoints."
+	case "threats":
+		return "Threats must be managed via the /threat_models/:id/threats sub-entity endpoints."
+	case "sourceCode":
+		return "Source code entries must be managed via the /threat_models/:id/sources sub-entity endpoints."
+	default:
+		return "This field is not allowed in this request."
+	}
+}
 
 // convertOperationsToJSONPatch converts our internal representation to RFC6902 format
 func convertOperationsToJSONPatch(operations []PatchOperation) ([]byte, error) {

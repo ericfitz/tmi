@@ -130,7 +130,7 @@ func TestPostDiagrams(t *testing.T) {
 	require.NoError(t, err)
 	threatModelID := tmResponse.Id.String()
 
-	// Step 2: Create diagram through threat model sub-entity endpoint  
+	// Step 2: Create diagram through threat model sub-entity endpoint
 	diagram := api.PostThreatModelsThreatModelIdDiagramsJSONBody{
 		Name:        "Test Diagram",
 		Description: stringPtr("Test diagram description"),

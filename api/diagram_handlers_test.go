@@ -66,7 +66,7 @@ func setupDiagramRouterWithUser(userName string) *gin.Engine {
 	r.DELETE("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
 		threatModelID := c.Param("id")
 		diagramID := c.Param("diagram_id")
-		threatModelDiagramHandler.DeleteDiagram(c, threatModelID, diagramID)  
+		threatModelDiagramHandler.DeleteDiagram(c, threatModelID, diagramID)
 	})
 	r.GET("/threat_models/:id/diagrams/:diagram_id/collaborate", func(c *gin.Context) {
 		threatModelID := c.Param("id")

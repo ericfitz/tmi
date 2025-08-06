@@ -81,6 +81,7 @@ Current integration tests cover:
    - Retrieving threat models from database
    - Updating threat models and verifying persistence
    - Database constraint validation (required fields, counts, etc.)
+   - **Input validation for calculated fields** (see below)
 
 2. **Authentication & Authorization**
    - JWT token creation and validation
@@ -91,6 +92,24 @@ Current integration tests cover:
    - Real PostgreSQL transactions
    - Schema constraint enforcement
    - Count field management and validation
+
+#### Calculated Fields Validation
+
+The threat model API now includes comprehensive input validation to prevent submission of calculated/read-only fields:
+
+**Prohibited Fields:**
+- Count fields: `document_count`, `source_count`, `diagram_count`, `threat_count` (calculated automatically from database)
+- Server-controlled fields: `id`, `created_at`, `modified_at`, `created_by` (managed by server)
+- Owner field: `owner` (set automatically for POST, only changeable by owners for PUT/PATCH)
+- Sub-entity arrays: `diagrams`, `documents`, `threats`, `sourceCode` (managed via sub-entity endpoints)
+
+**Validation Coverage:**
+- POST `/threat_models`: Rejects all prohibited fields with descriptive error messages
+- PUT `/threat_models/:id`: Uses restricted request struct to prevent prohibited fields
+- PATCH `/threat_models/:id`: Validates JSON patch paths against prohibited field list
+
+**Error Responses:**
+All prohibited field submissions return HTTP 400 with descriptive error messages explaining why each field cannot be set directly.
 
 ## Troubleshooting
 
@@ -188,16 +207,13 @@ When testing the API, follow the correct object hierarchy and creation flow:
 #### 1. Threat Model Creation
 ```go
 // First, create a threat model
+// NOTE: Do NOT include count fields or other calculated/read-only fields
+// These are now rejected by the API and will cause 400 Bad Request errors
 threatModelData := map[string]interface{}{
     "name": "Test Threat Model",
-    "owner": testUser.Email,
-    "created_by": testUser.Email,
-    "threat_model_framework": "STRIDE",
-    // Include count fields with default values
-    "document_count": 0,
-    "source_count": 0,
-    "diagram_count": 0,
-    "threat_count": 0,
+    "description": "A test threat model for integration testing",
+    // Do not include: owner, created_by, id, timestamps, or count fields
+    // These are set automatically by the server
 }
 
 req := suite.makeAuthenticatedRequest("POST", "/threat_models", threatModelData)

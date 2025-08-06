@@ -187,8 +187,45 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 		threatModelDiagramHandler.DeleteDiagram(c, threatModelID, diagramID)
 	})
 
-	// Sub-entity routes would be registered here
-	// For now, we'll test the basic threat model and diagram functionality
+	// Register metadata handlers for comprehensive testing (using simple constructors)
+	// These handlers work without complex dependencies and can be tested directly
+
+	threatMetadataHandler := NewThreatMetadataHandlerSimple()
+	documentMetadataHandler := NewDocumentMetadataHandlerSimple()
+	sourceMetadataHandler := NewSourceMetadataHandlerSimple()
+	diagramMetadataHandler := NewDiagramMetadataHandlerSimple()
+
+	// Threat metadata routes
+	router.GET("/threat_models/:id/threats/:threat_id/metadata", threatMetadataHandler.GetThreatMetadata)
+	router.POST("/threat_models/:id/threats/:threat_id/metadata", threatMetadataHandler.CreateThreatMetadata)
+	router.GET("/threat_models/:id/threats/:threat_id/metadata/:key", threatMetadataHandler.GetThreatMetadataByKey)
+	router.PUT("/threat_models/:id/threats/:threat_id/metadata/:key", threatMetadataHandler.UpdateThreatMetadata)
+	router.DELETE("/threat_models/:id/threats/:threat_id/metadata/:key", threatMetadataHandler.DeleteThreatMetadata)
+
+	// Document metadata routes
+	router.GET("/threat_models/:id/documents/:document_id/metadata", documentMetadataHandler.GetDocumentMetadata)
+	router.POST("/threat_models/:id/documents/:document_id/metadata", documentMetadataHandler.CreateDocumentMetadata)
+	router.GET("/threat_models/:id/documents/:document_id/metadata/:key", documentMetadataHandler.GetDocumentMetadataByKey)
+	router.PUT("/threat_models/:id/documents/:document_id/metadata/:key", documentMetadataHandler.UpdateDocumentMetadata)
+	router.DELETE("/threat_models/:id/documents/:document_id/metadata/:key", documentMetadataHandler.DeleteDocumentMetadata)
+
+	// Source metadata routes
+	router.GET("/threat_models/:id/sources/:source_id/metadata", sourceMetadataHandler.GetSourceMetadata)
+	router.POST("/threat_models/:id/sources/:source_id/metadata", sourceMetadataHandler.CreateSourceMetadata)
+	router.GET("/threat_models/:id/sources/:source_id/metadata/:key", sourceMetadataHandler.GetSourceMetadataByKey)
+	router.PUT("/threat_models/:id/sources/:source_id/metadata/:key", sourceMetadataHandler.UpdateSourceMetadata)
+	router.DELETE("/threat_models/:id/sources/:source_id/metadata/:key", sourceMetadataHandler.DeleteSourceMetadata)
+
+	// Diagram metadata routes
+	router.GET("/threat_models/:id/diagrams/:diagram_id/metadata", diagramMetadataHandler.GetThreatModelDiagramMetadata)
+	router.POST("/threat_models/:id/diagrams/:diagram_id/metadata", diagramMetadataHandler.CreateThreatModelDiagramMetadata)
+	router.GET("/threat_models/:id/diagrams/:diagram_id/metadata/:key", diagramMetadataHandler.GetThreatModelDiagramMetadataByKey)
+	router.PUT("/threat_models/:id/diagrams/:diagram_id/metadata/:key", diagramMetadataHandler.UpdateThreatModelDiagramMetadata)
+	router.DELETE("/threat_models/:id/diagrams/:diagram_id/metadata/:key", diagramMetadataHandler.DeleteThreatModelDiagramMetadata)
+
+	// Note: Sub-entity CRUD handlers (threats, documents, sources) require complex dependencies
+	// that are not suitable for this integration test setup. Those are tested separately
+	// via the full server integration tests.
 
 	suite := &SubEntityIntegrationTestSuite{
 		dbManager:   dbManager,
@@ -238,19 +275,43 @@ func TestDatabaseDiagramIntegration(t *testing.T) {
 	})
 }
 
+// TestDatabaseMetadataIntegration tests metadata CRUD for all entity types
+func TestDatabaseMetadataIntegration(t *testing.T) {
+	suite := SetupSubEntityIntegrationTest(t)
+	defer suite.TeardownSubEntityIntegrationTest(t)
+
+	// First create entities for metadata testing
+	diagramID := suite.createTestDiagram(t)
+	require.NotEmpty(t, diagramID, "Diagram ID should not be empty for metadata testing")
+
+	// Test diagram metadata (only metadata type we can fully test without complex store setup)
+	t.Run("DiagramMetadata", func(t *testing.T) {
+		testDatabaseDiagramMetadata(t, suite, diagramID)
+	})
+
+	// Note: Other metadata types (threat, document, source) would require
+	// creating those entities first via proper handlers with all dependencies.
+	// These are best tested via full server integration tests.
+}
+
+// TestDatabaseCalculatedFieldsValidation tests that integration tests also reject calculated fields
+func TestDatabaseCalculatedFieldsValidation(t *testing.T) {
+	suite := SetupSubEntityIntegrationTest(t)
+	defer suite.TeardownSubEntityIntegrationTest(t)
+
+	t.Run("ThreatModelCalculatedFieldsRejection", func(t *testing.T) {
+		testDatabaseCalculatedFieldsRejection(t, suite)
+	})
+}
+
 // testDatabaseThreatModelPOST tests creating threat models via POST with database persistence
 func testDatabaseThreatModelPOST(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// Test data
+	// Test data - only include fields that are allowed by the validation
 	requestBody := map[string]interface{}{
-		"name":                   "Database Integration Test Threat Model",
-		"description":            "A threat model created during database integration testing",
-		"owner":                  suite.testUser.Email,
-		"created_by":             suite.testUser.Email,
-		"threat_model_framework": "STRIDE",
-		"document_count":         0,
-		"source_count":           0,
-		"diagram_count":          0,
-		"threat_count":           0,
+		"name":        "Database Integration Test Threat Model",
+		"description": "A threat model created during database integration testing",
+		// Note: Do not include calculated fields, owner, created_by, etc.
+		// These are now rejected by validation and set automatically by the server
 	}
 
 	// Make request
@@ -264,7 +325,7 @@ func testDatabaseThreatModelPOST(t *testing.T, suite *SubEntityIntegrationTestSu
 	assert.NotEmpty(t, response["id"], "Response should contain ID")
 	assert.Equal(t, requestBody["name"], response["name"])
 	assert.Equal(t, requestBody["description"], response["description"])
-	assert.Equal(t, requestBody["owner"], response["owner"])
+	assert.NotEmpty(t, response["owner"], "Response should contain owner (set by server)")
 	assert.NotEmpty(t, response["created_at"], "Response should contain created_at")
 	assert.NotEmpty(t, response["modified_at"], "Response should contain modified_at")
 
@@ -279,21 +340,16 @@ func testDatabaseThreatModelPOST(t *testing.T, suite *SubEntityIntegrationTestSu
 	assert.Equal(t, threatModelID, getResponse["id"])
 	assert.Equal(t, requestBody["name"], getResponse["name"])
 	assert.Equal(t, requestBody["description"], getResponse["description"])
-	assert.Equal(t, requestBody["owner"], getResponse["owner"])
+	assert.NotEmpty(t, getResponse["owner"], "Response should contain owner (set by server)")
 }
 
 // testDatabaseThreatModelGET tests retrieving threat models from database
 func testDatabaseThreatModelGET(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	// First create a threat model via API (which should persist to database)
 	requestBody := map[string]interface{}{
-		"name":                   "GET Test Database Threat Model",
-		"owner":                  suite.testUser.Email,
-		"created_by":             suite.testUser.Email,
-		"threat_model_framework": "STRIDE",
-		"document_count":         0,
-		"source_count":           0,
-		"diagram_count":          0,
-		"threat_count":           0,
+		"name": "GET Test Database Threat Model",
+		// Note: Do not include calculated fields, owner, created_by, etc.
+		// These are now rejected by validation and set automatically by the server
 	}
 
 	req := suite.makeAuthenticatedRequest("POST", "/threat_models", requestBody)
@@ -309,7 +365,7 @@ func testDatabaseThreatModelGET(t *testing.T, suite *SubEntityIntegrationTestSui
 	// Verify response matches database data
 	assert.Equal(t, threatModelID, response["id"])
 	assert.Equal(t, requestBody["name"], response["name"])
-	assert.Equal(t, requestBody["owner"], response["owner"])
+	assert.NotEmpty(t, response["owner"], "Response should contain owner (set by server)")
 
 	// Test GET all threat models - should retrieve from database
 	req = suite.makeAuthenticatedRequest("GET", "/threat_models", nil)
@@ -326,14 +382,9 @@ func testDatabaseThreatModelGET(t *testing.T, suite *SubEntityIntegrationTestSui
 func testDatabaseThreatModelPUT(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	// First create a threat model
 	requestBody := map[string]interface{}{
-		"name":                   "PUT Test Database Threat Model",
-		"owner":                  suite.testUser.Email,
-		"created_by":             suite.testUser.Email,
-		"threat_model_framework": "STRIDE",
-		"document_count":         0,
-		"source_count":           0,
-		"diagram_count":          0,
-		"threat_count":           0,
+		"name": "PUT Test Database Threat Model",
+		// Note: Do not include calculated fields, owner, created_by, etc.
+		// These are now rejected by validation and set automatically by the server
 	}
 
 	req := suite.makeAuthenticatedRequest("POST", "/threat_models", requestBody)
@@ -341,18 +392,17 @@ func testDatabaseThreatModelPUT(t *testing.T, suite *SubEntityIntegrationTestSui
 	createResponse := suite.assertJSONResponse(t, w, http.StatusCreated)
 	threatModelID := createResponse["id"].(string)
 
-	// Update the threat model
+	// Update the threat model - for PUT we need to include all required fields
 	updateBody := map[string]interface{}{
-		"id":                     threatModelID,
 		"name":                   "Updated Database Threat Model Name",
 		"description":            "Updated description in database",
-		"owner":                  suite.testUser.Email,
-		"created_by":             suite.testUser.Email,
-		"threat_model_framework": "STRIDE",
-		"document_count":         0,
-		"source_count":           0,
-		"diagram_count":          0,
-		"threat_count":           0,
+		"owner":                  suite.testUser.Email, // Required for PUT
+		"threat_model_framework": "STRIDE",             // Required for PUT
+		"authorization": []map[string]interface{}{ // Required for PUT
+			{"subject": suite.testUser.Email, "role": "owner"},
+		},
+		// Note: Do not include calculated fields, id, timestamps, etc.
+		// These are rejected by validation
 	}
 
 	req = suite.makeAuthenticatedRequest("PUT", "/threat_models/"+threatModelID, updateBody)
@@ -439,15 +489,10 @@ func testDatabaseDiagramGET(t *testing.T, suite *SubEntityIntegrationTestSuite) 
 // createParentThreatModel creates a parent threat model for testing sub-entities
 func (suite *SubEntityIntegrationTestSuite) createParentThreatModel(t *testing.T) {
 	requestBody := map[string]interface{}{
-		"name":                   "Integration Test Parent Threat Model",
-		"description":            "A threat model created for sub-entity integration testing",
-		"owner":                  suite.testUser.Email,
-		"created_by":             suite.testUser.Email,
-		"threat_model_framework": "STRIDE",
-		"document_count":         0,
-		"source_count":           0,
-		"diagram_count":          0,
-		"threat_count":           0,
+		"name":        "Integration Test Parent Threat Model",
+		"description": "A threat model created for sub-entity integration testing",
+		// Note: Do not include calculated fields like counts, owner, created_by, etc.
+		// These are now rejected by the validation and are set automatically by the server
 	}
 
 	req := suite.makeAuthenticatedRequest("POST", "/threat_models", requestBody)
@@ -652,4 +697,103 @@ func (suite *SubEntityIntegrationTestSuite) createTestDiagram(t *testing.T) stri
 	diagramID := response["id"].(string)
 	suite.testDiagramID = diagramID
 	return diagramID
+}
+
+// testDatabaseDiagramMetadata tests diagram metadata CRUD operations
+func testDatabaseDiagramMetadata(t *testing.T, suite *SubEntityIntegrationTestSuite, diagramID string) {
+	// Test data for metadata
+	metadataKey := "test_key"
+	metadataValue := "test_value"
+
+	metadataBody := map[string]interface{}{
+		"key":   metadataKey,
+		"value": metadataValue,
+	}
+
+	// Test POST metadata
+	t.Run("POST", func(t *testing.T) {
+		path := fmt.Sprintf("/threat_models/%s/diagrams/%s/metadata", suite.threatModelID, diagramID)
+		req := suite.makeAuthenticatedRequest("POST", path, metadataBody)
+		w := suite.executeRequest(req)
+
+		// Should succeed
+		response := suite.assertJSONResponse(t, w, http.StatusCreated)
+		assert.Equal(t, metadataKey, response["key"])
+		assert.Equal(t, metadataValue, response["value"])
+	})
+
+	// Test GET metadata by key
+	t.Run("GET_ByKey", func(t *testing.T) {
+		path := fmt.Sprintf("/threat_models/%s/diagrams/%s/metadata/%s", suite.threatModelID, diagramID, metadataKey)
+		req := suite.makeAuthenticatedRequest("GET", path, nil)
+		w := suite.executeRequest(req)
+
+		// Should succeed
+		response := suite.assertJSONResponse(t, w, http.StatusOK)
+		assert.Equal(t, metadataKey, response["key"])
+		assert.Equal(t, metadataValue, response["value"])
+	})
+
+	// Test PUT metadata (update)
+	t.Run("PUT", func(t *testing.T) {
+		updatedValue := "updated_test_value"
+		updateBody := map[string]interface{}{
+			"value": updatedValue,
+		}
+
+		path := fmt.Sprintf("/threat_models/%s/diagrams/%s/metadata/%s", suite.threatModelID, diagramID, metadataKey)
+		req := suite.makeAuthenticatedRequest("PUT", path, updateBody)
+		w := suite.executeRequest(req)
+
+		// Should succeed
+		response := suite.assertJSONResponse(t, w, http.StatusOK)
+		assert.Equal(t, metadataKey, response["key"])
+		assert.Equal(t, updatedValue, response["value"])
+	})
+
+	// Test GET all metadata
+	t.Run("GET_All", func(t *testing.T) {
+		path := fmt.Sprintf("/threat_models/%s/diagrams/%s/metadata", suite.threatModelID, diagramID)
+		req := suite.makeAuthenticatedRequest("GET", path, nil)
+		w := suite.executeRequest(req)
+
+		// Should succeed and return an array
+		responseArray := suite.assertJSONArrayResponse(t, w, http.StatusOK)
+		assert.GreaterOrEqual(t, len(responseArray), 1, "Should return at least one metadata entry")
+	})
+
+	// Test DELETE metadata
+	t.Run("DELETE", func(t *testing.T) {
+		path := fmt.Sprintf("/threat_models/%s/diagrams/%s/metadata/%s", suite.threatModelID, diagramID, metadataKey)
+		req := suite.makeAuthenticatedRequest("DELETE", path, nil)
+		w := suite.executeRequest(req)
+
+		// Should succeed
+		assert.Equal(t, http.StatusNoContent, w.Code)
+	})
+}
+
+// testDatabaseCalculatedFieldsRejection tests that integration tests also reject calculated fields
+func testDatabaseCalculatedFieldsRejection(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+	// Test that the integration environment also properly rejects calculated fields
+	requestBody := map[string]interface{}{
+		"name":           "Integration Test Threat Model",
+		"description":    "Should be rejected due to calculated fields",
+		"document_count": 5, // This should be rejected
+	}
+
+	req := suite.makeAuthenticatedRequest("POST", "/threat_models", requestBody)
+	w := suite.executeRequest(req)
+
+	// Should be rejected with 400 Bad Request
+	assert.Equal(t, http.StatusBadRequest, w.Code, "Calculated fields should be rejected in integration tests too")
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	// Verify error message mentions the problematic field
+	if errorDesc, exists := response["error_description"]; exists {
+		assert.Contains(t, errorDesc, "document_count", "Error should mention the rejected field")
+	}
 }
