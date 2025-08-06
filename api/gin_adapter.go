@@ -55,6 +55,14 @@ type GinServerInterface interface {
 	PatchThreatModelsId(c *gin.Context)
 	DeleteThreatModelsId(c *gin.Context)
 
+	// Threat Model Metadata
+	GetThreatModelsIdMetadata(c *gin.Context)
+	PostThreatModelsIdMetadata(c *gin.Context)
+	GetThreatModelsIdMetadataKey(c *gin.Context)
+	PutThreatModelsIdMetadataKey(c *gin.Context)
+	DeleteThreatModelsIdMetadataKey(c *gin.Context)
+	PostThreatModelsIdMetadataBulk(c *gin.Context)
+
 	// Threat Model Diagrams
 	GetThreatModelsThreatModelIdDiagrams(c *gin.Context)
 	PostThreatModelsThreatModelIdDiagrams(c *gin.Context)
@@ -170,6 +178,14 @@ func RegisterGinHandlers(r GinRouter, si GinServerInterface) {
 	r.PUT("/threat_models/:id", si.PutThreatModelsId)
 	r.PATCH("/threat_models/:id", si.PatchThreatModelsId)
 	r.DELETE("/threat_models/:id", si.DeleteThreatModelsId)
+
+	// Threat Model Metadata
+	r.GET("/threat_models/:id/metadata", si.GetThreatModelsIdMetadata)
+	r.POST("/threat_models/:id/metadata", si.PostThreatModelsIdMetadata)
+	r.GET("/threat_models/:id/metadata/:key", si.GetThreatModelsIdMetadataKey)
+	r.PUT("/threat_models/:id/metadata/:key", si.PutThreatModelsIdMetadataKey)
+	r.DELETE("/threat_models/:id/metadata/:key", si.DeleteThreatModelsIdMetadataKey)
+	r.POST("/threat_models/:id/metadata/bulk", si.PostThreatModelsIdMetadataBulk)
 
 	// Threat Model Diagrams
 	r.GET("/threat_models/:id/diagrams", si.GetThreatModelsThreatModelIdDiagrams)

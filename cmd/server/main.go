@@ -607,6 +607,37 @@ func (s *Server) DeleteThreatModelsId(c *gin.Context) {
 	threatModelHandler.DeleteThreatModel(c)
 }
 
+// Threat Model Metadata handlers
+func (s *Server) GetThreatModelsIdMetadata(c *gin.Context) {
+	handler := api.NewThreatModelMetadataHandlerSimple()
+	handler.GetThreatModelMetadata(c)
+}
+
+func (s *Server) PostThreatModelsIdMetadata(c *gin.Context) {
+	handler := api.NewThreatModelMetadataHandlerSimple()
+	handler.CreateThreatModelMetadata(c)
+}
+
+func (s *Server) GetThreatModelsIdMetadataKey(c *gin.Context) {
+	handler := api.NewThreatModelMetadataHandlerSimple()
+	handler.GetThreatModelMetadataByKey(c)
+}
+
+func (s *Server) PutThreatModelsIdMetadataKey(c *gin.Context) {
+	handler := api.NewThreatModelMetadataHandlerSimple()
+	handler.UpdateThreatModelMetadata(c)
+}
+
+func (s *Server) DeleteThreatModelsIdMetadataKey(c *gin.Context) {
+	handler := api.NewThreatModelMetadataHandlerSimple()
+	handler.DeleteThreatModelMetadata(c)
+}
+
+func (s *Server) PostThreatModelsIdMetadataBulk(c *gin.Context) {
+	handler := api.NewThreatModelMetadataHandlerSimple()
+	handler.BulkCreateThreatModelMetadata(c)
+}
+
 // Threat Model Diagrams
 func (s *Server) GetThreatModelsThreatModelIdDiagrams(c *gin.Context) {
 	threatModelId := c.Param("id")

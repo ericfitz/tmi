@@ -1,0 +1,391 @@
+package api
+
+import (
+	"database/sql"
+	"net/http"
+
+	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/gin-gonic/gin"
+)
+
+// ThreatModelMetadataHandler provides handlers for threat model metadata operations
+type ThreatModelMetadataHandler struct {
+	metadataStore    MetadataStore
+	db               *sql.DB
+	cache            *CacheService
+	cacheInvalidator *CacheInvalidator
+}
+
+// NewThreatModelMetadataHandler creates a new threat model metadata handler
+func NewThreatModelMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *ThreatModelMetadataHandler {
+	return &ThreatModelMetadataHandler{
+		metadataStore:    metadataStore,
+		db:               db,
+		cache:            cache,
+		cacheInvalidator: invalidator,
+	}
+}
+
+// NewThreatModelMetadataHandlerSimple creates a new threat model metadata handler with default dependencies
+func NewThreatModelMetadataHandlerSimple() *ThreatModelMetadataHandler {
+	// Create a simple in-memory metadata store for now
+	// In production, this should be properly injected
+	store := NewInMemoryMetadataStore()
+	return &ThreatModelMetadataHandler{
+		metadataStore:    store,
+		db:               nil,
+		cache:            nil,
+		cacheInvalidator: nil,
+	}
+}
+
+// GetThreatModelMetadata retrieves all metadata for a threat model
+// GET /threat_models/{threat_model_id}/metadata
+func (h *ThreatModelMetadataHandler) GetThreatModelMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("GetThreatModelMetadata - retrieving metadata for threat model")
+
+	// Extract threat model ID from URL
+	threatModelID := c.Param("threat_model_id")
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+
+	// Validate threat model ID format
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	logger.Debug("Retrieving metadata for threat model %s (user: %s)", threatModelID, userName)
+
+	// Get metadata from store
+	metadata, err := h.metadataStore.List(c.Request.Context(), "threat_model", threatModelID)
+	if err != nil {
+		logger.Error("Failed to retrieve threat model metadata for %s: %v", threatModelID, err)
+		HandleRequestError(c, ServerError("Failed to retrieve metadata"))
+		return
+	}
+
+	logger.Debug("Successfully retrieved %d metadata items for threat model %s", len(metadata), threatModelID)
+	c.JSON(http.StatusOK, metadata)
+}
+
+// GetThreatModelMetadataByKey retrieves a specific metadata entry by key
+// GET /threat_models/{threat_model_id}/metadata/{key}
+func (h *ThreatModelMetadataHandler) GetThreatModelMetadataByKey(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("GetThreatModelMetadataByKey - retrieving specific metadata entry")
+
+	// Extract threat model ID and key from URL
+	threatModelID := c.Param("threat_model_id")
+	key := c.Param("key")
+
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+	if key == "" {
+		HandleRequestError(c, InvalidInputError("Missing metadata key"))
+		return
+	}
+
+	// Validate threat model ID format
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	logger.Debug("Retrieving metadata key '%s' for threat model %s (user: %s)", key, threatModelID, userName)
+
+	// Get metadata entry from store
+	metadata, err := h.metadataStore.Get(c.Request.Context(), "threat_model", threatModelID, key)
+	if err != nil {
+		logger.Error("Failed to retrieve threat model metadata key '%s' for %s: %v", key, threatModelID, err)
+		HandleRequestError(c, NotFoundError("Metadata entry not found"))
+		return
+	}
+
+	logger.Debug("Successfully retrieved metadata key '%s' for threat model %s", key, threatModelID)
+	c.JSON(http.StatusOK, metadata)
+}
+
+// CreateThreatModelMetadata creates a new metadata entry for a threat model
+// POST /threat_models/{threat_model_id}/metadata
+func (h *ThreatModelMetadataHandler) CreateThreatModelMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("CreateThreatModelMetadata - creating new metadata entry")
+
+	// Extract threat model ID from URL
+	threatModelID := c.Param("threat_model_id")
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+
+	// Validate threat model ID format
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse request body
+	metadata, err := ParseRequestBody[Metadata](c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Validate required fields
+	if metadata.Key == "" {
+		HandleRequestError(c, InvalidInputError("Metadata key is required"))
+		return
+	}
+	if metadata.Value == "" {
+		HandleRequestError(c, InvalidInputError("Metadata value is required"))
+		return
+	}
+
+	logger.Debug("Creating metadata key '%s' for threat model %s (user: %s)", metadata.Key, threatModelID, userName)
+
+	// Create metadata entry in store
+	if err := h.metadataStore.Create(c.Request.Context(), "threat_model", threatModelID, &metadata); err != nil {
+		logger.Error("Failed to create threat model metadata key '%s' for %s: %v", metadata.Key, threatModelID, err)
+		HandleRequestError(c, ServerError("Failed to create metadata"))
+		return
+	}
+
+	// Retrieve the created metadata to return with timestamps
+	createdMetadata, err := h.metadataStore.Get(c.Request.Context(), "threat_model", threatModelID, metadata.Key)
+	if err != nil {
+		// Log error but still return success since creation succeeded
+		logger.Error("Failed to retrieve created metadata: %v", err)
+		c.JSON(http.StatusCreated, metadata)
+		return
+	}
+
+	logger.Debug("Successfully created metadata key '%s' for threat model %s", metadata.Key, threatModelID)
+	c.JSON(http.StatusCreated, createdMetadata)
+}
+
+// UpdateThreatModelMetadata updates an existing metadata entry
+// PUT /threat_models/{threat_model_id}/metadata/{key}
+func (h *ThreatModelMetadataHandler) UpdateThreatModelMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("UpdateThreatModelMetadata - updating metadata entry")
+
+	// Extract threat model ID and key from URL
+	threatModelID := c.Param("threat_model_id")
+	key := c.Param("key")
+
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+	if key == "" {
+		HandleRequestError(c, InvalidInputError("Missing metadata key"))
+		return
+	}
+
+	// Validate threat model ID format
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse request body
+	metadata, err := ParseRequestBody[Metadata](c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Validate required fields
+	if metadata.Value == "" {
+		HandleRequestError(c, InvalidInputError("Metadata value is required"))
+		return
+	}
+
+	// Ensure the key matches the URL parameter
+	metadata.Key = key
+
+	logger.Debug("Updating metadata key '%s' for threat model %s (user: %s)", key, threatModelID, userName)
+
+	// Update metadata entry in store
+	if err := h.metadataStore.Update(c.Request.Context(), "threat_model", threatModelID, &metadata); err != nil {
+		logger.Error("Failed to update threat model metadata key '%s' for %s: %v", key, threatModelID, err)
+		HandleRequestError(c, ServerError("Failed to update metadata"))
+		return
+	}
+
+	// Retrieve the updated metadata to return
+	updatedMetadata, err := h.metadataStore.Get(c.Request.Context(), "threat_model", threatModelID, key)
+	if err != nil {
+		logger.Error("Failed to retrieve updated metadata: %v", err)
+		HandleRequestError(c, ServerError("Failed to retrieve updated metadata"))
+		return
+	}
+
+	logger.Debug("Successfully updated metadata key '%s' for threat model %s", key, threatModelID)
+	c.JSON(http.StatusOK, updatedMetadata)
+}
+
+// DeleteThreatModelMetadata deletes a metadata entry
+// DELETE /threat_models/{threat_model_id}/metadata/{key}
+func (h *ThreatModelMetadataHandler) DeleteThreatModelMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("DeleteThreatModelMetadata - deleting metadata entry")
+
+	// Extract threat model ID and key from URL
+	threatModelID := c.Param("threat_model_id")
+	key := c.Param("key")
+
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+	if key == "" {
+		HandleRequestError(c, InvalidInputError("Missing metadata key"))
+		return
+	}
+
+	// Validate threat model ID format
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	logger.Debug("Deleting metadata key '%s' for threat model %s (user: %s)", key, threatModelID, userName)
+
+	// Delete metadata entry from store
+	if err := h.metadataStore.Delete(c.Request.Context(), "threat_model", threatModelID, key); err != nil {
+		logger.Error("Failed to delete threat model metadata key '%s' for %s: %v", key, threatModelID, err)
+		HandleRequestError(c, ServerError("Failed to delete metadata"))
+		return
+	}
+
+	logger.Debug("Successfully deleted metadata key '%s' for threat model %s", key, threatModelID)
+	c.JSON(http.StatusNoContent, nil)
+}
+
+// BulkCreateThreatModelMetadata creates multiple metadata entries in a single request
+// POST /threat_models/{threat_model_id}/metadata/bulk
+func (h *ThreatModelMetadataHandler) BulkCreateThreatModelMetadata(c *gin.Context) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("BulkCreateThreatModelMetadata - creating multiple metadata entries")
+
+	// Extract threat model ID from URL
+	threatModelID := c.Param("threat_model_id")
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+
+	// Validate threat model ID format
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse request body as array of metadata
+	metadataList, err := ParseRequestBody[[]Metadata](c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if len(metadataList) == 0 {
+		HandleRequestError(c, InvalidInputError("No metadata entries provided"))
+		return
+	}
+
+	if len(metadataList) > 20 {
+		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+		return
+	}
+
+	// Validate all metadata entries
+	for i, metadata := range metadataList {
+		if metadata.Key == "" {
+			HandleRequestError(c, InvalidInputError("Metadata key is required for all entries"))
+			return
+		}
+		if metadata.Value == "" {
+			HandleRequestError(c, InvalidInputError("Metadata value is required for all entries"))
+			return
+		}
+
+		// Check for duplicate keys within the request
+		for j := i + 1; j < len(metadataList); j++ {
+			if metadataList[j].Key == metadata.Key {
+				HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
+				return
+			}
+		}
+	}
+
+	logger.Debug("Bulk creating %d metadata entries for threat model %s (user: %s)",
+		len(metadataList), threatModelID, userName)
+
+	// Create metadata entries in store
+	if err := h.metadataStore.BulkCreate(c.Request.Context(), "threat_model", threatModelID, metadataList); err != nil {
+		logger.Error("Failed to bulk create threat model metadata for %s: %v", threatModelID, err)
+		HandleRequestError(c, ServerError("Failed to create metadata entries"))
+		return
+	}
+
+	// Retrieve the created metadata to return with timestamps
+	createdMetadata, err := h.metadataStore.List(c.Request.Context(), "threat_model", threatModelID)
+	if err != nil {
+		// Log error but still return success since creation succeeded
+		logger.Error("Failed to retrieve created metadata: %v", err)
+		c.JSON(http.StatusCreated, metadataList)
+		return
+	}
+
+	logger.Debug("Successfully bulk created %d metadata entries for threat model %s", len(metadataList), threatModelID)
+	c.JSON(http.StatusCreated, createdMetadata)
+}
