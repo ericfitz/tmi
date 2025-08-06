@@ -51,8 +51,13 @@ func runFullIntegrationSuite(t *testing.T, redisEnabled bool) {
 		t.Run("Metadata", TestDatabaseMetadataIntegration)
 	})
 
-	// Note: Other test categories from the plan (Collaboration, BatchOperations, Deletion)
-	// will be implemented in subsequent phases as separate test files are created
+	t.Run("Collaboration", func(t *testing.T) {
+		// Real-time collaboration features
+		t.Run("CollaborationIntegration", TestCollaborationIntegration)
+		if redisEnabled {
+			t.Run("CollaborationWithRedis", TestCollaborationWithRedis)
+		}
+	})
 
 	t.Run("FieldValidation", func(t *testing.T) {
 		// Field validation tests
