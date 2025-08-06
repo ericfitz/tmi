@@ -284,3 +284,316 @@ When integration tests fail, check these common issues:
 3. **Database State**: Check if previous test data wasn't properly cleaned up
 4. **Endpoint URLs**: Ensure you're using the correct API endpoint paths
 5. **Required Fields**: Include all required fields with appropriate default values
+
+## Comprehensive Integration Testing Methodology
+
+### Test Philosophy and Approach
+
+The integration test suite follows a **natural API flow pattern** that mirrors real-world usage:
+
+1. **Creation Flow**: Follow the natural hierarchy (Threat Model → Sub-entities → Sub-sub-entities)
+2. **Database Verification**: At each step, verify data persistence and accuracy in the database
+3. **Retrieval Validation**: Test GET endpoints after creation to ensure data integrity
+4. **Mutation Testing**: Test PUT/PATCH operations and verify changes persist
+5. **Deletion Testing**: Test deletion in reverse hierarchy order with cascade verification
+
+### API Entity Hierarchy
+
+The TMI API follows a clear hierarchical structure:
+
+```
+Root Entities:
+├── Threat Models (/threat_models)
+├── Standalone Diagrams (/diagrams)
+
+Sub-Entities (under Threat Models):
+├── Diagrams (/threat_models/:id/diagrams)
+├── Threats (/threat_models/:id/threats)  
+├── Documents (/threat_models/:id/documents)
+├── Sources (/threat_models/:id/sources)
+
+Sub-Sub-Entities (Metadata):
+├── Threat Model Metadata (/threat_models/:id/metadata)
+├── Diagram Metadata (/threat_models/:id/diagrams/:diagram_id/metadata)
+├── Threat Metadata (/threat_models/:id/threats/:threat_id/metadata)
+├── Document Metadata (/threat_models/:id/documents/:document_id/metadata)  
+├── Source Metadata (/threat_models/:id/sources/:source_id/metadata)
+
+Sub-Sub-Sub-Entities:
+├── Diagram Cells (/diagrams/:id/cells/:cell_id)
+├── Cell Metadata (/diagrams/:id/cells/:cell_id/metadata)
+```
+
+### Comprehensive Test Patterns
+
+#### 1. **Creation and Persistence Testing (POST)**
+
+**Pattern**: Create → Verify Database → Cache IDs → Use for Sub-entities
+
+```go
+func TestComprehensiveEntityCreation(t *testing.T) {
+    suite := SetupSubEntityIntegrationTest(t)
+    defer suite.TeardownSubEntityIntegrationTest(t)
+
+    // 1. Create root entity (threat model)
+    threatModelData := map[string]interface{}{
+        "name": "Test Threat Model",
+        "description": "Test description",
+        // Do not include calculated fields
+    }
+    
+    req := suite.makeAuthenticatedRequest("POST", "/threat_models", threatModelData)
+    w := suite.executeRequest(req)
+    tmResponse := suite.assertJSONResponse(t, w, http.StatusCreated)
+    threatModelID := tmResponse["id"].(string)
+    
+    // Verify database persistence
+    suite.verifyThreatModelInDatabase(t, threatModelID, threatModelData)
+    
+    // 2. Create sub-entity (threat)
+    threatData := map[string]interface{}{
+        "name": "SQL Injection",
+        "description": "Database injection attack",
+    }
+    
+    threatPath := fmt.Sprintf("/threat_models/%s/threats", threatModelID)
+    threatReq := suite.makeAuthenticatedRequest("POST", threatPath, threatData)
+    threatW := suite.executeRequest(threatReq)
+    threatResponse := suite.assertJSONResponse(t, threatW, http.StatusCreated)
+    threatID := threatResponse["id"].(string)
+    
+    // Verify sub-entity database persistence
+    suite.verifyThreatInDatabase(t, threatID, threatModelID, threatData)
+    
+    // 3. Create sub-sub-entity (threat metadata)
+    metadataData := map[string]interface{}{
+        "key": "priority",
+        "value": "high",
+    }
+    
+    metadataPath := fmt.Sprintf("/threat_models/%s/threats/%s/metadata", threatModelID, threatID)
+    metadataReq := suite.makeAuthenticatedRequest("POST", metadataPath, metadataData)
+    metadataW := suite.executeRequest(metadataReq)
+    metadataResponse := suite.assertJSONResponse(t, metadataW, http.StatusCreated)
+    
+    // Verify metadata database persistence
+    suite.verifyMetadataInDatabase(t, threatID, "threat", metadataData)
+}
+```
+
+#### 2. **Retrieval Testing (GET)**
+
+**Pattern**: After creation, test all GET endpoints to verify data integrity
+
+```go
+func TestComprehensiveEntityRetrieval(t *testing.T) {
+    // Use previously created entities from creation test
+    
+    // Test individual retrieval
+    getReq := suite.makeAuthenticatedRequest("GET", "/threat_models/" + threatModelID, nil)
+    getW := suite.executeRequest(getReq)
+    getResponse := suite.assertJSONResponse(t, getW, http.StatusOK)
+    
+    // Verify all fields match database
+    suite.assertFieldsMatch(t, getResponse, threatModelData)
+    
+    // Test list retrieval  
+    listReq := suite.makeAuthenticatedRequest("GET", "/threat_models", nil)
+    listW := suite.executeRequest(listReq)
+    listResponse := suite.assertJSONArrayResponse(t, listW, http.StatusOK)
+    
+    // Verify our created item is in the list
+    suite.assertContainsEntity(t, listResponse, threatModelID)
+}
+```
+
+#### 3. **Mutation Testing (PUT/PATCH)**
+
+**Pattern**: Modify → Verify Database → Verify GET returns updated data
+
+```go
+func TestComprehensiveEntityMutation(t *testing.T) {
+    // Test PUT (complete replacement)
+    updateData := map[string]interface{}{
+        "name": "Updated Threat Model",
+        "description": "Updated description",
+        // Include all required fields for PUT
+    }
+    
+    putReq := suite.makeAuthenticatedRequest("PUT", "/threat_models/" + threatModelID, updateData)
+    putW := suite.executeRequest(putReq)
+    putResponse := suite.assertJSONResponse(t, putW, http.StatusOK)
+    
+    // Verify database was updated
+    suite.verifyThreatModelInDatabase(t, threatModelID, updateData)
+    
+    // Test PATCH (partial update)
+    patchData := []map[string]interface{}{
+        {
+            "op": "replace",
+            "path": "/name", 
+            "value": "Patched Name",
+        },
+    }
+    
+    patchReq := suite.makeAuthenticatedRequest("PATCH", "/threat_models/" + threatModelID, patchData)
+    patchW := suite.executeRequest(patchReq)
+    suite.assertJSONResponse(t, patchW, http.StatusOK)
+    
+    // Verify PATCH was applied
+    suite.verifyFieldInDatabase(t, threatModelID, "name", "Patched Name")
+}
+```
+
+#### 4. **Redis Testing (Both Enabled and Disabled)**
+
+**Pattern**: Run same test suite with Redis on/off to verify caching doesn't introduce bugs
+
+```go
+func TestWithRedisEnabled(t *testing.T) {
+    // Set environment variable to enable Redis
+    os.Setenv("REDIS_ENABLED", "true")
+    defer os.Unsetenv("REDIS_ENABLED")
+    
+    // Run standard test suite
+    runComprehensiveTestSuite(t)
+}
+
+func TestWithRedisDisabled(t *testing.T) {
+    // Set environment variable to disable Redis
+    os.Setenv("REDIS_ENABLED", "false") 
+    defer os.Unsetenv("REDIS_ENABLED")
+    
+    // Run same test suite - should get identical results
+    runComprehensiveTestSuite(t)
+}
+```
+
+#### 5. **Deletion Testing (DELETE)**
+
+**Pattern**: Delete in reverse hierarchy order, test both individual and cascading deletion
+
+```go
+func TestComprehensiveDeletion(t *testing.T) {
+    // Test individual deletion (deepest first)
+    
+    // 1. Delete sub-sub-entity (metadata)
+    metadataDeleteReq := suite.makeAuthenticatedRequest("DELETE", 
+        fmt.Sprintf("/threat_models/%s/threats/%s/metadata/priority", threatModelID, threatID), nil)
+    metadataDeleteW := suite.executeRequest(metadataDeleteReq)
+    assert.Equal(t, http.StatusNoContent, metadataDeleteW.Code)
+    
+    // Verify metadata deleted from database
+    suite.verifyMetadataNotInDatabase(t, threatID, "priority")
+    
+    // 2. Delete sub-entity (threat)
+    threatDeleteReq := suite.makeAuthenticatedRequest("DELETE",
+        fmt.Sprintf("/threat_models/%s/threats/%s", threatModelID, threatID), nil)
+    threatDeleteW := suite.executeRequest(threatDeleteReq)
+    assert.Equal(t, http.StatusNoContent, threatDeleteW.Code)
+    
+    // Verify threat deleted from database
+    suite.verifyThreatNotInDatabase(t, threatID)
+    
+    // 3. Delete root entity (threat model)
+    tmDeleteReq := suite.makeAuthenticatedRequest("DELETE", "/threat_models/" + threatModelID, nil)
+    tmDeleteW := suite.executeRequest(tmDeleteReq)
+    assert.Equal(t, http.StatusNoContent, tmDeleteW.Code)
+    
+    // Verify threat model deleted from database
+    suite.verifyThreatModelNotInDatabase(t, threatModelID)
+}
+
+func TestCascadingDeletion(t *testing.T) {
+    // Create full hierarchy
+    threatModelID := suite.createThreatModelWithSubEntities(t)
+    
+    // Delete root entity - should cascade delete all sub-entities
+    deleteReq := suite.makeAuthenticatedRequest("DELETE", "/threat_models/" + threatModelID, nil)
+    deleteW := suite.executeRequest(deleteReq)
+    assert.Equal(t, http.StatusNoContent, deleteW.Code)
+    
+    // Verify ALL related entities were cascade deleted
+    suite.verifyThreatModelNotInDatabase(t, threatModelID)
+    suite.verifyNoOrphanedSubEntitiesInDatabase(t, threatModelID)
+}
+```
+
+### Database Verification Helpers
+
+Every test must include database verification to ensure data persistence:
+
+```go
+func (suite *SubEntityIntegrationTestSuite) verifyThreatModelInDatabase(t *testing.T, id string, expectedData map[string]interface{}) {
+    var tm ThreatModel
+    err := suite.dbManager.DB.Where("id = ?", id).First(&tm).Error
+    require.NoError(t, err, "Threat model should exist in database")
+    
+    // Verify each field matches
+    assert.Equal(t, expectedData["name"], tm.Name)
+    assert.Equal(t, expectedData["description"], *tm.Description)
+    
+    // Verify timestamps are set
+    assert.NotZero(t, tm.CreatedAt)
+    assert.NotZero(t, tm.ModifiedAt)
+    
+    // Verify calculated fields are correct
+    // (count fields should be calculated from actual sub-entities)
+}
+```
+
+### Bulk and Batch Operation Testing
+
+Test bulk operations that create/modify multiple entities:
+
+```go
+func TestBulkOperations(t *testing.T) {
+    // Test bulk creation
+    bulkData := []map[string]interface{}{
+        {"name": "Threat 1", "description": "First bulk threat"},
+        {"name": "Threat 2", "description": "Second bulk threat"},
+        {"name": "Threat 3", "description": "Third bulk threat"},
+    }
+    
+    bulkReq := suite.makeAuthenticatedRequest("POST", 
+        fmt.Sprintf("/threat_models/%s/threats/bulk", threatModelID), bulkData)
+    bulkW := suite.executeRequest(bulkReq)
+    bulkResponse := suite.assertJSONArrayResponse(t, bulkW, http.StatusCreated)
+    
+    // Verify all items created in database
+    assert.Len(t, bulkResponse, 3)
+    for _, item := range bulkResponse {
+        threatID := item["id"].(string)
+        suite.verifyThreatInDatabase(t, threatID, threatModelID, map[string]interface{}{
+            "name": item["name"].(string),
+        })
+    }
+}
+```
+
+### Coverage Requirements
+
+To achieve 100% endpoint coverage, every endpoint in `gin_adapter.go` must have integration tests covering:
+
+1. **Happy Path**: Successful operation with valid data
+2. **Error Cases**: Invalid data, missing authentication, insufficient permissions
+3. **Edge Cases**: Empty data, maximum field lengths, special characters
+4. **Database Persistence**: Data correctly stored and retrievable
+5. **Redis Consistency**: Same behavior with/without Redis enabled
+
+### Test Organization
+
+Organize tests by entity hierarchy and operation type:
+
+```
+api/
+├── integration_root_entities_test.go     # Threat models, standalone diagrams
+├── integration_sub_entities_test.go      # Threats, documents, sources, diagrams
+├── integration_metadata_test.go          # All metadata operations  
+├── integration_collaboration_test.go     # WebSocket collaboration features
+├── integration_batch_operations_test.go  # Bulk/batch operations
+├── integration_deletion_test.go          # Deletion and cascading
+└── integration_redis_consistency_test.go # Redis enabled/disabled comparison
+```
+
+This comprehensive methodology ensures that the integration tests provide confidence that the entire API works correctly in production-like conditions while maintaining data integrity throughout the entity hierarchy.

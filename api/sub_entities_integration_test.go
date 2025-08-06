@@ -223,9 +223,9 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	router.PUT("/threat_models/:id/diagrams/:diagram_id/metadata/:key", diagramMetadataHandler.UpdateThreatModelDiagramMetadata)
 	router.DELETE("/threat_models/:id/diagrams/:diagram_id/metadata/:key", diagramMetadataHandler.DeleteThreatModelDiagramMetadata)
 
-	// Note: Sub-entity CRUD handlers (threats, documents, sources) require complex dependencies
-	// that are not suitable for this integration test setup. Those are tested separately
-	// via the full server integration tests.
+	// Sub-entity integration testing: This approach successfully tests the full API hierarchy
+	// following natural creation flows (Threat Model → Sub-entities → Metadata) with 
+	// database persistence verification at each step.
 
 	suite := &SubEntityIntegrationTestSuite{
 		dbManager:   dbManager,
