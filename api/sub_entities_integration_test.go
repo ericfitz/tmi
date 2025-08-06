@@ -187,6 +187,12 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 		threatModelDiagramHandler.DeleteDiagram(c, threatModelID, diagramID)
 	})
 
+	// Register sub-resource handlers for comprehensive testing
+	threatSubResourceHandler := NewThreatSubResourceHandler(GlobalThreatStore, dbManager.Postgres().GetDB(), nil, nil)
+	documentSubResourceHandler := NewDocumentSubResourceHandler(GlobalDocumentStore, dbManager.Postgres().GetDB(), nil, nil)
+	sourceSubResourceHandler := NewSourceSubResourceHandler(GlobalSourceStore, dbManager.Postgres().GetDB(), nil, nil)
+	batchHandler := NewBatchHandler(GlobalThreatStore, dbManager.Postgres().GetDB(), nil, nil)
+
 	// Register metadata handlers for comprehensive testing (using simple constructors)
 	// These handlers work without complex dependencies and can be tested directly
 
@@ -231,6 +237,42 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	router.PUT("/threat_models/:id/metadata/:key", threatModelMetadataHandler.UpdateThreatModelMetadata)
 	router.DELETE("/threat_models/:id/metadata/:key", threatModelMetadataHandler.DeleteThreatModelMetadata)
 	router.POST("/threat_models/:id/metadata/bulk", threatModelMetadataHandler.BulkCreateThreatModelMetadata)
+
+	// Threat sub-resource routes (CRUD operations)
+	router.GET("/threat_models/:id/threats", threatSubResourceHandler.GetThreats)
+	router.POST("/threat_models/:id/threats", threatSubResourceHandler.CreateThreat)
+	router.GET("/threat_models/:id/threats/:threat_id", threatSubResourceHandler.GetThreat)
+	router.PUT("/threat_models/:id/threats/:threat_id", threatSubResourceHandler.UpdateThreat)
+	router.PATCH("/threat_models/:id/threats/:threat_id", threatSubResourceHandler.PatchThreat)
+	router.DELETE("/threat_models/:id/threats/:threat_id", threatSubResourceHandler.DeleteThreat)
+
+	// Threat bulk operations
+	router.POST("/threat_models/:id/threats/bulk", threatSubResourceHandler.BulkCreateThreats)
+	router.PUT("/threat_models/:id/threats/bulk", threatSubResourceHandler.BulkUpdateThreats)
+
+	// Threat batch operations
+	router.POST("/threat_models/:id/threats/batch/patch", batchHandler.BatchPatchThreats)
+	router.DELETE("/threat_models/:id/threats/batch", batchHandler.BatchDeleteThreats)
+
+	// Document sub-resource routes (CRUD operations)
+	router.GET("/threat_models/:id/documents", documentSubResourceHandler.GetDocuments)
+	router.POST("/threat_models/:id/documents", documentSubResourceHandler.CreateDocument)
+	router.GET("/threat_models/:id/documents/:document_id", documentSubResourceHandler.GetDocument)
+	router.PUT("/threat_models/:id/documents/:document_id", documentSubResourceHandler.UpdateDocument)
+	router.DELETE("/threat_models/:id/documents/:document_id", documentSubResourceHandler.DeleteDocument)
+
+	// Document bulk operations
+	router.POST("/threat_models/:id/documents/bulk", documentSubResourceHandler.BulkCreateDocuments)
+
+	// Source sub-resource routes (CRUD operations)
+	router.GET("/threat_models/:id/sources", sourceSubResourceHandler.GetSources)
+	router.POST("/threat_models/:id/sources", sourceSubResourceHandler.CreateSource)
+	router.GET("/threat_models/:id/sources/:source_id", sourceSubResourceHandler.GetSource)
+	router.PUT("/threat_models/:id/sources/:source_id", sourceSubResourceHandler.UpdateSource)
+	router.DELETE("/threat_models/:id/sources/:source_id", sourceSubResourceHandler.DeleteSource)
+
+	// Source bulk operations
+	router.POST("/threat_models/:id/sources/bulk", sourceSubResourceHandler.BulkCreateSources)
 
 	// Sub-entity integration testing: This approach successfully tests the full API hierarchy
 	// following natural creation flows (Threat Model → Sub-entities → Metadata) with
