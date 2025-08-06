@@ -224,7 +224,7 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	router.DELETE("/threat_models/:id/diagrams/:diagram_id/metadata/:key", diagramMetadataHandler.DeleteThreatModelDiagramMetadata)
 
 	// Sub-entity integration testing: This approach successfully tests the full API hierarchy
-	// following natural creation flows (Threat Model → Sub-entities → Metadata) with 
+	// following natural creation flows (Threat Model → Sub-entities → Metadata) with
 	// database persistence verification at each step.
 
 	suite := &SubEntityIntegrationTestSuite{

@@ -29,6 +29,10 @@ func TestThreatModelDiagramIntegration(t *testing.T) {
 		testThreatModelDiagramPUT(t, suite)
 	})
 
+	t.Run("PATCH /threat_models/:id/diagrams/:diagram_id", func(t *testing.T) {
+		testThreatModelDiagramPATCH(t, suite)
+	})
+
 	t.Run("DELETE /threat_models/:id/diagrams/:diagram_id", func(t *testing.T) {
 		testThreatModelDiagramDELETE(t, suite)
 	})
@@ -149,4 +153,120 @@ func testThreatModelDiagramDELETE(t *testing.T, suite *SubEntityIntegrationTestS
 	req = suite.makeAuthenticatedRequest("GET", path, nil)
 	w = suite.executeRequest(req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// testThreatModelDiagramPATCH tests partially updating diagrams via PATCH using JSON Patch format
+func testThreatModelDiagramPATCH(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+	// Ensure we have a diagram to patch
+	if suite.testDiagramID == "" {
+		suite.createTestDiagram(t)
+	}
+
+	// Store original values for verification
+	originalPath := fmt.Sprintf("/threat_models/%s/diagrams/%s", suite.threatModelID, suite.testDiagramID)
+	originalReq := suite.makeAuthenticatedRequest("GET", originalPath, nil)
+	originalW := suite.executeRequest(originalReq)
+	originalResponse := suite.assertJSONResponse(t, originalW, http.StatusOK)
+
+	// Test JSON Patch operations
+	patchOps := []PatchOperation{
+		{
+			Op:    "replace",
+			Path:  "/name",
+			Value: "PATCH Updated Diagram Name",
+		},
+		{
+			Op:    "replace",
+			Path:  "/description",
+			Value: "This diagram was updated using PATCH with JSON Patch operations",
+		},
+	}
+
+	// Make PATCH request
+	path := fmt.Sprintf("/threat_models/%s/diagrams/%s", suite.threatModelID, suite.testDiagramID)
+	req := suite.makeAuthenticatedRequest("PATCH", path, patchOps)
+	w := suite.executeRequest(req)
+
+	response := suite.assertJSONResponse(t, w, http.StatusOK)
+
+	// Verify that the response contains the patched values
+	assert.Equal(t, suite.testDiagramID, response["id"])
+	assert.Equal(t, "PATCH Updated Diagram Name", response["name"])
+	assert.Equal(t, "This diagram was updated using PATCH with JSON Patch operations", response["description"])
+
+	// Verify that other fields weren't changed unexpectedly
+	assert.Equal(t, originalResponse["id"], response["id"])
+
+	// Verify that modified_at was updated (should be different from original)
+	if originalModified, exists := originalResponse["modified_at"]; exists {
+		if responseModified, exists := response["modified_at"]; exists {
+			assert.NotEqual(t, originalModified, responseModified, "modified_at should be updated")
+		}
+	}
+
+	// Verify database persistence using the helper function
+	expectedData := map[string]interface{}{
+		"name":        "PATCH Updated Diagram Name",
+		"description": "This diagram was updated using PATCH with JSON Patch operations",
+	}
+	verifyDiagramInDatabase(suite, t, suite.testDiagramID, suite.threatModelID, expectedData)
+
+	// Test individual field updates
+	t.Run("SingleFieldPatch", func(t *testing.T) {
+		singlePatchOps := []PatchOperation{
+			{
+				Op:    "replace",
+				Path:  "/name",
+				Value: "Single Field PATCH Update",
+			},
+		}
+
+		req := suite.makeAuthenticatedRequest("PATCH", path, singlePatchOps)
+		w := suite.executeRequest(req)
+		response := suite.assertJSONResponse(t, w, http.StatusOK)
+
+		// Verify only the name was updated
+		assert.Equal(t, "Single Field PATCH Update", response["name"])
+		// Description should remain the same as the previous PATCH
+		assert.Equal(t, "This diagram was updated using PATCH with JSON Patch operations", response["description"])
+
+		// Verify database persistence
+		expectedSingleData := map[string]interface{}{
+			"name":        "Single Field PATCH Update",
+			"description": "This diagram was updated using PATCH with JSON Patch operations",
+		}
+		verifyDiagramInDatabase(suite, t, suite.testDiagramID, suite.threatModelID, expectedSingleData)
+	})
+
+	// Test error cases
+	t.Run("InvalidPatchOperations", func(t *testing.T) {
+		// Test invalid path
+		invalidPatchOps := []PatchOperation{
+			{
+				Op:    "replace",
+				Path:  "/nonexistent_field",
+				Value: "should fail",
+			},
+		}
+
+		req := suite.makeAuthenticatedRequest("PATCH", path, invalidPatchOps)
+		w := suite.executeRequest(req)
+
+		// Depending on implementation, this could return 400 Bad Request or another appropriate error
+		// For now, we'll accept any error status (4xx or 5xx)
+		assert.True(t, w.Code >= 400, "Invalid patch should return an error status")
+
+		// Test invalid operation
+		invalidOpPatchOps := []PatchOperation{
+			{
+				Op:    "invalid_operation",
+				Path:  "/name",
+				Value: "should fail",
+			},
+		}
+
+		req = suite.makeAuthenticatedRequest("PATCH", path, invalidOpPatchOps)
+		w = suite.executeRequest(req)
+		assert.True(t, w.Code >= 400, "Invalid operation should return an error status")
+	})
 }
