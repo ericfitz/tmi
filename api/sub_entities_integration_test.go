@@ -194,6 +194,7 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	documentMetadataHandler := NewDocumentMetadataHandlerSimple()
 	sourceMetadataHandler := NewSourceMetadataHandlerSimple()
 	diagramMetadataHandler := NewDiagramMetadataHandlerSimple()
+	threatModelMetadataHandler := NewThreatModelMetadataHandlerSimple()
 
 	// Threat metadata routes
 	router.GET("/threat_models/:id/threats/:threat_id/metadata", threatMetadataHandler.GetThreatMetadata)
@@ -222,6 +223,14 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	router.GET("/threat_models/:id/diagrams/:diagram_id/metadata/:key", diagramMetadataHandler.GetThreatModelDiagramMetadataByKey)
 	router.PUT("/threat_models/:id/diagrams/:diagram_id/metadata/:key", diagramMetadataHandler.UpdateThreatModelDiagramMetadata)
 	router.DELETE("/threat_models/:id/diagrams/:diagram_id/metadata/:key", diagramMetadataHandler.DeleteThreatModelDiagramMetadata)
+
+	// Threat model metadata routes (direct metadata endpoints)
+	router.GET("/threat_models/:id/metadata", threatModelMetadataHandler.GetThreatModelMetadata)
+	router.POST("/threat_models/:id/metadata", threatModelMetadataHandler.CreateThreatModelMetadata)
+	router.GET("/threat_models/:id/metadata/:key", threatModelMetadataHandler.GetThreatModelMetadataByKey)
+	router.PUT("/threat_models/:id/metadata/:key", threatModelMetadataHandler.UpdateThreatModelMetadata)
+	router.DELETE("/threat_models/:id/metadata/:key", threatModelMetadataHandler.DeleteThreatModelMetadata)
+	router.POST("/threat_models/:id/metadata/bulk", threatModelMetadataHandler.BulkCreateThreatModelMetadata)
 
 	// Sub-entity integration testing: This approach successfully tests the full API hierarchy
 	// following natural creation flows (Threat Model → Sub-entities → Metadata) with

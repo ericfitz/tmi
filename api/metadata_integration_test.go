@@ -34,6 +34,10 @@ func TestMetadataIntegration(t *testing.T) {
 	t.Run("DiagramMetadata", func(t *testing.T) {
 		testDiagramMetadata(t, suite)
 	})
+
+	t.Run("ThreatModelMetadata", func(t *testing.T) {
+		testThreatModelMetadata(t, suite)
+	})
 }
 
 // testThreatMetadata tests metadata operations for threats
@@ -338,4 +342,33 @@ func testBulkCreateMetadata(t *testing.T, suite *SubEntityIntegrationTestSuite, 
 			assert.Equal(t, testKey, retrievedResponse["key"])
 		}
 	}
+}
+
+// testThreatModelMetadata tests metadata operations for threat models
+func testThreatModelMetadata(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+	basePath := fmt.Sprintf("/threat_models/%s/metadata", suite.threatModelID)
+
+	t.Run("POST_CreateMetadata", func(t *testing.T) {
+		testCreateMetadata(t, suite, basePath, "threat_model")
+	})
+
+	t.Run("GET_ListMetadata", func(t *testing.T) {
+		testListMetadata(t, suite, basePath, "threat_model")
+	})
+
+	t.Run("GET_MetadataByKey", func(t *testing.T) {
+		testGetMetadataByKey(t, suite, basePath, "threat_model")
+	})
+
+	t.Run("PUT_UpdateMetadata", func(t *testing.T) {
+		testUpdateMetadata(t, suite, basePath, "threat_model")
+	})
+
+	t.Run("DELETE_Metadata", func(t *testing.T) {
+		testDeleteMetadata(t, suite, basePath, "threat_model")
+	})
+
+	t.Run("POST_BulkCreateMetadata", func(t *testing.T) {
+		testBulkCreateMetadata(t, suite, basePath, "threat_model")
+	})
 }
