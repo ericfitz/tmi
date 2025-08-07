@@ -795,7 +795,8 @@ func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramIdMetadataKey(c *
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdMetadataBulk(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDiagramMetadataHandlerSimple()
+	handler.BulkCreateThreatModelDiagramMetadata(c)
 }
 
 // Threat Model Threats handlers
@@ -900,7 +901,8 @@ func (s *Server) DeleteThreatModelsThreatModelIdThreatsThreatIdMetadataKey(c *gi
 }
 
 func (s *Server) PostThreatModelsThreatModelIdThreatsThreatIdMetadataBulk(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewThreatMetadataHandlerSimple()
+	handler.BulkCreateThreatMetadata(c)
 }
 
 // Threat Model Documents handlers
@@ -990,7 +992,8 @@ func (s *Server) DeleteThreatModelsThreatModelIdDocumentsDocumentIdMetadataKey(c
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDocumentsDocumentIdMetadataBulk(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewDocumentMetadataHandlerSimple()
+	handler.BulkCreateDocumentMetadata(c)
 }
 
 // Threat Model Sources handlers
@@ -1080,7 +1083,8 @@ func (s *Server) DeleteThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gi
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSourcesSourceIdMetadataBulk(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	handler := api.NewSourceMetadataHandlerSimple()
+	handler.BulkCreateSourceMetadata(c)
 }
 
 // Batch Operations handlers

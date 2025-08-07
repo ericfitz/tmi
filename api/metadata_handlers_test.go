@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -609,6 +610,90 @@ func TestDocumentMetadata(t *testing.T) {
 
 		mockStore.AssertExpectations(t)
 	})
+
+	t.Run("BulkCreateDocumentMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupDocumentMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			documentID := "00000000-0000-0000-0000-000000000002"
+
+			requestBody := []map[string]interface{}{
+				{"key": "format", "value": "pdf"},
+				{"key": "version", "value": "1.0"},
+			}
+
+			createdMetadata := []Metadata{
+				{Key: "format", Value: "pdf"},
+				{Key: "version", Value: "1.0"},
+			}
+
+			mockStore.On("BulkCreate", mock.Anything, "document", documentID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
+			mockStore.On("List", mock.Anything, "document", documentID).Return(createdMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/documents/"+documentID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusCreated, w.Code)
+
+			var response []map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+			assert.Len(t, response, 2)
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("TooManyMetadata", func(t *testing.T) {
+			r, _ := setupDocumentMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			documentID := "00000000-0000-0000-0000-000000000002"
+
+			// Create 21 metadata entries (over the limit of 20)
+			metadata := make([]map[string]interface{}, 21)
+			for i := 0; i < 21; i++ {
+				metadata[i] = map[string]interface{}{
+					"key":   fmt.Sprintf("key%d", i),
+					"value": fmt.Sprintf("value%d", i),
+				}
+			}
+
+			body, _ := json.Marshal(metadata)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/documents/"+documentID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+
+		t.Run("DuplicateKeys", func(t *testing.T) {
+			r, _ := setupDocumentMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			documentID := "00000000-0000-0000-0000-000000000002"
+
+			requestBody := []map[string]interface{}{
+				{"key": "format", "value": "pdf"},
+				{"key": "format", "value": "docx"}, // duplicate key
+			}
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/documents/"+documentID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	})
 }
 
 // setupSourceMetadataHandler creates a test router with source metadata handlers
@@ -910,6 +995,87 @@ func TestThreatModelMetadata(t *testing.T) {
 
 		mockStore.AssertExpectations(t)
 	})
+
+	t.Run("BulkCreateThreatModelMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupThreatModelMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+
+			requestBody := []map[string]interface{}{
+				{"key": "methodology", "value": "STRIDE"},
+				{"key": "phase", "value": "design"},
+			}
+
+			createdMetadata := []Metadata{
+				{Key: "methodology", Value: "STRIDE"},
+				{Key: "phase", Value: "design"},
+			}
+
+			mockStore.On("BulkCreate", mock.Anything, "threat_model", threatModelID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
+			mockStore.On("List", mock.Anything, "threat_model", threatModelID).Return(createdMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusCreated, w.Code)
+
+			var response []map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+			assert.Len(t, response, 2)
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("TooManyMetadata", func(t *testing.T) {
+			r, _ := setupThreatModelMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+
+			// Create 21 metadata entries (over the limit of 20)
+			metadata := make([]map[string]interface{}, 21)
+			for i := 0; i < 21; i++ {
+				metadata[i] = map[string]interface{}{
+					"key":   fmt.Sprintf("key%d", i),
+					"value": fmt.Sprintf("value%d", i),
+				}
+			}
+
+			body, _ := json.Marshal(metadata)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+
+		t.Run("DuplicateKeys", func(t *testing.T) {
+			r, _ := setupThreatModelMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+
+			requestBody := []map[string]interface{}{
+				{"key": "methodology", "value": "STRIDE"},
+				{"key": "methodology", "value": "PASTA"}, // duplicate key
+			}
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	})
 }
 
 // TestDiagramMetadata tests diagram metadata operations
@@ -975,5 +1141,86 @@ func TestDiagramMetadata(t *testing.T) {
 		assert.Equal(t, "draw.io", response["value"])
 
 		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("BulkCreateDiagramMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupDiagramMetadataHandler()
+
+			diagramID := "00000000-0000-0000-0000-000000000001"
+
+			requestBody := []map[string]interface{}{
+				{"key": "tool", "value": "draw.io"},
+				{"key": "layout", "value": "hierarchical"},
+			}
+
+			createdMetadata := []Metadata{
+				{Key: "tool", Value: "draw.io"},
+				{Key: "layout", Value: "hierarchical"},
+			}
+
+			mockStore.On("BulkCreate", mock.Anything, "diagram", diagramID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
+			mockStore.On("List", mock.Anything, "diagram", diagramID).Return(createdMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/diagrams/"+diagramID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusCreated, w.Code)
+
+			var response []map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+			assert.Len(t, response, 2)
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("TooManyMetadata", func(t *testing.T) {
+			r, _ := setupDiagramMetadataHandler()
+
+			diagramID := "00000000-0000-0000-0000-000000000001"
+
+			// Create 21 metadata entries (over the limit of 20)
+			metadata := make([]map[string]interface{}, 21)
+			for i := 0; i < 21; i++ {
+				metadata[i] = map[string]interface{}{
+					"key":   fmt.Sprintf("key%d", i),
+					"value": fmt.Sprintf("value%d", i),
+				}
+			}
+
+			body, _ := json.Marshal(metadata)
+			req := httptest.NewRequest("POST", "/diagrams/"+diagramID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+
+		t.Run("DuplicateKeys", func(t *testing.T) {
+			r, _ := setupDiagramMetadataHandler()
+
+			diagramID := "00000000-0000-0000-0000-000000000001"
+
+			requestBody := []map[string]interface{}{
+				{"key": "tool", "value": "draw.io"},
+				{"key": "tool", "value": "lucidchart"}, // duplicate key
+			}
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/diagrams/"+diagramID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
 	})
 }
