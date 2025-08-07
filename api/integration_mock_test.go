@@ -146,7 +146,6 @@ func testThreatModelEndpointsMock(t *testing.T, router *gin.Engine) {
 	// Test PUT /threat_models/:id
 	t.Run("PUT", func(t *testing.T) {
 		updateBody := map[string]interface{}{
-			"id":          TestFixtures.ThreatModelID,
 			"name":        "Updated Mock Test Threat Model",
 			"description": "Updated description via PUT",
 			"owner":       TestFixtures.OwnerUser,
@@ -246,7 +245,6 @@ func testDiagramEndpointsMock(t *testing.T, router *gin.Engine) {
 	// Test PUT /threat_models/:id/diagrams/:diagram_id
 	t.Run("PUT", func(t *testing.T) {
 		updateBody := map[string]interface{}{
-			"id":          TestFixtures.DiagramID,
 			"name":        "Updated Mock Test Diagram",
 			"description": "Updated description via PUT",
 		}

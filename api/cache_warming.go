@@ -288,6 +288,11 @@ func (cw *CacheWarmer) WarmThreatModelData(ctx context.Context, threatModelID st
 
 // warmThreatsForThreatModel warms cache with threats for a threat model
 func (cw *CacheWarmer) warmThreatsForThreatModel(ctx context.Context, threatModelID string) error {
+	// Check if cache service is available
+	if cw.cache == nil {
+		return nil // Skip warming if cache is not available
+	}
+
 	threats, err := cw.threatStore.List(ctx, threatModelID, 0, 100) // Warm first 100 threats
 	if err != nil {
 		return fmt.Errorf("failed to list threats: %w", err)
@@ -306,6 +311,11 @@ func (cw *CacheWarmer) warmThreatsForThreatModel(ctx context.Context, threatMode
 
 // warmDocumentsForThreatModel warms cache with documents for a threat model
 func (cw *CacheWarmer) warmDocumentsForThreatModel(ctx context.Context, threatModelID string) error {
+	// Check if cache service is available
+	if cw.cache == nil {
+		return nil // Skip warming if cache is not available
+	}
+
 	documents, err := cw.documentStore.List(ctx, threatModelID, 0, 50) // Warm first 50 documents
 	if err != nil {
 		return fmt.Errorf("failed to list documents: %w", err)
@@ -324,6 +334,11 @@ func (cw *CacheWarmer) warmDocumentsForThreatModel(ctx context.Context, threatMo
 
 // warmSourcesForThreatModel warms cache with sources for a threat model
 func (cw *CacheWarmer) warmSourcesForThreatModel(ctx context.Context, threatModelID string) error {
+	// Check if cache service is available
+	if cw.cache == nil {
+		return nil // Skip warming if cache is not available
+	}
+
 	sources, err := cw.sourceStore.List(ctx, threatModelID, 0, 50) // Warm first 50 sources
 	if err != nil {
 		return fmt.Errorf("failed to list sources: %w", err)
@@ -342,6 +357,11 @@ func (cw *CacheWarmer) warmSourcesForThreatModel(ctx context.Context, threatMode
 
 // warmAuthDataForThreatModel warms cache with authorization data for a threat model
 func (cw *CacheWarmer) warmAuthDataForThreatModel(ctx context.Context, threatModelID string) error {
+	// Check if cache service is available
+	if cw.cache == nil {
+		return nil // Skip warming if cache is not available
+	}
+
 	authData, err := GetInheritedAuthData(ctx, cw.db, threatModelID)
 	if err != nil {
 		return fmt.Errorf("failed to get auth data: %w", err)
@@ -392,6 +412,10 @@ func (cw *CacheWarmer) warmPopularAuthData(ctx context.Context, stats *WarmingSt
 
 // warmPopularMetadata warms cache with frequently accessed metadata
 func (cw *CacheWarmer) warmPopularMetadata(ctx context.Context, stats *WarmingStats) error {
+	// Check if cache service is available
+	if cw.cache == nil {
+		return nil // Skip warming if cache is not available
+	}
 	// Query for frequently accessed metadata keys
 	query := `
 		SELECT entity_type, entity_id, key, value
@@ -448,6 +472,11 @@ func (cw *CacheWarmer) WarmOnDemandRequest(ctx context.Context, request WarmingR
 
 // warmSpecificThreat warms cache with a specific threat
 func (cw *CacheWarmer) warmSpecificThreat(ctx context.Context, threatID string) error {
+	// Check if cache service is available
+	if cw.cache == nil {
+		return nil // Skip warming if cache is not available
+	}
+
 	threat, err := cw.threatStore.Get(ctx, threatID)
 	if err != nil {
 		return fmt.Errorf("failed to get threat %s: %w", threatID, err)
@@ -458,6 +487,11 @@ func (cw *CacheWarmer) warmSpecificThreat(ctx context.Context, threatID string) 
 
 // warmSpecificDocument warms cache with a specific document
 func (cw *CacheWarmer) warmSpecificDocument(ctx context.Context, documentID string) error {
+	// Check if cache service is available
+	if cw.cache == nil {
+		return nil // Skip warming if cache is not available
+	}
+
 	document, err := cw.documentStore.Get(ctx, documentID)
 	if err != nil {
 		return fmt.Errorf("failed to get document %s: %w", documentID, err)
@@ -468,6 +502,11 @@ func (cw *CacheWarmer) warmSpecificDocument(ctx context.Context, documentID stri
 
 // warmSpecificSource warms cache with a specific source
 func (cw *CacheWarmer) warmSpecificSource(ctx context.Context, sourceID string) error {
+	// Check if cache service is available
+	if cw.cache == nil {
+		return nil // Skip warming if cache is not available
+	}
+
 	source, err := cw.sourceStore.Get(ctx, sourceID)
 	if err != nil {
 		return fmt.Errorf("failed to get source %s: %w", sourceID, err)

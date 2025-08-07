@@ -75,6 +75,12 @@ func (ci *CacheInvalidator) InvalidateSubResourceChange(ctx context.Context, eve
 func (ci *CacheInvalidator) invalidateImmediately(ctx context.Context, event InvalidationEvent) error {
 	logger := logging.Get()
 
+	// Check if cache service is available
+	if ci.cache == nil {
+		logger.Debug("Cache service not available, skipping cache invalidation for %s:%s", event.EntityType, event.EntityID)
+		return nil
+	}
+
 	// Invalidate the specific entity
 	if err := ci.cache.InvalidateEntity(ctx, event.EntityType, event.EntityID); err != nil {
 		logger.Error("Failed to invalidate entity cache %s:%s: %v", event.EntityType, event.EntityID, err)
@@ -109,6 +115,12 @@ func (ci *CacheInvalidator) invalidateImmediately(ctx context.Context, event Inv
 func (ci *CacheInvalidator) invalidateThreatRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := logging.Get()
 
+	// Check if cache service is available
+	if ci.cache == nil {
+		logger.Debug("Cache service not available, skipping threat-related cache invalidation")
+		return nil
+	}
+
 	// Invalidate threat model cache if parent is specified
 	if event.ParentType == "threat_model" && event.ParentID != "" {
 		if err := ci.cache.InvalidateEntity(ctx, "threat_model", event.ParentID); err != nil {
@@ -131,6 +143,12 @@ func (ci *CacheInvalidator) invalidateThreatRelatedCaches(ctx context.Context, e
 func (ci *CacheInvalidator) invalidateDocumentRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := logging.Get()
 
+	// Check if cache service is available
+	if ci.cache == nil {
+		logger.Debug("Cache service not available, skipping document-related cache invalidation")
+		return nil
+	}
+
 	// Invalidate threat model cache if parent is specified
 	if event.ParentType == "threat_model" && event.ParentID != "" {
 		if err := ci.cache.InvalidateEntity(ctx, "threat_model", event.ParentID); err != nil {
@@ -146,6 +164,12 @@ func (ci *CacheInvalidator) invalidateDocumentRelatedCaches(ctx context.Context,
 // invalidateSourceRelatedCaches handles source code-specific cache invalidation
 func (ci *CacheInvalidator) invalidateSourceRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := logging.Get()
+
+	// Check if cache service is available
+	if ci.cache == nil {
+		logger.Debug("Cache service not available, skipping source-related cache invalidation")
+		return nil
+	}
 
 	// Invalidate threat model cache if parent is specified
 	if event.ParentType == "threat_model" && event.ParentID != "" {
@@ -163,6 +187,12 @@ func (ci *CacheInvalidator) invalidateSourceRelatedCaches(ctx context.Context, e
 func (ci *CacheInvalidator) invalidateCellRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := logging.Get()
 
+	// Check if cache service is available
+	if ci.cache == nil {
+		logger.Debug("Cache service not available, skipping cell-related cache invalidation")
+		return nil
+	}
+
 	// Invalidate diagram cache if parent is specified
 	if event.ParentType == "diagram" && event.ParentID != "" {
 		if err := ci.cache.InvalidateEntity(ctx, "diagram", event.ParentID); err != nil {
@@ -171,10 +201,12 @@ func (ci *CacheInvalidator) invalidateCellRelatedCaches(ctx context.Context, eve
 		}
 
 		// Invalidate cells collection cache
-		key := ci.builder.CacheCellsKey(event.ParentID)
-		if err := ci.redis.Del(ctx, key); err != nil {
-			logger.Error("Failed to invalidate cells cache for diagram %s: %v", event.ParentID, err)
-			return err
+		if ci.redis != nil {
+			key := ci.builder.CacheCellsKey(event.ParentID)
+			if err := ci.redis.Del(ctx, key); err != nil {
+				logger.Error("Failed to invalidate cells cache for diagram %s: %v", event.ParentID, err)
+				return err
+			}
 		}
 	}
 
@@ -184,6 +216,12 @@ func (ci *CacheInvalidator) invalidateCellRelatedCaches(ctx context.Context, eve
 // invalidateMetadataRelatedCaches handles metadata-specific cache invalidation
 func (ci *CacheInvalidator) invalidateMetadataRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := logging.Get()
+
+	// Check if cache service is available
+	if ci.cache == nil {
+		logger.Debug("Cache service not available, skipping metadata-related cache invalidation")
+		return nil
+	}
 
 	// For metadata changes, we need to invalidate the parent entity's metadata cache
 	// The parent info should be provided in the event
@@ -206,6 +244,12 @@ func (ci *CacheInvalidator) invalidateMetadataRelatedCaches(ctx context.Context,
 // invalidatePaginatedLists invalidates all paginated list caches for a given entity type and parent
 func (ci *CacheInvalidator) invalidatePaginatedLists(ctx context.Context, entityType, parentID string) error {
 	logger := logging.Get()
+
+	// Check if redis is available
+	if ci.redis == nil {
+		logger.Debug("Redis not available, skipping paginated list cache invalidation for %s:%s", entityType, parentID)
+		return nil
+	}
 
 	// Build pattern for paginated list keys
 	pattern := fmt.Sprintf("cache:list:%s:%s:*", entityType, parentID)
@@ -241,6 +285,12 @@ func (ci *CacheInvalidator) InvalidateAllRelatedCaches(ctx context.Context, thre
 	logger := logging.Get()
 	logger.Debug("Performing comprehensive cache invalidation for threat model %s", threatModelID)
 
+	// Check if cache service is available
+	if ci.cache == nil {
+		logger.Debug("Cache service not available, skipping comprehensive cache invalidation for %s", threatModelID)
+		return nil
+	}
+
 	// Invalidate the threat model itself
 	if err := ci.cache.InvalidateEntity(ctx, "threat_model", threatModelID); err != nil {
 		return fmt.Errorf("failed to invalidate threat model: %w", err)
@@ -267,6 +317,12 @@ func (ci *CacheInvalidator) InvalidateAllRelatedCaches(ctx context.Context, thre
 func (ci *CacheInvalidator) InvalidatePermissionRelatedCaches(ctx context.Context, threatModelID string) error {
 	logger := logging.Get()
 	logger.Debug("Invalidating permission-related caches for threat model %s", threatModelID)
+
+	// Check if cache service is available
+	if ci.cache == nil {
+		logger.Debug("Cache service not available, skipping permission-related cache invalidation for %s", threatModelID)
+		return nil
+	}
 
 	// Invalidate authorization data cache
 	if err := ci.cache.InvalidateAuthData(ctx, threatModelID); err != nil {

@@ -34,9 +34,8 @@ func TestUpdateThreatModel(t *testing.T) {
 	handler := NewThreatModelHandler()
 	router.PUT("/threat_models/:id", handler.UpdateThreatModel)
 
-	// Create a simplified update payload
+	// Create a simplified update payload - note: we don't include 'id' as it's read-only
 	updatePayload := map[string]interface{}{
-		"id":    TestFixtures.ThreatModelID,
 		"name":  "Updated Name",
 		"owner": TestFixtures.OwnerUser,
 		"authorization": []map[string]interface{}{
@@ -106,9 +105,8 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 	// Create an update payload with a new owner
 	newOwner := "new-owner@example.com"
 
-	// Create a more minimal payload with just the essential fields
+	// Create a more minimal payload with just the essential fields - note: we don't include 'id' as it's read-only
 	updatePayload := map[string]interface{}{
-		"id":          TestFixtures.ThreatModelID,
 		"name":        "Updated Name",
 		"description": *origTM.Description,
 		"owner":       newOwner,
@@ -182,9 +180,8 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 	handler := NewThreatModelHandler()
 	router.PUT("/threat_models/:id", handler.UpdateThreatModel)
 
-	// Create an update payload with duplicate subjects
+	// Create an update payload with duplicate subjects - note: we don't include 'id' as it's read-only
 	updatePayload := map[string]interface{}{
-		"id":    TestFixtures.ThreatModelID,
 		"name":  "Updated Name",
 		"owner": TestFixtures.OwnerUser,
 		"authorization": []map[string]interface{}{

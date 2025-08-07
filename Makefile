@@ -1,4 +1,4 @@
-.PHONY: build test test-one lint clean dev prod dev-db dev-redis dev-app build-postgres build-redis gen-config dev-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup
+.PHONY: build test test-one lint clean dev prod dev-db dev-redis dev-app build-postgres build-redis gen-config dev-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report
 
 # Default build target
 VERSION := 0.1.0
@@ -129,3 +129,23 @@ export-telemetry:
 clean-telemetry:
 	@echo "Cleaning up telemetry data..."
 	docker-compose -f docker-compose.observability.yml down -v
+
+# Generate comprehensive test coverage report (unit + integration)
+coverage:
+	@echo "Generating comprehensive test coverage report..."
+	./scripts/coverage-report.sh
+
+# Generate unit test coverage only
+coverage-unit:
+	@echo "Generating unit test coverage report..."
+	./scripts/coverage-report.sh --unit-only
+
+# Generate integration test coverage only
+coverage-integration:
+	@echo "Generating integration test coverage report..."
+	./scripts/coverage-report.sh --integration-only
+
+# Generate coverage report without HTML
+coverage-report:
+	@echo "Generating coverage report (no HTML)..."
+	./scripts/coverage-report.sh --no-html
