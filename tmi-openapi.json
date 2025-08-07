@@ -26,6 +26,12 @@
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "description": "JWT token for authenticated requests"
+      },
+      "websocketAuth": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "token",
+        "description": "JWT token for WebSocket authentication. WebSocket connections must include the JWT token as a query parameter since browsers do not support custom headers for WebSocket connections."
       }
     },
     "schemas": {
@@ -108,12 +114,34 @@
               },
               "diagram_endpoint": {
                 "type": "string",
-                "description": "WebSocket endpoint template for diagram collaboration",
-                "example": "/ws/diagrams/{diagram_id}",
-                "pattern": "^/ws/diagrams/\\{[a-zA-Z_][a-zA-Z0-9_]*\\}$"
+                "description": "WebSocket endpoint template for diagram collaboration. Authentication is handled via query parameter 'token' containing a JWT token.",
+                "example": "/ws/diagrams/{diagram_id}?token={jwt_token}",
+                "pattern": "^/ws/diagrams/\\{[a-zA-Z_][a-zA-Z0-9_]*\\}(\\?token=\\{[a-zA-Z_][a-zA-Z0-9_]*\\})?$"
+              },
+              "authentication": {
+                "type": "object",
+                "description": "Authentication requirements for WebSocket connections",
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": ["query_parameter"],
+                    "description": "Authentication method used for WebSocket connections"
+                  },
+                  "parameter": {
+                    "type": "string",
+                    "description": "Query parameter name for JWT token",
+                    "example": "token"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Authentication description",
+                    "example": "JWT token must be provided as query parameter due to browser WebSocket header limitations"
+                  }
+                },
+                "required": ["method", "parameter", "description"]
               }
             },
-            "required": ["base_url", "diagram_endpoint"]
+            "required": ["base_url", "diagram_endpoint", "authentication"]
           }
         },
         "required": ["status", "service", "api", "operator", "websocket"],
@@ -136,7 +164,12 @@
           },
           "websocket": {
             "base_url": "wss://api.example.com/ws",
-            "diagram_endpoint": "/ws/diagrams/{diagram_id}"
+            "diagram_endpoint": "/ws/diagrams/{diagram_id}?token={jwt_token}",
+            "authentication": {
+              "method": "query_parameter",
+              "parameter": "token",
+              "description": "JWT token must be provided as query parameter due to browser WebSocket header limitations"
+            }
           }
         }
       },

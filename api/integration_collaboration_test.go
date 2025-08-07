@@ -128,12 +128,13 @@ func (c *CollaborationTestClient) Connect(suite *SubEntityIntegrationTestSuite, 
 	u.Scheme = "ws"
 	u.Path = fmt.Sprintf("/ws/diagrams/%s", diagramID)
 
-	// Set up headers with authentication
-	headers := http.Header{}
-	headers.Set("Authorization", "Bearer "+suite.accessToken)
+	// Add token as query parameter for WebSocket authentication
+	query := u.Query()
+	query.Set("token", suite.accessToken)
+	u.RawQuery = query.Encode()
 
-	// Connect
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), headers)
+	// Connect (no headers needed for query parameter auth)
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		return fmt.Errorf("failed to connect to WebSocket: %w", err)
 	}

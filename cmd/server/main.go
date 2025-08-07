@@ -138,31 +138,47 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist) gin.
 		// Log attempt for debugging
 		logger.Debug("Checking authentication for path: %s", c.Request.URL.Path)
 
-		// Get the auth header
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			logger.Warn("Authentication failed: Missing Authorization header for path: %s", c.Request.URL.Path)
-			c.JSON(http.StatusUnauthorized, api.Error{
-				Error:            "unauthorized",
-				ErrorDescription: "Missing Authorization header",
-			})
-			c.Abort()
-			return
-		}
+		var tokenStr string
 
-		// Parse the header format
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			logger.Warn("Authentication failed: Invalid Authorization header format for path: %s", c.Request.URL.Path)
-			c.JSON(http.StatusUnauthorized, api.Error{
-				Error:            "unauthorized",
-				ErrorDescription: "Invalid Authorization header format",
-			})
-			c.Abort()
-			return
-		}
+		// For WebSocket connections, use query parameter authentication
+		if strings.HasPrefix(c.Request.URL.Path, "/ws/") {
+			tokenStr = c.Query("token")
+			if tokenStr == "" {
+				logger.Warn("Authentication failed: Missing token query parameter for WebSocket path: %s", c.Request.URL.Path)
+				c.JSON(http.StatusUnauthorized, api.Error{
+					Error:            "unauthorized",
+					ErrorDescription: "Missing token query parameter",
+				})
+				c.Abort()
+				return
+			}
+		} else {
+			// For regular API calls, use Authorization header
+			authHeader := c.GetHeader("Authorization")
+			if authHeader == "" {
+				logger.Warn("Authentication failed: Missing Authorization header for path: %s", c.Request.URL.Path)
+				c.JSON(http.StatusUnauthorized, api.Error{
+					Error:            "unauthorized",
+					ErrorDescription: "Missing Authorization header",
+				})
+				c.Abort()
+				return
+			}
 
-		tokenStr := parts[1]
+			// Parse the header format
+			parts := strings.Split(authHeader, " ")
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				logger.Warn("Authentication failed: Invalid Authorization header format for path: %s", c.Request.URL.Path)
+				c.JSON(http.StatusUnauthorized, api.Error{
+					Error:            "unauthorized",
+					ErrorDescription: "Invalid Authorization header format",
+				})
+				c.Abort()
+				return
+			}
+
+			tokenStr = parts[1]
+		}
 
 		// Get JWT secret from config (same source as auth service)
 		jwtSecret := []byte(cfg.Auth.JWT.Secret)

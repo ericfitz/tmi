@@ -21,11 +21,19 @@ func setupTestRouter() *gin.Engine {
 
 	// Add a fake auth middleware to set user in context
 	r.Use(func(c *gin.Context) {
-		// Extract token from Authorization header
-		authHeader := c.GetHeader("Authorization")
-		if authHeader != "" && authHeader == "Bearer test-token" {
-			// Set a test username in the context
-			c.Set("userName", "test@example.com")
+		// For WebSocket paths, check query parameter
+		if c.Request.URL.Path != "" && c.Request.URL.Path[0:4] == "/ws/" {
+			token := c.Query("token")
+			if token == "test-token" {
+				c.Set("userName", "test@example.com")
+			}
+		} else {
+			// For regular API calls, extract token from Authorization header
+			authHeader := c.GetHeader("Authorization")
+			if authHeader != "" && authHeader == "Bearer test-token" {
+				// Set a test username in the context
+				c.Set("userName", "test@example.com")
+			}
 		}
 		c.Next()
 	})
