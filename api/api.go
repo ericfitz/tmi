@@ -184,6 +184,7 @@ const (
 	AuthorizeOAuthProviderParamsProviderGithub    AuthorizeOAuthProviderParamsProvider = "github"
 	AuthorizeOAuthProviderParamsProviderGoogle    AuthorizeOAuthProviderParamsProvider = "google"
 	AuthorizeOAuthProviderParamsProviderMicrosoft AuthorizeOAuthProviderParamsProvider = "microsoft"
+	AuthorizeOAuthProviderParamsProviderTest      AuthorizeOAuthProviderParamsProvider = "test"
 )
 
 // Defines values for ExchangeOAuthCodeParamsProvider.
@@ -253,6 +254,15 @@ type ApiInfo struct {
 		// Time Current server time in UTC, formatted as RFC 3339
 		Time time.Time `json:"time"`
 	} `json:"status"`
+
+	// Websocket WebSocket connection information for real-time collaboration
+	Websocket struct {
+		// BaseUrl WebSocket base URL (ws:// or wss:// depending on TLS)
+		BaseUrl string `json:"base_url"`
+
+		// DiagramEndpoint WebSocket endpoint template for diagram collaboration
+		DiagramEndpoint string `json:"diagram_endpoint"`
+	} `json:"websocket"`
 }
 
 // ApiInfoStatusCode Status code indicating if the API is functioning correctly
@@ -1261,6 +1271,15 @@ type PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBody = []struct {
 // PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp defines parameters for PatchThreatModelsThreatModelIdDiagramsDiagramId.
 type PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONBodyOp string
 
+// BulkCreateDiagramMetadataJSONBody defines parameters for BulkCreateDiagramMetadata.
+type BulkCreateDiagramMetadataJSONBody = []Metadata
+
+// UpdateDiagramMetadataByKeyJSONBody defines parameters for UpdateDiagramMetadataByKey.
+type UpdateDiagramMetadataByKeyJSONBody struct {
+	// Value New value for the metadata entry
+	Value string `json:"value"`
+}
+
 // GetThreatModelDocumentsParams defines parameters for GetThreatModelDocuments.
 type GetThreatModelDocumentsParams struct {
 	// Limit Maximum number of documents to return
@@ -1270,6 +1289,24 @@ type GetThreatModelDocumentsParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// BulkCreateDocumentMetadataJSONBody defines parameters for BulkCreateDocumentMetadata.
+type BulkCreateDocumentMetadataJSONBody = []Metadata
+
+// UpdateDocumentMetadataByKeyJSONBody defines parameters for UpdateDocumentMetadataByKey.
+type UpdateDocumentMetadataByKeyJSONBody struct {
+	// Value New value for the metadata entry
+	Value string `json:"value"`
+}
+
+// BulkCreateThreatModelMetadataJSONBody defines parameters for BulkCreateThreatModelMetadata.
+type BulkCreateThreatModelMetadataJSONBody = []Metadata
+
+// UpdateThreatModelMetadataByKeyJSONBody defines parameters for UpdateThreatModelMetadataByKey.
+type UpdateThreatModelMetadataByKeyJSONBody struct {
+	// Value New value for the metadata entry
+	Value string `json:"value"`
+}
+
 // GetThreatModelSourcesParams defines parameters for GetThreatModelSources.
 type GetThreatModelSourcesParams struct {
 	// Limit Maximum number of sources to return
@@ -1277,6 +1314,15 @@ type GetThreatModelSourcesParams struct {
 
 	// Offset Number of sources to skip
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// BulkCreateSourceMetadataJSONBody defines parameters for BulkCreateSourceMetadata.
+type BulkCreateSourceMetadataJSONBody = []Metadata
+
+// UpdateSourceMetadataByKeyJSONBody defines parameters for UpdateSourceMetadataByKey.
+type UpdateSourceMetadataByKeyJSONBody struct {
+	// Value New value for the metadata entry
+	Value string `json:"value"`
 }
 
 // GetThreatModelThreatsParams defines parameters for GetThreatModelThreats.
@@ -1298,6 +1344,15 @@ type PatchThreatModelThreatApplicationJSONPatchPlusJSONBody = []struct {
 
 // PatchThreatModelThreatApplicationJSONPatchPlusJSONBodyOp defines parameters for PatchThreatModelThreat.
 type PatchThreatModelThreatApplicationJSONPatchPlusJSONBodyOp string
+
+// BulkCreateThreatMetadataJSONBody defines parameters for BulkCreateThreatMetadata.
+type BulkCreateThreatMetadataJSONBody = []Metadata
+
+// UpdateThreatMetadataByKeyJSONBody defines parameters for UpdateThreatMetadataByKey.
+type UpdateThreatMetadataByKeyJSONBody struct {
+	// Value New value for the metadata entry
+	Value string `json:"value"`
+}
 
 // ExchangeOAuthCodeJSONRequestBody defines body for ExchangeOAuthCode for application/json ContentType.
 type ExchangeOAuthCodeJSONRequestBody ExchangeOAuthCodeJSONBody
@@ -1329,17 +1384,53 @@ type PatchThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody = PatchThrea
 // PutThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody defines body for PutThreatModelsThreatModelIdDiagramsDiagramId for application/json ContentType.
 type PutThreatModelsThreatModelIdDiagramsDiagramIdJSONRequestBody = Diagram
 
+// CreateDiagramMetadataJSONRequestBody defines body for CreateDiagramMetadata for application/json ContentType.
+type CreateDiagramMetadataJSONRequestBody = Metadata
+
+// BulkCreateDiagramMetadataJSONRequestBody defines body for BulkCreateDiagramMetadata for application/json ContentType.
+type BulkCreateDiagramMetadataJSONRequestBody = BulkCreateDiagramMetadataJSONBody
+
+// UpdateDiagramMetadataByKeyJSONRequestBody defines body for UpdateDiagramMetadataByKey for application/json ContentType.
+type UpdateDiagramMetadataByKeyJSONRequestBody UpdateDiagramMetadataByKeyJSONBody
+
 // CreateThreatModelDocumentJSONRequestBody defines body for CreateThreatModelDocument for application/json ContentType.
 type CreateThreatModelDocumentJSONRequestBody = Document
 
 // UpdateThreatModelDocumentJSONRequestBody defines body for UpdateThreatModelDocument for application/json ContentType.
 type UpdateThreatModelDocumentJSONRequestBody = Document
 
+// CreateDocumentMetadataJSONRequestBody defines body for CreateDocumentMetadata for application/json ContentType.
+type CreateDocumentMetadataJSONRequestBody = Metadata
+
+// BulkCreateDocumentMetadataJSONRequestBody defines body for BulkCreateDocumentMetadata for application/json ContentType.
+type BulkCreateDocumentMetadataJSONRequestBody = BulkCreateDocumentMetadataJSONBody
+
+// UpdateDocumentMetadataByKeyJSONRequestBody defines body for UpdateDocumentMetadataByKey for application/json ContentType.
+type UpdateDocumentMetadataByKeyJSONRequestBody UpdateDocumentMetadataByKeyJSONBody
+
+// CreateThreatModelMetadataJSONRequestBody defines body for CreateThreatModelMetadata for application/json ContentType.
+type CreateThreatModelMetadataJSONRequestBody = Metadata
+
+// BulkCreateThreatModelMetadataJSONRequestBody defines body for BulkCreateThreatModelMetadata for application/json ContentType.
+type BulkCreateThreatModelMetadataJSONRequestBody = BulkCreateThreatModelMetadataJSONBody
+
+// UpdateThreatModelMetadataByKeyJSONRequestBody defines body for UpdateThreatModelMetadataByKey for application/json ContentType.
+type UpdateThreatModelMetadataByKeyJSONRequestBody UpdateThreatModelMetadataByKeyJSONBody
+
 // CreateThreatModelSourceJSONRequestBody defines body for CreateThreatModelSource for application/json ContentType.
 type CreateThreatModelSourceJSONRequestBody = Source
 
 // UpdateThreatModelSourceJSONRequestBody defines body for UpdateThreatModelSource for application/json ContentType.
 type UpdateThreatModelSourceJSONRequestBody = Source
+
+// CreateSourceMetadataJSONRequestBody defines body for CreateSourceMetadata for application/json ContentType.
+type CreateSourceMetadataJSONRequestBody = Metadata
+
+// BulkCreateSourceMetadataJSONRequestBody defines body for BulkCreateSourceMetadata for application/json ContentType.
+type BulkCreateSourceMetadataJSONRequestBody = BulkCreateSourceMetadataJSONBody
+
+// UpdateSourceMetadataByKeyJSONRequestBody defines body for UpdateSourceMetadataByKey for application/json ContentType.
+type UpdateSourceMetadataByKeyJSONRequestBody UpdateSourceMetadataByKeyJSONBody
 
 // CreateThreatModelThreatJSONRequestBody defines body for CreateThreatModelThreat for application/json ContentType.
 type CreateThreatModelThreatJSONRequestBody = Threat
@@ -1349,6 +1440,15 @@ type PatchThreatModelThreatApplicationJSONPatchPlusJSONRequestBody = PatchThreat
 
 // UpdateThreatModelThreatJSONRequestBody defines body for UpdateThreatModelThreat for application/json ContentType.
 type UpdateThreatModelThreatJSONRequestBody = Threat
+
+// CreateThreatMetadataJSONRequestBody defines body for CreateThreatMetadata for application/json ContentType.
+type CreateThreatMetadataJSONRequestBody = Metadata
+
+// BulkCreateThreatMetadataJSONRequestBody defines body for BulkCreateThreatMetadata for application/json ContentType.
+type BulkCreateThreatMetadataJSONRequestBody = BulkCreateThreatMetadataJSONBody
+
+// UpdateThreatMetadataByKeyJSONRequestBody defines body for UpdateThreatMetadataByKey for application/json ContentType.
+type UpdateThreatMetadataByKeyJSONRequestBody UpdateThreatMetadataByKeyJSONBody
 
 // Getter for additional properties for Cell_Data. Returns the specified
 // element and whether it was found
@@ -2042,6 +2142,9 @@ type ServerInterface interface {
 	// Exchange authorization code for JWT
 	// (POST /auth/token)
 	ExchangeToken(ctx echo.Context) error
+	// List active collaboration sessions
+	// (GET /collaboration/sessions)
+	GetCollaborationSessions(ctx echo.Context) error
 	// List threat models
 	// (GET /threat_models)
 	GetThreatModels(ctx echo.Context, params GetThreatModelsParams) error
@@ -2087,6 +2190,24 @@ type ServerInterface interface {
 	// Join or start collaboration session
 	// (POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate)
 	PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	// Get diagram metadata
+	// (GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata)
+	GetDiagramMetadata(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	// Create diagram metadata
+	// (POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata)
+	CreateDiagramMetadata(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	// Bulk create diagram metadata
+	// (POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/bulk)
+	BulkCreateDiagramMetadata(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	// Delete diagram metadata by key
+	// (DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key})
+	DeleteDiagramMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) error
+	// Get diagram metadata by key
+	// (GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key})
+	GetDiagramMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) error
+	// Update diagram metadata by key
+	// (PUT /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key})
+	UpdateDiagramMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) error
 	// List documents in a threat model
 	// (GET /threat_models/{threat_model_id}/documents)
 	GetThreatModelDocuments(ctx echo.Context, threatModelId openapi_types.UUID, params GetThreatModelDocumentsParams) error
@@ -2102,6 +2223,42 @@ type ServerInterface interface {
 	// Update a document
 	// (PUT /threat_models/{threat_model_id}/documents/{document_id})
 	UpdateThreatModelDocument(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) error
+	// Get document metadata
+	// (GET /threat_models/{threat_model_id}/documents/{document_id}/metadata)
+	GetDocumentMetadata(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) error
+	// Create document metadata
+	// (POST /threat_models/{threat_model_id}/documents/{document_id}/metadata)
+	CreateDocumentMetadata(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) error
+	// Bulk create document metadata
+	// (POST /threat_models/{threat_model_id}/documents/{document_id}/metadata/bulk)
+	BulkCreateDocumentMetadata(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) error
+	// Delete document metadata by key
+	// (DELETE /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key})
+	DeleteDocumentMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) error
+	// Get document metadata by key
+	// (GET /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key})
+	GetDocumentMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) error
+	// Update document metadata by key
+	// (PUT /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key})
+	UpdateDocumentMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) error
+	// Get threat model metadata
+	// (GET /threat_models/{threat_model_id}/metadata)
+	GetThreatModelMetadata(ctx echo.Context, threatModelId openapi_types.UUID) error
+	// Create threat model metadata
+	// (POST /threat_models/{threat_model_id}/metadata)
+	CreateThreatModelMetadata(ctx echo.Context, threatModelId openapi_types.UUID) error
+	// Bulk create threat model metadata
+	// (POST /threat_models/{threat_model_id}/metadata/bulk)
+	BulkCreateThreatModelMetadata(ctx echo.Context, threatModelId openapi_types.UUID) error
+	// Delete threat model metadata by key
+	// (DELETE /threat_models/{threat_model_id}/metadata/{key})
+	DeleteThreatModelMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, key string) error
+	// Get threat model metadata by key
+	// (GET /threat_models/{threat_model_id}/metadata/{key})
+	GetThreatModelMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, key string) error
+	// Update threat model metadata by key
+	// (PUT /threat_models/{threat_model_id}/metadata/{key})
+	UpdateThreatModelMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, key string) error
 	// List sources in a threat model
 	// (GET /threat_models/{threat_model_id}/sources)
 	GetThreatModelSources(ctx echo.Context, threatModelId openapi_types.UUID, params GetThreatModelSourcesParams) error
@@ -2117,6 +2274,24 @@ type ServerInterface interface {
 	// Update a source reference
 	// (PUT /threat_models/{threat_model_id}/sources/{source_id})
 	UpdateThreatModelSource(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) error
+	// Get source metadata
+	// (GET /threat_models/{threat_model_id}/sources/{source_id}/metadata)
+	GetSourceMetadata(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) error
+	// Create source metadata
+	// (POST /threat_models/{threat_model_id}/sources/{source_id}/metadata)
+	CreateSourceMetadata(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) error
+	// Bulk create source metadata
+	// (POST /threat_models/{threat_model_id}/sources/{source_id}/metadata/bulk)
+	BulkCreateSourceMetadata(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) error
+	// Delete source metadata by key
+	// (DELETE /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key})
+	DeleteSourceMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) error
+	// Get source metadata by key
+	// (GET /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key})
+	GetSourceMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) error
+	// Update source metadata by key
+	// (PUT /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key})
+	UpdateSourceMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) error
 	// List threats in a threat model
 	// (GET /threat_models/{threat_model_id}/threats)
 	GetThreatModelThreats(ctx echo.Context, threatModelId openapi_types.UUID, params GetThreatModelThreatsParams) error
@@ -2135,6 +2310,24 @@ type ServerInterface interface {
 	// Update a threat
 	// (PUT /threat_models/{threat_model_id}/threats/{threat_id})
 	UpdateThreatModelThreat(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) error
+	// Get threat metadata
+	// (GET /threat_models/{threat_model_id}/threats/{threat_id}/metadata)
+	GetThreatMetadata(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) error
+	// Create threat metadata
+	// (POST /threat_models/{threat_model_id}/threats/{threat_id}/metadata)
+	CreateThreatMetadata(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) error
+	// Bulk create threat metadata
+	// (POST /threat_models/{threat_model_id}/threats/{threat_id}/metadata/bulk)
+	BulkCreateThreatMetadata(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) error
+	// Delete threat metadata by key
+	// (DELETE /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key})
+	DeleteThreatMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string) error
+	// Get threat metadata by key
+	// (GET /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key})
+	GetThreatMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string) error
+	// Update threat metadata by key
+	// (PUT /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key})
+	UpdateThreatMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -2288,6 +2481,17 @@ func (w *ServerInterfaceWrapper) ExchangeToken(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.ExchangeToken(ctx)
+	return err
+}
+
+// GetCollaborationSessions converts echo context to params.
+func (w *ServerInterfaceWrapper) GetCollaborationSessions(ctx echo.Context) error {
+	var err error
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetCollaborationSessions(ctx)
 	return err
 }
 
@@ -2754,6 +2958,186 @@ func (w *ServerInterfaceWrapper) PostThreatModelsThreatModelIdDiagramsDiagramIdC
 	return err
 }
 
+// GetDiagramMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) GetDiagramMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetDiagramMetadata(ctx, threatModelId, diagramId)
+	return err
+}
+
+// CreateDiagramMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) CreateDiagramMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.CreateDiagramMetadata(ctx, threatModelId, diagramId)
+	return err
+}
+
+// BulkCreateDiagramMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) BulkCreateDiagramMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.BulkCreateDiagramMetadata(ctx, threatModelId, diagramId)
+	return err
+}
+
+// DeleteDiagramMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) DeleteDiagramMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.DeleteDiagramMetadataByKey(ctx, threatModelId, diagramId, key)
+	return err
+}
+
+// GetDiagramMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) GetDiagramMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetDiagramMetadataByKey(ctx, threatModelId, diagramId, key)
+	return err
+}
+
+// UpdateDiagramMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) UpdateDiagramMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UpdateDiagramMetadataByKey(ctx, threatModelId, diagramId, key)
+	return err
+}
+
 // GetThreatModelDocuments converts echo context to params.
 func (w *ServerInterfaceWrapper) GetThreatModelDocuments(ctx echo.Context) error {
 	var err error
@@ -2884,6 +3268,318 @@ func (w *ServerInterfaceWrapper) UpdateThreatModelDocument(ctx echo.Context) err
 	return err
 }
 
+// GetDocumentMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) GetDocumentMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "document_id" -------------
+	var documentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetDocumentMetadata(ctx, threatModelId, documentId)
+	return err
+}
+
+// CreateDocumentMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) CreateDocumentMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "document_id" -------------
+	var documentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.CreateDocumentMetadata(ctx, threatModelId, documentId)
+	return err
+}
+
+// BulkCreateDocumentMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) BulkCreateDocumentMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "document_id" -------------
+	var documentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.BulkCreateDocumentMetadata(ctx, threatModelId, documentId)
+	return err
+}
+
+// DeleteDocumentMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) DeleteDocumentMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "document_id" -------------
+	var documentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.DeleteDocumentMetadataByKey(ctx, threatModelId, documentId, key)
+	return err
+}
+
+// GetDocumentMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) GetDocumentMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "document_id" -------------
+	var documentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetDocumentMetadataByKey(ctx, threatModelId, documentId, key)
+	return err
+}
+
+// UpdateDocumentMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) UpdateDocumentMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "document_id" -------------
+	var documentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UpdateDocumentMetadataByKey(ctx, threatModelId, documentId, key)
+	return err
+}
+
+// GetThreatModelMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) GetThreatModelMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetThreatModelMetadata(ctx, threatModelId)
+	return err
+}
+
+// CreateThreatModelMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) CreateThreatModelMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.CreateThreatModelMetadata(ctx, threatModelId)
+	return err
+}
+
+// BulkCreateThreatModelMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) BulkCreateThreatModelMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.BulkCreateThreatModelMetadata(ctx, threatModelId)
+	return err
+}
+
+// DeleteThreatModelMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) DeleteThreatModelMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.DeleteThreatModelMetadataByKey(ctx, threatModelId, key)
+	return err
+}
+
+// GetThreatModelMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) GetThreatModelMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetThreatModelMetadataByKey(ctx, threatModelId, key)
+	return err
+}
+
+// UpdateThreatModelMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) UpdateThreatModelMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UpdateThreatModelMetadataByKey(ctx, threatModelId, key)
+	return err
+}
+
 // GetThreatModelSources converts echo context to params.
 func (w *ServerInterfaceWrapper) GetThreatModelSources(ctx echo.Context) error {
 	var err error
@@ -3011,6 +3707,186 @@ func (w *ServerInterfaceWrapper) UpdateThreatModelSource(ctx echo.Context) error
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.UpdateThreatModelSource(ctx, threatModelId, sourceId)
+	return err
+}
+
+// GetSourceMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) GetSourceMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "source_id" -------------
+	var sourceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetSourceMetadata(ctx, threatModelId, sourceId)
+	return err
+}
+
+// CreateSourceMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) CreateSourceMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "source_id" -------------
+	var sourceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.CreateSourceMetadata(ctx, threatModelId, sourceId)
+	return err
+}
+
+// BulkCreateSourceMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) BulkCreateSourceMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "source_id" -------------
+	var sourceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.BulkCreateSourceMetadata(ctx, threatModelId, sourceId)
+	return err
+}
+
+// DeleteSourceMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) DeleteSourceMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "source_id" -------------
+	var sourceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.DeleteSourceMetadataByKey(ctx, threatModelId, sourceId, key)
+	return err
+}
+
+// GetSourceMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) GetSourceMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "source_id" -------------
+	var sourceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetSourceMetadataByKey(ctx, threatModelId, sourceId, key)
+	return err
+}
+
+// UpdateSourceMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) UpdateSourceMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "source_id" -------------
+	var sourceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UpdateSourceMetadataByKey(ctx, threatModelId, sourceId, key)
 	return err
 }
 
@@ -3170,6 +4046,186 @@ func (w *ServerInterfaceWrapper) UpdateThreatModelThreat(ctx echo.Context) error
 	return err
 }
 
+// GetThreatMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) GetThreatMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "threat_id" -------------
+	var threatId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetThreatMetadata(ctx, threatModelId, threatId)
+	return err
+}
+
+// CreateThreatMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) CreateThreatMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "threat_id" -------------
+	var threatId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.CreateThreatMetadata(ctx, threatModelId, threatId)
+	return err
+}
+
+// BulkCreateThreatMetadata converts echo context to params.
+func (w *ServerInterfaceWrapper) BulkCreateThreatMetadata(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "threat_id" -------------
+	var threatId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.BulkCreateThreatMetadata(ctx, threatModelId, threatId)
+	return err
+}
+
+// DeleteThreatMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) DeleteThreatMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "threat_id" -------------
+	var threatId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.DeleteThreatMetadataByKey(ctx, threatModelId, threatId, key)
+	return err
+}
+
+// GetThreatMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) GetThreatMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "threat_id" -------------
+	var threatId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetThreatMetadataByKey(ctx, threatModelId, threatId, key)
+	return err
+}
+
+// UpdateThreatMetadataByKey converts echo context to params.
+func (w *ServerInterfaceWrapper) UpdateThreatMetadataByKey(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+	}
+
+	// ------------- Path parameter "threat_id" -------------
+	var threatId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UpdateThreatMetadataByKey(ctx, threatModelId, threatId, key)
+	return err
+}
+
 // This is a simple interface which specifies echo.Route addition functions which
 // are present on both echo.Echo and echo.Group, since we want to allow using
 // either of them for path registration
@@ -3208,6 +4264,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/auth/providers", wrapper.GetAuthProviders)
 	router.POST(baseURL+"/auth/refresh", wrapper.RefreshToken)
 	router.POST(baseURL+"/auth/token", wrapper.ExchangeToken)
+	router.GET(baseURL+"/collaboration/sessions", wrapper.GetCollaborationSessions)
 	router.GET(baseURL+"/threat_models", wrapper.GetThreatModels)
 	router.POST(baseURL+"/threat_models", wrapper.PostThreatModels)
 	router.DELETE(baseURL+"/threat_models/:threat_model_id", wrapper.DeleteThreatModelsThreatModelId)
@@ -3223,21 +4280,51 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.DELETE(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 	router.POST(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
+	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", wrapper.GetDiagramMetadata)
+	router.POST(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", wrapper.CreateDiagramMetadata)
+	router.POST(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/bulk", wrapper.BulkCreateDiagramMetadata)
+	router.DELETE(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/:key", wrapper.DeleteDiagramMetadataByKey)
+	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/:key", wrapper.GetDiagramMetadataByKey)
+	router.PUT(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/:key", wrapper.UpdateDiagramMetadataByKey)
 	router.GET(baseURL+"/threat_models/:threat_model_id/documents", wrapper.GetThreatModelDocuments)
 	router.POST(baseURL+"/threat_models/:threat_model_id/documents", wrapper.CreateThreatModelDocument)
 	router.DELETE(baseURL+"/threat_models/:threat_model_id/documents/:document_id", wrapper.DeleteThreatModelDocument)
 	router.GET(baseURL+"/threat_models/:threat_model_id/documents/:document_id", wrapper.GetThreatModelDocument)
 	router.PUT(baseURL+"/threat_models/:threat_model_id/documents/:document_id", wrapper.UpdateThreatModelDocument)
+	router.GET(baseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata", wrapper.GetDocumentMetadata)
+	router.POST(baseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata", wrapper.CreateDocumentMetadata)
+	router.POST(baseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata/bulk", wrapper.BulkCreateDocumentMetadata)
+	router.DELETE(baseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata/:key", wrapper.DeleteDocumentMetadataByKey)
+	router.GET(baseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata/:key", wrapper.GetDocumentMetadataByKey)
+	router.PUT(baseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata/:key", wrapper.UpdateDocumentMetadataByKey)
+	router.GET(baseURL+"/threat_models/:threat_model_id/metadata", wrapper.GetThreatModelMetadata)
+	router.POST(baseURL+"/threat_models/:threat_model_id/metadata", wrapper.CreateThreatModelMetadata)
+	router.POST(baseURL+"/threat_models/:threat_model_id/metadata/bulk", wrapper.BulkCreateThreatModelMetadata)
+	router.DELETE(baseURL+"/threat_models/:threat_model_id/metadata/:key", wrapper.DeleteThreatModelMetadataByKey)
+	router.GET(baseURL+"/threat_models/:threat_model_id/metadata/:key", wrapper.GetThreatModelMetadataByKey)
+	router.PUT(baseURL+"/threat_models/:threat_model_id/metadata/:key", wrapper.UpdateThreatModelMetadataByKey)
 	router.GET(baseURL+"/threat_models/:threat_model_id/sources", wrapper.GetThreatModelSources)
 	router.POST(baseURL+"/threat_models/:threat_model_id/sources", wrapper.CreateThreatModelSource)
 	router.DELETE(baseURL+"/threat_models/:threat_model_id/sources/:source_id", wrapper.DeleteThreatModelSource)
 	router.GET(baseURL+"/threat_models/:threat_model_id/sources/:source_id", wrapper.GetThreatModelSource)
 	router.PUT(baseURL+"/threat_models/:threat_model_id/sources/:source_id", wrapper.UpdateThreatModelSource)
+	router.GET(baseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata", wrapper.GetSourceMetadata)
+	router.POST(baseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata", wrapper.CreateSourceMetadata)
+	router.POST(baseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata/bulk", wrapper.BulkCreateSourceMetadata)
+	router.DELETE(baseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata/:key", wrapper.DeleteSourceMetadataByKey)
+	router.GET(baseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata/:key", wrapper.GetSourceMetadataByKey)
+	router.PUT(baseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata/:key", wrapper.UpdateSourceMetadataByKey)
 	router.GET(baseURL+"/threat_models/:threat_model_id/threats", wrapper.GetThreatModelThreats)
 	router.POST(baseURL+"/threat_models/:threat_model_id/threats", wrapper.CreateThreatModelThreat)
 	router.DELETE(baseURL+"/threat_models/:threat_model_id/threats/:threat_id", wrapper.DeleteThreatModelThreat)
 	router.GET(baseURL+"/threat_models/:threat_model_id/threats/:threat_id", wrapper.GetThreatModelThreat)
 	router.PATCH(baseURL+"/threat_models/:threat_model_id/threats/:threat_id", wrapper.PatchThreatModelThreat)
 	router.PUT(baseURL+"/threat_models/:threat_model_id/threats/:threat_id", wrapper.UpdateThreatModelThreat)
+	router.GET(baseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata", wrapper.GetThreatMetadata)
+	router.POST(baseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata", wrapper.CreateThreatMetadata)
+	router.POST(baseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata/bulk", wrapper.BulkCreateThreatMetadata)
+	router.DELETE(baseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", wrapper.DeleteThreatMetadataByKey)
+	router.GET(baseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", wrapper.GetThreatMetadataByKey)
+	router.PUT(baseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", wrapper.UpdateThreatMetadataByKey)
 
 }

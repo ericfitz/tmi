@@ -185,6 +185,46 @@ func (h *WebSocketHub) GetSession(diagramID string) *DiagramSession {
 	return nil
 }
 
+// GetActiveSessions returns all active collaboration sessions
+func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	sessions := make([]CollaborationSession, 0, len(h.Diagrams))
+	for diagramID, session := range h.Diagrams {
+		session.mu.RLock()
+		// Convert diagram ID to UUID
+		diagramUUID, err := uuid.Parse(diagramID)
+		if err != nil {
+			session.mu.RUnlock()
+			continue
+		}
+
+		// Convert clients to participants
+		participants := make([]struct {
+			JoinedAt *time.Time `json:"joined_at,omitempty"`
+			UserId   *string    `json:"user_id,omitempty"`
+		}, 0, len(session.Clients))
+
+		for client := range session.Clients {
+			participants = append(participants, struct {
+				JoinedAt *time.Time `json:"joined_at,omitempty"`
+				UserId   *string    `json:"user_id,omitempty"`
+			}{
+				UserId: &client.UserName,
+			})
+		}
+
+		sessions = append(sessions, CollaborationSession{
+			DiagramId:    diagramUUID,
+			Participants: participants,
+		})
+		session.mu.RUnlock()
+	}
+
+	return sessions
+}
+
 // CloseSession closes a session and removes it
 func (h *WebSocketHub) CloseSession(diagramID string) {
 	h.mu.Lock()

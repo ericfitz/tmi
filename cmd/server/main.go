@@ -231,7 +231,9 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist) gin.
 }
 
 func (s *Server) GetApiInfo(c *gin.Context) {
-	apiInfoHandler := api.NewApiInfoHandler()
+	// Create API server to provide WebSocket URL building functionality
+	apiServer := api.NewServer()
+	apiInfoHandler := api.NewApiInfoHandler(apiServer)
 	apiInfoHandler.GetApiInfo(c)
 }
 

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -39,6 +41,10 @@ func TestCollaborationIntegration(t *testing.T) {
 
 	t.Run("CollaborationSessionLifecycle", func(t *testing.T) {
 		testCollaborationSessionLifecycle(t, suite, diagramID)
+	})
+
+	t.Run("CollaborationSessionsEndpoint", func(t *testing.T) {
+		testCollaborationSessionsEndpoint(t, suite, diagramID)
 	})
 }
 
@@ -488,4 +494,88 @@ func TestCollaborationWithRedis(t *testing.T) {
 
 	// Verify Redis consistency after collaboration operations
 	verifyRedisConsistency(suite.SubEntityIntegrationTestSuite, t, "collaboration_session", diagramID)
+}
+
+// testCollaborationSessionsEndpoint tests the GET /collaboration/sessions endpoint
+func testCollaborationSessionsEndpoint(t *testing.T, suite *SubEntityIntegrationTestSuite, diagramID string) {
+	t.Run("EmptySessionsList", func(t *testing.T) {
+		// Test getting sessions when none are active
+		req := suite.makeAuthenticatedRequest("GET", "/collaboration/sessions", nil)
+		w := suite.executeRequest(req)
+
+		assert.Equal(t, http.StatusOK, w.Code, "Should return OK for empty sessions list")
+		// Parse response manually
+		var sessions []CollaborationSession
+		err := json.Unmarshal(w.Body.Bytes(), &sessions)
+		require.NoError(t, err, "Should parse JSON response")
+		assert.Len(t, sessions, 0, "Should have no active sessions")
+	})
+
+	t.Run("MockActiveSession", func(t *testing.T) {
+		// Manually create a session in the WebSocket hub for testing
+		server := NewServer()
+		diagramUUID, err := uuid.Parse(diagramID)
+		require.NoError(t, err, "Should parse diagram ID as UUID")
+		// Create a mock session directly in the hub
+		session := &DiagramSession{
+			ID:           uuid.New().String(),
+			DiagramID:    diagramID,
+			Clients:      make(map[*WebSocketClient]bool),
+			Broadcast:    make(chan []byte),
+			Register:     make(chan *WebSocketClient),
+			Unregister:   make(chan *WebSocketClient),
+			LastActivity: time.Now().UTC(),
+		}
+
+		// Add a mock client
+		mockClient := &WebSocketClient{
+			UserName: suite.testUser.Email,
+		}
+		session.Clients[mockClient] = true
+		// Add session to hub
+		server.wsHub.Diagrams[diagramID] = session
+
+		// Test the endpoint with mock session
+		gin.SetMode(gin.TestMode)
+		router := gin.New()
+		router.GET("/collaboration/sessions", server.HandleCollaborationSessions)
+
+		req, err := http.NewRequest("GET", "/collaboration/sessions", nil)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code, "Should return OK for sessions list")
+
+		// Parse response manually
+		var sessions []CollaborationSession
+		err = json.Unmarshal(w.Body.Bytes(), &sessions)
+		require.NoError(t, err, "Should parse JSON response")
+
+		// Should have one active session
+		require.Len(t, sessions, 1, "Should have one active session")
+
+		session_resp := sessions[0]
+		assert.Equal(t, diagramUUID, session_resp.DiagramId, "Session should be for the correct diagram")
+		assert.Len(t, session_resp.Participants, 1, "Should have one participant")
+
+		// Verify participant details
+		participant := session_resp.Participants[0]
+		assert.NotNil(t, participant.UserId, "Participant should have user ID")
+		assert.Equal(t, suite.testUser.Email, *participant.UserId, "Participant should be the test user")
+	})
+
+	t.Run("AuthenticationRequired", func(t *testing.T) {
+		// Test without authentication
+		req, err := http.NewRequest("GET", "/collaboration/sessions", nil)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		suite.router.ServeHTTP(w, req)
+
+		// Should require authentication - exact status depends on auth middleware
+		assert.Contains(t, []int{http.StatusUnauthorized, http.StatusForbidden}, w.Code,
+			"Should require authentication")
+	})
 }

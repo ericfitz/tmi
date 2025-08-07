@@ -73,12 +73,14 @@ func GetVersionString() string {
 
 // ApiInfoHandler handles requests to the root endpoint
 type ApiInfoHandler struct {
-	// Add dependencies if needed
+	server *Server
 }
 
 // NewApiInfoHandler creates a new handler for API info
-func NewApiInfoHandler() *ApiInfoHandler {
-	return &ApiInfoHandler{}
+func NewApiInfoHandler(server *Server) *ApiInfoHandler {
+	return &ApiInfoHandler{
+		server: server,
+	}
 }
 
 // HTML template for root page when accessed from browser
@@ -172,6 +174,19 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 			Contact: operatorContact,
 		}
 		logger.Debug("Added operator info: name=%s, contact=%s", operatorName, operatorContact)
+	}
+
+	// Add WebSocket information
+	if h.server != nil {
+		wsBaseURL := h.server.buildWebSocketURL(c)
+		apiInfo.Websocket = struct {
+			BaseUrl         string `json:"base_url"`
+			DiagramEndpoint string `json:"diagram_endpoint"`
+		}{
+			BaseUrl:         wsBaseURL,
+			DiagramEndpoint: "/ws/diagrams/{diagram_id}",
+		}
+		logger.Debug("Added WebSocket info: base_url=%s", wsBaseURL)
 	}
 
 	logger.Info("Returning API info response")

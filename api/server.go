@@ -41,6 +41,9 @@ func (s *Server) RegisterHandlers(r *gin.Engine) {
 	// Register WebSocket handler - it needs a custom route because it's not part of the OpenAPI spec
 	r.GET("/ws/diagrams/:id", s.HandleWebSocket)
 
+	// Register collaboration sessions endpoint
+	r.GET("/collaboration/sessions", s.HandleCollaborationSessions)
+
 	// Register server info endpoint
 	r.GET("/api/server-info", s.HandleServerInfo)
 }
@@ -63,8 +66,14 @@ func (s *Server) StartWebSocketHub(ctx context.Context) {
 	go s.wsHub.StartCleanupTimer(ctx)
 }
 
-// HandleServerInfo provides server configuration information to clients
-func (s *Server) HandleServerInfo(c *gin.Context) {
+// HandleCollaborationSessions returns all active collaboration sessions
+func (s *Server) HandleCollaborationSessions(c *gin.Context) {
+	sessions := s.wsHub.GetActiveSessions()
+	c.JSON(http.StatusOK, sessions)
+}
+
+// buildWebSocketURL constructs the WebSocket base URL from request context
+func (s *Server) buildWebSocketURL(c *gin.Context) string {
 	// Get config information from the context
 	tlsEnabled := false
 	tlsSubjectName := ""
@@ -107,7 +116,30 @@ func (s *Server) HandleServerInfo(c *gin.Context) {
 	}
 
 	// Build WebSocket URL
-	wsURL := fmt.Sprintf("%s://%s/ws", scheme, host)
+	return fmt.Sprintf("%s://%s/ws", scheme, host)
+}
+
+// HandleServerInfo provides server configuration information to clients
+func (s *Server) HandleServerInfo(c *gin.Context) {
+	// Get config information from the context
+	tlsEnabled := false
+	tlsSubjectName := ""
+
+	// Try to extract from request context
+	if val, exists := c.Get("tlsEnabled"); exists {
+		if enabled, ok := val.(bool); ok {
+			tlsEnabled = enabled
+		}
+	}
+
+	if val, exists := c.Get("tlsSubjectName"); exists {
+		if name, ok := val.(string); ok {
+			tlsSubjectName = name
+		}
+	}
+
+	// Build WebSocket URL using helper
+	wsURL := s.buildWebSocketURL(c)
 
 	// Return server info
 	c.JSON(http.StatusOK, ServerInfo{
