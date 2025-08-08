@@ -82,11 +82,11 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 	query := `
 		INSERT INTO threats (
 			id, threat_model_id, name, description, severity, 
-			likelihood, risk_level, mitigation, threat_type, 
-			status, priority, mitigated, score, issue_url, 
-			diagram_id, cell_id, created_at, updated_at
+			mitigation, threat_type, status, priority, mitigated, 
+			score, issue_url, diagram_id, cell_id, metadata, 
+			created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 		)
 	`
 
@@ -96,8 +96,6 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 		threat.Name,
 		threat.Description,
 		string(threat.Severity),
-		nil, // likelihood - not in current schema
-		nil, // risk_level - not in current schema
 		threat.Mitigation,
 		threat.ThreatType,
 		threat.Status,
@@ -107,6 +105,7 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 		threat.IssueUrl,
 		threat.DiagramId,
 		threat.CellId,
+		metadataJSON,
 		threat.CreatedAt,
 		threat.ModifiedAt,
 	)
@@ -165,7 +164,7 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
-			   score, issue_url, diagram_id, cell_id, created_at, updated_at
+			   score, issue_url, diagram_id, cell_id, metadata, created_at, updated_at
 		FROM threats 
 		WHERE id = $1
 	`
@@ -174,6 +173,7 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 	var description, mitigation, issueUrl sql.NullString
 	var score sql.NullFloat64
 	var diagramId, cellId sql.NullString
+	var metadataJSON sql.NullString
 
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&threat.Id,
@@ -190,6 +190,7 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 		&issueUrl,
 		&diagramId,
 		&cellId,
+		&metadataJSON,
 		&threat.CreatedAt,
 		&threat.ModifiedAt,
 	)
@@ -226,6 +227,12 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 			threat.CellId = &cID
 		}
 	}
+	if metadataJSON.Valid && metadataJSON.String != "" {
+		var metadata []Metadata
+		if err := json.Unmarshal([]byte(metadataJSON.String), &metadata); err == nil {
+			threat.Metadata = &metadata
+		}
+	}
 
 	// Cache the result for future requests
 	if s.cache != nil {
@@ -246,12 +253,24 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 	// Update modified timestamp
 	threat.ModifiedAt = time.Now().UTC()
 
+	// Serialize metadata if present
+	var metadataJSON sql.NullString
+	if threat.Metadata != nil && len(*threat.Metadata) > 0 {
+		metadataBytes, err := json.Marshal(*threat.Metadata)
+		if err != nil {
+			logger.Error("Failed to marshal threat metadata: %v", err)
+			return fmt.Errorf("failed to marshal metadata: %w", err)
+		}
+		metadataJSON.String = string(metadataBytes)
+		metadataJSON.Valid = true
+	}
+
 	query := `
 		UPDATE threats SET
 			name = $2, description = $3, severity = $4, mitigation = $5,
 			threat_type = $6, status = $7, priority = $8, mitigated = $9,
 			score = $10, issue_url = $11, diagram_id = $12, cell_id = $13,
-			updated_at = $14
+			metadata = $14, updated_at = $15
 		WHERE id = $1
 	`
 
@@ -269,6 +288,7 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 		threat.IssueUrl,
 		threat.DiagramId,
 		threat.CellId,
+		metadataJSON,
 		threat.ModifiedAt,
 	)
 
@@ -392,7 +412,7 @@ func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, of
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
-			   score, issue_url, diagram_id, cell_id, created_at, updated_at
+			   score, issue_url, diagram_id, cell_id, metadata, created_at, updated_at
 		FROM threats 
 		WHERE threat_model_id = $1
 		ORDER BY created_at DESC
@@ -416,6 +436,7 @@ func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, of
 		var description, mitigation, issueUrl sql.NullString
 		var score sql.NullFloat64
 		var diagramId, cellId sql.NullString
+		var metadataJSON sql.NullString
 
 		err := rows.Scan(
 			&threat.Id,
@@ -432,6 +453,7 @@ func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, of
 			&issueUrl,
 			&diagramId,
 			&cellId,
+			&metadataJSON,
 			&threat.CreatedAt,
 			&threat.ModifiedAt,
 		)
@@ -463,6 +485,12 @@ func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, of
 		if cellId.Valid {
 			if cID, err := uuid.Parse(cellId.String); err == nil {
 				threat.CellId = &cID
+			}
+		}
+		if metadataJSON.Valid && metadataJSON.String != "" {
+			var metadata []Metadata
+			if err := json.Unmarshal([]byte(metadataJSON.String), &metadata); err == nil {
+				threat.Metadata = &metadata
 			}
 		}
 
@@ -623,9 +651,9 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 		INSERT INTO threats (
 			id, threat_model_id, name, description, severity, 
 			mitigation, threat_type, status, priority, mitigated, 
-			score, issue_url, diagram_id, cell_id, created_at, updated_at
+			score, issue_url, diagram_id, cell_id, metadata, created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 		)
 	`
 
@@ -661,6 +689,15 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 			parentThreatModelID = threat.ThreatModelId.String()
 		}
 
+		// Serialize metadata if present
+		var metadataJSON sql.NullString
+		if threat.Metadata != nil && len(*threat.Metadata) > 0 {
+			if metadataBytes, err := json.Marshal(*threat.Metadata); err == nil {
+				metadataJSON.String = string(metadataBytes)
+				metadataJSON.Valid = true
+			}
+		}
+
 		_, err = stmt.ExecContext(ctx,
 			threat.Id,
 			threat.ThreatModelId,
@@ -676,6 +713,7 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 			threat.IssueUrl,
 			threat.DiagramId,
 			threat.CellId,
+			metadataJSON,
 			threat.CreatedAt,
 			threat.ModifiedAt,
 		)
@@ -731,7 +769,7 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 			name = $2, description = $3, severity = $4, mitigation = $5,
 			threat_type = $6, status = $7, priority = $8, mitigated = $9,
 			score = $10, issue_url = $11, diagram_id = $12, cell_id = $13,
-			updated_at = $14
+			metadata = $14, updated_at = $15
 		WHERE id = $1
 	`
 
@@ -758,6 +796,15 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 			parentThreatModelID = threat.ThreatModelId.String()
 		}
 
+		// Serialize metadata if present
+		var metadataJSON sql.NullString
+		if threat.Metadata != nil && len(*threat.Metadata) > 0 {
+			if metadataBytes, err := json.Marshal(*threat.Metadata); err == nil {
+				metadataJSON.String = string(metadataBytes)
+				metadataJSON.Valid = true
+			}
+		}
+
 		_, err = stmt.ExecContext(ctx,
 			threat.Id,
 			threat.Name,
@@ -772,6 +819,7 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 			threat.IssueUrl,
 			threat.DiagramId,
 			threat.CellId,
+			metadataJSON,
 			threat.ModifiedAt,
 		)
 
