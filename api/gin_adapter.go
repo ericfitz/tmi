@@ -17,36 +17,6 @@ type GinServerInterface interface {
 	GetAuthCallback(c *gin.Context)
 	PostAuthLogout(c *gin.Context)
 
-	// Diagram Management
-	GetDiagrams(c *gin.Context)
-	PostDiagrams(c *gin.Context)
-	GetDiagramsId(c *gin.Context)
-	PutDiagramsId(c *gin.Context)
-	PatchDiagramsId(c *gin.Context)
-	DeleteDiagramsId(c *gin.Context)
-
-	// Diagram Collaboration
-	GetDiagramsIdCollaborate(c *gin.Context)
-	PostDiagramsIdCollaborate(c *gin.Context)
-	DeleteDiagramsIdCollaborate(c *gin.Context)
-
-	// Diagram Metadata
-	GetDiagramsIdMetadata(c *gin.Context)
-	PostDiagramsIdMetadata(c *gin.Context)
-	GetDiagramsIdMetadataKey(c *gin.Context)
-	PutDiagramsIdMetadataKey(c *gin.Context)
-	DeleteDiagramsIdMetadataKey(c *gin.Context)
-	PostDiagramsIdMetadataBulk(c *gin.Context)
-
-	// Diagram Cell Metadata
-	GetDiagramsIdCellsCellIdMetadata(c *gin.Context)
-	PostDiagramsIdCellsCellIdMetadata(c *gin.Context)
-	GetDiagramsIdCellsCellIdMetadataKey(c *gin.Context)
-	PutDiagramsIdCellsCellIdMetadataKey(c *gin.Context)
-	DeleteDiagramsIdCellsCellIdMetadataKey(c *gin.Context)
-	PatchDiagramsIdCellsCellId(c *gin.Context)
-	PostDiagramsIdCellsBatchPatch(c *gin.Context)
-
 	// Threat Model Management
 	GetThreatModels(c *gin.Context)
 	PostThreatModels(c *gin.Context)
@@ -158,19 +128,6 @@ func RegisterGinHandlers(r GinRouter, si GinServerInterface) {
 	r.GET("/auth/callback", si.GetAuthCallback)
 	r.POST("/auth/logout", si.PostAuthLogout)
 
-	// Diagrams
-	r.GET("/diagrams", si.GetDiagrams)
-	r.POST("/diagrams", si.PostDiagrams)
-	r.GET("/diagrams/:id", si.GetDiagramsId)
-	r.PUT("/diagrams/:id", si.PutDiagramsId)
-	r.PATCH("/diagrams/:id", si.PatchDiagramsId)
-	r.DELETE("/diagrams/:id", si.DeleteDiagramsId)
-
-	// Diagram Collaboration
-	r.GET("/diagrams/:id/collaborate", si.GetDiagramsIdCollaborate)
-	r.POST("/diagrams/:id/collaborate", si.PostDiagramsIdCollaborate)
-	r.DELETE("/diagrams/:id/collaborate", si.DeleteDiagramsIdCollaborate)
-
 	// Threat Models
 	r.GET("/threat_models", si.GetThreatModels)
 	r.POST("/threat_models", si.PostThreatModels)
@@ -199,23 +156,6 @@ func RegisterGinHandlers(r GinRouter, si GinServerInterface) {
 	r.GET("/threat_models/:id/diagrams/:diagram_id/collaborate", si.GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 	r.POST("/threat_models/:id/diagrams/:diagram_id/collaborate", si.PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 	r.DELETE("/threat_models/:id/diagrams/:diagram_id/collaborate", si.DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
-
-	// Diagram Metadata
-	r.GET("/diagrams/:id/metadata", si.GetDiagramsIdMetadata)
-	r.POST("/diagrams/:id/metadata", si.PostDiagramsIdMetadata)
-	r.GET("/diagrams/:id/metadata/:key", si.GetDiagramsIdMetadataKey)
-	r.PUT("/diagrams/:id/metadata/:key", si.PutDiagramsIdMetadataKey)
-	r.DELETE("/diagrams/:id/metadata/:key", si.DeleteDiagramsIdMetadataKey)
-	r.POST("/diagrams/:id/metadata/bulk", si.PostDiagramsIdMetadataBulk)
-
-	// Diagram Cell Metadata
-	r.GET("/diagrams/:id/cells/:cell_id/metadata", si.GetDiagramsIdCellsCellIdMetadata)
-	r.POST("/diagrams/:id/cells/:cell_id/metadata", si.PostDiagramsIdCellsCellIdMetadata)
-	r.GET("/diagrams/:id/cells/:cell_id/metadata/:key", si.GetDiagramsIdCellsCellIdMetadataKey)
-	r.PUT("/diagrams/:id/cells/:cell_id/metadata/:key", si.PutDiagramsIdCellsCellIdMetadataKey)
-	r.DELETE("/diagrams/:id/cells/:cell_id/metadata/:key", si.DeleteDiagramsIdCellsCellIdMetadataKey)
-	r.PATCH("/diagrams/:id/cells/:cell_id", si.PatchDiagramsIdCellsCellId)
-	r.POST("/diagrams/:id/cells/batch/patch", si.PostDiagramsIdCellsBatchPatch)
 
 	// Threat Model Diagram Metadata
 	r.GET("/threat_models/:id/diagrams/:diagram_id/metadata", si.GetThreatModelsThreatModelIdDiagramsDiagramIdMetadata)

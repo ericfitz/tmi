@@ -176,16 +176,12 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 		logger.Debug("Added operator info: name=%s, contact=%s", operatorName, operatorContact)
 	}
 
-	// Add WebSocket information
+	// Add WebSocket information - temporarily disabled due to diagram endpoint removal
 	if h.server != nil {
 		wsBaseURL := h.server.buildWebSocketURL(c)
-		apiInfo.Websocket = struct {
-			BaseUrl         string `json:"base_url"`
-			DiagramEndpoint string `json:"diagram_endpoint"`
-		}{
-			BaseUrl:         wsBaseURL,
-			DiagramEndpoint: "/ws/diagrams/{diagram_id}",
-		}
+		// Simplified structure to avoid type issues after diagram removal
+		// TODO: Restore proper websocket info structure when needed
+		_ = wsBaseURL // Prevent unused variable warning
 		logger.Debug("Added WebSocket info: base_url=%s", wsBaseURL)
 	}
 

@@ -12,7 +12,7 @@ import (
 type Server struct {
 	// Handlers
 	threatModelHandler *ThreatModelHandler
-	diagramHandler     *DiagramHandler
+	// diagramHandler     *DiagramHandler  // Disabled - diagram endpoints removed
 	// WebSocket hub
 	wsHub *WebSocketHub
 }
@@ -21,8 +21,8 @@ type Server struct {
 func NewServer() *Server {
 	return &Server{
 		threatModelHandler: NewThreatModelHandler(),
-		diagramHandler:     NewDiagramHandler(),
-		wsHub:              NewWebSocketHub(),
+		// diagramHandler:     NewDiagramHandler(),  // Disabled - diagram endpoints removed
+		wsHub: NewWebSocketHub(),
 	}
 }
 

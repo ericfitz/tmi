@@ -2,7 +2,6 @@ package api
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -65,7 +64,7 @@ func TestGetFixturesDiagram(t *testing.T) {
 	assert.Equal(t, TestFixtures.Diagram.Name, d.Name)
 
 	// Setup router with owner user using sub-entity pattern
-	r := setupDiagramRouterWithUser(TestFixtures.OwnerUser)
+	r := setupThreatModelDiagramRouterWithUser(TestFixtures.OwnerUser)
 
 	// Request the diagram using current ID via sub-entity endpoint
 	diagramURL := fmt.Sprintf("/threat_models/%s/diagrams/%s", TestFixtures.ThreatModelID, TestFixtures.DiagramID)
@@ -159,87 +158,6 @@ func TestThreatModelRoleBasedAccess(t *testing.T) {
 	w = httptest.NewRecorder()
 	ownerRouter.ServeHTTP(w, deleteReq)
 	assert.Equal(t, http.StatusNoContent, w.Code, "Owner should be able to delete threat model")
-}
-
-func TestDiagramRoleBasedAccess(t *testing.T) {
-	// Initialize test fixtures
-	InitTestFixtures()
-
-	// Get the current ID for this test run
-	diagramID := TestFixtures.DiagramID
-
-	// Setup our own test routers for diagrams
-	gin.SetMode(gin.TestMode)
-
-	// Create routers for different users
-	ownerRouter := gin.New()
-	ownerRouter.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.OwnerUser)
-		c.Next()
-	})
-	ownerRouter.Use(DiagramMiddleware())
-
-	writerRouter := gin.New()
-	writerRouter.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.WriterUser)
-		c.Next()
-	})
-	writerRouter.Use(DiagramMiddleware())
-
-	readerRouter := gin.New()
-	readerRouter.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.ReaderUser)
-		c.Next()
-	})
-	readerRouter.Use(DiagramMiddleware())
-
-	// Add handlers
-	handler := NewDiagramHandler()
-	for _, r := range []*gin.Engine{ownerRouter, writerRouter, readerRouter} {
-		r.GET("/diagrams/:id", handler.GetDiagramByID)
-		r.DELETE("/diagrams/:id", handler.DeleteDiagram)
-	}
-
-	// Test owner access
-	req, _ := http.NewRequest("GET", "/diagrams/"+diagramID, nil)
-	w := httptest.NewRecorder()
-	ownerRouter.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code, "Owner should be able to read diagram")
-
-	// Test writer access
-	w = httptest.NewRecorder()
-	writerRouter.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code, "Writer should be able to read diagram")
-
-	// Test reader access
-	w = httptest.NewRecorder()
-	readerRouter.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code, "Reader should be able to read diagram")
-
-	// The next tests will check DELETE permissions
-	// Add separate delete tests for each role
-
-	// 1. Test writer DELETE permission (should be forbidden)
-	// Reinitialize for new ID and ensure the writer has access
-	InitTestFixtures()
-	diagramID = TestFixtures.DiagramID
-
-	deleteReq, _ := http.NewRequest("DELETE", "/diagrams/"+diagramID, nil)
-	w = httptest.NewRecorder()
-	writerRouter.ServeHTTP(w, deleteReq)
-	assert.Equal(t, http.StatusForbidden, w.Code, "Writer should not be able to delete diagram")
-
-	// 2. Test reader DELETE permission (should be forbidden)
-	// No need to reinitialize since we didn't delete the object
-	w = httptest.NewRecorder()
-	readerRouter.ServeHTTP(w, deleteReq)
-	assert.Equal(t, http.StatusForbidden, w.Code, "Reader should not be able to delete diagram")
-
-	// 3. Test owner DELETE permission (should succeed)
-	// No need to reinitialize since we didn't delete the object
-	w = httptest.NewRecorder()
-	ownerRouter.ServeHTTP(w, deleteReq)
-	assert.Equal(t, http.StatusNoContent, w.Code, "Owner should be able to delete diagram")
 }
 
 // TestThreatModelCustomAuthRules tests the custom authorization rules for threat models
@@ -378,99 +296,4 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 		}
 	}
 	assert.True(t, originalOwnerFound, "Original owner should be preserved in authorization after PATCH")
-}
-
-// TestDiagramNonOwnerFields tests that non-owner and non-authorization related fields
-// can be updated based on the parent threat model's authorization settings
-func TestDiagramNonOwnerFields(t *testing.T) {
-	// Initialize test fixtures - this will reset the stores and create fresh data
-	InitTestFixtures()
-	diagramID := TestFixtures.DiagramID
-
-	// Setup router with owner user
-	gin.SetMode(gin.TestMode)
-	ownerRouter := gin.New()
-	// Add a debug middleware to log request bodies
-	ownerRouter.Use(func(c *gin.Context) {
-		// Log the user making the request
-		t.Logf("User: %s", TestFixtures.OwnerUser)
-
-		// Safely read the request body for debugging
-		if c.Request.Body != nil {
-			bodyBytes, err := io.ReadAll(c.Request.Body)
-			if err == nil {
-				c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-				t.Logf("Request body: %s", string(bodyBytes))
-			} else {
-				t.Logf("Error reading request body: %v", err)
-			}
-		} else {
-			t.Logf("Request body is nil")
-		}
-
-		// Set the user name
-		c.Set("userName", TestFixtures.OwnerUser)
-		c.Next()
-	})
-	ownerRouter.Use(DiagramMiddleware())
-
-	// Add handlers
-	handler := NewDiagramHandler()
-	ownerRouter.PUT("/diagrams/:id", handler.UpdateDiagram)
-	ownerRouter.PATCH("/diagrams/:id", handler.PatchDiagram)
-	ownerRouter.GET("/diagrams/:id", handler.GetDiagramByID)
-
-	// Verify the test diagram exists before starting
-	req, _ := http.NewRequest("GET", "/diagrams/"+diagramID, nil)
-	w := httptest.NewRecorder()
-	ownerRouter.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code, "Test diagram should exist in the store")
-
-	// Test: Update non-owner fields (should succeed)
-	// Create a PUT request with only non-owner fields
-	updateReq := fmt.Sprintf(`{
-		"id": "%s",
-		"name": "Updated Diagram Name",
-		"description": "This is an updated description"
-	}`, diagramID)
-
-	req, _ = http.NewRequest("PUT", "/diagrams/"+diagramID, strings.NewReader(updateReq))
-	req.Header.Set("Content-Type", "application/json")
-	w = httptest.NewRecorder()
-	ownerRouter.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code, "Update of non-owner fields should succeed")
-
-	// Check the response for field updates
-	var responseData map[string]interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &responseData)
-	assert.NoError(t, err)
-
-	// Verify the fields were updated
-	assert.Equal(t, "Updated Diagram Name", responseData["name"], "Name should be updated")
-	assert.Equal(t, "This is an updated description", responseData["description"], "Description should be updated")
-
-	// Test: PATCH operation for non-owner fields
-	// Initialize fresh fixtures for the next test
-	InitTestFixtures()
-	diagramID = TestFixtures.DiagramID // Get the new ID
-
-	patchReq := `[
-		{"op":"replace","path":"/name","value":"Patched Diagram Name"},
-		{"op":"replace","path":"/description","value":"This is a patched description"}
-	]`
-
-	req, _ = http.NewRequest("PATCH", "/diagrams/"+diagramID, strings.NewReader(patchReq))
-	req.Header.Set("Content-Type", "application/json")
-	w = httptest.NewRecorder()
-	ownerRouter.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code, "Patch of non-owner fields should succeed")
-
-	// Check the response for field updates
-	var patchResponseData map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &patchResponseData)
-	assert.NoError(t, err)
-
-	// Verify the fields were updated
-	assert.Equal(t, "Patched Diagram Name", patchResponseData["name"], "Name should be updated")
-	assert.Equal(t, "This is a patched description", patchResponseData["description"], "Description should be updated")
 }

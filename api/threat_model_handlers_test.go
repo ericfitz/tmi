@@ -116,7 +116,7 @@ func TestGetThreatModels(t *testing.T) {
 	assert.Equal(t, http.StatusOK, listW.Code)
 
 	// Parse response
-	var items []ListItem
+	var items []map[string]interface{}
 	err := json.Unmarshal(listW.Body.Bytes(), &items)
 	require.NoError(t, err)
 
@@ -126,7 +126,7 @@ func TestGetThreatModels(t *testing.T) {
 	// Check that our test item is in the list
 	found := false
 	for _, item := range items {
-		if item.Name == "Test Threat Model" {
+		if item["name"] == "Test Threat Model" {
 			found = true
 			break
 		}

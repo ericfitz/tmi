@@ -151,8 +151,7 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 
 	// Register API handlers directly
 	threatModelHandler := NewThreatModelHandler()
-	diagramHandler := NewDiagramHandler()
-	threatModelDiagramHandler := NewThreatModelDiagramHandler()
+	diagramHandler := NewThreatModelDiagramHandler()
 
 	// Threat Model routes
 	router.GET("/threat_models", threatModelHandler.GetThreatModels)
@@ -163,28 +162,30 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	router.DELETE("/threat_models/:id", threatModelHandler.DeleteThreatModel)
 
 	// Threat Model Diagram routes (proper sub-entity endpoints) - use consistent parameter names
-	router.POST("/threat_models/:id/diagrams", diagramHandler.CreateDiagram)
+	router.POST("/threat_models/:id/diagrams", func(c *gin.Context) {
+		diagramHandler.CreateDiagram(c, c.Param("id"))
+	})
 	router.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
 		threatModelID := c.Param("id")
 		diagramID := c.Param("diagram_id")
-		threatModelDiagramHandler.GetDiagramByID(c, threatModelID, diagramID)
+		diagramHandler.GetDiagramByID(c, threatModelID, diagramID)
 	})
 
 	// All diagram operations should go through threat model sub-entity endpoints
 	router.PUT("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
 		threatModelID := c.Param("id")
 		diagramID := c.Param("diagram_id")
-		threatModelDiagramHandler.UpdateDiagram(c, threatModelID, diagramID)
+		diagramHandler.UpdateDiagram(c, threatModelID, diagramID)
 	})
 	router.PATCH("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
 		threatModelID := c.Param("id")
 		diagramID := c.Param("diagram_id")
-		threatModelDiagramHandler.PatchDiagram(c, threatModelID, diagramID)
+		diagramHandler.PatchDiagram(c, threatModelID, diagramID)
 	})
 	router.DELETE("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
 		threatModelID := c.Param("id")
 		diagramID := c.Param("diagram_id")
-		threatModelDiagramHandler.DeleteDiagram(c, threatModelID, diagramID)
+		diagramHandler.DeleteDiagram(c, threatModelID, diagramID)
 	})
 
 	// Register sub-resource handlers for comprehensive testing
