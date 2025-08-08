@@ -1,4 +1,4 @@
-.PHONY: build test test-one lint clean dev prod dev-db dev-redis dev-app build-postgres build-redis gen-config dev-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate
+.PHONY: build test test-one lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate
 
 # Default build target
 VERSION := 0.1.0
@@ -52,6 +52,8 @@ prod:
 	@echo "Starting TMI production environment..."
 	@./scripts/start-prod.sh
 
+# Development Database and Cache Management
+
 # Start development database only
 dev-db:
 	@echo "Starting development database..."
@@ -61,6 +63,28 @@ dev-db:
 dev-redis:
 	@echo "Starting development Redis..."
 	@./scripts/start-dev-redis.sh
+
+# Stop development database (preserves data)
+stop-db:
+	@echo "Stopping development database..."
+	@docker stop tmi-postgresql || true
+
+# Stop development Redis (preserves data)
+stop-redis:
+	@echo "Stopping development Redis..."
+	@docker stop tmi-redis || true
+
+# Delete development database (removes container and data)
+delete-db:
+	@echo "🗑️  Deleting development database (container and data)..."
+	@docker rm -f tmi-postgresql || true
+	@echo "✅ Database container removed!"
+
+# Delete development Redis (removes container and data) 
+delete-redis:
+	@echo "🗑️  Deleting development Redis (container and data)..."
+	@docker rm -f tmi-redis || true
+	@echo "✅ Redis container removed!"
 
 # Build development Docker container for app
 dev-app:
@@ -82,17 +106,23 @@ gen-config:
 	@echo "Generating configuration files..."
 	go run github.com/ericfitz/tmi/cmd/server --generate-config
 
-# OpenTelemetry and Observability targets
+# OpenTelemetry and Observability Stack Management
 
-# Start local observability stack
+# Start local observability stack (Grafana, Prometheus, Jaeger, Loki, OpenTelemetry Collector)
 dev-observability:
 	@echo "Starting TMI Observability Stack..."
 	@./scripts/start-observability.sh
 
-# Stop observability stack
+# Stop observability stack (preserves data volumes)
 stop-observability:
 	@echo "Stopping TMI Observability Stack..."
 	@./scripts/stop-observability.sh
+
+# Delete observability stack (removes containers, volumes, and networks - destroys all data)
+delete-observability:
+	@echo "🗑️  Deleting TMI Observability Stack (containers, volumes, networks)..."
+	@docker-compose -f docker-compose.observability.yml down -v --remove-orphans
+	@echo "✅ Observability stack completely removed!"
 
 # Run telemetry-specific tests
 test-telemetry:
@@ -125,10 +155,8 @@ export-telemetry:
 	curl -s http://localhost:8080/metrics > /tmp/tmi-metrics.txt
 	@echo "Metrics exported to /tmp/tmi-metrics.txt"
 
-# Clean up telemetry data
-clean-telemetry:
-	@echo "Cleaning up telemetry data..."
-	docker-compose -f docker-compose.observability.yml down -v
+# Clean up telemetry data (alias for delete-observability)
+clean-telemetry: delete-observability
 
 # Generate comprehensive test coverage report (unit + integration)
 coverage:
@@ -167,9 +195,9 @@ migrate:
 	@echo "Running database migrations..."
 	@cd cmd/migrate && go run main.go up
 
-# Reset database (danger: destroys all data)
+# Reset database (interactive confirmation - destroys all data)
 reset-db:
 	@echo "⚠️  WARNING: This will destroy all database data!"
 	@read -p "Are you sure? Type 'yes' to continue: " confirm && [ "$$confirm" = "yes" ] || exit 1
-	@docker rm -f tmi-postgresql || true
+	@$(MAKE) delete-db
 	@echo "Database reset. Run 'make dev-db' to create a fresh database."
