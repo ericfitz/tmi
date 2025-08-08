@@ -150,6 +150,7 @@ func (v *MigrationBasedValidator) getAvailableMigrations() ([]MigrationInfo, err
 }
 
 // getAppliedMigrations gets the list of applied migrations from the database
+// Returns a map where key=version, value=isDirty (true if migration failed)
 func (v *MigrationBasedValidator) getAppliedMigrations() (map[int64]bool, error) {
 	query := `SELECT version, dirty FROM schema_migrations ORDER BY version`
 
@@ -163,7 +164,10 @@ func (v *MigrationBasedValidator) getAppliedMigrations() (map[int64]bool, error)
 		}
 	}()
 
-	applied := make(map[int64]bool)
+	// Map tracks dirty state: key=version, value=isDirty
+	dirtyState := make(map[int64]bool)
+	var latestVersion int64
+	var latestDirty bool
 
 	for rows.Next() {
 		var version int64
@@ -173,20 +177,38 @@ func (v *MigrationBasedValidator) getAppliedMigrations() (map[int64]bool, error)
 			return nil, err
 		}
 
-		applied[version] = dirty
+		// Track the latest version (golang-migrate behavior)
+		if version > latestVersion {
+			latestVersion = version
+			latestDirty = dirty
+		}
+		dirtyState[version] = dirty
 	}
 
-	return applied, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// If we have a latest version and it's not dirty, mark all versions up to it as clean
+	// This handles golang-migrate's behavior of only recording the latest version
+	if latestVersion > 0 && !latestDirty {
+		for i := int64(1); i <= latestVersion; i++ {
+			dirtyState[i] = false // Mark all as clean (not dirty)
+		}
+	}
+
+	return dirtyState, nil
 }
 
 // checkMigrationCompleteness validates that all expected migrations have been applied
-func (v *MigrationBasedValidator) checkMigrationCompleteness(available []MigrationInfo, applied map[int64]bool, result *SchemaValidationResult) {
+func (v *MigrationBasedValidator) checkMigrationCompleteness(available []MigrationInfo, dirtyState map[int64]bool, result *SchemaValidationResult) {
 	logger := logging.Get()
 
 	for i, migration := range available {
-		dirty, isApplied := applied[migration.Version]
+		dirty, exists := dirtyState[migration.Version]
 
-		if isApplied {
+		if exists {
+			// Migration has been applied
 			migration.Applied = true
 			migration.Dirty = dirty
 
@@ -195,6 +217,7 @@ func (v *MigrationBasedValidator) checkMigrationCompleteness(available []Migrati
 				logger.Warn("Migration %d is dirty (failed during application)", migration.Version)
 			}
 		} else {
+			// Migration has not been applied
 			result.MissingMigrations = append(result.MissingMigrations, migration)
 			logger.Error("Migration %d (%s) has not been applied", migration.Version, migration.Name)
 		}
@@ -204,7 +227,7 @@ func (v *MigrationBasedValidator) checkMigrationCompleteness(available []Migrati
 	}
 
 	// Check for unapplied migrations (gaps in sequence)
-	for version := range applied {
+	for version := range dirtyState {
 		found := false
 		for _, migration := range available {
 			if migration.Version == version {
