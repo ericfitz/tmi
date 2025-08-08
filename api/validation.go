@@ -97,6 +97,8 @@ func validateRequiredFields(s interface{}) error {
 	}
 	t := v.Type()
 
+	var missingFields []string
+
 	for i := 0; i < v.NumField(); i++ {
 		field := t.Field(i)
 		value := v.Field(i)
@@ -105,11 +107,57 @@ func validateRequiredFields(s interface{}) error {
 		if binding := field.Tag.Get("binding"); strings.Contains(binding, "required") {
 			if isEmptyValue(value) {
 				jsonName := getJSONFieldName(field)
-				return InvalidInputError(fmt.Sprintf("Field '%s' is required", jsonName))
+				missingFields = append(missingFields, jsonName)
 			}
 		}
 	}
+
+	// Return enhanced error message for missing fields
+	if len(missingFields) > 0 {
+		return createRequiredFieldError(missingFields)
+	}
+
 	return nil
+}
+
+// createRequiredFieldError creates contextual error messages for missing required fields
+func createRequiredFieldError(missingFields []string) error {
+	if len(missingFields) == 1 {
+		fieldName := missingFields[0]
+		contextualMessage := getRequiredFieldContext(fieldName)
+		if contextualMessage != "" {
+			return InvalidInputError(fmt.Sprintf("Field '%s' is required. %s", fieldName, contextualMessage))
+		}
+		return InvalidInputError(fmt.Sprintf("Field '%s' is required", fieldName))
+	}
+
+	// Multiple missing fields
+	if len(missingFields) == 2 {
+		return InvalidInputError(fmt.Sprintf("Fields '%s' and '%s' are required", missingFields[0], missingFields[1]))
+	}
+
+	// More than 2 missing fields
+	lastField := missingFields[len(missingFields)-1]
+	otherFields := strings.Join(missingFields[:len(missingFields)-1], "', '")
+	return InvalidInputError(fmt.Sprintf("Fields '%s' and '%s' are required", otherFields, lastField))
+}
+
+// getRequiredFieldContext provides contextual help for specific required fields
+func getRequiredFieldContext(fieldName string) string {
+	contextMap := map[string]string{
+		"name":        "This field identifies the resource and must be provided.",
+		"email":       "A valid email address is required for user identification.",
+		"type":        "The type field specifies the format and must be provided.",
+		"key":         "The key identifies this metadata entry and cannot be empty.",
+		"value":       "The value contains the metadata content and cannot be empty.",
+		"subject":     "The subject identifies the user or service being authorized.",
+		"role":        "The role defines the level of access (reader, writer, or owner).",
+		"url":         "A valid URL is required to reference the external resource.",
+		"severity":    "The severity level helps prioritize threat response.",
+		"description": "A description helps others understand the purpose and context.",
+	}
+
+	return contextMap[fieldName]
 }
 
 // isEmptyValue checks if a reflect.Value is empty

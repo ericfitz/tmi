@@ -68,8 +68,10 @@ var ValidationConfigs = map[string]ValidationConfig{
 			"document_count", "source_count", "diagram_count", "threat_count",
 			"diagrams", "documents", "threats", "sourceCode",
 		},
-		CustomValidators: []ValidatorFunc{ValidateAuthorizationEntriesFunc},
-		Operation:        "POST",
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"authorization", "email_format", "no_html_injection", "string_length",
+		}),
+		Operation: "POST",
 	},
 	
 	"threat_model_update": {
@@ -78,9 +80,11 @@ var ValidationConfigs = map[string]ValidationConfig{
 			"document_count", "source_count", "diagram_count", "threat_count",
 			"diagrams", "documents", "threats", "sourceCode",
 		},
-		CustomValidators: []ValidatorFunc{ValidateAuthorizationEntriesFunc},
-		AllowOwnerField:  true,
-		Operation:        "PUT",
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"authorization", "email_format", "no_html_injection", "string_length",
+		}),
+		AllowOwnerField: true,
+		Operation:       "PUT",
 	},
 	
 	// Diagram endpoints
@@ -88,16 +92,20 @@ var ValidationConfigs = map[string]ValidationConfig{
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: []ValidatorFunc{ValidateDiagramType},
-		Operation:        "POST",
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"diagram_type", "no_html_injection", "string_length",
+		}),
+		Operation: "POST",
 	},
 	
 	"diagram_update": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: []ValidatorFunc{ValidateDiagramType},
-		Operation:        "PUT",
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"diagram_type", "no_html_injection", "string_length",
+		}),
+		Operation: "PUT",
 	},
 	
 	// Document endpoints
@@ -105,16 +113,20 @@ var ValidationConfigs = map[string]ValidationConfig{
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: []ValidatorFunc{ValidateUUIDFields},
-		Operation:        "POST",
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"uuid_fields", "url_format", "no_html_injection", "string_length",
+		}),
+		Operation: "POST",
 	},
 	
 	"document_update": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: []ValidatorFunc{ValidateUUIDFields},
-		Operation:        "PUT",
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"uuid_fields", "url_format", "no_html_injection", "string_length",
+		}),
+		Operation: "PUT",
 	},
 	
 	// Source endpoints
@@ -122,16 +134,20 @@ var ValidationConfigs = map[string]ValidationConfig{
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: []ValidatorFunc{ValidateUUIDFields},
-		Operation:        "POST",
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"uuid_fields", "url_format", "no_html_injection", "string_length",
+		}),
+		Operation: "POST",
 	},
 	
 	"source_update": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: []ValidatorFunc{ValidateUUIDFields},
-		Operation:        "PUT",
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"uuid_fields", "url_format", "no_html_injection", "string_length",
+		}),
+		Operation: "PUT",
 	},
 	
 	// Threat endpoints
@@ -139,29 +155,37 @@ var ValidationConfigs = map[string]ValidationConfig{
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: []ValidatorFunc{ValidateUUIDFields},
-		Operation:        "POST",
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"uuid_fields", "threat_severity", "no_html_injection", "string_length",
+		}),
+		Operation: "POST",
 	},
 	
 	"threat_update": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: []ValidatorFunc{ValidateUUIDFields},
-		Operation:        "PUT",
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"uuid_fields", "threat_severity", "no_html_injection", "string_length",
+		}),
+		Operation: "PUT",
 	},
 	
-	// Metadata endpoints (minimal validation)
+	// Metadata endpoints
 	"metadata_create": {
 		ProhibitedFields: []string{},
-		CustomValidators: []ValidatorFunc{},
-		Operation:        "POST",
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"metadata_key", "no_html_injection", "string_length",
+		}),
+		Operation: "POST",
 	},
 	
 	"metadata_update": {
 		ProhibitedFields: []string{},
-		CustomValidators: []ValidatorFunc{},
-		Operation:        "PUT",
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"metadata_key", "no_html_injection", "string_length",
+		}),
+		Operation: "PUT",
 	},
 	
 	// Cell endpoints
