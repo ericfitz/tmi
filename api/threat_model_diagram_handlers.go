@@ -152,7 +152,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		return d
 	}
 
-	createdDiagram, err := DiagramStore.Create(d, idSetter)
+	createdDiagram, err := DiagramStore.CreateWithThreatModel(d, threatModelId, idSetter)
 	if err != nil {
 		HandleRequestError(c, ServerError("Failed to create diagram"))
 		return

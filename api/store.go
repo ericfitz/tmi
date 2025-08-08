@@ -156,6 +156,7 @@ type DiagramStoreInterface interface {
 	Get(id string) (DfdDiagram, error)
 	List(offset, limit int, filter func(DfdDiagram) bool) []DfdDiagram
 	Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error)
+	CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error)
 	Update(id string, item DfdDiagram) error
 	Delete(id string) error
 	Count() int
@@ -228,10 +229,28 @@ func (s *ThreatModelInMemoryStore) CountSubEntitiesFromPayload(tm ThreatModel) (
 	return
 }
 
+// DiagramInMemoryStore wraps DataStore to implement DiagramStoreInterface
+type DiagramInMemoryStore struct {
+	*DataStore[DfdDiagram]
+}
+
+// NewDiagramInMemoryStore creates a new in-memory diagram store
+func NewDiagramInMemoryStore() *DiagramInMemoryStore {
+	return &DiagramInMemoryStore{
+		DataStore: NewDataStore[DfdDiagram](),
+	}
+}
+
+// CreateWithThreatModel creates a diagram with a threat model ID (for in-memory, this is the same as Create)
+func (s *DiagramInMemoryStore) CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
+	// For in-memory store, we don't enforce threat model foreign key constraints
+	return s.Create(item, idSetter)
+}
+
 // InitializeInMemoryStores initializes stores with in-memory implementations
 func InitializeInMemoryStores() {
 	ThreatModelStore = NewThreatModelInMemoryStore()
-	DiagramStore = NewDataStore[DfdDiagram]()
+	DiagramStore = NewDiagramInMemoryStore()
 	GlobalDocumentStore = NewInMemoryDocumentStore()
 	GlobalSourceStore = NewInMemorySourceStore()
 	GlobalThreatStore = NewInMemoryThreatStore()

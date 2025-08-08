@@ -5,7 +5,7 @@ package api
 func InsertDiagramForTest(id string, diagram DfdDiagram) {
 	// For database stores, we need to use the regular Create method
 	// For in-memory stores, we can access the underlying implementation
-	if inMemoryStore, ok := DiagramStore.(*DataStore[DfdDiagram]); ok {
+	if inMemoryStore, ok := DiagramStore.(*DiagramInMemoryStore); ok {
 		inMemoryStore.mutex.Lock()
 		defer inMemoryStore.mutex.Unlock()
 		inMemoryStore.data[id] = diagram
