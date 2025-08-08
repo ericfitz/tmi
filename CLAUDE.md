@@ -66,7 +66,7 @@ This repository contains API documentation and Go implementation for a Collabora
 
 - `api/` - API handlers, server implementation, and storage
 - `auth/` - Authentication service with OAuth, JWT, and RBAC
-- `cmd/` - Command-line executables (server, migrate, setup-db, check-db)
+- `cmd/` - Command-line executables (server, migrate, check-db)
 - `internal/` - Internal packages (logging, dbschema)
 - `docs/` - API documentation and architectural diagrams
 - `scripts/` - Development setup scripts

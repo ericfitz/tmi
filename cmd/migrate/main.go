@@ -54,12 +54,29 @@ func main() {
 		}
 	}()
 
-	// Get migrations path
-	migrationsPath := filepath.Join("auth", "migrations")
-	absPath, err := filepath.Abs(migrationsPath)
-	if err != nil {
-		log.Fatalf("Failed to get absolute path: %v", err)
+	// Get migrations path - try multiple possible locations
+	var migrationsPath string
+	var absPath string
+
+	possiblePaths := []string{
+		filepath.Join("auth", "migrations"),             // From project root
+		filepath.Join("..", "..", "auth", "migrations"), // From cmd/migrate
 	}
+
+	for _, path := range possiblePaths {
+		if tempAbsPath, tempErr := filepath.Abs(path); tempErr == nil {
+			if _, statErr := os.Stat(tempAbsPath); statErr == nil {
+				migrationsPath = path
+				absPath = tempAbsPath
+				break
+			}
+		}
+	}
+
+	if migrationsPath == "" {
+		log.Fatalf("Could not find migrations directory. Tried paths: %v", possiblePaths)
+	}
+
 	log.Printf("Using migrations from: %s", absPath)
 
 	// Create migration config

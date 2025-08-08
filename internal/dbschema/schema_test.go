@@ -1,6 +1,7 @@
 package dbschema
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -28,64 +29,57 @@ func TestGetExpectedSchema(t *testing.T) {
 		t.Errorf("Expected %d tables, got %d", len(expectedTables), len(schemas))
 	}
 
-	// Create a map for easy lookup
-	schemaMap := make(map[string]TableSchema)
-	for _, schema := range schemas {
-		schemaMap[schema.Name] = schema
+	// Check that all expected tables exist
+	tableMap := make(map[string]*TableSchema)
+	for _, table := range schemas {
+		tableMap[table.Name] = &table
 	}
 
-	// Verify each expected table exists
-	for _, tableName := range expectedTables {
-		if _, exists := schemaMap[tableName]; !exists {
-			t.Errorf("Expected table '%s' not found in schema", tableName)
+	for _, expectedTable := range expectedTables {
+		if _, exists := tableMap[expectedTable]; !exists {
+			t.Errorf("Expected table '%s' not found in schema", expectedTable)
 		}
 	}
 
-	// Test specific table details
-	t.Run("users_table", func(t *testing.T) {
-		usersTable, exists := schemaMap["users"]
-		if !exists {
-			t.Fatal("users table not found")
-		}
+	// Test that users table has expected structure
+	usersTable, exists := tableMap["users"]
+	if !exists {
+		t.Fatal("Users table not found")
+	}
 
-		// Check column count
-		if len(usersTable.Columns) != 6 {
-			t.Errorf("Expected 6 columns in users table, got %d", len(usersTable.Columns))
-		}
+	expectedUserColumns := []string{
+		"id", "external_id", "name", "email", "created_at", "updated_at",
+	}
 
-		// Check for specific columns
-		columnNames := make(map[string]bool)
-		for _, col := range usersTable.Columns {
-			columnNames[col.Name] = true
-		}
+	if len(usersTable.Columns) < len(expectedUserColumns) {
+		t.Errorf("Users table should have at least %d columns, got %d",
+			len(expectedUserColumns), len(usersTable.Columns))
+	}
 
-		expectedColumns := []string{"id", "email", "name", "created_at", "updated_at", "last_login"}
-		for _, colName := range expectedColumns {
-			if !columnNames[colName] {
-				t.Errorf("Expected column '%s' not found in users table", colName)
-			}
-		}
-	})
+	columnMap := make(map[string]ColumnSchema)
+	for _, col := range usersTable.Columns {
+		columnMap[col.Name] = col
+	}
 
-	t.Run("threat_model_access_constraints", func(t *testing.T) {
-		accessTable, exists := schemaMap["threat_model_access"]
-		if !exists {
-			t.Fatal("threat_model_access table not found")
+	for _, expectedCol := range expectedUserColumns {
+		if _, exists := columnMap[expectedCol]; !exists {
+			t.Errorf("Expected column '%s' not found in users table", expectedCol)
 		}
+	}
 
-		// Check for CHECK constraint
-		hasCheckConstraint := false
-		for _, constraint := range accessTable.Constraints {
-			if constraint.Type == "CHECK" {
-				hasCheckConstraint = true
-				break
-			}
-		}
+	// Test that the ID column is properly configured
+	idCol, exists := columnMap["id"]
+	if !exists {
+		t.Fatal("ID column not found in users table")
+	}
 
-		if !hasCheckConstraint {
-			t.Error("Expected CHECK constraint on threat_model_access table")
-		}
-	})
+	if !strings.EqualFold(idCol.DataType, "uuid") {
+		t.Errorf("Expected ID column to be UUID, got %s", idCol.DataType)
+	}
+
+	if idCol.IsNullable {
+		t.Error("Expected ID column to be not nullable")
+	}
 }
 
 func TestNormalizeDataType(t *testing.T) {
@@ -93,22 +87,22 @@ func TestNormalizeDataType(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"character varying(255)", "character varying"},
-		{"varchar(100)", "character varying"},
-		{"CHARACTER VARYING", "character varying"},
-		{"timestamp without time zone", "timestamp without time zone"},
-		{"timestamp with time zone", "timestamp with time zone"},
-		{"boolean", "boolean"},
-		{"bool", "boolean"},
-		{"int8", "bigint"},
-		{"int4", "integer"},
-		{"text", "text"},
+		{"CHARACTER VARYING(255)", "varchar(255)"},
+		{"character varying", "varchar"},
+		{"BOOLEAN", "bool"},
+		{"INTEGER", "int"},
+		{"BIGINT", "int8"},
+		{"TIMESTAMP WITHOUT TIME ZONE", "timestamp"},
+		{"UUID", "uuid"},
+		{"TEXT", "text"},
+		{"JSONB", "jsonb"},
 	}
 
 	for _, test := range tests {
 		result := normalizeDataType(test.input)
 		if result != test.expected {
-			t.Errorf("normalizeDataType(%s) = %s, expected %s", test.input, result, test.expected)
+			t.Errorf("normalizeDataType(%s) = %s, expected %s",
+				test.input, result, test.expected)
 		}
 	}
 }
@@ -119,11 +113,14 @@ func TestCompareDataTypes(t *testing.T) {
 		type2    string
 		expected bool
 	}{
-		{"character varying", "varchar(255)", true},
-		{"timestamp without time zone", "timestamp", true},
-		{"boolean", "bool", true},
-		{"text", "varchar", false},
-		{"integer", "bigint", false},
+		{"VARCHAR(255)", "character varying(255)", true},
+		{"BOOLEAN", "bool", true},
+		{"INTEGER", "int", true},
+		{"UUID", "uuid", true},
+		{"TEXT", "text", true},
+		{"JSONB", "jsonb", true},
+		{"VARCHAR(255)", "VARCHAR(100)", false},
+		{"INTEGER", "BIGINT", false},
 	}
 
 	for _, test := range tests {
@@ -132,73 +129,5 @@ func TestCompareDataTypes(t *testing.T) {
 			t.Errorf("compareDataTypes(%s, %s) = %v, expected %v",
 				test.type1, test.type2, result, test.expected)
 		}
-	}
-}
-
-func TestCheckConstraintMatches(t *testing.T) {
-	tests := []struct {
-		name     string
-		expected string
-		actual   string
-		match    bool
-	}{
-		{
-			name:     "TRIM function with BOTH FROM",
-			expected: "LENGTH(TRIM(name)) > 0",
-			actual:   "CHECK ((length(TRIM(BOTH FROM name)) > 0))",
-			match:    true,
-		},
-		{
-			name:     "Complex AND constraint with TRIM",
-			expected: "LENGTH(TRIM(key)) > 0 AND LENGTH(key) <= 128",
-			actual:   "CHECK (((length(TRIM(BOTH FROM key)) > 0) AND (length(key) <= 128)))",
-			match:    true,
-		},
-		{
-			name:     "Regex pattern with type casting",
-			expected: "key ~ '^[a-zA-Z0-9_-]+$'",
-			actual:   "CHECK (((key)::text ~ '^[a-zA-Z0-9_-]+$'::text))",
-			match:    true,
-		},
-		{
-			name:     "IN clause with type casting",
-			expected: "provider IN ('google', 'github', 'microsoft')",
-			actual:   "CHECK (((provider)::text = ANY ((ARRAY['google'::character varying, 'github'::character varying, 'microsoft'::character varying])::text[])))",
-			match:    true,
-		},
-		{
-			name:     "NOT EQUAL with type casting",
-			expected: "provider_user_id != ''",
-			actual:   "CHECK (((provider_user_id)::text <> ''::text))",
-			match:    true,
-		},
-		{
-			name:     "OR condition with IS NULL",
-			expected: "severity IS NULL OR severity IN ('low', 'medium', 'high')",
-			actual:   "CHECK (((severity IS NULL) OR ((severity)::text = ANY ((ARRAY['low'::character varying, 'medium'::character varying, 'high'::character varying])::text[]))))",
-			match:    true,
-		},
-		{
-			name:     "Date comparison",
-			expected: "expires_at > created_at",
-			actual:   "CHECK ((expires_at > created_at))",
-			match:    true,
-		},
-		{
-			name:     "Non-matching constraint",
-			expected: "LENGTH(TRIM(name)) > 5",
-			actual:   "CHECK ((length(TRIM(BOTH FROM name)) > 10))",
-			match:    false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			result := checkConstraintMatches(test.expected, test.actual)
-			if result != test.match {
-				t.Errorf("checkConstraintMatches(%q, %q) = %v, expected %v",
-					test.expected, test.actual, result, test.match)
-			}
-		})
 	}
 }

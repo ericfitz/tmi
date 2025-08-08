@@ -1,4 +1,4 @@
-.PHONY: build test test-one lint clean dev prod dev-db dev-redis dev-app build-postgres build-redis gen-config dev-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report
+.PHONY: build test test-one lint clean dev prod dev-db dev-redis dev-app build-postgres build-redis gen-config dev-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate
 
 # Default build target
 VERSION := 0.1.0
@@ -149,3 +149,27 @@ coverage-integration:
 coverage-report:
 	@echo "Generating coverage report (no HTML)..."
 	./scripts/coverage-report.sh --no-html
+
+# Database and Migration Management
+
+# Ensure all database migrations are applied (with auto-fix)
+ensure-migrations:
+	@echo "Ensuring all database migrations are applied..."
+	@./scripts/ensure-migrations.sh
+
+# Check migration state without auto-fix
+check-migrations:
+	@echo "Checking database migration state..."
+	@cd cmd/check-db && go run main.go
+
+# Run database migrations manually
+migrate:
+	@echo "Running database migrations..."
+	@cd cmd/migrate && go run main.go up
+
+# Reset database (danger: destroys all data)
+reset-db:
+	@echo "⚠️  WARNING: This will destroy all database data!"
+	@read -p "Are you sure? Type 'yes' to continue: " confirm && [ "$$confirm" = "yes" ] || exit 1
+	@docker rm -f tmi-postgresql || true
+	@echo "Database reset. Run 'make dev-db' to create a fresh database."
