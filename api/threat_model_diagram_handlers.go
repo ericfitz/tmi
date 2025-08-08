@@ -96,6 +96,7 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId string) {
 	type CreateThreatModelDiagramRequest struct {
 		Name        string  `json:"name" binding:"required"`
+		Type        string  `json:"type" binding:"required"`
 		Description *string `json:"description,omitempty"`
 	}
 
@@ -139,6 +140,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	// Create DfdDiagram directly for the store
 	d := DfdDiagram{
 		Name:        request.Name,
+		Type:        DfdDiagramType(request.Type),
 		Description: request.Description,
 		CreatedAt:   now,
 		ModifiedAt:  now,

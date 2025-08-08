@@ -87,7 +87,6 @@ func testThreatModelEndpointsMock(t *testing.T, router *gin.Engine) {
 		requestBody := map[string]interface{}{
 			"name":        "Mock Integration Test Threat Model",
 			"description": "A threat model created during mock integration testing",
-			"owner":       TestFixtures.OwnerUser,
 		}
 
 		jsonBody, _ := json.Marshal(requestBody)
@@ -176,8 +175,7 @@ func testDiagramEndpointsMock(t *testing.T, router *gin.Engine) {
 	var threatModelID string
 	t.Run("CreateThreatModelForDiagrams", func(t *testing.T) {
 		requestBody := map[string]interface{}{
-			"name":  "Mock Test Threat Model for Diagrams",
-			"owner": TestFixtures.OwnerUser,
+			"name": "Mock Test Threat Model for Diagrams",
 		}
 
 		jsonBody, _ := json.Marshal(requestBody)
@@ -199,6 +197,7 @@ func testDiagramEndpointsMock(t *testing.T, router *gin.Engine) {
 	t.Run("POST", func(t *testing.T) {
 		requestBody := map[string]interface{}{
 			"name":        "Mock Integration Test Diagram",
+			"type":        "DFD-1.0.0",
 			"description": "A diagram created during mock integration testing",
 		}
 
