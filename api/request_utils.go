@@ -67,8 +67,18 @@ func ParseRequestBody[T any](c *gin.Context) (T, error) {
 	// Reset the body for later binding
 	c.Request.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
 
+	// Pre-process the JSON to handle invalid UUID values
+	cleanedJSON, err := sanitizeJSONForUUIDs(bodyBytes)
+	if err != nil {
+		return zero, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_input",
+			Message: "Failed to process JSON: " + err.Error(),
+		}
+	}
+
 	var result T
-	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+	if err := json.Unmarshal(cleanedJSON, &result); err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_input",
@@ -77,6 +87,60 @@ func ParseRequestBody[T any](c *gin.Context) (T, error) {
 	}
 
 	return result, nil
+}
+
+// sanitizeJSONForUUIDs cleans up JSON by converting invalid UUID values to null
+func sanitizeJSONForUUIDs(jsonBytes []byte) ([]byte, error) {
+	var rawData map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &rawData); err != nil {
+		// If it's not an object, return as-is (might be an array)
+		return jsonBytes, nil
+	}
+
+	// List of fields that should contain UUIDs
+	uuidFields := []string{
+		"id", "threat_model_id", "diagram_id", "cell_id", "parent_id",
+		"session_id", "cell", "parent", "entity_id",
+	}
+
+	for _, field := range uuidFields {
+		if value, exists := rawData[field]; exists {
+			if strValue, ok := value.(string); ok {
+				// If it's an empty string or invalid UUID, set to nil
+				if strValue == "" || strValue == "undefined" || !isValidUUIDString(strValue) {
+					rawData[field] = nil
+				}
+			}
+		}
+	}
+
+	return json.Marshal(rawData)
+}
+
+// isValidUUIDString checks if a string is a valid UUID format
+func isValidUUIDString(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	// Check basic UUID format: 8-4-4-4-12 hex digits with hyphens
+	for i, r := range s {
+		switch i {
+		case 8, 13, 18, 23:
+			if r != '-' {
+				return false
+			}
+		default:
+			if !isHexDigit(r) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// isHexDigit checks if a rune is a valid hexadecimal digit
+func isHexDigit(r rune) bool {
+	return (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
 }
 
 // ValidateAuthenticatedUser extracts and validates the authenticated user from context
