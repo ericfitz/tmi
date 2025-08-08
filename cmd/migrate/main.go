@@ -152,23 +152,17 @@ func validateSchema(pgConfig db.PostgresConfig) {
 	fmt.Println("Validating database schema...")
 	fmt.Println(strings.Repeat("=", 60))
 
-	results, err := dbschema.ValidateSchema(db)
+	result, err := dbschema.ValidateSchema(db)
 	if err != nil {
 		logger.Error("Failed to validate schema: %v", err)
 		return
 	}
 
-	dbschema.LogValidationResults(results)
+	// Validation results are already logged by the validator
 
 	// Check if all validations passed
-	allValid := true
-	errorCount := 0
-	for _, result := range results {
-		if !result.Valid {
-			allValid = false
-			errorCount += len(result.Errors)
-		}
-	}
+	allValid := result.Valid
+	errorCount := len(result.Errors)
 
 	if allValid {
 		fmt.Println("\n✅ Database schema validation PASSED!")

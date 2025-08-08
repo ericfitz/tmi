@@ -67,27 +67,16 @@ func main() {
 
 	// Validate schema using shared validation
 	logger.Info("Starting database schema validation...")
-	results, err := dbschema.ValidateSchema(db)
+	result, err := dbschema.ValidateSchema(db)
 	if err != nil {
 		logger.Error("Failed to validate schema: %v", err)
 		os.Exit(1)
 	}
 
-	// Log validation results (this is already done by the validator)
-	dbschema.LogValidationResults(results)
-
-	// Check if all validations passed
-	allValid := true
-	errorCount := 0
-	warningCount := 0
-
-	for _, result := range results {
-		if !result.Valid {
-			allValid = false
-			errorCount += len(result.Errors)
-		}
-		warningCount += len(result.Warnings)
-	}
+	// Validation results are already logged by the validator
+	allValid := result.Valid
+	errorCount := len(result.Errors)
+	warningCount := len(result.Warnings)
 
 	// Print summary
 	fmt.Println("\n" + strings.Repeat("=", 60))
@@ -121,7 +110,7 @@ func main() {
 	}
 
 	fmt.Printf("\nValidation Results:\n")
-	fmt.Printf("  Tables Checked: %d\n", len(results))
+	fmt.Printf("  Tables Checked: 1\n")
 	fmt.Printf("  Errors Found:   %d\n", errorCount)
 	fmt.Printf("  Warnings:       %d\n", warningCount)
 

@@ -1575,19 +1575,17 @@ func validateDatabaseSchema(cfg *config.Config) error {
 	}
 
 	// Validate schema
-	results, err := dbschema.ValidateSchema(db)
+	result, err := dbschema.ValidateSchema(db)
 	if err != nil {
 		return fmt.Errorf("failed to validate schema: %w", err)
 	}
 
-	// Log results
-	dbschema.LogValidationResults(results)
+	// Validation results are already logged by the validator
 
-	// Check if any validation failed
-	for _, result := range results {
-		if !result.Valid {
-			return fmt.Errorf("schema validation failed for table %s", result.TableName)
-		}
+	// Check if validation failed
+	if !result.Valid {
+		return fmt.Errorf("schema validation failed: %d errors, %d missing migrations",
+			len(result.Errors), len(result.MissingMigrations))
 	}
 
 	return nil
