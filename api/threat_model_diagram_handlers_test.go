@@ -102,6 +102,7 @@ func createTestThreatModelWithDiagram(t *testing.T, router *gin.Engine, tmName, 
 	// Then create a diagram within the threat model
 	diagReqBody, _ := json.Marshal(map[string]interface{}{
 		"name":        diagName,
+		"type":        "DFD-1.0.0",
 		"description": diagDescription,
 	})
 
@@ -182,6 +183,7 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 	// Now create a diagram within the threat model
 	diagReqBody, _ := json.Marshal(map[string]interface{}{
 		"name":        "Test Diagram",
+		"type":        "DFD-1.0.0",
 		"description": "This is a test diagram",
 	})
 
@@ -277,12 +279,16 @@ func TestUpdateThreatModelDiagram(t *testing.T) {
 	tm, diagram := createTestThreatModelWithDiagram(t, r, "Test Threat Model", "This is a test threat model",
 		"Test Diagram", "This is a test diagram")
 
-	// Now update the diagram
-	updatedDiagram := diagram
-	updatedDiagram.Name = "Updated Diagram"
-	updatedDiagram.Description = stringPointer("This is an updated diagram")
+	// Now update the diagram - create update payload without prohibited fields
+	updatePayload := map[string]interface{}{
+		"name":        "Updated Diagram",
+		"type":        "DFD-1.0.0",
+		"description": "This is an updated diagram",
+		"cells":       diagram.Cells,
+		"metadata":    diagram.Metadata,
+	}
 
-	updateBody, _ := json.Marshal(updatedDiagram)
+	updateBody, _ := json.Marshal(updatePayload)
 	updateReq, _ := http.NewRequest("PUT", fmt.Sprintf("/threat_models/%s/diagrams/%s", tm.Id.String(), diagram.Id.String()), bytes.NewBuffer(updateBody))
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateW := httptest.NewRecorder()
@@ -536,11 +542,16 @@ func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 	readerRouter.ServeHTTP(readW, readReq)
 	assert.Equal(t, http.StatusOK, readW.Code)
 
-	// Reader should not be able to update
-	updatedDiagram := diagram
-	updatedDiagram.Description = stringPointer("Updated by reader")
+	// Reader should not be able to update - create update payload without prohibited fields
+	readerUpdatePayload := map[string]interface{}{
+		"name":        diagram.Name,
+		"type":        "DFD-1.0.0",
+		"description": "Updated by reader",
+		"cells":       diagram.Cells,
+		"metadata":    diagram.Metadata,
+	}
 
-	updateBody, _ := json.Marshal(updatedDiagram)
+	updateBody, _ := json.Marshal(readerUpdatePayload)
 	updateReq, _ := http.NewRequest("PUT", fmt.Sprintf("/threat_models/%s/diagrams/%s", tm.Id.String(), diagram.Id.String()), bytes.NewBuffer(updateBody))
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateW := httptest.NewRecorder()
@@ -563,13 +574,15 @@ func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 	assert.Equal(t, http.StatusOK, readW2.Code)
 
 	// Writer should be able to update
-	updatePayload := map[string]interface{}{
-		"id":          diagram.Id,
+	writerUpdatePayload := map[string]interface{}{
 		"name":        "Updated by Writer",
+		"type":        "DFD-1.0.0",
 		"description": "This description was updated by a writer",
+		"cells":       diagram.Cells,
+		"metadata":    diagram.Metadata,
 	}
 
-	updateBody2, _ := json.Marshal(updatePayload)
+	updateBody2, _ := json.Marshal(writerUpdatePayload)
 	updateReq2, _ := http.NewRequest("PUT", fmt.Sprintf("/threat_models/%s/diagrams/%s", tm.Id.String(), diagram.Id.String()), bytes.NewBuffer(updateBody2))
 	updateReq2.Header.Set("Content-Type", "application/json")
 	updateW2 := httptest.NewRecorder()

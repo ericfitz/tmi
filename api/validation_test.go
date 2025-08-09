@@ -393,11 +393,11 @@ func TestGetJSONFieldName(t *testing.T) {
 func createTestContext(body map[string]interface{}) (*gin.Context, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	jsonBody, _ := json.Marshal(body)
 	c.Request = httptest.NewRequest("POST", "/test", bytes.NewBuffer(jsonBody))
 	c.Request.Header.Set("Content-Type", "application/json")
-	
+
 	return c, w
 }
 

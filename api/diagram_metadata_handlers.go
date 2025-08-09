@@ -153,27 +153,17 @@ func (h *DiagramMetadataHandler) CreateDirectDiagramMetadata(c *gin.Context) {
 		return
 	}
 
-	// Parse request body
-	metadata, err := ParseRequestBody[Metadata](c)
+	// Parse and validate request body using unified validation framework
+	metadata, err := ValidateAndParseRequest[Metadata](c, ValidationConfigs["metadata_create"])
 	if err != nil {
 		HandleRequestError(c, err)
-		return
-	}
-
-	// Validate required fields
-	if metadata.Key == "" {
-		HandleRequestError(c, InvalidInputError("Metadata key is required"))
-		return
-	}
-	if metadata.Value == "" {
-		HandleRequestError(c, InvalidInputError("Metadata value is required"))
 		return
 	}
 
 	logger.Debug("Creating metadata key '%s' for diagram %s (user: %s)", metadata.Key, diagramID, userName)
 
 	// Create metadata entry in store
-	if err := h.metadataStore.Create(c.Request.Context(), "diagram", diagramID, &metadata); err != nil {
+	if err := h.metadataStore.Create(c.Request.Context(), "diagram", diagramID, metadata); err != nil {
 		logger.Error("Failed to create diagram metadata key '%s' for %s: %v", metadata.Key, diagramID, err)
 		HandleRequestError(c, ServerError("Failed to create metadata"))
 		return
@@ -224,16 +214,10 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramMetadata(c *gin.Context) {
 		return
 	}
 
-	// Parse request body
-	metadata, err := ParseRequestBody[Metadata](c)
+	// Parse and validate request body using unified validation framework
+	metadata, err := ValidateAndParseRequest[Metadata](c, ValidationConfigs["metadata_update"])
 	if err != nil {
 		HandleRequestError(c, err)
-		return
-	}
-
-	// Validate required fields
-	if metadata.Value == "" {
-		HandleRequestError(c, InvalidInputError("Metadata value is required"))
 		return
 	}
 
@@ -243,7 +227,7 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramMetadata(c *gin.Context) {
 	logger.Debug("Updating metadata key '%s' for diagram %s (user: %s)", key, diagramID, userName)
 
 	// Update metadata entry in store
-	if err := h.metadataStore.Update(c.Request.Context(), "diagram", diagramID, &metadata); err != nil {
+	if err := h.metadataStore.Update(c.Request.Context(), "diagram", diagramID, metadata); err != nil {
 		logger.Error("Failed to update diagram metadata key '%s' for %s: %v", key, diagramID, err)
 		HandleRequestError(c, ServerError("Failed to update metadata"))
 		return
@@ -440,27 +424,17 @@ func (h *DiagramMetadataHandler) CreateDirectDiagramCellMetadata(c *gin.Context)
 		return
 	}
 
-	// Parse request body
-	metadata, err := ParseRequestBody[Metadata](c)
+	// Parse and validate request body using unified validation framework
+	metadata, err := ValidateAndParseRequest[Metadata](c, ValidationConfigs["metadata_create"])
 	if err != nil {
 		HandleRequestError(c, err)
-		return
-	}
-
-	// Validate required fields
-	if metadata.Key == "" {
-		HandleRequestError(c, InvalidInputError("Metadata key is required"))
-		return
-	}
-	if metadata.Value == "" {
-		HandleRequestError(c, InvalidInputError("Metadata value is required"))
 		return
 	}
 
 	logger.Debug("Creating metadata key '%s' for cell %s in diagram %s (user: %s)", metadata.Key, cellID, diagramID, userName)
 
 	// Create metadata entry in store
-	if err := h.metadataStore.Create(c.Request.Context(), "cell", cellID, &metadata); err != nil {
+	if err := h.metadataStore.Create(c.Request.Context(), "cell", cellID, metadata); err != nil {
 		logger.Error("Failed to create cell metadata key '%s' for %s: %v", metadata.Key, cellID, err)
 		HandleRequestError(c, ServerError("Failed to create metadata"))
 		return
@@ -516,16 +490,10 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramCellMetadata(c *gin.Context)
 		return
 	}
 
-	// Parse request body
-	metadata, err := ParseRequestBody[Metadata](c)
+	// Parse and validate request body using unified validation framework
+	metadata, err := ValidateAndParseRequest[Metadata](c, ValidationConfigs["metadata_update"])
 	if err != nil {
 		HandleRequestError(c, err)
-		return
-	}
-
-	// Validate required fields
-	if metadata.Value == "" {
-		HandleRequestError(c, InvalidInputError("Metadata value is required"))
 		return
 	}
 
@@ -535,7 +503,7 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramCellMetadata(c *gin.Context)
 	logger.Debug("Updating metadata key '%s' for cell %s in diagram %s (user: %s)", key, cellID, diagramID, userName)
 
 	// Update metadata entry in store
-	if err := h.metadataStore.Update(c.Request.Context(), "cell", cellID, &metadata); err != nil {
+	if err := h.metadataStore.Update(c.Request.Context(), "cell", cellID, metadata); err != nil {
 		logger.Error("Failed to update cell metadata key '%s' for %s: %v", key, cellID, err)
 		HandleRequestError(c, ServerError("Failed to update metadata"))
 		return
@@ -746,27 +714,17 @@ func (h *DiagramMetadataHandler) CreateThreatModelDiagramMetadata(c *gin.Context
 		return
 	}
 
-	// Parse request body
-	metadata, err := ParseRequestBody[Metadata](c)
+	// Parse and validate request body using unified validation framework
+	metadata, err := ValidateAndParseRequest[Metadata](c, ValidationConfigs["metadata_create"])
 	if err != nil {
 		HandleRequestError(c, err)
-		return
-	}
-
-	// Validate required fields
-	if metadata.Key == "" {
-		HandleRequestError(c, InvalidInputError("Metadata key is required"))
-		return
-	}
-	if metadata.Value == "" {
-		HandleRequestError(c, InvalidInputError("Metadata value is required"))
 		return
 	}
 
 	logger.Debug("Creating metadata key '%s' for diagram %s in threat model %s (user: %s)", metadata.Key, diagramID, threatModelID, userName)
 
 	// Create metadata entry in store
-	if err := h.metadataStore.Create(c.Request.Context(), "diagram", diagramID, &metadata); err != nil {
+	if err := h.metadataStore.Create(c.Request.Context(), "diagram", diagramID, metadata); err != nil {
 		logger.Error("Failed to create diagram metadata key '%s' for %s: %v", metadata.Key, diagramID, err)
 		HandleRequestError(c, ServerError("Failed to create metadata"))
 		return
@@ -826,16 +784,10 @@ func (h *DiagramMetadataHandler) UpdateThreatModelDiagramMetadata(c *gin.Context
 		return
 	}
 
-	// Parse request body
-	metadata, err := ParseRequestBody[Metadata](c)
+	// Parse and validate request body using unified validation framework
+	metadata, err := ValidateAndParseRequest[Metadata](c, ValidationConfigs["metadata_update"])
 	if err != nil {
 		HandleRequestError(c, err)
-		return
-	}
-
-	// Validate required fields
-	if metadata.Value == "" {
-		HandleRequestError(c, InvalidInputError("Metadata value is required"))
 		return
 	}
 
@@ -845,7 +797,7 @@ func (h *DiagramMetadataHandler) UpdateThreatModelDiagramMetadata(c *gin.Context
 	logger.Debug("Updating metadata key '%s' for diagram %s in threat model %s (user: %s)", key, diagramID, threatModelID, userName)
 
 	// Update metadata entry in store
-	if err := h.metadataStore.Update(c.Request.Context(), "diagram", diagramID, &metadata); err != nil {
+	if err := h.metadataStore.Update(c.Request.Context(), "diagram", diagramID, metadata); err != nil {
 		logger.Error("Failed to update diagram metadata key '%s' for %s: %v", key, diagramID, err)
 		HandleRequestError(c, ServerError("Failed to update metadata"))
 		return
@@ -943,48 +895,45 @@ func (h *DiagramMetadataHandler) BulkCreateDirectDiagramMetadata(c *gin.Context)
 		return
 	}
 
-	// Parse request body as array of metadata
-	metadataList, err := ParseRequestBody[[]Metadata](c)
+	// Parse and validate request body as array of metadata using unified validation framework
+	metadataList, err := ValidateAndParseRequest[[]Metadata](c, ValidationConfig{
+		ProhibitedFields: []string{},
+		CustomValidators: []ValidatorFunc{
+			func(data interface{}) error {
+				list := data.(*[]Metadata)
+
+				if len(*list) == 0 {
+					return InvalidInputError("No metadata entries provided")
+				}
+
+				if len(*list) > 20 {
+					return InvalidInputError("Maximum 20 metadata entries allowed per bulk operation")
+				}
+
+				// Check for duplicate keys within the request
+				keyMap := make(map[string]bool)
+				for _, metadata := range *list {
+					if keyMap[metadata.Key] {
+						return InvalidInputError("Duplicate metadata key found: " + metadata.Key)
+					}
+					keyMap[metadata.Key] = true
+				}
+
+				return nil
+			},
+		},
+		Operation: "POST",
+	})
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	if len(metadataList) == 0 {
-		HandleRequestError(c, InvalidInputError("No metadata entries provided"))
-		return
-	}
-
-	if len(metadataList) > 20 {
-		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
-		return
-	}
-
-	// Validate all metadata entries
-	for i, metadata := range metadataList {
-		if metadata.Key == "" {
-			HandleRequestError(c, InvalidInputError("Metadata key is required for all entries"))
-			return
-		}
-		if metadata.Value == "" {
-			HandleRequestError(c, InvalidInputError("Metadata value is required for all entries"))
-			return
-		}
-
-		// Check for duplicate keys within the request
-		for j := i + 1; j < len(metadataList); j++ {
-			if metadataList[j].Key == metadata.Key {
-				HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
-				return
-			}
-		}
-	}
-
 	logger.Debug("Bulk creating %d metadata entries for diagram %s (user: %s)",
-		len(metadataList), diagramID, userName)
+		len(*metadataList), diagramID, userName)
 
 	// Create metadata entries in store
-	if err := h.metadataStore.BulkCreate(c.Request.Context(), "diagram", diagramID, metadataList); err != nil {
+	if err := h.metadataStore.BulkCreate(c.Request.Context(), "diagram", diagramID, *metadataList); err != nil {
 		logger.Error("Failed to bulk create diagram metadata for %s: %v", diagramID, err)
 		HandleRequestError(c, ServerError("Failed to create metadata entries"))
 		return
@@ -995,11 +944,11 @@ func (h *DiagramMetadataHandler) BulkCreateDirectDiagramMetadata(c *gin.Context)
 	if err != nil {
 		// Log error but still return success since creation succeeded
 		logger.Error("Failed to retrieve created metadata: %v", err)
-		c.JSON(http.StatusCreated, metadataList)
+		c.JSON(http.StatusCreated, *metadataList)
 		return
 	}
 
-	logger.Debug("Successfully bulk created %d metadata entries for diagram %s", len(metadataList), diagramID)
+	logger.Debug("Successfully bulk created %d metadata entries for diagram %s", len(*metadataList), diagramID)
 	c.JSON(http.StatusCreated, createdMetadata)
 }
 
@@ -1039,48 +988,45 @@ func (h *DiagramMetadataHandler) BulkCreateThreatModelDiagramMetadata(c *gin.Con
 		return
 	}
 
-	// Parse request body as array of metadata
-	metadataList, err := ParseRequestBody[[]Metadata](c)
+	// Parse and validate request body as array of metadata using unified validation framework
+	metadataList, err := ValidateAndParseRequest[[]Metadata](c, ValidationConfig{
+		ProhibitedFields: []string{},
+		CustomValidators: []ValidatorFunc{
+			func(data interface{}) error {
+				list := data.(*[]Metadata)
+
+				if len(*list) == 0 {
+					return InvalidInputError("No metadata entries provided")
+				}
+
+				if len(*list) > 20 {
+					return InvalidInputError("Maximum 20 metadata entries allowed per bulk operation")
+				}
+
+				// Check for duplicate keys within the request
+				keyMap := make(map[string]bool)
+				for _, metadata := range *list {
+					if keyMap[metadata.Key] {
+						return InvalidInputError("Duplicate metadata key found: " + metadata.Key)
+					}
+					keyMap[metadata.Key] = true
+				}
+
+				return nil
+			},
+		},
+		Operation: "POST",
+	})
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	if len(metadataList) == 0 {
-		HandleRequestError(c, InvalidInputError("No metadata entries provided"))
-		return
-	}
-
-	if len(metadataList) > 20 {
-		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
-		return
-	}
-
-	// Validate all metadata entries
-	for i, metadata := range metadataList {
-		if metadata.Key == "" {
-			HandleRequestError(c, InvalidInputError("Metadata key is required for all entries"))
-			return
-		}
-		if metadata.Value == "" {
-			HandleRequestError(c, InvalidInputError("Metadata value is required for all entries"))
-			return
-		}
-
-		// Check for duplicate keys within the request
-		for j := i + 1; j < len(metadataList); j++ {
-			if metadataList[j].Key == metadata.Key {
-				HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
-				return
-			}
-		}
-	}
-
 	logger.Debug("Bulk creating %d metadata entries for diagram %s in threat model %s (user: %s)",
-		len(metadataList), diagramID, threatModelID, userName)
+		len(*metadataList), diagramID, threatModelID, userName)
 
 	// Create metadata entries in store
-	if err := h.metadataStore.BulkCreate(c.Request.Context(), "diagram", diagramID, metadataList); err != nil {
+	if err := h.metadataStore.BulkCreate(c.Request.Context(), "diagram", diagramID, *metadataList); err != nil {
 		logger.Error("Failed to bulk create diagram metadata for %s: %v", diagramID, err)
 		HandleRequestError(c, ServerError("Failed to create metadata entries"))
 		return
@@ -1091,10 +1037,10 @@ func (h *DiagramMetadataHandler) BulkCreateThreatModelDiagramMetadata(c *gin.Con
 	if err != nil {
 		// Log error but still return success since creation succeeded
 		logger.Error("Failed to retrieve created metadata: %v", err)
-		c.JSON(http.StatusCreated, metadataList)
+		c.JSON(http.StatusCreated, *metadataList)
 		return
 	}
 
-	logger.Debug("Successfully bulk created %d metadata entries for diagram %s", len(metadataList), diagramID)
+	logger.Debug("Successfully bulk created %d metadata entries for diagram %s", len(*metadataList), diagramID)
 	c.JSON(http.StatusCreated, createdMetadata)
 }

@@ -100,7 +100,8 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		Description *string `json:"description,omitempty"`
 	}
 
-	request, err := ParseRequestBody[CreateThreatModelDiagramRequest](c)
+	// Parse and validate request body using unified validation framework
+	request, err := ValidateAndParseRequest[CreateThreatModelDiagramRequest](c, ValidationConfigs["diagram_create"])
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -313,10 +314,10 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 		return
 	}
 
-	// Parse the updated diagram from request body as union type
-	var updatedDiagramUnion Diagram
-	if err := c.ShouldBindJSON(&updatedDiagramUnion); err != nil {
-		HandleRequestError(c, InvalidInputError(err.Error()))
+	// Parse and validate the updated diagram from request body using unified validation framework
+	updatedDiagramUnion, err := ValidateAndParseRequest[Diagram](c, ValidationConfigs["diagram_update"])
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 

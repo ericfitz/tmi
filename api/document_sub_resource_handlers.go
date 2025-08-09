@@ -148,20 +148,10 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		return
 	}
 
-	// Parse request body
-	document, err := ParseRequestBody[Document](c)
+	// Parse and validate request body using unified validation framework
+	document, err := ValidateAndParseRequest[Document](c, ValidationConfigs["document_create"])
 	if err != nil {
 		HandleRequestError(c, err)
-		return
-	}
-
-	// Validate required fields
-	if document.Name == "" {
-		HandleRequestError(c, InvalidInputError("Document name is required"))
-		return
-	}
-	if document.Url == "" {
-		HandleRequestError(c, InvalidInputError("Document URL is required"))
 		return
 	}
 
@@ -175,7 +165,7 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		document.Id.String(), threatModelID, userName)
 
 	// Create document in store
-	if err := h.documentStore.Create(c.Request.Context(), &document, threatModelID); err != nil {
+	if err := h.documentStore.Create(c.Request.Context(), document, threatModelID); err != nil {
 		logger.Error("Failed to create document: %v", err)
 		HandleRequestError(c, ServerError("Failed to create document"))
 		return
@@ -219,20 +209,10 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 		return
 	}
 
-	// Parse request body
-	document, err := ParseRequestBody[Document](c)
+	// Parse and validate request body using unified validation framework
+	document, err := ValidateAndParseRequest[Document](c, ValidationConfigs["document_update"])
 	if err != nil {
 		HandleRequestError(c, err)
-		return
-	}
-
-	// Validate required fields
-	if document.Name == "" {
-		HandleRequestError(c, InvalidInputError("Document name is required"))
-		return
-	}
-	if document.Url == "" {
-		HandleRequestError(c, InvalidInputError("Document URL is required"))
 		return
 	}
 
@@ -242,7 +222,7 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	logger.Debug("Updating document %s (user: %s)", documentID, userName)
 
 	// Update document in store
-	if err := h.documentStore.Update(c.Request.Context(), &document, threatModelID); err != nil {
+	if err := h.documentStore.Update(c.Request.Context(), document, threatModelID); err != nil {
 		logger.Error("Failed to update document %s: %v", documentID, err)
 		HandleRequestError(c, ServerError("Failed to update document"))
 		return
@@ -317,38 +297,46 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 		return
 	}
 
-	// Parse request body as array of documents
-	documents, err := ParseRequestBody[[]Document](c)
+	// Parse and validate request body as array of documents
+	documents, err := ValidateAndParseRequest[[]Document](c, ValidationConfig{
+		ProhibitedFields: []string{
+			"id", "created_at", "modified_at",
+		},
+		CustomValidators: []ValidatorFunc{
+			func(data interface{}) error {
+				list := data.(*[]Document)
+
+				if len(*list) == 0 {
+					return InvalidInputError("No documents provided")
+				}
+
+				if len(*list) > 50 {
+					return InvalidInputError("Maximum 50 documents allowed per bulk operation")
+				}
+
+				// Validate each document
+				for _, document := range *list {
+					if document.Name == "" {
+						return InvalidInputError("Document name is required for all documents")
+					}
+					if document.Url == "" {
+						return InvalidInputError("Document URL is required for all documents")
+					}
+				}
+
+				return nil
+			},
+		},
+		Operation: "POST",
+	})
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	if len(documents) == 0 {
-		HandleRequestError(c, InvalidInputError("No documents provided"))
-		return
-	}
-
-	if len(documents) > 50 {
-		HandleRequestError(c, InvalidInputError("Maximum 50 documents allowed per bulk operation"))
-		return
-	}
-
-	// Validate and prepare documents
-	for i := range documents {
-		document := &documents[i]
-
-		// Validate required fields
-		if document.Name == "" {
-			HandleRequestError(c, InvalidInputError("Document name is required for all documents"))
-			return
-		}
-		if document.Url == "" {
-			HandleRequestError(c, InvalidInputError("Document URL is required for all documents"))
-			return
-		}
-
-		// Generate UUID if not provided
+	// Generate UUIDs for documents that don't have them
+	for i := range *documents {
+		document := &(*documents)[i]
 		if document.Id == nil {
 			id := uuid.New()
 			document.Id = &id
@@ -356,15 +344,15 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d documents in threat model %s (user: %s)",
-		len(documents), threatModelID, userName)
+		len(*documents), threatModelID, userName)
 
 	// Create documents in store
-	if err := h.documentStore.BulkCreate(c.Request.Context(), documents, threatModelID); err != nil {
+	if err := h.documentStore.BulkCreate(c.Request.Context(), *documents, threatModelID); err != nil {
 		logger.Error("Failed to bulk create documents: %v", err)
 		HandleRequestError(c, ServerError("Failed to create documents"))
 		return
 	}
 
-	logger.Debug("Successfully bulk created %d documents", len(documents))
-	c.JSON(http.StatusCreated, documents)
+	logger.Debug("Successfully bulk created %d documents", len(*documents))
+	c.JSON(http.StatusCreated, *documents)
 }

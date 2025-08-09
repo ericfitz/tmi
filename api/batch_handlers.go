@@ -75,8 +75,8 @@ func (h *BatchHandler) BatchPatchThreats(c *gin.Context) {
 		return
 	}
 
-	// Parse request body
-	batchRequest, err := ParseRequestBody[BatchThreatPatchRequest](c)
+	// Parse and validate request body using unified validation framework
+	batchRequest, err := ValidateAndParseRequest[BatchThreatPatchRequest](c, ValidationConfigs["batch_patch"])
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -206,7 +206,7 @@ func (h *BatchHandler) BatchDeleteThreats(c *gin.Context) {
 		ThreatIDs []string `json:"threat_ids" binding:"required"`
 	}
 
-	deleteRequest, err := ParseRequestBody[BatchDeleteRequest](c)
+	deleteRequest, err := ValidateAndParseRequest[BatchDeleteRequest](c, ValidationConfigs["batch_delete"])
 	if err != nil {
 		HandleRequestError(c, err)
 		return

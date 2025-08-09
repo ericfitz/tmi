@@ -180,7 +180,7 @@ func TestValidationConfigEndpoints(t *testing.T) {
 			config, exists := GetValidationConfig(configName)
 			assert.True(t, exists, "Configuration '%s' should exist", configName)
 			assert.NotEmpty(t, config.Operation, "Operation should be set for '%s'", configName)
-			
+
 			// Verify operation matches config name
 			if configName[len(configName)-6:] == "create" {
 				assert.Equal(t, "POST", config.Operation)
@@ -251,15 +251,15 @@ func TestMigrationBenefits(t *testing.T) {
 	t.Run("Validation Consistency", func(t *testing.T) {
 		// All endpoints should have consistent error format
 		configs := []string{"metadata_create", "document_create", "threat_create"}
-		
+
 		for _, configName := range configs {
 			t.Run("Config: "+configName, func(t *testing.T) {
 				config := ValidationConfigs[configName]
-				
+
 				// Test with missing required field
 				emptyRequest := map[string]interface{}{}
 				c, _ := createTestContext(emptyRequest)
-				
+
 				// Each endpoint should fail validation consistently
 				switch configName {
 				case "metadata_create":
@@ -283,7 +283,7 @@ func TestMigrationBenefits(t *testing.T) {
 
 		assert.Nil(t, result)
 		require.Error(t, err)
-		
+
 		// Error should be specific and helpful
 		errorMsg := err.Error()
 		assert.Contains(t, errorMsg, "key")
@@ -303,10 +303,10 @@ func min(a, b int) int {
 func createTestContextForValidation(body map[string]interface{}) (*gin.Context, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	jsonBody, _ := json.Marshal(body)
 	c.Request = httptest.NewRequest("POST", "/test", bytes.NewBuffer(jsonBody))
 	c.Request.Header.Set("Content-Type", "application/json")
-	
+
 	return c, w
 }

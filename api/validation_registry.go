@@ -66,7 +66,7 @@ var CommonValidators = NewValidatorRegistry()
 // ValidateEmailFields validates email format in struct fields
 func ValidateEmailFields(data interface{}) error {
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	
+
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -83,7 +83,7 @@ func ValidateEmailFields(data interface{}) error {
 // ValidateURLFields validates URL format in struct fields
 func ValidateURLFields(data interface{}) error {
 	urlRegex := regexp.MustCompile(`^https?://[a-zA-Z0-9.-]+(\.[a-zA-Z]{2,})?(:\d+)?(/.*)?$`)
-	
+
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -128,8 +128,8 @@ func ValidateRoleFields(data interface{}) error {
 	}
 
 	return validateFieldsByPattern(v, "role", func(fieldValue string) error {
-		if fieldValue != "" && fieldValue != string(RoleReader) && 
-		   fieldValue != string(RoleWriter) && fieldValue != string(RoleOwner) {
+		if fieldValue != "" && fieldValue != string(RoleReader) &&
+			fieldValue != string(RoleWriter) && fieldValue != string(RoleOwner) {
 			return InvalidInputError(fmt.Sprintf("Invalid role '%s'. Must be one of: reader, writer, owner", fieldValue))
 		}
 		return nil
@@ -139,7 +139,7 @@ func ValidateRoleFields(data interface{}) error {
 // ValidateMetadataKey validates metadata key format (no spaces, special chars)
 func ValidateMetadataKey(data interface{}) error {
 	keyRegex := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-	
+
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -270,7 +270,7 @@ func validateFieldsByPattern(v reflect.Value, fieldPattern string, validationFun
 		// Check if field name contains the pattern (case insensitive)
 		fieldName := strings.ToLower(field.Name)
 		jsonName := strings.ToLower(getJSONFieldName(field))
-		
+
 		if strings.Contains(fieldName, fieldPattern) || strings.Contains(jsonName, fieldPattern) {
 			// Get string value
 			var fieldValue string
@@ -300,7 +300,7 @@ func validateUniqueSlice(sliceValue reflect.Value, field reflect.StructField) er
 	seen := make(map[interface{}]bool)
 	for i := 0; i < sliceValue.Len(); i++ {
 		item := sliceValue.Index(i).Interface()
-		
+
 		// For structs, use a string representation
 		var key interface{}
 		if reflect.ValueOf(item).Kind() == reflect.Struct {

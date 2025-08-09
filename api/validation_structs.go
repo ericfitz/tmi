@@ -24,7 +24,7 @@ type EnhancedMetadataCreateRequest struct {
 //
 // 2. CLEAR FIELD CONSTRAINTS:
 //    - Name fields: 255 chars max (database varchar limits)
-//    - Description fields: 2000 chars max (reasonable for descriptions)  
+//    - Description fields: 2000 chars max (reasonable for descriptions)
 //    - URL fields: 500 chars max (reasonable for URLs)
 //    - Key fields: 100 chars max (metadata keys should be concise)
 //    - Value fields: 1000 chars max (metadata values can be longer)

@@ -154,27 +154,17 @@ func (h *CellHandler) CreateCellMetadata(c *gin.Context) {
 		return
 	}
 
-	// Parse request body
-	metadata, err := ParseRequestBody[Metadata](c)
+	// Parse and validate request body using unified validation framework
+	metadata, err := ValidateAndParseRequest[Metadata](c, ValidationConfigs["metadata_create"])
 	if err != nil {
 		HandleRequestError(c, err)
-		return
-	}
-
-	// Validate required fields
-	if metadata.Key == "" {
-		HandleRequestError(c, InvalidInputError("Metadata key is required"))
-		return
-	}
-	if metadata.Value == "" {
-		HandleRequestError(c, InvalidInputError("Metadata value is required"))
 		return
 	}
 
 	logger.Debug("Creating metadata key '%s' for cell %s (user: %s)", metadata.Key, cellID, userName)
 
 	// Create metadata entry in store
-	if err := h.metadataStore.Create(c.Request.Context(), "cell", cellID, &metadata); err != nil {
+	if err := h.metadataStore.Create(c.Request.Context(), "cell", cellID, metadata); err != nil {
 		logger.Error("Failed to create cell metadata key '%s' for %s: %v", metadata.Key, cellID, err)
 		HandleRequestError(c, ServerError("Failed to create metadata"))
 		return
@@ -243,16 +233,10 @@ func (h *CellHandler) UpdateCellMetadata(c *gin.Context) {
 		return
 	}
 
-	// Parse request body
-	metadata, err := ParseRequestBody[Metadata](c)
+	// Parse and validate request body using unified validation framework
+	metadata, err := ValidateAndParseRequest[Metadata](c, ValidationConfigs["metadata_update"])
 	if err != nil {
 		HandleRequestError(c, err)
-		return
-	}
-
-	// Validate required fields
-	if metadata.Value == "" {
-		HandleRequestError(c, InvalidInputError("Metadata value is required"))
 		return
 	}
 
@@ -262,7 +246,7 @@ func (h *CellHandler) UpdateCellMetadata(c *gin.Context) {
 	logger.Debug("Updating metadata key '%s' for cell %s (user: %s)", key, cellID, userName)
 
 	// Update metadata entry in store
-	if err := h.metadataStore.Update(c.Request.Context(), "cell", cellID, &metadata); err != nil {
+	if err := h.metadataStore.Update(c.Request.Context(), "cell", cellID, metadata); err != nil {
 		logger.Error("Failed to update cell metadata key '%s' for %s: %v", key, cellID, err)
 		HandleRequestError(c, ServerError("Failed to update metadata"))
 		return
@@ -459,20 +443,28 @@ func (h *CellHandler) BatchPatchCells(c *gin.Context) {
 		} `json:"operations" binding:"required"`
 	}
 
-	// Parse request body
-	batchRequest, err := ParseRequestBody[BatchCellPatchRequest](c)
+	// Parse and validate request body using unified validation framework
+	batchRequest, err := ValidateAndParseRequest[BatchCellPatchRequest](c, ValidationConfig{
+		ProhibitedFields: []string{},
+		CustomValidators: []ValidatorFunc{
+			func(data interface{}) error {
+				batch := data.(*BatchCellPatchRequest)
+
+				if len(batch.Operations) == 0 {
+					return InvalidInputError("No cell patch operations provided")
+				}
+
+				if len(batch.Operations) > 20 {
+					return InvalidInputError("Maximum 20 cell patch operations allowed per batch")
+				}
+
+				return nil
+			},
+		},
+		Operation: "PATCH",
+	})
 	if err != nil {
 		HandleRequestError(c, err)
-		return
-	}
-
-	if len(batchRequest.Operations) == 0 {
-		HandleRequestError(c, InvalidInputError("No cell patch operations provided"))
-		return
-	}
-
-	if len(batchRequest.Operations) > 20 {
-		HandleRequestError(c, InvalidInputError("Maximum 20 cell patch operations allowed per batch"))
 		return
 	}
 

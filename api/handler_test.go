@@ -36,8 +36,9 @@ func TestUpdateThreatModel(t *testing.T) {
 
 	// Create a simplified update payload - note: we don't include 'id' as it's read-only
 	updatePayload := map[string]interface{}{
-		"name":  "Updated Name",
-		"owner": TestFixtures.OwnerUser,
+		"name":                   "Updated Name",
+		"owner":                  TestFixtures.OwnerUser,
+		"threat_model_framework": "STRIDE",
 		"authorization": []map[string]interface{}{
 			{
 				"subject": TestFixtures.WriterUser,

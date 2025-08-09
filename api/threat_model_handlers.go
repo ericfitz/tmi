@@ -148,45 +148,10 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Authorization []Authorization `json:"authorization,omitempty"`
 	}
 
-	// First, check for prohibited fields by parsing raw JSON
-	var rawRequest map[string]interface{}
-	if err := c.ShouldBindJSON(&rawRequest); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid JSON format"))
-		return
-	}
-
-	// Check for calculated/prohibited fields
-	prohibitedFields := []string{
-		"document_count", "source_count", "diagram_count", "threat_count",
-		"id", "created_at", "modified_at", "created_by", "owner",
-		"diagrams", "documents", "threats", "sourceCode",
-	}
-
-	for _, field := range prohibitedFields {
-		if _, exists := rawRequest[field]; exists {
-			HandleRequestError(c, InvalidInputError(fmt.Sprintf(
-				"Field '%s' is not allowed in POST requests. %s",
-				field, getFieldErrorMessage(field))))
-			return
-		}
-	}
-
-	// Parse the validated raw request into our restricted struct
-	var request CreateThreatModelRequest
-	rawJSON, err := json.Marshal(rawRequest)
+	// Parse and validate request body using unified validation framework
+	request, err := ValidateAndParseRequest[CreateThreatModelRequest](c, ValidationConfigs["threat_model_create"])
 	if err != nil {
-		HandleRequestError(c, InvalidInputError("Failed to process request"))
-		return
-	}
-
-	if err := json.Unmarshal(rawJSON, &request); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request format: "+err.Error()))
-		return
-	}
-
-	// Validate required fields manually
-	if request.Name == "" {
-		HandleRequestError(c, InvalidInputError("Field 'name' is required"))
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -285,57 +250,14 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	id := c.Param("id")
 	fmt.Printf("[DEBUG HANDLER] UpdateThreatModel called for ID: %s\n", id)
 
-	// First, check for prohibited fields by parsing raw JSON
-	var rawRequest map[string]interface{}
-	if err := c.ShouldBindJSON(&rawRequest); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid JSON format"))
-		return
-	}
-
-	// Check for calculated/prohibited fields
-	prohibitedFields := []string{
-		"document_count", "source_count", "diagram_count", "threat_count",
-		"id", "created_at", "modified_at", "created_by",
-		"diagrams", "documents", "threats", "sourceCode",
-	}
-
-	for _, field := range prohibitedFields {
-		if _, exists := rawRequest[field]; exists {
-			HandleRequestError(c, InvalidInputError(fmt.Sprintf(
-				"Field '%s' is not allowed in PUT requests. %s",
-				field, getFieldErrorMessage(field))))
-			return
-		}
-	}
-
-	// Parse the validated raw request into our restricted struct
-	var request UpdateThreatModelRequest
-	rawJSON, err := json.Marshal(rawRequest)
+	// Parse and validate request body using unified validation framework
+	request, err := ValidateAndParseRequest[UpdateThreatModelRequest](c, ValidationConfigs["threat_model_update"])
 	if err != nil {
-		HandleRequestError(c, InvalidInputError("Failed to process request"))
+		HandleRequestError(c, err)
 		return
 	}
 
-	if err := json.Unmarshal(rawJSON, &request); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request format: "+err.Error()))
-		return
-	}
-
-	// Validate required fields manually since we bypassed gin's binding
-	if request.Name == "" {
-		HandleRequestError(c, InvalidInputError("Field 'name' is required"))
-		return
-	}
-	if request.Owner == "" {
-		HandleRequestError(c, InvalidInputError("Field 'owner' is required"))
-		return
-	}
-	if len(request.Authorization) == 0 {
-		HandleRequestError(c, InvalidInputError("Field 'authorization' is required"))
-		return
-	}
-
-	fmt.Printf("[DEBUG HANDLER] Successfully parsed request: %+v\n", request)
+	fmt.Printf("[DEBUG HANDLER] Successfully parsed request: %+v\n", *request)
 
 	// Get username from JWT claim
 	userName, _, err := ValidateAuthenticatedUser(c)

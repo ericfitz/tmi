@@ -189,13 +189,13 @@ func getJSONFieldName(field reflect.StructField) string {
 	if jsonTag == "" {
 		return strings.ToLower(field.Name)
 	}
-	
+
 	// Handle json:",omitempty" and json:"name,omitempty" cases
 	parts := strings.Split(jsonTag, ",")
 	if len(parts) > 0 && parts[0] != "" {
 		return parts[0]
 	}
-	
+
 	return strings.ToLower(field.Name)
 }
 
@@ -232,22 +232,11 @@ func ValidateAuthorizationEntriesFromStruct(data interface{}) error {
 }
 
 // ValidateUUIDFields validates UUID format for ID fields
+// Deprecated: Use ValidateUUIDFieldsFromStruct instead
 func ValidateUUIDFields(data interface{}) error {
-	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	// Look for ID fields
-	idField := v.FieldByName("Id")
-	if idField.IsValid() && !idField.IsNil() {
-		if idPtr := idField.Interface(); idPtr != nil {
-			// Validate UUID format if needed
-			// Implementation depends on your UUID type
-		}
-	}
-
-	return nil
+	// UUID validation is now handled by ValidateUUIDFieldsFromStruct
+	// This function maintains compatibility with existing code
+	return ValidateUUIDFieldsFromStruct(data)
 }
 
 // ValidateDiagramType validates diagram type field

@@ -16,12 +16,12 @@ func (r *FieldErrorRegistry) GetMessage(field, operation string) string {
 	if msg, exists := r.messages[field+"_"+operationKey]; exists {
 		return msg
 	}
-	
+
 	// Fall back to general field message
 	if msg, exists := r.messages[field]; exists {
 		return msg
 	}
-	
+
 	// Default message
 	return "This field cannot be set directly."
 }
@@ -33,24 +33,24 @@ var fieldErrorRegistry = &FieldErrorRegistry{
 		"owner_post": "The owner field is set automatically to the authenticated user during creation.",
 		"owner_put":  "Owner can only be changed by the current owner.",
 		"owner":      "The owner field is managed automatically by the system.",
-		
+
 		// ID and timestamp messages
 		"id":          "The ID is read-only and set by the server.",
-		"created_at":  "The creation timestamp is set automatically by the server.",
-		"modified_at": "The modification timestamp is updated automatically by the server.",
-		"created_by":  "The created_by field is set automatically to the authenticated user.",
-		
+		"created_at":  "Creation timestamp is read-only and set by the server.",
+		"modified_at": "Modification timestamp is managed automatically by the server.",
+		"created_by":  "The creator field is read-only and set during creation.",
+
 		// Count fields
 		"document_count": "Count fields are calculated automatically and cannot be set directly.",
 		"source_count":   "Count fields are calculated automatically and cannot be set directly.",
 		"diagram_count":  "Count fields are calculated automatically and cannot be set directly.",
 		"threat_count":   "Count fields are calculated automatically and cannot be set directly.",
-		
+
 		// Sub-entity collections
-		"diagrams":   "Diagrams should be managed through the dedicated diagrams endpoints.",
-		"documents":  "Documents should be managed through the dedicated documents endpoints.",
-		"threats":    "Threats should be managed through the dedicated threats endpoints.",
-		"sourceCode": "Source code should be managed through the dedicated source endpoints.",
+		"diagrams":   "Diagrams must be managed via the /threat_models/:id/diagrams sub-entity endpoints.",
+		"documents":  "Documents must be managed via the /threat_models/:id/documents sub-entity endpoints.",
+		"threats":    "Threats must be managed via the /threat_models/:id/threats sub-entity endpoints.",
+		"sourceCode": "Source code entries must be managed via the /threat_models/:id/sources sub-entity endpoints.",
 	},
 }
 
@@ -73,7 +73,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		}),
 		Operation: "POST",
 	},
-	
+
 	"threat_model_update": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at", "created_by",
@@ -86,7 +86,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		AllowOwnerField: true,
 		Operation:       "PUT",
 	},
-	
+
 	// Diagram endpoints
 	"diagram_create": {
 		ProhibitedFields: []string{
@@ -97,7 +97,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		}),
 		Operation: "POST",
 	},
-	
+
 	"diagram_update": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
@@ -107,70 +107,136 @@ var ValidationConfigs = map[string]ValidationConfig{
 		}),
 		Operation: "PUT",
 	},
-	
+
 	// Document endpoints
 	"document_create": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: CommonValidators.GetValidators([]string{
+		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
+		}), func(data interface{}) error {
+			// Validate required fields for documents
+			doc, ok := data.(*Document)
+			if !ok {
+				return InvalidInputError("Invalid data type for document validation")
+			}
+			if doc.Name == "" {
+				return InvalidInputError("Document name is required")
+			}
+			if doc.Url == "" {
+				return InvalidInputError("Document URL is required")
+			}
+			return nil
 		}),
 		Operation: "POST",
 	},
-	
+
 	"document_update": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: CommonValidators.GetValidators([]string{
+		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
+		}), func(data interface{}) error {
+			// Validate required fields for documents
+			doc, ok := data.(*Document)
+			if !ok {
+				return InvalidInputError("Invalid data type for document validation")
+			}
+			if doc.Name == "" {
+				return InvalidInputError("Document name is required")
+			}
+			if doc.Url == "" {
+				return InvalidInputError("Document URL is required")
+			}
+			return nil
 		}),
 		Operation: "PUT",
 	},
-	
+
 	// Source endpoints
 	"source_create": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: CommonValidators.GetValidators([]string{
+		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
+		}), func(data interface{}) error {
+			// Validate required fields for sources
+			source, ok := data.(*Source)
+			if !ok {
+				return InvalidInputError("Invalid data type for source validation")
+			}
+			if source.Url == "" {
+				return InvalidInputError("Source URL is required")
+			}
+			return nil
 		}),
 		Operation: "POST",
 	},
-	
+
 	"source_update": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: CommonValidators.GetValidators([]string{
+		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
+		}), func(data interface{}) error {
+			// Validate required fields for sources
+			source, ok := data.(*Source)
+			if !ok {
+				return InvalidInputError("Invalid data type for source validation")
+			}
+			if source.Url == "" {
+				return InvalidInputError("Source URL is required")
+			}
+			return nil
 		}),
 		Operation: "PUT",
 	},
-	
+
 	// Threat endpoints
 	"threat_create": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: CommonValidators.GetValidators([]string{
+		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "threat_severity", "no_html_injection", "string_length",
+		}), func(data interface{}) error {
+			// Validate required fields for threats
+			threat, ok := data.(*Threat)
+			if !ok {
+				return InvalidInputError("Invalid data type for threat validation")
+			}
+			if threat.Name == "" {
+				return InvalidInputError("Threat name is required")
+			}
+			return nil
 		}),
 		Operation: "POST",
 	},
-	
+
 	"threat_update": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
-		CustomValidators: CommonValidators.GetValidators([]string{
+		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "threat_severity", "no_html_injection", "string_length",
+		}), func(data interface{}) error {
+			// Validate required fields for threats
+			threat, ok := data.(*Threat)
+			if !ok {
+				return InvalidInputError("Invalid data type for threat validation")
+			}
+			if threat.Name == "" {
+				return InvalidInputError("Threat name is required")
+			}
+			return nil
 		}),
 		Operation: "PUT",
 	},
-	
+
 	// Metadata endpoints
 	"metadata_create": {
 		ProhibitedFields: []string{},
@@ -179,7 +245,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		}),
 		Operation: "POST",
 	},
-	
+
 	"metadata_update": {
 		ProhibitedFields: []string{},
 		CustomValidators: CommonValidators.GetValidators([]string{
@@ -187,7 +253,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		}),
 		Operation: "PUT",
 	},
-	
+
 	// Cell endpoints
 	"cell_create": {
 		ProhibitedFields: []string{
@@ -196,7 +262,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		CustomValidators: []ValidatorFunc{ValidateUUIDFields},
 		Operation:        "POST",
 	},
-	
+
 	"cell_update": {
 		ProhibitedFields: []string{
 			"id",
@@ -204,14 +270,14 @@ var ValidationConfigs = map[string]ValidationConfig{
 		CustomValidators: []ValidatorFunc{ValidateUUIDFields},
 		Operation:        "PUT",
 	},
-	
+
 	// Batch operations
 	"batch_patch": {
 		ProhibitedFields: []string{},
 		CustomValidators: []ValidatorFunc{},
 		Operation:        "PATCH",
 	},
-	
+
 	"batch_delete": {
 		ProhibitedFields: []string{},
 		CustomValidators: []ValidatorFunc{},
