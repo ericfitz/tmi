@@ -354,6 +354,39 @@ func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_type
 	return openapi_types.UUID{}
 }
 
+// validateWebSocketDiagramAccess validates that a user has at least reader access to a diagram
+// This is critical for WebSocket security to prevent unauthorized access to collaboration sessions
+func (h *WebSocketHub) validateWebSocketDiagramAccess(userName string, diagramID string) bool {
+	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), deny access
+	if ThreatModelStore == nil {
+		return false
+	}
+
+	// Get the threat model that contains this diagram
+	threatModelId := h.getThreatModelIdForDiagram(diagramID)
+	if threatModelId == (openapi_types.UUID{}) {
+		// If we can't find the parent threat model, deny access
+		return false
+	}
+
+	// Get the threat model to check permissions
+	tm, err := ThreatModelStore.Get(threatModelId.String())
+	if err != nil {
+		// If we can't get the threat model, deny access
+		return false
+	}
+
+	// Check if user has at least reader access to the threat model (and thus the diagram)
+	// Users need reader access minimum to participate in collaboration
+	hasAccess, err := CheckResourceAccess(userName, tm, RoleReader)
+	if err != nil {
+		// If there's an error checking access, deny access
+		return false
+	}
+
+	return hasAccess
+}
+
 // CloseSession closes a session and removes it
 func (h *WebSocketHub) CloseSession(diagramID string) {
 	h.mu.Lock()
@@ -466,12 +499,39 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Get diagram ID from path
 	diagramID := c.Param("id")
 
+	// Validate diagram ID format
+	if _, err := uuid.Parse(diagramID); err != nil {
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            "invalid_id",
+			ErrorDescription: "Invalid diagram ID format, must be a valid UUID",
+		})
+		return
+	}
+
 	// Get user from context
 	userName, exists := c.Get("user_name")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:            "unauthorized",
 			ErrorDescription: "User not authenticated",
+		})
+		return
+	}
+
+	userNameStr, ok := userName.(string)
+	if !ok || userNameStr == "" {
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid user authentication",
+		})
+		return
+	}
+
+	// CRITICAL: Validate user has access to the diagram before allowing WebSocket connection
+	if !h.validateWebSocketDiagramAccess(userNameStr, diagramID) {
+		c.JSON(http.StatusForbidden, Error{
+			Error:            "forbidden",
+			ErrorDescription: "You don't have sufficient permissions to collaborate on this diagram",
 		})
 		return
 	}
@@ -491,7 +551,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		Hub:      h,
 		Session:  session,
 		Conn:     conn,
-		UserName: userName.(string),
+		UserName: userNameStr,
 		Send:     make(chan []byte, 256),
 	}
 
