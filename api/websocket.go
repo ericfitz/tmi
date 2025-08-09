@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // WebSocketHub maintains active connections and broadcasts messages
@@ -211,18 +212,146 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 				JoinedAt *time.Time `json:"joined_at,omitempty"`
 				UserId   *string    `json:"user_id,omitempty"`
 			}{
-				UserId: &client.UserName,
+				JoinedAt: &session.LastActivity,
+				UserId:   &client.UserName,
 			})
 		}
 
+		// Get threat model ID from diagram
+		threatModelId := h.getThreatModelIdForDiagram(diagramID)
+
+		// Convert session ID to UUID
+		sessionUUID, err := uuid.Parse(session.ID)
+		if err != nil {
+			session.mu.RUnlock()
+			continue
+		}
+
 		sessions = append(sessions, CollaborationSession{
-			DiagramId:    diagramUUID,
-			Participants: participants,
+			SessionId:     &sessionUUID,
+			DiagramId:     diagramUUID,
+			ThreatModelId: threatModelId,
+			Participants:  participants,
+			WebsocketUrl:  fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId.String(), diagramID),
 		})
 		session.mu.RUnlock()
 	}
 
 	return sessions
+}
+
+// GetActiveSessionsForUser returns all active collaboration sessions that the specified user has access to
+func (h *WebSocketHub) GetActiveSessionsForUser(userName string) []CollaborationSession {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	sessions := make([]CollaborationSession, 0, len(h.Diagrams))
+	for diagramID, session := range h.Diagrams {
+		session.mu.RLock()
+		// Convert diagram ID to UUID
+		diagramUUID, err := uuid.Parse(diagramID)
+		if err != nil {
+			session.mu.RUnlock()
+			continue
+		}
+
+		// Get threat model ID from diagram
+		threatModelId := h.getThreatModelIdForDiagram(diagramID)
+		if threatModelId == (openapi_types.UUID{}) {
+			// If we can't find the threat model, skip this session
+			session.mu.RUnlock()
+			continue
+		}
+
+		// Check if user has access to this threat model
+		if !h.userHasAccessToThreatModel(userName, threatModelId) {
+			session.mu.RUnlock()
+			continue
+		}
+
+		// Convert clients to participants
+		participants := make([]struct {
+			JoinedAt *time.Time `json:"joined_at,omitempty"`
+			UserId   *string    `json:"user_id,omitempty"`
+		}, 0, len(session.Clients))
+
+		for client := range session.Clients {
+			participants = append(participants, struct {
+				JoinedAt *time.Time `json:"joined_at,omitempty"`
+				UserId   *string    `json:"user_id,omitempty"`
+			}{
+				JoinedAt: &session.LastActivity,
+				UserId:   &client.UserName,
+			})
+		}
+
+		// Convert session ID to UUID
+		sessionUUID, err := uuid.Parse(session.ID)
+		if err != nil {
+			session.mu.RUnlock()
+			continue
+		}
+
+		sessions = append(sessions, CollaborationSession{
+			SessionId:     &sessionUUID,
+			DiagramId:     diagramUUID,
+			ThreatModelId: threatModelId,
+			Participants:  participants,
+			WebsocketUrl:  fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId.String(), diagramID),
+		})
+		session.mu.RUnlock()
+	}
+
+	return sessions
+}
+
+// userHasAccessToThreatModel checks if a user has any level of access to a threat model
+func (h *WebSocketHub) userHasAccessToThreatModel(userName string, threatModelId openapi_types.UUID) bool {
+	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), return false
+	if ThreatModelStore == nil {
+		return false
+	}
+
+	// Get the threat model
+	tm, err := ThreatModelStore.Get(threatModelId.String())
+	if err != nil {
+		return false
+	}
+
+	// Check if user has any access to the threat model (reader, writer, or owner)
+	hasAccess, err := CheckResourceAccess(userName, tm, RoleReader)
+	if err != nil {
+		return false
+	}
+
+	return hasAccess
+}
+
+// getThreatModelIdForDiagram finds the threat model that contains a specific diagram
+func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_types.UUID {
+	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), return empty UUID
+	if ThreatModelStore == nil {
+		return openapi_types.UUID{}
+	}
+
+	// Search through all threat models to find the one containing this diagram
+	// Use a large limit to get all threat models (in practice we should have pagination)
+	threatModels := ThreatModelStore.List(0, 1000, nil)
+
+	for _, tm := range threatModels {
+		if tm.Diagrams != nil {
+			for _, diagramUnion := range *tm.Diagrams {
+				// Convert union type to DfdDiagram to get the ID
+				if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+					if dfdDiag.Id.String() == diagramID {
+						return *tm.Id
+					}
+				}
+			}
+		}
+	}
+
+	return openapi_types.UUID{}
 }
 
 // CloseSession closes a session and removes it

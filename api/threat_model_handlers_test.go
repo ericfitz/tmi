@@ -206,9 +206,6 @@ func TestPatchThreatModel(t *testing.T) {
 	assert.NotEqual(t, tm.ModifiedAt, patchedTM.ModifiedAt)
 }
 
-// Helper functions
-// already defined in test_fixtures.go
-
 // createTestThreatModel creates a test threat model and returns it
 func createTestThreatModel(t *testing.T, router *gin.Engine, name string, description string) ThreatModel {
 	reqBody, _ := json.Marshal(map[string]interface{}{
@@ -747,4 +744,153 @@ func TestWriterCannotChangeOwnerOrAuth(t *testing.T) {
 	authPatchW := httptest.NewRecorder()
 	writerRouter.ServeHTTP(authPatchW, authPatchReq)
 	assert.Equal(t, http.StatusForbidden, authPatchW.Code)
+}
+
+// TestGetThreatModelsAuthorizationFiltering tests that the list endpoint properly filters based on user access
+func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
+	// Reset stores to ensure clean state
+	ResetStores()
+
+	// Set up test users
+	ownerUser := "owner@example.com"
+	readerUser := "reader@example.com"
+	writerUser := "writer@example.com"
+	unaccessUser := "noaccess@example.com"
+
+	// Create threat model 1 - owner is ownerUser, reader has access
+	ownerRouter := setupThreatModelRouterWithUser(ownerUser)
+	tm1 := createTestThreatModel(t, ownerRouter, "Accessible Model 1", "User owns this model")
+
+	// Add reader access to tm1
+	patchOps1 := []PatchOperation{
+		{
+			Op:   "add",
+			Path: "/authorization/-",
+			Value: map[string]string{
+				"subject": readerUser,
+				"role":    "reader",
+			},
+		},
+	}
+	patchBody1, _ := json.Marshal(patchOps1)
+	patchReq1, _ := http.NewRequest("PATCH", "/threat_models/"+tm1.Id.String(), bytes.NewBuffer(patchBody1))
+	patchReq1.Header.Set("Content-Type", "application/json")
+	patchW1 := httptest.NewRecorder()
+	ownerRouter.ServeHTTP(patchW1, patchReq1)
+	assert.Equal(t, http.StatusOK, patchW1.Code)
+
+	// Create threat model 2 - owner is ownerUser, writer has access
+	tm2 := createTestThreatModel(t, ownerRouter, "Accessible Model 2", "User has writer access")
+
+	// Add writer access to tm2
+	patchOps2 := []PatchOperation{
+		{
+			Op:   "add",
+			Path: "/authorization/-",
+			Value: map[string]string{
+				"subject": writerUser,
+				"role":    "writer",
+			},
+		},
+	}
+	patchBody2, _ := json.Marshal(patchOps2)
+	patchReq2, _ := http.NewRequest("PATCH", "/threat_models/"+tm2.Id.String(), bytes.NewBuffer(patchBody2))
+	patchReq2.Header.Set("Content-Type", "application/json")
+	patchW2 := httptest.NewRecorder()
+	ownerRouter.ServeHTTP(patchW2, patchReq2)
+	assert.Equal(t, http.StatusOK, patchW2.Code)
+
+	// Create threat model 3 - owner is ownerUser, no additional access
+	tm3 := createTestThreatModel(t, ownerRouter, "Inaccessible Model", "User has no access to this model")
+	_ = tm3 // We created it but won't verify access since unaccessUser shouldn't see it
+
+	// Test 1: Owner should see all 3 models they own
+	listReq1, _ := http.NewRequest("GET", "/threat_models", nil)
+	listW1 := httptest.NewRecorder()
+	ownerRouter.ServeHTTP(listW1, listReq1)
+	assert.Equal(t, http.StatusOK, listW1.Code)
+
+	var ownerItems []map[string]interface{}
+	err := json.Unmarshal(listW1.Body.Bytes(), &ownerItems)
+	require.NoError(t, err)
+	assert.Len(t, ownerItems, 3, "Owner should see all 3 threat models")
+
+	// Test 2: Reader should see models 1 and 2 (has reader access to 1, owner owns both)
+	readerRouter := setupThreatModelRouterWithUser(readerUser)
+	listReq2, _ := http.NewRequest("GET", "/threat_models", nil)
+	listW2 := httptest.NewRecorder()
+	readerRouter.ServeHTTP(listW2, listReq2)
+	assert.Equal(t, http.StatusOK, listW2.Code)
+
+	var readerItems []map[string]interface{}
+	err = json.Unmarshal(listW2.Body.Bytes(), &readerItems)
+	require.NoError(t, err)
+	assert.Len(t, readerItems, 1, "Reader should see only 1 threat model (tm1)")
+
+	// Verify reader sees the correct model
+	found := false
+	for _, item := range readerItems {
+		if item["name"] == "Accessible Model 1" {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "Reader should see 'Accessible Model 1'")
+
+	// Test 3: Writer should see model 2 only (has writer access to model 2)
+	writerRouter := setupThreatModelRouterWithUser(writerUser)
+	listReq3, _ := http.NewRequest("GET", "/threat_models", nil)
+	listW3 := httptest.NewRecorder()
+	writerRouter.ServeHTTP(listW3, listReq3)
+	assert.Equal(t, http.StatusOK, listW3.Code)
+
+	var writerItems []map[string]interface{}
+	err = json.Unmarshal(listW3.Body.Bytes(), &writerItems)
+	require.NoError(t, err)
+	assert.Len(t, writerItems, 1, "Writer should see only 1 threat model (tm2)")
+
+	// Verify writer sees the correct model
+	found = false
+	for _, item := range writerItems {
+		if item["name"] == "Accessible Model 2" {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "Writer should see 'Accessible Model 2'")
+
+	// Test 4: User with no access should see no models
+	unaccessRouter := setupThreatModelRouterWithUser(unaccessUser)
+	listReq4, _ := http.NewRequest("GET", "/threat_models", nil)
+	listW4 := httptest.NewRecorder()
+	unaccessRouter.ServeHTTP(listW4, listReq4)
+	assert.Equal(t, http.StatusOK, listW4.Code)
+
+	var unaccessItems []map[string]interface{}
+	err = json.Unmarshal(listW4.Body.Bytes(), &unaccessItems)
+	require.NoError(t, err)
+	assert.Len(t, unaccessItems, 0, "User with no access should see no threat models")
+
+	// Test 5: Unauthenticated user should see no models
+	gin.SetMode(gin.TestMode)
+	unauthRouter := gin.New()
+
+	// No authentication middleware - simulate unauthenticated request
+	unauthRouter.Use(func(c *gin.Context) {
+		// Don't set userName in context
+		c.Next()
+	})
+
+	handler := NewThreatModelHandler()
+	unauthRouter.GET("/threat_models", handler.GetThreatModels)
+
+	listReq5, _ := http.NewRequest("GET", "/threat_models", nil)
+	listW5 := httptest.NewRecorder()
+	unauthRouter.ServeHTTP(listW5, listReq5)
+	assert.Equal(t, http.StatusOK, listW5.Code)
+
+	var unauthItems []map[string]interface{}
+	err = json.Unmarshal(listW5.Body.Bytes(), &unauthItems)
+	require.NoError(t, err)
+	assert.Len(t, unauthItems, 0, "Unauthenticated user should see no threat models")
 }

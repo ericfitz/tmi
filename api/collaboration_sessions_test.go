@@ -14,6 +14,139 @@ import (
 )
 
 func TestHandleCollaborationSessions(t *testing.T) {
+	// Setup test data with different permission levels
+	testUser := "test@example.com"
+
+	// Initialize stores if not already done
+	if ThreatModelStore == nil {
+		ThreatModelStore = NewThreatModelInMemoryStore()
+	}
+	if DiagramStore == nil {
+		DiagramStore = NewDiagramInMemoryStore()
+	}
+
+	desc1 := "User has read access"
+	desc2 := "User has reader access"
+	desc3 := "User has no access"
+
+	// Create threat models with different access levels
+	threatModelWithAccess1 := ThreatModel{
+		Name:        "Accessible Model 1",
+		Description: &desc1,
+		CreatedBy:   testUser, // User created this one (should have owner access)
+		Authorization: []Authorization{
+			{Role: "owner", Subject: testUser},
+		},
+		CreatedAt:  time.Now().UTC(),
+		ModifiedAt: time.Now().UTC(),
+	}
+	threatModelWithAccess2 := ThreatModel{
+		Name:        "Accessible Model 2",
+		Description: &desc2,
+		CreatedBy:   "other@example.com",
+		Authorization: []Authorization{
+			{Role: "owner", Subject: "other@example.com"},
+			{Role: "reader", Subject: testUser}, // User is reader
+		},
+		CreatedAt:  time.Now().UTC(),
+		ModifiedAt: time.Now().UTC(),
+	}
+	threatModelWithoutAccess := ThreatModel{
+		Name:        "Inaccessible Model",
+		Description: &desc3,
+		CreatedBy:   "other@example.com",
+		Authorization: []Authorization{
+			{Role: "owner", Subject: "other@example.com"},
+			{Role: "reader", Subject: "someone@example.com"},
+		},
+		CreatedAt:  time.Now().UTC(),
+		ModifiedAt: time.Now().UTC(),
+	}
+
+	// Create threat models in store
+	tm1, _ := ThreatModelStore.Create(threatModelWithAccess1, func(tm ThreatModel, id string) ThreatModel {
+		uuid, _ := ParseUUID(id)
+		tm.Id = &uuid
+		return tm
+	})
+	tm2, _ := ThreatModelStore.Create(threatModelWithAccess2, func(tm ThreatModel, id string) ThreatModel {
+		uuid, _ := ParseUUID(id)
+		tm.Id = &uuid
+		return tm
+	})
+	tm3, _ := ThreatModelStore.Create(threatModelWithoutAccess, func(tm ThreatModel, id string) ThreatModel {
+		uuid, _ := ParseUUID(id)
+		tm.Id = &uuid
+		return tm
+	})
+
+	// Create diagrams for each threat model
+	diagram1 := DfdDiagram{
+		Name:       "Diagram 1",
+		Type:       "dfd",
+		CreatedAt:  time.Now().UTC(),
+		ModifiedAt: time.Now().UTC(),
+		Cells:      []DfdDiagram_Cells_Item{},
+	}
+	diagram2 := DfdDiagram{
+		Name:       "Diagram 2",
+		Type:       "dfd",
+		CreatedAt:  time.Now().UTC(),
+		ModifiedAt: time.Now().UTC(),
+		Cells:      []DfdDiagram_Cells_Item{},
+	}
+	diagram3 := DfdDiagram{
+		Name:       "Diagram 3",
+		Type:       "dfd",
+		CreatedAt:  time.Now().UTC(),
+		ModifiedAt: time.Now().UTC(),
+		Cells:      []DfdDiagram_Cells_Item{},
+	}
+
+	// Create diagrams in store
+	d1, _ := DiagramStore.Create(diagram1, func(d DfdDiagram, id string) DfdDiagram {
+		uuid, _ := ParseUUID(id)
+		d.Id = &uuid
+		return d
+	})
+	d2, _ := DiagramStore.Create(diagram2, func(d DfdDiagram, id string) DfdDiagram {
+		uuid, _ := ParseUUID(id)
+		d.Id = &uuid
+		return d
+	})
+	d3, _ := DiagramStore.Create(diagram3, func(d DfdDiagram, id string) DfdDiagram {
+		uuid, _ := ParseUUID(id)
+		d.Id = &uuid
+		return d
+	})
+
+	// Add diagrams to threat models
+	var diagramUnion1, diagramUnion2, diagramUnion3 Diagram
+	if err := diagramUnion1.FromDfdDiagram(d1); err != nil {
+		t.Fatalf("Failed to convert diagram1: %v", err)
+	}
+	if err := diagramUnion2.FromDfdDiagram(d2); err != nil {
+		t.Fatalf("Failed to convert diagram2: %v", err)
+	}
+	if err := diagramUnion3.FromDfdDiagram(d3); err != nil {
+		t.Fatalf("Failed to convert diagram3: %v", err)
+	}
+
+	tm1.Diagrams = &[]Diagram{diagramUnion1}
+	tm2.Diagrams = &[]Diagram{diagramUnion2}
+	tm3.Diagrams = &[]Diagram{diagramUnion3}
+
+	// Update threat models with diagrams
+	if err := ThreatModelStore.Update(tm1.Id.String(), tm1); err != nil {
+		t.Fatalf("Failed to update threat model 1: %v", err)
+	}
+	if err := ThreatModelStore.Update(tm2.Id.String(), tm2); err != nil {
+		t.Fatalf("Failed to update threat model 2: %v", err)
+	}
+	if err := ThreatModelStore.Update(tm3.Id.String(), tm3); err != nil {
+		t.Fatalf("Failed to update threat model 3: %v", err)
+	}
+
 	tests := []struct {
 		name           string
 		setupSessions  func(*WebSocketHub)
@@ -27,68 +160,52 @@ func TestHandleCollaborationSessions(t *testing.T) {
 			expectedCount:  0,
 		},
 		{
-			name: "single active session with clients",
+			name: "sessions with proper authorization filtering",
 			setupSessions: func(hub *WebSocketHub) {
-				// Create a diagram session
-				diagramID := uuid.New().String()
-				session := &DiagramSession{
-					ID:           uuid.New().String(),
-					DiagramID:    diagramID,
-					Clients:      make(map[*WebSocketClient]bool),
-					Broadcast:    make(chan []byte),
-					Register:     make(chan *WebSocketClient),
-					Unregister:   make(chan *WebSocketClient),
-					LastActivity: time.Now().UTC(),
-				}
-				// Add mock clients
-				client1 := &WebSocketClient{
-					UserName: "alice@example.com",
-				}
-				client2 := &WebSocketClient{
-					UserName: "bob@example.com",
-				}
-				session.Clients[client1] = true
-				session.Clients[client2] = true
-				hub.Diagrams[diagramID] = session
-			},
-			expectedStatus: http.StatusOK,
-			expectedCount:  1,
-		},
-		{
-			name: "multiple active sessions",
-			setupSessions: func(hub *WebSocketHub) {
-				// Create first session
-				diagramID1 := uuid.New().String()
+				// Create session for accessible diagram 1 (user owns threat model)
 				session1 := &DiagramSession{
 					ID:           uuid.New().String(),
-					DiagramID:    diagramID1,
+					DiagramID:    d1.Id.String(),
 					Clients:      make(map[*WebSocketClient]bool),
 					Broadcast:    make(chan []byte),
 					Register:     make(chan *WebSocketClient),
 					Unregister:   make(chan *WebSocketClient),
 					LastActivity: time.Now().UTC(),
 				}
-				client1 := &WebSocketClient{UserName: "user1@example.com"}
+				client1 := &WebSocketClient{UserName: "alice@example.com"}
 				session1.Clients[client1] = true
-				hub.Diagrams[diagramID1] = session1
+				hub.Diagrams[d1.Id.String()] = session1
 
-				// Create second session
-				diagramID2 := uuid.New().String()
+				// Create session for accessible diagram 2 (user is reader)
 				session2 := &DiagramSession{
 					ID:           uuid.New().String(),
-					DiagramID:    diagramID2,
+					DiagramID:    d2.Id.String(),
 					Clients:      make(map[*WebSocketClient]bool),
 					Broadcast:    make(chan []byte),
 					Register:     make(chan *WebSocketClient),
 					Unregister:   make(chan *WebSocketClient),
 					LastActivity: time.Now().UTC(),
 				}
-				client2 := &WebSocketClient{UserName: "user2@example.com"}
+				client2 := &WebSocketClient{UserName: "bob@example.com"}
 				session2.Clients[client2] = true
-				hub.Diagrams[diagramID2] = session2
+				hub.Diagrams[d2.Id.String()] = session2
+
+				// Create session for inaccessible diagram (user has no access)
+				session3 := &DiagramSession{
+					ID:           uuid.New().String(),
+					DiagramID:    d3.Id.String(),
+					Clients:      make(map[*WebSocketClient]bool),
+					Broadcast:    make(chan []byte),
+					Register:     make(chan *WebSocketClient),
+					Unregister:   make(chan *WebSocketClient),
+					LastActivity: time.Now().UTC(),
+				}
+				client3 := &WebSocketClient{UserName: "charlie@example.com"}
+				session3.Clients[client3] = true
+				hub.Diagrams[d3.Id.String()] = session3
 			},
 			expectedStatus: http.StatusOK,
-			expectedCount:  2,
+			expectedCount:  2, // Should only see 2 sessions (for accessible threat models)
 		},
 	}
 
@@ -97,6 +214,12 @@ func TestHandleCollaborationSessions(t *testing.T) {
 			// Setup
 			gin.SetMode(gin.TestMode)
 			router := gin.New()
+
+			// Add mock authentication middleware
+			router.Use(func(c *gin.Context) {
+				c.Set("userName", "test@example.com")
+				c.Next()
+			})
 
 			// Create server with fresh WebSocket hub
 			server := &Server{
