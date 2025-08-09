@@ -280,12 +280,18 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 
 		// Apply filter if provided
 		if filter == nil || filter(tm) {
+			// Calculate actual counts instead of using potentially stale database values
+			actualDiagramCount := s.calculateDiagramCount(uuid.String())
+			actualThreatCount := s.calculateThreatCount(uuid.String())
+			actualDocumentCount := s.calculateDocumentCount(uuid.String())
+			actualSourceCount := s.calculateSourceCount(uuid.String())
+
 			results = append(results, ThreatModelWithCounts{
 				ThreatModel:   tm,
-				DocumentCount: documentCount,
-				SourceCount:   sourceCount,
-				DiagramCount:  diagramCount,
-				ThreatCount:   threatCount,
+				DocumentCount: actualDocumentCount,
+				SourceCount:   actualSourceCount,
+				DiagramCount:  actualDiagramCount,
+				ThreatCount:   actualThreatCount,
 			})
 		}
 	}
@@ -301,6 +307,50 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 	}
 
 	return results[offset:end]
+}
+
+// calculateDiagramCount counts the actual number of diagrams for a threat model
+func (s *ThreatModelDatabaseStore) calculateDiagramCount(threatModelId string) int {
+	query := `SELECT COUNT(*) FROM diagrams WHERE threat_model_id = $1`
+	var count int
+	err := s.db.QueryRow(query, threatModelId).Scan(&count)
+	if err != nil {
+		return 0
+	}
+	return count
+}
+
+// calculateThreatCount counts the actual number of threats for a threat model
+func (s *ThreatModelDatabaseStore) calculateThreatCount(threatModelId string) int {
+	query := `SELECT COUNT(*) FROM threats WHERE threat_model_id = $1`
+	var count int
+	err := s.db.QueryRow(query, threatModelId).Scan(&count)
+	if err != nil {
+		return 0
+	}
+	return count
+}
+
+// calculateDocumentCount counts the actual number of documents for a threat model
+func (s *ThreatModelDatabaseStore) calculateDocumentCount(threatModelId string) int {
+	query := `SELECT COUNT(*) FROM documents WHERE threat_model_id = $1`
+	var count int
+	err := s.db.QueryRow(query, threatModelId).Scan(&count)
+	if err != nil {
+		return 0
+	}
+	return count
+}
+
+// calculateSourceCount counts the actual number of sources for a threat model
+func (s *ThreatModelDatabaseStore) calculateSourceCount(threatModelId string) int {
+	query := `SELECT COUNT(*) FROM sources WHERE threat_model_id = $1`
+	var count int
+	err := s.db.QueryRow(query, threatModelId).Scan(&count)
+	if err != nil {
+		return 0
+	}
+	return count
 }
 
 // Create adds a new threat model
