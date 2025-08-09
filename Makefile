@@ -1,4 +1,4 @@
-.PHONY: build test test-one single-test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate list
+.PHONY: build test test-one single-test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi list
 
 # Default build target
 VERSION := 0.1.0
@@ -57,6 +57,10 @@ lint:
 # Generate API from OpenAPI spec
 gen-api:
 	oapi-codegen -config oapi-codegen-config.yaml tmi-openapi.json
+
+# Validate AsyncAPI WebSocket specification
+validate-asyncapi:
+	uv run scripts/validate_asyncapi.py tmi-asyncapi.yaml
 
 # Clean build artifacts
 clean:

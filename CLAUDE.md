@@ -106,3 +106,4 @@ This repository contains API documentation and Go implementation for a Collabora
 ## Make Command Memories
 
 - `make list` is useful for quickly discovering and reviewing all available make targets in the project
+- `make validate-asyncapi` validates the AsyncAPI specification for the project

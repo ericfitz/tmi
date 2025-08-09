@@ -19,9 +19,11 @@
 !Dockerfile*
 !.dockerignore
 !config-example.yaml
+!tmi-asyncapi.yaml
 
 # Include subdirectories (but avoid overriding specific ignores)
 !*/
+!scripts/*
 
 # Explicitly ignore unwanted files and directories
 *.log
