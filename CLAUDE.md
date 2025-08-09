@@ -33,6 +33,8 @@ This repository contains API documentation and Go implementation for a Collabora
 - Development: `make dev` (starts full dev environment with DB and Redis)
 - Dev DB only: `make dev-db` (starts PostgreSQL container)
 - Dev Redis only: `make dev-redis` (starts Redis container)
+- Authentication testing: `make test-auth-token` (gets OAuth token from test provider)
+- API testing with auth: `make test-with-token` (tests authenticated endpoints)
 
 ## Go Style Guidelines
 
@@ -88,7 +90,8 @@ This repository contains API documentation and Go implementation for a Collabora
 - PostgreSQL for persistent storage (configured via auth/ package)
 - Redis for caching and session management
 - Database migrations in auth/migrations/
-- Development uses Docker containers (see DEVELOPMENT.md)
+- Development uses Docker containers
+- Dual-mode storage: in-memory for tests, database-backed for dev/prod
 
 ## Development Environment
 
@@ -116,3 +119,16 @@ This repository contains API documentation and Go implementation for a Collabora
 ## Test Philosophy Memories
 
 - Never disable or skip failing tests - investigate to root cause
+
+### OpenAPI Integration
+
+- API code generated from tmi-openapi.json using oapi-codegen v2
+- OpenAPI validation middleware clears security schemes (auth handled by JWT middleware)
+- Generated types in api/api.go include Echo server handlers and embedded spec
+- Config file: oapi-codegen-config.yaml
+
+## Authentication Memories
+
+- Always use a normal oauth login flow with the "test" provider when performing any development or testing task that requires authentication
+- Use `make test-auth-token` to get tokens, then pass them in Authorization header as `Bearer <token>`
+- OAuth test provider generates JWT tokens with user claims (email, name, sub)

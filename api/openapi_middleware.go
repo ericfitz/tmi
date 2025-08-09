@@ -39,9 +39,28 @@ func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 		return nil, fmt.Errorf("failed to load OpenAPI spec: %w", err)
 	}
 
-	// Clear security schemes to avoid authentication validation errors
+	// Clear security requirements for all paths to avoid authentication validation errors
 	// Authentication is handled separately by our JWT middleware
 	swagger.Components.SecuritySchemes = nil
+
+	// Remove security requirements from all paths since we handle auth with our own JWT middleware
+	for _, pathItem := range swagger.Paths.Map() {
+		if pathItem.Get != nil {
+			pathItem.Get.Security = nil
+		}
+		if pathItem.Post != nil {
+			pathItem.Post.Security = nil
+		}
+		if pathItem.Put != nil {
+			pathItem.Put.Security = nil
+		}
+		if pathItem.Patch != nil {
+			pathItem.Patch.Security = nil
+		}
+		if pathItem.Delete != nil {
+			pathItem.Delete.Security = nil
+		}
+	}
 	return middleware.OapiRequestValidatorWithOptions(swagger,
 		&middleware.Options{
 			ErrorHandler:          OpenAPIErrorHandler,
