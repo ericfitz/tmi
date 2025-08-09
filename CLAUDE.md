@@ -18,9 +18,14 @@ This repository contains API documentation and Go implementation for a Collabora
 
 ## Commands
 
+- List targets: `make list` (lists all available make targets)
 - Build: `make build` (creates bin/server executable)
 - Test: `make test` (runs all tests)
+  - `make test passfail=true` (shows only PASS/FAIL results)
+  - `make test count1=true` (runs tests with --count=1 to disable caching)
+  - `make test passfail=true count1=true` (combines both options)
 - Test specific: `make test-one name=TestName`
+- Single test with verbose output: `make single-test name=TestName` (runs single test in api package with verbose output)
 - Integration tests: `make test-integration` (runs database integration tests with automatic setup/cleanup)
 - Integration cleanup: `make test-integration-cleanup` (cleans up integration test containers)
 - Lint: `make lint` (runs golangci-lint)
@@ -97,3 +102,7 @@ This repository contains API documentation and Go implementation for a Collabora
 - After changing any file, run lint and fix any issues caused by the change
 - After changing any executable or test file, run build and fix any issues caused by the change and then run test and fix any issues caused by the change
 - Do not disable or skip failing tests, either diagnose to root cause and fix either the test issue or code issue, or ask the user what to do.
+
+## Make Command Memories
+
+- `make list` is useful for quickly discovering and reviewing all available make targets in the project

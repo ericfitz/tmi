@@ -1080,6 +1080,14 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		c.Next()
 	})
 
+	// Add OpenAPI validation middleware
+	if openAPIValidator, err := api.SetupOpenAPIValidation(); err != nil {
+		logger.Error("Failed to setup OpenAPI validation middleware: %v", err)
+		os.Exit(1)
+	} else {
+		r.Use(openAPIValidator)
+	}
+
 	// Apply entity-specific middleware
 	r.Use(api.ThreatModelMiddleware())
 	r.Use(api.DiagramMiddleware())

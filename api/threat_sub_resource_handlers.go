@@ -149,10 +149,16 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body using unified validation framework
-	threat, err := ValidateAndParseRequest[Threat](c, ValidationConfigs["threat_create"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate request body
+	var threat Threat
+	if err := c.ShouldBindJSON(&threat); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Validate required fields
+	if threat.Name == "" {
+		HandleRequestError(c, InvalidInputError("Threat name is required"))
 		return
 	}
 
@@ -169,14 +175,14 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 		threat.Id.String(), threatModelID, userName)
 
 	// Create threat in store
-	if err := h.threatStore.Create(c.Request.Context(), threat); err != nil {
+	if err := h.threatStore.Create(c.Request.Context(), &threat); err != nil {
 		logger.Error("Failed to create threat: %v", err)
 		HandleRequestError(c, ServerError("Failed to create threat"))
 		return
 	}
 
 	logger.Debug("Successfully created threat %s", threat.Id.String())
-	c.JSON(http.StatusCreated, threat)
+	c.JSON(http.StatusCreated, &threat)
 }
 
 // UpdateThreat updates an existing threat
@@ -214,10 +220,16 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body using unified validation framework
-	threat, err := ValidateAndParseRequest[Threat](c, ValidationConfigs["threat_update"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate request body
+	var threat Threat
+	if err := c.ShouldBindJSON(&threat); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Validate required fields
+	if threat.Name == "" {
+		HandleRequestError(c, InvalidInputError("Threat name is required"))
 		return
 	}
 
@@ -228,14 +240,14 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 	logger.Debug("Updating threat %s (user: %s)", threatID, userName)
 
 	// Update threat in store
-	if err := h.threatStore.Update(c.Request.Context(), threat); err != nil {
+	if err := h.threatStore.Update(c.Request.Context(), &threat); err != nil {
 		logger.Error("Failed to update threat %s: %v", threatID, err)
 		HandleRequestError(c, ServerError("Failed to update threat"))
 		return
 	}
 
 	logger.Debug("Successfully updated threat %s", threatID)
-	c.JSON(http.StatusOK, threat)
+	c.JSON(http.StatusOK, &threat)
 }
 
 // PatchThreat applies JSON patch operations to a threat
@@ -364,42 +376,34 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 	}
 
 	// Parse and validate request body as array of threats
-	threats, err := ValidateAndParseRequest[[]Threat](c, ValidationConfig{
-		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
-		},
-		CustomValidators: []ValidatorFunc{
-			func(data interface{}) error {
-				list := data.(*[]Threat)
-
-				if len(*list) == 0 {
-					return InvalidInputError("No threats provided")
-				}
-
-				if len(*list) > 50 {
-					return InvalidInputError("Maximum 50 threats allowed per bulk operation")
-				}
-
-				// Validate each threat
-				for _, threat := range *list {
-					if threat.Name == "" {
-						return InvalidInputError("Threat name is required for all threats")
-					}
-				}
-
-				return nil
-			},
-		},
-		Operation: "POST",
-	})
-	if err != nil {
-		HandleRequestError(c, err)
+	var threats []Threat
+	if err := c.ShouldBindJSON(&threats); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
+	// Basic validation
+	if len(threats) == 0 {
+		HandleRequestError(c, InvalidInputError("No threats provided"))
+		return
+	}
+
+	if len(threats) > 50 {
+		HandleRequestError(c, InvalidInputError("Maximum 50 threats allowed per bulk operation"))
+		return
+	}
+
+	// Validate each threat
+	for _, threat := range threats {
+		if threat.Name == "" {
+			HandleRequestError(c, InvalidInputError("Threat name is required for all threats"))
+			return
+		}
+	}
+
 	// Prepare threats
-	for i := range *threats {
-		threat := &(*threats)[i]
+	for i := range threats {
+		threat := &threats[i]
 
 		// Set threat model ID from URL
 		threat.ThreatModelId = threatModelUUID
@@ -412,17 +416,17 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d threats in threat model %s (user: %s)",
-		len(*threats), threatModelID, userName)
+		len(threats), threatModelID, userName)
 
 	// Create threats in store
-	if err := h.threatStore.BulkCreate(c.Request.Context(), *threats); err != nil {
+	if err := h.threatStore.BulkCreate(c.Request.Context(), threats); err != nil {
 		logger.Error("Failed to bulk create threats: %v", err)
 		HandleRequestError(c, ServerError("Failed to create threats"))
 		return
 	}
 
-	logger.Debug("Successfully bulk created %d threats", len(*threats))
-	c.JSON(http.StatusCreated, *threats)
+	logger.Debug("Successfully bulk created %d threats", len(threats))
+	c.JSON(http.StatusCreated, threats)
 }
 
 // BulkUpdateThreats updates multiple threats in a single request
@@ -453,59 +457,52 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 	}
 
 	// Parse and validate request body as array of threats
-	threats, err := ValidateAndParseRequest[[]Threat](c, ValidationConfig{
-		ProhibitedFields: []string{
-			"created_at", "modified_at",
-		},
-		CustomValidators: []ValidatorFunc{
-			func(data interface{}) error {
-				list := data.(*[]Threat)
-
-				if len(*list) == 0 {
-					return InvalidInputError("No threats provided")
-				}
-
-				if len(*list) > 50 {
-					return InvalidInputError("Maximum 50 threats allowed per bulk operation")
-				}
-
-				// Validate each threat
-				for _, threat := range *list {
-					if threat.Id == nil {
-						return InvalidInputError("Threat ID is required for all threats in bulk update")
-					}
-					if threat.Name == "" {
-						return InvalidInputError("Threat name is required for all threats")
-					}
-				}
-
-				return nil
-			},
-		},
-		Operation: "PUT",
-	})
-	if err != nil {
-		HandleRequestError(c, err)
+	var threats []Threat
+	if err := c.ShouldBindJSON(&threats); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
+	// Basic validation
+	if len(threats) == 0 {
+		HandleRequestError(c, InvalidInputError("No threats provided"))
+		return
+	}
+
+	if len(threats) > 50 {
+		HandleRequestError(c, InvalidInputError("Maximum 50 threats allowed per bulk operation"))
+		return
+	}
+
+	// Validate each threat
+	for _, threat := range threats {
+		if threat.Id == nil {
+			HandleRequestError(c, InvalidInputError("Threat ID is required for all threats in bulk update"))
+			return
+		}
+		if threat.Name == "" {
+			HandleRequestError(c, InvalidInputError("Threat name is required for all threats"))
+			return
+		}
+	}
+
 	// Prepare threats for update
-	for i := range *threats {
-		threat := &(*threats)[i]
+	for i := range threats {
+		threat := &threats[i]
 		// Ensure threat model ID matches URL
 		threat.ThreatModelId = threatModelUUID
 	}
 
 	logger.Debug("Bulk updating %d threats in threat model %s (user: %s)",
-		len(*threats), threatModelID, userName)
+		len(threats), threatModelID, userName)
 
 	// Update threats in store
-	if err := h.threatStore.BulkUpdate(c.Request.Context(), *threats); err != nil {
+	if err := h.threatStore.BulkUpdate(c.Request.Context(), threats); err != nil {
 		logger.Error("Failed to bulk update threats: %v", err)
 		HandleRequestError(c, ServerError("Failed to update threats"))
 		return
 	}
 
-	logger.Debug("Successfully bulk updated %d threats", len(*threats))
-	c.JSON(http.StatusOK, *threats)
+	logger.Debug("Successfully bulk updated %d threats", len(threats))
+	c.JSON(http.StatusOK, threats)
 }

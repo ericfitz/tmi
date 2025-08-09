@@ -77,66 +77,6 @@ func TestValidateDuplicateSubjects(t *testing.T) {
 	}
 }
 
-func TestValidateOwnerNotInAuthList(t *testing.T) {
-	tests := []struct {
-		name        string
-		owner       string
-		authList    []Authorization
-		expectError bool
-	}{
-		{
-			name:  "owner not in auth list",
-			owner: "owner1",
-			authList: []Authorization{
-				{Subject: "user1", Role: RoleReader},
-				{Subject: "user2", Role: RoleWriter},
-			},
-			expectError: false,
-		},
-		{
-			name:        "empty auth list",
-			owner:       "owner1",
-			authList:    []Authorization{},
-			expectError: false,
-		},
-		{
-			name:  "owner in auth list",
-			owner: "owner1",
-			authList: []Authorization{
-				{Subject: "user1", Role: RoleReader},
-				{Subject: "owner1", Role: RoleWriter}, // Owner duplicate
-			},
-			expectError: true,
-		},
-		{
-			name:  "owner in auth list with owner role",
-			owner: "owner1",
-			authList: []Authorization{
-				{Subject: "user1", Role: RoleReader},
-				{Subject: "owner1", Role: RoleOwner}, // Owner duplicate
-			},
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateOwnerNotInAuthList(tt.owner, tt.authList)
-
-			if tt.expectError {
-				require.Error(t, err)
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Expected RequestError")
-				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
-				assert.Equal(t, "invalid_input", reqErr.Code)
-				assert.Contains(t, reqErr.Message, tt.owner)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestApplyOwnershipTransferRule(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -936,6 +876,209 @@ func TestCheckResourceAccess(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expectedAccess, hasAccess)
 			}
+		})
+	}
+}
+
+func TestPermissionResolution(t *testing.T) {
+	tests := []struct {
+		name                 string
+		principal            string
+		owner                string
+		authList             []Authorization
+		expectedReaderAccess bool
+		expectedWriterAccess bool
+		expectedOwnerAccess  bool
+		description          string
+	}{
+		{
+			name:      "owner in auth list with reader role - owner field wins",
+			principal: "owner1",
+			owner:     "owner1",
+			authList: []Authorization{
+				{Subject: "owner1", Role: RoleReader}, // Lower permission in auth list
+			},
+			expectedReaderAccess: true, // Owner always has reader access
+			expectedWriterAccess: true, // Owner always has writer access
+			expectedOwnerAccess:  true, // Owner always has owner access
+			description:          "Owner field takes absolute precedence over auth list",
+		},
+		{
+			name:      "user in auth list with multiple roles - highest permission wins",
+			principal: "user1",
+			owner:     "owner",
+			authList: []Authorization{
+				{Subject: "user1", Role: RoleReader}, // Lower permission
+				{Subject: "user1", Role: RoleWriter}, // Higher permission should win
+			},
+			expectedReaderAccess: true,  // Writer includes reader access
+			expectedWriterAccess: true,  // User should get writer access
+			expectedOwnerAccess:  false, // User is not owner
+			description:          "Multiple roles: RoleWriter > RoleReader, so user gets RoleWriter",
+		},
+		{
+			name:      "user with reader then owner roles - owner wins",
+			principal: "user1",
+			owner:     "owner",
+			authList: []Authorization{
+				{Subject: "user1", Role: RoleReader}, // Lower permission
+				{Subject: "user1", Role: RoleOwner},  // Higher permission should win
+			},
+			expectedReaderAccess: true, // Owner includes reader access
+			expectedWriterAccess: true, // Owner includes writer access
+			expectedOwnerAccess:  true, // User should get owner access
+			description:          "Multiple roles: RoleOwner > RoleReader, so user gets RoleOwner",
+		},
+		{
+			name:      "user with writer then owner roles - owner wins",
+			principal: "user1",
+			owner:     "owner",
+			authList: []Authorization{
+				{Subject: "user1", Role: RoleWriter}, // Lower permission
+				{Subject: "user1", Role: RoleOwner},  // Higher permission should win
+			},
+			expectedReaderAccess: true, // Owner includes reader access
+			expectedWriterAccess: true, // Owner includes writer access
+			expectedOwnerAccess:  true, // User should get owner access
+			description:          "Multiple roles: RoleOwner > RoleWriter, so user gets RoleOwner",
+		},
+		{
+			name:      "user with single writer role",
+			principal: "user1",
+			owner:     "owner",
+			authList: []Authorization{
+				{Subject: "user1", Role: RoleWriter},
+			},
+			expectedReaderAccess: true,  // Writer includes reader access
+			expectedWriterAccess: true,  // Writer can write
+			expectedOwnerAccess:  false, // Writer cannot own
+			description:          "Single role: writer includes reader permissions",
+		},
+		{
+			name:      "user with single reader role",
+			principal: "user1",
+			owner:     "owner",
+			authList: []Authorization{
+				{Subject: "user1", Role: RoleReader},
+			},
+			expectedReaderAccess: true,  // Reader can read
+			expectedWriterAccess: false, // Reader cannot write
+			expectedOwnerAccess:  false, // Reader cannot own
+			description:          "Single role: reader has most limited permissions",
+		},
+		{
+			name:      "user not in auth list has no permissions",
+			principal: "user1",
+			owner:     "owner",
+			authList: []Authorization{
+				{Subject: "user2", Role: RoleOwner},
+			},
+			expectedReaderAccess: false, // Not found in auth list
+			expectedWriterAccess: false, // Not found in auth list
+			expectedOwnerAccess:  false, // Not found in auth list
+			description:          "Users not in auth list have no access",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			authData := AuthorizationData{
+				Type:          AuthTypeTMI10,
+				Owner:         tt.owner,
+				Authorization: tt.authList,
+			}
+
+			// Test reader access
+			readerAccess := AccessCheck(tt.principal, RoleReader, authData)
+			assert.Equal(t, tt.expectedReaderAccess, readerAccess,
+				"Reader access mismatch: %s", tt.description)
+
+			// Test writer access
+			writerAccess := AccessCheck(tt.principal, RoleWriter, authData)
+			assert.Equal(t, tt.expectedWriterAccess, writerAccess,
+				"Writer access mismatch: %s", tt.description)
+
+			// Test owner access
+			ownerAccess := AccessCheck(tt.principal, RoleOwner, authData)
+			assert.Equal(t, tt.expectedOwnerAccess, ownerAccess,
+				"Owner access mismatch: %s", tt.description)
+		})
+	}
+}
+
+func TestIsHigherRole(t *testing.T) {
+	tests := []struct {
+		name     string
+		role1    Role
+		role2    Role
+		expected bool
+	}{
+		{
+			name:     "owner higher than writer",
+			role1:    RoleOwner,
+			role2:    RoleWriter,
+			expected: true,
+		},
+		{
+			name:     "owner higher than reader",
+			role1:    RoleOwner,
+			role2:    RoleReader,
+			expected: true,
+		},
+		{
+			name:     "writer higher than reader",
+			role1:    RoleWriter,
+			role2:    RoleReader,
+			expected: true,
+		},
+		{
+			name:     "writer not higher than owner",
+			role1:    RoleWriter,
+			role2:    RoleOwner,
+			expected: false,
+		},
+		{
+			name:     "reader not higher than writer",
+			role1:    RoleReader,
+			role2:    RoleWriter,
+			expected: false,
+		},
+		{
+			name:     "reader not higher than owner",
+			role1:    RoleReader,
+			role2:    RoleOwner,
+			expected: false,
+		},
+		{
+			name:     "same role not higher",
+			role1:    RoleWriter,
+			role2:    RoleWriter,
+			expected: false,
+		},
+		{
+			name:     "invalid role1",
+			role1:    "invalid",
+			role2:    RoleReader,
+			expected: false,
+		},
+		{
+			name:     "invalid role2",
+			role1:    RoleReader,
+			role2:    "invalid",
+			expected: false,
+		},
+		{
+			name:     "both roles invalid",
+			role1:    "invalid1",
+			role2:    "invalid2",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isHigherRole(tt.role1, tt.role2)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

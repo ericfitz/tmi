@@ -95,6 +95,8 @@ func setupCellHandler() (*gin.Engine, *MockCellMetadataStore) {
 	mockMetadataStore := &MockCellMetadataStore{}
 	handler := NewCellHandler(mockMetadataStore, nil, nil, nil)
 
+	// Note: Cell handler routes are not defined in OpenAPI spec, so no OpenAPI validation middleware
+
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
 		c.Set("userName", "test@example.com")

@@ -202,17 +202,17 @@ func (h *CellHandler) CreateCellMetadata(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body using unified validation framework
-	metadata, err := ValidateAndParseRequest[Metadata](c, ValidationConfigs["metadata_create"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate request body using OpenAPI validation
+	var metadata Metadata
+	if err := c.ShouldBindJSON(&metadata); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
 	logger.Debug("Creating metadata key '%s' for cell %s (user: %s)", metadata.Key, cellID, userName)
 
 	// Create metadata entry in store
-	if err := h.metadataStore.Create(c.Request.Context(), "cell", cellID, metadata); err != nil {
+	if err := h.metadataStore.Create(c.Request.Context(), "cell", cellID, &metadata); err != nil {
 		logger.Error("Failed to create cell metadata key '%s' for %s: %v", metadata.Key, cellID, err)
 		HandleRequestError(c, ServerError("Failed to create metadata"))
 		return
@@ -281,20 +281,28 @@ func (h *CellHandler) UpdateCellMetadata(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body using unified validation framework
-	metadata, err := ValidateAndParseRequest[Metadata](c, ValidationConfigs["metadata_update"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Define update request structure (only value needed, key comes from URL)
+	type UpdateCellMetadataRequest struct {
+		Value string `json:"value" binding:"required"`
+	}
+
+	// Parse and validate request body using OpenAPI validation
+	var request UpdateCellMetadataRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
-	// Ensure the key matches the URL parameter
-	metadata.Key = key
+	// Create full metadata object
+	metadata := Metadata{
+		Key:   key,
+		Value: request.Value,
+	}
 
 	logger.Debug("Updating metadata key '%s' for cell %s (user: %s)", key, cellID, userName)
 
 	// Update metadata entry in store
-	if err := h.metadataStore.Update(c.Request.Context(), "cell", cellID, metadata); err != nil {
+	if err := h.metadataStore.Update(c.Request.Context(), "cell", cellID, &metadata); err != nil {
 		logger.Error("Failed to update cell metadata key '%s' for %s: %v", key, cellID, err)
 		HandleRequestError(c, ServerError("Failed to update metadata"))
 		return
@@ -491,28 +499,21 @@ func (h *CellHandler) BatchPatchCells(c *gin.Context) {
 		} `json:"operations" binding:"required"`
 	}
 
-	// Parse and validate request body using unified validation framework
-	batchRequest, err := ValidateAndParseRequest[BatchCellPatchRequest](c, ValidationConfig{
-		ProhibitedFields: []string{},
-		CustomValidators: []ValidatorFunc{
-			func(data interface{}) error {
-				batch := data.(*BatchCellPatchRequest)
+	// Parse and validate request body using OpenAPI validation
+	var batchRequest BatchCellPatchRequest
+	if err := c.ShouldBindJSON(&batchRequest); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
 
-				if len(batch.Operations) == 0 {
-					return InvalidInputError("No cell patch operations provided")
-				}
+	// Additional validation
+	if len(batchRequest.Operations) == 0 {
+		HandleRequestError(c, InvalidInputError("No cell patch operations provided"))
+		return
+	}
 
-				if len(batch.Operations) > 20 {
-					return InvalidInputError("Maximum 20 cell patch operations allowed per batch")
-				}
-
-				return nil
-			},
-		},
-		Operation: "PATCH",
-	})
-	if err != nil {
-		HandleRequestError(c, err)
+	if len(batchRequest.Operations) > 20 {
+		HandleRequestError(c, InvalidInputError("Maximum 20 cell patch operations allowed per batch"))
 		return
 	}
 

@@ -482,6 +482,7 @@ func testDatabaseDiagramPOST(t *testing.T, suite *SubEntityIntegrationTestSuite)
 	// Create diagram using the proper sub-entity endpoint
 	requestBody := map[string]interface{}{
 		"name":        "Database Integration Test Diagram",
+		"type":        "DFD-1.0.0",
 		"description": "A diagram created during database integration testing",
 	}
 
@@ -519,6 +520,7 @@ func testDatabaseDiagramGET(t *testing.T, suite *SubEntityIntegrationTestSuite) 
 	// Step 1: Create a diagram using threat model ID
 	requestBody := map[string]interface{}{
 		"name": "GET Test Database Diagram",
+		"type": "DFD-1.0.0",
 	}
 
 	path := fmt.Sprintf("/threat_models/%s/diagrams", suite.threatModelID)
@@ -738,6 +740,7 @@ func (suite *SubEntityIntegrationTestSuite) createTestSource(t *testing.T) strin
 func (suite *SubEntityIntegrationTestSuite) createTestDiagram(t *testing.T) string {
 	requestBody := map[string]interface{}{
 		"name":        "Test Integration Diagram",
+		"type":        "DFD-1.0.0",
 		"description": "A diagram created during integration testing",
 	}
 
@@ -790,6 +793,7 @@ func testDatabaseDiagramMetadata(t *testing.T, suite *SubEntityIntegrationTestSu
 	t.Run("PUT", func(t *testing.T) {
 		updatedValue := "updated_test_value"
 		updateBody := map[string]interface{}{
+			"key":   metadataKey, // Required field for PUT metadata
 			"value": updatedValue,
 		}
 

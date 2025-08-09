@@ -151,17 +151,17 @@ func (h *SourceMetadataHandler) CreateSourceMetadata(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body using unified validation framework
-	metadata, err := ValidateAndParseRequest[Metadata](c, ValidationConfigs["metadata_create"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate request body using OpenAPI validation
+	var metadata Metadata
+	if err := c.ShouldBindJSON(&metadata); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
 	logger.Debug("Creating metadata key '%s' for source %s (user: %s)", metadata.Key, sourceID, userName)
 
 	// Create metadata entry in store
-	if err := h.metadataStore.Create(c.Request.Context(), "source", sourceID, metadata); err != nil {
+	if err := h.metadataStore.Create(c.Request.Context(), "source", sourceID, &metadata); err != nil {
 		logger.Error("Failed to create source metadata key '%s' for %s: %v", metadata.Key, sourceID, err)
 		HandleRequestError(c, ServerError("Failed to create metadata"))
 		return
@@ -212,10 +212,10 @@ func (h *SourceMetadataHandler) UpdateSourceMetadata(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body using unified validation framework
-	metadata, err := ValidateAndParseRequest[Metadata](c, ValidationConfigs["metadata_update"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate request body using OpenAPI validation
+	var metadata Metadata
+	if err := c.ShouldBindJSON(&metadata); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
@@ -225,7 +225,7 @@ func (h *SourceMetadataHandler) UpdateSourceMetadata(c *gin.Context) {
 	logger.Debug("Updating metadata key '%s' for source %s (user: %s)", key, sourceID, userName)
 
 	// Update metadata entry in store
-	if err := h.metadataStore.Update(c.Request.Context(), "source", sourceID, metadata); err != nil {
+	if err := h.metadataStore.Update(c.Request.Context(), "source", sourceID, &metadata); err != nil {
 		logger.Error("Failed to update source metadata key '%s' for %s: %v", key, sourceID, err)
 		HandleRequestError(c, ServerError("Failed to update metadata"))
 		return
@@ -314,45 +314,39 @@ func (h *SourceMetadataHandler) BulkCreateSourceMetadata(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body as array of metadata using unified validation framework
-	metadataList, err := ValidateAndParseRequest[[]Metadata](c, ValidationConfig{
-		ProhibitedFields: []string{},
-		CustomValidators: []ValidatorFunc{
-			func(data interface{}) error {
-				list := data.(*[]Metadata)
-
-				if len(*list) == 0 {
-					return InvalidInputError("No metadata entries provided")
-				}
-
-				if len(*list) > 20 {
-					return InvalidInputError("Maximum 20 metadata entries allowed per bulk operation")
-				}
-
-				// Check for duplicate keys within the request
-				keyMap := make(map[string]bool)
-				for _, metadata := range *list {
-					if keyMap[metadata.Key] {
-						return InvalidInputError("Duplicate metadata key found: " + metadata.Key)
-					}
-					keyMap[metadata.Key] = true
-				}
-
-				return nil
-			},
-		},
-		Operation: "POST",
-	})
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate request body using OpenAPI validation
+	var metadataList []Metadata
+	if err := c.ShouldBindJSON(&metadataList); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
+	// Validate bulk metadata
+	if len(metadataList) == 0 {
+		HandleRequestError(c, InvalidInputError("No metadata entries provided"))
+		return
+	}
+
+	if len(metadataList) > 20 {
+		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+		return
+	}
+
+	// Check for duplicate keys within the request
+	keyMap := make(map[string]bool)
+	for _, metadata := range metadataList {
+		if keyMap[metadata.Key] {
+			HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
+			return
+		}
+		keyMap[metadata.Key] = true
+	}
+
 	logger.Debug("Bulk creating %d metadata entries for source %s (user: %s)",
-		len(*metadataList), sourceID, userName)
+		len(metadataList), sourceID, userName)
 
 	// Create metadata entries in store
-	if err := h.metadataStore.BulkCreate(c.Request.Context(), "source", sourceID, *metadataList); err != nil {
+	if err := h.metadataStore.BulkCreate(c.Request.Context(), "source", sourceID, metadataList); err != nil {
 		logger.Error("Failed to bulk create source metadata for %s: %v", sourceID, err)
 		HandleRequestError(c, ServerError("Failed to create metadata entries"))
 		return
@@ -363,10 +357,10 @@ func (h *SourceMetadataHandler) BulkCreateSourceMetadata(c *gin.Context) {
 	if err != nil {
 		// Log error but still return success since creation succeeded
 		logger.Error("Failed to retrieve created metadata: %v", err)
-		c.JSON(http.StatusCreated, *metadataList)
+		c.JSON(http.StatusCreated, metadataList)
 		return
 	}
 
-	logger.Debug("Successfully bulk created %d metadata entries for source %s", len(*metadataList), sourceID)
+	logger.Debug("Successfully bulk created %d metadata entries for source %s", len(metadataList), sourceID)
 	c.JSON(http.StatusCreated, createdMetadata)
 }

@@ -75,10 +75,10 @@ func (h *BatchHandler) BatchPatchThreats(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body using unified validation framework
-	batchRequest, err := ValidateAndParseRequest[BatchThreatPatchRequest](c, ValidationConfigs["batch_patch"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate request body using OpenAPI validation
+	var batchRequest BatchThreatPatchRequest
+	if err := c.ShouldBindJSON(&batchRequest); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
@@ -206,9 +206,9 @@ func (h *BatchHandler) BatchDeleteThreats(c *gin.Context) {
 		ThreatIDs []string `json:"threat_ids" binding:"required"`
 	}
 
-	deleteRequest, err := ValidateAndParseRequest[BatchDeleteRequest](c, ValidationConfigs["batch_delete"])
-	if err != nil {
-		HandleRequestError(c, err)
+	var deleteRequest BatchDeleteRequest
+	if err := c.ShouldBindJSON(&deleteRequest); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 

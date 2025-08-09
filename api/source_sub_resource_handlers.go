@@ -148,10 +148,16 @@ func (h *SourceSubResourceHandler) CreateSource(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body using unified validation framework
-	source, err := ValidateAndParseRequest[Source](c, ValidationConfigs["source_create"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate request body
+	var source Source
+	if err := c.ShouldBindJSON(&source); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Validate required fields
+	if source.Url == "" {
+		HandleRequestError(c, InvalidInputError("Source URL is required"))
 		return
 	}
 
@@ -165,14 +171,14 @@ func (h *SourceSubResourceHandler) CreateSource(c *gin.Context) {
 		source.Id.String(), threatModelID, userName)
 
 	// Create source in store
-	if err := h.sourceStore.Create(c.Request.Context(), source, threatModelID); err != nil {
+	if err := h.sourceStore.Create(c.Request.Context(), &source, threatModelID); err != nil {
 		logger.Error("Failed to create source code reference: %v", err)
 		HandleRequestError(c, ServerError("Failed to create source code reference"))
 		return
 	}
 
 	logger.Debug("Successfully created source code reference %s", source.Id.String())
-	c.JSON(http.StatusCreated, source)
+	c.JSON(http.StatusCreated, &source)
 }
 
 // UpdateSource updates an existing source code reference
@@ -209,10 +215,16 @@ func (h *SourceSubResourceHandler) UpdateSource(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body using unified validation framework
-	source, err := ValidateAndParseRequest[Source](c, ValidationConfigs["source_update"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate request body
+	var source Source
+	if err := c.ShouldBindJSON(&source); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Validate required fields
+	if source.Url == "" {
+		HandleRequestError(c, InvalidInputError("Source URL is required"))
 		return
 	}
 
@@ -222,14 +234,14 @@ func (h *SourceSubResourceHandler) UpdateSource(c *gin.Context) {
 	logger.Debug("Updating source code reference %s (user: %s)", sourceID, userName)
 
 	// Update source in store
-	if err := h.sourceStore.Update(c.Request.Context(), source, threatModelID); err != nil {
+	if err := h.sourceStore.Update(c.Request.Context(), &source, threatModelID); err != nil {
 		logger.Error("Failed to update source code reference %s: %v", sourceID, err)
 		HandleRequestError(c, ServerError("Failed to update source code reference"))
 		return
 	}
 
 	logger.Debug("Successfully updated source code reference %s", sourceID)
-	c.JSON(http.StatusOK, source)
+	c.JSON(http.StatusOK, &source)
 }
 
 // DeleteSource deletes a source code reference
@@ -298,42 +310,34 @@ func (h *SourceSubResourceHandler) BulkCreateSources(c *gin.Context) {
 	}
 
 	// Parse and validate request body as array of sources
-	sources, err := ValidateAndParseRequest[[]Source](c, ValidationConfig{
-		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
-		},
-		CustomValidators: []ValidatorFunc{
-			func(data interface{}) error {
-				list := data.(*[]Source)
-
-				if len(*list) == 0 {
-					return InvalidInputError("No source code references provided")
-				}
-
-				if len(*list) > 50 {
-					return InvalidInputError("Maximum 50 source code references allowed per bulk operation")
-				}
-
-				// Validate each source
-				for _, source := range *list {
-					if source.Url == "" {
-						return InvalidInputError("Source URL is required for all source code references")
-					}
-				}
-
-				return nil
-			},
-		},
-		Operation: "POST",
-	})
-	if err != nil {
-		HandleRequestError(c, err)
+	var sources []Source
+	if err := c.ShouldBindJSON(&sources); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
+	// Basic validation
+	if len(sources) == 0 {
+		HandleRequestError(c, InvalidInputError("No source code references provided"))
+		return
+	}
+
+	if len(sources) > 50 {
+		HandleRequestError(c, InvalidInputError("Maximum 50 source code references allowed per bulk operation"))
+		return
+	}
+
+	// Validate each source
+	for _, source := range sources {
+		if source.Url == "" {
+			HandleRequestError(c, InvalidInputError("Source URL is required for all source code references"))
+			return
+		}
+	}
+
 	// Generate UUIDs for sources that don't have them
-	for i := range *sources {
-		source := &(*sources)[i]
+	for i := range sources {
+		source := &sources[i]
 		if source.Id == nil {
 			id := uuid.New()
 			source.Id = &id
@@ -341,15 +345,15 @@ func (h *SourceSubResourceHandler) BulkCreateSources(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d source code references in threat model %s (user: %s)",
-		len(*sources), threatModelID, userName)
+		len(sources), threatModelID, userName)
 
 	// Create sources in store
-	if err := h.sourceStore.BulkCreate(c.Request.Context(), *sources, threatModelID); err != nil {
+	if err := h.sourceStore.BulkCreate(c.Request.Context(), sources, threatModelID); err != nil {
 		logger.Error("Failed to bulk create source code references: %v", err)
 		HandleRequestError(c, ServerError("Failed to create source code references"))
 		return
 	}
 
-	logger.Debug("Successfully bulk created %d source code references", len(*sources))
-	c.JSON(http.StatusCreated, *sources)
+	logger.Debug("Successfully bulk created %d source code references", len(sources))
+	c.JSON(http.StatusCreated, sources)
 }

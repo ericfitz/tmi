@@ -83,8 +83,8 @@ func InitSubResourceTestFixtures() {
 		Id:          &threatModelUUID,
 		Name:        "Test Threat Model for Sub-Resources",
 		Description: stringPointer("A comprehensive threat model for testing sub-resource operations"),
-		CreatedAt:   now,
-		ModifiedAt:  now,
+		CreatedAt:   &now,
+		ModifiedAt:  &now,
 		Owner:       SubResourceFixtures.OwnerUser,
 		Authorization: []Authorization{
 			{Subject: SubResourceFixtures.OwnerUser, Role: RoleOwner},

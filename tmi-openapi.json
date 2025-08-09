@@ -186,13 +186,21 @@
           "name": {
             "type": "string",
             "description": "Document name",
-            "maxLength": 256
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$",
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required"
+            }
           },
           "url": {
             "type": "string",
             "format": "uri",
             "description": "URL location of the document",
-            "maxLength": 1024
+            "maxLength": 1024,
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required,url"
+            }
           },
           "description": {
             "type": "string",
@@ -897,33 +905,45 @@
           "name": {
             "type": "string",
             "description": "Name of the threat model",
-            "maxLength": 256
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$",
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required"
+            }
           },
           "description": {
             "type": "string",
             "description": "Description of the threat model",
-            "maxLength": 1024
+            "maxLength": 1024,
+            "pattern": "^[^<>]*$"
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp (RFC3339)",
-            "maxLength": 24
+            "maxLength": 24,
+            "readOnly": true
           },
           "modified_at": {
             "type": "string",
             "format": "date-time",
             "description": "Last modification timestamp (RFC3339)",
-            "maxLength": 24
+            "maxLength": 24,
+            "readOnly": true
           },
           "owner": {
             "type": "string",
-            "description": "Username or identifier of the current owner (may be email address or other format)"
+            "description": "Username or identifier of the current owner (may be email address or other format)",
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$"
           },
           "created_by": {
             "type": "string",
             "description": "Username or identifier of the creator of the threat model",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$",
+            "readOnly": true
           },
           "threat_model_framework": {
             "type": "string",
@@ -955,21 +975,24 @@
             "items": {
               "$ref": "#/components/schemas/Document"
             },
-            "description": "List of documents related to the threat model"
+            "description": "List of documents related to the threat model",
+            "readOnly": true
           },
           "sourceCode": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Source"
             },
-            "description": "List of source code repositories related to the threat model"
+            "description": "List of source code repositories related to the threat model",
+            "readOnly": true
           },
           "diagrams": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Diagram"
             },
-            "description": "List of diagram objects associated with this threat model"
+            "description": "List of diagram objects associated with this threat model",
+            "readOnly": true
           },
           "threats": {
             "type": "array",
@@ -1204,13 +1227,21 @@
           "subject": {
             "type": "string",
             "description": "Username or identifier of the user (may be email address or other format)",
-            "maxLength": 256
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$",
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required"
+            }
           },
           "role": {
             "type": "string",
             "enum": ["reader", "writer", "owner"],
             "description": "Role: reader (view), writer (edit), owner (full control)",
-            "maxLength": 6
+            "maxLength": 6,
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required"
+            }
           }
         },
         "required": ["subject", "role"]
@@ -1222,12 +1253,22 @@
           "key": {
             "type": "string",
             "description": "Metadata key",
-            "maxLength": 256
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[a-zA-Z0-9_.-]+$",
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required"
+            }
           },
           "value": {
             "type": "string",
             "description": "Metadata value",
-            "maxLength": 1024
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^[^<>]*$",
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required"
+            }
           }
         },
         "required": ["key", "value"]
@@ -3152,7 +3193,8 @@
                     "description": "Description of the threat model"
                   }
                 },
-                "required": ["name"]
+                "required": ["name"],
+                "additionalProperties": false
               }
             }
           }

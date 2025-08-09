@@ -24,6 +24,13 @@ func setupThreatModelValidationRouter() *gin.Engine {
 		c.Next()
 	})
 
+	// Add OpenAPI validation middleware
+	openAPIValidator, err := SetupOpenAPIValidation()
+	if err != nil {
+		panic("Failed to setup OpenAPI validation middleware: " + err.Error())
+	}
+	router.Use(openAPIValidator)
+
 	// Add middleware
 	router.Use(ThreatModelMiddleware())
 
@@ -41,10 +48,9 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 	router := setupThreatModelValidationRouter()
 
 	testCases := []struct {
-		name          string
-		requestBody   map[string]interface{}
-		expectedField string
-		expectedError string
+		name        string
+		requestBody map[string]interface{}
+		description string
 	}{
 		{
 			name: "reject id",
@@ -52,8 +58,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 				"name": "Test Threat Model",
 				"id":   "123e4567-e89b-12d3-a456-426614174000",
 			},
-			expectedField: "id",
-			expectedError: "The ID is read-only and set by the server.",
+			description: "OpenAPI validation should reject additional properties like id",
 		},
 		{
 			name: "reject created_at",
@@ -61,8 +66,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 				"name":       "Test Threat Model",
 				"created_at": "2025-01-01T00:00:00Z",
 			},
-			expectedField: "created_at",
-			expectedError: "Creation timestamp is read-only and set by the server.",
+			description: "OpenAPI validation should reject additional properties like created_at",
 		},
 		{
 			name: "reject modified_at",
@@ -70,8 +74,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 				"name":        "Test Threat Model",
 				"modified_at": "2025-01-01T00:00:00Z",
 			},
-			expectedField: "modified_at",
-			expectedError: "Modification timestamp is managed automatically by the server.",
+			description: "OpenAPI validation should reject additional properties like modified_at",
 		},
 		{
 			name: "reject created_by",
@@ -79,8 +82,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 				"name":       "Test Threat Model",
 				"created_by": "someone@example.com",
 			},
-			expectedField: "created_by",
-			expectedError: "The creator field is read-only and set during creation.",
+			description: "OpenAPI validation should reject additional properties like created_by",
 		},
 		{
 			name: "reject owner",
@@ -88,8 +90,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 				"name":  "Test Threat Model",
 				"owner": "someone@example.com",
 			},
-			expectedField: "owner",
-			expectedError: "The owner field is set automatically to the authenticated user during creation.",
+			description: "OpenAPI validation should reject additional properties like owner",
 		},
 		{
 			name: "reject diagrams",
@@ -97,8 +98,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 				"name":     "Test Threat Model",
 				"diagrams": []interface{}{},
 			},
-			expectedField: "diagrams",
-			expectedError: "Diagrams must be managed via the /threat_models/:id/diagrams sub-entity endpoints.",
+			description: "OpenAPI validation should reject additional properties like diagrams",
 		},
 		{
 			name: "reject documents",
@@ -106,8 +106,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 				"name":      "Test Threat Model",
 				"documents": []interface{}{},
 			},
-			expectedField: "documents",
-			expectedError: "Documents must be managed via the /threat_models/:id/documents sub-entity endpoints.",
+			description: "OpenAPI validation should reject additional properties like documents",
 		},
 		{
 			name: "reject threats",
@@ -115,8 +114,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 				"name":    "Test Threat Model",
 				"threats": []interface{}{},
 			},
-			expectedField: "threats",
-			expectedError: "Threats must be managed via the /threat_models/:id/threats sub-entity endpoints.",
+			description: "OpenAPI validation should reject additional properties like threats",
 		},
 		{
 			name: "reject sourceCode",
@@ -124,8 +122,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 				"name":       "Test Threat Model",
 				"sourceCode": []interface{}{},
 			},
-			expectedField: "sourceCode",
-			expectedError: "Source code entries must be managed via the /threat_models/:id/sources sub-entity endpoints.",
+			description: "OpenAPI validation should reject additional properties like sourceCode",
 		},
 	}
 
@@ -138,16 +135,20 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 
-			// Should return 400 Bad Request
-			assert.Equal(t, http.StatusBadRequest, w.Code)
+			// Should return 400 Bad Request from OpenAPI validation
+			assert.Equal(t, http.StatusBadRequest, w.Code, tc.description)
 
 			var response map[string]interface{}
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
-			assert.Equal(t, "invalid_input", response["error"])
-			assert.Contains(t, response["error_description"], tc.expectedField)
-			assert.Contains(t, response["error_description"], tc.expectedError)
+			// OpenAPI middleware returns "invalid_input" error type
+			assert.Equal(t, "invalid_input", response["error"], "Should return invalid_input error from OpenAPI validation")
+
+			// The error message from OpenAPI validation will mention the extra/unknown properties
+			errorDesc, exists := response["error_description"].(string)
+			assert.True(t, exists, "Should have error_description")
+			assert.NotEmpty(t, errorDesc, "Should have non-empty error description")
 		})
 	}
 }

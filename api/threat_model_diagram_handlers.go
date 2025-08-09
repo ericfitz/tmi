@@ -151,10 +151,10 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		Description *string `json:"description,omitempty"`
 	}
 
-	// Parse and validate request body using unified validation framework
-	request, err := ValidateAndParseRequest[CreateThreatModelDiagramRequest](c, ValidationConfigs["diagram_create"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate request body using OpenAPI validation
+	var request CreateThreatModelDiagramRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
@@ -233,7 +233,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	}
 
 	// Update threat model in store
-	tm.ModifiedAt = now
+	tm.ModifiedAt = &now
 	if err := ThreatModelStore.Update(threatModelId, tm); err != nil {
 		// If updating the threat model fails, delete the created diagram
 		if deleteErr := DiagramStore.Delete(createdDiagram.Id.String()); deleteErr != nil {
@@ -365,10 +365,10 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 		return
 	}
 
-	// Parse and validate the updated diagram from request body using unified validation framework
-	updatedDiagramUnion, err := ValidateAndParseRequest[Diagram](c, ValidationConfigs["diagram_update"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate the updated diagram from request body using OpenAPI validation
+	var updatedDiagramUnion Diagram
+	if err := c.ShouldBindJSON(&updatedDiagramUnion); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
@@ -540,7 +540,8 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 	*tm.Diagrams = append(diagrams[:diagramIndex], diagrams[diagramIndex+1:]...)
 
 	// Update threat model in store
-	tm.ModifiedAt = time.Now().UTC()
+	now := time.Now().UTC()
+	tm.ModifiedAt = &now
 	if err := ThreatModelStore.Update(threatModelId, tm); err != nil {
 		HandleRequestError(c, ServerError("Failed to update threat model after diagram deletion"))
 		return

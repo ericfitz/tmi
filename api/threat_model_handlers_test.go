@@ -330,25 +330,27 @@ func TestUpdateThreatModelOwnerChange(t *testing.T) {
 	assert.Equal(t, http.StatusOK, patchW.Code)
 
 	// Now, as the new user, change the owner
-	updatedTM := tm
-	updatedTM.Owner = "newowner@example.com"
-
-	// Remove the original owner from the authorization list to test that it gets added back
-	updatedTM.Authorization = []Authorization{
-		{
-			Subject: "newowner@example.com",
-			Role:    Owner,
-		},
+	// Create update request with required fields
+	// Note: Don't include the new owner in authorization - they will be added automatically
+	updateRequest := map[string]interface{}{
+		"name":                   tm.Name,
+		"description":            tm.Description,
+		"owner":                  "newowner@example.com",
+		"threat_model_framework": "STRIDE",                   // Required field
+		"authorization":          []map[string]interface{}{}, // Empty - owner added automatically
 	}
 
-	updateBody, _ := json.Marshal(updatedTM)
+	updateBody, _ := json.Marshal(updateRequest)
 	updateReq, _ := http.NewRequest("PUT", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(updateBody))
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateW := httptest.NewRecorder()
 
 	newOwnerRouter.ServeHTTP(updateW, updateReq)
 
-	// Assert response
+	// Assert response - debug if error
+	if updateW.Code != http.StatusOK {
+		t.Logf("Update failed with status %d, body: %s", updateW.Code, updateW.Body.String())
+	}
 	assert.Equal(t, http.StatusOK, updateW.Code)
 
 	var resultTM ThreatModel
@@ -374,24 +376,29 @@ func TestUpdateThreatModelWithDuplicateSubjects(t *testing.T) {
 	r := setupThreatModelRouter()
 	tm := createTestThreatModel(t, r, "Duplicate Subject Update Test", "Testing duplicate subject validation")
 
-	// Now try to update with duplicate subjects
-	updatedTM := tm
-	updatedTM.Authorization = []Authorization{
-		{
-			Subject: "test@example.com",
-			Role:    Owner,
-		},
-		{
-			Subject: "alice@example.com",
-			Role:    Reader,
-		},
-		{
-			Subject: "alice@example.com", // Duplicate subject
-			Role:    Writer,
+	// Create update request with duplicate subjects
+	updateRequest := map[string]interface{}{
+		"name":                   tm.Name,
+		"description":            tm.Description,
+		"owner":                  tm.Owner,
+		"threat_model_framework": "STRIDE", // Required field
+		"authorization": []map[string]interface{}{
+			{
+				"subject": "test@example.com",
+				"role":    "owner",
+			},
+			{
+				"subject": "alice@example.com",
+				"role":    "reader",
+			},
+			{
+				"subject": "alice@example.com", // Duplicate subject
+				"role":    "writer",
+			},
 		},
 	}
 
-	updateBody, _ := json.Marshal(updatedTM)
+	updateBody, _ := json.Marshal(updateRequest)
 	updateReq, _ := http.NewRequest("PUT", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(updateBody))
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateW := httptest.NewRecorder()

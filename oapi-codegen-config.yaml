@@ -1,7 +1,7 @@
+# New v2 config format
 package: api
-generate:
-  types: true
-  models: true
-  server: true
-  spec: true
 output: api/api.go
+generate:
+  models: true
+  echo-server: true
+  embedded-spec: true

@@ -4,10 +4,11 @@
 2. Owner Role Permissions: Users with the owner role can read any field and write to any mutable field in the object, and may delete the object.
 3. Writer Role Permissions: Users with the writer role can read any field and write to any mutable field EXCEPT the owner and authorization fields. Writers may not delete the object.
 4. Reader Role Permissions: Users with the reader role can only read fields but cannot modify anything or delete the object.
-5. Implicit Owner Role: The user listed in the "owner" field automatically gets owner role permissions, even if they're not explicitly included in the authorization field.
-6. Owner Transfer Protection: When an owner changes the owner field to a different username, the handler automatically adds the original owner as a subject in the authorization field with "owner" role. This prevents owners from losing access when transferring ownership. Any duplicates are handled automatically.
-7. No Duplicate Subjects: The authorization field cannot contain duplicate subjects. Any request that would create duplicate subjects will be rejected as invalid.
-8. Role Updates: If a patch request includes a subject that already exists in the authorization field, the new role value will overwrite the existing role for that subject.
+5. Owner Field Precedence: The user listed in the "owner" field automatically gets owner role permissions, regardless of what appears in the authorization field. If the same user appears in both the owner field and authorization list, the owner field takes absolute precedence and they receive owner permissions.
+6. Owner Transfer Protection: When an owner changes the owner field to a different username, the handler automatically adds the original owner as a subject in the authorization field with "owner" role. This prevents owners from losing access when transferring ownership.
+7. Subject Duplication Validation: Input validation prevents duplicate subjects in the authorization field to maintain data integrity. Requests containing duplicate subjects will be rejected as invalid.
+8. Permission Resolution for Multiple Roles: If validation is bypassed and a user appears multiple times in the authorization field with different roles, the system grants the highest role (owner > writer > reader). However, input validation should prevent this scenario.
+9. Role Updates: If a patch request includes a subject that already exists in the authorization field, the new role value will overwrite the existing role for that subject.
 
 # User-Immutable Properties
 
@@ -15,23 +16,43 @@
 2. The created_at timestamp is set by the server to the current system time at object creation, represented in UTC in RFC 3339 format. Attempts by users to change this value are rejected.
 3. The modified_at timestamp is set by the server to the current system time at object mutation, represented in UTC in RFC 3339 format. Attempts by users to change this value are rejected.
 
+# Permission Resolution Logic
+
+The system uses the following logic to determine a user's effective permissions:
+
+## Owner Field Precedence
+1. **Owner Check**: If the user matches the value in the "owner" field, they receive owner-level permissions regardless of any authorization list entries.
+2. **Authorization List Check**: If the user is not the owner, the system checks the authorization list for their permissions.
+
+## Multiple Role Resolution  
+If a user appears multiple times in the authorization list with different roles (which should be prevented by input validation), the system grants the highest role:
+- **Role Hierarchy**: owner > writer > reader
+- **Example**: A user with both "reader" and "writer" roles receives "writer" permissions
+- **Example**: A user with "reader", "writer", and "owner" roles receives "owner" permissions
+
+## Owner-Subject Duplication
+The system gracefully handles cases where the owner also appears in the authorization list:
+- **Owner in auth list with lower role**: Owner field wins (e.g., owner="user1", auth=[{subject="user1", role="reader"}] → user gets owner permissions)
+- **Owner in auth list with equal role**: Both provide same permissions (e.g., owner="user1", auth=[{subject="user1", role="owner"}] → user gets owner permissions)
+- **Supports ownership transitions**: Allows scenarios like owner="user1", auth=[{subject="user2", role="owner"}] for safe ownership transfers
+
 # Authorization Checking
 
-1. Authorization checking is primarily performed by middleware. The middleware allows creates for authorized users (rule 1 above), and for requests involving a specific object, the middleware retrieves the Owner and Authorization fields from the server, and implements rules 2, 3, 4 and 5 above.
-2. Rules 6, 7, and 8 above are implemented in the handler, since they require reading the entire request.
+1. Authorization checking is primarily performed by middleware. The middleware allows creates for authorized users (rule 1 above), and for requests involving a specific object, the middleware retrieves the Owner and Authorization fields from the server, and implements rules 2, 3, 4, 5, and 8 above.
+2. Rules 6, 7, and 9 above are implemented in the handler, since they require reading the entire request.
 
 # Authorization Testing
 
 Described below are test cases for our authorization rules and custom ownership changes. Here's a summary of the tests:
 
-1. Duplicate Subject Handling Tests:
+1. Subject Duplication and Permission Resolution Tests:
 
-- TestCreateThreatModelWithDuplicateSubjects: Verifies that creating a threat model with duplicate authorization subjects
-  is rejected
-- TestCreateThreatModelWithDuplicateOwner: Confirms that adding an authorization subject that duplicates the owner is
-  rejected
-- TestUpdateThreatModelWithDuplicateSubjects: Tests that updating a threat model with duplicate subjects fails
-- TestDuplicateSubjectViaPatching: Checks that adding a duplicate subject via PATCH operation is rejected
+- TestValidateDuplicateSubjects: Verifies that input validation rejects requests with duplicate subjects in the authorization field
+- TestPermissionResolution: Comprehensive test of permission resolution logic:
+  - Owner field takes absolute precedence over authorization list entries
+  - When multiple roles exist for the same subject, the highest role wins (owner > writer > reader) 
+  - Single role assignments work correctly with role hierarchy
+- TestIsHigherRole: Tests the role comparison logic used for permission resolution
 
 2. Owner Change and Protection Tests:
 
@@ -48,12 +69,15 @@ Described below are test cases for our authorization rules and custom ownership 
   - Owner can read, write, and delete
 - TestWriterCannotChangeOwnerOrAuth: Verifies that writers cannot change the owner or authorization fields
 
-These tests verify all the authorization rules we've implemented:
+These tests verify all the authorization rules and permission resolution logic we've implemented:
 
-1. Role hierarchy (owner > writer > reader)
-2. Field access permissions (owner field, authorization field, other fields)
-3. Owner protection mechanisms (automatically adding original owner to auth)
-4. Duplicate subject validation (both in direct subject lists and with the owner)
+1. **Role hierarchy and permission resolution** (owner > writer > reader)
+2. **Owner field precedence** (owner field always wins over authorization list)
+3. **Multiple role resolution** (highest role wins when user has multiple roles)
+4. **Owner-subject duplication handling** (graceful resolution supporting ownership transitions)
+5. **Field access permissions** (owner field, authorization field, other fields)
+6. **Owner protection mechanisms** (automatically adding original owner to auth during transfers)
+7. **Input validation** (preventing duplicate subjects for data integrity)
 
 The test cases cover both positive scenarios (allowed actions) and negative scenarios (forbidden actions) for each rule,
-ensuring our authorization middleware and handler logic work correctly. The tests use different API operations (POST, PUT, PATCH, DELETE) to verify that the rules are correctly applied across all endpoints.
+ensuring our authorization middleware and handler logic work correctly. The tests use different API operations (POST, PUT, PATCH, DELETE) to verify that the rules are correctly applied across all endpoints. The permission resolution tests specifically validate that the system correctly handles edge cases like owner-subject duplication and multiple roles for the same user.

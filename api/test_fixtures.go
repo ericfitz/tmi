@@ -95,8 +95,8 @@ func InitTestFixtures() {
 		Id:          uuidPointer(uuid1),
 		Name:        "Test Threat Model",
 		Description: stringPointer("This is a test threat model"),
-		CreatedAt:   now,
-		ModifiedAt:  now,
+		CreatedAt:   &now,
+		ModifiedAt:  &now,
 		Owner:       TestFixtures.Owner,
 		Authorization: []Authorization{
 			{

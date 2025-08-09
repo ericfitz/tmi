@@ -26,13 +26,13 @@ func TestWebSocketAuthorizationValidation(t *testing.T) {
 		Name:        "Test Threat Model for WebSocket",
 		Description: stringPointer("WebSocket authorization test"),
 		Owner:       ownerUser,
-		CreatedBy:   ownerUser,
+		CreatedBy:   &ownerUser,
 		Authorization: []Authorization{
 			{Role: "owner", Subject: ownerUser},
 			{Role: "reader", Subject: readerUser},
 		},
-		CreatedAt:  time.Now().UTC(),
-		ModifiedAt: time.Now().UTC(),
+		CreatedAt:  func() *time.Time { t := time.Now().UTC(); return &t }(),
+		ModifiedAt: func() *time.Time { t := time.Now().UTC(); return &t }(),
 	}
 
 	// Add threat model to store
@@ -127,10 +127,12 @@ func TestWebSocketAuthorizationHTTPEndpoint(t *testing.T) {
 
 	// Create WebSocket hub and register route
 	wsHub := NewWebSocketHub()
-	router.GET("/ws/diagrams/:id", wsHub.HandleWS)
+	router.GET("/threat_models/:id/diagrams/:diagram_id/ws", wsHub.HandleWS)
 
 	// Test unauthenticated request
-	req, err := http.NewRequest("GET", "/ws/diagrams/"+uuid.New().String(), nil)
+	threatModelID := uuid.New().String()
+	diagramID := uuid.New().String()
+	req, err := http.NewRequest("GET", "/threat_models/"+threatModelID+"/diagrams/"+diagramID+"/ws", nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -160,7 +162,7 @@ func TestWebSocketAuthorizationInvalidDiagramID(t *testing.T) {
 
 	// Create WebSocket hub and register route
 	wsHub := NewWebSocketHub()
-	router.GET("/ws/diagrams/:id", wsHub.HandleWS)
+	router.GET("/threat_models/:id/diagrams/:diagram_id/ws", wsHub.HandleWS)
 
 	tests := []struct {
 		name           string
@@ -184,7 +186,8 @@ func TestWebSocketAuthorizationInvalidDiagramID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := http.NewRequest("GET", "/ws/diagrams/"+tt.diagramID, nil)
+			threatModelID := uuid.New().String()
+			req, err := http.NewRequest("GET", "/threat_models/"+threatModelID+"/diagrams/"+tt.diagramID+"/ws", nil)
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
 			}

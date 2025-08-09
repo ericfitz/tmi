@@ -28,20 +28,6 @@ func ValidateDuplicateSubjects(authList []Authorization) error {
 	return nil
 }
 
-// ValidateOwnerNotInAuthList checks that the owner is not duplicated in the authorization list
-func ValidateOwnerNotInAuthList(owner string, authList []Authorization) error {
-	for _, auth := range authList {
-		if auth.Subject == owner {
-			return &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_input",
-				Message: fmt.Sprintf("Duplicate authorization subject with owner: %s", auth.Subject),
-			}
-		}
-	}
-	return nil
-}
-
 // ApplyOwnershipTransferRule applies the business rule that when ownership changes,
 // the original owner should be preserved in the authorization list with owner role
 func ApplyOwnershipTransferRule(authList []Authorization, originalOwner, newOwner string) []Authorization {
@@ -184,16 +170,46 @@ func AccessCheck(principal string, requiredRole Role, authData AuthorizationData
 		return true
 	}
 
-	// Check authorization list for principal's role
+	// Check authorization list for principal's highest role
+	var highestRole Role
+	found := false
+
 	for _, auth := range authData.Authorization {
 		if auth.Subject == principal {
-			// Check if the principal's role meets the required role
-			return hasRequiredRole(auth.Role, requiredRole)
+			if !found || isHigherRole(auth.Role, highestRole) {
+				highestRole = auth.Role
+				found = true
+			}
 		}
 	}
 
-	// Principal not found in authorization list
-	return false
+	if !found {
+		// Principal not found in authorization list
+		return false
+	}
+
+	// Check if the principal's highest role meets the required role
+	return hasRequiredRole(highestRole, requiredRole)
+}
+
+// isHigherRole checks if role1 has higher permissions than role2
+// Role hierarchy: owner > writer > reader
+func isHigherRole(role1, role2 Role) bool {
+	roleHierarchy := map[Role]int{
+		RoleReader: 1,
+		RoleWriter: 2,
+		RoleOwner:  3,
+	}
+
+	level1, exists1 := roleHierarchy[role1]
+	level2, exists2 := roleHierarchy[role2]
+
+	// If either role is invalid, consider them equal (return false)
+	if !exists1 || !exists2 {
+		return false
+	}
+
+	return level1 > level2
 }
 
 // hasRequiredRole checks if the user's role meets the required role

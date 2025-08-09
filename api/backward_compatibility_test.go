@@ -475,8 +475,8 @@ func (bct *BackwardCompatibilityTest) createTestThreatModelRequest() ThreatModel
 		Id:          &threatModelID,
 		Name:        "Backward Compatibility Test Threat Model",
 		Description: stringPointer("Test threat model for backward compatibility"),
-		CreatedAt:   now,
-		ModifiedAt:  now,
+		CreatedAt:   &now,
+		ModifiedAt:  &now,
 		Owner:       bct.testUser,
 		Authorization: []Authorization{
 			{
@@ -491,7 +491,8 @@ func (bct *BackwardCompatibilityTest) createTestThreatModelRequest() ThreatModel
 func (bct *BackwardCompatibilityTest) createUpdateThreatModelRequest() ThreatModel {
 	threatModel := bct.createTestThreatModelRequest()
 	threatModel.Name = "Updated Backward Compatibility Test Threat Model"
-	threatModel.ModifiedAt = time.Now().UTC()
+	now := time.Now().UTC()
+	threatModel.ModifiedAt = &now
 
 	return threatModel
 }

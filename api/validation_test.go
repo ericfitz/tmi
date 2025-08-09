@@ -72,7 +72,7 @@ func TestValidateAndParseRequest(t *testing.T) {
 
 		assert.Nil(t, result)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "Field 'name' is required")
+		assert.Contains(t, err.Error(), "Fields 'name' and 'email' are required")
 	})
 
 	t.Run("Prohibited Field in POST", func(t *testing.T) {
@@ -104,7 +104,7 @@ func TestValidateAndParseRequest(t *testing.T) {
 		assert.Nil(t, result)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Field 'created_at' is not allowed in POST requests")
-		assert.Contains(t, err.Error(), "set automatically by the server")
+		assert.Contains(t, err.Error(), "set by the server")
 	})
 
 	t.Run("Owner Allowed in PUT", func(t *testing.T) {

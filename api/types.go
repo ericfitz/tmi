@@ -87,12 +87,12 @@ func (d *DfdDiagram) SetModifiedAt(t time.Time) {
 
 // SetCreatedAt implements WithTimestamps interface
 func (t *ThreatModel) SetCreatedAt(time time.Time) {
-	t.CreatedAt = time
+	t.CreatedAt = &time
 }
 
 // SetModifiedAt implements WithTimestamps interface
 func (t *ThreatModel) SetModifiedAt(time time.Time) {
-	t.ModifiedAt = time
+	t.ModifiedAt = &time
 }
 
 // PatchOperation represents a JSON Patch operation

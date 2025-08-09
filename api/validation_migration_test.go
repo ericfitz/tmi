@@ -201,7 +201,7 @@ func TestFieldErrorMessagesEnhanced(t *testing.T) {
 		{"owner", "post", "set automatically to the authenticated user"},
 		{"owner", "put", "can only be changed by the current owner"},
 		{"id", "post", "read-only and set by the server"},
-		{"created_at", "post", "set automatically by the server"},
+		{"created_at", "post", "set by the server"},
 	}
 
 	for _, tt := range tests {

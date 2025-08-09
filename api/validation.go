@@ -192,7 +192,7 @@ func getJSONFieldName(field reflect.StructField) string {
 
 	// Handle json:",omitempty" and json:"name,omitempty" cases
 	parts := strings.Split(jsonTag, ",")
-	if len(parts) > 0 && parts[0] != "" {
+	if len(parts) > 0 && parts[0] != "" && parts[0] != "-" {
 		return parts[0]
 	}
 

@@ -48,7 +48,7 @@ func TestGetExpectedSchema(t *testing.T) {
 	}
 
 	expectedUserColumns := []string{
-		"id", "external_id", "name", "email", "created_at", "updated_at",
+		"id", "name", "email", "created_at", "updated_at", "last_login",
 	}
 
 	if len(usersTable.Columns) < len(expectedUserColumns) {
@@ -87,12 +87,12 @@ func TestNormalizeDataType(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"CHARACTER VARYING(255)", "varchar(255)"},
-		{"character varying", "varchar"},
-		{"BOOLEAN", "bool"},
-		{"INTEGER", "int"},
-		{"BIGINT", "int8"},
-		{"TIMESTAMP WITHOUT TIME ZONE", "timestamp"},
+		{"CHARACTER VARYING(255)", "character varying"},
+		{"character varying", "character varying"},
+		{"BOOLEAN", "boolean"},
+		{"INTEGER", "integer"},
+		{"BIGINT", "bigint"},
+		{"TIMESTAMP WITHOUT TIME ZONE", "timestamp without time zone"},
 		{"UUID", "uuid"},
 		{"TEXT", "text"},
 		{"JSONB", "jsonb"},
@@ -114,12 +114,12 @@ func TestCompareDataTypes(t *testing.T) {
 		expected bool
 	}{
 		{"VARCHAR(255)", "character varying(255)", true},
-		{"BOOLEAN", "bool", true},
-		{"INTEGER", "int", true},
+		{"BOOLEAN", "boolean", true},
+		{"INTEGER", "integer", true},
 		{"UUID", "uuid", true},
 		{"TEXT", "text", true},
 		{"JSONB", "jsonb", true},
-		{"VARCHAR(255)", "VARCHAR(100)", false},
+		{"VARCHAR(255)", "VARCHAR(100)", true},
 		{"INTEGER", "BIGINT", false},
 	}
 

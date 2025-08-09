@@ -1,4 +1,4 @@
-.PHONY: build test test-one lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate
+.PHONY: build test test-one single-test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate list
 
 # Default build target
 VERSION := 0.1.0
@@ -8,9 +8,21 @@ BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 build:
 	go build -o bin/server github.com/ericfitz/tmi/cmd/server
 
+# List all available make targets
+list:
+	@make -qp | awk -F':' '/^[a-zA-Z0-9][^$$#\/\t=]*:([^=]|$$)/ {print $$1}' | sort
+
 # Run tests with test configuration
 test:
-	TMI_LOGGING_IS_TEST=true go test ./...
+	@TEST_CMD="TMI_LOGGING_IS_TEST=true go test ./..."; \
+	if [ "$(count1)" = "true" ]; then \
+		TEST_CMD="$$TEST_CMD --count=1"; \
+	fi; \
+	if [ "$(passfail)" = "true" ]; then \
+		eval $$TEST_CMD | grep -E "FAIL|PASS"; \
+	else \
+		eval $$TEST_CMD; \
+	fi
 
 # Run specific test
 test-one:
@@ -19,6 +31,14 @@ test-one:
 		exit 1; \
 	fi
 	TMI_LOGGING_IS_TEST=true go test ./... -run $(name)
+
+# Run single test with verbose output in api package
+single-test:
+	@if [ -z "$(name)" ]; then \
+		echo "Usage: make single-test name=TestName"; \
+		exit 1; \
+	fi
+	TMI_LOGGING_IS_TEST=true go test ./api -v -run $(name)
 
 # Run integration tests with automatic database setup
 test-integration:
@@ -36,7 +56,7 @@ lint:
 
 # Generate API from OpenAPI spec
 gen-api:
-	oapi-codegen -package api -generate types,server tmi-openapi.json > api/api.go
+	oapi-codegen -config oapi-codegen-config.yaml tmi-openapi.json
 
 # Clean build artifacts
 clean:

@@ -108,7 +108,13 @@ func testThreatModelEndpointsMock(t *testing.T, router *gin.Engine) {
 		assert.NotEmpty(t, response["id"])
 		assert.Equal(t, requestBody["name"], response["name"])
 		assert.Equal(t, requestBody["description"], response["description"])
-		assert.Equal(t, requestBody["owner"], response["owner"])
+
+		// Check owner field: if not provided or nil, should default to authenticated user
+		expectedOwner := "test@example.com" // Default to authenticated user
+		if requestBody["owner"] != nil {
+			expectedOwner = requestBody["owner"].(string)
+		}
+		assert.Equal(t, expectedOwner, response["owner"])
 	})
 
 	// Test GET /threat_models (list)
@@ -146,9 +152,11 @@ func testThreatModelEndpointsMock(t *testing.T, router *gin.Engine) {
 	// Test PUT /threat_models/:id
 	t.Run("PUT", func(t *testing.T) {
 		updateBody := map[string]interface{}{
-			"name":        "Updated Mock Test Threat Model",
-			"description": "Updated description via PUT",
-			"owner":       TestFixtures.OwnerUser,
+			"name":                   "Updated Mock Test Threat Model",
+			"description":            "Updated description via PUT",
+			"owner":                  TestFixtures.OwnerUser,
+			"threat_model_framework": "STRIDE",
+			"authorization":          []interface{}{},
 		}
 
 		jsonBody, _ := json.Marshal(updateBody)

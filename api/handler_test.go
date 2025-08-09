@@ -108,9 +108,10 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 
 	// Create a more minimal payload with just the essential fields - note: we don't include 'id' as it's read-only
 	updatePayload := map[string]interface{}{
-		"name":        "Updated Name",
-		"description": *origTM.Description,
-		"owner":       newOwner,
+		"name":                   "Updated Name",
+		"description":            *origTM.Description,
+		"owner":                  newOwner,
+		"threat_model_framework": "STRIDE", // Required field
 		"authorization": []map[string]interface{}{
 			{
 				"subject": TestFixtures.WriterUser,
@@ -183,8 +184,9 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 
 	// Create an update payload with duplicate subjects - note: we don't include 'id' as it's read-only
 	updatePayload := map[string]interface{}{
-		"name":  "Updated Name",
-		"owner": TestFixtures.OwnerUser,
+		"name":                   "Updated Name",
+		"owner":                  TestFixtures.OwnerUser,
+		"threat_model_framework": "STRIDE", // Required field
 		"authorization": []map[string]interface{}{
 			{
 				"subject": TestFixtures.WriterUser,

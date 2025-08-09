@@ -79,14 +79,27 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 			framework = TMListItemThreatModelFrameworkSTRIDE // Default fallback
 		}
 
+		var createdAt time.Time
+		if tm.CreatedAt != nil {
+			createdAt = *tm.CreatedAt
+		}
+		var modifiedAt time.Time
+		if tm.ModifiedAt != nil {
+			modifiedAt = *tm.ModifiedAt
+		}
+		var createdBy string
+		if tm.CreatedBy != nil {
+			createdBy = *tm.CreatedBy
+		}
+
 		items = append(items, TMListItem{
 			Id:                   tm.Id,
 			Name:                 tm.Name,
 			Description:          tm.Description,
-			CreatedAt:            tm.CreatedAt,
-			ModifiedAt:           tm.ModifiedAt,
+			CreatedAt:            createdAt,
+			ModifiedAt:           modifiedAt,
 			Owner:                tm.Owner,
-			CreatedBy:            tm.CreatedBy,
+			CreatedBy:            createdBy,
 			ThreatModelFramework: framework,
 			IssueUrl:             tm.IssueUrl,
 			// Count fields from database
@@ -148,10 +161,10 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Authorization []Authorization `json:"authorization,omitempty"`
 	}
 
-	// Parse and validate request body using unified validation framework
-	request, err := ValidateAndParseRequest[CreateThreatModelRequest](c, ValidationConfigs["threat_model_create"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate request body using OpenAPI validation
+	var request CreateThreatModelRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
@@ -178,12 +191,6 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		return
 	}
 
-	// Validate that owner is not duplicated in authorization list
-	if err := ValidateOwnerNotInAuthList(userName, request.Authorization); err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
 	// Create authorizations array with owner as first entry
 	authorizations := []Authorization{
 		{
@@ -198,10 +205,10 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	tm := ThreatModel{
 		Name:          request.Name,
 		Description:   request.Description,
-		CreatedAt:     now,
-		ModifiedAt:    now,
+		CreatedAt:     &now,
+		ModifiedAt:    &now,
 		Owner:         userName,
-		CreatedBy:     userName,
+		CreatedBy:     &userName,
 		Authorization: authorizations,
 		Metadata:      &[]Metadata{},
 		Threats:       &threatIDs,
@@ -246,14 +253,14 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	id := c.Param("id")
 	fmt.Printf("[DEBUG HANDLER] UpdateThreatModel called for ID: %s\n", id)
 
-	// Parse and validate request body using unified validation framework
-	request, err := ValidateAndParseRequest[UpdateThreatModelRequest](c, ValidationConfigs["threat_model_update"])
-	if err != nil {
-		HandleRequestError(c, err)
+	// Parse and validate request body using OpenAPI validation
+	var request UpdateThreatModelRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
-	fmt.Printf("[DEBUG HANDLER] Successfully parsed request: %+v\n", *request)
+	fmt.Printf("[DEBUG HANDLER] Successfully parsed request: %+v\n", request)
 
 	// Get username from JWT claim
 	userName, _, err := ValidateAuthenticatedUser(c)
@@ -261,7 +268,18 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		HandleRequestError(c, err)
 		return
 	}
-	_ = userName // We don't use userName directly in this function
+
+	// Validate authorization entries with format checking
+	if err := ValidateAuthorizationEntriesWithFormat(request.Authorization); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Validate authorization list for duplicates
+	if err := ValidateDuplicateSubjects(request.Authorization); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	// Get existing threat model
 	tm, err := ThreatModelStore.Get(id)
@@ -289,7 +307,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		Metadata:             request.Metadata,
 		// Preserve server-controlled fields
 		CreatedAt:  tm.CreatedAt,
-		ModifiedAt: time.Now().UTC(),
+		ModifiedAt: func() *time.Time { now := time.Now().UTC(); return &now }(),
 		CreatedBy:  tm.CreatedBy,
 		// Preserve sub-entity arrays (managed separately)
 		Diagrams:   tm.Diagrams,
@@ -340,11 +358,11 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 			HandleRequestError(c, err)
 			return
 		}
+	}
 
-		// If owner is changing, apply ownership transfer rule
-		if ownerChanging {
-			updatedTM.Authorization = ApplyOwnershipTransferRule(updatedTM.Authorization, tm.Owner, updatedTM.Owner)
-		}
+	// Apply ownership transfer rule whenever owner is changing
+	if ownerChanging {
+		updatedTM.Authorization = ApplyOwnershipTransferRule(updatedTM.Authorization, tm.Owner, updatedTM.Owner)
 	}
 
 	// Update in store
@@ -454,7 +472,8 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	}
 
 	// Final update of timestamps
-	modifiedTM.ModifiedAt = time.Now().UTC()
+	now := time.Now().UTC()
+	modifiedTM.ModifiedAt = &now
 
 	// Update in store
 	if err := ThreatModelStore.Update(id, modifiedTM); err != nil {
@@ -625,7 +644,7 @@ func validatePatchedThreatModel(original, patched ThreatModel, userName string) 
 	}
 
 	// 3. Ensure creation date is not changed
-	if !patched.CreatedAt.Equal(original.CreatedAt) {
+	if !patched.CreatedAt.Equal(*original.CreatedAt) {
 		return fmt.Errorf("creation timestamp cannot be modified")
 	}
 

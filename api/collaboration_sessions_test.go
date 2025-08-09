@@ -33,34 +33,34 @@ func TestHandleCollaborationSessions(t *testing.T) {
 	threatModelWithAccess1 := ThreatModel{
 		Name:        "Accessible Model 1",
 		Description: &desc1,
-		CreatedBy:   testUser, // User created this one (should have owner access)
+		CreatedBy:   &testUser, // User created this one (should have owner access)
 		Authorization: []Authorization{
 			{Role: "owner", Subject: testUser},
 		},
-		CreatedAt:  time.Now().UTC(),
-		ModifiedAt: time.Now().UTC(),
+		CreatedAt:  func() *time.Time { t := time.Now().UTC(); return &t }(),
+		ModifiedAt: func() *time.Time { t := time.Now().UTC(); return &t }(),
 	}
 	threatModelWithAccess2 := ThreatModel{
 		Name:        "Accessible Model 2",
 		Description: &desc2,
-		CreatedBy:   "other@example.com",
+		CreatedBy:   stringPointer("other@example.com"),
 		Authorization: []Authorization{
 			{Role: "owner", Subject: "other@example.com"},
 			{Role: "reader", Subject: testUser}, // User is reader
 		},
-		CreatedAt:  time.Now().UTC(),
-		ModifiedAt: time.Now().UTC(),
+		CreatedAt:  func() *time.Time { t := time.Now().UTC(); return &t }(),
+		ModifiedAt: func() *time.Time { t := time.Now().UTC(); return &t }(),
 	}
 	threatModelWithoutAccess := ThreatModel{
 		Name:        "Inaccessible Model",
 		Description: &desc3,
-		CreatedBy:   "other@example.com",
+		CreatedBy:   stringPointer("other@example.com"),
 		Authorization: []Authorization{
 			{Role: "owner", Subject: "other@example.com"},
 			{Role: "reader", Subject: "someone@example.com"},
 		},
-		CreatedAt:  time.Now().UTC(),
-		ModifiedAt: time.Now().UTC(),
+		CreatedAt:  func() *time.Time { t := time.Now().UTC(); return &t }(),
+		ModifiedAt: func() *time.Time { t := time.Now().UTC(); return &t }(),
 	}
 
 	// Create threat models in store
