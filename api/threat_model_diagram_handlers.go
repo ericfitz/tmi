@@ -10,12 +10,15 @@ import (
 
 // ThreatModelDiagramHandler provides handlers for diagram operations within threat models
 type ThreatModelDiagramHandler struct {
-	// Could add dependencies like logger, metrics, etc.
+	// WebSocket hub for collaboration sessions
+	wsHub *WebSocketHub
 }
 
 // NewThreatModelDiagramHandler creates a new handler for diagrams within threat models
-func NewThreatModelDiagramHandler() *ThreatModelDiagramHandler {
-	return &ThreatModelDiagramHandler{}
+func NewThreatModelDiagramHandler(wsHub *WebSocketHub) *ThreatModelDiagramHandler {
+	return &ThreatModelDiagramHandler{
+		wsHub: wsHub,
+	}
 }
 
 // GetDiagrams returns a list of diagrams for a threat model
@@ -553,13 +556,37 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 		return
 	}
 
-	// For now, return a placeholder response
-	// In a real implementation, you would check for active collaboration sessions
+	// Check for existing collaboration session
+	session := h.wsHub.GetSession(diagramId)
+
+	if session == nil {
+		// No active session
+		c.JSON(http.StatusOK, gin.H{
+			"session_id":      nil,
+			"threat_model_id": threatModelId,
+			"diagram_id":      diagramId,
+			"participants":    []interface{}{},
+			"websocket_url":   fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId, diagramId),
+		})
+		return
+	}
+
+	// Get current participants
+	participants := make([]gin.H, 0)
+	session.mu.RLock()
+	for client := range session.Clients {
+		participants = append(participants, gin.H{
+			"user_id":   client.UserName,
+			"joined_at": session.LastActivity.Format(time.RFC3339),
+		})
+	}
+	session.mu.RUnlock()
+
 	c.JSON(http.StatusOK, gin.H{
-		"session_id":      "placeholder-session-id",
+		"session_id":      session.ID,
 		"threat_model_id": threatModelId,
 		"diagram_id":      diagramId,
-		"participants":    []interface{}{},
+		"participants":    participants,
 		"websocket_url":   fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId, diagramId),
 	})
 }
@@ -618,19 +645,43 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 		return
 	}
 
-	// For now, return a placeholder response
-	// In a real implementation, you would create or join a collaboration session
-	c.JSON(http.StatusOK, gin.H{
-		"session_id":      "placeholder-session-id",
-		"threat_model_id": threatModelId,
-		"diagram_id":      diagramId,
-		"participants": []gin.H{
-			{
+	// Get or create collaboration session
+	session := h.wsHub.GetOrCreateSession(diagramId)
+
+	// Get current participants
+	participants := make([]gin.H, 0)
+	session.mu.RLock()
+	for client := range session.Clients {
+		participants = append(participants, gin.H{
+			"user_id":   client.UserName,
+			"joined_at": session.LastActivity.Format(time.RFC3339),
+		})
+	}
+	session.mu.RUnlock()
+
+	// Add current user if not anonymous and not already in participants
+	if userName != "" {
+		userFound := false
+		for _, participant := range participants {
+			if participant["user_id"] == userName {
+				userFound = true
+				break
+			}
+		}
+		if !userFound {
+			participants = append(participants, gin.H{
 				"user_id":   userName,
 				"joined_at": time.Now().UTC().Format(time.RFC3339),
-			},
-		},
-		"websocket_url": fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId, diagramId),
+			})
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_id":      session.ID,
+		"threat_model_id": threatModelId,
+		"diagram_id":      diagramId,
+		"participants":    participants,
+		"websocket_url":   fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId, diagramId),
 	})
 }
 

@@ -151,7 +151,7 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 
 	// Register API handlers directly
 	threatModelHandler := NewThreatModelHandler()
-	diagramHandler := NewThreatModelDiagramHandler()
+	diagramHandler := NewThreatModelDiagramHandler(NewWebSocketHub())
 
 	// Threat Model routes
 	router.GET("/threat_models", threatModelHandler.GetThreatModels)

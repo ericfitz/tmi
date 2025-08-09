@@ -273,7 +273,7 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	// Add middleware and handler
 	ownerRouter.Use(ThreatModelMiddleware())
 	ownerRouter.Use(DiagramMiddleware())
-	threatModelDiagramHandler := NewThreatModelDiagramHandler()
+	threatModelDiagramHandler := NewThreatModelDiagramHandler(NewWebSocketHub())
 	ownerRouter.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
 		threatModelID := c.Param("id")
 		diagramID := c.Param("diagram_id")

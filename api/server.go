@@ -66,6 +66,11 @@ func (s *Server) StartWebSocketHub(ctx context.Context) {
 	go s.wsHub.StartCleanupTimer(ctx)
 }
 
+// GetWebSocketHub returns the WebSocket hub instance
+func (s *Server) GetWebSocketHub() *WebSocketHub {
+	return s.wsHub
+}
+
 // HandleCollaborationSessions returns all active collaboration sessions
 func (s *Server) HandleCollaborationSessions(c *gin.Context) {
 	sessions := s.wsHub.GetActiveSessions()

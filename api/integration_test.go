@@ -138,7 +138,7 @@ func SetupIntegrationTest(t *testing.T) *IntegrationTestSuite {
 
 	// Register API handlers
 	threatModelHandler := NewThreatModelHandler()
-	diagramHandler := NewThreatModelDiagramHandler()
+	diagramHandler := NewThreatModelDiagramHandler(NewWebSocketHub())
 
 	// Threat Model routes
 	router.GET("/threat_models", threatModelHandler.GetThreatModels)

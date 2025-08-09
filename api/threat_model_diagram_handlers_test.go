@@ -48,7 +48,7 @@ func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 	r.DELETE("/threat_models/:id", tmHandler.DeleteThreatModel)
 
 	// Register threat model diagram routes
-	handler := NewThreatModelDiagramHandler()
+	handler := NewThreatModelDiagramHandler(NewWebSocketHub())
 	r.GET("/threat_models/:id/diagrams", func(c *gin.Context) {
 		handler.GetDiagrams(c, c.Param("id"))
 	})
