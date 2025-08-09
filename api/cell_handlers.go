@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"github.com/ericfitz/tmi/internal/logging"
@@ -15,6 +16,53 @@ type CellHandler struct {
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
 	cellConverter    *CellConverter
+}
+
+// buildWebSocketURL constructs the absolute WebSocket URL from request context
+func (h *CellHandler) buildWebSocketURL(c *gin.Context, diagramID string) string {
+	// Get config information from the context
+	tlsEnabled := false
+	tlsSubjectName := ""
+	serverPort := "8080"
+
+	// Try to extract from request context
+	if val, exists := c.Get("tlsEnabled"); exists {
+		if enabled, ok := val.(bool); ok {
+			tlsEnabled = enabled
+		}
+	}
+
+	if val, exists := c.Get("tlsSubjectName"); exists {
+		if name, ok := val.(string); ok {
+			tlsSubjectName = name
+		}
+	}
+
+	if val, exists := c.Get("serverPort"); exists {
+		if port, ok := val.(string); ok {
+			serverPort = port
+		}
+	}
+
+	// Determine websocket protocol
+	scheme := "ws"
+	if tlsEnabled {
+		scheme = "wss"
+	}
+
+	// Determine host
+	host := c.Request.Host
+	if tlsSubjectName != "" && tlsEnabled {
+		// Use configured subject name if available
+		host = tlsSubjectName
+		// Add port if not the default HTTPS port
+		if serverPort != "443" {
+			host = fmt.Sprintf("%s:%s", host, serverPort)
+		}
+	}
+
+	// Build WebSocket URL with the specific path
+	return fmt.Sprintf("%s://%s/ws/diagrams/%s", scheme, host, diagramID)
 }
 
 // NewCellHandler creates a new cell handler
@@ -404,11 +452,11 @@ func (h *CellHandler) PatchCell(c *gin.Context) {
 
 	// For now, return a message indicating that cell patches should use WebSocket
 	response := map[string]interface{}{
-		"message":          "Cell PATCH operations are optimized for real-time collaboration via WebSocket. Use the /ws/diagrams/{diagram_id} WebSocket endpoint for live cell updates.",
+		"message":          "Cell PATCH operations are optimized for real-time collaboration via WebSocket. Use the WebSocket endpoint for live cell updates.",
 		"cell_id":          cellID,
 		"diagram_id":       diagramID,
 		"operations_count": len(operations),
-		"websocket_url":    "/ws/diagrams/" + diagramID,
+		"websocket_url":    h.buildWebSocketURL(c, diagramID),
 	}
 
 	logger.Debug("Redirecting cell patch to WebSocket for cell %s", cellID)
@@ -492,10 +540,10 @@ func (h *CellHandler) BatchPatchCells(c *gin.Context) {
 
 	// For batch cell operations, also redirect to WebSocket for optimal real-time performance
 	response := map[string]interface{}{
-		"message":       "Batch cell PATCH operations are optimized for real-time collaboration via WebSocket. Use the /ws/diagrams/{diagram_id} WebSocket endpoint for live batch cell updates.",
+		"message":       "Batch cell PATCH operations are optimized for real-time collaboration via WebSocket. Use the WebSocket endpoint for live batch cell updates.",
 		"diagram_id":    diagramID,
 		"cell_count":    len(batchRequest.Operations),
-		"websocket_url": "/ws/diagrams/" + diagramID,
+		"websocket_url": h.buildWebSocketURL(c, diagramID),
 		"batch_support": true,
 	}
 

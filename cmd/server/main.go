@@ -101,6 +101,7 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 		if c.Request.URL.Path == "/" ||
 			c.Request.URL.Path == "/version" ||
 			c.Request.URL.Path == "/metrics" ||
+			c.Request.URL.Path == "/api/server-info" ||
 			c.Request.URL.Path == "/auth/login" ||
 			c.Request.URL.Path == "/auth/callback" ||
 			c.Request.URL.Path == "/auth/providers" ||

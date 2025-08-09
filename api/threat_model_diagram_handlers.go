@@ -14,6 +14,53 @@ type ThreatModelDiagramHandler struct {
 	wsHub *WebSocketHub
 }
 
+// buildWebSocketURL constructs the absolute WebSocket URL from request context
+func (h *ThreatModelDiagramHandler) buildWebSocketURL(c *gin.Context, threatModelId, diagramId string) string {
+	// Get config information from the context
+	tlsEnabled := false
+	tlsSubjectName := ""
+	serverPort := "8080"
+
+	// Try to extract from request context
+	if val, exists := c.Get("tlsEnabled"); exists {
+		if enabled, ok := val.(bool); ok {
+			tlsEnabled = enabled
+		}
+	}
+
+	if val, exists := c.Get("tlsSubjectName"); exists {
+		if name, ok := val.(string); ok {
+			tlsSubjectName = name
+		}
+	}
+
+	if val, exists := c.Get("serverPort"); exists {
+		if port, ok := val.(string); ok {
+			serverPort = port
+		}
+	}
+
+	// Determine websocket protocol
+	scheme := "ws"
+	if tlsEnabled {
+		scheme = "wss"
+	}
+
+	// Determine host
+	host := c.Request.Host
+	if tlsSubjectName != "" && tlsEnabled {
+		// Use configured subject name if available
+		host = tlsSubjectName
+		// Add port if not the default HTTPS port
+		if serverPort != "443" {
+			host = fmt.Sprintf("%s:%s", host, serverPort)
+		}
+	}
+
+	// Build WebSocket URL with the specific path
+	return fmt.Sprintf("%s://%s/threat_models/%s/diagrams/%s/ws", scheme, host, threatModelId, diagramId)
+}
+
 // NewThreatModelDiagramHandler creates a new handler for diagrams within threat models
 func NewThreatModelDiagramHandler(wsHub *WebSocketHub) *ThreatModelDiagramHandler {
 	return &ThreatModelDiagramHandler{
@@ -566,7 +613,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 			"threat_model_id": threatModelId,
 			"diagram_id":      diagramId,
 			"participants":    []interface{}{},
-			"websocket_url":   fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId, diagramId),
+			"websocket_url":   h.buildWebSocketURL(c, threatModelId, diagramId),
 		})
 		return
 	}
@@ -587,7 +634,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 		"threat_model_id": threatModelId,
 		"diagram_id":      diagramId,
 		"participants":    participants,
-		"websocket_url":   fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId, diagramId),
+		"websocket_url":   h.buildWebSocketURL(c, threatModelId, diagramId),
 	})
 }
 
@@ -681,7 +728,7 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 		"threat_model_id": threatModelId,
 		"diagram_id":      diagramId,
 		"participants":    participants,
-		"websocket_url":   fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId, diagramId),
+		"websocket_url":   h.buildWebSocketURL(c, threatModelId, diagramId),
 	})
 }
 

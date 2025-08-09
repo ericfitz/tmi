@@ -82,7 +82,7 @@ func (s *Server) HandleCollaborationSessions(c *gin.Context) {
 	}
 
 	// Get filtered sessions based on user permissions
-	sessions := s.wsHub.GetActiveSessionsForUser(userName)
+	sessions := s.wsHub.GetActiveSessionsForUser(c, userName)
 	c.JSON(http.StatusOK, sessions)
 }
 

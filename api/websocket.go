@@ -148,6 +148,53 @@ func NewWebSocketHub() *WebSocketHub {
 	}
 }
 
+// buildWebSocketURL constructs the absolute WebSocket URL from request context
+func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_types.UUID, diagramID string) string {
+	// Get config information from the context
+	tlsEnabled := false
+	tlsSubjectName := ""
+	serverPort := "8080"
+
+	// Try to extract from request context
+	if val, exists := c.Get("tlsEnabled"); exists {
+		if enabled, ok := val.(bool); ok {
+			tlsEnabled = enabled
+		}
+	}
+
+	if val, exists := c.Get("tlsSubjectName"); exists {
+		if name, ok := val.(string); ok {
+			tlsSubjectName = name
+		}
+	}
+
+	if val, exists := c.Get("serverPort"); exists {
+		if port, ok := val.(string); ok {
+			serverPort = port
+		}
+	}
+
+	// Determine websocket protocol
+	scheme := "ws"
+	if tlsEnabled {
+		scheme = "wss"
+	}
+
+	// Determine host
+	host := c.Request.Host
+	if tlsSubjectName != "" && tlsEnabled {
+		// Use configured subject name if available
+		host = tlsSubjectName
+		// Add port if not the default HTTPS port
+		if serverPort != "443" {
+			host = fmt.Sprintf("%s:%s", host, serverPort)
+		}
+	}
+
+	// Build WebSocket URL with the specific path
+	return fmt.Sprintf("%s://%s/threat_models/%s/diagrams/%s/ws", scheme, host, threatModelId.String(), diagramID)
+}
+
 // GetOrCreateSession returns an existing session or creates a new one
 func (h *WebSocketHub) GetOrCreateSession(diagramID string) *DiagramSession {
 	h.mu.Lock()
@@ -241,7 +288,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 }
 
 // GetActiveSessionsForUser returns all active collaboration sessions that the specified user has access to
-func (h *WebSocketHub) GetActiveSessionsForUser(userName string) []CollaborationSession {
+func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string) []CollaborationSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -297,7 +344,7 @@ func (h *WebSocketHub) GetActiveSessionsForUser(userName string) []Collaboration
 			DiagramId:     diagramUUID,
 			ThreatModelId: threatModelId,
 			Participants:  participants,
-			WebsocketUrl:  fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId.String(), diagramID),
+			WebsocketUrl:  h.buildWebSocketURL(c, threatModelId, diagramID),
 		})
 		session.mu.RUnlock()
 	}
