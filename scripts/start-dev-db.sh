@@ -11,7 +11,11 @@ if ! docker ps -a --format '{{.Names}}' | grep -q $CONTAINER_NAME; then
     echo "Creating PostgreSQL container..."
     
     # Create PostgreSQL container if it doesn't exist
-    docker run --name $CONTAINER_NAME -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=tmi -d -p 5432:5432 tmi-postgres
+    docker run --name $CONTAINER_NAME \
+        -e POSTGRES_USER=tmi_dev \
+        -e POSTGRES_PASSWORD=dev123 \
+        -e POSTGRES_DB=tmi_dev \
+        -d -p 5432:5432 tmi-postgres
     
     if [ $? -ne 0 ]; then
         echo "Error: Failed to create PostgreSQL container."
@@ -52,7 +56,7 @@ RETRY_COUNT=0
 POSTGRES_READY=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if docker exec $CONTAINER_NAME pg_isready -U postgres -d tmi -h localhost -p 5432 > /dev/null 2>&1; then
+    if docker exec $CONTAINER_NAME pg_isready -U tmi_dev -d tmi_dev -h localhost -p 5432 > /dev/null 2>&1; then
         POSTGRES_READY=true
         break
     fi

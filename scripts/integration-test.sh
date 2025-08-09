@@ -6,12 +6,12 @@
 set -e  # Exit on any error
 
 # Configuration
-POSTGRES_TEST_PORT=5434
-REDIS_TEST_PORT=6381
+POSTGRES_TEST_PORT=5433
+REDIS_TEST_PORT=6380
 POSTGRES_CONTAINER="tmi-integration-postgres"
 REDIS_CONTAINER="tmi-integration-redis"
-POSTGRES_USER="tmi_integration"
-POSTGRES_PASSWORD="integration_test_123"
+POSTGRES_USER="tmi_dev"
+POSTGRES_PASSWORD="dev123"
 POSTGRES_DB="tmi_integration_test"
 
 # Colors for output

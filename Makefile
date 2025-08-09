@@ -1,4 +1,4 @@
-.PHONY: build test test-one single-test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi list
+.PHONY: build test test-one single-test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi test-auth-token test-with-token test-no-auth test-api-endpoints dev-test debug-auth-endpoints list
 
 # Default build target
 VERSION := 0.1.0
@@ -225,3 +225,79 @@ reset-db:
 	@read -p "Are you sure? Type 'yes' to continue: " confirm && [ "$$confirm" = "yes" ] || exit 1
 	@$(MAKE) delete-db
 	@echo "Database reset. Run 'make dev-db' to create a fresh database."
+
+# Testing and Development Authentication Targets
+
+# Get development JWT token using proper OAuth flow with test provider
+test-auth-token:
+	@echo "Getting development JWT token via OAuth test provider..."
+	@echo "1. Getting authorization URL from test provider..."
+	@AUTH_REDIRECT=$$(curl -s -o /dev/null -w "%{redirect_url}" "http://localhost:8080/auth/authorize/test"); \
+	if [ -n "$$AUTH_REDIRECT" ]; then \
+		echo "2. Following OAuth callback: $$AUTH_REDIRECT"; \
+		curl -s "$$AUTH_REDIRECT" | jq -r '.token' 2>/dev/null || curl -s "$$AUTH_REDIRECT"; \
+	else \
+		echo "Failed to get OAuth authorization redirect"; \
+	fi
+
+# Test authenticated endpoint with token via proper OAuth flow
+test-with-token:
+	@echo "Testing authenticated endpoint via OAuth test provider..."
+	@echo "1. Getting OAuth authorization redirect..."
+	@AUTH_REDIRECT=$$(curl -s -o /dev/null -w "%{redirect_url}" "http://localhost:8080/auth/authorize/test"); \
+	if [ -n "$$AUTH_REDIRECT" ]; then \
+		echo "2. Getting token from OAuth callback..."; \
+		TOKEN=$$(curl -s "$$AUTH_REDIRECT" | jq -r '.token' 2>/dev/null); \
+		if [ "$$TOKEN" != "null" ] && [ -n "$$TOKEN" ]; then \
+			echo "✅ Got token: $$TOKEN"; \
+			echo "3. Testing /threat_models endpoint..."; \
+			curl -H "Authorization: Bearer $$TOKEN" "http://localhost:8080/threat_models" | jq .; \
+		else \
+			echo "❌ Failed to get token from OAuth callback"; \
+			echo "Response was:"; \
+			curl -s "$$AUTH_REDIRECT"; \
+		fi; \
+	else \
+		echo "❌ Failed to get OAuth authorization redirect"; \
+	fi
+
+# Test endpoint without authentication (should fail)
+test-no-auth:
+	@echo "Testing endpoint without authentication (should return 401)..."
+	@curl -v "http://localhost:8080/threat_models" 2>&1 | grep -E "(401|unauthorized)" || echo "❌ Expected 401 Unauthorized"
+
+# Comprehensive API test
+test-api-endpoints:
+	@echo "🧪 Testing API endpoints..."
+	@echo "1. Testing unauthenticated access (should fail)..."
+	@$(MAKE) test-no-auth
+	@echo ""
+	@echo "2. Testing authenticated access..."
+	@$(MAKE) test-with-token
+
+# Quick development test - builds and tests key endpoints
+dev-test: build
+	@echo "🚀 Running quick development test..."
+	@if ! pgrep -f "bin/server" > /dev/null; then \
+		echo "❌ Server not running. Start with 'make dev' first"; \
+		exit 1; \
+	fi
+	@$(MAKE) test-api-endpoints
+
+# Debug auth endpoints - check what's available
+debug-auth-endpoints:
+	@echo "🔍 Checking available auth endpoints..."
+	@echo "1. Testing /auth/login (should show dev login page):"
+	@curl -s -w "\n  Status: %{http_code}\n" "http://localhost:8080/auth/login" | head -5
+	@echo ""
+	@echo "2. Testing /auth/callback directly:"
+	@curl -s -w "\n  Status: %{http_code}\n" "http://localhost:8080/auth/callback?username=test@example.com&role=owner"
+	@echo ""
+	@echo "3. Testing /auth/providers:"
+	@curl -s -w "\n  Status: %{http_code}\n" "http://localhost:8080/auth/providers" | head -3
+	@echo ""
+	@echo "4. Testing test provider auth URL:"
+	@curl -s -w "\n  Status: %{http_code}\n" "http://localhost:8080/auth/authorize/test"
+	@echo ""
+	@echo "5. Getting redirect headers from test provider:"
+	@curl -s -I "http://localhost:8080/auth/authorize/test" | grep -i location
