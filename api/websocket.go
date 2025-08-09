@@ -269,7 +269,7 @@ func (h *WebSocketHub) GetActiveSessionsForUser(userName string) []Collaboration
 			continue
 		}
 
-		// Convert clients to participants
+		// Convert clients to participants - include sessions even with no clients
 		participants := make([]struct {
 			JoinedAt *time.Time `json:"joined_at,omitempty"`
 			UserId   *string    `json:"user_id,omitempty"`
