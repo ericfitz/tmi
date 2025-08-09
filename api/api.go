@@ -405,6 +405,9 @@ type CollaborationSession struct {
 	// DiagramId Unique identifier of the associated diagram (UUID)
 	DiagramId openapi_types.UUID `json:"diagram_id"`
 
+	// DiagramName Name of the associated diagram
+	DiagramName string `json:"diagram_name"`
+
 	// Participants List of active participants
 	Participants []struct {
 		// JoinedAt Join timestamp
@@ -419,6 +422,9 @@ type CollaborationSession struct {
 
 	// ThreatModelId Unique identifier of the associated threat model (UUID)
 	ThreatModelId openapi_types.UUID `json:"threat_model_id"`
+
+	// ThreatModelName Name of the associated threat model
+	ThreatModelName string `json:"threat_model_name"`
 
 	// WebsocketUrl WebSocket URL for real-time updates
 	WebsocketUrl string `json:"websocket_url"`

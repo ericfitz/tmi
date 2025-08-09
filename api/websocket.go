@@ -322,10 +322,31 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 			continue
 		}
 
-		// Check if user has access to this threat model
-		if !h.userHasAccessToThreatModel(userName, threatModelId) {
+		// Get the threat model to check access and extract name
+		tm, err := ThreatModelStore.Get(threatModelId.String())
+		if err != nil {
 			session.mu.RUnlock()
 			continue
+		}
+
+		// Check if user has access to this threat model
+		hasAccess, err := CheckResourceAccess(userName, tm, RoleReader)
+		if err != nil || !hasAccess {
+			session.mu.RUnlock()
+			continue
+		}
+
+		// Find the diagram in the threat model to get its name
+		var diagramName string
+		if tm.Diagrams != nil {
+			for _, diagramUnion := range *tm.Diagrams {
+				if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+					if dfdDiag.Id.String() == diagramID {
+						diagramName = dfdDiag.Name
+						break
+					}
+				}
+			}
 		}
 
 		// Convert clients to participants - include sessions even with no clients
@@ -352,11 +373,13 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 		}
 
 		sessions = append(sessions, CollaborationSession{
-			SessionId:     &sessionUUID,
-			DiagramId:     diagramUUID,
-			ThreatModelId: threatModelId,
-			Participants:  participants,
-			WebsocketUrl:  h.buildWebSocketURL(c, threatModelId, diagramID),
+			SessionId:       &sessionUUID,
+			DiagramId:       diagramUUID,
+			DiagramName:     diagramName,
+			ThreatModelId:   threatModelId,
+			ThreatModelName: tm.Name,
+			Participants:    participants,
+			WebsocketUrl:    h.buildWebSocketURL(c, threatModelId, diagramID),
 		})
 		session.mu.RUnlock()
 	}
