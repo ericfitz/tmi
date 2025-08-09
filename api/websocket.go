@@ -378,27 +378,87 @@ func (h *WebSocketHub) userHasAccessToThreatModel(userName string, threatModelId
 func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_types.UUID {
 	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), return empty UUID
 	if ThreatModelStore == nil {
+		log.Printf("[DEBUG] ThreatModelStore is nil, denying WebSocket access for diagram %s", diagramID)
 		return openapi_types.UUID{}
 	}
 
 	// Search through all threat models to find the one containing this diagram
 	// Use a large limit to get all threat models (in practice we should have pagination)
 	threatModels := ThreatModelStore.List(0, 1000, nil)
+	log.Printf("[DEBUG] Searching for diagram %s in %d threat models", diagramID, len(threatModels))
 
 	for _, tm := range threatModels {
 		if tm.Diagrams != nil {
+			log.Printf("[DEBUG] Checking threat model %s with %d diagrams", tm.Id.String(), len(*tm.Diagrams))
 			for _, diagramUnion := range *tm.Diagrams {
 				// Convert union type to DfdDiagram to get the ID
 				if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+					log.Printf("[DEBUG] Found diagram %s in threat model %s", dfdDiag.Id.String(), tm.Id.String())
 					if dfdDiag.Id.String() == diagramID {
+						log.Printf("[DEBUG] Match found! Diagram %s belongs to threat model %s", diagramID, tm.Id.String())
 						return *tm.Id
 					}
+				} else {
+					log.Printf("[DEBUG] Failed to convert diagram union to DfdDiagram: %v", err)
+				}
+			}
+		} else {
+			log.Printf("[DEBUG] Threat model %s has nil Diagrams", tm.Id.String())
+		}
+	}
+
+	log.Printf("[DEBUG] Diagram %s not found in any threat model", diagramID)
+	return openapi_types.UUID{}
+}
+
+// validateWebSocketDiagramAccessDirect validates that a user has at least reader access to a diagram
+// using the threat model ID directly from the URL path
+// This is critical for WebSocket security to prevent unauthorized access to collaboration sessions
+func (h *WebSocketHub) validateWebSocketDiagramAccessDirect(userName string, threatModelID string, diagramID string) bool {
+	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), deny access
+	if ThreatModelStore == nil {
+		return false
+	}
+
+	// Parse the threat model ID
+	threatModelUUID, err := uuid.Parse(threatModelID)
+	if err != nil {
+		return false
+	}
+
+	// Get the threat model to check permissions
+	tm, err := ThreatModelStore.Get(threatModelUUID.String())
+	if err != nil {
+		// If we can't get the threat model, deny access
+		return false
+	}
+
+	// Check if the diagram actually exists in this threat model
+	diagramExists := false
+	if tm.Diagrams != nil {
+		for _, diagramUnion := range *tm.Diagrams {
+			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+				if dfdDiag.Id.String() == diagramID {
+					diagramExists = true
+					break
 				}
 			}
 		}
 	}
 
-	return openapi_types.UUID{}
+	if !diagramExists {
+		return false
+	}
+
+	// Check if user has at least reader access to the threat model (and thus the diagram)
+	// Users need reader access minimum to participate in collaboration
+	hasAccess, err := CheckResourceAccess(userName, tm, RoleReader)
+	if err != nil {
+		// If there's an error checking access, deny access
+		return false
+	}
+
+	return hasAccess
 }
 
 // validateWebSocketDiagramAccess validates that a user has at least reader access to a diagram
@@ -543,8 +603,18 @@ func (s *DiagramSession) Run() {
 
 // HandleWS handles WebSocket connections
 func (h *WebSocketHub) HandleWS(c *gin.Context) {
-	// Get diagram ID from path
+	// Get threat model ID and diagram ID from path
+	threatModelID := c.Param("id")
 	diagramID := c.Param("diagram_id")
+
+	// Validate threat model ID format
+	if _, err := uuid.Parse(threatModelID); err != nil {
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            "invalid_id",
+			ErrorDescription: "Invalid threat model ID format, must be a valid UUID",
+		})
+		return
+	}
 
 	// Validate diagram ID format
 	if _, err := uuid.Parse(diagramID); err != nil {
@@ -575,7 +645,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	}
 
 	// CRITICAL: Validate user has access to the diagram before allowing WebSocket connection
-	if !h.validateWebSocketDiagramAccess(userNameStr, diagramID) {
+	if !h.validateWebSocketDiagramAccessDirect(userNameStr, threatModelID, diagramID) {
 		c.JSON(http.StatusForbidden, Error{
 			Error:            "forbidden",
 			ErrorDescription: "You don't have sufficient permissions to collaborate on this diagram",
