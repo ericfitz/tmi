@@ -154,6 +154,7 @@ func TestGetCellMetadata(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
+		// Should return 400 for invalid UUID format
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
@@ -259,6 +260,7 @@ func TestCreateCellMetadata(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
+		// With binding:"required" tags, missing key should return 400 Bad Request
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
@@ -279,6 +281,7 @@ func TestCreateCellMetadata(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
+		// With binding:"required" tags, missing value should return 400 Bad Request
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
@@ -336,6 +339,7 @@ func TestUpdateCellMetadata(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
+		// With binding:"required" tags, missing value should return 400 Bad Request
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
@@ -437,6 +441,7 @@ func TestPatchCell(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
+		// Should return 400 for invalid UUID format
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
@@ -455,6 +460,7 @@ func TestPatchCell(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
+		// Should return 400 for empty operations array
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }

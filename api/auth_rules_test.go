@@ -49,8 +49,9 @@ func TestOwnerCanChangeOwner(t *testing.T) {
 
 	// Let's create a simpler update request - note: we don't include 'id' as it's read-only
 	updatePayload := map[string]interface{}{
-		"name":  "Updated Test Model",
-		"owner": newOwner,
+		"name":                   "Updated Test Model",
+		"owner":                  newOwner,
+		"threat_model_framework": "STRIDE", // Required field for PUT
 		// Include only writer and reader users in authorization
 		"authorization": []map[string]interface{}{
 			{
@@ -128,10 +129,11 @@ func TestWriterCannotChangeOwner(t *testing.T) {
 
 	// Create the update request - note: we don't include 'id' as it's read-only
 	updatePayload := map[string]interface{}{
-		"name":          origTM.Name,
-		"description":   origTM.Description,
-		"owner":         newOwner,
-		"authorization": origTM.Authorization,
+		"name":                   origTM.Name,
+		"description":            origTM.Description,
+		"owner":                  newOwner,
+		"threat_model_framework": "STRIDE", // Required field for PUT
+		"authorization":          origTM.Authorization,
 	}
 
 	jsonData, err := json.Marshal(updatePayload)

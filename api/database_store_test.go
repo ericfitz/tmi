@@ -101,11 +101,9 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
 			"id", "name", "description", "owner_email", "created_by",
 			"threat_model_framework", "issue_url", "created_at", "updated_at",
-			"document_count", "source_count", "diagram_count", "threat_count",
 		}).AddRow(
 			testUUID, "Test Model", "Test Description", "owner@example.com", "creator@example.com",
 			"STRIDE", "https://example.com/issue", time.Now(), time.Now(),
-			0, 0, 0, 1,
 		)
 		mock.ExpectQuery("SELECT (.+) FROM threat_models").WithArgs(testID).WillReturnRows(rows)
 

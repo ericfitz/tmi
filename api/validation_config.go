@@ -40,12 +40,6 @@ var fieldErrorRegistry = &FieldErrorRegistry{
 		"modified_at": "Modification timestamp is managed automatically by the server.",
 		"created_by":  "The creator field is read-only and set during creation.",
 
-		// Count fields
-		"document_count": "Count fields are calculated automatically and cannot be set directly.",
-		"source_count":   "Count fields are calculated automatically and cannot be set directly.",
-		"diagram_count":  "Count fields are calculated automatically and cannot be set directly.",
-		"threat_count":   "Count fields are calculated automatically and cannot be set directly.",
-
 		// Sub-entity collections
 		"diagrams":   "Diagrams must be managed via the /threat_models/:id/diagrams sub-entity endpoints.",
 		"documents":  "Documents must be managed via the /threat_models/:id/documents sub-entity endpoints.",
@@ -65,7 +59,6 @@ var ValidationConfigs = map[string]ValidationConfig{
 	"threat_model_create": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at", "created_by", "owner",
-			"document_count", "source_count", "diagram_count", "threat_count",
 			"diagrams", "documents", "threats", "sourceCode",
 		},
 		CustomValidators: CommonValidators.GetValidators([]string{
@@ -77,7 +70,6 @@ var ValidationConfigs = map[string]ValidationConfig{
 	"threat_model_update": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at", "created_by",
-			"document_count", "source_count", "diagram_count", "threat_count",
 			"diagrams", "documents", "threats", "sourceCode",
 		},
 		CustomValidators: CommonValidators.GetValidators([]string{

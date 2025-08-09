@@ -373,7 +373,6 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 
 	// Validate patch operations against prohibited fields
 	prohibitedPaths := []string{
-		"/document_count", "/source_count", "/diagram_count", "/threat_count",
 		"/id", "/created_at", "/modified_at", "/created_by",
 		"/diagrams", "/documents", "/threats", "/sourceCode",
 	}
@@ -536,8 +535,6 @@ func parseIntParam(val string, fallback int) int {
 // getFieldErrorMessage returns a descriptive error message for prohibited fields
 func getFieldErrorMessage(field string) string {
 	switch field {
-	case "document_count", "source_count", "diagram_count", "threat_count":
-		return "Count fields are calculated automatically and cannot be set directly."
 	case "id":
 		return "The ID is read-only and set by the server."
 	case "created_at":

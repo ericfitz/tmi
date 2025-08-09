@@ -55,16 +55,13 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 
 	query := `
 		SELECT id, name, description, owner_email, created_by, 
-		       threat_model_framework, issue_url, created_at, updated_at,
-		       document_count, source_count, diagram_count, threat_count
+		       threat_model_framework, issue_url, created_at, updated_at
 		FROM threat_models 
 		WHERE id = $1`
 
-	var documentCount, sourceCount, diagramCount, threatCount int
 	err := s.db.QueryRow(query, id).Scan(
 		&uuid, &name, &description, &ownerEmail, &createdBy,
 		&threatModelFramework, &issueUrl, &createdAt, &updatedAt,
-		&documentCount, &sourceCount, &diagramCount, &threatCount,
 	)
 
 	if err != nil {
@@ -132,8 +129,7 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 
 	query := `
 		SELECT id, name, description, owner_email, created_by,
-		       threat_model_framework, issue_url, created_at, updated_at,
-		       document_count, source_count, diagram_count, threat_count
+		       threat_model_framework, issue_url, created_at, updated_at
 		FROM threat_models 
 		ORDER BY created_at DESC`
 
@@ -155,12 +151,10 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 		var description, issueUrl *string
 		var threatModelFramework string
 		var createdAt, updatedAt time.Time
-		var documentCount, sourceCount, diagramCount, threatCount int
 
 		err := rows.Scan(
 			&uuid, &name, &description, &ownerEmail, &createdBy,
 			&threatModelFramework, &issueUrl, &createdAt, &updatedAt,
-			&documentCount, &sourceCount, &diagramCount, &threatCount,
 		)
 		if err != nil {
 			continue
@@ -219,8 +213,7 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 
 	query := `
 		SELECT id, name, description, owner_email, created_by,
-		       threat_model_framework, issue_url, created_at, updated_at,
-		       document_count, source_count, diagram_count, threat_count
+		       threat_model_framework, issue_url, created_at, updated_at
 		FROM threat_models 
 		ORDER BY created_at DESC`
 
@@ -242,12 +235,10 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 		var description, issueUrl *string
 		var threatModelFramework string
 		var createdAt, updatedAt time.Time
-		var documentCount, sourceCount, diagramCount, threatCount int
 
 		err := rows.Scan(
 			&uuid, &name, &description, &ownerEmail, &createdBy,
 			&threatModelFramework, &issueUrl, &createdAt, &updatedAt,
-			&documentCount, &sourceCount, &diagramCount, &threatCount,
 		)
 		if err != nil {
 			continue
@@ -385,14 +376,12 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 	// Insert threat model
 	query := `
 		INSERT INTO threat_models (id, name, description, owner_email, created_by, 
-		                          threat_model_framework, issue_url, created_at, updated_at,
-		                          document_count, source_count, diagram_count, threat_count)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
+		                          threat_model_framework, issue_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	_, err = tx.Exec(query,
 		id, item.Name, item.Description, item.Owner, item.CreatedBy,
 		framework, item.IssueUrl, item.CreatedAt, item.ModifiedAt,
-		0, 0, 0, 0, // Initialize all counts to 0
 	)
 	if err != nil {
 		return item, fmt.Errorf("failed to insert threat model: %w", err)

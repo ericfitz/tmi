@@ -829,9 +829,9 @@ func testDatabaseDiagramMetadata(t *testing.T, suite *SubEntityIntegrationTestSu
 func testDatabaseCalculatedFieldsRejection(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	// Test that the integration environment also properly rejects calculated fields
 	requestBody := map[string]interface{}{
-		"name":           "Integration Test Threat Model",
-		"description":    "Should be rejected due to calculated fields",
-		"document_count": 5, // This should be rejected
+		"name":        "Integration Test Threat Model",
+		"description": "Should be rejected due to calculated fields",
+		"created_at":  "2025-01-01T00:00:00Z", // This should be rejected
 	}
 
 	req := suite.makeAuthenticatedRequest("POST", "/threat_models", requestBody)
@@ -846,6 +846,6 @@ func testDatabaseCalculatedFieldsRejection(t *testing.T, suite *SubEntityIntegra
 
 	// Verify error message mentions the problematic field
 	if errorDesc, exists := response["error_description"]; exists {
-		assert.Contains(t, errorDesc, "document_count", "Error should mention the rejected field")
+		assert.Contains(t, errorDesc, "created_at", "Error should mention the rejected field")
 	}
 }

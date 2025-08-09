@@ -156,11 +156,6 @@ func TestFieldErrorMessages(t *testing.T) {
 			expected:  "The ID is read-only and set by the server.",
 		},
 		{
-			field:     "document_count",
-			operation: "post",
-			expected:  "Count fields are calculated automatically and cannot be set directly.",
-		},
-		{
 			field:     "unknown_field",
 			operation: "post",
 			expected:  "This field cannot be set directly.",

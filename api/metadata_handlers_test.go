@@ -285,6 +285,7 @@ func TestThreatMetadata(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
+			// With binding:"required" tags, missing key should return 400 Bad Request
 			assert.Equal(t, http.StatusBadRequest, w.Code)
 		})
 
@@ -305,6 +306,7 @@ func TestThreatMetadata(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
+			// With binding:"required" tags, missing value should return 400 Bad Request
 			assert.Equal(t, http.StatusBadRequest, w.Code)
 		})
 	})
@@ -361,6 +363,7 @@ func TestThreatMetadata(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
+			// With binding:"required" tags, missing value should return 400 Bad Request
 			assert.Equal(t, http.StatusBadRequest, w.Code)
 		})
 	})

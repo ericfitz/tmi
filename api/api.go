@@ -759,10 +759,10 @@ type MarkupElement struct {
 // Metadata A key-value pair for extensible metadata
 type Metadata struct {
 	// Key Metadata key
-	Key string `json:"key"`
+	Key string `binding:"required" json:"key"`
 
 	// Value Metadata value
-	Value string `json:"value"`
+	Value string `binding:"required" json:"value"`
 }
 
 // Node defines model for Node.
