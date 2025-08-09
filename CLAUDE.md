@@ -107,3 +107,12 @@ This repository contains API documentation and Go implementation for a Collabora
 
 - `make list` is useful for quickly discovering and reviewing all available make targets in the project
 - `make validate-asyncapi` validates the AsyncAPI specification for the project
+
+## Test Execution Guidelines
+
+- Never create ad hoc commands to run a test - use a make target
+- Never create ad hoc commands to run the server - use a make target so we get proper configuration information
+
+## Test Philosophy Memories
+
+- Never disable or skip failing tests - investigate to root cause
