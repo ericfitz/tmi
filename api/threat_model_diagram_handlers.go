@@ -411,20 +411,25 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 		return
 	}
 
-	// Apply patch operations (simplified)
-	// In a real implementation, you would use a JSON Patch library
-	// For now, we'll just return the existing diagram
+	// Apply patch operations
+	modifiedDiagram, err := ApplyPatchOperations(existingDiagram, operations)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
-	// Update modification time
-	existingDiagram.ModifiedAt = time.Now().UTC()
+	// Preserve critical fields that shouldn't change during patching
+	modifiedDiagram.Id = existingDiagram.Id
+	modifiedDiagram.CreatedAt = existingDiagram.CreatedAt
+	modifiedDiagram.ModifiedAt = time.Now().UTC()
 
 	// Update in store
-	if err := DiagramStore.Update(diagramId, existingDiagram); err != nil {
+	if err := DiagramStore.Update(diagramId, modifiedDiagram); err != nil {
 		HandleRequestError(c, ServerError("Failed to update diagram"))
 		return
 	}
 
-	c.JSON(http.StatusOK, existingDiagram)
+	c.JSON(http.StatusOK, modifiedDiagram)
 }
 
 // DeleteDiagram deletes a diagram within a threat model
