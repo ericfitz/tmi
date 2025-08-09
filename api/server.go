@@ -39,7 +39,7 @@ type ServerInfo struct {
 // RegisterHandlers registers custom API handlers with the router
 func (s *Server) RegisterHandlers(r *gin.Engine) {
 	// Register WebSocket handler - it needs a custom route because it's not part of the OpenAPI spec
-	r.GET("/threat_models/:threat_model_id/diagrams/:id/ws", s.HandleWebSocket)
+	r.GET("/threat_models/:id/diagrams/:diagram_id/ws", s.HandleWebSocket)
 
 	// Register collaboration sessions endpoint
 	r.GET("/collaboration/sessions", s.HandleCollaborationSessions)

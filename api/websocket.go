@@ -544,7 +544,7 @@ func (s *DiagramSession) Run() {
 // HandleWS handles WebSocket connections
 func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Get diagram ID from path
-	diagramID := c.Param("id")
+	diagramID := c.Param("diagram_id")
 
 	// Validate diagram ID format
 	if _, err := uuid.Parse(diagramID); err != nil {
