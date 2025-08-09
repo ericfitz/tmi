@@ -147,9 +147,6 @@ type ThreatModelStoreInterface interface {
 	Update(id string, item ThreatModel) error
 	Delete(id string) error
 	Count() int
-	UpdateCounts(threatModelID string) error
-	CountSubEntitiesFromPayload(tm ThreatModel) (documentCount, sourceCount, diagramCount, threatCount int)
-	UpdateCountsWithValues(threatModelID string, documentCount, sourceCount, diagramCount, threatCount int) error
 }
 
 type DiagramStoreInterface interface {
@@ -181,25 +178,13 @@ func NewThreatModelInMemoryStore() *ThreatModelInMemoryStore {
 	}
 }
 
-// UpdateCounts is a no-op for in-memory store (counts are calculated on-the-fly)
-func (s *ThreatModelInMemoryStore) UpdateCounts(threatModelID string) error {
-	// In-memory store doesn't need to update counts as they're calculated dynamically
-	return nil
-}
-
-// UpdateCountsWithValues is a no-op for in-memory store
-func (s *ThreatModelInMemoryStore) UpdateCountsWithValues(threatModelID string, documentCount, sourceCount, diagramCount, threatCount int) error {
-	// In-memory store doesn't need to update counts as they're calculated dynamically
-	return nil
-}
-
 // ListWithCounts returns threat models with dynamically calculated counts
 func (s *ThreatModelInMemoryStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool) []ThreatModelWithCounts {
 	models := s.List(offset, limit, filter)
 	result := make([]ThreatModelWithCounts, 0, len(models))
 
 	for _, tm := range models {
-		docCount, srcCount, diagCount, threatCount := s.CountSubEntitiesFromPayload(tm)
+		docCount, srcCount, diagCount, threatCount := s.countSubEntitiesFromPayload(tm)
 		result = append(result, ThreatModelWithCounts{
 			ThreatModel:   tm,
 			DocumentCount: docCount,
@@ -212,8 +197,8 @@ func (s *ThreatModelInMemoryStore) ListWithCounts(offset, limit int, filter func
 	return result
 }
 
-// CountSubEntitiesFromPayload counts entities from a threat model payload
-func (s *ThreatModelInMemoryStore) CountSubEntitiesFromPayload(tm ThreatModel) (documentCount, sourceCount, diagramCount, threatCount int) {
+// countSubEntitiesFromPayload counts entities from a threat model payload (private method)
+func (s *ThreatModelInMemoryStore) countSubEntitiesFromPayload(tm ThreatModel) (documentCount, sourceCount, diagramCount, threatCount int) {
 	if tm.Documents != nil {
 		documentCount = len(*tm.Documents)
 	}

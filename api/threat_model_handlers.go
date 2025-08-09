@@ -222,11 +222,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		return
 	}
 
-	// Initialize counts for new threat model (all start at 0)
-	if err := ThreatModelStore.UpdateCountsWithValues(createdTM.Id.String(), 0, 0, 0, 0); err != nil {
-		// Log error but don't fail the operation
-		fmt.Printf("[WARNING] Failed to initialize counts for threat model %s: %v\n", createdTM.Id.String(), err)
-	}
+	// Counts are now calculated dynamically - no need to initialize
 
 	// Set the Location header
 	c.Header("Location", "/threat_models/"+createdTM.Id.String())
@@ -351,20 +347,13 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		}
 	}
 
-	// Count sub-entities from payload for PUT operations
-	docCount, srcCount, diagCount, threatCount := ThreatModelStore.CountSubEntitiesFromPayload(updatedTM)
-
 	// Update in store
 	if err := ThreatModelStore.Update(id, updatedTM); err != nil {
 		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
 	}
 
-	// Update counts in database using the counted values from payload
-	if err := ThreatModelStore.UpdateCountsWithValues(id, docCount, srcCount, diagCount, threatCount); err != nil {
-		// Log error but don't fail the operation
-		fmt.Printf("[WARNING] Failed to update counts for threat model %s: %v\n", id, err)
-	}
+	// Counts are now calculated dynamically - no need to update
 
 	c.JSON(http.StatusOK, updatedTM)
 }
@@ -477,11 +466,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		return
 	}
 
-	// For PATCH operations, recompute absolute counts from database
-	if err := ThreatModelStore.UpdateCounts(id); err != nil {
-		// Log error but don't fail the operation
-		fmt.Printf("[WARNING] Failed to update counts for threat model %s: %v\n", id, err)
-	}
+	// Counts are now calculated dynamically - no need to update
 
 	c.JSON(http.StatusOK, modifiedTM)
 }
