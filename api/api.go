@@ -52,6 +52,11 @@ const (
 	DfdDiagramTypeDFD100 DfdDiagramType = "DFD-1.0.0"
 )
 
+// Defines values for DiagramListItemType.
+const (
+	DFD100 DiagramListItemType = "DFD-1.0.0"
+)
+
 // Defines values for EdgeShape.
 const (
 	EdgeShapeEdge EdgeShape = "edge"
@@ -459,6 +464,21 @@ type Diagram struct {
 	union json.RawMessage
 }
 
+// DiagramListItem A simplified diagram item for list endpoints, containing id, name, and type
+type DiagramListItem struct {
+	// Id Unique identifier of the diagram (UUID)
+	Id *openapi_types.UUID `json:"id,omitempty"`
+
+	// Name Name of the diagram
+	Name string `json:"name"`
+
+	// Type Type of the diagram
+	Type DiagramListItemType `json:"type"`
+}
+
+// DiagramListItemType Type of the diagram
+type DiagramListItemType string
+
 // Document defines model for Document.
 type Document struct {
 	// Description Description of document purpose or content
@@ -733,10 +753,10 @@ type MarkupElement struct {
 // Metadata A key-value pair for extensible metadata
 type Metadata struct {
 	// Key Metadata key
-	Key string `json:"key" binding:"required"`
+	Key string `json:"key"`
 
 	// Value Metadata value
-	Value string `json:"value" binding:"required"`
+	Value string `json:"value"`
 }
 
 // Node defines model for Node.

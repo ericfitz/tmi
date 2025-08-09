@@ -86,6 +86,7 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 		items = append(items, map[string]interface{}{
 			"id":   d.Id,
 			"name": d.Name,
+			"type": d.Type,
 		})
 	}
 
