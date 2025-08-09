@@ -396,6 +396,30 @@
           }
         ]
       },
+      "CreateDiagramRequest": {
+        "type": "object",
+        "description": "Request body for creating a new diagram - only includes client-provided fields",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the diagram",
+            "maxLength": 256
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of diagram with version",
+            "enum": ["DFD-1.0.0"],
+            "maxLength": 64
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the diagram",
+            "maxLength": 1024
+          }
+        },
+        "required": ["name", "type"],
+        "additionalProperties": false
+      },
       "Diagram": {
         "oneOf": [{ "$ref": "#/components/schemas/DfdDiagram" }],
         "discriminator": {
@@ -6472,7 +6496,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Diagram"
+                "$ref": "#/components/schemas/CreateDiagramRequest"
               }
             }
           }
