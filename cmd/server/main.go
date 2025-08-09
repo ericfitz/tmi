@@ -145,7 +145,7 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist) gin.
 		var tokenStr string
 
 		// For WebSocket connections, use query parameter authentication
-		if strings.HasPrefix(c.Request.URL.Path, "/ws/") {
+		if strings.HasPrefix(c.Request.URL.Path, "/ws/") || strings.HasSuffix(c.Request.URL.Path, "/ws") {
 			tokenStr = c.Query("token")
 			if tokenStr == "" {
 				logger.Warn("Authentication failed: Missing token query parameter for WebSocket path: %s", c.Request.URL.Path)
