@@ -693,7 +693,7 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 	}
 
 	// Get or create collaboration session
-	session := h.wsHub.GetOrCreateSession(diagramId)
+	session := h.wsHub.GetOrCreateSession(diagramId, threatModelId)
 
 	// Get current participants
 	participants := make([]gin.H, 0)

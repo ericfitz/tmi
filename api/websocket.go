@@ -30,6 +30,8 @@ type DiagramSession struct {
 	ID string
 	// Diagram ID
 	DiagramID string
+	// Threat Model ID (parent of the diagram)
+	ThreatModelID string
 	// Connected clients
 	Clients map[*WebSocketClient]bool
 	// Inbound messages from clients
@@ -196,23 +198,28 @@ func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_t
 }
 
 // GetOrCreateSession returns an existing session or creates a new one
-func (h *WebSocketHub) GetOrCreateSession(diagramID string) *DiagramSession {
+func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string) *DiagramSession {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	if session, ok := h.Diagrams[diagramID]; ok {
 		session.LastActivity = time.Now().UTC()
+		// Update threat model ID if it wasn't set (for backward compatibility)
+		if session.ThreatModelID == "" && threatModelID != "" {
+			session.ThreatModelID = threatModelID
+		}
 		return session
 	}
 
 	session := &DiagramSession{
-		ID:           uuid.New().String(),
-		DiagramID:    diagramID,
-		Clients:      make(map[*WebSocketClient]bool),
-		Broadcast:    make(chan []byte),
-		Register:     make(chan *WebSocketClient),
-		Unregister:   make(chan *WebSocketClient),
-		LastActivity: time.Now().UTC(),
+		ID:            uuid.New().String(),
+		DiagramID:     diagramID,
+		ThreatModelID: threatModelID,
+		Clients:       make(map[*WebSocketClient]bool),
+		Broadcast:     make(chan []byte),
+		Register:      make(chan *WebSocketClient),
+		Unregister:    make(chan *WebSocketClient),
+		LastActivity:  time.Now().UTC(),
 	}
 
 	h.Diagrams[diagramID] = session
@@ -302,10 +309,15 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 			continue
 		}
 
-		// Get threat model ID from diagram
-		threatModelId := h.getThreatModelIdForDiagram(diagramID)
-		if threatModelId == (openapi_types.UUID{}) {
-			// If we can't find the threat model, skip this session
+		// Skip sessions without threat model ID (shouldn't happen with new code)
+		if session.ThreatModelID == "" {
+			session.mu.RUnlock()
+			continue
+		}
+
+		// Parse threat model ID
+		threatModelId, err := uuid.Parse(session.ThreatModelID)
+		if err != nil {
 			session.mu.RUnlock()
 			continue
 		}
@@ -661,7 +673,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	}
 
 	// Get or create session
-	session := h.GetOrCreateSession(diagramID)
+	session := h.GetOrCreateSession(diagramID, threatModelID)
 
 	// Create client
 	client := &WebSocketClient{
