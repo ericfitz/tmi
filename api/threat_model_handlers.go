@@ -58,25 +58,10 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	items := make([]TMListItem, 0, len(modelsWithCounts))
 	for _, tmWithCounts := range modelsWithCounts {
 		tm := tmWithCounts.ThreatModel
-		// Convert framework to TMListItem enum
-		var framework TMListItemThreatModelFramework
-		if tm.ThreatModelFramework != "" {
-			switch tm.ThreatModelFramework {
-			case ThreatModelThreatModelFrameworkCIA:
-				framework = TMListItemThreatModelFrameworkCIA
-			case ThreatModelThreatModelFrameworkDIE:
-				framework = TMListItemThreatModelFrameworkDIE
-			case ThreatModelThreatModelFrameworkLINDDUN:
-				framework = TMListItemThreatModelFrameworkLINDDUN
-			case ThreatModelThreatModelFrameworkPLOT4ai:
-				framework = TMListItemThreatModelFrameworkPLOT4ai
-			case ThreatModelThreatModelFrameworkSTRIDE:
-				framework = TMListItemThreatModelFrameworkSTRIDE
-			default:
-				framework = TMListItemThreatModelFrameworkSTRIDE // Default fallback
-			}
-		} else {
-			framework = TMListItemThreatModelFrameworkSTRIDE // Default fallback
+		// Set default framework if empty
+		framework := tm.ThreatModelFramework
+		if framework == "" {
+			framework = "STRIDE" // Default fallback
 		}
 
 		var createdAt time.Time
@@ -240,13 +225,13 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Define allowed fields for PUT requests - excludes calculated and read-only fields
 	type UpdateThreatModelRequest struct {
-		Name                 string                          `json:"name" binding:"required"`
-		Description          *string                         `json:"description,omitempty"`
-		Owner                string                          `json:"owner" binding:"required"`
-		ThreatModelFramework ThreatModelThreatModelFramework `json:"threat_model_framework" binding:"required"`
-		IssueUrl             *string                         `json:"issue_url,omitempty"`
-		Authorization        []Authorization                 `json:"authorization" binding:"required"`
-		Metadata             *[]Metadata                     `json:"metadata,omitempty"`
+		Name                 string          `json:"name" binding:"required"`
+		Description          *string         `json:"description,omitempty"`
+		Owner                string          `json:"owner" binding:"required"`
+		ThreatModelFramework string          `json:"threat_model_framework" binding:"required"`
+		IssueUrl             *string         `json:"issue_url,omitempty"`
+		Authorization        []Authorization `json:"authorization" binding:"required"`
+		Metadata             *[]Metadata     `json:"metadata,omitempty"`
 	}
 
 	// Parse ID from URL parameter

@@ -95,10 +95,10 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		return tm, fmt.Errorf("failed to load diagrams: %w", err)
 	}
 
-	// Convert framework to enum
-	framework := ThreatModelThreatModelFramework(threatModelFramework)
+	// Set default framework if empty
+	framework := threatModelFramework
 	if threatModelFramework == "" {
-		framework = ThreatModelThreatModelFrameworkSTRIDE // default
+		framework = "STRIDE" // default
 	}
 
 	tm = ThreatModel{
@@ -166,10 +166,10 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 			continue
 		}
 
-		// Convert framework to enum
-		framework := ThreatModelThreatModelFramework(threatModelFramework)
+		// Set default framework if empty
+		framework := threatModelFramework
 		if threatModelFramework == "" {
-			framework = ThreatModelThreatModelFrameworkSTRIDE // default
+			framework = "STRIDE" // default
 		}
 
 		tm = ThreatModel{
@@ -250,10 +250,10 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 			continue
 		}
 
-		// Convert framework to enum
-		framework := ThreatModelThreatModelFramework(threatModelFramework)
+		// Set default framework if empty
+		framework := threatModelFramework
 		if threatModelFramework == "" {
-			framework = ThreatModelThreatModelFrameworkSTRIDE // default
+			framework = "STRIDE" // default
 		}
 
 		tm = ThreatModel{
@@ -368,7 +368,7 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 	}
 
 	// Get framework value
-	framework := string(item.ThreatModelFramework)
+	framework := item.ThreatModelFramework
 	if framework == "" {
 		framework = "STRIDE" // default
 	}
@@ -425,7 +425,7 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 	}()
 
 	// Get framework value
-	framework := string(item.ThreatModelFramework)
+	framework := item.ThreatModelFramework
 	if framework == "" {
 		framework = "STRIDE" // default
 	}

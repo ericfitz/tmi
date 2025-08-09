@@ -36,7 +36,7 @@ func createTestThreatModelDB() ThreatModel {
 		Description:          strPtr("Test description"),
 		Owner:                "test@example.com",
 		CreatedBy:            stringPointer("test@example.com"),
-		ThreatModelFramework: ThreatModelThreatModelFrameworkSTRIDE,
+		ThreatModelFramework: "STRIDE",
 		IssueUrl:             strPtr("https://github.com/test/issues/1"),
 		CreatedAt:            func() *time.Time { t := time.Now(); return &t }(),
 		ModifiedAt:           func() *time.Time { t := time.Now(); return &t }(),
@@ -139,7 +139,7 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "Test Model", result.Name)
 		assert.Equal(t, "owner@example.com", result.Owner)
-		assert.Equal(t, ThreatModelThreatModelFrameworkSTRIDE, result.ThreatModelFramework)
+		assert.Equal(t, "STRIDE", result.ThreatModelFramework)
 		assert.Len(t, result.Authorization, 2)
 		assert.Len(t, *result.Metadata, 2)
 		assert.Len(t, *result.Threats, 1)

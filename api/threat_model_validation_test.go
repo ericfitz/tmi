@@ -85,14 +85,6 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 			description: "OpenAPI validation should reject additional properties like created_by",
 		},
 		{
-			name: "reject owner",
-			requestBody: map[string]interface{}{
-				"name":  "Test Threat Model",
-				"owner": "someone@example.com",
-			},
-			description: "OpenAPI validation should reject additional properties like owner",
-		},
-		{
 			name: "reject diagrams",
 			requestBody: map[string]interface{}{
 				"name":     "Test Threat Model",

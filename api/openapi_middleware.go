@@ -61,6 +61,9 @@ func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 			pathItem.Delete.Security = nil
 		}
 	}
+
+	// Clear servers to avoid host validation issues in tests
+	swagger.Servers = nil
 	return middleware.OapiRequestValidatorWithOptions(swagger,
 		&middleware.Options{
 			ErrorHandler:          OpenAPIErrorHandler,

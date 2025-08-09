@@ -947,7 +947,6 @@
           },
           "threat_model_framework": {
             "type": "string",
-            "enum": ["CIA", "STRIDE", "LINDDUN", "DIE", "PLOT4ai"],
             "description": "The framework used for this threat model"
           },
           "issue_url": {
@@ -1499,7 +1498,6 @@
           },
           "threat_model_framework": {
             "type": "string",
-            "enum": ["CIA", "STRIDE", "LINDDUN", "DIE", "PLOT4ai"],
             "description": "The framework used for this threat model"
           },
           "issue_url": {
@@ -3191,6 +3189,29 @@
                   "description": {
                     "type": "string",
                     "description": "Description of the threat model"
+                  },
+                  "threat_model_framework": {
+                    "type": "string",
+                    "description": "The framework used for this threat model"
+                  },
+                  "issue_url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URL to an issue in an issue tracking system for this threat model",
+                    "maxLength": 1024
+                  },
+                  "owner": {
+                    "type": "string",
+                    "description": "Username or identifier of the current owner (may be email address or other format)",
+                    "maxLength": 256,
+                    "pattern": "^[^<>\"'&]*$"
+                  },
+                  "authorization": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Authorization"
+                    },
+                    "description": "List of users and their roles for this threat model"
                   }
                 },
                 "required": ["name"],
