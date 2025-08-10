@@ -195,7 +195,9 @@ func (s *Service) initMetrics() error {
 	var readers []sdkmetric.Reader
 
 	// Prometheus exporter for pull-based metrics
-	prometheusExporter, err := prometheus.New()
+	prometheusExporter, err := prometheus.New(
+		prometheus.WithNamespace(s.config.ServiceName),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create Prometheus exporter: %w", err)
 	}
