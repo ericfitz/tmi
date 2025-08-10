@@ -1,4 +1,4 @@
-.PHONY: build test test-one single-test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config gen-asyncapi dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi validate-openapi-detailed openapi-endpoints test-auth-token test-with-token test-no-auth test-api-endpoints dev-test debug-auth-endpoints list
+.PHONY: build test test-one single-test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi validate-openapi-detailed openapi-endpoints test-auth-token test-with-token test-no-auth test-api-endpoints dev-test debug-auth-endpoints list
 
 # Default build target
 VERSION := 0.1.0
@@ -58,9 +58,8 @@ lint:
 gen-api:
 	oapi-codegen -config oapi-codegen-config.yaml tmi-openapi.json
 
-# Generate Go types from AsyncAPI WebSocket specification
-gen-asyncapi:
-	asyncapi-codegen -i tmi-asyncapi.yaml -p asyncapi -o api/asyncapi_generated.go
+# Note: AsyncAPI Go types are manually implemented in api/asyncapi_types.go
+# due to asyncapi-codegen parsing issues with AsyncAPI v3.0 specifications
 
 # Validate AsyncAPI WebSocket specification
 validate-asyncapi:
