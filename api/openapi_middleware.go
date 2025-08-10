@@ -64,9 +64,24 @@ func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 
 	// Clear servers to avoid host validation issues in tests
 	swagger.Servers = nil
-	return middleware.OapiRequestValidatorWithOptions(swagger,
+
+	// Create OpenAPI validator with custom logic to skip WebSocket routes
+	validator := middleware.OapiRequestValidatorWithOptions(swagger,
 		&middleware.Options{
 			ErrorHandler:          OpenAPIErrorHandler,
 			SilenceServersWarning: true, // Silence the servers warning for tests
-		}), nil
+		})
+
+	// Return a wrapper that skips validation for WebSocket routes
+	return func(c *gin.Context) {
+		// Skip OpenAPI validation for WebSocket endpoints
+		// WebSocket endpoints are not REST APIs and shouldn't be validated against OpenAPI spec
+		if strings.HasSuffix(c.Request.URL.Path, "/ws") {
+			c.Next()
+			return
+		}
+
+		// Apply OpenAPI validation for all other routes
+		validator(c)
+	}, nil
 }
