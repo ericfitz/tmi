@@ -6719,6 +6719,67 @@
                   ]
                 }
               }
+            },
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "enum": ["add", "remove", "replace", "move", "copy", "test"]
+                    },
+                    "path": { "type": "string" },
+                    "value": {},
+                    "from": { "type": "string" }
+                  },
+                  "required": ["op", "path"]
+                }
+              },
+              "examples": {
+                "updateName": {
+                  "summary": "Update diagram name",
+                  "value": [
+                    {
+                      "op": "replace",
+                      "path": "/name",
+                      "value": "Updated Diagram Name"
+                    }
+                  ]
+                },
+                "addCell": {
+                  "summary": "Add a new cell to the diagram",
+                  "value": [
+                    {
+                      "op": "add",
+                      "path": "/cells/-",
+                      "value": {
+                        "id": "new-cell-id",
+                        "shape": "process",
+                        "x": 100,
+                        "y": 100,
+                        "width": 120,
+                        "height": 60,
+                        "label": "New Process"
+                      }
+                    }
+                  ]
+                },
+                "addMetadata": {
+                  "summary": "Add metadata to diagram",
+                  "value": [
+                    {
+                      "op": "add",
+                      "path": "/metadata/-",
+                      "value": {
+                        "key": "version",
+                        "value": "2.0"
+                      }
+                    }
+                  ]
+                }
+              }
             }
           }
         },
