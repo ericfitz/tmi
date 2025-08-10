@@ -16,28 +16,24 @@ func TestApiInfoHandler_GetApiInfo(t *testing.T) {
 		name        string
 		headers     map[string]string
 		expectHTML  bool
-		expectWS    bool
 		setupServer func() *Server
 	}{
 		{
-			name:        "JSON response with WebSocket info",
+			name:        "JSON response with server",
 			headers:     map[string]string{"Accept": "application/json"},
 			expectHTML:  false,
-			expectWS:    true,
 			setupServer: func() *Server { return NewServer() },
 		},
 		{
-			name:        "HTML response with WebSocket info",
+			name:        "HTML response with server",
 			headers:     map[string]string{"Accept": "text/html"},
 			expectHTML:  true,
-			expectWS:    true,
 			setupServer: func() *Server { return NewServer() },
 		},
 		{
-			name:        "JSON response without server (no WebSocket info)",
+			name:        "JSON response without server",
 			headers:     map[string]string{"Accept": "application/json"},
 			expectHTML:  false,
-			expectWS:    false,
 			setupServer: func() *Server { return nil },
 		},
 	}
@@ -85,15 +81,8 @@ func TestApiInfoHandler_GetApiInfo(t *testing.T) {
 				assert.Equal(t, "1.0.0", apiInfo.Api.Version)
 				assert.NotEmpty(t, apiInfo.Api.Specification)
 
-				// Check WebSocket info presence
-				if tt.expectWS {
-					assert.NotEmpty(t, apiInfo.Websocket.BaseUrl, "WebSocket base URL should be present")
-					assert.Equal(t, "/ws/diagrams/{diagram_id}", apiInfo.Websocket.DiagramEndpoint)
-					assert.Contains(t, apiInfo.Websocket.BaseUrl, "ws://")
-				} else {
-					assert.Empty(t, apiInfo.Websocket.BaseUrl, "WebSocket base URL should be empty when no server")
-					assert.Empty(t, apiInfo.Websocket.DiagramEndpoint, "WebSocket diagram endpoint should be empty when no server")
-				}
+				// Note: WebSocket information is now documented separately in AsyncAPI spec
+				// REST API info no longer includes WebSocket details as they use different protocols
 			}
 		})
 	}
@@ -133,9 +122,7 @@ func TestApiInfoHandler_GetApiInfo_WithTLS(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &apiInfo)
 	require.NoError(t, err)
 
-	// Verify HTTPS WebSocket URL
-	assert.Equal(t, "wss://api.example.com/ws", apiInfo.Websocket.BaseUrl)
-	assert.Equal(t, "/ws/diagrams/{diagram_id}", apiInfo.Websocket.DiagramEndpoint)
+	// Note: WebSocket URLs are now documented in AsyncAPI specification
 }
 
 func TestApiInfoHandler_GetApiInfo_WithCustomPort(t *testing.T) {
@@ -171,7 +158,5 @@ func TestApiInfoHandler_GetApiInfo_WithCustomPort(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &apiInfo)
 	require.NoError(t, err)
 
-	// Verify WebSocket URL with custom port
-	assert.Equal(t, "ws://localhost:8080/ws", apiInfo.Websocket.BaseUrl)
-	assert.Equal(t, "/ws/diagrams/{diagram_id}", apiInfo.Websocket.DiagramEndpoint)
+	// Note: WebSocket URLs are now documented in AsyncAPI specification
 }

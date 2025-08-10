@@ -1,4 +1,4 @@
-.PHONY: build test test-one single-test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi test-auth-token test-with-token test-no-auth test-api-endpoints dev-test debug-auth-endpoints list
+.PHONY: build test test-one single-test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi validate-openapi-detailed openapi-endpoints test-auth-token test-with-token test-no-auth test-api-endpoints dev-test debug-auth-endpoints list
 
 # Default build target
 VERSION := 0.1.0
@@ -61,6 +61,43 @@ gen-api:
 # Validate AsyncAPI WebSocket specification
 validate-asyncapi:
 	uv run scripts/validate_asyncapi.py tmi-asyncapi.yaml
+
+# Validate OpenAPI REST specification (basic JSON syntax)
+validate-openapi:
+	python -m json.tool tmi-openapi.json > /dev/null && echo "✅ OpenAPI JSON is valid"
+
+# Validate OpenAPI specification with detailed analysis
+validate-openapi-detailed:
+	@FILE=$${file:-tmi-openapi.json}; \
+	if [ ! -f "$$FILE" ]; then \
+		echo "❌ File not found: $$FILE"; \
+		echo "Usage: make validate-openapi-detailed [file=path/to/openapi.json]"; \
+		exit 1; \
+	fi; \
+	uv run scripts/validate_openapi.py "$$FILE"
+
+# List OpenAPI endpoints with HTTP methods and response codes
+openapi-endpoints:
+	@FILE=$${file:-tmi-openapi.json}; \
+	if [ ! -f "$$FILE" ]; then \
+		echo "❌ File not found: $$FILE"; \
+		echo "Usage: make openapi-endpoints [file=path/to/openapi.json]"; \
+		exit 1; \
+	fi; \
+	echo "📋 OpenAPI Endpoints from $$FILE:"; \
+	echo ""; \
+	jq -r ' \
+		.paths \
+		| with_entries(select(.value | type == "object")) \
+		| to_entries[] \
+		| .key as $$path \
+		| .value \
+		| with_entries(select(.value | type == "object")) \
+		| to_entries[] \
+		| select(.key | ascii_downcase | IN("get", "post", "put", "delete", "patch", "options", "head", "trace")) \
+		| select(.value.responses | type == "object") \
+		| "\($$path) \(.key | ascii_upcase): \( [.value.responses | keys_unsorted[] // "none"] | join(", ") )" \
+	' "$$FILE" | sort
 
 # Clean build artifacts
 clean:

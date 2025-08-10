@@ -37,14 +37,20 @@ servers:
       - jwtAuth: []
 
 channels:
-  '/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws':
-    address: '/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws'
+  '/threat_models/{id}/diagrams/{diagram_id}/ws':
+    address: '/threat_models/{id}/diagrams/{diagram_id}/ws'
     description: |
       WebSocket endpoint for collaborative diagram editing. Each diagram has its own collaboration session.
       Users must have at least reader permissions on the parent threat model to connect.
+      
+      ## Session Management
+      - Sessions are automatically created when first client connects
+      - Sessions include automatic cleanup after 15 minutes of inactivity
+      - Multiple clients can participate in the same session simultaneously
+      - Each session tracks active participants and their join times
     parameters:
-      threat_model_id:
-        description: Unique identifier of the threat model
+      id:
+        description: Unique identifier of the threat model (matches OpenAPI path parameter)
         schema:
           type: string
           format: uuid
@@ -71,22 +77,32 @@ operations:
   sendDiagramOperation:
     action: send
     channel:
-      $ref: '#/channels/~1threat_models~1{threat_model_id}~1diagrams~1{diagram_id}~1ws'
+      $ref: '#/channels/~1threat_models~1{id}~1diagrams~1{diagram_id}~1ws'
     summary: Send a diagram operation
     description: |
       Send a diagram operation (add, update, or remove) to be applied to the diagram
       and broadcasted to all connected participants.
+      
+      ## Rate Limits
+      - Message size limit: 4KB per message
+      - Operation size limit: 50KB per operation
+      - Write timeout: 10 seconds per message
     messages:
       - $ref: '#/components/messages/ClientMessage'
     
   receiveDiagramEvents:
     action: receive
     channel:
-      $ref: '#/channels/~1threat_models~1{threat_model_id}~1diagrams~1{diagram_id}~1ws'
+      $ref: '#/channels/~1threat_models~1{id}~1diagrams~1{diagram_id}~1ws'
     summary: Receive diagram events
     description: |
       Receive real-time events including diagram operations from other users,
       join/leave notifications, and session updates.
+      
+      ## Connection Management
+      - Read timeout: 60 seconds with ping/pong keepalive
+      - Automatic reconnection recommended for production clients
+      - Sessions persist for up to 15 minutes after last activity
     messages:
       - $ref: '#/components/messages/ServerMessage'
       - $ref: '#/components/messages/JoinEvent'
@@ -96,7 +112,7 @@ operations:
 components:
   parameters:
     ThreatModelId:
-      description: Unique identifier of the threat model
+      description: Unique identifier of the threat model (parameter name 'id' in URL path)
       schema:
         type: string
         format: uuid
@@ -407,14 +423,22 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: |
-        JWT token authentication for WebSocket connections. The token should be included
-        as a query parameter named 'token' in the WebSocket connection URL since browsers
-        do not support custom headers for WebSocket connections.
+        JWT token authentication for WebSocket connections. Authentication is handled by 
+        server-side middleware that validates JWT tokens provided as query parameters.
+        
+        ## Authentication Flow
+        1. Client includes JWT token as query parameter: `?token=eyJ0eXAiOiJKV1Q...`
+        2. Server middleware validates token and extracts user claims
+        3. Server verifies user has at least reader access to the threat model
+        4. Server verifies the diagram exists within the specified threat model
+        5. WebSocket connection is established if all validations pass
+        
+        ## Access Control
+        - Users need minimum reader permissions on the parent threat model
+        - Diagram must exist within the specified threat model
+        - Token must contain valid user identification claims (sub, email)
         
         Example: ws://localhost:8080/threat_models/123/diagrams/456/ws?token=eyJ0eXAiOiJKV1Q...
-        
-        The token must contain valid claims for user identification and the user must have
-        at least reader permissions on the parent threat model to establish a connection.
 
 traits:
   secured:
@@ -424,16 +448,29 @@ traits:
   
   rateLimited:
     description: |
-      This operation is subject to rate limiting:
-      - Message size limit: 4KB per message
+      This operation is subject to rate limiting and connection management:
+      - Message size limit: 4KB per message  
       - Operation size limit: 50KB per operation
       - Read timeout: 60 seconds with ping/pong keepalive
       - Write timeout: 10 seconds per message
+      - Session cleanup: 15 minutes after last activity
+      - Origin validation in production mode
 
   validated:
     description: |
-      This operation includes validation:
+      This operation includes comprehensive validation:
       - Operation type must be 'add', 'update', or 'remove'
-      - Component IDs must be valid UUIDs
+      - Component IDs must be valid UUIDs (non-zero UUID for cells)
       - Required fields must be present based on operation type
-      - Cell properties must meet defined constraints
+      - Cell properties must meet defined constraints (shape, coordinates, dimensions)
+      - Property keys cannot exceed 255 characters
+      - Operations are applied to stored diagrams and broadcasted to all participants
+
+  sessionManaged:
+    description: |
+      This operation participates in session management:
+      - Sessions are created automatically when first client connects
+      - Multiple clients can join the same session simultaneously
+      - Join/leave events are broadcast to all session participants
+      - Sessions track participant information and connection times
+      - Inactive sessions are cleaned up automatically after 15 minutes

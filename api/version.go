@@ -176,32 +176,8 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 		logger.Debug("Added operator info: name=%s, contact=%s", operatorName, operatorContact)
 	}
 
-	// Add WebSocket information
-	if h.server != nil {
-		wsBaseURL := h.server.buildWebSocketURL(c)
-		apiInfo.Websocket = struct {
-			Authentication struct {
-				Description string                               `json:"description"`
-				Method      ApiInfoWebsocketAuthenticationMethod `json:"method"`
-				Parameter   string                               `json:"parameter"`
-			} `json:"authentication"`
-			BaseUrl         string `json:"base_url"`
-			DiagramEndpoint string `json:"diagram_endpoint"`
-		}{
-			Authentication: struct {
-				Description string                               `json:"description"`
-				Method      ApiInfoWebsocketAuthenticationMethod `json:"method"`
-				Parameter   string                               `json:"parameter"`
-			}{
-				Description: "JWT token authentication via query parameter",
-				Method:      "query_param",
-				Parameter:   "token",
-			},
-			BaseUrl:         wsBaseURL,
-			DiagramEndpoint: "/ws/diagrams/{diagram_id}", // Keep old format for test compatibility
-		}
-		logger.Debug("Added WebSocket info: base_url=%s", wsBaseURL)
-	}
+	// Note: WebSocket information is now documented in AsyncAPI specification
+	// WebSocket endpoints are not part of REST API info since they use different protocols
 
 	logger.Info("Returning API info response")
 
