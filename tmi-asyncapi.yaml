@@ -72,6 +72,32 @@ channels:
         $ref: '#/components/messages/LeaveEvent'
       updateEvent:
         $ref: '#/components/messages/UpdateEvent'
+      diagramOperationMessage:
+        $ref: '#/components/messages/DiagramOperationMessage'
+      presenterRequestMessage:
+        $ref: '#/components/messages/PresenterRequestMessage'
+      presenterDeniedMessage:
+        $ref: '#/components/messages/PresenterDeniedMessage'
+      changePresenterMessage:
+        $ref: '#/components/messages/ChangePresenterMessage'
+      currentPresenterMessage:
+        $ref: '#/components/messages/CurrentPresenterMessage'
+      presenterCursorMessage:
+        $ref: '#/components/messages/PresenterCursorMessage'
+      presenterSelectionMessage:
+        $ref: '#/components/messages/PresenterSelectionMessage'
+      authorizationDeniedMessage:
+        $ref: '#/components/messages/AuthorizationDeniedMessage'
+      stateCorrectionMessage:
+        $ref: '#/components/messages/StateCorrectionMessage'
+      resyncRequestMessage:
+        $ref: '#/components/messages/ResyncRequestMessage'
+      historyOperationMessage:
+        $ref: '#/components/messages/HistoryOperationMessage'
+      undoRequestMessage:
+        $ref: '#/components/messages/UndoRequestMessage'
+      redoRequestMessage:
+        $ref: '#/components/messages/RedoRequestMessage'
 
 operations:
   sendDiagramOperation:
@@ -89,6 +115,14 @@ operations:
       - Write timeout: 10 seconds per message
     messages:
       - $ref: '#/components/messages/ClientMessage'
+      - $ref: '#/components/messages/DiagramOperationMessage'
+      - $ref: '#/components/messages/PresenterRequestMessage'
+      - $ref: '#/components/messages/ChangePresenterMessage'
+      - $ref: '#/components/messages/PresenterCursorMessage'
+      - $ref: '#/components/messages/PresenterSelectionMessage'
+      - $ref: '#/components/messages/ResyncRequestMessage'
+      - $ref: '#/components/messages/UndoRequestMessage'
+      - $ref: '#/components/messages/RedoRequestMessage'
     
   receiveDiagramEvents:
     action: receive
@@ -108,6 +142,14 @@ operations:
       - $ref: '#/components/messages/JoinEvent'
       - $ref: '#/components/messages/LeaveEvent'
       - $ref: '#/components/messages/UpdateEvent'
+      - $ref: '#/components/messages/DiagramOperationMessage'
+      - $ref: '#/components/messages/PresenterDeniedMessage'
+      - $ref: '#/components/messages/CurrentPresenterMessage'
+      - $ref: '#/components/messages/PresenterCursorMessage'
+      - $ref: '#/components/messages/PresenterSelectionMessage'
+      - $ref: '#/components/messages/AuthorizationDeniedMessage'
+      - $ref: '#/components/messages/StateCorrectionMessage'
+      - $ref: '#/components/messages/HistoryOperationMessage'
 
 components:
   parameters:
@@ -258,6 +300,253 @@ components:
                 width: 100
                 height: 60
                 label: User Database
+
+    DiagramOperationMessage:
+      name: DiagramOperationMessage
+      title: Diagram Operation Message
+      summary: Cell mutation operation message with conflict resolution support
+      description: |
+        Enhanced message for collaborative editing operations. Supports batch operations,
+        sequence numbers for conflict resolution, and operation IDs for idempotency.
+        This mirrors existing REST PATCH operations for consistency.
+      payload:
+        $ref: '#/components/schemas/DiagramOperationPayload'
+      examples:
+        - name: BatchCellOperations
+          summary: Example of batch cell operations
+          payload:
+            message_type: diagram_operation
+            user_id: alice@example.com
+            operation_id: 123e4567-e89b-12d3-a456-426614174000
+            sequence_number: 12345
+            operation:
+              type: patch
+              cells:
+                - id: cell-uuid-1
+                  operation: add
+                  data:
+                    id: cell-uuid-1
+                    shape: process
+                    x: 100
+                    y: 150
+                    width: 120
+                    height: 80
+                    label: User Authentication
+                - id: cell-uuid-2
+                  operation: update
+                  data:
+                    x: 110
+                    y: 160
+                    label: Updated Process
+
+    PresenterRequestMessage:
+      name: PresenterRequestMessage
+      title: Presenter Request Message
+      summary: Request to become the active presenter
+      description: |
+        Message sent by users requesting to become the active presenter. Only the session
+        owner can approve presenter requests.
+      payload:
+        $ref: '#/components/schemas/PresenterRequestPayload'
+      examples:
+        - name: RequestPresenter
+          summary: Example of requesting presenter mode
+          payload:
+            message_type: presenter_request
+            user_id: bob@example.com
+
+    PresenterDeniedMessage:
+      name: PresenterDeniedMessage
+      title: Presenter Request Denied Message
+      summary: Notification that presenter request was denied
+      description: |
+        Message sent by server to requester when presenter request is denied by the owner.
+        Only sent to the requesting user.
+      payload:
+        $ref: '#/components/schemas/PresenterDeniedPayload'
+      examples:
+        - name: PresenterDenied
+          summary: Example of presenter request denial
+          payload:
+            message_type: presenter_denied
+            user_id: owner@example.com
+            target_user: bob@example.com
+
+    ChangePresenterMessage:
+      name: ChangePresenterMessage
+      title: Change Presenter Message
+      summary: Owner changes the active presenter
+      description: |
+        Message sent by session owner to change the active presenter. Only accepted
+        from the session owner.
+      payload:
+        $ref: '#/components/schemas/ChangePresenterPayload'
+      examples:
+        - name: ChangePresenter
+          summary: Example of owner changing presenter
+          payload:
+            message_type: change_presenter
+            user_id: owner@example.com
+            new_presenter: alice@example.com
+
+    CurrentPresenterMessage:
+      name: CurrentPresenterMessage
+      title: Current Presenter Broadcast
+      summary: Server broadcasts current presenter to all clients
+      description: |
+        Message broadcast by server to all session participants when the presenter changes.
+        Keeps all clients synchronized on who the active presenter is.
+      payload:
+        $ref: '#/components/schemas/CurrentPresenterPayload'
+      examples:
+        - name: CurrentPresenter
+          summary: Example of current presenter broadcast
+          payload:
+            message_type: current_presenter
+            current_presenter: alice@example.com
+
+    PresenterCursorMessage:
+      name: PresenterCursorMessage
+      title: Presenter Cursor Position
+      summary: Cursor position from active presenter
+      description: |
+        Message sent by active presenter to share cursor position with all participants.
+        Only the current presenter should send these messages.
+      payload:
+        $ref: '#/components/schemas/PresenterCursorPayload'
+      examples:
+        - name: PresenterCursor
+          summary: Example of presenter cursor position
+          payload:
+            message_type: presenter_cursor
+            user_id: alice@example.com
+            cursor_position:
+              x: 100
+              y: 200
+
+    PresenterSelectionMessage:
+      name: PresenterSelectionMessage
+      title: Presenter Selection State
+      summary: Selection state from active presenter
+      description: |
+        Message sent by active presenter to share selection state with all participants.
+        Only the current presenter should send these messages.
+      payload:
+        $ref: '#/components/schemas/PresenterSelectionPayload'
+      examples:
+        - name: PresenterSelection
+          summary: Example of presenter selection
+          payload:
+            message_type: presenter_selection
+            user_id: alice@example.com
+            selected_cells:
+              - cell-uuid-1
+              - cell-uuid-2
+
+    AuthorizationDeniedMessage:
+      name: AuthorizationDeniedMessage
+      title: Authorization Denied
+      summary: Notification that operation was denied due to insufficient permissions
+      description: |
+        Message sent to users who attempt operations they don't have permission for.
+        Includes the original operation ID for client tracking.
+      payload:
+        $ref: '#/components/schemas/AuthorizationDeniedPayload'
+      examples:
+        - name: AuthorizationDenied
+          summary: Example of authorization denial
+          payload:
+            message_type: authorization_denied
+            original_operation_id: 123e4567-e89b-12d3-a456-426614174000
+            reason: insufficient_permissions
+
+    StateCorrectionMessage:
+      name: StateCorrectionMessage
+      title: State Correction
+      summary: Server sends corrected state to client
+      description: |
+        Message sent by server to correct client state after conflicts or unauthorized
+        operations. Contains the authoritative state for affected cells.
+      payload:
+        $ref: '#/components/schemas/StateCorrectionPayload'
+      examples:
+        - name: StateCorrection
+          summary: Example of state correction
+          payload:
+            message_type: state_correction
+            cells:
+              - id: cell-uuid-1
+                shape: process
+                x: 100
+                y: 150
+                width: 120
+                height: 80
+                label: Corrected Label
+
+    ResyncRequestMessage:
+      name: ResyncRequestMessage
+      title: Resync Request
+      summary: Client requests full diagram synchronization
+      description: |
+        Message sent by clients when they detect they are out of sync and need
+        to reload the complete diagram state.
+      payload:
+        $ref: '#/components/schemas/ResyncRequestPayload'
+      examples:
+        - name: ResyncRequest
+          summary: Example of resync request
+          payload:
+            message_type: resync_request
+            user_id: bob@example.com
+
+    HistoryOperationMessage:
+      name: HistoryOperationMessage
+      title: History Operation Result
+      summary: Server response to undo/redo operations
+      description: |
+        Message sent by server in response to undo/redo requests. Short-term implementation
+        tells clients to resync via REST API.
+      payload:
+        $ref: '#/components/schemas/HistoryOperationPayload'
+      examples:
+        - name: HistoryOperation
+          summary: Example of history operation response
+          payload:
+            message_type: history_operation
+            operation_type: undo
+            message: resync_required
+
+    UndoRequestMessage:
+      name: UndoRequestMessage
+      title: Undo Request
+      summary: Client requests undo operation
+      description: |
+        Message sent by clients to request undoing the last operation.
+        Requires mutation permissions.
+      payload:
+        $ref: '#/components/schemas/UndoRequestPayload'
+      examples:
+        - name: UndoRequest
+          summary: Example of undo request
+          payload:
+            message_type: undo_request
+            user_id: alice@example.com
+
+    RedoRequestMessage:
+      name: RedoRequestMessage
+      title: Redo Request
+      summary: Client requests redo operation
+      description: |
+        Message sent by clients to request redoing the last undone operation.
+        Requires mutation permissions.
+      payload:
+        $ref: '#/components/schemas/RedoRequestPayload'
+      examples:
+        - name: RedoRequest
+          summary: Example of redo request
+          payload:
+            message_type: redo_request
+            user_id: alice@example.com
 
   schemas:
     ClientMessagePayload:
@@ -416,6 +705,312 @@ components:
         - width
         - height
       additionalProperties: true
+
+    DiagramOperationPayload:
+      type: object
+      description: Enhanced payload for collaborative diagram operations with conflict resolution
+      properties:
+        message_type:
+          const: diagram_operation
+        user_id:
+          type: string
+          description: User performing the operation
+          example: alice@example.com
+        operation_id:
+          type: string
+          format: uuid
+          description: Client-generated UUID for idempotency and tracking
+          example: 123e4567-e89b-12d3-a456-426614174000
+        sequence_number:
+          type: integer
+          description: Server-assigned sequence number for operation ordering
+          minimum: 1
+          example: 12345
+        operation:
+          $ref: '#/components/schemas/CellPatchOperation'
+      required:
+        - message_type
+        - user_id
+        - operation_id
+        - operation
+      additionalProperties: false
+
+    CellPatchOperation:
+      type: object
+      description: Mirrors REST PATCH operations for cells with batch support
+      properties:
+        type:
+          const: patch
+        cells:
+          type: array
+          description: Array of cell operations to perform
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                description: Cell ID for the operation
+              operation:
+                type: string
+                enum: [add, update, remove]
+                description: Operation type to perform on the cell
+              data:
+                $ref: '#/components/schemas/Cell'
+            required:
+              - id
+              - operation
+            allOf:
+              - if:
+                  properties:
+                    operation:
+                      enum: [add, update]
+                then:
+                  required:
+                    - data
+              - if:
+                  properties:
+                    operation:
+                      const: remove
+                then:
+                  properties:
+                    data:
+                      not: {}
+          minItems: 1
+      required:
+        - type
+        - cells
+      additionalProperties: false
+
+    PresenterRequestPayload:
+      type: object
+      description: Request to become the active presenter
+      properties:
+        message_type:
+          const: presenter_request
+        user_id:
+          type: string
+          description: User requesting presenter mode
+          example: bob@example.com
+      required:
+        - message_type
+        - user_id
+      additionalProperties: false
+
+    PresenterDeniedPayload:
+      type: object
+      description: Notification that presenter request was denied
+      properties:
+        message_type:
+          const: presenter_denied
+        user_id:
+          type: string
+          description: Session owner who denied the request
+          example: owner@example.com
+        target_user:
+          type: string
+          description: User whose request was denied
+          example: bob@example.com
+      required:
+        - message_type
+        - user_id
+        - target_user
+      additionalProperties: false
+
+    ChangePresenterPayload:
+      type: object
+      description: Owner changes the active presenter
+      properties:
+        message_type:
+          const: change_presenter
+        user_id:
+          type: string
+          description: Session owner (must be owner)
+          example: owner@example.com
+        new_presenter:
+          type: string
+          description: User to become the new presenter
+          example: alice@example.com
+      required:
+        - message_type
+        - user_id
+        - new_presenter
+      additionalProperties: false
+
+    CurrentPresenterPayload:
+      type: object
+      description: Server broadcasts current presenter to all clients
+      properties:
+        message_type:
+          const: current_presenter
+        current_presenter:
+          type: string
+          description: Current active presenter
+          example: alice@example.com
+      required:
+        - message_type
+        - current_presenter
+      additionalProperties: false
+
+    PresenterCursorPayload:
+      type: object
+      description: Cursor position from active presenter
+      properties:
+        message_type:
+          const: presenter_cursor
+        user_id:
+          type: string
+          description: Current presenter (must match active presenter)
+          example: alice@example.com
+        cursor_position:
+          type: object
+          description: Cursor coordinates
+          properties:
+            x:
+              type: number
+              description: X coordinate
+              example: 100
+            y:
+              type: number
+              description: Y coordinate
+              example: 200
+          required:
+            - x
+            - y
+          additionalProperties: false
+      required:
+        - message_type
+        - user_id
+        - cursor_position
+      additionalProperties: false
+
+    PresenterSelectionPayload:
+      type: object
+      description: Selection state from active presenter
+      properties:
+        message_type:
+          const: presenter_selection
+        user_id:
+          type: string
+          description: Current presenter (must match active presenter)
+          example: alice@example.com
+        selected_cells:
+          type: array
+          description: Array of selected cell IDs
+          items:
+            type: string
+            format: uuid
+          example:
+            - cell-uuid-1
+            - cell-uuid-2
+      required:
+        - message_type
+        - user_id
+        - selected_cells
+      additionalProperties: false
+
+    AuthorizationDeniedPayload:
+      type: object
+      description: Notification of unauthorized operation attempt
+      properties:
+        message_type:
+          const: authorization_denied
+        original_operation_id:
+          type: string
+          format: uuid
+          description: Operation ID that was denied
+          example: 123e4567-e89b-12d3-a456-426614174000
+        reason:
+          type: string
+          description: Reason for denial
+          enum: [insufficient_permissions, read_only_user, invalid_user]
+          example: insufficient_permissions
+      required:
+        - message_type
+        - original_operation_id
+        - reason
+      additionalProperties: false
+
+    StateCorrectionPayload:
+      type: object
+      description: Server sends corrected state to client
+      properties:
+        message_type:
+          const: state_correction
+        cells:
+          type: array
+          description: Authoritative state for affected cells
+          items:
+            $ref: '#/components/schemas/Cell'
+          minItems: 1
+      required:
+        - message_type
+        - cells
+      additionalProperties: false
+
+    ResyncRequestPayload:
+      type: object
+      description: Client requests full diagram synchronization
+      properties:
+        message_type:
+          const: resync_request
+        user_id:
+          type: string
+          description: User requesting resync
+          example: bob@example.com
+      required:
+        - message_type
+        - user_id
+      additionalProperties: false
+
+    HistoryOperationPayload:
+      type: object
+      description: Server response to undo/redo operations
+      properties:
+        message_type:
+          const: history_operation
+        operation_type:
+          type: string
+          enum: [undo, redo]
+          description: Type of history operation performed
+        message:
+          const: resync_required
+          description: Short-term implementation tells clients to resync via REST
+      required:
+        - message_type
+        - operation_type
+        - message
+      additionalProperties: false
+
+    UndoRequestPayload:
+      type: object
+      description: Client requests undo operation
+      properties:
+        message_type:
+          const: undo_request
+        user_id:
+          type: string
+          description: User requesting undo (must have mutation permissions)
+          example: alice@example.com
+      required:
+        - message_type
+        - user_id
+      additionalProperties: false
+
+    RedoRequestPayload:
+      type: object
+      description: Client requests redo operation
+      properties:
+        message_type:
+          const: redo_request
+        user_id:
+          type: string
+          description: User requesting redo (must have mutation permissions)
+          example: alice@example.com
+      required:
+        - message_type
+        - user_id
+      additionalProperties: false
 
   securitySchemes:
     jwtAuth:
