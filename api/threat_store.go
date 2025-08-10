@@ -5,11 +5,33 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/google/uuid"
 )
+
+// normalizeSeverity converts severity values to the standardized case-sensitive format
+func normalizeSeverity(severity ThreatSeverity) ThreatSeverity {
+	switch strings.ToLower(string(severity)) {
+	case "low":
+		return "Low"
+	case "medium":
+		return "Medium"
+	case "high":
+		return "High"
+	case "critical":
+		return "Critical"
+	case "unknown":
+		return "Unknown"
+	case "none":
+		return "None"
+	default:
+		// If no match, return as-is (likely already in correct format)
+		return severity
+	}
+}
 
 // ThreatStore defines the interface for threat operations with caching support
 type ThreatStore interface {
@@ -65,6 +87,9 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 	now := time.Now().UTC()
 	threat.CreatedAt = now
 	threat.ModifiedAt = now
+
+	// Normalize severity to standardized case
+	threat.Severity = normalizeSeverity(threat.Severity)
 
 	// Serialize metadata if present
 	var metadataJSON sql.NullString
@@ -252,6 +277,9 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 
 	// Update modified timestamp
 	threat.ModifiedAt = time.Now().UTC()
+
+	// Normalize severity to standardized case
+	threat.Severity = normalizeSeverity(threat.Severity)
 
 	// Serialize metadata if present
 	var metadataJSON sql.NullString
@@ -565,7 +593,7 @@ func (s *DatabaseThreatStore) applyPatchOperation(threat *Threat, op PatchOperat
 	case "/severity":
 		if op.Op == "replace" {
 			if sev, ok := op.Value.(string); ok {
-				threat.Severity = ThreatSeverity(sev)
+				threat.Severity = normalizeSeverity(ThreatSeverity(sev))
 			} else {
 				return fmt.Errorf("invalid value type for severity: expected string")
 			}
@@ -684,6 +712,9 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 		threat.CreatedAt = now
 		threat.ModifiedAt = now
 
+		// Normalize severity to standardized case
+		threat.Severity = normalizeSeverity(threat.Severity)
+
 		// Track parent for cache invalidation
 		if parentThreatModelID == "" {
 			parentThreatModelID = threat.ThreatModelId.String()
@@ -790,6 +821,9 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 	for i := range threats {
 		threat := &threats[i]
 		threat.ModifiedAt = now
+
+		// Normalize severity to standardized case
+		threat.Severity = normalizeSeverity(threat.Severity)
 
 		// Track parent for cache invalidation
 		if parentThreatModelID == "" {

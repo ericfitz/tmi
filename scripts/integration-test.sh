@@ -158,7 +158,14 @@ main() {
     fi
     
     # Run integration tests
-    log_info "Running integration tests..."
+    if [ -n "$TEST_NAME" ]; then
+        log_info "Running specific integration test: $TEST_NAME"
+        TEST_PATTERN="$TEST_NAME"
+    else
+        log_info "Running all integration tests..."
+        TEST_PATTERN="(TestDatabase.*Integration|Test.*Integration|TestIntegrationWithRedis|TestRedisConsistency|TestPerformanceWithAndWithoutRedis)"
+    fi
+    
     TEST_DB_HOST=localhost \
     TEST_DB_PORT=$POSTGRES_TEST_PORT \
     TEST_DB_USER=$POSTGRES_USER \
@@ -166,7 +173,7 @@ main() {
     TEST_DB_NAME=$POSTGRES_DB \
     TEST_REDIS_HOST=localhost \
     TEST_REDIS_PORT=$REDIS_TEST_PORT \
-        go test -v ./api -run "TestDatabase.*Integration"
+        go test -v ./api -run "$TEST_PATTERN"
     
     log_success "Integration tests completed successfully!"
 }
@@ -176,8 +183,9 @@ show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  -h, --help     Show this help message"
-    echo "  --cleanup-only Only cleanup existing containers and exit"
+    echo "  -h, --help              Show this help message"
+    echo "  --cleanup-only          Only cleanup existing containers and exit"
+    echo "  --test-name <name>      Run only the specified test by name"
     echo ""
     echo "This script will:"
     echo "  1. Start PostgreSQL on port $POSTGRES_TEST_PORT"
@@ -188,21 +196,27 @@ show_usage() {
 }
 
 # Parse command line arguments
-case "${1:-}" in
-    -h|--help)
-        show_usage
-        exit 0
-        ;;
-    --cleanup-only)
-        cleanup
-        exit 0
-        ;;
-    "")
-        main
-        ;;
-    *)
-        log_error "Unknown option: $1"
-        show_usage
-        exit 1
-        ;;
-esac
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        --cleanup-only)
+            cleanup
+            exit 0
+            ;;
+        --test-name)
+            TEST_NAME="$2"
+            shift 2
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            show_usage
+            exit 1
+            ;;
+    esac
+done
+
+# Run main function
+main

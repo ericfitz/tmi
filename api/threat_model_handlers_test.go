@@ -50,6 +50,9 @@ func setupThreatModelRouterWithUser(userName string) *gin.Engine {
 
 // TestCreateThreatModel tests creating a new threat model
 func TestCreateThreatModel(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	r := setupThreatModelRouter()
 
 	// Create request body
@@ -268,6 +271,9 @@ func TestCreateThreatModelWithDuplicateSubjects(t *testing.T) {
 
 // TestCreateThreatModelWithDuplicateOwner tests creating a threat model with a subject that duplicates the owner
 func TestCreateThreatModelWithDuplicateOwner(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	r := setupThreatModelRouter()
 
 	// Create request with a subject that matches the owner
@@ -591,6 +597,9 @@ func TestDuplicateSubjectViaPatching(t *testing.T) {
 
 // TestReadWriteDeletePermissions tests access levels for different operations
 func TestReadWriteDeletePermissions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	// Set up the direct test users rather than relying on fixtures
 	ownerUser := "test@example.com" // This is the owner user in setupThreatModelRouter()
 

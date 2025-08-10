@@ -162,6 +162,9 @@ func TestThreatModelRoleBasedAccess(t *testing.T) {
 
 // TestThreatModelCustomAuthRules tests the custom authorization rules for threat models
 func TestThreatModelCustomAuthRules(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	// Initialize test fixtures - this will reset the stores and create fresh data
 	InitTestFixtures()
 	threatModelID := TestFixtures.ThreatModelID

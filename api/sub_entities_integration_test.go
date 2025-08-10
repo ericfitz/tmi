@@ -677,10 +677,10 @@ func (suite *SubEntityIntegrationTestSuite) createTestThreat(t *testing.T) strin
 	requestBody := map[string]interface{}{
 		"name":        "Test Integration Threat",
 		"description": "A threat created during integration testing",
-		"severity":    "high",
+		"severity":    "High",
 		"status":      "identified",
 		"threat_type": "spoofing",
-		"priority":    "high",
+		"priority":    "High",
 		"mitigated":   false,
 	}
 

@@ -1,4 +1,4 @@
-.PHONY: build test test-one single-test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi validate-openapi-detailed openapi-endpoints test-auth-token test-with-token test-no-auth test-api-endpoints dev-test debug-auth-endpoints list
+.PHONY: build test test-unit lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi validate-openapi-detailed openapi-endpoints test-api test-api-full dev-test dev-test-full debug-auth-endpoints list
 
 # Default build target
 VERSION := 0.1.0
@@ -12,43 +12,41 @@ build:
 list:
 	@make -qp | awk -F':' '/^[a-zA-Z0-9][^$$#\/\t=]*:([^=]|$$)/ {print $$1}' | sort
 
-# Run tests with test configuration
-test:
-	@TEST_CMD="TMI_LOGGING_IS_TEST=true go test ./..."; \
-	if [ "$(count1)" = "true" ]; then \
-		TEST_CMD="$$TEST_CMD --count=1"; \
-	fi; \
-	if [ "$(passfail)" = "true" ]; then \
-		eval $$TEST_CMD | grep -E "FAIL|PASS"; \
+# Run unit tests (fast, no external dependencies)
+test-unit:
+	@if [ -n "$(name)" ]; then \
+		echo "Running specific unit test: $(name)"; \
+		TMI_LOGGING_IS_TEST=true go test -short ./... -run $(name) -v; \
 	else \
-		eval $$TEST_CMD; \
+		echo "Running all unit tests..."; \
+		TEST_CMD="TMI_LOGGING_IS_TEST=true go test -short ./..."; \
+		if [ "$(count1)" = "true" ]; then \
+			TEST_CMD="$$TEST_CMD --count=1"; \
+		fi; \
+		if [ "$(passfail)" = "true" ]; then \
+			eval $$TEST_CMD | grep -E "FAIL|PASS"; \
+		else \
+			eval $$TEST_CMD; \
+		fi; \
 	fi
-
-# Run specific test
-test-one:
-	@if [ -z "$(name)" ]; then \
-		echo "Usage: make test-one name=TestName"; \
-		exit 1; \
-	fi
-	TMI_LOGGING_IS_TEST=true go test ./... -run $(name)
-
-# Run single test with verbose output in api package
-single-test:
-	@if [ -z "$(name)" ]; then \
-		echo "Usage: make single-test name=TestName"; \
-		exit 1; \
-	fi
-	TMI_LOGGING_IS_TEST=true go test ./api -v -run $(name)
 
 # Run integration tests with automatic database setup
 test-integration:
-	@echo "Running integration tests with automatic database setup..."
-	./scripts/integration-test.sh
+	@if [ -n "$(name)" ]; then \
+		echo "Running specific integration test: $(name)"; \
+		./scripts/integration-test.sh --test-name $(name); \
+	else \
+		echo "Running integration tests with automatic database setup..."; \
+		./scripts/integration-test.sh; \
+	fi
 
 # Cleanup integration test containers only
 test-integration-cleanup:
 	@echo "Cleaning up integration test containers..."
 	./scripts/integration-test.sh --cleanup-only
+
+# Alias for backward compatibility
+test: test-unit
 
 # Run linter
 lint:
@@ -122,6 +120,8 @@ prod:
 dev-db:
 	@echo "Starting development database..."
 	@./scripts/start-dev-db.sh
+	@echo "Applying database migrations..."
+	@cd cmd/migrate && go run main.go up
 
 # Start development Redis only
 dev-redis:
@@ -188,15 +188,15 @@ delete-observability:
 	@docker-compose -f docker-compose.observability.yml down -v --remove-orphans
 	@echo "✅ Observability stack completely removed!"
 
-# Run telemetry-specific tests
+# Run telemetry tests (unit and integration)
 test-telemetry:
-	@echo "Running telemetry tests..."
-	go test ./internal/telemetry/... -v
-
-# Run telemetry integration tests
-test-telemetry-integration:
-	@echo "Running telemetry integration tests..."
-	go test ./internal/telemetry/... -tags=integration -v
+	@if [ "$(integration)" = "true" ]; then \
+		echo "Running telemetry integration tests..."; \
+		go test ./internal/telemetry/... -tags=integration -v; \
+	else \
+		echo "Running telemetry unit tests..."; \
+		go test ./internal/telemetry/... -v; \
+	fi
 
 # Run telemetry benchmarks
 benchmark-telemetry:
@@ -268,52 +268,100 @@ reset-db:
 
 # Testing and Development Authentication Targets
 
-# Get development JWT token using proper OAuth flow with test provider
-test-auth-token:
-	@echo "Getting development JWT token via OAuth test provider..."
-	@echo "1. Getting authorization URL from test provider..."
-	@AUTH_REDIRECT=$$(curl -s -o /dev/null -w "%{redirect_url}" "http://localhost:8080/auth/authorize/test"); \
-	if [ -n "$$AUTH_REDIRECT" ]; then \
-		echo "2. Following OAuth callback: $$AUTH_REDIRECT"; \
-		curl -s "$$AUTH_REDIRECT" | jq -r '.token' 2>/dev/null || curl -s "$$AUTH_REDIRECT"; \
-	else \
-		echo "Failed to get OAuth authorization redirect"; \
-	fi
-
-# Test authenticated endpoint with token via proper OAuth flow
-test-with-token:
-	@echo "Testing authenticated endpoint via OAuth test provider..."
-	@echo "1. Getting OAuth authorization redirect..."
-	@AUTH_REDIRECT=$$(curl -s -o /dev/null -w "%{redirect_url}" "http://localhost:8080/auth/authorize/test"); \
-	if [ -n "$$AUTH_REDIRECT" ]; then \
-		echo "2. Getting token from OAuth callback..."; \
-		TOKEN=$$(curl -s "$$AUTH_REDIRECT" | jq -r '.token' 2>/dev/null); \
-		if [ "$$TOKEN" != "null" ] && [ -n "$$TOKEN" ]; then \
-			echo "✅ Got token: $$TOKEN"; \
-			echo "3. Testing /threat_models endpoint..."; \
-			curl -H "Authorization: Bearer $$TOKEN" "http://localhost:8080/threat_models" | jq .; \
+# Test live API endpoints (requires running server)
+test-api:
+	@if [ "$(auth)" = "only" ]; then \
+		echo "🔐 Getting JWT token via OAuth test provider..."; \
+		AUTH_REDIRECT=$$(curl -s "http://localhost:8080/auth/authorize/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
+		if [ -n "$$AUTH_REDIRECT" ]; then \
+			echo "✅ Token:"; \
+			curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null || curl -s "$$AUTH_REDIRECT"; \
 		else \
-			echo "❌ Failed to get token from OAuth callback"; \
-			echo "Response was:"; \
-			curl -s "$$AUTH_REDIRECT"; \
+			echo "❌ Failed to get OAuth authorization redirect"; \
 		fi; \
+	elif [ "$(noauth)" = "true" ]; then \
+		echo "🚫 Testing unauthenticated access (should return 401)..."; \
+		curl -v "http://localhost:8080/threat_models" 2>&1 | grep -E "(401|unauthorized)" || echo "❌ Expected 401 Unauthorized"; \
 	else \
-		echo "❌ Failed to get OAuth authorization redirect"; \
+		echo "🧪 Testing API endpoints..."; \
+		echo "1. Testing unauthenticated access (should fail)..."; \
+		curl -v "http://localhost:8080/threat_models" 2>&1 | grep -E "(401|unauthorized)" || echo "❌ Expected 401 Unauthorized"; \
+		echo ""; \
+		echo "2. Testing authenticated access..."; \
+		AUTH_REDIRECT=$$(curl -s "http://localhost:8080/auth/authorize/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
+		if [ -n "$$AUTH_REDIRECT" ]; then \
+			TOKEN=$$(curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null); \
+			if [ "$$TOKEN" != "null" ] && [ -n "$$TOKEN" ]; then \
+				echo "✅ Got token: $$TOKEN"; \
+				echo "3. Testing /threat_models endpoint..."; \
+				curl -H "Authorization: Bearer $$TOKEN" "http://localhost:8080/threat_models" | jq .; \
+			else \
+				echo "❌ Failed to get token from OAuth callback"; \
+			fi; \
+		else \
+			echo "❌ Failed to get OAuth authorization redirect"; \
+		fi; \
 	fi
 
-# Test endpoint without authentication (should fail)
-test-no-auth:
-	@echo "Testing endpoint without authentication (should return 401)..."
-	@curl -v "http://localhost:8080/threat_models" 2>&1 | grep -E "(401|unauthorized)" || echo "❌ Expected 401 Unauthorized"
-
-# Comprehensive API test
-test-api-endpoints:
-	@echo "🧪 Testing API endpoints..."
-	@echo "1. Testing unauthenticated access (should fail)..."
-	@$(MAKE) test-no-auth
-	@echo ""
-	@echo "2. Testing authenticated access..."
-	@$(MAKE) test-with-token
+# Full API test with environment setup - kills existing server, sets up fresh environment, and runs tests
+test-api-full:
+	@echo "🚀 Setting up full development environment for API testing..."
+	
+	@echo "1. 🛑 Stopping any running server processes..."
+	@pkill -f "cmd/server/main.go" || true
+	@pkill -f "bin/server" || true
+	@sleep 2
+	
+	@echo "2. 🗑️  Cleaning up existing containers..."
+	@docker rm -f tmi-postgresql tmi-redis || true
+	
+	@echo "3. 🗃️  Starting development database..."
+	@$(MAKE) dev-db
+	
+	@echo "4. 📦 Starting development Redis..."
+	@$(MAKE) dev-redis
+	
+	@echo "5. ⏳ Waiting for services to be ready..."
+	@sleep 5
+	
+	@echo "6. 🔨 Building server..."
+	@$(MAKE) build
+	
+	@echo "7. 📝 Ensuring configuration files exist..."
+	@if [ ! -f config-development.yaml ]; then \
+		echo "   Generating development configuration..."; \
+		go run cmd/server/main.go --generate-config || exit 1; \
+	fi
+	
+	@echo "8. 🚀 Starting development server in background..."
+	@nohup go run -tags dev cmd/server/main.go --config=config-development.yaml > server.log 2>&1 & \
+	SERVER_PID=$$!; \
+	echo "Server started with PID: $$SERVER_PID"; \
+	echo "9. ⏳ Waiting for server to start..."; \
+	for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -s http://localhost:8080/health >/dev/null 2>&1; then \
+			echo "✅ Server is ready!"; \
+			break; \
+		fi; \
+		echo "   Waiting for server... (attempt $$i/10)"; \
+		sleep 3; \
+	done; \
+	if ! curl -s http://localhost:8080/health >/dev/null 2>&1; then \
+		echo "❌ Server failed to start within timeout"; \
+		echo "Server log:"; \
+		tail -20 server.log || true; \
+		pkill -f "cmd/server/main.go" || true; \
+		exit 1; \
+	fi
+	
+	@echo "10. 🧪 Running API tests..."
+	@$(MAKE) test-api || (echo "❌ API tests failed"; pkill -f "cmd/server/main.go" || true; pkill -f "bin/server" || true; exit 1)
+	
+	@echo "11. 🛑 Cleaning up server..."
+	@pkill -f "cmd/server/main.go" || true
+	@pkill -f "bin/server" || true
+	
+	@echo "✅ Full API test completed successfully!"
 
 # Quick development test - builds and tests key endpoints
 dev-test: build
@@ -322,7 +370,10 @@ dev-test: build
 		echo "❌ Server not running. Start with 'make dev' first"; \
 		exit 1; \
 	fi
-	@$(MAKE) test-api-endpoints
+	@$(MAKE) test-api
+
+# Full development test - sets up environment and runs development tests
+dev-test-full: test-api-full
 
 # Debug auth endpoints - check what's available
 debug-auth-endpoints:

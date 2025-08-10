@@ -14,6 +14,9 @@ import (
 )
 
 func TestHandleCollaborationSessions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	// Setup test data with different permission levels
 	testUser := "test@example.com"
 

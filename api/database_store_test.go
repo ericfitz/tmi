@@ -187,6 +187,9 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 
 // TestThreatModelDatabaseStore_Create tests threat model creation
 func TestThreatModelDatabaseStore_Create(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	t.Run("Success", func(t *testing.T) {
 		db, mock, err := sqlmock.New()
 		assert.NoError(t, err)
