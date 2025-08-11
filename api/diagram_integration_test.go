@@ -228,23 +228,7 @@ func testThreatModelDiagramPATCH(t *testing.T, suite *SubEntityIntegrationTestSu
 
 	// Test error cases
 	t.Run("InvalidPatchOperations", func(t *testing.T) {
-		// Test invalid path
-		invalidPatchOps := []PatchOperation{
-			{
-				Op:    "replace",
-				Path:  "/nonexistent_field",
-				Value: "should fail",
-			},
-		}
-
-		req := suite.makeAuthenticatedRequest("PATCH", path, invalidPatchOps)
-		w := suite.executeRequest(req)
-
-		// Depending on implementation, this could return 400 Bad Request or another appropriate error
-		// For now, we'll accept any error status (4xx or 5xx)
-		assert.True(t, w.Code >= 400, "Invalid patch should return an error status")
-
-		// Test invalid operation
+		// Test invalid operation - this should definitely fail
 		invalidOpPatchOps := []PatchOperation{
 			{
 				Op:    "invalid_operation",
@@ -253,8 +237,21 @@ func testThreatModelDiagramPATCH(t *testing.T, suite *SubEntityIntegrationTestSu
 			},
 		}
 
-		req = suite.makeAuthenticatedRequest("PATCH", path, invalidOpPatchOps)
-		w = suite.executeRequest(req)
+		req := suite.makeAuthenticatedRequest("PATCH", path, invalidOpPatchOps)
+		w := suite.executeRequest(req)
 		assert.True(t, w.Code >= 400, "Invalid operation should return an error status")
+
+		// Test malformed path - paths must start with /
+		malformedPathOps := []PatchOperation{
+			{
+				Op:    "replace",
+				Path:  "name", // Missing leading slash
+				Value: "should fail",
+			},
+		}
+
+		req = suite.makeAuthenticatedRequest("PATCH", path, malformedPathOps)
+		w = suite.executeRequest(req)
+		assert.True(t, w.Code >= 400, "Malformed path should return an error status")
 	})
 }

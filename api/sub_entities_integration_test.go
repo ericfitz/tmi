@@ -27,6 +27,11 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
+// getTestServerURL returns the base URL for the running integration test server
+func getTestServerURL() string {
+	return getEnvOrDefault("TEST_SERVER_URL", "http://localhost:8081")
+}
+
 // SubEntityIntegrationTestSuite manages database setup and teardown for sub-entity integration tests
 type SubEntityIntegrationTestSuite struct {
 	dbManager      *db.Manager
@@ -49,18 +54,19 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	}
 
 	// Create test database configuration using environment variables
+	// These defaults match what scripts/integration-test.sh sets up
 	postgresConfig := db.PostgresConfig{
 		Host:     getEnvOrDefault("TEST_DB_HOST", "localhost"),
-		Port:     getEnvOrDefault("TEST_DB_PORT", "5432"),
-		User:     getEnvOrDefault("TEST_DB_USER", "tmi_test"),
-		Password: getEnvOrDefault("TEST_DB_PASSWORD", "test123"),
-		Database: getEnvOrDefault("TEST_DB_NAME", "tmi_test"),
+		Port:     getEnvOrDefault("TEST_DB_PORT", "5433"),
+		User:     getEnvOrDefault("TEST_DB_USER", "tmi_dev"),
+		Password: getEnvOrDefault("TEST_DB_PASSWORD", "dev123"),
+		Database: getEnvOrDefault("TEST_DB_NAME", "tmi_integration_test"),
 		SSLMode:  "disable",
 	}
 
 	redisConfig := db.RedisConfig{
 		Host:     getEnvOrDefault("TEST_REDIS_HOST", "localhost"),
-		Port:     getEnvOrDefault("TEST_REDIS_PORT", "6379"),
+		Port:     getEnvOrDefault("TEST_REDIS_PORT", "6380"),
 		Password: "",
 		DB:       2, // Use DB 2 for sub-entity testing
 	}

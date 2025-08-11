@@ -30,20 +30,97 @@ test-unit:
 		fi; \
 	fi
 
-# Run integration tests with automatic database setup
+# Run integration tests with complete environment setup (databases in containers, server native)
 test-integration:
-	@if [ -n "$(name)" ]; then \
-		echo "Running specific integration test: $(name)"; \
-		./scripts/integration-test.sh --test-name $(name); \
+	@echo "🚀 Starting robust integration test environment..."
+	@echo ""
+	@echo "1️⃣  Cleaning up any existing test environment..."
+	@pkill -f "bin/server.*test" || true
+	@pkill -f "go run.*server.*test" || true
+	@docker rm -f tmi-integration-postgres tmi-integration-redis 2>/dev/null || true
+	@sleep 2
+	
+	@echo "2️⃣  Starting test databases in containers..."
+	@./scripts/start-integration-db.sh
+	
+	@echo "3️⃣  Building server binary..."
+	@$(MAKE) build
+	
+	@echo "4️⃣  Starting test server (native)..."
+	@./scripts/start-integration-server.sh & echo $$! > .integration-server.pid; \
+	sleep 2; \
+	if [ -f .integration-server.pid ]; then \
+		echo "Server started with PID: $$(cat .integration-server.pid)"; \
 	else \
-		echo "Running integration tests with automatic database setup..."; \
-		./scripts/integration-test.sh; \
+		echo "❌ Failed to capture server PID"; \
+		exit 1; \
 	fi
+	
+	@echo "5️⃣  Waiting for server to be ready..."
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -s http://localhost:8081/health >/dev/null 2>&1; then \
+			echo "✅ Server is ready!"; \
+			break; \
+		fi; \
+		echo "   Waiting for server... (attempt $$i/10)"; \
+		sleep 3; \
+	done
+	@if ! curl -s http://localhost:8081/health >/dev/null 2>&1; then \
+		echo "❌ Server failed to start within timeout"; \
+		cat server-integration.log 2>/dev/null || true; \
+		$(MAKE) test-integration-cleanup; \
+		exit 1; \
+	fi
+	
+	@echo "6️⃣  Running integration tests..."
+	@if [ -n "$(name)" ]; then \
+		echo "Running specific test: $(name)"; \
+		TEST_PATTERN="$(name)"; \
+	else \
+		TEST_PATTERN="Integration"; \
+	fi; \
+	TEST_EXIT_CODE=0; \
+	TEST_DB_HOST=localhost \
+	TEST_DB_PORT=5433 \
+	TEST_DB_USER=tmi_dev \
+	TEST_DB_PASSWORD=dev123 \
+	TEST_DB_NAME=tmi_integration_test \
+	TEST_REDIS_HOST=localhost \
+	TEST_REDIS_PORT=6380 \
+	TEST_SERVER_URL=http://localhost:8081 \
+		go test -v -timeout=10m ./api/... -run "$$TEST_PATTERN" \
+		| tee integration-test.log \
+		|| TEST_EXIT_CODE=$$?; \
+	echo ""; \
+	if [ $$TEST_EXIT_CODE -eq 0 ]; then \
+		echo "✅ All integration tests passed!"; \
+	else \
+		echo "❌ Integration tests failed with exit code $$TEST_EXIT_CODE"; \
+		echo ""; \
+		echo "📋 Failed test summary:"; \
+		grep -E "FAIL:|--- FAIL" integration-test.log || true; \
+	fi; \
+	$(MAKE) test-integration-cleanup; \
+	exit $$TEST_EXIT_CODE
 
-# Cleanup integration test containers only
+# Cleanup integration test environment (containers and server)
 test-integration-cleanup:
-	@echo "Cleaning up integration test containers..."
-	./scripts/integration-test.sh --cleanup-only
+	@echo "🧹 Cleaning up integration test environment..."
+	@if [ -f .integration-server.pid ]; then \
+		PID=$$(cat .integration-server.pid); \
+		if ps -p $$PID > /dev/null 2>&1; then \
+			echo "Stopping server (PID: $$PID)..."; \
+			kill $$PID 2>/dev/null || true; \
+			sleep 2; \
+		fi; \
+		rm -f .integration-server.pid; \
+	fi
+	@pkill -f "bin/server.*test" || true
+	@pkill -f "go run.*server.*test" || true
+	@docker stop tmi-integration-postgres tmi-integration-redis 2>/dev/null || true
+	@docker rm tmi-integration-postgres tmi-integration-redis 2>/dev/null || true
+	@rm -f server-integration.log integration-test.log
+	@echo "✅ Cleanup completed"
 
 # Alias for backward compatibility
 test: test-unit
