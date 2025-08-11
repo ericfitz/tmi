@@ -121,6 +121,7 @@ func testThreatModelDiagramPUT(t *testing.T, suite *SubEntityIntegrationTestSuit
 	updateBody := map[string]interface{}{
 		"id":   suite.testDiagramID,
 		"name": "Updated Integration Test Diagram",
+		"type": "DFD-1.0.0",
 	}
 
 	path := fmt.Sprintf("/threat_models/%s/diagrams/%s", suite.threatModelID, suite.testDiagramID)

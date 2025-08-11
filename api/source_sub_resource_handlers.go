@@ -148,16 +148,11 @@ func (h *SourceSubResourceHandler) CreateSource(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body
-	var source Source
-	if err := c.ShouldBindJSON(&source); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
-		return
-	}
-
-	// Validate required fields
-	if source.Url == "" {
-		HandleRequestError(c, InvalidInputError("Source URL is required"))
+	// Parse and validate request body with prohibited field checking
+	config := ValidationConfigs["source_create"]
+	source, err := ValidateAndParseRequest[Source](c, config)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -171,14 +166,14 @@ func (h *SourceSubResourceHandler) CreateSource(c *gin.Context) {
 		source.Id.String(), threatModelID, userName)
 
 	// Create source in store
-	if err := h.sourceStore.Create(c.Request.Context(), &source, threatModelID); err != nil {
+	if err := h.sourceStore.Create(c.Request.Context(), source, threatModelID); err != nil {
 		logger.Error("Failed to create source code reference: %v", err)
 		HandleRequestError(c, ServerError("Failed to create source code reference"))
 		return
 	}
 
 	logger.Debug("Successfully created source code reference %s", source.Id.String())
-	c.JSON(http.StatusCreated, &source)
+	c.JSON(http.StatusCreated, source)
 }
 
 // UpdateSource updates an existing source code reference
@@ -215,16 +210,11 @@ func (h *SourceSubResourceHandler) UpdateSource(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body
-	var source Source
-	if err := c.ShouldBindJSON(&source); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
-		return
-	}
-
-	// Validate required fields
-	if source.Url == "" {
-		HandleRequestError(c, InvalidInputError("Source URL is required"))
+	// Parse and validate request body with prohibited field checking
+	config := ValidationConfigs["source_update"]
+	source, err := ValidateAndParseRequest[Source](c, config)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -234,14 +224,14 @@ func (h *SourceSubResourceHandler) UpdateSource(c *gin.Context) {
 	logger.Debug("Updating source code reference %s (user: %s)", sourceID, userName)
 
 	// Update source in store
-	if err := h.sourceStore.Update(c.Request.Context(), &source, threatModelID); err != nil {
+	if err := h.sourceStore.Update(c.Request.Context(), source, threatModelID); err != nil {
 		logger.Error("Failed to update source code reference %s: %v", sourceID, err)
 		HandleRequestError(c, ServerError("Failed to update source code reference"))
 		return
 	}
 
 	logger.Debug("Successfully updated source code reference %s", sourceID)
-	c.JSON(http.StatusOK, &source)
+	c.JSON(http.StatusOK, source)
 }
 
 // DeleteSource deletes a source code reference

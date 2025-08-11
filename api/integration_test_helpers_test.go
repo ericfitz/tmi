@@ -21,16 +21,15 @@ func verifyThreatModelInDatabase(suite *SubEntityIntegrationTestSuite, t *testin
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
 
-	query := `SELECT id, name, description, owner, threat_model_framework, created_at, modified_at, authorization 
+	query := `SELECT id, name, description, owner_email, threat_model_framework, created_at, modified_at 
 			  FROM threat_models WHERE id = $1`
 
 	var dbID, name, description, owner, framework sql.NullString
 	var createdAt, modifiedAt sql.NullTime
-	var authorizationJSON sql.NullString
 
 	err := db.QueryRowContext(ctx, query, id).Scan(
 		&dbID, &name, &description, &owner, &framework,
-		&createdAt, &modifiedAt, &authorizationJSON)
+		&createdAt, &modifiedAt)
 	require.NoError(t, err, "Threat model should exist in database")
 
 	// Verify basic fields

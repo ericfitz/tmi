@@ -185,6 +185,7 @@ func (suite *RedisIntegrationTestSuite) testDiagramCacheConsistency(t *testing.T
 	// Create a diagram
 	requestBody := map[string]interface{}{
 		"name":        "Redis Consistency Test Diagram",
+		"type":        "DFD-1.0.0",
 		"description": "Testing Redis cache consistency for diagrams",
 	}
 

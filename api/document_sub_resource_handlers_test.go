@@ -320,7 +320,6 @@ func TestUpdateDocument(t *testing.T) {
 		documentID := "00000000-0000-0000-0000-000000000002"
 
 		requestBody := map[string]interface{}{
-			"id":          documentID,
 			"name":        "Updated Test Document",
 			"description": "An updated document description",
 			"url":         "https://example.com/updated-doc.pdf",

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -217,7 +218,7 @@ func TestCreateThreat(t *testing.T) {
 
 		assert.Equal(t, "New Test Threat", response["name"])
 		assert.Equal(t, "A threat created for testing", response["description"])
-		assert.Equal(t, "high", response["severity"])
+		assert.Equal(t, strings.ToLower("high"), strings.ToLower(response["severity"].(string)), "Severity comparison should be case-insensitive")
 
 		mockStore.AssertExpectations(t)
 	})
@@ -269,7 +270,6 @@ func TestUpdateThreat(t *testing.T) {
 		threatID := "00000000-0000-0000-0000-000000000002"
 
 		requestBody := map[string]interface{}{
-			"id":          threatID,
 			"name":        "Updated Test Threat",
 			"description": "An updated threat description",
 			"severity":    "critical",
@@ -295,7 +295,7 @@ func TestUpdateThreat(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "Updated Test Threat", response["name"])
-		assert.Equal(t, "critical", response["severity"])
+		assert.Equal(t, strings.ToLower("critical"), strings.ToLower(response["severity"].(string)), "Severity comparison should be case-insensitive")
 
 		mockStore.AssertExpectations(t)
 	})

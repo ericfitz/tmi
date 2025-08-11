@@ -197,7 +197,7 @@ func GetExpectedSchema() []TableSchema {
 				{
 					Name:       "threats_severity_check",
 					Type:       "CHECK",
-					Definition: "severity IS NULL OR severity IN ('low', 'medium', 'high', 'critical')",
+					Definition: "severity IS NULL OR severity IN ('Low', 'Medium', 'High', 'Critical', 'Unknown', 'None')",
 				},
 				{
 					Name:       "threats_likelihood_check",

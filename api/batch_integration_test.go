@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -414,7 +415,7 @@ func testBulkCreateThreats(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 		assert.NotEmpty(t, threat["id"], "Each threat should have an ID")
 		assert.Equal(t, originalThreat["name"], threat["name"])
 		assert.Equal(t, originalThreat["description"], threat["description"])
-		assert.Equal(t, originalThreat["severity"], threat["severity"])
+		assert.Equal(t, strings.ToLower(originalThreat["severity"].(string)), strings.ToLower(threat["severity"].(string)), "Severity comparison should be case-insensitive")
 		assert.Equal(t, originalThreat["status"], threat["status"])
 		assert.Equal(t, originalThreat["threat_type"], threat["threat_type"])
 		assert.Equal(t, originalThreat["priority"], threat["priority"])
@@ -489,7 +490,7 @@ func testBulkUpdateThreats(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 		assert.Equal(t, originalThreat["id"], threat["id"])
 		assert.Equal(t, originalThreat["name"], threat["name"])
 		assert.Equal(t, originalThreat["description"], threat["description"])
-		assert.Equal(t, originalThreat["severity"], threat["severity"])
+		assert.Equal(t, strings.ToLower(originalThreat["severity"].(string)), strings.ToLower(threat["severity"].(string)), "Severity comparison should be case-insensitive")
 		assert.Equal(t, originalThreat["status"], threat["status"])
 		assert.Equal(t, originalThreat["mitigated"], threat["mitigated"])
 		assert.Equal(t, originalThreat["mitigation"], threat["mitigation"])

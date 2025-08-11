@@ -303,7 +303,6 @@ func TestUpdateSource(t *testing.T) {
 		sourceID := "00000000-0000-0000-0000-000000000002"
 
 		requestBody := map[string]interface{}{
-			"id":          sourceID,
 			"name":        "Updated Test Repository",
 			"description": "An updated repository description",
 			"url":         "https://github.com/user/updated-repo",

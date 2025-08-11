@@ -151,10 +151,11 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		Description *string `json:"description,omitempty"`
 	}
 
-	// Parse and validate request body using OpenAPI validation
-	var request CreateThreatModelDiagramRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+	// Parse and validate request body with prohibited field checking
+	config := ValidationConfigs["diagram_create"]
+	request, err := ValidateAndParseRequest[CreateThreatModelDiagramRequest](c, config)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 

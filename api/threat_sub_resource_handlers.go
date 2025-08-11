@@ -149,16 +149,11 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body
-	var threat Threat
-	if err := c.ShouldBindJSON(&threat); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
-		return
-	}
-
-	// Validate required fields
-	if threat.Name == "" {
-		HandleRequestError(c, InvalidInputError("Threat name is required"))
+	// Parse and validate request body with prohibited field checking
+	config := ValidationConfigs["threat_create"]
+	threat, err := ValidateAndParseRequest[Threat](c, config)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -175,14 +170,14 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 		threat.Id.String(), threatModelID, userName)
 
 	// Create threat in store
-	if err := h.threatStore.Create(c.Request.Context(), &threat); err != nil {
+	if err := h.threatStore.Create(c.Request.Context(), threat); err != nil {
 		logger.Error("Failed to create threat: %v", err)
 		HandleRequestError(c, ServerError("Failed to create threat"))
 		return
 	}
 
 	logger.Debug("Successfully created threat %s", threat.Id.String())
-	c.JSON(http.StatusCreated, &threat)
+	c.JSON(http.StatusCreated, threat)
 }
 
 // UpdateThreat updates an existing threat
@@ -220,16 +215,11 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body
-	var threat Threat
-	if err := c.ShouldBindJSON(&threat); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
-		return
-	}
-
-	// Validate required fields
-	if threat.Name == "" {
-		HandleRequestError(c, InvalidInputError("Threat name is required"))
+	// Parse and validate request body with prohibited field checking
+	config := ValidationConfigs["threat_update"]
+	threat, err := ValidateAndParseRequest[Threat](c, config)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -240,14 +230,14 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 	logger.Debug("Updating threat %s (user: %s)", threatID, userName)
 
 	// Update threat in store
-	if err := h.threatStore.Update(c.Request.Context(), &threat); err != nil {
+	if err := h.threatStore.Update(c.Request.Context(), threat); err != nil {
 		logger.Error("Failed to update threat %s: %v", threatID, err)
 		HandleRequestError(c, ServerError("Failed to update threat"))
 		return
 	}
 
 	logger.Debug("Successfully updated threat %s", threatID)
-	c.JSON(http.StatusOK, &threat)
+	c.JSON(http.StatusOK, threat)
 }
 
 // PatchThreat applies JSON patch operations to a threat

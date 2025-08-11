@@ -146,10 +146,11 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Authorization []Authorization `json:"authorization,omitempty"`
 	}
 
-	// Parse and validate request body using OpenAPI validation
-	var request CreateThreatModelRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+	// Parse and validate request body with prohibited field checking
+	config := ValidationConfigs["threat_model_create"]
+	request, err := ValidateAndParseRequest[CreateThreatModelRequest](c, config)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 

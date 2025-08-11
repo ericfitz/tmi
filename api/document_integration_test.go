@@ -124,7 +124,6 @@ func testDocumentPUT(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 
 	// Update the document
 	updateBody := map[string]interface{}{
-		"id":          suite.testDocumentID,
 		"name":        "Updated Integration Test Document",
 		"url":         "https://example.com/updated-integration-test-doc.pdf",
 		"description": "Updated description for integration testing",
@@ -163,24 +162,22 @@ func testDocumentDELETE(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 
 // testDocumentBulkCreate tests bulk creating documents
 func testDocumentBulkCreate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// Test data for bulk create
-	requestBody := map[string]interface{}{
-		"documents": []map[string]interface{}{
-			{
-				"name":        "Bulk Test Document 1",
-				"url":         "https://example.com/bulk-doc-1.pdf",
-				"description": "First document in bulk create test",
-			},
-			{
-				"name":        "Bulk Test Document 2",
-				"url":         "https://example.com/bulk-doc-2.pdf",
-				"description": "Second document in bulk create test",
-			},
-			{
-				"name":        "Bulk Test Document 3",
-				"url":         "https://example.com/bulk-doc-3.pdf",
-				"description": "Third document in bulk create test",
-			},
+	// Test data for bulk create (direct array, no wrapper)
+	requestBody := []map[string]interface{}{
+		{
+			"name":        "Bulk Test Document 1",
+			"url":         "https://example.com/bulk-doc-1.pdf",
+			"description": "First document in bulk create test",
+		},
+		{
+			"name":        "Bulk Test Document 2",
+			"url":         "https://example.com/bulk-doc-2.pdf",
+			"description": "Second document in bulk create test",
+		},
+		{
+			"name":        "Bulk Test Document 3",
+			"url":         "https://example.com/bulk-doc-3.pdf",
+			"description": "Third document in bulk create test",
 		},
 	}
 
@@ -189,17 +186,13 @@ func testDocumentBulkCreate(t *testing.T, suite *SubEntityIntegrationTestSuite) 
 	req := suite.makeAuthenticatedRequest("POST", path, requestBody)
 	w := suite.executeRequest(req)
 
-	response := suite.assertJSONResponse(t, w, http.StatusCreated)
-
-	// Verify response
-	createdDocuments, ok := response["documents"].([]interface{})
-	assert.True(t, ok, "Response should contain documents array")
+	createdDocuments := suite.assertJSONArrayResponse(t, w, http.StatusCreated)
 	assert.Len(t, createdDocuments, 3, "Should create 3 documents")
 
 	// Verify each created document
 	for i, documentInterface := range createdDocuments {
 		document := documentInterface.(map[string]interface{})
-		originalDocument := requestBody["documents"].([]map[string]interface{})[i]
+		originalDocument := requestBody[i]
 
 		assert.NotEmpty(t, document["id"], "Each document should have an ID")
 		assert.Equal(t, originalDocument["name"], document["name"])

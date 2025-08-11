@@ -149,7 +149,6 @@ func testSourcePUT(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 
 	// Update the source
 	updateBody := map[string]interface{}{
-		"id":          suite.testSourceID,
 		"name":        "Updated Integration Test Source",
 		"url":         "https://github.com/example/updated-integration-test-repo",
 		"description": "Updated description for integration testing",
@@ -203,38 +202,36 @@ func testSourceDELETE(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 
 // testSourceBulkCreate tests bulk creating sources
 func testSourceBulkCreate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// Test data for bulk create
-	requestBody := map[string]interface{}{
-		"sources": []map[string]interface{}{
-			{
-				"name":        "Bulk Test Source 1",
-				"url":         "https://github.com/example/bulk-repo-1",
-				"description": "First source in bulk create test",
-				"type":        "git",
-				"parameters": map[string]interface{}{
-					"refType":  "branch",
-					"refValue": "main",
-				},
+	// Test data for bulk create (direct array, no wrapper)
+	requestBody := []map[string]interface{}{
+		{
+			"name":        "Bulk Test Source 1",
+			"url":         "https://github.com/example/bulk-repo-1",
+			"description": "First source in bulk create test",
+			"type":        "git",
+			"parameters": map[string]interface{}{
+				"refType":  "branch",
+				"refValue": "main",
 			},
-			{
-				"name":        "Bulk Test Source 2",
-				"url":         "https://gitlab.com/example/bulk-repo-2",
-				"description": "Second source in bulk create test",
-				"type":        "git",
-				"parameters": map[string]interface{}{
-					"refType":  "tag",
-					"refValue": "v2.0.0",
-				},
+		},
+		{
+			"name":        "Bulk Test Source 2",
+			"url":         "https://gitlab.com/example/bulk-repo-2",
+			"description": "Second source in bulk create test",
+			"type":        "git",
+			"parameters": map[string]interface{}{
+				"refType":  "tag",
+				"refValue": "v2.0.0",
 			},
-			{
-				"name":        "Bulk Test Source 3",
-				"url":         "https://bitbucket.org/example/bulk-repo-3",
-				"description": "Third source in bulk create test",
-				"type":        "git",
-				"parameters": map[string]interface{}{
-					"refType":  "commit",
-					"refValue": "abc123def456",
-				},
+		},
+		{
+			"name":        "Bulk Test Source 3",
+			"url":         "https://bitbucket.org/example/bulk-repo-3",
+			"description": "Third source in bulk create test",
+			"type":        "git",
+			"parameters": map[string]interface{}{
+				"refType":  "commit",
+				"refValue": "abc123def456",
 			},
 		},
 	}
@@ -244,17 +241,13 @@ func testSourceBulkCreate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	req := suite.makeAuthenticatedRequest("POST", path, requestBody)
 	w := suite.executeRequest(req)
 
-	response := suite.assertJSONResponse(t, w, http.StatusCreated)
-
-	// Verify response
-	createdSources, ok := response["sources"].([]interface{})
-	assert.True(t, ok, "Response should contain sources array")
+	createdSources := suite.assertJSONArrayResponse(t, w, http.StatusCreated)
 	assert.Len(t, createdSources, 3, "Should create 3 sources")
 
 	// Verify each created source
 	for i, sourceInterface := range createdSources {
 		source := sourceInterface.(map[string]interface{})
-		originalSource := requestBody["sources"].([]map[string]interface{})[i]
+		originalSource := requestBody[i]
 
 		assert.NotEmpty(t, source["id"], "Each source should have an ID")
 		assert.Equal(t, originalSource["name"], source["name"])

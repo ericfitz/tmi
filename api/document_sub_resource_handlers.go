@@ -148,20 +148,11 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body
-	var document Document
-	if err := c.ShouldBindJSON(&document); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
-		return
-	}
-
-	// Validate required fields
-	if document.Name == "" {
-		HandleRequestError(c, InvalidInputError("Document name is required"))
-		return
-	}
-	if document.Url == "" {
-		HandleRequestError(c, InvalidInputError("Document URL is required"))
+	// Parse and validate request body with prohibited field checking
+	config := ValidationConfigs["document_create"]
+	document, err := ValidateAndParseRequest[Document](c, config)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -175,14 +166,14 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		document.Id.String(), threatModelID, userName)
 
 	// Create document in store
-	if err := h.documentStore.Create(c.Request.Context(), &document, threatModelID); err != nil {
+	if err := h.documentStore.Create(c.Request.Context(), document, threatModelID); err != nil {
 		logger.Error("Failed to create document: %v", err)
 		HandleRequestError(c, ServerError("Failed to create document"))
 		return
 	}
 
 	logger.Debug("Successfully created document %s", document.Id.String())
-	c.JSON(http.StatusCreated, &document)
+	c.JSON(http.StatusCreated, document)
 }
 
 // UpdateDocument updates an existing document
@@ -219,20 +210,11 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body
-	var document Document
-	if err := c.ShouldBindJSON(&document); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
-		return
-	}
-
-	// Validate required fields
-	if document.Name == "" {
-		HandleRequestError(c, InvalidInputError("Document name is required"))
-		return
-	}
-	if document.Url == "" {
-		HandleRequestError(c, InvalidInputError("Document URL is required"))
+	// Parse and validate request body with prohibited field checking
+	config := ValidationConfigs["document_update"]
+	document, err := ValidateAndParseRequest[Document](c, config)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -242,14 +224,14 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	logger.Debug("Updating document %s (user: %s)", documentID, userName)
 
 	// Update document in store
-	if err := h.documentStore.Update(c.Request.Context(), &document, threatModelID); err != nil {
+	if err := h.documentStore.Update(c.Request.Context(), document, threatModelID); err != nil {
 		logger.Error("Failed to update document %s: %v", documentID, err)
 		HandleRequestError(c, ServerError("Failed to update document"))
 		return
 	}
 
 	logger.Debug("Successfully updated document %s", documentID)
-	c.JSON(http.StatusOK, &document)
+	c.JSON(http.StatusOK, document)
 }
 
 // DeleteDocument deletes a document

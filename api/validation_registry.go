@@ -97,13 +97,15 @@ func ValidateURLFields(data interface{}) error {
 	})
 }
 
-// ValidateThreatSeverity validates threat severity values
+// ValidateThreatSeverity validates and normalizes threat severity values to title case
 func ValidateThreatSeverity(data interface{}) error {
 	validSeverities := map[string]bool{
 		"low":      true,
 		"medium":   true,
 		"high":     true,
 		"critical": true,
+		"unknown":  true,
+		"none":     true,
 		"":         true, // Allow empty for optional fields
 	}
 
@@ -112,11 +114,29 @@ func ValidateThreatSeverity(data interface{}) error {
 		v = v.Elem()
 	}
 
-	return validateFieldsByPattern(v, "severity", func(fieldValue string) error {
-		if !validSeverities[strings.ToLower(fieldValue)] {
-			return InvalidInputError(fmt.Sprintf("Invalid severity '%s'. Must be one of: low, medium, high, critical", fieldValue))
+	return validateAndNormalizeSeverityFields(v, "severity", func(fieldValue string) (string, error) {
+		lowerValue := strings.ToLower(fieldValue)
+		if !validSeverities[lowerValue] {
+			return "", InvalidInputError(fmt.Sprintf("Invalid severity '%s'. Must be one of: low, medium, high, critical, unknown, none", fieldValue))
 		}
-		return nil
+
+		// Normalize to title case
+		switch lowerValue {
+		case "low":
+			return "Low", nil
+		case "medium":
+			return "Medium", nil
+		case "high":
+			return "High", nil
+		case "critical":
+			return "Critical", nil
+		case "unknown":
+			return "Unknown", nil
+		case "none":
+			return "None", nil
+		default:
+			return fieldValue, nil // empty string or already correct
+		}
 	})
 }
 
@@ -284,6 +304,60 @@ func validateFieldsByPattern(v reflect.Value, fieldPattern string, validationFun
 
 			if err := validationFunc(fieldValue); err != nil {
 				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateAndNormalizeSeverityFields validates and normalizes fields matching a pattern
+func validateAndNormalizeSeverityFields(v reflect.Value, fieldPattern string, normalizationFunc func(string) (string, error)) error {
+	if !v.CanSet() {
+		// If we can't modify the struct, just validate without normalization
+		return validateFieldsByPattern(v, fieldPattern, func(fieldValue string) error {
+			_, err := normalizationFunc(fieldValue)
+			return err
+		})
+	}
+
+	t := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		field := t.Field(i)
+		value := v.Field(i)
+
+		// Check if field name contains the pattern (case insensitive)
+		fieldName := strings.ToLower(field.Name)
+		jsonName := strings.ToLower(getJSONFieldName(field))
+
+		if strings.Contains(fieldName, fieldPattern) || strings.Contains(jsonName, fieldPattern) {
+			// Get string value and normalize it
+			var fieldValue string
+			var canModify bool
+
+			if value.Kind() == reflect.String && value.CanSet() {
+				fieldValue = value.String()
+				canModify = true
+			} else if value.Kind() == reflect.Ptr && !value.IsNil() && value.Elem().Kind() == reflect.String && value.Elem().CanSet() {
+				fieldValue = value.Elem().String()
+				canModify = true
+			} else {
+				continue
+			}
+
+			// Validate and normalize
+			normalizedValue, err := normalizationFunc(fieldValue)
+			if err != nil {
+				return err
+			}
+
+			// Set the normalized value back to the field
+			if canModify && normalizedValue != fieldValue {
+				if value.Kind() == reflect.String {
+					value.SetString(normalizedValue)
+				} else if value.Kind() == reflect.Ptr && !value.IsNil() && value.Elem().Kind() == reflect.String {
+					value.Elem().SetString(normalizedValue)
+				}
 			}
 		}
 	}

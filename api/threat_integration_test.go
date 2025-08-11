@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,7 +74,7 @@ func testThreatPOST(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	assert.NotEmpty(t, response["id"], "Response should contain ID")
 	assert.Equal(t, requestBody["name"], response["name"])
 	assert.Equal(t, requestBody["description"], response["description"])
-	assert.Equal(t, requestBody["severity"], response["severity"])
+	assert.Equal(t, strings.ToLower("high"), strings.ToLower(response["severity"].(string)), "Severity comparison should be case-insensitive")
 	assert.Equal(t, requestBody["status"], response["status"])
 	assert.Equal(t, requestBody["threat_type"], response["threat_type"])
 	assert.Equal(t, requestBody["priority"], response["priority"])
@@ -152,7 +153,6 @@ func testThreatPUT(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 
 	// Update the threat
 	updateBody := map[string]interface{}{
-		"id":          suite.testThreatID,
 		"name":        "Updated Integration Test Threat",
 		"description": "Updated description for integration testing",
 		"severity":    "critical",
@@ -174,7 +174,7 @@ func testThreatPUT(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	assert.Equal(t, suite.testThreatID, response["id"])
 	assert.Equal(t, updateBody["name"], response["name"])
 	assert.Equal(t, updateBody["description"], response["description"])
-	assert.Equal(t, updateBody["severity"], response["severity"])
+	assert.Equal(t, strings.ToLower("critical"), strings.ToLower(response["severity"].(string)), "Severity comparison should be case-insensitive")
 	assert.Equal(t, updateBody["status"], response["status"])
 	assert.Equal(t, updateBody["threat_type"], response["threat_type"])
 	assert.Equal(t, updateBody["priority"], response["priority"])
@@ -218,7 +218,7 @@ func testThreatPATCH(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	// Verify patches were applied
 	assert.Equal(t, suite.testThreatID, response["id"])
 	assert.Equal(t, "Patched Integration Test Threat", response["name"])
-	assert.Equal(t, "medium", response["severity"])
+	assert.Equal(t, strings.ToLower("medium"), strings.ToLower(response["severity"].(string)), "Severity comparison should be case-insensitive")
 	assert.Equal(t, 6.8, response["score"])
 }
 
@@ -242,36 +242,34 @@ func testThreatDELETE(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 
 // testThreatBulkCreate tests bulk creating threats
 func testThreatBulkCreate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// Test data for bulk create
-	requestBody := map[string]interface{}{
-		"threats": []map[string]interface{}{
-			{
-				"name":        "Bulk Test Threat 1",
-				"description": "First threat in bulk create test",
-				"severity":    "high",
-				"status":      "identified",
-				"threat_type": "spoofing",
-				"priority":    "high",
-				"mitigated":   false,
-			},
-			{
-				"name":        "Bulk Test Threat 2",
-				"description": "Second threat in bulk create test",
-				"severity":    "medium",
-				"status":      "identified",
-				"threat_type": "tampering",
-				"priority":    "medium",
-				"mitigated":   false,
-			},
-			{
-				"name":        "Bulk Test Threat 3",
-				"description": "Third threat in bulk create test",
-				"severity":    "low",
-				"status":      "identified",
-				"threat_type": "repudiation",
-				"priority":    "low",
-				"mitigated":   false,
-			},
+	// Test data for bulk create (direct array, no wrapper)
+	requestBody := []map[string]interface{}{
+		{
+			"name":        "Bulk Test Threat 1",
+			"description": "First threat in bulk create test",
+			"severity":    "high",
+			"status":      "identified",
+			"threat_type": "spoofing",
+			"priority":    "high",
+			"mitigated":   false,
+		},
+		{
+			"name":        "Bulk Test Threat 2",
+			"description": "Second threat in bulk create test",
+			"severity":    "medium",
+			"status":      "identified",
+			"threat_type": "tampering",
+			"priority":    "medium",
+			"mitigated":   false,
+		},
+		{
+			"name":        "Bulk Test Threat 3",
+			"description": "Third threat in bulk create test",
+			"severity":    "low",
+			"status":      "identified",
+			"threat_type": "repudiation",
+			"priority":    "low",
+			"mitigated":   false,
 		},
 	}
 
@@ -280,22 +278,18 @@ func testThreatBulkCreate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	req := suite.makeAuthenticatedRequest("POST", path, requestBody)
 	w := suite.executeRequest(req)
 
-	response := suite.assertJSONResponse(t, w, http.StatusCreated)
-
-	// Verify response
-	createdThreats, ok := response["threats"].([]interface{})
-	assert.True(t, ok, "Response should contain threats array")
+	createdThreats := suite.assertJSONArrayResponse(t, w, http.StatusCreated)
 	assert.Len(t, createdThreats, 3, "Should create 3 threats")
 
 	// Verify each created threat
 	for i, threatInterface := range createdThreats {
 		threat := threatInterface.(map[string]interface{})
-		originalThreat := requestBody["threats"].([]map[string]interface{})[i]
+		originalThreat := requestBody[i]
 
 		assert.NotEmpty(t, threat["id"], "Each threat should have an ID")
 		assert.Equal(t, originalThreat["name"], threat["name"])
 		assert.Equal(t, originalThreat["description"], threat["description"])
-		assert.Equal(t, originalThreat["severity"], threat["severity"])
+		assert.Equal(t, strings.ToLower(originalThreat["severity"].(string)), strings.ToLower(threat["severity"].(string)), "Severity comparison should be case-insensitive")
 		assert.Equal(t, suite.threatModelID, threat["threat_model_id"])
 	}
 }
@@ -306,31 +300,29 @@ func testThreatBulkUpdate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	threat1ID := suite.createTestThreat(t)
 	threat2ID := suite.createTestThreat(t)
 
-	// Test data for bulk update
-	requestBody := map[string]interface{}{
-		"threats": []map[string]interface{}{
-			{
-				"id":          threat1ID,
-				"name":        "Bulk Updated Threat 1",
-				"description": "First threat updated in bulk",
-				"severity":    "critical",
-				"status":      "mitigated",
-				"threat_type": "spoofing",
-				"priority":    "critical",
-				"mitigated":   true,
-				"mitigation":  "Updated mitigation for threat 1",
-			},
-			{
-				"id":          threat2ID,
-				"name":        "Bulk Updated Threat 2",
-				"description": "Second threat updated in bulk",
-				"severity":    "high",
-				"status":      "in_progress",
-				"threat_type": "tampering",
-				"priority":    "high",
-				"mitigated":   false,
-				"mitigation":  "Updated mitigation for threat 2",
-			},
+	// Test data for bulk update (direct array, no wrapper)
+	requestBody := []map[string]interface{}{
+		{
+			"id":          threat1ID,
+			"name":        "Bulk Updated Threat 1",
+			"description": "First threat updated in bulk",
+			"severity":    "critical",
+			"status":      "mitigated",
+			"threat_type": "spoofing",
+			"priority":    "critical",
+			"mitigated":   true,
+			"mitigation":  "Updated mitigation for threat 1",
+		},
+		{
+			"id":          threat2ID,
+			"name":        "Bulk Updated Threat 2",
+			"description": "Second threat updated in bulk",
+			"severity":    "high",
+			"status":      "in_progress",
+			"threat_type": "tampering",
+			"priority":    "high",
+			"mitigated":   false,
+			"mitigation":  "Updated mitigation for threat 2",
 		},
 	}
 
@@ -339,22 +331,18 @@ func testThreatBulkUpdate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	req := suite.makeAuthenticatedRequest("PUT", path, requestBody)
 	w := suite.executeRequest(req)
 
-	response := suite.assertJSONResponse(t, w, http.StatusOK)
-
-	// Verify response
-	updatedThreats, ok := response["threats"].([]interface{})
-	assert.True(t, ok, "Response should contain threats array")
+	updatedThreats := suite.assertJSONArrayResponse(t, w, http.StatusOK)
 	assert.Len(t, updatedThreats, 2, "Should update 2 threats")
 
 	// Verify each updated threat
 	for i, threatInterface := range updatedThreats {
 		threat := threatInterface.(map[string]interface{})
-		originalThreat := requestBody["threats"].([]map[string]interface{})[i]
+		originalThreat := requestBody[i]
 
 		assert.Equal(t, originalThreat["id"], threat["id"])
 		assert.Equal(t, originalThreat["name"], threat["name"])
 		assert.Equal(t, originalThreat["description"], threat["description"])
-		assert.Equal(t, originalThreat["severity"], threat["severity"])
+		assert.Equal(t, strings.ToLower(originalThreat["severity"].(string)), strings.ToLower(threat["severity"].(string)), "Severity comparison should be case-insensitive")
 		assert.Equal(t, originalThreat["status"], threat["status"])
 		assert.Equal(t, originalThreat["mitigated"], threat["mitigated"])
 		assert.Equal(t, originalThreat["mitigation"], threat["mitigation"])
@@ -371,6 +359,6 @@ func testThreatBulkUpdate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 
 		retrievedThreat := suite.assertJSONResponse(t, w, http.StatusOK)
 		assert.Equal(t, threat["name"], retrievedThreat["name"], "Updated threat should persist in database")
-		assert.Equal(t, threat["severity"], retrievedThreat["severity"], "Updated severity should persist in database")
+		assert.Equal(t, strings.ToLower(threat["severity"].(string)), strings.ToLower(retrievedThreat["severity"].(string)), "Updated severity should persist in database (case-insensitive)")
 	}
 }
