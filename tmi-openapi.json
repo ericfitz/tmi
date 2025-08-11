@@ -3401,7 +3401,7 @@
         ],
         "requestBody": {
           "content": {
-            "application/json": {
+            "application/json-patch+json": {
               "schema": {
                 "type": "array",
                 "items": {
@@ -4429,7 +4429,7 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "application/json-patch+json": {
               "schema": {
                 "type": "object",
                 "properties": {
@@ -6654,7 +6654,7 @@
                 }
               }
             },
-            "application/json": {
+            "application/json-patch+json": {
               "schema": {
                 "type": "array",
                 "items": {
