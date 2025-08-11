@@ -158,7 +158,7 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 	}
 
 	// Set threat model ID from URL (override any value in body)
-	threat.ThreatModelId = threatModelUUID
+	threat.ThreatModelId = &threatModelUUID
 
 	// Generate UUID if not provided
 	if threat.Id == nil {
@@ -225,7 +225,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 
 	// Set IDs from URL (override any values in body)
 	threat.Id = &threatUUID
-	threat.ThreatModelId = threatModelUUID
+	threat.ThreatModelId = &threatModelUUID
 
 	logger.Debug("Updating threat %s (user: %s)", threatID, userName)
 
@@ -396,7 +396,7 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 		threat := &threats[i]
 
 		// Set threat model ID from URL
-		threat.ThreatModelId = threatModelUUID
+		threat.ThreatModelId = &threatModelUUID
 
 		// Generate UUID if not provided
 		if threat.Id == nil {
@@ -480,7 +480,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 	for i := range threats {
 		threat := &threats[i]
 		// Ensure threat model ID matches URL
-		threat.ThreatModelId = threatModelUUID
+		threat.ThreatModelId = &threatModelUUID
 	}
 
 	logger.Debug("Bulk updating %d threats in threat model %s (user: %s)",

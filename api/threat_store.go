@@ -85,8 +85,8 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 
 	// Set timestamps
 	now := time.Now().UTC()
-	threat.CreatedAt = now
-	threat.ModifiedAt = now
+	threat.CreatedAt = &now
+	threat.ModifiedAt = &now
 
 	// Normalize severity to standardized case
 	threat.Severity = normalizeSeverity(threat.Severity)
@@ -276,7 +276,8 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 	logger.Debug("Updating threat: %s", threat.Id)
 
 	// Update modified timestamp
-	threat.ModifiedAt = time.Now().UTC()
+	now := time.Now().UTC()
+	threat.ModifiedAt = &now
 
 	// Normalize severity to standardized case
 	threat.Severity = normalizeSeverity(threat.Severity)
@@ -709,8 +710,8 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 		}
 
 		// Set timestamps
-		threat.CreatedAt = now
-		threat.ModifiedAt = now
+		threat.CreatedAt = &now
+		threat.ModifiedAt = &now
 
 		// Normalize severity to standardized case
 		threat.Severity = normalizeSeverity(threat.Severity)
@@ -820,7 +821,7 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 
 	for i := range threats {
 		threat := &threats[i]
-		threat.ModifiedAt = now
+		threat.ModifiedAt = &now
 
 		// Normalize severity to standardized case
 		threat.Severity = normalizeSeverity(threat.Severity)

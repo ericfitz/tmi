@@ -1,4 +1,4 @@
-.PHONY: build build-check-db test test-unit lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi validate-openapi-detailed openapi-endpoints test-api test-api-full dev-test dev-test-full debug-auth-endpoints list
+.PHONY: build build-check-db test test-unit lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi openapi-endpoints test-api test-api-full dev-test dev-test-full debug-auth-endpoints list
 
 # Default build target
 VERSION := 0.1.0
@@ -161,18 +161,18 @@ gen-api:
 validate-asyncapi:
 	uv run scripts/validate_asyncapi.py tmi-asyncapi.yaml
 
-# Validate OpenAPI REST specification (basic JSON syntax)
+# Validate OpenAPI specification with comprehensive analysis
 validate-openapi:
-	python -m json.tool tmi-openapi.json > /dev/null && echo "✅ OpenAPI JSON is valid"
-
-# Validate OpenAPI specification with detailed analysis
-validate-openapi-detailed:
 	@FILE=$${file:-tmi-openapi.json}; \
 	if [ ! -f "$$FILE" ]; then \
 		echo "❌ File not found: $$FILE"; \
-		echo "Usage: make validate-openapi-detailed [file=path/to/openapi.json]"; \
+		echo "Usage: make validate-openapi [file=path/to/openapi.json]"; \
 		exit 1; \
 	fi; \
+	echo "🔍 Validating OpenAPI specification: $$FILE"; \
+	echo "1️⃣  Checking JSON syntax..."; \
+	python -m json.tool "$$FILE" > /dev/null && echo "✅ JSON syntax is valid"; \
+	echo "2️⃣  Running detailed OpenAPI analysis..."; \
 	uv run scripts/validate_openapi.py "$$FILE"
 
 # List OpenAPI endpoints with HTTP methods and response codes

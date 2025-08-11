@@ -219,8 +219,12 @@ func createTestThreatForWarming() Threat {
 		Id:            &id,
 		Name:          "Test Threat",
 		Description:   strPtr("Test threat description"),
-		Severity:      High,
-		ThreatModelId: uuid.New(),
+		Severity:      ThreatSeverityHigh,
+		ThreatModelId: uuidPointer(uuid.New()),
+		Priority:      "High",
+		Status:        "Open",
+		ThreatType:    "Test",
+		Mitigated:     false,
 	}
 }
 

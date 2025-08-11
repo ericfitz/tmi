@@ -610,7 +610,7 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 		threatModelUuid, _ = uuid.Parse(threatModelId)
 
 		// Convert severity
-		severity := Unknown // default
+		severity := ThreatSeverityUnknown // default
 		if severityStr != nil && *severityStr != "" {
 			severity = ThreatSeverity(*severityStr)
 		}
@@ -621,9 +621,9 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 			Description:   description,
 			Severity:      severity,
 			Mitigation:    mitigation,
-			CreatedAt:     createdAt,
-			ModifiedAt:    modifiedAt,
-			ThreatModelId: threatModelUuid,
+			CreatedAt:     &createdAt,
+			ModifiedAt:    &modifiedAt,
+			ThreatModelId: &threatModelUuid,
 			Priority:      "Medium", // default
 			Status:        "Open",   // default
 			ThreatType:    "",       // default

@@ -188,7 +188,7 @@ func TestCreateThreat(t *testing.T) {
 		createdThreat := &Threat{
 			Name:        "New Test Threat",
 			Description: stringPtr("A threat created for testing"),
-			Severity:    High,
+			Severity:    ThreatSeverityHigh,
 			Status:      "identified",
 			ThreatType:  "spoofing",
 			Priority:    "high",

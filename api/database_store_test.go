@@ -24,8 +24,12 @@ func createTestThreatModelDB() ThreatModel {
 			Id:            &id,
 			Name:          "SQL Injection",
 			Description:   strPtr("Database attack"),
-			Severity:      High,
-			ThreatModelId: id,
+			Severity:      ThreatSeverityHigh,
+			ThreatModelId: &id,
+			Priority:      "High",
+			Status:        "Open",
+			ThreatType:    "Injection",
+			Mitigated:     false,
 		},
 	}
 	diagrams := []Diagram{}

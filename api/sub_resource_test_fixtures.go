@@ -103,24 +103,30 @@ func InitSubResourceTestFixtures() {
 		Id:            &threat1UUID,
 		Name:          "SQL Injection Vulnerability",
 		Description:   stringPointer("Database injection through malicious SQL queries"),
-		CreatedAt:     now,
-		ModifiedAt:    now,
-		ThreatModelId: threatModelUUID,
-		Severity:      High,
+		CreatedAt:     &now,
+		ModifiedAt:    &now,
+		ThreatModelId: &threatModelUUID,
+		Severity:      ThreatSeverityHigh,
 		Priority:      "high",
 		Status:        "active",
+		ThreatType:    "Injection",
+		Mitigated:     false,
 	}
 
+	// Create a later timestamp for threat2
+	laterTime := now.Add(time.Minute)
 	SubResourceFixtures.Threat2 = Threat{
 		Id:            &threat2UUID,
 		Name:          "Cross-Site Scripting (XSS)",
 		Description:   stringPointer("Client-side script injection vulnerability"),
-		CreatedAt:     now.Add(time.Minute),
-		ModifiedAt:    now.Add(time.Minute),
-		ThreatModelId: threatModelUUID,
-		Severity:      Medium,
+		CreatedAt:     &laterTime,
+		ModifiedAt:    &laterTime,
+		ThreatModelId: &threatModelUUID,
+		Severity:      ThreatSeverityMedium,
 		Priority:      "medium",
 		Status:        "identified",
+		ThreatType:    "Cross-Site Scripting",
+		Mitigated:     false,
 	}
 
 	// Create test documents
@@ -261,10 +267,15 @@ func CreateTestThreatWithMetadata(threatModelID string, metadata []Metadata) Thr
 		Id:            &threatUUID,
 		Name:          "Test Threat",
 		Description:   stringPointer("A test threat for unit testing"),
-		CreatedAt:     now,
-		ModifiedAt:    now,
-		ThreatModelId: threatModelTypedUUID,
+		CreatedAt:     &now,
+		ModifiedAt:    &now,
+		ThreatModelId: &threatModelTypedUUID,
 		Metadata:      &metadata,
+		Severity:      ThreatSeverityMedium,
+		Priority:      "Medium",
+		Status:        "Open",
+		ThreatType:    "Test",
+		Mitigated:     false,
 	}
 }
 

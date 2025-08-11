@@ -26,6 +26,14 @@ This repository contains API documentation and Go implementation for a Collabora
 - Dev DB only: `make dev-db` (starts PostgreSQL container)
 - Dev Redis only: `make dev-redis` (starts Redis container)
 
+### OpenAPI Schema Management
+
+- JSON Patcher Tool: `python3 scripts/json_patcher.py` - Utility for making precise modifications to OpenAPI specification
+  - Patch schema: `python3 scripts/json_patcher.py -s tmi-openapi.json -p "$.components.schemas.SchemaName" -f patch.json`
+  - Creates automatic backups and validates JSON structure
+  - Useful for implementing Input/Output schema separation or other targeted schema modifications
+- Validate OpenAPI: `make validate-openapi [file=path/to/spec.json]` (validates OpenAPI specification with comprehensive JSON syntax and detailed analysis)
+
 ### Testing Commands
 
 **IMPORTANT: Always use make targets for testing. Never run `go test` commands directly.**
