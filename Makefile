@@ -1,4 +1,4 @@
-.PHONY: build test test-unit lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi validate-openapi-detailed openapi-endpoints test-api test-api-full dev-test dev-test-full debug-auth-endpoints list
+.PHONY: build build-check-db test test-unit lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi validate-openapi-detailed openapi-endpoints test-api test-api-full dev-test dev-test-full debug-auth-endpoints list
 
 # Default build target
 VERSION := 0.1.0
@@ -7,6 +7,10 @@ BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 build:
 	go build -o bin/server github.com/ericfitz/tmi/cmd/server
+
+# Build check-db executable
+build-check-db:
+	go build -o check-db cmd/check-db/main.go
 
 # List all available make targets
 list:
@@ -197,9 +201,10 @@ openapi-endpoints:
 # Clean build artifacts
 clean:
 	rm -rf ./bin/*
+	rm -f check-db
 
 # Start development environment
-dev:
+dev: build-check-db
 	@echo "Starting TMI development environment..."
 	@./scripts/start-dev.sh
 
@@ -339,7 +344,7 @@ coverage-report:
 # Database and Migration Management
 
 # Ensure all database migrations are applied (with auto-fix)
-ensure-migrations:
+ensure-migrations: build-check-db
 	@echo "Ensuring all database migrations are applied..."
 	@./scripts/ensure-migrations.sh
 

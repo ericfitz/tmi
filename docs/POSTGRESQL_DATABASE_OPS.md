@@ -79,14 +79,14 @@ postgresql://username:password@host:port/database?sslmode=require
 
 ### Automated Setup Script
 
-The automated setup script creates the database and all required tables based on the schema definition:
+The automated migration system creates the database and all required tables based on the schema definition:
 
 ```bash
 # From the project root directory
-go run cmd/setup-db/main.go
+cd cmd/migrate && go run main.go up
 ```
 
-This script performs the following operations:
+This command performs the following operations:
 
 1. Creates the database if it doesn't exist
 2. Creates all required tables with proper data types
@@ -390,9 +390,9 @@ Error: permission denied to create database
    CREATE DATABASE tmi OWNER your_user;
    ```
 
-2. Use a privileged user for setup:
+2. Use a privileged user for migration:
    ```bash
-   POSTGRES_USER=postgres go run cmd/setup-db/main.go
+   cd cmd/migrate && POSTGRES_USER=postgres go run main.go up
    ```
 
 #### Migration Issues
