@@ -204,9 +204,8 @@ func testDiagramEndpointsMock(t *testing.T, router *gin.Engine) {
 	// Test POST /threat_models/:id/diagrams
 	t.Run("POST", func(t *testing.T) {
 		requestBody := map[string]interface{}{
-			"name":        "Mock Integration Test Diagram",
-			"type":        "DFD-1.0.0",
-			"description": "A diagram created during mock integration testing",
+			"name": "Mock Integration Test Diagram",
+			"type": "DFD-1.0.0",
 		}
 
 		jsonBody, _ := json.Marshal(requestBody)
@@ -228,7 +227,7 @@ func testDiagramEndpointsMock(t *testing.T, router *gin.Engine) {
 
 		assert.NotEmpty(t, response["id"])
 		assert.Equal(t, requestBody["name"], response["name"])
-		assert.Equal(t, requestBody["description"], response["description"])
+		assert.Equal(t, requestBody["type"], response["type"])
 	})
 
 	// Note: GET list would be /threat_models/:id/diagrams - skipping for now
@@ -253,8 +252,7 @@ func testDiagramEndpointsMock(t *testing.T, router *gin.Engine) {
 	// Test PUT /threat_models/:id/diagrams/:diagram_id
 	t.Run("PUT", func(t *testing.T) {
 		updateBody := map[string]interface{}{
-			"name":        "Updated Mock Test Diagram",
-			"description": "Updated description via PUT",
+			"name": "Updated Mock Test Diagram",
 		}
 
 		jsonBody, _ := json.Marshal(updateBody)
@@ -273,6 +271,5 @@ func testDiagramEndpointsMock(t *testing.T, router *gin.Engine) {
 
 		assert.Equal(t, TestFixtures.DiagramID, response["id"])
 		assert.Equal(t, updateBody["name"], response["name"])
-		assert.Equal(t, updateBody["description"], response["description"])
 	})
 }

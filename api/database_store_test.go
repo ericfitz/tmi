@@ -129,7 +129,7 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 
 		// Mock diagrams query
 		diagramRows := sqlmock.NewRows([]string{
-			"id", "name", "type", "content", "cells", "metadata", "created_at", "modified_at",
+			"id", "name", "type", "cells", "metadata", "created_at", "modified_at",
 		})
 		mock.ExpectQuery("SELECT (.+) FROM diagrams").WithArgs(testID).WillReturnRows(diagramRows)
 
@@ -470,9 +470,9 @@ func TestDiagramDatabaseStore_Get(t *testing.T) {
 		metadataJSON, _ := json.Marshal([]Metadata{{Key: "priority", Value: "high"}})
 
 		rows := sqlmock.NewRows([]string{
-			"id", "threat_model_id", "name", "type", "content", "cells", "metadata", "created_at", "modified_at",
+			"id", "threat_model_id", "name", "type", "cells", "metadata", "created_at", "modified_at",
 		}).AddRow(
-			testUUID, threatModelUUID, "Test Diagram", "DFD-1.0.0", "Test description",
+			testUUID, threatModelUUID, "Test Diagram", "DFD-1.0.0",
 			cellsJSON, metadataJSON, time.Now(), time.Now(),
 		)
 		mock.ExpectQuery("SELECT (.+) FROM diagrams").WithArgs(testID).WillReturnRows(rows)
@@ -585,7 +585,7 @@ func TestDiagramDatabaseStore_Update(t *testing.T) {
 
 		mock.ExpectExec("UPDATE diagrams").
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-									sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+									sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(0, 0)) // 0 rows affected
 
 		err = store.Update(testID, testDiagram)
