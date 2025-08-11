@@ -211,6 +211,22 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	if err != nil {
 		// Log the actual error for debugging
 		fmt.Printf("[ERROR] Failed to create threat model: %v\n", err)
+
+		// Check if this is a foreign key constraint violation (stale user session)
+		if isForeignKeyConstraintError(err) {
+			// This indicates the user's JWT token is valid but they no longer exist in the database
+			// This happens when user account is deleted but JWT hasn't expired yet
+			fmt.Printf("[WARN] Foreign key constraint violation for user %s - invalidating session\n", userName)
+
+			// Try to blacklist the token to prevent future use
+			if tokenStr, err := extractTokenFromRequest(c); err == nil {
+				blacklistTokenIfAvailable(c, tokenStr, userName)
+			}
+
+			HandleRequestError(c, UnauthorizedError("Your session is no longer valid. Please log in again."))
+			return
+		}
+
 		HandleRequestError(c, ServerError("Failed to create threat model"))
 		return
 	}

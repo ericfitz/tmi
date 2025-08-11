@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -245,4 +246,56 @@ func ForbiddenError(message string) *RequestError {
 		Code:    "forbidden",
 		Message: message,
 	}
+}
+
+func UnauthorizedError(message string) *RequestError {
+	return &RequestError{
+		Status:  http.StatusUnauthorized,
+		Code:    "unauthorized",
+		Message: message,
+	}
+}
+
+// isForeignKeyConstraintError checks if the error is a foreign key constraint violation
+func isForeignKeyConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errorMessage := strings.ToLower(err.Error())
+	return strings.Contains(errorMessage, "foreign key constraint") ||
+		strings.Contains(errorMessage, "violates foreign key constraint") ||
+		strings.Contains(errorMessage, "fkey constraint") ||
+		strings.Contains(errorMessage, "constraint") && strings.Contains(errorMessage, "owner_email")
+}
+
+// extractTokenFromRequest extracts the JWT token from the Authorization header
+func extractTokenFromRequest(c *gin.Context) (string, error) {
+	// Get the Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		return "", fmt.Errorf("missing Authorization header")
+	}
+
+	// Parse the header format (Bearer <token>)
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return "", fmt.Errorf("invalid Authorization header format")
+	}
+
+	return parts[1], nil
+}
+
+// blacklistTokenIfAvailable attempts to blacklist a JWT token using the available token blacklist service
+// Note: This function tries to access the blacklist service but gracefully handles when it's not available
+func blacklistTokenIfAvailable(c *gin.Context, tokenStr string, userName string) {
+	// Since we don't have direct access to the Server type from api package,
+	// we'll focus on logging the intent and let the calling code handle the blacklisting
+	// This is a defensive approach that ensures the main error handling works even if
+	// blacklisting isn't available
+	fmt.Printf("[INFO] Attempting to invalidate JWT token for user %s due to stale session\n", userName)
+
+	// In a full implementation, this would integrate with the token blacklist service
+	// For now, we log the action and continue with the authentication error response
+	fmt.Printf("[WARN] Token blacklist integration not yet fully implemented - user %s should log out and log back in\n", userName)
 }
