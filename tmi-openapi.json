@@ -2133,12 +2133,49 @@
         ]
       },
       "ThreatModelInput": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ThreatModelBase"
+        "type": "object",
+        "description": "Input schema for creating/updating ThreatModel",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the threat model",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the threat model and its purpose",
+            "maxLength": 1024,
+            "nullable": true
+          },
+          "threat_model_framework": {
+            "type": "string",
+            "description": "The framework used for this threat model"
+          },
+          "issue_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to an issue in an issue tracking system for this threat model",
+            "maxLength": 1024,
+            "nullable": true
+          },
+          "authorization": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Authorization"
+            },
+            "description": "List of users and their roles for this threat model"
+          },
+          "metadata": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Metadata"
+            },
+            "description": "Key-value pairs for additional threat model metadata"
           }
-        ],
-        "description": "Input schema for creating/updating ThreatModel"
+        },
+        "required": [
+          "name"
+        ]
       },
       "ThreatBase": {
         "type": "object",

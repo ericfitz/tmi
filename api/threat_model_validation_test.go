@@ -296,9 +296,8 @@ func TestValidThreatModelRequests(t *testing.T) {
 
 	t.Run("valid POST request", func(t *testing.T) {
 		requestBody := map[string]interface{}{
-			"name":                   "Valid Threat Model",
-			"description":            "This is a valid threat model",
-			"threat_model_framework": "STRIDE",
+			"name":        "Valid Threat Model",
+			"description": "This is a valid threat model",
 			"authorization": []map[string]interface{}{
 				{"subject": "reader@example.com", "role": "reader"},
 			},
