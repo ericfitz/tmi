@@ -285,21 +285,19 @@ func testDeleteMetadata(t *testing.T, suite *SubEntityIntegrationTestSuite, base
 
 // testBulkCreateMetadata tests bulk creating metadata entries
 func testBulkCreateMetadata(t *testing.T, suite *SubEntityIntegrationTestSuite, basePath, entityType string) {
-	// Test data for bulk create
-	requestBody := map[string]interface{}{
-		"metadata": []map[string]interface{}{
-			{
-				"key":   fmt.Sprintf("%s_bulk_key_1", entityType),
-				"value": fmt.Sprintf("Bulk value 1 for %s", entityType),
-			},
-			{
-				"key":   fmt.Sprintf("%s_bulk_key_2", entityType),
-				"value": fmt.Sprintf("Bulk value 2 for %s", entityType),
-			},
-			{
-				"key":   fmt.Sprintf("%s_bulk_key_3", entityType),
-				"value": fmt.Sprintf("Bulk value 3 for %s", entityType),
-			},
+	// Test data for bulk create (direct array, no wrapper)
+	requestBody := []map[string]interface{}{
+		{
+			"key":   fmt.Sprintf("%s_bulk_key_1", entityType),
+			"value": fmt.Sprintf("Bulk value 1 for %s", entityType),
+		},
+		{
+			"key":   fmt.Sprintf("%s_bulk_key_2", entityType),
+			"value": fmt.Sprintf("Bulk value 2 for %s", entityType),
+		},
+		{
+			"key":   fmt.Sprintf("%s_bulk_key_3", entityType),
+			"value": fmt.Sprintf("Bulk value 3 for %s", entityType),
 		},
 	}
 
@@ -308,29 +306,20 @@ func testBulkCreateMetadata(t *testing.T, suite *SubEntityIntegrationTestSuite, 
 	req := suite.makeAuthenticatedRequest("POST", path, requestBody)
 	w := suite.executeRequest(req)
 
-	response := suite.assertJSONResponse(t, w, http.StatusCreated)
+	metadata := suite.assertJSONArrayResponse(t, w, http.StatusCreated)
+	assert.Len(t, metadata, 3, "Should create 3 metadata entries")
 
-	// Verify response structure
-	metadata, ok := response["metadata"].([]interface{})
-	if ok {
-		assert.Len(t, metadata, 3, "Should create 3 metadata entries")
+	// Verify each created metadata entry
+	for i, metadataInterface := range metadata {
+		metadataEntry := metadataInterface.(map[string]interface{})
+		originalEntry := requestBody[i]
 
-		// Verify each created metadata entry
-		for i, metadataInterface := range metadata {
-			metadataEntry := metadataInterface.(map[string]interface{})
-			originalEntry := requestBody["metadata"].([]map[string]interface{})[i]
-
-			assert.Equal(t, originalEntry["key"], metadataEntry["key"])
-			assert.Equal(t, originalEntry["value"], metadataEntry["value"])
-		}
-	} else {
-		// If the mock handler doesn't return the expected structure, just verify the status code
-		t.Logf("Bulk create response structure may differ from expected: %+v", response)
+		assert.Equal(t, originalEntry["key"], metadataEntry["key"])
+		assert.Equal(t, originalEntry["value"], metadataEntry["value"])
 	}
 
 	// Verify the metadata entries were created by trying to retrieve them
-	for _, metadataInterface := range requestBody["metadata"].([]map[string]interface{}) {
-		metadataEntry := metadataInterface
+	for _, metadataEntry := range requestBody {
 		testKey := metadataEntry["key"].(string)
 
 		path := fmt.Sprintf("%s/%s", basePath, testKey)

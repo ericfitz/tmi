@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,35 +35,21 @@ func SetupIntegrationTest(t *testing.T) *IntegrationTestSuite {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// Create test database configuration
+	// Create test database configuration using environment variables
 	postgresConfig := db.PostgresConfig{
-		Host:     "localhost",
-		Port:     "5432",
-		User:     "tmi_test",
-		Password: "test123",
-		Database: "tmi_test",
+		Host:     getEnvOrDefault("TEST_DB_HOST", "localhost"),
+		Port:     getEnvOrDefault("TEST_DB_PORT", "5432"),
+		User:     getEnvOrDefault("TEST_DB_USER", "tmi_test"),
+		Password: getEnvOrDefault("TEST_DB_PASSWORD", "test123"),
+		Database: getEnvOrDefault("TEST_DB_NAME", "tmi_test"),
 		SSLMode:  "disable",
 	}
 
 	redisConfig := db.RedisConfig{
-		Host:     "localhost",
-		Port:     "6379",
+		Host:     getEnvOrDefault("TEST_REDIS_HOST", "localhost"),
+		Port:     getEnvOrDefault("TEST_REDIS_PORT", "6379"),
 		Password: "",
 		DB:       1, // Use DB 1 for testing
-	}
-
-	// Override with environment variables if provided
-	if dbHost := os.Getenv("TEST_DB_HOST"); dbHost != "" {
-		postgresConfig.Host = dbHost
-	}
-	if dbUser := os.Getenv("TEST_DB_USER"); dbUser != "" {
-		postgresConfig.User = dbUser
-	}
-	if dbPassword := os.Getenv("TEST_DB_PASSWORD"); dbPassword != "" {
-		postgresConfig.Password = dbPassword
-	}
-	if dbName := os.Getenv("TEST_DB_NAME"); dbName != "" {
-		postgresConfig.Database = dbName
 	}
 
 	// Initialize database manager
@@ -79,6 +65,16 @@ func SetupIntegrationTest(t *testing.T) *IntegrationTestSuite {
 			Secret:            "test-secret-key-for-integration-testing",
 			ExpirationSeconds: 3600,
 			SigningMethod:     "HS256",
+		},
+		OAuth: auth.OAuthConfig{
+			CallbackURL: "http://localhost:8080/auth/callback",
+			Providers: map[string]auth.OAuthProviderConfig{
+				"test": {
+					ClientID:     "test-client-id",
+					ClientSecret: "test-client-secret",
+					Enabled:      true,
+				},
+			},
 		},
 		Postgres: auth.PostgresConfig{
 			Host:     postgresConfig.Host,
@@ -203,9 +199,10 @@ func (suite *IntegrationTestSuite) TeardownIntegrationTest(t *testing.T) {
 func createTestUserWithToken(t *testing.T, authService *auth.Service) (*auth.User, string) {
 	ctx := context.Background()
 
-	// Create test user data
-	userEmail := fmt.Sprintf("test-user-%d@test.tmi", time.Now().Unix())
-	userID := fmt.Sprintf("test-user-%d", time.Now().Unix())
+	// Create test user data with unique timestamp and proper UUID
+	timestamp := time.Now().UnixNano() // Use nanoseconds for better uniqueness
+	userID := uuid.New().String()
+	userEmail := fmt.Sprintf("test-user-%d-%s@test.tmi", timestamp, userID[:8])
 
 	// Create test user struct
 	testUser := auth.User{
