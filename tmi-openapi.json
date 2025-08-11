@@ -1212,7 +1212,7 @@
             "description": "Metadata key",
             "minLength": 1,
             "maxLength": 256,
-            "pattern": "^[a-zA-Z0-9_.-]+$",
+            "pattern": "^[a-zA-Z0-9_./:-]+$",
             "x-oapi-codegen-extra-tags": {
               "binding": "required"
             }
