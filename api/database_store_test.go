@@ -99,7 +99,7 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 		// Mock main threat model query
 		rows := sqlmock.NewRows([]string{
 			"id", "name", "description", "owner_email", "created_by",
-			"threat_model_framework", "issue_url", "created_at", "updated_at",
+			"threat_model_framework", "issue_url", "created_at", "modified_at",
 		}).AddRow(
 			testUUID, "Test Model", "Test Description", "owner@example.com", "creator@example.com",
 			"STRIDE", "https://example.com/issue", time.Now(), time.Now(),
@@ -120,7 +120,7 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 
 		// Mock threats query
 		threatRows := sqlmock.NewRows([]string{
-			"id", "name", "description", "severity", "mitigation", "created_at", "updated_at",
+			"id", "name", "description", "severity", "mitigation", "created_at", "modified_at",
 		}).AddRow(
 			uuid.New(), "SQL Injection", "Database attack", "high", "Use prepared statements",
 			time.Now(), time.Now(),
@@ -129,7 +129,7 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 
 		// Mock diagrams query
 		diagramRows := sqlmock.NewRows([]string{
-			"id", "name", "type", "content", "cells", "metadata", "created_at", "updated_at",
+			"id", "name", "type", "content", "cells", "metadata", "created_at", "modified_at",
 		})
 		mock.ExpectQuery("SELECT (.+) FROM diagrams").WithArgs(testID).WillReturnRows(diagramRows)
 
@@ -470,7 +470,7 @@ func TestDiagramDatabaseStore_Get(t *testing.T) {
 		metadataJSON, _ := json.Marshal([]Metadata{{Key: "priority", Value: "high"}})
 
 		rows := sqlmock.NewRows([]string{
-			"id", "threat_model_id", "name", "type", "content", "cells", "metadata", "created_at", "updated_at",
+			"id", "threat_model_id", "name", "type", "content", "cells", "metadata", "created_at", "modified_at",
 		}).AddRow(
 			testUUID, threatModelUUID, "Test Diagram", "DFD-1.0.0", "Test description",
 			cellsJSON, metadataJSON, time.Now(), time.Now(),

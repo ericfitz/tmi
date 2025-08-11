@@ -35,8 +35,9 @@ make test-integration
 ```
 
 This will automatically:
+
 1. Start PostgreSQL test container on port 5434
-2. Start Redis test container on port 6381  
+2. Start Redis test container on port 6381
 3. Run database migrations
 4. Set up auth database schema
 5. Run integration tests
@@ -53,23 +54,27 @@ make test-integration-cleanup
 ## Configuration
 
 ### Port Configuration
+
 The integration tests use dedicated ports to avoid conflicts with development databases:
 
 - **PostgreSQL**: Port 5434 (vs 5432 for development)
 - **Redis**: Port 6381 (vs 6379 for development)
 
 ### Database Configuration
+
 - **Database Name**: `tmi_integration_test`
 - **Username**: `tmi_integration`
 - **Password**: `integration_test_123`
 
 ### Container Names
+
 - **PostgreSQL Container**: `tmi-integration-postgres`
 - **Redis Container**: `tmi-integration-redis`
 
 ## Test Structure
 
 Integration tests are located in:
+
 - `api/sub_entities_integration_test.go` - Main integration test suite
 
 ### Test Coverage
@@ -77,6 +82,7 @@ Integration tests are located in:
 Current integration tests cover:
 
 1. **Threat Model CRUD Operations**
+
    - Creating threat models with database persistence
    - Retrieving threat models from database
    - Updating threat models and verifying persistence
@@ -84,6 +90,7 @@ Current integration tests cover:
    - **Input validation for calculated fields** (see below)
 
 2. **Authentication & Authorization**
+
    - JWT token creation and validation
    - Role-based access control (RBAC)
    - User creation and management
@@ -98,12 +105,14 @@ Current integration tests cover:
 The threat model API now includes comprehensive input validation to prevent submission of calculated/read-only fields:
 
 **Prohibited Fields:**
+
 - Count fields: `document_count`, `source_count`, `diagram_count`, `threat_count` (calculated automatically from database)
 - Server-controlled fields: `id`, `created_at`, `modified_at`, `created_by` (managed by server)
 - Owner field: `owner` (set automatically for POST, only changeable by owners for PUT/PATCH)
 - Sub-entity arrays: `diagrams`, `documents`, `threats`, `sourceCode` (managed via sub-entity endpoints)
 
 **Validation Coverage:**
+
 - POST `/threat_models`: Rejects all prohibited fields with descriptive error messages
 - PUT `/threat_models/:id`: Uses restricted request struct to prevent prohibited fields
 - PATCH `/threat_models/:id`: Validates JSON patch paths against prohibited field list
@@ -114,7 +123,9 @@ All prohibited field submissions return HTTP 400 with descriptive error messages
 ## Troubleshooting
 
 ### Docker Issues
+
 If you encounter Docker-related errors:
+
 ```bash
 # Check if Docker is running
 docker info
@@ -124,7 +135,9 @@ make test-integration-cleanup
 ```
 
 ### Port Conflicts
+
 If ports 5434 or 6381 are already in use:
+
 ```bash
 # Check what's using the ports
 lsof -i :5434
@@ -134,7 +147,9 @@ lsof -i :6381
 ```
 
 ### Database Migration Issues
+
 If migrations fail:
+
 ```bash
 # Check container logs
 docker logs tmi-integration-postgres
@@ -172,6 +187,7 @@ The integration test script is designed to work in CI/CD environments:
 - Waits for services to be ready before proceeding
 
 Example GitHub Actions usage:
+
 ```yaml
 - name: Run Integration Tests
   run: make test-integration
@@ -192,7 +208,7 @@ When writing integration tests, follow these patterns:
 func TestMyIntegration(t *testing.T) {
     suite := SetupSubEntityIntegrationTest(t)
     defer suite.TeardownSubEntityIntegrationTest(t)
-    
+
     // Your test logic here
     req := suite.makeAuthenticatedRequest("GET", "/api/endpoint", nil)
     w := suite.executeRequest(req)
@@ -205,6 +221,7 @@ func TestMyIntegration(t *testing.T) {
 When testing the API, follow the correct object hierarchy and creation flow:
 
 #### 1. Threat Model Creation
+
 ```go
 // First, create a threat model
 // NOTE: Do NOT include count fields or other calculated/read-only fields
@@ -223,6 +240,7 @@ threatModelID := response["id"].(string)
 ```
 
 #### 2. Sub-Entity Creation (Diagrams, Documents, etc.)
+
 ```go
 // Create diagrams using the threat model ID
 diagramData := map[string]interface{}{
@@ -239,6 +257,7 @@ diagramID := response["id"].(string)
 ```
 
 #### 3. Sub-Entity Retrieval and Verification
+
 ```go
 // Verify the diagram was created and is accessible via the threat model
 getPath := fmt.Sprintf("/threat_models/%s/diagrams/%s", threatModelID, diagramID)
@@ -254,6 +273,7 @@ assert.Equal(t, diagramData["name"], getResponse["name"])
 ### Authentication Best Practices
 
 **DO:**
+
 - Use the built-in test OAuth provider ("test")
 - Create users through the auth service with `CreateUser()`
 - Generate tokens through `GenerateTokens()`
@@ -261,6 +281,7 @@ assert.Equal(t, diagramData["name"], getResponse["name"])
 - Pass the Bearer token in the Authorization header
 
 **DON'T:**
+
 - Manually create authorization contexts or manipulate `TestFixtures`
 - Try to bypass the authentication middleware
 - Mix different user contexts within a single test flow
@@ -308,7 +329,7 @@ Root Entities:
 
 Sub-Entities (under Threat Models):
 ├── Diagrams (/threat_models/:id/diagrams)
-├── Threats (/threat_models/:id/threats)  
+├── Threats (/threat_models/:id/threats)
 ├── Documents (/threat_models/:id/documents)
 ├── Sources (/threat_models/:id/sources)
 
@@ -316,7 +337,7 @@ Sub-Sub-Entities (Metadata):
 ├── Threat Model Metadata (/threat_models/:id/metadata)
 ├── Diagram Metadata (/threat_models/:id/diagrams/:diagram_id/metadata)
 ├── Threat Metadata (/threat_models/:id/threats/:threat_id/metadata)
-├── Document Metadata (/threat_models/:id/documents/:document_id/metadata)  
+├── Document Metadata (/threat_models/:id/documents/:document_id/metadata)
 ├── Source Metadata (/threat_models/:id/sources/:source_id/metadata)
 
 Sub-Sub-Sub-Entities:
@@ -341,41 +362,41 @@ func TestComprehensiveEntityCreation(t *testing.T) {
         "description": "Test description",
         // Do not include calculated fields
     }
-    
+
     req := suite.makeAuthenticatedRequest("POST", "/threat_models", threatModelData)
     w := suite.executeRequest(req)
     tmResponse := suite.assertJSONResponse(t, w, http.StatusCreated)
     threatModelID := tmResponse["id"].(string)
-    
+
     // Verify database persistence
     suite.verifyThreatModelInDatabase(t, threatModelID, threatModelData)
-    
+
     // 2. Create sub-entity (threat)
     threatData := map[string]interface{}{
         "name": "SQL Injection",
         "description": "Database injection attack",
     }
-    
+
     threatPath := fmt.Sprintf("/threat_models/%s/threats", threatModelID)
     threatReq := suite.makeAuthenticatedRequest("POST", threatPath, threatData)
     threatW := suite.executeRequest(threatReq)
     threatResponse := suite.assertJSONResponse(t, threatW, http.StatusCreated)
     threatID := threatResponse["id"].(string)
-    
+
     // Verify sub-entity database persistence
     suite.verifyThreatInDatabase(t, threatID, threatModelID, threatData)
-    
+
     // 3. Create sub-sub-entity (threat metadata)
     metadataData := map[string]interface{}{
         "key": "priority",
         "value": "high",
     }
-    
+
     metadataPath := fmt.Sprintf("/threat_models/%s/threats/%s/metadata", threatModelID, threatID)
     metadataReq := suite.makeAuthenticatedRequest("POST", metadataPath, metadataData)
     metadataW := suite.executeRequest(metadataReq)
     metadataResponse := suite.assertJSONResponse(t, metadataW, http.StatusCreated)
-    
+
     // Verify metadata database persistence
     suite.verifyMetadataInDatabase(t, threatID, "threat", metadataData)
 }
@@ -388,20 +409,20 @@ func TestComprehensiveEntityCreation(t *testing.T) {
 ```go
 func TestComprehensiveEntityRetrieval(t *testing.T) {
     // Use previously created entities from creation test
-    
+
     // Test individual retrieval
     getReq := suite.makeAuthenticatedRequest("GET", "/threat_models/" + threatModelID, nil)
     getW := suite.executeRequest(getReq)
     getResponse := suite.assertJSONResponse(t, getW, http.StatusOK)
-    
+
     // Verify all fields match database
     suite.assertFieldsMatch(t, getResponse, threatModelData)
-    
-    // Test list retrieval  
+
+    // Test list retrieval
     listReq := suite.makeAuthenticatedRequest("GET", "/threat_models", nil)
     listW := suite.executeRequest(listReq)
     listResponse := suite.assertJSONArrayResponse(t, listW, http.StatusOK)
-    
+
     // Verify our created item is in the list
     suite.assertContainsEntity(t, listResponse, threatModelID)
 }
@@ -414,32 +435,32 @@ func TestComprehensiveEntityRetrieval(t *testing.T) {
 ```go
 func TestComprehensiveEntityMutation(t *testing.T) {
     // Test PUT (complete replacement)
-    updateData := map[string]interface{}{
+    modifiedAta := map[string]interface{}{
         "name": "Updated Threat Model",
         "description": "Updated description",
         // Include all required fields for PUT
     }
-    
-    putReq := suite.makeAuthenticatedRequest("PUT", "/threat_models/" + threatModelID, updateData)
+
+    putReq := suite.makeAuthenticatedRequest("PUT", "/threat_models/" + threatModelID, modifiedAta)
     putW := suite.executeRequest(putReq)
     putResponse := suite.assertJSONResponse(t, putW, http.StatusOK)
-    
+
     // Verify database was updated
-    suite.verifyThreatModelInDatabase(t, threatModelID, updateData)
-    
+    suite.verifyThreatModelInDatabase(t, threatModelID, modifiedAta)
+
     // Test PATCH (partial update)
     patchData := []map[string]interface{}{
         {
             "op": "replace",
-            "path": "/name", 
+            "path": "/name",
             "value": "Patched Name",
         },
     }
-    
+
     patchReq := suite.makeAuthenticatedRequest("PATCH", "/threat_models/" + threatModelID, patchData)
     patchW := suite.executeRequest(patchReq)
     suite.assertJSONResponse(t, patchW, http.StatusOK)
-    
+
     // Verify PATCH was applied
     suite.verifyFieldInDatabase(t, threatModelID, "name", "Patched Name")
 }
@@ -454,16 +475,16 @@ func TestWithRedisEnabled(t *testing.T) {
     // Set environment variable to enable Redis
     os.Setenv("REDIS_ENABLED", "true")
     defer os.Unsetenv("REDIS_ENABLED")
-    
+
     // Run standard test suite
     runComprehensiveTestSuite(t)
 }
 
 func TestWithRedisDisabled(t *testing.T) {
     // Set environment variable to disable Redis
-    os.Setenv("REDIS_ENABLED", "false") 
+    os.Setenv("REDIS_ENABLED", "false")
     defer os.Unsetenv("REDIS_ENABLED")
-    
+
     // Run same test suite - should get identical results
     runComprehensiveTestSuite(t)
 }
@@ -476,30 +497,30 @@ func TestWithRedisDisabled(t *testing.T) {
 ```go
 func TestComprehensiveDeletion(t *testing.T) {
     // Test individual deletion (deepest first)
-    
+
     // 1. Delete sub-sub-entity (metadata)
-    metadataDeleteReq := suite.makeAuthenticatedRequest("DELETE", 
+    metadataDeleteReq := suite.makeAuthenticatedRequest("DELETE",
         fmt.Sprintf("/threat_models/%s/threats/%s/metadata/priority", threatModelID, threatID), nil)
     metadataDeleteW := suite.executeRequest(metadataDeleteReq)
     assert.Equal(t, http.StatusNoContent, metadataDeleteW.Code)
-    
+
     // Verify metadata deleted from database
     suite.verifyMetadataNotInDatabase(t, threatID, "priority")
-    
+
     // 2. Delete sub-entity (threat)
     threatDeleteReq := suite.makeAuthenticatedRequest("DELETE",
         fmt.Sprintf("/threat_models/%s/threats/%s", threatModelID, threatID), nil)
     threatDeleteW := suite.executeRequest(threatDeleteReq)
     assert.Equal(t, http.StatusNoContent, threatDeleteW.Code)
-    
+
     // Verify threat deleted from database
     suite.verifyThreatNotInDatabase(t, threatID)
-    
+
     // 3. Delete root entity (threat model)
     tmDeleteReq := suite.makeAuthenticatedRequest("DELETE", "/threat_models/" + threatModelID, nil)
     tmDeleteW := suite.executeRequest(tmDeleteReq)
     assert.Equal(t, http.StatusNoContent, tmDeleteW.Code)
-    
+
     // Verify threat model deleted from database
     suite.verifyThreatModelNotInDatabase(t, threatModelID)
 }
@@ -507,12 +528,12 @@ func TestComprehensiveDeletion(t *testing.T) {
 func TestCascadingDeletion(t *testing.T) {
     // Create full hierarchy
     threatModelID := suite.createThreatModelWithSubEntities(t)
-    
+
     // Delete root entity - should cascade delete all sub-entities
     deleteReq := suite.makeAuthenticatedRequest("DELETE", "/threat_models/" + threatModelID, nil)
     deleteW := suite.executeRequest(deleteReq)
     assert.Equal(t, http.StatusNoContent, deleteW.Code)
-    
+
     // Verify ALL related entities were cascade deleted
     suite.verifyThreatModelNotInDatabase(t, threatModelID)
     suite.verifyNoOrphanedSubEntitiesInDatabase(t, threatModelID)
@@ -528,15 +549,15 @@ func (suite *SubEntityIntegrationTestSuite) verifyThreatModelInDatabase(t *testi
     var tm ThreatModel
     err := suite.dbManager.DB.Where("id = ?", id).First(&tm).Error
     require.NoError(t, err, "Threat model should exist in database")
-    
+
     // Verify each field matches
     assert.Equal(t, expectedData["name"], tm.Name)
     assert.Equal(t, expectedData["description"], *tm.Description)
-    
+
     // Verify timestamps are set
     assert.NotZero(t, tm.CreatedAt)
     assert.NotZero(t, tm.ModifiedAt)
-    
+
     // Verify calculated fields are correct
     // (count fields should be calculated from actual sub-entities)
 }
@@ -554,12 +575,12 @@ func TestBulkOperations(t *testing.T) {
         {"name": "Threat 2", "description": "Second bulk threat"},
         {"name": "Threat 3", "description": "Third bulk threat"},
     }
-    
-    bulkReq := suite.makeAuthenticatedRequest("POST", 
+
+    bulkReq := suite.makeAuthenticatedRequest("POST",
         fmt.Sprintf("/threat_models/%s/threats/bulk", threatModelID), bulkData)
     bulkW := suite.executeRequest(bulkReq)
     bulkResponse := suite.assertJSONArrayResponse(t, bulkW, http.StatusCreated)
-    
+
     // Verify all items created in database
     assert.Len(t, bulkResponse, 3)
     for _, item := range bulkResponse {
@@ -589,7 +610,7 @@ Organize tests by entity hierarchy and operation type:
 api/
 ├── integration_root_entities_test.go     # Threat models, standalone diagrams
 ├── integration_sub_entities_test.go      # Threats, documents, sources, diagrams
-├── integration_metadata_test.go          # All metadata operations  
+├── integration_metadata_test.go          # All metadata operations
 ├── integration_collaboration_test.go     # WebSocket collaboration features
 ├── integration_batch_operations_test.go  # Bulk/batch operations
 ├── integration_deletion_test.go          # Deletion and cascading

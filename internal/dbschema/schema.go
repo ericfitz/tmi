@@ -47,7 +47,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "email", DataType: "character varying", IsNullable: false},
 				{Name: "name", DataType: "character varying", IsNullable: false},
 				{Name: "created_at", DataType: "timestamp without time zone", IsNullable: false},
-				{Name: "updated_at", DataType: "timestamp without time zone", IsNullable: false},
+				{Name: "modified_at", DataType: "timestamp without time zone", IsNullable: false},
 				{Name: "last_login", DataType: "timestamp without time zone", IsNullable: true},
 			},
 			Indexes: []IndexSchema{
@@ -104,7 +104,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "name", DataType: "character varying", IsNullable: false},
 				{Name: "description", DataType: "text", IsNullable: true},
 				{Name: "created_at", DataType: "timestamp without time zone", IsNullable: false},
-				{Name: "updated_at", DataType: "timestamp without time zone", IsNullable: false},
+				{Name: "modified_at", DataType: "timestamp without time zone", IsNullable: false},
 				{Name: "created_by", DataType: "character varying", IsNullable: false},
 				{Name: "threat_model_framework", DataType: "character varying", IsNullable: false},
 				{Name: "issue_url", DataType: "character varying", IsNullable: true},
@@ -137,7 +137,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "user_email", DataType: "character varying", IsNullable: false},
 				{Name: "role", DataType: "character varying", IsNullable: false},
 				{Name: "created_at", DataType: "timestamp without time zone", IsNullable: false},
-				{Name: "updated_at", DataType: "timestamp without time zone", IsNullable: false},
+				{Name: "modified_at", DataType: "timestamp without time zone", IsNullable: false},
 			},
 			Indexes: []IndexSchema{
 				{Name: "threat_model_access_pkey", Columns: []string{"id"}, IsUnique: true},
@@ -178,7 +178,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "risk_level", DataType: "character varying", IsNullable: true},
 				{Name: "mitigation", DataType: "text", IsNullable: true},
 				{Name: "created_at", DataType: "timestamp without time zone", IsNullable: false},
-				{Name: "updated_at", DataType: "timestamp without time zone", IsNullable: false},
+				{Name: "modified_at", DataType: "timestamp without time zone", IsNullable: false},
 			},
 			Indexes: []IndexSchema{
 				{Name: "threats_pkey", Columns: []string{"id"}, IsUnique: true},
@@ -222,7 +222,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "metadata", DataType: "jsonb", IsNullable: true},
 				{Name: "cells", DataType: "jsonb", IsNullable: true},
 				{Name: "created_at", DataType: "timestamp without time zone", IsNullable: false},
-				{Name: "updated_at", DataType: "timestamp without time zone", IsNullable: false},
+				{Name: "modified_at", DataType: "timestamp without time zone", IsNullable: false},
 			},
 			Indexes: []IndexSchema{
 				{Name: "diagrams_pkey", Columns: []string{"id"}, IsUnique: true},
@@ -293,7 +293,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "url", DataType: "character varying", IsNullable: false},
 				{Name: "description", DataType: "character varying", IsNullable: true},
 				{Name: "created_at", DataType: "timestamp without time zone", IsNullable: false},
-				{Name: "updated_at", DataType: "timestamp without time zone", IsNullable: false},
+				{Name: "modified_at", DataType: "timestamp without time zone", IsNullable: false},
 			},
 			Indexes: []IndexSchema{
 				{Name: "documents_pkey", Columns: []string{"id"}, IsUnique: true},
@@ -331,7 +331,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "type", DataType: "character varying", IsNullable: true},
 				{Name: "parameters", DataType: "jsonb", IsNullable: true},
 				{Name: "created_at", DataType: "timestamp without time zone", IsNullable: false},
-				{Name: "updated_at", DataType: "timestamp without time zone", IsNullable: false},
+				{Name: "modified_at", DataType: "timestamp without time zone", IsNullable: false},
 			},
 			Indexes: []IndexSchema{
 				{Name: "sources_pkey", Columns: []string{"id"}, IsUnique: true},
@@ -368,7 +368,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "key", DataType: "character varying", IsNullable: false},
 				{Name: "value", DataType: "text", IsNullable: false},
 				{Name: "created_at", DataType: "timestamp without time zone", IsNullable: false},
-				{Name: "updated_at", DataType: "timestamp without time zone", IsNullable: false},
+				{Name: "modified_at", DataType: "timestamp without time zone", IsNullable: false},
 			},
 			Indexes: []IndexSchema{
 				{Name: "metadata_pkey", Columns: []string{"id"}, IsUnique: true},

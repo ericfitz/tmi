@@ -33,30 +33,31 @@ The TMI application implements a comprehensive caching layer with different TTL 
 
 ### Core Entity Cache Keys
 
-| Key Pattern                      | Data Type | TTL        | Description                 |
-| -------------------------------- | --------- | ---------- | --------------------------- |
-| `cache:user:{user_id}`           | JSON      | 15 minutes | User profile cache          |
-| `cache:threat_model:{model_id}`  | JSON      | 10 minutes | Threat model cache          |
-| `cache:diagram:{diagram_id}`     | JSON      | 2 minutes  | Diagram data cache          |
+| Key Pattern                     | Data Type | TTL        | Description        |
+| ------------------------------- | --------- | ---------- | ------------------ |
+| `cache:user:{user_id}`          | JSON      | 15 minutes | User profile cache |
+| `cache:threat_model:{model_id}` | JSON      | 10 minutes | Threat model cache |
+| `cache:diagram:{diagram_id}`    | JSON      | 2 minutes  | Diagram data cache |
 
 ### Sub-Resource Cache Keys
 
-| Key Pattern                        | Data Type | TTL       | Description                     |
-| ---------------------------------- | --------- | --------- | ------------------------------- |
-| `cache:threat:{threat_id}`         | JSON      | 5 minutes | Individual threat cache         |
-| `cache:document:{document_id}`     | JSON      | 5 minutes | Document reference cache        |
-| `cache:source:{source_id}`         | JSON      | 5 minutes | Source repository cache         |
-| `cache:metadata:{entity_type}:{entity_id}` | JSON | 7 minutes | Entity metadata cache |
-| `cache:cells:{diagram_id}`         | JSON      | 2 minutes | Diagram cells cache             |
-| `cache:auth:{threat_model_id}`     | JSON      | 15 minutes | Authorization data cache       |
+| Key Pattern                                | Data Type | TTL        | Description              |
+| ------------------------------------------ | --------- | ---------- | ------------------------ |
+| `cache:threat:{threat_id}`                 | JSON      | 5 minutes  | Individual threat cache  |
+| `cache:document:{document_id}`             | JSON      | 5 minutes  | Document reference cache |
+| `cache:source:{source_id}`                 | JSON      | 5 minutes  | Source repository cache  |
+| `cache:metadata:{entity_type}:{entity_id}` | JSON      | 7 minutes  | Entity metadata cache    |
+| `cache:cells:{diagram_id}`                 | JSON      | 2 minutes  | Diagram cells cache      |
+| `cache:auth:{threat_model_id}`             | JSON      | 15 minutes | Authorization data cache |
 
 ### List Cache Keys
 
-| Key Pattern                                        | Data Type | TTL       | Description               |
-| -------------------------------------------------- | --------- | --------- | ------------------------- |
-| `cache:list:{entity_type}:{parent_id}:{offset}:{limit}` | JSON | 5 minutes | Paginated list cache     |
+| Key Pattern                                             | Data Type | TTL       | Description          |
+| ------------------------------------------------------- | --------- | --------- | -------------------- |
+| `cache:list:{entity_type}:{parent_id}:{offset}:{limit}` | JSON      | 5 minutes | Paginated list cache |
 
 Examples:
+
 - `cache:list:threats:f1e46642-4b90-4332-a665-ef36d2ae0c74:0:50`
 - `cache:list:diagrams:f1e46642-4b90-4332-a665-ef36d2ae0c74:20:10`
 
@@ -76,7 +77,7 @@ Examples:
 session:{user_id}:{session_id} = {
     "user_id": "uuid",
     "email": "string",
-    "name": "string", 
+    "name": "string",
     "created_at": "RFC3339 timestamp",
     "last_accessed": "RFC3339 timestamp",
     "ip_address": "string",
@@ -107,6 +108,7 @@ Example: "5:1642598400"
 ### Cache Data Structures
 
 #### Entity Cache (JSON)
+
 All cached entities are stored as JSON-serialized versions of their API structures:
 
 ```json
@@ -115,7 +117,7 @@ cache:threat_model:{id} = {
     "name": "string",
     "description": "string",
     "owner_email": "string",
-    "created_by": "string", 
+    "created_by": "string",
     "threat_model_framework": "CIA|STRIDE|LINDDUN|DIE|PLOT4ai",
     "issue_url": "string",
     "document_count": 0,
@@ -123,26 +125,28 @@ cache:threat_model:{id} = {
     "diagram_count": 0,
     "threat_count": 0,
     "created_at": "RFC3339 timestamp",
-    "updated_at": "RFC3339 timestamp"
+    "modified_at": "RFC3339 timestamp"
 }
 ```
 
 #### Metadata Cache (JSON Array)
+
 ```json
 cache:metadata:{entity_type}:{entity_id} = [
     {
         "id": "uuid",
         "entity_type": "threat_model|threat|diagram|document|source|cell",
-        "entity_id": "uuid", 
+        "entity_id": "uuid",
         "key": "string (alphanumeric, dash, underscore only)",
         "value": "string",
         "created_at": "RFC3339 timestamp",
-        "updated_at": "RFC3339 timestamp"
+        "modified_at": "RFC3339 timestamp"
     }
 ]
 ```
 
 #### Authorization Data Cache (JSON)
+
 ```json
 cache:auth:{threat_model_id} = {
     "threat_model_id": "uuid",
@@ -155,6 +159,7 @@ cache:auth:{threat_model_id} = {
 ```
 
 #### List Cache (JSON)
+
 ```json
 cache:list:{entity_type}:{parent_id}:{offset}:{limit} = {
     "items": [...], // Array of entity objects
@@ -166,6 +171,7 @@ cache:list:{entity_type}:{parent_id}:{offset}:{limit} = {
 ```
 
 #### Diagram Cells Cache (JSON Array)
+
 ```json
 cache:cells:{diagram_id} = [
     {
@@ -185,14 +191,14 @@ The caching layer uses differentiated TTL strategies based on data characteristi
 
 ### TTL Configuration
 
-| Cache Type | TTL | Justification |
-|------------|-----|---------------|
-| **Threat Models** | 10 minutes | Core entities, moderate update frequency |
-| **Diagrams** | 2 minutes | High collaboration, real-time updates |
-| **Sub-resources** | 5 minutes | Threats, documents, sources - balanced consistency |
-| **Authorization** | 15 minutes | Security-critical, infrequent changes |
-| **Metadata** | 7 minutes | Flexible data, moderate update frequency |
-| **Lists** | 5 minutes | Paginated results, balance between performance and freshness |
+| Cache Type        | TTL        | Justification                                                |
+| ----------------- | ---------- | ------------------------------------------------------------ |
+| **Threat Models** | 10 minutes | Core entities, moderate update frequency                     |
+| **Diagrams**      | 2 minutes  | High collaboration, real-time updates                        |
+| **Sub-resources** | 5 minutes  | Threats, documents, sources - balanced consistency           |
+| **Authorization** | 15 minutes | Security-critical, infrequent changes                        |
+| **Metadata**      | 7 minutes  | Flexible data, moderate update frequency                     |
+| **Lists**         | 5 minutes  | Paginated results, balance between performance and freshness |
 
 ### Cache Invalidation
 
@@ -208,7 +214,7 @@ The application implements proactive cache invalidation through the `CacheServic
 ### Key Pattern Validation
 
 1. All keys must match defined hierarchical patterns
-2. No spaces allowed in keys  
+2. No spaces allowed in keys
 3. Use lowercase for namespace and type components
 4. UUIDs must be lowercase and valid UUID v4 format
 5. Entity types must match defined values: `threat_model|threat|diagram|document|source|cell`
@@ -218,7 +224,7 @@ The application implements proactive cache invalidation through the `CacheServic
 1. All cache data MUST have explicit TTL
 2. Session data: 24 hours maximum
 3. Cache data: Variable based on entity type (2-15 minutes)
-4. Lock data: 30 seconds maximum  
+4. Lock data: 30 seconds maximum
 5. OAuth state: 10 minutes maximum
 6. Rate limit data: 1 minute to 1 hour based on scope
 
@@ -243,7 +249,7 @@ The application implements proactive cache invalidation through the `CacheServic
 ### Memory Optimization
 
 1. **Value Size Limits**: Maximum 512KB per cached entity
-2. **List Pagination**: Cache paginated results to prevent large memory usage  
+2. **List Pagination**: Cache paginated results to prevent large memory usage
 3. **Compression**: JSON entities are stored uncompressed for development simplicity
 4. **Key Monitoring**: Track memory usage by key pattern
 
@@ -259,7 +265,7 @@ The application implements proactive cache invalidation through the `CacheServic
 ### Key Metrics
 
 1. **Cache Hit Ratios**: Per entity type and overall
-2. **Memory Usage**: By key pattern and total utilization  
+2. **Memory Usage**: By key pattern and total utilization
 3. **Key Count Distribution**: Track key patterns and growth
 4. **TTL Distribution**: Monitor expiration patterns
 5. **Cache Invalidation Rate**: Track proactive invalidations
@@ -298,14 +304,16 @@ The application implements proactive cache invalidation through the `CacheServic
 ### Development vs Production
 
 **Development Environment**:
+
 - Database 0 for caching
 - Longer TTLs for debugging
 - Additional logging enabled
 - Memory usage monitoring relaxed
 
 **Production Environment**:
+
 - Dedicated cache cluster
-- Strict TTL enforcement  
+- Strict TTL enforcement
 - Comprehensive monitoring
 - Automated failover support
 

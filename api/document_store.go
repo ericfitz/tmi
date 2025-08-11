@@ -35,7 +35,7 @@ type ExtendedDocument struct {
 	Document
 	ThreatModelId uuid.UUID `json:"threat_model_id"`
 	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ModifiedAt    time.Time `json:"modified_at"`
 }
 
 // DatabaseDocumentStore implements DocumentStore with database persistence and Redis caching
@@ -55,13 +55,13 @@ func NewDatabaseDocumentStore(db *sql.DB, cache *CacheService, invalidator *Cach
 }
 
 // documentToExtended converts a Document to ExtendedDocument
-func documentToExtended(doc *Document, threatModelID string, createdAt, updatedAt time.Time) *ExtendedDocument {
+func documentToExtended(doc *Document, threatModelID string, createdAt, modifiedAt time.Time) *ExtendedDocument {
 	tmID, _ := uuid.Parse(threatModelID)
 	return &ExtendedDocument{
 		Document:      *doc,
 		ThreatModelId: tmID,
 		CreatedAt:     createdAt,
-		UpdatedAt:     updatedAt,
+		ModifiedAt:    modifiedAt,
 	}
 }
 
@@ -94,7 +94,7 @@ func (s *DatabaseDocumentStore) Create(ctx context.Context, document *Document, 
 	// Insert into database
 	query := `
 		INSERT INTO documents (
-			id, threat_model_id, name, url, description, created_at, updated_at
+			id, threat_model_id, name, url, description, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7
 		)
@@ -163,7 +163,7 @@ func (s *DatabaseDocumentStore) Get(ctx context.Context, id string) (*Document, 
 	logger.Debug("Cache miss for document %s, querying database", id)
 
 	query := `
-		SELECT id, threat_model_id, name, url, description, created_at, updated_at
+		SELECT id, threat_model_id, name, url, description, created_at, modified_at
 		FROM documents 
 		WHERE id = $1
 	`
@@ -178,7 +178,7 @@ func (s *DatabaseDocumentStore) Get(ctx context.Context, id string) (*Document, 
 		&extDoc.Url,
 		&description,
 		&extDoc.CreatedAt,
-		&extDoc.UpdatedAt,
+		&extDoc.ModifiedAt,
 	)
 
 	if err != nil {
@@ -224,7 +224,7 @@ func (s *DatabaseDocumentStore) Update(ctx context.Context, document *Document, 
 
 	query := `
 		UPDATE documents SET
-			name = $2, url = $3, description = $4, updated_at = $5
+			name = $2, url = $3, description = $4, modified_at = $5
 		WHERE id = $1 AND threat_model_id = $6
 	`
 
@@ -359,7 +359,7 @@ func (s *DatabaseDocumentStore) List(ctx context.Context, threatModelID string, 
 	logger.Debug("Cache miss for document list, querying database")
 
 	query := `
-		SELECT id, threat_model_id, name, url, description, created_at, updated_at
+		SELECT id, threat_model_id, name, url, description, created_at, modified_at
 		FROM documents 
 		WHERE threat_model_id = $1
 		ORDER BY created_at DESC
@@ -389,7 +389,7 @@ func (s *DatabaseDocumentStore) List(ctx context.Context, threatModelID string, 
 			&extDoc.Url,
 			&description,
 			&extDoc.CreatedAt,
-			&extDoc.UpdatedAt,
+			&extDoc.ModifiedAt,
 		)
 
 		if err != nil {
@@ -454,7 +454,7 @@ func (s *DatabaseDocumentStore) BulkCreate(ctx context.Context, documents []Docu
 
 	query := `
 		INSERT INTO documents (
-			id, threat_model_id, name, url, description, created_at, updated_at
+			id, threat_model_id, name, url, description, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7
 		)

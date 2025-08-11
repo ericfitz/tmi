@@ -302,11 +302,11 @@ func (h *Handlers) Callback(c *gin.Context) {
 	if err != nil {
 		// Create a new user
 		user = User{
-			Email:     email,
-			Name:      name,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-			LastLogin: time.Now(),
+			Email:      email,
+			Name:       name,
+			CreatedAt:  time.Now(),
+			ModifiedAt: time.Now(),
+			LastLogin:  time.Now(),
 		}
 
 		user, err = h.service.CreateUser(ctx, user)
@@ -461,11 +461,11 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	if err != nil {
 		// Create new user
 		user = User{
-			Email:     email,
-			Name:      name,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-			LastLogin: time.Now(),
+			Email:      email,
+			Name:       name,
+			CreatedAt:  time.Now(),
+			ModifiedAt: time.Now(),
+			LastLogin:  time.Now(),
 		}
 
 		user, err = h.service.CreateUser(ctx, user)

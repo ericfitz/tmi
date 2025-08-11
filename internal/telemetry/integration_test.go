@@ -268,7 +268,7 @@ func (suite *IntegrationTestSuite) setupMockDatabase() error {
 			name TEXT NOT NULL,
 			description TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			modified_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
 		
 		CREATE TABLE diagrams (
@@ -277,7 +277,7 @@ func (suite *IntegrationTestSuite) setupMockDatabase() error {
 			name TEXT NOT NULL,
 			data TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			modified_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (threat_model_id) REFERENCES threat_models(id)
 		);
 		
@@ -289,7 +289,7 @@ func (suite *IntegrationTestSuite) setupMockDatabase() error {
 			position_y INTEGER,
 			data TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			modified_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (diagram_id) REFERENCES diagrams(id)
 		);
 	`

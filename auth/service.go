@@ -37,12 +37,12 @@ func NewService(dbManager *db.Manager, config Config) (*Service, error) {
 
 // User represents a user in the system
 type User struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	LastLogin time.Time `json:"last_login,omitempty"`
+	ID         string    `json:"id"`
+	Email      string    `json:"email"`
+	Name       string    `json:"name"`
+	CreatedAt  time.Time `json:"created_at"`
+	ModifiedAt time.Time `json:"modified_at"`
+	LastLogin  time.Time `json:"last_login,omitempty"`
 }
 
 // TokenPair contains an access token and a refresh token
@@ -174,13 +174,13 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 	db := s.dbManager.Postgres().GetDB()
 
 	var user User
-	query := `SELECT id, email, name, created_at, updated_at, last_login FROM users WHERE email = $1`
+	query := `SELECT id, email, name, created_at, modified_at, last_login FROM users WHERE email = $1`
 	err := db.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Name,
 		&user.CreatedAt,
-		&user.UpdatedAt,
+		&user.ModifiedAt,
 		&user.LastLogin,
 	)
 
@@ -209,12 +209,12 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 	if user.CreatedAt.IsZero() {
 		user.CreatedAt = now
 	}
-	if user.UpdatedAt.IsZero() {
-		user.UpdatedAt = now
+	if user.ModifiedAt.IsZero() {
+		user.ModifiedAt = now
 	}
 
 	query := `
-		INSERT INTO users (id, email, name, created_at, updated_at, last_login)
+		INSERT INTO users (id, email, name, created_at, modified_at, last_login)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id
 	`
@@ -224,7 +224,7 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 		user.Email,
 		user.Name,
 		user.CreatedAt,
-		user.UpdatedAt,
+		user.ModifiedAt,
 		user.LastLogin,
 	).Scan(&user.ID)
 
@@ -239,12 +239,12 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 func (s *Service) UpdateUser(ctx context.Context, user User) error {
 	db := s.dbManager.Postgres().GetDB()
 
-	// Update the updated_at timestamp
-	user.UpdatedAt = time.Now()
+	// Update the modified_at timestamp
+	user.ModifiedAt = time.Now()
 
 	query := `
 		UPDATE users
-		SET email = $2, name = $3, updated_at = $4, last_login = $5
+		SET email = $2, name = $3, modified_at = $4, last_login = $5
 		WHERE id = $1
 	`
 
@@ -252,7 +252,7 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 		user.ID,
 		user.Email,
 		user.Name,
-		user.UpdatedAt,
+		user.ModifiedAt,
 		user.LastLogin,
 	)
 
@@ -456,7 +456,7 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 	// Get the user
 	var user User
 	err = db.QueryRowContext(ctx, `
-		SELECT id, email, name, created_at, updated_at, last_login
+		SELECT id, email, name, created_at, modified_at, last_login
 		FROM users
 		WHERE id = $1
 	`, userID).Scan(
@@ -464,7 +464,7 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 		&user.Email,
 		&user.Name,
 		&user.CreatedAt,
-		&user.UpdatedAt,
+		&user.ModifiedAt,
 		&user.LastLogin,
 	)
 

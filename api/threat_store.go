@@ -109,7 +109,7 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 			id, threat_model_id, name, description, severity, 
 			mitigation, threat_type, status, priority, mitigated, 
 			score, issue_url, diagram_id, cell_id, metadata, 
-			created_at, updated_at
+			created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 		)
@@ -189,7 +189,7 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
-			   score, issue_url, diagram_id, cell_id, metadata, created_at, updated_at
+			   score, issue_url, diagram_id, cell_id, metadata, created_at, modified_at
 		FROM threats 
 		WHERE id = $1
 	`
@@ -298,7 +298,7 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 			name = $2, description = $3, severity = $4, mitigation = $5,
 			threat_type = $6, status = $7, priority = $8, mitigated = $9,
 			score = $10, issue_url = $11, diagram_id = $12, cell_id = $13,
-			metadata = $14, updated_at = $15
+			metadata = $14, modified_at = $15
 		WHERE id = $1
 	`
 
@@ -440,7 +440,7 @@ func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, of
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
-			   score, issue_url, diagram_id, cell_id, metadata, created_at, updated_at
+			   score, issue_url, diagram_id, cell_id, metadata, created_at, modified_at
 		FROM threats 
 		WHERE threat_model_id = $1
 		ORDER BY created_at DESC
@@ -679,7 +679,7 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 		INSERT INTO threats (
 			id, threat_model_id, name, description, severity, 
 			mitigation, threat_type, status, priority, mitigated, 
-			score, issue_url, diagram_id, cell_id, metadata, created_at, updated_at
+			score, issue_url, diagram_id, cell_id, metadata, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 		)
@@ -800,7 +800,7 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 			name = $2, description = $3, severity = $4, mitigation = $5,
 			threat_type = $6, status = $7, priority = $8, mitigated = $9,
 			score = $10, issue_url = $11, diagram_id = $12, cell_id = $13,
-			metadata = $14, updated_at = $15
+			metadata = $14, modified_at = $15
 		WHERE id = $1
 	`
 

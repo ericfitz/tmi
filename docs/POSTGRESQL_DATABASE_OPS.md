@@ -566,7 +566,7 @@ db.SetConnMaxLifetime(5 * time.Minute)
    - Email addresses are used as identifiers
 
 2. **Audit Trail**:
-   - All tables include `created_at` and `updated_at` timestamps
+   - All tables include `created_at` and `modified_at` timestamps
    - Consider implementing row-level audit logging for compliance
 
 ### Constraint Enforcement

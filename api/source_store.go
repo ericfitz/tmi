@@ -36,7 +36,7 @@ type ExtendedSource struct {
 	Source
 	ThreatModelId uuid.UUID `json:"threat_model_id"`
 	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ModifiedAt    time.Time `json:"modified_at"`
 }
 
 // DatabaseSourceStore implements SourceStore with database persistence and Redis caching
@@ -56,13 +56,13 @@ func NewDatabaseSourceStore(db *sql.DB, cache *CacheService, invalidator *CacheI
 }
 
 // sourceToExtended converts a Source to ExtendedSource
-func sourceToExtended(src *Source, threatModelID string, createdAt, updatedAt time.Time) *ExtendedSource {
+func sourceToExtended(src *Source, threatModelID string, createdAt, modifiedAt time.Time) *ExtendedSource {
 	tmID, _ := uuid.Parse(threatModelID)
 	return &ExtendedSource{
 		Source:        *src,
 		ThreatModelId: tmID,
 		CreatedAt:     createdAt,
-		UpdatedAt:     updatedAt,
+		ModifiedAt:    modifiedAt,
 	}
 }
 
@@ -114,7 +114,7 @@ func (s *DatabaseSourceStore) Create(ctx context.Context, source *Source, threat
 	// Insert into database
 	query := `
 		INSERT INTO sources (
-			id, threat_model_id, name, url, description, type, parameters, created_at, updated_at
+			id, threat_model_id, name, url, description, type, parameters, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9
 		)
@@ -184,7 +184,7 @@ func (s *DatabaseSourceStore) Get(ctx context.Context, id string) (*Source, erro
 	logger.Debug("Cache miss for source %s, querying database", id)
 
 	query := `
-		SELECT id, threat_model_id, name, url, description, type, parameters, created_at, updated_at
+		SELECT id, threat_model_id, name, url, description, type, parameters, created_at, modified_at
 		FROM sources 
 		WHERE id = $1
 	`
@@ -201,7 +201,7 @@ func (s *DatabaseSourceStore) Get(ctx context.Context, id string) (*Source, erro
 		&sourceType,
 		&parametersJSON,
 		&extSrc.CreatedAt,
-		&extSrc.UpdatedAt,
+		&extSrc.ModifiedAt,
 	)
 
 	if err != nil {
@@ -283,7 +283,7 @@ func (s *DatabaseSourceStore) Update(ctx context.Context, source *Source, threat
 
 	query := `
 		UPDATE sources SET
-			name = $2, url = $3, description = $4, type = $5, parameters = $6, updated_at = $7
+			name = $2, url = $3, description = $4, type = $5, parameters = $6, modified_at = $7
 		WHERE id = $1 AND threat_model_id = $8
 	`
 
@@ -420,7 +420,7 @@ func (s *DatabaseSourceStore) List(ctx context.Context, threatModelID string, of
 	logger.Debug("Cache miss for source list, querying database")
 
 	query := `
-		SELECT id, threat_model_id, name, url, description, type, parameters, created_at, updated_at
+		SELECT id, threat_model_id, name, url, description, type, parameters, created_at, modified_at
 		FROM sources 
 		WHERE threat_model_id = $1
 		ORDER BY created_at DESC
@@ -452,7 +452,7 @@ func (s *DatabaseSourceStore) List(ctx context.Context, threatModelID string, of
 			&sourceType,
 			&parametersJSON,
 			&extSrc.CreatedAt,
-			&extSrc.UpdatedAt,
+			&extSrc.ModifiedAt,
 		)
 
 		if err != nil {
@@ -534,7 +534,7 @@ func (s *DatabaseSourceStore) BulkCreate(ctx context.Context, sources []Source, 
 
 	query := `
 		INSERT INTO sources (
-			id, threat_model_id, name, url, description, type, parameters, created_at, updated_at
+			id, threat_model_id, name, url, description, type, parameters, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9
 		)

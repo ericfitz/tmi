@@ -420,8 +420,8 @@ func (cw *CacheWarmer) warmPopularMetadata(ctx context.Context, stats *WarmingSt
 	query := `
 		SELECT entity_type, entity_id, key, value
 		FROM metadata 
-		WHERE updated_at >= NOW() - INTERVAL '7 days'
-		ORDER BY updated_at DESC
+		WHERE modified_at >= NOW() - INTERVAL '7 days'
+		ORDER BY modified_at DESC
 		LIMIT 200
 	`
 

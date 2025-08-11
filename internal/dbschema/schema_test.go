@@ -48,7 +48,7 @@ func TestGetExpectedSchema(t *testing.T) {
 	}
 
 	expectedUserColumns := []string{
-		"id", "name", "email", "created_at", "updated_at", "last_login",
+		"id", "name", "email", "created_at", "modified_at", "last_login",
 	}
 
 	if len(usersTable.Columns) < len(expectedUserColumns) {

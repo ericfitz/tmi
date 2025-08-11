@@ -51,17 +51,17 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	var name, ownerEmail, createdBy string
 	var description, issueUrl *string
 	var threatModelFramework string
-	var createdAt, updatedAt time.Time
+	var createdAt, modifiedAt time.Time
 
 	query := `
 		SELECT id, name, description, owner_email, created_by, 
-		       threat_model_framework, issue_url, created_at, updated_at
+		       threat_model_framework, issue_url, created_at, modified_at
 		FROM threat_models 
 		WHERE id = $1`
 
 	err := s.db.QueryRow(query, id).Scan(
 		&uuid, &name, &description, &ownerEmail, &createdBy,
-		&threatModelFramework, &issueUrl, &createdAt, &updatedAt,
+		&threatModelFramework, &issueUrl, &createdAt, &modifiedAt,
 	)
 
 	if err != nil {
@@ -110,7 +110,7 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		ThreatModelFramework: framework,
 		IssueUrl:             issueUrl,
 		CreatedAt:            &createdAt,
-		ModifiedAt:           &updatedAt,
+		ModifiedAt:           &modifiedAt,
 		Authorization:        authorization,
 		Metadata:             &metadata,
 		Threats:              &threats,
@@ -129,7 +129,7 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 
 	query := `
 		SELECT id, name, description, owner_email, created_by,
-		       threat_model_framework, issue_url, created_at, updated_at
+		       threat_model_framework, issue_url, created_at, modified_at
 		FROM threat_models 
 		ORDER BY created_at DESC`
 
@@ -150,11 +150,11 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 		var name, ownerEmail, createdBy string
 		var description, issueUrl *string
 		var threatModelFramework string
-		var createdAt, updatedAt time.Time
+		var createdAt, modifiedAt time.Time
 
 		err := rows.Scan(
 			&uuid, &name, &description, &ownerEmail, &createdBy,
-			&threatModelFramework, &issueUrl, &createdAt, &updatedAt,
+			&threatModelFramework, &issueUrl, &createdAt, &modifiedAt,
 		)
 		if err != nil {
 			continue
@@ -181,7 +181,7 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 			ThreatModelFramework: framework,
 			IssueUrl:             issueUrl,
 			CreatedAt:            &createdAt,
-			ModifiedAt:           &updatedAt,
+			ModifiedAt:           &modifiedAt,
 			Authorization:        authorization,
 		}
 
@@ -213,7 +213,7 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 
 	query := `
 		SELECT id, name, description, owner_email, created_by,
-		       threat_model_framework, issue_url, created_at, updated_at
+		       threat_model_framework, issue_url, created_at, modified_at
 		FROM threat_models 
 		ORDER BY created_at DESC`
 
@@ -234,11 +234,11 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 		var name, ownerEmail, createdBy string
 		var description, issueUrl *string
 		var threatModelFramework string
-		var createdAt, updatedAt time.Time
+		var createdAt, modifiedAt time.Time
 
 		err := rows.Scan(
 			&uuid, &name, &description, &ownerEmail, &createdBy,
-			&threatModelFramework, &issueUrl, &createdAt, &updatedAt,
+			&threatModelFramework, &issueUrl, &createdAt, &modifiedAt,
 		)
 		if err != nil {
 			continue
@@ -265,7 +265,7 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 			ThreatModelFramework: framework,
 			IssueUrl:             issueUrl,
 			CreatedAt:            &createdAt,
-			ModifiedAt:           &updatedAt,
+			ModifiedAt:           &modifiedAt,
 			Authorization:        authorization,
 		}
 
@@ -376,7 +376,7 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 	// Insert threat model
 	query := `
 		INSERT INTO threat_models (id, name, description, owner_email, created_by, 
-		                          threat_model_framework, issue_url, created_at, updated_at)
+		                          threat_model_framework, issue_url, created_at, modified_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	_, err = tx.Exec(query,
@@ -434,7 +434,7 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 	query := `
 		UPDATE threat_models 
 		SET name = $2, description = $3, owner_email = $4, created_by = $5,
-		    threat_model_framework = $6, issue_url = $7, updated_at = $8
+		    threat_model_framework = $6, issue_url = $7, modified_at = $8
 		WHERE id = $1`
 
 	result, err := tx.Exec(query,
@@ -580,7 +580,7 @@ func (s *ThreatModelDatabaseStore) loadMetadata(threatModelId string) ([]Metadat
 
 func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, error) {
 	query := `
-		SELECT id, name, description, severity, mitigation, created_at, updated_at
+		SELECT id, name, description, severity, mitigation, created_at, modified_at
 		FROM threats 
 		WHERE threat_model_id = $1`
 
@@ -636,7 +636,7 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 
 func (s *ThreatModelDatabaseStore) loadDiagrams(threatModelId string) ([]Diagram, error) {
 	query := `
-		SELECT id, name, type, cells, metadata, created_at, updated_at
+		SELECT id, name, type, cells, metadata, created_at, modified_at
 		FROM diagrams 
 		WHERE threat_model_id = $1`
 
@@ -656,9 +656,9 @@ func (s *ThreatModelDatabaseStore) loadDiagrams(threatModelId string) ([]Diagram
 		var diagramUuid uuid.UUID
 		var name, diagramType string
 		var cellsJSON, metadataJSON []byte
-		var createdAt, updatedAt time.Time
+		var createdAt, modifiedAt time.Time
 
-		if err := rows.Scan(&diagramUuid, &name, &diagramType, &cellsJSON, &metadataJSON, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&diagramUuid, &name, &diagramType, &cellsJSON, &metadataJSON, &createdAt, &modifiedAt); err != nil {
 			continue
 		}
 
@@ -692,7 +692,7 @@ func (s *ThreatModelDatabaseStore) loadDiagrams(threatModelId string) ([]Diagram
 			Cells:      cells,
 			Metadata:   &metadata,
 			CreatedAt:  createdAt,
-			ModifiedAt: updatedAt,
+			ModifiedAt: modifiedAt,
 		}
 
 		// Convert to Diagram union type
@@ -714,10 +714,10 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 
 	for _, auth := range authorization {
 		query := `
-			INSERT INTO threat_model_access (threat_model_id, user_email, role, created_at, updated_at)
+			INSERT INTO threat_model_access (threat_model_id, user_email, role, created_at, modified_at)
 			VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (threat_model_id, user_email) 
-			DO UPDATE SET role = $3, updated_at = $5`
+			DO UPDATE SET role = $3, modified_at = $5`
 
 		now := time.Now().UTC()
 		_, err := tx.Exec(query, threatModelId, auth.Subject, string(auth.Role), now, now)
@@ -736,10 +736,10 @@ func (s *ThreatModelDatabaseStore) saveMetadataTx(tx *sql.Tx, threatModelId stri
 
 	for _, meta := range metadata {
 		query := `
-			INSERT INTO metadata (entity_type, entity_id, key, value, created_at, updated_at)
+			INSERT INTO metadata (entity_type, entity_id, key, value, created_at, modified_at)
 			VALUES ('threat_model', $1, $2, $3, $4, $5)
 			ON CONFLICT (entity_type, entity_id, key)
-			DO UPDATE SET value = $3, updated_at = $5`
+			DO UPDATE SET value = $3, modified_at = $5`
 
 		now := time.Now().UTC()
 		_, err := tx.Exec(query, threatModelId, meta.Key, meta.Value, now, now)
@@ -796,16 +796,16 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 	var threatModelId uuid.UUID
 	var name, diagramType string
 	var cellsJSON, metadataJSON []byte
-	var createdAt, updatedAt time.Time
+	var createdAt, modifiedAt time.Time
 
 	query := `
-		SELECT id, threat_model_id, name, type, cells, metadata, created_at, updated_at
+		SELECT id, threat_model_id, name, type, cells, metadata, created_at, modified_at
 		FROM diagrams 
 		WHERE id = $1`
 
 	err := s.db.QueryRow(query, id).Scan(
 		&diagramUuid, &threatModelId, &name, &diagramType,
-		&cellsJSON, &metadataJSON, &createdAt, &updatedAt,
+		&cellsJSON, &metadataJSON, &createdAt, &modifiedAt,
 	)
 
 	if err != nil {
@@ -844,7 +844,7 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 		Cells:      cells,
 		Metadata:   &metadata,
 		CreatedAt:  createdAt,
-		ModifiedAt: updatedAt,
+		ModifiedAt: modifiedAt,
 	}
 
 	// Store threat model ID in context for later use
@@ -893,7 +893,7 @@ func (s *DiagramDatabaseStore) CreateWithThreatModel(item DfdDiagram, threatMode
 	}
 
 	query := `
-		INSERT INTO diagrams (id, threat_model_id, name, type, cells, metadata, created_at, updated_at)
+		INSERT INTO diagrams (id, threat_model_id, name, type, cells, metadata, created_at, modified_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 	_, err = s.db.Exec(query,
@@ -936,7 +936,7 @@ func (s *DiagramDatabaseStore) Update(id string, item DfdDiagram) error {
 
 	query := `
 		UPDATE diagrams 
-		SET name = $2, type = $3, cells = $4, metadata = $5, updated_at = $6
+		SET name = $2, type = $3, cells = $4, metadata = $5, modified_at = $6
 		WHERE id = $1`
 
 	result, err := s.db.Exec(query,

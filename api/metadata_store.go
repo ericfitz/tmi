@@ -46,7 +46,7 @@ type ExtendedMetadata struct {
 	EntityType string    `json:"entity_type"`
 	EntityID   uuid.UUID `json:"entity_id"`
 	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ModifiedAt time.Time `json:"modified_at"`
 }
 
 // DatabaseMetadataStore implements MetadataStore with database persistence and Redis caching
@@ -99,14 +99,14 @@ func (s *DatabaseMetadataStore) Create(ctx context.Context, entityType, entityID
 	// Insert into database
 	query := `
 		INSERT INTO metadata (
-			id, entity_type, entity_id, key, value, created_at, updated_at
+			id, entity_type, entity_id, key, value, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7
 		)
 		ON CONFLICT (entity_type, entity_id, key) 
 		DO UPDATE SET 
 			value = EXCLUDED.value,
-			updated_at = EXCLUDED.updated_at
+			modified_at = EXCLUDED.modified_at
 	`
 
 	id := uuid.New()
@@ -226,7 +226,7 @@ func (s *DatabaseMetadataStore) Update(ctx context.Context, entityType, entityID
 
 	query := `
 		UPDATE metadata SET
-			value = $4, updated_at = $5
+			value = $4, modified_at = $5
 		WHERE entity_type = $1 AND entity_id = $2 AND key = $3
 	`
 
@@ -445,14 +445,14 @@ func (s *DatabaseMetadataStore) BulkCreate(ctx context.Context, entityType, enti
 
 	query := `
 		INSERT INTO metadata (
-			id, entity_type, entity_id, key, value, created_at, updated_at
+			id, entity_type, entity_id, key, value, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7
 		)
 		ON CONFLICT (entity_type, entity_id, key) 
 		DO UPDATE SET 
 			value = EXCLUDED.value,
-			updated_at = EXCLUDED.updated_at
+			modified_at = EXCLUDED.modified_at
 	`
 
 	stmt, err := tx.PrepareContext(ctx, query)
