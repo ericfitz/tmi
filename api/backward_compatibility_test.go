@@ -503,13 +503,12 @@ func (bct *BackwardCompatibilityTest) createTestDiagramRequest() DfdDiagram {
 	diagramID := uuid.New()
 
 	return DfdDiagram{
-		Id:          &diagramID,
-		Name:        "Backward Compatibility Test Diagram",
-		Description: stringPointer("Test diagram for backward compatibility"),
-		CreatedAt:   now,
-		ModifiedAt:  now,
-		Type:        DfdDiagramTypeDFD100,
-		Cells:       []DfdDiagram_Cells_Item{},
+		Id:         &diagramID,
+		Name:       "Backward Compatibility Test Diagram",
+		CreatedAt:  now,
+		ModifiedAt: now,
+		Type:       DfdDiagramTypeDFD100,
+		Cells:      []DfdDiagram_Cells_Item{},
 	}
 }
 

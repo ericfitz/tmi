@@ -165,6 +165,9 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	router.POST("/threat_models/:id/diagrams", func(c *gin.Context) {
 		diagramHandler.CreateDiagram(c, c.Param("id"))
 	})
+	router.GET("/threat_models/:id/diagrams", func(c *gin.Context) {
+		diagramHandler.GetDiagrams(c, c.Param("id"))
+	})
 	router.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
 		threatModelID := c.Param("id")
 		diagramID := c.Param("diagram_id")
@@ -481,9 +484,8 @@ func testDatabaseThreatModelPUT(t *testing.T, suite *SubEntityIntegrationTestSui
 func testDatabaseDiagramPOST(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	// Create diagram using the proper sub-entity endpoint
 	requestBody := map[string]interface{}{
-		"name":        "Database Integration Test Diagram",
-		"type":        "DFD-1.0.0",
-		"description": "A diagram created during database integration testing",
+		"name": "Database Integration Test Diagram",
+		"type": "DFD-1.0.0",
 	}
 
 	// Step 1: Create diagram using threat model ID
@@ -499,7 +501,6 @@ func testDatabaseDiagramPOST(t *testing.T, suite *SubEntityIntegrationTestSuite)
 
 	// Verify basic response fields
 	assert.Equal(t, requestBody["name"], response["name"])
-	assert.Equal(t, requestBody["description"], response["description"])
 	assert.NotEmpty(t, response["created_at"], "Response should contain created_at")
 	assert.NotEmpty(t, response["modified_at"], "Response should contain modified_at")
 
@@ -512,7 +513,6 @@ func testDatabaseDiagramPOST(t *testing.T, suite *SubEntityIntegrationTestSuite)
 	// Verify the persisted data matches what we created
 	assert.Equal(t, diagramID, getResponse["id"])
 	assert.Equal(t, requestBody["name"], getResponse["name"])
-	assert.Equal(t, requestBody["description"], getResponse["description"])
 }
 
 // testDatabaseDiagramGET tests retrieving diagrams from database
@@ -739,9 +739,8 @@ func (suite *SubEntityIntegrationTestSuite) createTestSource(t *testing.T) strin
 // createTestDiagram creates a test diagram for use in other tests
 func (suite *SubEntityIntegrationTestSuite) createTestDiagram(t *testing.T) string {
 	requestBody := map[string]interface{}{
-		"name":        "Test Integration Diagram",
-		"type":        "DFD-1.0.0",
-		"description": "A diagram created during integration testing",
+		"name": "Test Integration Diagram",
+		"type": "DFD-1.0.0",
 	}
 
 	path := fmt.Sprintf("/threat_models/%s/diagrams", suite.threatModelID)

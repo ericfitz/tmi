@@ -227,11 +227,10 @@ func InitSubResourceTestFixtures() {
 	cells := []DfdDiagram_Cells_Item{cell1, cell2}
 
 	SubResourceFixtures.Diagram = DfdDiagram{
-		Id:          &diagramUUID,
-		Name:        "Test Data Flow Diagram",
-		Description: stringPointer("Test diagram for sub-resource operations"),
-		CreatedAt:   now,
-		ModifiedAt:  now,
+		Id:         &diagramUUID,
+		Name:       "Test Data Flow Diagram",
+		CreatedAt:  now,
+		ModifiedAt: now,
 		Cells:       cells,
 		Type:        DfdDiagramTypeDFD100,
 	}

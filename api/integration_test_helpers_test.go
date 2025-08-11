@@ -21,16 +21,16 @@ func verifyThreatModelInDatabase(suite *SubEntityIntegrationTestSuite, t *testin
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
 
-	query := `SELECT id, name, description, owner, threat_model_framework, created_at, modified_at, authorization 
+	query := `SELECT id, name, description, owner, threat_model_framework, created_at, updated_at, authorization 
 			  FROM threat_models WHERE id = $1`
 
 	var dbID, name, description, owner, framework sql.NullString
-	var createdAt, modifiedAt sql.NullTime
+	var createdAt, updatedAt sql.NullTime
 	var authorizationJSON sql.NullString
 
 	err := db.QueryRowContext(ctx, query, id).Scan(
 		&dbID, &name, &description, &owner, &framework,
-		&createdAt, &modifiedAt, &authorizationJSON)
+		&createdAt, &updatedAt, &authorizationJSON)
 	require.NoError(t, err, "Threat model should exist in database")
 
 	// Verify basic fields
@@ -50,7 +50,7 @@ func verifyThreatModelInDatabase(suite *SubEntityIntegrationTestSuite, t *testin
 
 	// Verify timestamps exist
 	assert.True(t, createdAt.Valid, "created_at should be set")
-	assert.True(t, modifiedAt.Valid, "modified_at should be set")
+	assert.True(t, updatedAt.Valid, "updated_at should be set")
 }
 
 // verifyThreatInDatabase verifies a threat exists in the database with expected data
@@ -58,16 +58,16 @@ func verifyThreatInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, 
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
 
-	query := `SELECT id, threat_model_id, name, description, severity, status, threat_type, priority, mitigated, created_at, modified_at 
+	query := `SELECT id, threat_model_id, name, description, severity, status, threat_type, priority, mitigated, created_at, updated_at 
 			  FROM threats WHERE id = $1 AND threat_model_id = $2`
 
 	var dbID, dbThreatModelID, name, description, severity, status, threatType, priority sql.NullString
 	var mitigated sql.NullBool
-	var createdAt, modifiedAt sql.NullTime
+	var createdAt, updatedAt sql.NullTime
 
 	err := db.QueryRowContext(ctx, query, id, threatModelID).Scan(
 		&dbID, &dbThreatModelID, &name, &description, &severity, &status,
-		&threatType, &priority, &mitigated, &createdAt, &modifiedAt)
+		&threatType, &priority, &mitigated, &createdAt, &updatedAt)
 	require.NoError(t, err, "Threat should exist in database")
 
 	// Verify basic fields
@@ -86,7 +86,7 @@ func verifyThreatInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, 
 
 	// Verify timestamps exist
 	assert.True(t, createdAt.Valid, "created_at should be set")
-	assert.True(t, modifiedAt.Valid, "modified_at should be set")
+	assert.True(t, updatedAt.Valid, "updated_at should be set")
 }
 
 // verifyDocumentInDatabase verifies a document exists in the database with expected data
@@ -94,14 +94,14 @@ func verifyDocumentInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
 
-	query := `SELECT id, threat_model_id, name, description, url, created_at, modified_at 
+	query := `SELECT id, threat_model_id, name, description, url, created_at, updated_at 
 			  FROM documents WHERE id = $1 AND threat_model_id = $2`
 
 	var dbID, dbThreatModelID, name, description, url sql.NullString
-	var createdAt, modifiedAt sql.NullTime
+	var createdAt, updatedAt sql.NullTime
 
 	err := db.QueryRowContext(ctx, query, id, threatModelID).Scan(
-		&dbID, &dbThreatModelID, &name, &description, &url, &createdAt, &modifiedAt)
+		&dbID, &dbThreatModelID, &name, &description, &url, &createdAt, &updatedAt)
 	require.NoError(t, err, "Document should exist in database")
 
 	// Verify basic fields
@@ -116,7 +116,7 @@ func verifyDocumentInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T
 
 	// Verify timestamps exist
 	assert.True(t, createdAt.Valid, "created_at should be set")
-	assert.True(t, modifiedAt.Valid, "modified_at should be set")
+	assert.True(t, updatedAt.Valid, "updated_at should be set")
 }
 
 // verifySourceInDatabase verifies a source exists in the database with expected data
@@ -124,16 +124,16 @@ func verifySourceInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, 
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
 
-	query := `SELECT id, threat_model_id, name, description, url, type, parameters, created_at, modified_at 
+	query := `SELECT id, threat_model_id, name, description, url, type, parameters, created_at, updated_at 
 			  FROM sources WHERE id = $1 AND threat_model_id = $2`
 
 	var dbID, dbThreatModelID, name, description, url, sourceType sql.NullString
 	var parametersJSON sql.NullString
-	var createdAt, modifiedAt sql.NullTime
+	var createdAt, updatedAt sql.NullTime
 
 	err := db.QueryRowContext(ctx, query, id, threatModelID).Scan(
 		&dbID, &dbThreatModelID, &name, &description, &url, &sourceType,
-		&parametersJSON, &createdAt, &modifiedAt)
+		&parametersJSON, &createdAt, &updatedAt)
 	require.NoError(t, err, "Source should exist in database")
 
 	// Verify basic fields
@@ -157,7 +157,7 @@ func verifySourceInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, 
 
 	// Verify timestamps exist
 	assert.True(t, createdAt.Valid, "created_at should be set")
-	assert.True(t, modifiedAt.Valid, "modified_at should be set")
+	assert.True(t, updatedAt.Valid, "updated_at should be set")
 }
 
 // verifyDiagramInDatabase verifies a diagram exists in the database with expected data
@@ -165,15 +165,14 @@ func verifyDiagramInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T,
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
 
-	query := `SELECT id, threat_model_id, name, description, content, created_at, modified_at 
+	query := `SELECT id, threat_model_id, name, created_at, updated_at 
 			  FROM diagrams WHERE id = $1 AND threat_model_id = $2`
 
-	var dbID, dbThreatModelID, name, description sql.NullString
-	var contentJSON sql.NullString
-	var createdAt, modifiedAt sql.NullTime
+	var dbID, dbThreatModelID, name sql.NullString
+	var createdAt, updatedAt sql.NullTime
 
 	err := db.QueryRowContext(ctx, query, id, threatModelID).Scan(
-		&dbID, &dbThreatModelID, &name, &description, &contentJSON, &createdAt, &modifiedAt)
+		&dbID, &dbThreatModelID, &name, &createdAt, &updatedAt)
 	require.NoError(t, err, "Diagram should exist in database")
 
 	// Verify basic fields
@@ -181,21 +180,14 @@ func verifyDiagramInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T,
 	assert.Equal(t, threatModelID, dbThreatModelID.String)
 
 	assertFieldsMatch(t, map[string]interface{}{
-		"name":        name.String,
-		"description": description.String,
+		"name": name.String,
 	}, expectedData)
 
-	// Verify content if expected
-	if expectedContent, exists := expectedData["content"]; exists && contentJSON.Valid {
-		var dbContent map[string]interface{}
-		err := json.Unmarshal([]byte(contentJSON.String), &dbContent)
-		require.NoError(t, err, "Should be able to parse content JSON")
-		assertFieldsMatch(t, dbContent, expectedContent.(map[string]interface{}))
-	}
+	// Note: Content field is no longer used in diagrams schema, replaced by cells
 
 	// Verify timestamps exist
 	assert.True(t, createdAt.Valid, "created_at should be set")
-	assert.True(t, modifiedAt.Valid, "modified_at should be set")
+	assert.True(t, updatedAt.Valid, "updated_at should be set")
 }
 
 // verifyMetadataInDatabase verifies metadata exists in the database with expected data
@@ -218,24 +210,24 @@ func verifyMetadataInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T
 	var query string
 	switch entityType {
 	case "threat_model":
-		query = `SELECT parent_id, key, value, created_at, modified_at FROM threat_model_metadata WHERE parent_id = $1 AND key = $2`
+		query = `SELECT parent_id, key, value, created_at, updated_at FROM threat_model_metadata WHERE parent_id = $1 AND key = $2`
 	case "threat":
-		query = `SELECT parent_id, key, value, created_at, modified_at FROM threat_metadata WHERE parent_id = $1 AND key = $2`
+		query = `SELECT parent_id, key, value, created_at, updated_at FROM threat_metadata WHERE parent_id = $1 AND key = $2`
 	case "document":
-		query = `SELECT parent_id, key, value, created_at, modified_at FROM document_metadata WHERE parent_id = $1 AND key = $2`
+		query = `SELECT parent_id, key, value, created_at, updated_at FROM document_metadata WHERE parent_id = $1 AND key = $2`
 	case "source":
-		query = `SELECT parent_id, key, value, created_at, modified_at FROM source_metadata WHERE parent_id = $1 AND key = $2`
+		query = `SELECT parent_id, key, value, created_at, updated_at FROM source_metadata WHERE parent_id = $1 AND key = $2`
 	case "diagram":
-		query = `SELECT parent_id, key, value, created_at, modified_at FROM diagram_metadata WHERE parent_id = $1 AND key = $2`
+		query = `SELECT parent_id, key, value, created_at, updated_at FROM diagram_metadata WHERE parent_id = $1 AND key = $2`
 	default:
 		t.Fatalf("Unknown entity type for metadata: %s", entityType)
 	}
 
 	var dbParentID, key, value sql.NullString
-	var createdAt, modifiedAt sql.NullTime
+	var createdAt, updatedAt sql.NullTime
 
 	err := db.QueryRowContext(ctx, query, parentID, expectedKey).Scan(
-		&dbParentID, &key, &value, &createdAt, &modifiedAt)
+		&dbParentID, &key, &value, &createdAt, &updatedAt)
 	require.NoError(t, err, "Metadata should exist in database")
 
 	// Verify basic fields
@@ -248,7 +240,7 @@ func verifyMetadataInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T
 
 	// Verify timestamps exist
 	assert.True(t, createdAt.Valid, "created_at should be set")
-	assert.True(t, modifiedAt.Valid, "modified_at should be set")
+	assert.True(t, updatedAt.Valid, "updated_at should be set")
 }
 
 // verifyCellInDatabase verifies a cell exists in the database with expected data

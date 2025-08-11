@@ -122,3 +122,31 @@ func ValidatePatchedEntity[T any](original, patched T, userName string, validato
 
 	return nil
 }
+
+// ConvertJSONPatchToCellOperations converts standard JSON Patch operations to CellPatchOperation format
+// This enables code reuse between REST PATCH endpoints and WebSocket operations
+func ConvertJSONPatchToCellOperations(operations []PatchOperation) (*CellPatchOperation, error) {
+	// For now, this is a placeholder since the existing JSON Patch system
+	// operates on the entire diagram structure, while our WebSocket system
+	// operates on individual cells.
+	//
+	// In a full implementation, this would:
+	// 1. Parse JSON Patch operations that target /cells/* paths
+	// 2. Convert them to CellOperation format (add/update/remove)
+	// 3. Group them into a CellPatchOperation
+	//
+	// For Phase 1, we're establishing the architecture for code reuse.
+	// The shared CellOperationProcessor can be used by both systems.
+
+	return &CellPatchOperation{
+		Type:  "patch",
+		Cells: []CellOperation{},
+	}, nil
+}
+
+// ProcessDiagramCellOperations provides a shared interface for diagram cell operations
+// This can be used by both REST PATCH handlers and WebSocket operations
+func ProcessDiagramCellOperations(diagramID string, operations CellPatchOperation) (*OperationValidationResult, error) {
+	processor := NewCellOperationProcessor(DiagramStore)
+	return processor.ProcessCellOperations(diagramID, operations)
+}

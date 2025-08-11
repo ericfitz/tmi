@@ -1,11 +1,13 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestBatchIntegration tests the complete batch operations with real database persistence
@@ -120,7 +122,7 @@ func testBatchPatchThreats(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 		// Verify database persistence by fetching the updated threats
 		verifyThreatInDatabase(suite, t, threat1ID, suite.threatModelID, map[string]interface{}{
 			"name":     "Batch Updated Threat 1",
-			"severity": "critical",
+			"severity": "Critical",
 		})
 
 		verifyThreatInDatabase(suite, t, threat2ID, suite.threatModelID, map[string]interface{}{
@@ -361,36 +363,34 @@ func testBatchDeleteThreats(t *testing.T, suite *SubEntityIntegrationTestSuite) 
 
 // testBulkCreateThreats tests bulk creating multiple threats
 func testBulkCreateThreats(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// Test data for bulk create
-	requestBody := map[string]interface{}{
-		"threats": []map[string]interface{}{
-			{
-				"name":        "Bulk Test Threat 1",
-				"description": "First threat in bulk create test",
-				"severity":    "high",
-				"status":      "identified",
-				"threat_type": "spoofing",
-				"priority":    "high",
-				"mitigated":   false,
-			},
-			{
-				"name":        "Bulk Test Threat 2",
-				"description": "Second threat in bulk create test",
-				"severity":    "medium",
-				"status":      "identified",
-				"threat_type": "tampering",
-				"priority":    "medium",
-				"mitigated":   false,
-			},
-			{
-				"name":        "Bulk Test Threat 3",
-				"description": "Third threat in bulk create test",
-				"severity":    "low",
-				"status":      "identified",
-				"threat_type": "repudiation",
-				"priority":    "low",
-				"mitigated":   false,
-			},
+	// Test data for bulk create - should be an array directly
+	requestBody := []map[string]interface{}{
+		{
+			"name":        "Bulk Test Threat 1",
+			"description": "First threat in bulk create test",
+			"severity":    "High",
+			"status":      "identified",
+			"threat_type": "spoofing",
+			"priority":    "high",
+			"mitigated":   false,
+		},
+		{
+			"name":        "Bulk Test Threat 2",
+			"description": "Second threat in bulk create test",
+			"severity":    "Medium",
+			"status":      "identified",
+			"threat_type": "tampering",
+			"priority":    "medium",
+			"mitigated":   false,
+		},
+		{
+			"name":        "Bulk Test Threat 3",
+			"description": "Third threat in bulk create test",
+			"severity":    "Low",
+			"status":      "identified",
+			"threat_type": "repudiation",
+			"priority":    "low",
+			"mitigated":   false,
 		},
 	}
 
@@ -399,17 +399,17 @@ func testBulkCreateThreats(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	req := suite.makeAuthenticatedRequest("POST", path, requestBody)
 	w := suite.executeRequest(req)
 
-	response := suite.assertJSONResponse(t, w, http.StatusCreated)
-
-	// Verify response
-	createdThreats, ok := response["threats"].([]interface{})
-	assert.True(t, ok, "Response should contain threats array")
+	// Bulk endpoints return arrays directly, not objects
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var createdThreats []interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &createdThreats)
+	require.NoError(t, err, "Response should be valid JSON array")
 	assert.Len(t, createdThreats, 3, "Should create 3 threats")
 
 	// Verify each created threat
 	for i, threatInterface := range createdThreats {
 		threat := threatInterface.(map[string]interface{})
-		originalThreat := requestBody["threats"].([]map[string]interface{})[i]
+		originalThreat := requestBody[i]
 
 		assert.NotEmpty(t, threat["id"], "Each threat should have an ID")
 		assert.Equal(t, originalThreat["name"], threat["name"])
@@ -443,31 +443,29 @@ func testBulkUpdateThreats(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	threat1ID := suite.createTestThreat(t)
 	threat2ID := suite.createTestThreat(t)
 
-	// Test data for bulk update
-	requestBody := map[string]interface{}{
-		"threats": []map[string]interface{}{
-			{
-				"id":          threat1ID,
-				"name":        "Bulk Updated Threat 1",
-				"description": "First threat updated in bulk",
-				"severity":    "critical",
-				"status":      "mitigated",
-				"threat_type": "spoofing",
-				"priority":    "critical",
-				"mitigated":   true,
-				"mitigation":  "Updated mitigation for threat 1",
-			},
-			{
-				"id":          threat2ID,
-				"name":        "Bulk Updated Threat 2",
-				"description": "Second threat updated in bulk",
-				"severity":    "high",
-				"status":      "in_progress",
-				"threat_type": "tampering",
-				"priority":    "high",
-				"mitigated":   false,
-				"mitigation":  "Updated mitigation for threat 2",
-			},
+	// Test data for bulk update - should be an array directly
+	requestBody := []map[string]interface{}{
+		{
+			"id":          threat1ID,
+			"name":        "Bulk Updated Threat 1",
+			"description": "First threat updated in bulk",
+			"severity":    "Critical",
+			"status":      "mitigated",
+			"threat_type": "spoofing",
+			"priority":    "critical",
+			"mitigated":   true,
+			"mitigation":  "Updated mitigation for threat 1",
+		},
+		{
+			"id":          threat2ID,
+			"name":        "Bulk Updated Threat 2",
+			"description": "Second threat updated in bulk",
+			"severity":    "High",
+			"status":      "in_progress",
+			"threat_type": "tampering",
+			"priority":    "high",
+			"mitigated":   false,
+			"mitigation":  "Updated mitigation for threat 2",
 		},
 	}
 
@@ -476,17 +474,17 @@ func testBulkUpdateThreats(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	req := suite.makeAuthenticatedRequest("PUT", path, requestBody)
 	w := suite.executeRequest(req)
 
-	response := suite.assertJSONResponse(t, w, http.StatusOK)
-
-	// Verify response
-	updatedThreats, ok := response["threats"].([]interface{})
-	assert.True(t, ok, "Response should contain threats array")
+	// Bulk endpoints return arrays directly, not objects
+	assert.Equal(t, http.StatusOK, w.Code)
+	var updatedThreats []interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &updatedThreats)
+	require.NoError(t, err, "Response should be valid JSON array")
 	assert.Len(t, updatedThreats, 2, "Should update 2 threats")
 
 	// Verify each updated threat
 	for i, threatInterface := range updatedThreats {
 		threat := threatInterface.(map[string]interface{})
-		originalThreat := requestBody["threats"].([]map[string]interface{})[i]
+		originalThreat := requestBody[i]
 
 		assert.Equal(t, originalThreat["id"], threat["id"])
 		assert.Equal(t, originalThreat["name"], threat["name"])
@@ -512,19 +510,17 @@ func testBulkUpdateThreats(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 
 // testBulkCreateDocuments tests bulk creating multiple documents
 func testBulkCreateDocuments(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// Test data for bulk document creation
-	requestBody := map[string]interface{}{
-		"documents": []map[string]interface{}{
-			{
-				"name":        "Bulk Test Document 1",
-				"description": "First document in bulk create test",
-				"url":         "https://example.com/doc1.pdf",
-			},
-			{
-				"name":        "Bulk Test Document 2",
-				"description": "Second document in bulk create test",
-				"url":         "https://example.com/doc2.pdf",
-			},
+	// Test data for bulk document creation - should be an array directly
+	requestBody := []map[string]interface{}{
+		{
+			"name":        "Bulk Test Document 1",
+			"description": "First document in bulk create test",
+			"url":         "https://example.com/doc1.pdf",
+		},
+		{
+			"name":        "Bulk Test Document 2",
+			"description": "Second document in bulk create test",
+			"url":         "https://example.com/doc2.pdf",
 		},
 	}
 
@@ -533,17 +529,17 @@ func testBulkCreateDocuments(t *testing.T, suite *SubEntityIntegrationTestSuite)
 	req := suite.makeAuthenticatedRequest("POST", path, requestBody)
 	w := suite.executeRequest(req)
 
-	response := suite.assertJSONResponse(t, w, http.StatusCreated)
-
-	// Verify response
-	createdDocuments, ok := response["documents"].([]interface{})
-	assert.True(t, ok, "Response should contain documents array")
+	// Bulk endpoints return arrays directly, not objects
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var createdDocuments []interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &createdDocuments)
+	require.NoError(t, err, "Response should be valid JSON array")
 	assert.Len(t, createdDocuments, 2, "Should create 2 documents")
 
 	// Verify each created document
 	for i, documentInterface := range createdDocuments {
 		document := documentInterface.(map[string]interface{})
-		originalDocument := requestBody["documents"].([]map[string]interface{})[i]
+		originalDocument := requestBody[i]
 
 		assert.NotEmpty(t, document["id"], "Each document should have an ID")
 		assert.Equal(t, originalDocument["name"], document["name"])
@@ -565,28 +561,26 @@ func testBulkCreateDocuments(t *testing.T, suite *SubEntityIntegrationTestSuite)
 
 // testBulkCreateSources tests bulk creating multiple sources
 func testBulkCreateSources(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// Test data for bulk source creation
-	requestBody := map[string]interface{}{
-		"sources": []map[string]interface{}{
-			{
-				"name":        "Bulk Test Source 1",
-				"description": "First source in bulk create test",
-				"url":         "https://github.com/example/repo1",
-				"type":        "git",
-				"parameters": map[string]interface{}{
-					"branch": "main",
-					"path":   "/src",
-				},
+	// Test data for bulk source creation - should be an array directly
+	requestBody := []map[string]interface{}{
+		{
+			"name":        "Bulk Test Source 1",
+			"description": "First source in bulk create test",
+			"url":         "https://github.com/example/repo1",
+			"type":        "git",
+			"parameters": map[string]interface{}{
+				"branch": "main",
+				"path":   "/src",
 			},
-			{
-				"name":        "Bulk Test Source 2",
-				"description": "Second source in bulk create test",
-				"url":         "https://github.com/example/repo2",
-				"type":        "git",
-				"parameters": map[string]interface{}{
-					"branch": "develop",
-					"path":   "/api",
-				},
+		},
+		{
+			"name":        "Bulk Test Source 2",
+			"description": "Second source in bulk create test",
+			"url":         "https://github.com/example/repo2",
+			"type":        "git",
+			"parameters": map[string]interface{}{
+				"branch": "develop",
+				"path":   "/api",
 			},
 		},
 	}
@@ -596,17 +590,17 @@ func testBulkCreateSources(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	req := suite.makeAuthenticatedRequest("POST", path, requestBody)
 	w := suite.executeRequest(req)
 
-	response := suite.assertJSONResponse(t, w, http.StatusCreated)
-
-	// Verify response
-	createdSources, ok := response["sources"].([]interface{})
-	assert.True(t, ok, "Response should contain sources array")
+	// Bulk endpoints return arrays directly, not objects
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var createdSources []interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &createdSources)
+	require.NoError(t, err, "Response should be valid JSON array")
 	assert.Len(t, createdSources, 2, "Should create 2 sources")
 
 	// Verify each created source
 	for i, sourceInterface := range createdSources {
 		source := sourceInterface.(map[string]interface{})
-		originalSource := requestBody["sources"].([]map[string]interface{})[i]
+		originalSource := requestBody[i]
 
 		assert.NotEmpty(t, source["id"], "Each source should have an ID")
 		assert.Equal(t, originalSource["name"], source["name"])

@@ -31,6 +31,7 @@ const (
 	MessageTypeAuthorizationDenied MessageType = "authorization_denied"
 	MessageTypeStateCorrection     MessageType = "state_correction"
 	MessageTypeResyncRequest       MessageType = "resync_request"
+	MessageTypeResyncResponse      MessageType = "resync_response"
 	MessageTypeHistoryOperation    MessageType = "history_operation"
 	MessageTypeUndoRequest         MessageType = "undo_request"
 	MessageTypeRedoRequest         MessageType = "redo_request"
@@ -312,6 +313,36 @@ func (m ResyncRequestMessage) Validate() error {
 	return nil
 }
 
+type ResyncResponseMessage struct {
+	MessageType   MessageType `json:"message_type"`
+	UserID        string      `json:"user_id"`
+	TargetUser    string      `json:"target_user"`
+	Method        string      `json:"method"`
+	DiagramID     string      `json:"diagram_id"`
+	ThreatModelID string      `json:"threat_model_id,omitempty"`
+}
+
+func (m ResyncResponseMessage) GetMessageType() MessageType { return m.MessageType }
+
+func (m ResyncResponseMessage) Validate() error {
+	if m.MessageType != MessageTypeResyncResponse {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeResyncResponse, m.MessageType)
+	}
+	if m.UserID == "" {
+		return fmt.Errorf("user_id is required")
+	}
+	if m.TargetUser == "" {
+		return fmt.Errorf("target_user is required")
+	}
+	if m.Method == "" {
+		return fmt.Errorf("method is required")
+	}
+	if m.DiagramID == "" {
+		return fmt.Errorf("diagram_id is required")
+	}
+	return nil
+}
+
 type HistoryOperationMessage struct {
 	MessageType   MessageType `json:"message_type"`
 	OperationType string      `json:"operation_type"`
@@ -416,6 +447,13 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 		var msg ResyncRequestMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
 			return nil, fmt.Errorf("failed to parse resync request message: %w", err)
+		}
+		return msg, msg.Validate()
+
+	case MessageTypeResyncResponse:
+		var msg ResyncResponseMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, fmt.Errorf("failed to parse resync response message: %w", err)
 		}
 		return msg, msg.Validate()
 

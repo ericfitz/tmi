@@ -191,13 +191,12 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 
 	// Create DfdDiagram directly for the store
 	d := DfdDiagram{
-		Name:        request.Name,
-		Type:        DfdDiagramType(request.Type),
-		Description: request.Description,
-		CreatedAt:   now,
-		ModifiedAt:  now,
-		Cells:       cells,
-		Metadata:    &metadata,
+		Name:       request.Name,
+		Type:       DfdDiagramType(request.Type),
+		CreatedAt:  now,
+		ModifiedAt: now,
+		Cells:      cells,
+		Metadata:   &metadata,
 	}
 
 	// Add to store
@@ -694,7 +693,7 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 	}
 
 	// Get or create collaboration session
-	session := h.wsHub.GetOrCreateSession(diagramId, threatModelId)
+	session := h.wsHub.GetOrCreateSession(diagramId, threatModelId, userName)
 
 	// Get current participants
 	participants := make([]gin.H, 0)

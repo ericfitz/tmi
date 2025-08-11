@@ -42,8 +42,8 @@ func TestThreatModelDiagramIntegration(t *testing.T) {
 func testThreatModelDiagramPOST(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	// Test data
 	requestBody := map[string]interface{}{
-		"name":        "Integration Test Diagram",
-		"description": "A diagram created during integration testing",
+		"name": "Integration Test Diagram",
+		"type": "DFD-1.0.0",
 	}
 
 	// Make request
@@ -57,7 +57,6 @@ func testThreatModelDiagramPOST(t *testing.T, suite *SubEntityIntegrationTestSui
 	// Verify response contains expected fields
 	assert.NotEmpty(t, response["id"], "Response should contain ID")
 	assert.Equal(t, requestBody["name"], response["name"])
-	assert.Equal(t, requestBody["description"], response["description"])
 
 	// Store the diagram ID for other tests
 	suite.testDiagramID = response["id"].(string)
@@ -120,9 +119,8 @@ func testThreatModelDiagramPUT(t *testing.T, suite *SubEntityIntegrationTestSuit
 
 	// Update the diagram
 	updateBody := map[string]interface{}{
-		"id":          suite.testDiagramID,
-		"name":        "Updated Integration Test Diagram",
-		"description": "Updated description for integration testing",
+		"id":   suite.testDiagramID,
+		"name": "Updated Integration Test Diagram",
 	}
 
 	path := fmt.Sprintf("/threat_models/%s/diagrams/%s", suite.threatModelID, suite.testDiagramID)
@@ -134,7 +132,6 @@ func testThreatModelDiagramPUT(t *testing.T, suite *SubEntityIntegrationTestSuit
 	// Verify updates
 	assert.Equal(t, suite.testDiagramID, response["id"])
 	assert.Equal(t, updateBody["name"], response["name"])
-	assert.Equal(t, updateBody["description"], response["description"])
 }
 
 // testThreatModelDiagramDELETE tests deleting diagrams via DELETE
@@ -175,11 +172,6 @@ func testThreatModelDiagramPATCH(t *testing.T, suite *SubEntityIntegrationTestSu
 			Path:  "/name",
 			Value: "PATCH Updated Diagram Name",
 		},
-		{
-			Op:    "replace",
-			Path:  "/description",
-			Value: "This diagram was updated using PATCH with JSON Patch operations",
-		},
 	}
 
 	// Make PATCH request
@@ -192,7 +184,6 @@ func testThreatModelDiagramPATCH(t *testing.T, suite *SubEntityIntegrationTestSu
 	// Verify that the response contains the patched values
 	assert.Equal(t, suite.testDiagramID, response["id"])
 	assert.Equal(t, "PATCH Updated Diagram Name", response["name"])
-	assert.Equal(t, "This diagram was updated using PATCH with JSON Patch operations", response["description"])
 
 	// Verify that other fields weren't changed unexpectedly
 	assert.Equal(t, originalResponse["id"], response["id"])
@@ -206,8 +197,7 @@ func testThreatModelDiagramPATCH(t *testing.T, suite *SubEntityIntegrationTestSu
 
 	// Verify database persistence using the helper function
 	expectedData := map[string]interface{}{
-		"name":        "PATCH Updated Diagram Name",
-		"description": "This diagram was updated using PATCH with JSON Patch operations",
+		"name": "PATCH Updated Diagram Name",
 	}
 	verifyDiagramInDatabase(suite, t, suite.testDiagramID, suite.threatModelID, expectedData)
 
@@ -227,13 +217,10 @@ func testThreatModelDiagramPATCH(t *testing.T, suite *SubEntityIntegrationTestSu
 
 		// Verify only the name was updated
 		assert.Equal(t, "Single Field PATCH Update", response["name"])
-		// Description should remain the same as the previous PATCH
-		assert.Equal(t, "This diagram was updated using PATCH with JSON Patch operations", response["description"])
 
 		// Verify database persistence
 		expectedSingleData := map[string]interface{}{
-			"name":        "Single Field PATCH Update",
-			"description": "This diagram was updated using PATCH with JSON Patch operations",
+			"name": "Single Field PATCH Update",
 		}
 		verifyDiagramInDatabase(suite, t, suite.testDiagramID, suite.threatModelID, expectedSingleData)
 	})

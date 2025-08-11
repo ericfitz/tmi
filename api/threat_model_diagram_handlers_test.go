@@ -210,8 +210,6 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 
 	// Check fields
 	assert.Equal(t, "Test Diagram", diagram.Name)
-	assert.NotNil(t, diagram.Description)
-	assert.Equal(t, "This is a test diagram", *diagram.Description)
 	assert.NotEmpty(t, diagram.Id)
 
 	// Get the updated threat model to verify the diagram was added
@@ -268,7 +266,6 @@ func TestGetThreatModelDiagramByID(t *testing.T) {
 	// Check fields
 	assert.Equal(t, diagram.Id, retrievedDiagram.Id)
 	assert.Equal(t, diagram.Name, retrievedDiagram.Name)
-	assert.Equal(t, *diagram.Description, *retrievedDiagram.Description)
 }
 
 // TestUpdateThreatModelDiagram tests updating a diagram within a threat model
@@ -309,7 +306,6 @@ func TestUpdateThreatModelDiagram(t *testing.T) {
 
 	// Check fields
 	assert.Equal(t, "Updated Diagram", resultDiagram.Name)
-	assert.Equal(t, "This is an updated diagram", *resultDiagram.Description)
 	assert.Equal(t, diagram.Id, resultDiagram.Id)
 	assert.Equal(t, diagram.CreatedAt, resultDiagram.CreatedAt)
 	assert.NotEqual(t, diagram.ModifiedAt, resultDiagram.ModifiedAt)

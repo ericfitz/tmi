@@ -278,11 +278,6 @@
             "enum": ["DFD-1.0.0"],
             "maxLength": 64
           },
-          "description": {
-            "type": "string",
-            "description": "Description of the diagram",
-            "maxLength": 1024
-          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -354,11 +349,6 @@
             "description": "Type of diagram with version",
             "enum": ["DFD-1.0.0"],
             "maxLength": 64
-          },
-          "description": {
-            "type": "string",
-            "description": "Description of the diagram",
-            "maxLength": 1024
           }
         },
         "required": ["name", "type"],

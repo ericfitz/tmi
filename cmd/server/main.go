@@ -1121,6 +1121,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		logger.Info("Database connection verified successfully")
 	}
 
+	// Initialize performance monitoring
+	logger.Info("Initializing performance monitoring for collaborative editing")
+	api.InitializePerformanceMonitoring()
+
 	// Validate database schema after auth initialization
 	logger.Info("Validating database schema...")
 	if err := validateDatabaseSchema(config); err != nil {

@@ -58,14 +58,13 @@ func createTestDiagramDB() DfdDiagram {
 	}
 
 	return DfdDiagram{
-		Id:          &id,
-		Name:        "Test Diagram",
-		Description: strPtr("Test diagram description"),
-		Type:        DfdDiagramTypeDFD100,
-		Cells:       cells,
-		Metadata:    &metadata,
-		CreatedAt:   time.Now(),
-		ModifiedAt:  time.Now(),
+		Id:         &id,
+		Name:       "Test Diagram",
+		Type:       DfdDiagramTypeDFD100,
+		Cells:      cells,
+		Metadata:   &metadata,
+		CreatedAt:  time.Now(),
+		ModifiedAt: time.Now(),
 	}
 }
 
@@ -520,7 +519,7 @@ func TestDiagramDatabaseStore_CreateWithThreatModel(t *testing.T) {
 
 		mock.ExpectExec("INSERT INTO diagrams").
 			WithArgs(
-				sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.Name, "DFD-1.0.0", testDiagram.Description,
+				sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.Name, "DFD-1.0.0",
 				sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.CreatedAt, testDiagram.ModifiedAt,
 			).
 			WillReturnResult(sqlmock.NewResult(1, 1))
@@ -564,7 +563,7 @@ func TestDiagramDatabaseStore_Update(t *testing.T) {
 
 		mock.ExpectExec("UPDATE diagrams").
 			WithArgs(
-				testID, testDiagram.Name, "DFD-1.0.0", testDiagram.Description,
+				testID, testDiagram.Name, "DFD-1.0.0",
 				sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.ModifiedAt,
 			).
 			WillReturnResult(sqlmock.NewResult(0, 1))

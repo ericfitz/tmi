@@ -636,7 +636,7 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 
 func (s *ThreatModelDatabaseStore) loadDiagrams(threatModelId string) ([]Diagram, error) {
 	query := `
-		SELECT id, name, type, content, cells, metadata, created_at, updated_at
+		SELECT id, name, type, cells, metadata, created_at, updated_at
 		FROM diagrams 
 		WHERE threat_model_id = $1`
 
@@ -655,11 +655,10 @@ func (s *ThreatModelDatabaseStore) loadDiagrams(threatModelId string) ([]Diagram
 	for rows.Next() {
 		var diagramUuid uuid.UUID
 		var name, diagramType string
-		var description *string
 		var cellsJSON, metadataJSON []byte
 		var createdAt, updatedAt time.Time
 
-		if err := rows.Scan(&diagramUuid, &name, &diagramType, &description, &cellsJSON, &metadataJSON, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&diagramUuid, &name, &diagramType, &cellsJSON, &metadataJSON, &createdAt, &updatedAt); err != nil {
 			continue
 		}
 
@@ -687,14 +686,13 @@ func (s *ThreatModelDatabaseStore) loadDiagrams(threatModelId string) ([]Diagram
 
 		// Create DfdDiagram
 		dfdDiagram := DfdDiagram{
-			Id:          &diagramUuid,
-			Name:        name,
-			Description: description,
-			Type:        diagType,
-			Cells:       cells,
-			Metadata:    &metadata,
-			CreatedAt:   createdAt,
-			ModifiedAt:  updatedAt,
+			Id:         &diagramUuid,
+			Name:       name,
+			Type:       diagType,
+			Cells:      cells,
+			Metadata:   &metadata,
+			CreatedAt:  createdAt,
+			ModifiedAt: updatedAt,
 		}
 
 		// Convert to Diagram union type
@@ -797,17 +795,16 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 	var diagramUuid uuid.UUID
 	var threatModelId uuid.UUID
 	var name, diagramType string
-	var description *string
 	var cellsJSON, metadataJSON []byte
 	var createdAt, updatedAt time.Time
 
 	query := `
-		SELECT id, threat_model_id, name, type, content, cells, metadata, created_at, updated_at
+		SELECT id, threat_model_id, name, type, cells, metadata, created_at, updated_at
 		FROM diagrams 
 		WHERE id = $1`
 
 	err := s.db.QueryRow(query, id).Scan(
-		&diagramUuid, &threatModelId, &name, &diagramType, &description,
+		&diagramUuid, &threatModelId, &name, &diagramType,
 		&cellsJSON, &metadataJSON, &createdAt, &updatedAt,
 	)
 
@@ -841,14 +838,13 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 	}
 
 	diagram = DfdDiagram{
-		Id:          &diagramUuid,
-		Name:        name,
-		Description: description,
-		Type:        diagType,
-		Cells:       cells,
-		Metadata:    &metadata,
-		CreatedAt:   createdAt,
-		ModifiedAt:  updatedAt,
+		Id:         &diagramUuid,
+		Name:       name,
+		Type:       diagType,
+		Cells:      cells,
+		Metadata:   &metadata,
+		CreatedAt:  createdAt,
+		ModifiedAt: updatedAt,
 	}
 
 	// Store threat model ID in context for later use
@@ -897,11 +893,11 @@ func (s *DiagramDatabaseStore) CreateWithThreatModel(item DfdDiagram, threatMode
 	}
 
 	query := `
-		INSERT INTO diagrams (id, threat_model_id, name, type, content, cells, metadata, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+		INSERT INTO diagrams (id, threat_model_id, name, type, cells, metadata, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 	_, err = s.db.Exec(query,
-		id, threatModelUUID, item.Name, string(item.Type), item.Description,
+		id, threatModelUUID, item.Name, string(item.Type),
 		cellsJSON, metadataJSON, item.CreatedAt, item.ModifiedAt,
 	)
 	if err != nil {
@@ -940,11 +936,11 @@ func (s *DiagramDatabaseStore) Update(id string, item DfdDiagram) error {
 
 	query := `
 		UPDATE diagrams 
-		SET name = $2, type = $3, content = $4, cells = $5, metadata = $6, updated_at = $7
+		SET name = $2, type = $3, cells = $4, metadata = $5, updated_at = $6
 		WHERE id = $1`
 
 	result, err := s.db.Exec(query,
-		id, item.Name, string(item.Type), item.Description,
+		id, item.Name, string(item.Type),
 		cellsJSON, metadataJSON, item.ModifiedAt,
 	)
 	if err != nil {

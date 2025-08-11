@@ -144,14 +144,13 @@ func InitTestFixtures() {
 	// Create diagram with new UUID
 	uuid2 := NewUUID()
 	diagram := DfdDiagram{
-		Id:          uuidPointer(uuid2),
-		Name:        "Test Diagram",
-		Description: stringPointer("This is a test diagram"),
-		CreatedAt:   now,
-		ModifiedAt:  now,
-		Cells:       cells,
-		Metadata:    &metadata,
-		Type:        DfdDiagramTypeDFD100,
+		Id:         uuidPointer(uuid2),
+		Name:       "Test Diagram",
+		CreatedAt:  now,
+		ModifiedAt: now,
+		Cells:      cells,
+		Metadata:   &metadata,
+		Type:       DfdDiagramTypeDFD100,
 	}
 
 	// Store authorization data separately for tests

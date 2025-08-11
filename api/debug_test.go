@@ -57,11 +57,10 @@ func TestPatchOperation(t *testing.T) {
 
 	// Create a DfdDiagram with the new structure (without Owner and Authorization fields)
 	diagram := DfdDiagram{
-		Id:          &uuid,
-		Name:        "Debug Diagram",
-		Description: stringPointer("For debugging"),
-		CreatedAt:   now,
-		ModifiedAt:  now,
+		Id:         &uuid,
+		Name:       "Debug Diagram",
+		CreatedAt:  now,
+		ModifiedAt: now,
 		Cells:       []DfdDiagram_Cells_Item{},
 	}
 

@@ -92,6 +92,8 @@ channels:
         $ref: '#/components/messages/StateCorrectionMessage'
       resyncRequestMessage:
         $ref: '#/components/messages/ResyncRequestMessage'
+      resyncResponseMessage:
+        $ref: '#/components/messages/ResyncResponseMessage'
       historyOperationMessage:
         $ref: '#/components/messages/HistoryOperationMessage'
       undoRequestMessage:
@@ -149,6 +151,7 @@ operations:
       - $ref: '#/components/messages/PresenterSelectionMessage'
       - $ref: '#/components/messages/AuthorizationDeniedMessage'
       - $ref: '#/components/messages/StateCorrectionMessage'
+      - $ref: '#/components/messages/ResyncResponseMessage'
       - $ref: '#/components/messages/HistoryOperationMessage'
 
 components:
@@ -499,22 +502,48 @@ components:
             message_type: resync_request
             user_id: bob@example.com
 
+    ResyncResponseMessage:
+      name: ResyncResponseMessage
+      title: Resync Response
+      summary: Server response to resync request
+      description: |
+        Message sent by server in response to resync requests. Tells the client
+        to use REST API for authoritative diagram state recovery.
+      payload:
+        $ref: '#/components/schemas/ResyncResponsePayload'
+      examples:
+        - name: ResyncResponse
+          summary: Example of resync response
+          payload:
+            message_type: resync_response
+            user_id: system
+            target_user: bob@example.com
+            method: rest_api
+            diagram_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+            threat_model_id: 550e8400-e29b-41d4-a716-446655440000
+
     HistoryOperationMessage:
       name: HistoryOperationMessage
       title: History Operation Result
       summary: Server response to undo/redo operations
       description: |
-        Message sent by server in response to undo/redo requests. Short-term implementation
-        tells clients to resync via REST API.
+        Message sent by server in response to undo/redo requests. May indicate successful
+        operation requiring resync, or that no operations are available to undo/redo.
       payload:
         $ref: '#/components/schemas/HistoryOperationPayload'
       examples:
-        - name: HistoryOperation
-          summary: Example of history operation response
+        - name: HistoryOperationSuccess
+          summary: Example of successful history operation
           payload:
             message_type: history_operation
             operation_type: undo
             message: resync_required
+        - name: NoOperationsAvailable
+          summary: Example when no undo operations are available
+          payload:
+            message_type: history_operation
+            operation_type: undo
+            message: no_operations_to_undo
 
     UndoRequestMessage:
       name: UndoRequestMessage
@@ -963,6 +992,43 @@ components:
         - user_id
       additionalProperties: false
 
+    ResyncResponsePayload:
+      type: object
+      description: Server response to resync request
+      properties:
+        message_type:
+          const: resync_response
+        user_id:
+          type: string
+          description: User sending the response (usually 'system')
+          example: system
+        target_user:
+          type: string
+          description: User who requested the resync
+          example: bob@example.com
+        method:
+          type: string
+          description: Recommended resync method
+          enum: [rest_api]
+          example: rest_api
+        diagram_id:
+          type: string
+          format: uuid
+          description: Diagram ID to resync
+          example: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+        threat_model_id:
+          type: string
+          format: uuid
+          description: Threat model ID containing the diagram
+          example: 550e8400-e29b-41d4-a716-446655440000
+      required:
+        - message_type
+        - user_id
+        - target_user
+        - method
+        - diagram_id
+      additionalProperties: false
+
     HistoryOperationPayload:
       type: object
       description: Server response to undo/redo operations
@@ -974,8 +1040,9 @@ components:
           enum: [undo, redo]
           description: Type of history operation performed
         message:
-          const: resync_required
-          description: Short-term implementation tells clients to resync via REST
+          type: string
+          enum: [resync_required, no_operations_to_undo, no_operations_to_redo]
+          description: Result of the history operation
       required:
         - message_type
         - operation_type

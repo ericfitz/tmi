@@ -3,7 +3,8 @@
 # TMI Integration Test Runner
 # This script automatically sets up test databases, runs integration tests, and cleans up
 
-set -e  # Exit on any error
+# Note: We don't use 'set -e' here because we want to handle test failures gracefully
+# and still perform cleanup while preserving the correct exit code
 
 # Configuration
 POSTGRES_TEST_PORT=5433
@@ -40,13 +41,15 @@ log_error() {
 
 # Cleanup function
 cleanup() {
+    local exit_code=$?
     log_info "Cleaning up test containers..."
     docker stop $POSTGRES_CONTAINER $REDIS_CONTAINER 2>/dev/null || true
     docker rm $POSTGRES_CONTAINER $REDIS_CONTAINER 2>/dev/null || true
     log_success "Cleanup completed"
+    exit $exit_code
 }
 
-# Trap cleanup on script exit
+# Trap cleanup on script exit, preserving exit code
 trap cleanup EXIT
 
 # Function to wait for PostgreSQL to be ready
@@ -131,30 +134,38 @@ main() {
         redis:7 >/dev/null
     
     # Wait for databases to be ready
-    wait_for_postgres
-    wait_for_redis
+    if ! wait_for_postgres; then
+        log_error "Failed to start PostgreSQL"
+        return 1
+    fi
+    
+    if ! wait_for_redis; then
+        log_error "Failed to start Redis"
+        return 1
+    fi
     
     # Run database migrations (single source of truth)
     log_info "Running database migrations..."
-    POSTGRES_HOST=localhost \
+    if ! POSTGRES_HOST=localhost \
     POSTGRES_PORT=$POSTGRES_TEST_PORT \
     POSTGRES_USER=$POSTGRES_USER \
     POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
     POSTGRES_DB=$POSTGRES_DB \
-        go run cmd/migrate/main.go up
+        go run cmd/migrate/main.go up; then
+        log_error "Database migration failed!"
+        return 1
+    fi
     
     # Validate migration state
     log_info "Validating database migration state..."
-    POSTGRES_HOST=localhost \
+    if ! POSTGRES_HOST=localhost \
     POSTGRES_PORT=$POSTGRES_TEST_PORT \
     POSTGRES_USER=$POSTGRES_USER \
     POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
     POSTGRES_DB=$POSTGRES_DB \
-        go run cmd/check-db/main.go
-    
-    if [ $? -ne 0 ]; then
+        go run cmd/check-db/main.go; then
         log_error "Migration validation failed in integration test setup!"
-        exit 1
+        return 1
     fi
     
     # Run integration tests
@@ -166,6 +177,8 @@ main() {
         TEST_PATTERN="(TestDatabase.*Integration|Test.*Integration|TestIntegrationWithRedis|TestRedisConsistency|TestPerformanceWithAndWithoutRedis)"
     fi
     
+    # Run tests and capture exit code
+    TEST_EXIT_CODE=0
     TEST_DB_HOST=localhost \
     TEST_DB_PORT=$POSTGRES_TEST_PORT \
     TEST_DB_USER=$POSTGRES_USER \
@@ -173,9 +186,15 @@ main() {
     TEST_DB_NAME=$POSTGRES_DB \
     TEST_REDIS_HOST=localhost \
     TEST_REDIS_PORT=$REDIS_TEST_PORT \
-        go test -v ./api -run "$TEST_PATTERN"
+        go test -v ./api -run "$TEST_PATTERN" || TEST_EXIT_CODE=$?
     
-    log_success "Integration tests completed successfully!"
+    if [ $TEST_EXIT_CODE -eq 0 ]; then
+        log_success "Integration tests completed successfully!"
+    else
+        log_error "Integration tests failed with exit code $TEST_EXIT_CODE"
+    fi
+    
+    return $TEST_EXIT_CODE
 }
 
 # Show usage
@@ -218,5 +237,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Run main function
+# Run main function and preserve its exit code
 main
+exit $?
