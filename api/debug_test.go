@@ -61,7 +61,7 @@ func TestPatchOperation(t *testing.T) {
 		Name:       "Debug Diagram",
 		CreatedAt:  now,
 		ModifiedAt: now,
-		Cells:       []DfdDiagram_Cells_Item{},
+		Cells:      []DfdDiagram_Cells_Item{},
 	}
 
 	// Set up the parent threat model with owner and authorization

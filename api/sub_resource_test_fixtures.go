@@ -231,8 +231,8 @@ func InitSubResourceTestFixtures() {
 		Name:       "Test Data Flow Diagram",
 		CreatedAt:  now,
 		ModifiedAt: now,
-		Cells:       cells,
-		Type:        DfdDiagramTypeDFD100,
+		Cells:      cells,
+		Type:       DfdDiagramTypeDFD100,
 	}
 
 	// Store authorization data
