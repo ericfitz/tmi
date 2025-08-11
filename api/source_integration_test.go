@@ -10,6 +10,10 @@ import (
 
 // TestSourceIntegration tests the complete CRUD lifecycle for sources
 func TestSourceIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 

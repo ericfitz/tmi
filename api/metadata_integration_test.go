@@ -10,6 +10,10 @@ import (
 
 // TestMetadataIntegration tests the complete CRUD lifecycle for metadata on all entity types
 func TestMetadataIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 

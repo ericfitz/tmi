@@ -11,6 +11,10 @@ import (
 
 // TestThreatIntegration tests the complete CRUD lifecycle for threats
 func TestThreatIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 

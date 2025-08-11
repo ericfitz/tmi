@@ -10,6 +10,10 @@ import (
 
 // TestDocumentIntegration tests the complete CRUD lifecycle for documents
 func TestDocumentIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 

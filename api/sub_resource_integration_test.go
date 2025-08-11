@@ -15,6 +15,10 @@ import (
 
 // TestSubResourceIntegration tests the route registration and basic HTTP responses
 func TestSubResourceIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	// Initialize test fixtures
 	InitTestFixtures()
 	ResetStores()

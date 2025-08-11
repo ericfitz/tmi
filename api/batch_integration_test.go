@@ -13,6 +13,10 @@ import (
 
 // TestBatchIntegration tests the complete batch operations with real database persistence
 func TestBatchIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 
@@ -27,6 +31,10 @@ func TestBatchIntegration(t *testing.T) {
 
 // TestBulkIntegration tests the complete bulk operations with real database persistence
 func TestBulkIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 
