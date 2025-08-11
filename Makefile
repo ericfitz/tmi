@@ -109,17 +109,34 @@ test-integration-cleanup:
 	@if [ -f .integration-server.pid ]; then \
 		PID=$$(cat .integration-server.pid); \
 		if ps -p $$PID > /dev/null 2>&1; then \
-			echo "Stopping server (PID: $$PID)..."; \
+			echo "Stopping integration server (PID: $$PID)..."; \
 			kill $$PID 2>/dev/null || true; \
 			sleep 2; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				echo "Force killing integration server (PID: $$PID)..."; \
+				kill -9 $$PID 2>/dev/null || true; \
+			fi; \
 		fi; \
 		rm -f .integration-server.pid; \
 	fi
-	@pkill -f "bin/server.*test" || true
-	@pkill -f "go run.*server.*test" || true
+	@echo "Checking for processes listening on port 8081..."
+	@PIDS=$$(lsof -ti :8081 2>/dev/null || true); \
+	if [ -n "$$PIDS" ]; then \
+		echo "Found processes on port 8081: $$PIDS"; \
+		for PID in $$PIDS; do \
+			echo "Stopping process $$PID listening on port 8081..."; \
+			kill $$PID 2>/dev/null || true; \
+			sleep 1; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				echo "Force killing process $$PID..."; \
+				kill -9 $$PID 2>/dev/null || true; \
+			fi; \
+		done; \
+	fi
+	@echo "Stopping integration test containers only..."
 	@docker stop tmi-integration-postgres tmi-integration-redis 2>/dev/null || true
 	@docker rm tmi-integration-postgres tmi-integration-redis 2>/dev/null || true
-	@rm -f server-integration.log integration-test.log
+	@rm -f server-integration.log integration-test.log config-integration-test.yaml
 	@echo "✅ Cleanup completed"
 
 # Alias for backward compatibility
