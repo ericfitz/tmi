@@ -110,7 +110,15 @@ func (v *MigrationBasedValidator) getAvailableMigrations() ([]MigrationInfo, err
 			return err
 		}
 
-		if d.IsDir() || !strings.HasSuffix(path, ".up.sql") {
+		// Skip subdirectories (like 'old') to avoid scanning old migration files
+		if d.IsDir() {
+			if path != v.migrationPath {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if !strings.HasSuffix(path, ".up.sql") {
 			return nil
 		}
 
