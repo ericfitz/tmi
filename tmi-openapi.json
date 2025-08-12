@@ -1827,6 +1827,9 @@
         "properties": {
           "data": {
             "type": "array",
+            "items": {
+              "type": "object"
+            },
             "description": "Array of items for the current page"
           },
           "pagination": {
@@ -8141,12 +8144,7 @@
             "$ref": "#/components/responses/Error"
           },
           "409": {
-            "allOf": [
-              {
-                "$ref": "#/components/responses/Error"
-              }
-            ],
-            "description": "Collaboration session already exists"
+            "$ref": "#/components/responses/Error"
           },
           "500": {
             "$ref": "#/components/responses/Error"
