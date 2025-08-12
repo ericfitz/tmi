@@ -262,6 +262,32 @@ The application implements proactive cache invalidation through the `CacheServic
 
 ## Monitoring & Observability
 
+The TMI application includes comprehensive Redis monitoring through OpenTelemetry integration, providing detailed metrics and tracing for all Redis operations.
+
+### OpenTelemetry Metrics
+
+The application automatically instruments Redis operations with the following metrics:
+
+| Metric Name                          | Type      | Description                              |
+| ------------------------------------ | --------- | ---------------------------------------- |
+| `redis_operations_total`             | Counter   | Total number of Redis operations         |
+| `redis_operation_duration_seconds`   | Histogram | Duration of Redis operations             |
+| `redis_cache_hits_total`             | Counter   | Total number of cache hits              |
+| `redis_cache_misses_total`           | Counter   | Total number of cache misses            |
+| `redis_memory_usage_bytes`           | Gauge     | Redis memory usage in bytes             |
+| `redis_connections_active`           | Gauge     | Number of active Redis connections      |
+| `redis_keyspace_operations_total`    | Counter   | Total keyspace operations by type       |
+
+### Distributed Tracing
+
+All Redis operations are traced with the following span attributes:
+
+- **Operation Context**: `db.system=redis`, `db.operation=GET/SET/DEL`
+- **Cache Classification**: `tmi.cache.type` (threat_model, diagram, auth, etc.)
+- **Key Information**: Sanitized key patterns (sensitive data redacted)
+- **Performance Data**: Duration, value size, hit/miss status
+- **Error Information**: Detailed error context for failed operations
+
 ### Key Metrics
 
 1. **Cache Hit Ratios**: Per entity type and overall
@@ -269,6 +295,8 @@ The application implements proactive cache invalidation through the `CacheServic
 3. **Key Count Distribution**: Track key patterns and growth
 4. **TTL Distribution**: Monitor expiration patterns
 5. **Cache Invalidation Rate**: Track proactive invalidations
+6. **Operation Latency**: Histogram buckets from 0.1ms to 500ms
+7. **Connection Pool Stats**: Active, idle, and total connections
 
 ### Health Checks
 
@@ -277,13 +305,17 @@ The application implements proactive cache invalidation through the `CacheServic
 3. **Slow Queries**: Monitor Redis slow log
 4. **Connection Count**: Track active client connections
 5. **Key Growth**: Alert on unexpected key count increases
+6. **Pool Exhaustion**: Monitor connection pool utilization
+7. **Network Latency**: Track Redis operation response times
 
 ### Performance Monitoring
 
-1. **Cache Response Times**: Measure GET/SET operation latency
-2. **Hit Rate by Entity**: Track cache effectiveness per entity type
+1. **Cache Response Times**: Measure GET/SET operation latency with histogram buckets
+2. **Hit Rate by Entity**: Track cache effectiveness per entity type (threat_model, diagram, auth, etc.)
 3. **Invalidation Impact**: Monitor cache misses after invalidation
 4. **Memory Efficiency**: Track memory usage vs hit rates
+5. **Operation Classification**: Separate metrics for read vs write operations
+6. **Key Pattern Analysis**: Monitor key distribution and access patterns
 
 ## Security & Access Control
 

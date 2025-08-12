@@ -1,6 +1,6 @@
 # PostgreSQL Database Schema Documentation
 
-This document provides comprehensive documentation of the TMI (Threat Modeling Interface) application's PostgreSQL database schema, including entity relationships, data types, constraints, and migration history. The schema reflects 18 migrations and supports collaborative threat modeling with real-time features.
+This document provides comprehensive documentation of the TMI (Threat Modeling Interface) application's PostgreSQL database schema, including entity relationships, data types, constraints, and migration history. The current schema uses 2 consolidated migrations and supports collaborative threat modeling with real-time features.
 
 ## Table of Contents
 
@@ -23,8 +23,10 @@ The TMI database schema supports a collaborative threat modeling platform with t
 - **Real-time Collaboration**: WebSocket-based diagram collaboration with session management
 - **Flexible Metadata System**: Key-value metadata for all entity types including cells
 - **Audit Trail**: Complete timestamps and user tracking
-- **Performance Optimization**: Comprehensive indexing strategy with 43 total indexes
+- **Performance Optimization**: Comprehensive indexing strategy with 40+ strategic indexes
 - **Data Integrity**: Extensive foreign keys, CHECK constraints, and validation
+- **PostgreSQL Features**: Uses UUID extension, JSONB for flexible storage, GIN indexes for JSON queries
+- **Migration Management**: Automated migration tooling with rollback support
 
 ### Core Entity Types
 
@@ -178,15 +180,17 @@ Individual security threats within threat models.
 | cell_id         | TEXT        |                                                          | Diagram cell identifier |
 | name            | TEXT        | NOT NULL, CHECK LENGTH > 0                               | Threat name             |
 | description     | TEXT        |                                                          | Detailed description    |
-| impact          | TEXT        | CHECK severity validation                                | Impact level            |
-| likelihood      | TEXT        | CHECK severity validation                                | Likelihood level        |
-| risk_rating     | TEXT        | CHECK severity validation                                | Overall risk rating     |
-| score           | INTEGER     | CHECK score >= 0 AND score <= 100                        | Numeric risk score      |
+| severity        | TEXT        | CHECK severity validation                                | Severity level          |
+| likelihood      | TEXT        |                                                          | Likelihood level        |
+| risk_level      | TEXT        |                                                          | Overall risk level      |
+| score           | DECIMAL(3,1) | CHECK score >= 0.0 AND score <= 10.0                    | Numeric risk score      |
 | priority        | TEXT        |                                                          | Priority classification |
 | mitigated       | BOOLEAN     | DEFAULT FALSE                                            | Mitigation status       |
-| status          | TEXT        |                                                          | Current threat status   |
-| threat_type     | TEXT        |                                                          | Threat category         |
+| status          | TEXT        | NOT NULL, DEFAULT 'Active'                               | Current threat status   |
+| threat_type     | TEXT        | NOT NULL, DEFAULT 'Unspecified'                         | Threat category         |
+| mitigation      | TEXT        |                                                          | Mitigation details      |
 | issue_url       | TEXT        |                                                          | External tracker link   |
+| metadata        | JSONB       |                                                          | Flexible metadata       |
 | created_at      | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | Creation time           |
 | modified_at     | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | Last update             |
 
@@ -305,28 +309,55 @@ Collaboration session participant tracking.
 
 ## Migration History
 
-The database schema has evolved through 18 migrations:
+The database schema uses a consolidated migration approach with 2 main migrations (replacing 18 historical migrations in `/auth/migrations/old/`):
 
-| Migration | Description                          | Key Changes                                          |
-| --------- | ------------------------------------ | ---------------------------------------------------- |
-| 001       | Create users table                   | Basic user profile structure                         |
-| 002       | Create user_providers table          | OAuth provider linking                               |
-| 003       | Create threat_models table           | Core business entity                                 |
-| 004       | Create threat_model_access table     | Role-based access control                            |
-| 005       | Create threats table                 | Individual threat storage                            |
-| 006       | Create diagrams table                | Diagram management                                   |
-| 007       | Create refresh_tokens table          | JWT session management                               |
-| 008       | Add additional constraints           | Performance and data integrity                       |
-| 009       | Update threat_models schema          | Framework and issue tracking                         |
-| 010       | Update threats schema                | Enhanced threat fields (score, priority, mitigation) |
-| 011       | Create documents table               | Document reference sub-resources                     |
-| 012       | Create sources table                 | Source repository sub-resources                      |
-| 013       | Create metadata table                | Flexible key-value metadata system                   |
-| 014       | Update diagrams schema               | JSONB cells for modern diagram storage               |
-| 015       | Create collaboration sessions        | Real-time collaboration support                      |
-| 016       | Add sub-resource performance indexes | Comprehensive indexing strategy                      |
-| 017       | Enhance metadata table               | Improved constraints and cell support                |
-| 018       | Add count fields to threat_models    | Performance optimization for counts                  |
+### Current Active Migrations
+
+| Migration | File                           | Description                                                |
+| --------- | ------------------------------ | ---------------------------------------------------------- |
+| 001       | 001_core_infrastructure.up.sql | Authentication, sessions, and collaboration infrastructure |
+| 002       | 002_business_domain.up.sql      | Business entities, relationships, and performance indexes  |
+
+### Migration 001: Core Infrastructure
+**Authentication & Session Management:**
+- `users` - Core user profiles with OAuth support
+- `user_providers` - Multi-provider OAuth linking (Google, GitHub, Microsoft, Apple, Facebook, Twitter)  
+- `refresh_tokens` - JWT refresh token management
+
+**Real-time Collaboration:**
+- `collaboration_sessions` - WebSocket session management
+- `session_participants` - Active participant tracking
+
+### Migration 002: Business Domain
+**Core Business Entities:**
+- `threat_models` - Central threat modeling projects with framework support (CIA, STRIDE, LINDDUN, DIE, PLOT4ai)
+- `threat_model_access` - Role-based access control (owner, writer, reader)
+- `threats` - Individual security threats with severity levels and JSONB metadata
+- `diagrams` - Visual diagram storage with JSONB cells for real-time collaboration
+
+**Sub-resource Entities:**
+- `documents` - Document reference management
+- `sources` - Source code repository references with type validation (git, svn, mercurial, other)
+- `metadata` - Flexible key-value metadata for all entity types
+
+**Performance & Indexes:**
+- 40+ strategic indexes for query optimization
+- GIN indexes on JSONB columns (cells, metadata, parameters)
+- Composite indexes for pagination and authorization queries
+- Partial indexes for entity-specific metadata queries
+
+### Historical Evolution
+
+The schema evolved from 18 incremental migrations (preserved in `/auth/migrations/old/`) covering:
+1. Basic authentication (migrations 001-002, 007)
+2. Core business logic (migrations 003-006)
+3. Enhanced threat modeling (migrations 008-010)
+4. Sub-resource management (migrations 011-012)
+5. Metadata system (migrations 013, 017)
+6. Real-time collaboration (migrations 014-015)  
+7. Performance optimization (migrations 016, 018)
+
+The consolidated migrations provide the same final schema with improved maintainability and simplified deployment.
 
 ## Relationships and Foreign Keys
 
@@ -407,7 +438,7 @@ ON threat_model_access (threat_model_id);
 #### Data Validation
 
 - Non-empty string validation: `CHECK (LENGTH(name) > 0)`
-- Score range validation: `CHECK (score >= 0 AND score <= 100)`
+- Score range validation: `CHECK (score >= 0.0 AND score <= 10.0)`
 - Time validation: `CHECK (expires_at > created_at)`
 - Metadata key format: `CHECK (key ~ '^[a-zA-Z0-9_-]+$')`
 - Diagram type constraint: `CHECK (type = 'DFD-1.0.0')`
@@ -453,4 +484,68 @@ ON threat_model_access (threat_model_id);
 - WebSocket URL management
 - Optional session expiry with validation
 
-This comprehensive schema supports a scalable, secure, and feature-rich collaborative threat modeling platform with real-time capabilities and extensive performance optimization.
+## Database Operations & Tooling
+
+### Migration Management
+
+The TMI project provides comprehensive database migration and management tools:
+
+**Migration Commands:**
+- `make migrate` - Apply pending migrations
+- `make check-migrations` - Verify migration state without changes  
+- `make ensure-migrations` - Auto-apply missing migrations with validation
+
+**Migration Tools:**
+- `/cmd/migrate/main.go` - Migration execution command
+- `/cmd/check-db/main.go` - Database state validation
+- `github.com/golang-migrate/migrate/v4` - Migration library with PostgreSQL driver
+
+### Development Environment
+
+**Docker Configuration:**
+- Custom PostgreSQL image: `Dockerfile.postgres` (Bitnami base with security updates)
+- Development container: `tmi-postgresql` (port 5432)
+- Integration testing: `tmi-integration-postgres` (port 5433)
+
+**Make Targets:**
+- `make dev-db` - Start development database with automatic migrations
+- `make stop-db` - Stop database (preserves data)
+- `make delete-db` - Remove database and data (destructive)
+- `make reset-db` - Interactive database reset with confirmation
+
+**Environment Variables:**
+```bash
+POSTGRES_HOST=localhost          # Database host
+POSTGRES_PORT=5432              # Database port  
+POSTGRES_USER=tmi_dev           # Database user
+POSTGRES_PASSWORD=dev123        # Database password
+POSTGRES_DB=tmi_dev             # Database name
+POSTGRES_SSLMODE=disable        # SSL configuration
+```
+
+### Connection Configuration
+
+**Go Database Configuration:**
+- **Driver**: PostgreSQL with `pgx/v4` driver (`github.com/jackc/pgx/v4/stdlib`)
+- **Connection Pool**: 10 max open connections, 2 max idle connections
+- **Timeouts**: 1 hour max connection lifetime, 30 minutes max idle time
+- **Health Checks**: Automatic connection ping validation
+
+**Dual-Mode Operation:**
+- **Development/Production**: PostgreSQL database with full persistence
+- **Testing**: In-memory storage for fast unit tests (`TMI_STORE_TYPE=memory`)
+
+### Performance Monitoring
+
+**Database Health Checks:**
+- Connection pool statistics and health monitoring
+- Query performance monitoring through application logs
+- Migration state validation and consistency checks
+
+**Indexing Strategy:**
+- Strategic indexing for common query patterns (authorization, pagination, sub-resource queries)
+- GIN indexes for JSONB columns enabling fast JSON path queries
+- Partial indexes for entity-specific metadata queries
+- INCLUDE indexes for covering index performance
+
+This comprehensive schema supports a scalable, secure, and feature-rich collaborative threat modeling platform with real-time capabilities, extensive performance optimization, and robust operational tooling.
