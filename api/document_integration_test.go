@@ -17,27 +17,27 @@ func TestDocumentIntegration(t *testing.T) {
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 
-	t.Run("POST /threat_models/:id/documents", func(t *testing.T) {
+	t.Run("POST /threat_models/:threat_model_id/documents", func(t *testing.T) {
 		testDocumentPOST(t, suite)
 	})
 
-	t.Run("GET /threat_models/:id/documents", func(t *testing.T) {
+	t.Run("GET /threat_models/:threat_model_id/documents", func(t *testing.T) {
 		testDocumentGETList(t, suite)
 	})
 
-	t.Run("GET /threat_models/:id/documents/:document_id", func(t *testing.T) {
+	t.Run("GET /threat_models/:threat_model_id/documents/:document_id", func(t *testing.T) {
 		testDocumentGETByID(t, suite)
 	})
 
-	t.Run("PUT /threat_models/:id/documents/:document_id", func(t *testing.T) {
+	t.Run("PUT /threat_models/:threat_model_id/documents/:document_id", func(t *testing.T) {
 		testDocumentPUT(t, suite)
 	})
 
-	t.Run("DELETE /threat_models/:id/documents/:document_id", func(t *testing.T) {
+	t.Run("DELETE /threat_models/:threat_model_id/documents/:document_id", func(t *testing.T) {
 		testDocumentDELETE(t, suite)
 	})
 
-	t.Run("POST /threat_models/:id/documents/bulk", func(t *testing.T) {
+	t.Run("POST /threat_models/:threat_model_id/documents/bulk", func(t *testing.T) {
 		testDocumentBulkCreate(t, suite)
 	})
 }

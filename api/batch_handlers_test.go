@@ -92,8 +92,8 @@ func setupBatchHandler() (*gin.Engine, *MockThreatStore) {
 	})
 
 	// Register batch routes - using :id to match actual route definitions
-	r.POST("/threat_models/:id/threats/batch/patch", batchHandler.BatchPatchThreats)
-	r.DELETE("/threat_models/:id/threats/batch", batchHandler.BatchDeleteThreats)
+	r.POST("/threat_models/:threat_model_id/threats/batch/patch", batchHandler.BatchPatchThreats)
+	r.DELETE("/threat_models/:threat_model_id/threats/batch", batchHandler.BatchDeleteThreats)
 
 	return r, mockThreatStore
 }

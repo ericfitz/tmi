@@ -38,8 +38,8 @@ func setupThreatModelValidationRouter() *gin.Engine {
 	// Register handlers
 	handler := NewThreatModelHandler()
 	router.POST("/threat_models", handler.CreateThreatModel)
-	router.PUT("/threat_models/:id", handler.UpdateThreatModel)
-	router.PATCH("/threat_models/:id", handler.PatchThreatModel)
+	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
+	router.PATCH("/threat_models/:threat_model_id", handler.PatchThreatModel)
 
 	return router
 }
@@ -194,7 +194,7 @@ func TestUpdateThreatModelRejectsCalculatedFields(t *testing.T) {
 				"diagrams": []interface{}{},
 			},
 			expectedField: "diagrams",
-			expectedError: "Diagrams must be managed via the /threat_models/:id/diagrams sub-entity endpoints.",
+			expectedError: "Diagrams must be managed via the /threat_models/:threat_model_id/diagrams sub-entity endpoints.",
 		},
 	}
 
@@ -251,7 +251,7 @@ func TestPatchThreatModelRejectsCalculatedFields(t *testing.T) {
 				{"op": "replace", "path": "/diagrams", "value": []interface{}{}},
 			},
 			expectedField: "diagrams",
-			expectedError: "Diagrams must be managed via the /threat_models/:id/diagrams sub-entity endpoints.",
+			expectedError: "Diagrams must be managed via the /threat_models/:threat_model_id/diagrams sub-entity endpoints.",
 		},
 		{
 			name: "reject multiple prohibited fields",

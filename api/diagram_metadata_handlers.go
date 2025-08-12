@@ -571,16 +571,16 @@ func (h *DiagramMetadataHandler) DeleteDirectDiagramCellMetadata(c *gin.Context)
 	c.JSON(http.StatusNoContent, nil)
 }
 
-// Threat model diagram metadata handlers for /threat_models/:id/diagrams/:diagram_id/metadata endpoints
+// Threat model diagram metadata handlers for /threat_models/:threat_model_id/diagrams/:diagram_id/metadata endpoints
 
 // GetThreatModelDiagramMetadata retrieves all metadata for a diagram within a threat model
-// GET /threat_models/{id}/diagrams/{diagram_id}/metadata
+// GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata
 func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadata(c *gin.Context) {
 	logger := logging.GetContextLogger(c)
 	logger.Debug("GetThreatModelDiagramMetadata - retrieving metadata for diagram in threat model")
 
 	// Extract threat model ID and diagram ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	diagramID := c.Param("diagram_id")
 
 	if threatModelID == "" {
@@ -624,13 +624,13 @@ func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadata(c *gin.Context) {
 }
 
 // GetThreatModelDiagramMetadataByKey retrieves a specific metadata entry by key for a diagram within a threat model
-// GET /threat_models/{id}/diagrams/{diagram_id}/metadata/{key}
+// GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key}
 func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadataByKey(c *gin.Context) {
 	logger := logging.GetContextLogger(c)
 	logger.Debug("GetThreatModelDiagramMetadataByKey - retrieving specific metadata entry for diagram in threat model")
 
 	// Extract threat model ID, diagram ID, and key from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	diagramID := c.Param("diagram_id")
 	key := c.Param("key")
 
@@ -679,13 +679,13 @@ func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadataByKey(c *gin.Conte
 }
 
 // CreateThreatModelDiagramMetadata creates a new metadata entry for a diagram within a threat model
-// POST /threat_models/{id}/diagrams/{diagram_id}/metadata
+// POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata
 func (h *DiagramMetadataHandler) CreateThreatModelDiagramMetadata(c *gin.Context) {
 	logger := logging.GetContextLogger(c)
 	logger.Debug("CreateThreatModelDiagramMetadata - creating new metadata entry for diagram in threat model")
 
 	// Extract threat model ID and diagram ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	diagramID := c.Param("diagram_id")
 
 	if threatModelID == "" {
@@ -744,13 +744,13 @@ func (h *DiagramMetadataHandler) CreateThreatModelDiagramMetadata(c *gin.Context
 }
 
 // UpdateThreatModelDiagramMetadata updates an existing metadata entry for a diagram within a threat model
-// PUT /threat_models/{id}/diagrams/{diagram_id}/metadata/{key}
+// PUT /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key}
 func (h *DiagramMetadataHandler) UpdateThreatModelDiagramMetadata(c *gin.Context) {
 	logger := logging.GetContextLogger(c)
 	logger.Debug("UpdateThreatModelDiagramMetadata - updating metadata entry for diagram in threat model")
 
 	// Extract threat model ID, diagram ID, and key from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	diagramID := c.Param("diagram_id")
 	key := c.Param("key")
 
@@ -816,13 +816,13 @@ func (h *DiagramMetadataHandler) UpdateThreatModelDiagramMetadata(c *gin.Context
 }
 
 // DeleteThreatModelDiagramMetadata deletes a metadata entry for a diagram within a threat model
-// DELETE /threat_models/{id}/diagrams/{diagram_id}/metadata/{key}
+// DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key}
 func (h *DiagramMetadataHandler) DeleteThreatModelDiagramMetadata(c *gin.Context) {
 	logger := logging.GetContextLogger(c)
 	logger.Debug("DeleteThreatModelDiagramMetadata - deleting metadata entry for diagram in threat model")
 
 	// Extract threat model ID, diagram ID, and key from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	diagramID := c.Param("diagram_id")
 	key := c.Param("key")
 
@@ -947,13 +947,13 @@ func (h *DiagramMetadataHandler) BulkCreateDirectDiagramMetadata(c *gin.Context)
 }
 
 // BulkCreateThreatModelDiagramMetadata creates multiple metadata entries for a diagram within a threat model
-// POST /threat_models/{id}/diagrams/{diagram_id}/metadata/bulk
+// POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/bulk
 func (h *DiagramMetadataHandler) BulkCreateThreatModelDiagramMetadata(c *gin.Context) {
 	logger := logging.GetContextLogger(c)
 	logger.Debug("BulkCreateThreatModelDiagramMetadata - creating multiple metadata entries for diagram in threat model")
 
 	// Extract threat model ID and diagram ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	diagramID := c.Param("diagram_id")
 
 	if threatModelID == "" {

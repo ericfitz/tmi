@@ -34,7 +34,7 @@ func (h *ThreatSubResourceHandler) GetThreats(c *gin.Context) {
 	logger.Debug("GetThreats - retrieving threats for threat model")
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	if threatModelID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
 		return
@@ -129,7 +129,7 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 	logger.Debug("CreateThreat - creating new threat")
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	if threatModelID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
 		return
@@ -201,7 +201,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 	}
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	threatModelUUID, err := ParseUUID(threatModelID)
 	if err != nil {
 		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
@@ -345,7 +345,7 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 	logger.Debug("BulkCreateThreats - creating multiple threats")
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	if threatModelID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
 		return
@@ -426,7 +426,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 	logger.Debug("BulkUpdateThreats - updating multiple threats")
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	if threatModelID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
 		return

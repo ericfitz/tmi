@@ -17,27 +17,27 @@ func TestThreatModelDiagramIntegration(t *testing.T) {
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 
-	t.Run("POST /threat_models/:id/diagrams", func(t *testing.T) {
+	t.Run("POST /threat_models/:threat_model_id/diagrams", func(t *testing.T) {
 		testThreatModelDiagramPOST(t, suite)
 	})
 
-	t.Run("GET /threat_models/:id/diagrams", func(t *testing.T) {
+	t.Run("GET /threat_models/:threat_model_id/diagrams", func(t *testing.T) {
 		testThreatModelDiagramGETList(t, suite)
 	})
 
-	t.Run("GET /threat_models/:id/diagrams/:diagram_id", func(t *testing.T) {
+	t.Run("GET /threat_models/:threat_model_id/diagrams/:diagram_id", func(t *testing.T) {
 		testThreatModelDiagramGETByID(t, suite)
 	})
 
-	t.Run("PUT /threat_models/:id/diagrams/:diagram_id", func(t *testing.T) {
+	t.Run("PUT /threat_models/:threat_model_id/diagrams/:diagram_id", func(t *testing.T) {
 		testThreatModelDiagramPUT(t, suite)
 	})
 
-	t.Run("PATCH /threat_models/:id/diagrams/:diagram_id", func(t *testing.T) {
+	t.Run("PATCH /threat_models/:threat_model_id/diagrams/:diagram_id", func(t *testing.T) {
 		testThreatModelDiagramPATCH(t, suite)
 	})
 
-	t.Run("DELETE /threat_models/:id/diagrams/:diagram_id", func(t *testing.T) {
+	t.Run("DELETE /threat_models/:threat_model_id/diagrams/:diagram_id", func(t *testing.T) {
 		testThreatModelDiagramDELETE(t, suite)
 	})
 }

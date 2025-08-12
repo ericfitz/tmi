@@ -101,7 +101,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 // GetThreatModelByID retrieves a specific threat model
 func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 	// Parse ID from URL parameter
-	id := c.Param("id")
+	id := c.Param("threat_model_id")
 
 	// Validate ID format
 	if _, err := ParseUUID(id); err != nil {
@@ -252,7 +252,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	}
 
 	// Parse ID from URL parameter
-	id := c.Param("id")
+	id := c.Param("threat_model_id")
 	fmt.Printf("[DEBUG HANDLER] UpdateThreatModel called for ID: %s\n", id)
 
 	// Parse and validate request body using OpenAPI validation
@@ -380,7 +380,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 
 // PatchThreatModel partially updates a threat model
 func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
-	id := c.Param("id")
+	id := c.Param("threat_model_id")
 	fmt.Printf("[DEBUG HANDLER] PatchThreatModel called for ID: %s\n", id)
 
 	// Phase 1: Parse request and validate user
@@ -494,7 +494,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 // DeleteThreatModel deletes a threat model
 func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	// Parse ID from URL parameter
-	id := c.Param("id")
+	id := c.Param("threat_model_id")
 
 	// Validate ID format
 	if _, err := ParseUUID(id); err != nil {
@@ -567,13 +567,13 @@ func getFieldErrorMessage(field string) string {
 	case "owner":
 		return "The owner field is set automatically to the authenticated user during creation."
 	case "diagrams":
-		return "Diagrams must be managed via the /threat_models/:id/diagrams sub-entity endpoints."
+		return "Diagrams must be managed via the /threat_models/:threat_model_id/diagrams sub-entity endpoints."
 	case "documents":
-		return "Documents must be managed via the /threat_models/:id/documents sub-entity endpoints."
+		return "Documents must be managed via the /threat_models/:threat_model_id/documents sub-entity endpoints."
 	case "threats":
-		return "Threats must be managed via the /threat_models/:id/threats sub-entity endpoints."
+		return "Threats must be managed via the /threat_models/:threat_model_id/threats sub-entity endpoints."
 	case "sourceCode":
-		return "Source code entries must be managed via the /threat_models/:id/sources sub-entity endpoints."
+		return "Source code entries must be managed via the /threat_models/:threat_model_id/sources sub-entity endpoints."
 	default:
 		return "This field is not allowed in this request."
 	}

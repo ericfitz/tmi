@@ -598,9 +598,9 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 
 		// Extract threat model ID from the path
 		// Sub-resource paths typically follow patterns like:
-		// /threat_models/{id}/threats/{threat_id}
-		// /threat_models/{id}/documents/{doc_id}
-		// /threat_models/{id}/sources/{source_id}
+		// /threat_models/{threat_model_id}/threats/{threat_id}
+		// /threat_models/{threat_model_id}/documents/{doc_id}
+		// /threat_models/{threat_model_id}/sources/{source_id}
 		threatModelID := extractThreatModelIDFromPath(c.Request.URL.Path)
 		if threatModelID == "" {
 			logger.Debug("No threat model ID found in path, skipping sub-resource auth: %s", c.Request.URL.Path)

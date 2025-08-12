@@ -42,39 +42,39 @@ func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 	tmHandler := NewThreatModelHandler()
 	r.GET("/threat_models", tmHandler.GetThreatModels)
 	r.POST("/threat_models", tmHandler.CreateThreatModel)
-	r.GET("/threat_models/:id", tmHandler.GetThreatModelByID)
-	r.PUT("/threat_models/:id", tmHandler.UpdateThreatModel)
-	r.PATCH("/threat_models/:id", tmHandler.PatchThreatModel)
-	r.DELETE("/threat_models/:id", tmHandler.DeleteThreatModel)
+	r.GET("/threat_models/:threat_model_id", tmHandler.GetThreatModelByID)
+	r.PUT("/threat_models/:threat_model_id", tmHandler.UpdateThreatModel)
+	r.PATCH("/threat_models/:threat_model_id", tmHandler.PatchThreatModel)
+	r.DELETE("/threat_models/:threat_model_id", tmHandler.DeleteThreatModel)
 
 	// Register threat model diagram routes
 	handler := NewThreatModelDiagramHandler(NewWebSocketHub())
-	r.GET("/threat_models/:id/diagrams", func(c *gin.Context) {
-		handler.GetDiagrams(c, c.Param("id"))
+	r.GET("/threat_models/:threat_model_id/diagrams", func(c *gin.Context) {
+		handler.GetDiagrams(c, c.Param("threat_model_id"))
 	})
-	r.POST("/threat_models/:id/diagrams", func(c *gin.Context) {
-		handler.CreateDiagram(c, c.Param("id"))
+	r.POST("/threat_models/:threat_model_id/diagrams", func(c *gin.Context) {
+		handler.CreateDiagram(c, c.Param("threat_model_id"))
 	})
-	r.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		handler.GetDiagramByID(c, c.Param("id"), c.Param("diagram_id"))
+	r.GET("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		handler.GetDiagramByID(c, c.Param("threat_model_id"), c.Param("diagram_id"))
 	})
-	r.PUT("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		handler.UpdateDiagram(c, c.Param("id"), c.Param("diagram_id"))
+	r.PUT("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		handler.UpdateDiagram(c, c.Param("threat_model_id"), c.Param("diagram_id"))
 	})
-	r.PATCH("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		handler.PatchDiagram(c, c.Param("id"), c.Param("diagram_id"))
+	r.PATCH("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		handler.PatchDiagram(c, c.Param("threat_model_id"), c.Param("diagram_id"))
 	})
-	r.DELETE("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		handler.DeleteDiagram(c, c.Param("id"), c.Param("diagram_id"))
+	r.DELETE("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		handler.DeleteDiagram(c, c.Param("threat_model_id"), c.Param("diagram_id"))
 	})
-	r.GET("/threat_models/:id/diagrams/:diagram_id/collaborate", func(c *gin.Context) {
-		handler.GetDiagramCollaborate(c, c.Param("id"), c.Param("diagram_id"))
+	r.GET("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", func(c *gin.Context) {
+		handler.GetDiagramCollaborate(c, c.Param("threat_model_id"), c.Param("diagram_id"))
 	})
-	r.POST("/threat_models/:id/diagrams/:diagram_id/collaborate", func(c *gin.Context) {
-		handler.PostDiagramCollaborate(c, c.Param("id"), c.Param("diagram_id"))
+	r.POST("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", func(c *gin.Context) {
+		handler.PostDiagramCollaborate(c, c.Param("threat_model_id"), c.Param("diagram_id"))
 	})
-	r.DELETE("/threat_models/:id/diagrams/:diagram_id/collaborate", func(c *gin.Context) {
-		handler.DeleteDiagramCollaborate(c, c.Param("id"), c.Param("diagram_id"))
+	r.DELETE("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", func(c *gin.Context) {
+		handler.DeleteDiagramCollaborate(c, c.Param("threat_model_id"), c.Param("diagram_id"))
 	})
 
 	return r

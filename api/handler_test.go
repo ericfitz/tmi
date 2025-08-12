@@ -32,7 +32,7 @@ func TestUpdateThreatModel(t *testing.T) {
 
 	// Register handler
 	handler := NewThreatModelHandler()
-	router.PUT("/threat_models/:id", handler.UpdateThreatModel)
+	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 
 	// Create a simplified update payload - note: we don't include 'id' as it's read-only
 	updatePayload := map[string]interface{}{
@@ -97,7 +97,7 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 
 	// Register handler
 	handler := NewThreatModelHandler()
-	router.PUT("/threat_models/:id", handler.UpdateThreatModel)
+	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 
 	// Get the current threat model
 	origTM, err := ThreatModelStore.Get(TestFixtures.ThreatModelID)
@@ -180,7 +180,7 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 
 	// Register handler
 	handler := NewThreatModelHandler()
-	router.PUT("/threat_models/:id", handler.UpdateThreatModel)
+	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 
 	// Create an update payload with duplicate subjects - note: we don't include 'id' as it's read-only
 	updatePayload := map[string]interface{}{

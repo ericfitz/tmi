@@ -30,7 +30,7 @@ func TestOwnerCanChangeOwner(t *testing.T) {
 	// Add middleware and handler
 	router.Use(ThreatModelMiddleware())
 	handler := NewThreatModelHandler()
-	router.PUT("/threat_models/:id", handler.UpdateThreatModel)
+	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 
 	// Get the existing threat model
 	origTM, err := ThreatModelStore.Get(TestFixtures.ThreatModelID)
@@ -118,7 +118,7 @@ func TestWriterCannotChangeOwner(t *testing.T) {
 	// Add middleware and handler
 	router.Use(ThreatModelMiddleware())
 	handler := NewThreatModelHandler()
-	router.PUT("/threat_models/:id", handler.UpdateThreatModel)
+	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 
 	// Get the existing threat model
 	origTM, err := ThreatModelStore.Get(TestFixtures.ThreatModelID)
@@ -169,9 +169,9 @@ func TestRejectDuplicateSubjects(t *testing.T) {
 	})
 
 	// Create a special handler just for this test that skips the authorization check
-	router.PUT("/threat_models/:id", func(c *gin.Context) {
+	router.PUT("/threat_models/:threat_model_id", func(c *gin.Context) {
 		// Parse ID from URL parameter
-		id := c.Param("id")
+		id := c.Param("threat_model_id")
 
 		// Get the existing threat model
 		_, err := ThreatModelStore.Get(id)
@@ -276,8 +276,8 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	ownerRouter.Use(ThreatModelMiddleware())
 	ownerRouter.Use(DiagramMiddleware())
 	threatModelDiagramHandler := NewThreatModelDiagramHandler(NewWebSocketHub())
-	ownerRouter.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		threatModelID := c.Param("id")
+	ownerRouter.GET("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("threat_model_id")
 		diagramID := c.Param("diagram_id")
 		threatModelDiagramHandler.GetDiagramByID(c, threatModelID, diagramID)
 	})
@@ -302,13 +302,13 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	// Add middleware and handler
 	writerRouter.Use(ThreatModelMiddleware())
 	writerRouter.Use(DiagramMiddleware())
-	writerRouter.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		threatModelID := c.Param("id")
+	writerRouter.GET("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("threat_model_id")
 		diagramID := c.Param("diagram_id")
 		threatModelDiagramHandler.GetDiagramByID(c, threatModelID, diagramID)
 	})
-	writerRouter.PUT("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		threatModelID := c.Param("id")
+	writerRouter.PUT("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("threat_model_id")
 		diagramID := c.Param("diagram_id")
 		threatModelDiagramHandler.UpdateDiagram(c, threatModelID, diagramID)
 	})
@@ -358,13 +358,13 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	// Add middleware and handler
 	readerRouter.Use(ThreatModelMiddleware())
 	readerRouter.Use(DiagramMiddleware())
-	readerRouter.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		threatModelID := c.Param("id")
+	readerRouter.GET("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("threat_model_id")
 		diagramID := c.Param("diagram_id")
 		threatModelDiagramHandler.GetDiagramByID(c, threatModelID, diagramID)
 	})
-	readerRouter.PUT("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		threatModelID := c.Param("id")
+	readerRouter.PUT("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("threat_model_id")
 		diagramID := c.Param("diagram_id")
 		threatModelDiagramHandler.UpdateDiagram(c, threatModelID, diagramID)
 	})
@@ -409,8 +409,8 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	// Add middleware and handler
 	unauthorizedRouter.Use(ThreatModelMiddleware())
 	unauthorizedRouter.Use(DiagramMiddleware())
-	unauthorizedRouter.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		threatModelID := c.Param("id")
+	unauthorizedRouter.GET("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("threat_model_id")
 		diagramID := c.Param("diagram_id")
 		threatModelDiagramHandler.GetDiagramByID(c, threatModelID, diagramID)
 	})

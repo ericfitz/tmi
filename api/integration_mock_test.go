@@ -41,32 +41,32 @@ func TestEndpointIntegrationMock(t *testing.T) {
 	// Threat Model routes
 	router.GET("/threat_models", threatModelHandler.GetThreatModels)
 	router.POST("/threat_models", threatModelHandler.CreateThreatModel)
-	router.GET("/threat_models/:id", threatModelHandler.GetThreatModelByID)
-	router.PUT("/threat_models/:id", threatModelHandler.UpdateThreatModel)
-	router.PATCH("/threat_models/:id", threatModelHandler.PatchThreatModel)
-	router.DELETE("/threat_models/:id", threatModelHandler.DeleteThreatModel)
+	router.GET("/threat_models/:threat_model_id", threatModelHandler.GetThreatModelByID)
+	router.PUT("/threat_models/:threat_model_id", threatModelHandler.UpdateThreatModel)
+	router.PATCH("/threat_models/:threat_model_id", threatModelHandler.PatchThreatModel)
+	router.DELETE("/threat_models/:threat_model_id", threatModelHandler.DeleteThreatModel)
 
 	// Threat model diagram sub-entity routes only
-	router.POST("/threat_models/:id/diagrams", func(c *gin.Context) {
-		diagramHandler.CreateDiagram(c, c.Param("id"))
+	router.POST("/threat_models/:threat_model_id/diagrams", func(c *gin.Context) {
+		diagramHandler.CreateDiagram(c, c.Param("threat_model_id"))
 	})
-	router.GET("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		threatModelID := c.Param("id")
+	router.GET("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("threat_model_id")
 		diagramID := c.Param("diagram_id")
 		diagramHandler.GetDiagramByID(c, threatModelID, diagramID)
 	})
-	router.PUT("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		threatModelID := c.Param("id")
+	router.PUT("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("threat_model_id")
 		diagramID := c.Param("diagram_id")
 		diagramHandler.UpdateDiagram(c, threatModelID, diagramID)
 	})
-	router.PATCH("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		threatModelID := c.Param("id")
+	router.PATCH("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("threat_model_id")
 		diagramID := c.Param("diagram_id")
 		diagramHandler.PatchDiagram(c, threatModelID, diagramID)
 	})
-	router.DELETE("/threat_models/:id/diagrams/:diagram_id", func(c *gin.Context) {
-		threatModelID := c.Param("id")
+	router.DELETE("/threat_models/:threat_model_id/diagrams/:diagram_id", func(c *gin.Context) {
+		threatModelID := c.Param("threat_model_id")
 		diagramID := c.Param("diagram_id")
 		diagramHandler.DeleteDiagram(c, threatModelID, diagramID)
 	})
@@ -133,7 +133,7 @@ func testThreatModelEndpointsMock(t *testing.T, router *gin.Engine) {
 		assert.GreaterOrEqual(t, len(response), 1)
 	})
 
-	// Test GET /threat_models/:id
+	// Test GET /threat_models/:threat_model_id
 	t.Run("GET_ByID", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/threat_models/"+TestFixtures.ThreatModelID, nil)
 		w := httptest.NewRecorder()
@@ -149,7 +149,7 @@ func testThreatModelEndpointsMock(t *testing.T, router *gin.Engine) {
 		assert.Equal(t, TestFixtures.ThreatModel.Name, response["name"])
 	})
 
-	// Test PUT /threat_models/:id
+	// Test PUT /threat_models/:threat_model_id
 	t.Run("PUT", func(t *testing.T) {
 		updateBody := map[string]interface{}{
 			"name":                   "Updated Mock Test Threat Model",
@@ -201,7 +201,7 @@ func testDiagramEndpointsMock(t *testing.T, router *gin.Engine) {
 		threatModelID = response["id"].(string)
 	})
 
-	// Test POST /threat_models/:id/diagrams
+	// Test POST /threat_models/:threat_model_id/diagrams
 	t.Run("POST", func(t *testing.T) {
 		requestBody := map[string]interface{}{
 			"name": "Mock Integration Test Diagram",
@@ -230,9 +230,9 @@ func testDiagramEndpointsMock(t *testing.T, router *gin.Engine) {
 		assert.Equal(t, requestBody["type"], response["type"])
 	})
 
-	// Note: GET list would be /threat_models/:id/diagrams - skipping for now
+	// Note: GET list would be /threat_models/:threat_model_id/diagrams - skipping for now
 
-	// Test GET /threat_models/:id/diagrams/:diagram_id
+	// Test GET /threat_models/:threat_model_id/diagrams/:diagram_id
 	t.Run("GET_ByID", func(t *testing.T) {
 		getDiagramURL := fmt.Sprintf("/threat_models/%s/diagrams/%s", TestFixtures.ThreatModelID, TestFixtures.DiagramID)
 		req := httptest.NewRequest("GET", getDiagramURL, nil)
@@ -249,7 +249,7 @@ func testDiagramEndpointsMock(t *testing.T, router *gin.Engine) {
 		assert.Equal(t, TestFixtures.Diagram.Name, response["name"])
 	})
 
-	// Test PUT /threat_models/:id/diagrams/:diagram_id
+	// Test PUT /threat_models/:threat_model_id/diagrams/:diagram_id
 	t.Run("PUT", func(t *testing.T) {
 		updateBody := map[string]interface{}{
 			"name": "Updated Mock Test Diagram",

@@ -18,35 +18,35 @@ func TestThreatIntegration(t *testing.T) {
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 
-	t.Run("POST /threat_models/:id/threats", func(t *testing.T) {
+	t.Run("POST /threat_models/:threat_model_id/threats", func(t *testing.T) {
 		testThreatPOST(t, suite)
 	})
 
-	t.Run("GET /threat_models/:id/threats", func(t *testing.T) {
+	t.Run("GET /threat_models/:threat_model_id/threats", func(t *testing.T) {
 		testThreatGETList(t, suite)
 	})
 
-	t.Run("GET /threat_models/:id/threats/:threat_id", func(t *testing.T) {
+	t.Run("GET /threat_models/:threat_model_id/threats/:threat_id", func(t *testing.T) {
 		testThreatGETByID(t, suite)
 	})
 
-	t.Run("PUT /threat_models/:id/threats/:threat_id", func(t *testing.T) {
+	t.Run("PUT /threat_models/:threat_model_id/threats/:threat_id", func(t *testing.T) {
 		testThreatPUT(t, suite)
 	})
 
-	t.Run("PATCH /threat_models/:id/threats/:threat_id", func(t *testing.T) {
+	t.Run("PATCH /threat_models/:threat_model_id/threats/:threat_id", func(t *testing.T) {
 		testThreatPATCH(t, suite)
 	})
 
-	t.Run("DELETE /threat_models/:id/threats/:threat_id", func(t *testing.T) {
+	t.Run("DELETE /threat_models/:threat_model_id/threats/:threat_id", func(t *testing.T) {
 		testThreatDELETE(t, suite)
 	})
 
-	t.Run("POST /threat_models/:id/threats/bulk", func(t *testing.T) {
+	t.Run("POST /threat_models/:threat_model_id/threats/bulk", func(t *testing.T) {
 		testThreatBulkCreate(t, suite)
 	})
 
-	t.Run("PUT /threat_models/:id/threats/bulk", func(t *testing.T) {
+	t.Run("PUT /threat_models/:threat_model_id/threats/bulk", func(t *testing.T) {
 		testThreatBulkUpdate(t, suite)
 	})
 }

@@ -17,27 +17,27 @@ func TestSourceIntegration(t *testing.T) {
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 
-	t.Run("POST /threat_models/:id/sources", func(t *testing.T) {
+	t.Run("POST /threat_models/:threat_model_id/sources", func(t *testing.T) {
 		testSourcePOST(t, suite)
 	})
 
-	t.Run("GET /threat_models/:id/sources", func(t *testing.T) {
+	t.Run("GET /threat_models/:threat_model_id/sources", func(t *testing.T) {
 		testSourceGETList(t, suite)
 	})
 
-	t.Run("GET /threat_models/:id/sources/:source_id", func(t *testing.T) {
+	t.Run("GET /threat_models/:threat_model_id/sources/:source_id", func(t *testing.T) {
 		testSourceGETByID(t, suite)
 	})
 
-	t.Run("PUT /threat_models/:id/sources/:source_id", func(t *testing.T) {
+	t.Run("PUT /threat_models/:threat_model_id/sources/:source_id", func(t *testing.T) {
 		testSourcePUT(t, suite)
 	})
 
-	t.Run("DELETE /threat_models/:id/sources/:source_id", func(t *testing.T) {
+	t.Run("DELETE /threat_models/:threat_model_id/sources/:source_id", func(t *testing.T) {
 		testSourceDELETE(t, suite)
 	})
 
-	t.Run("POST /threat_models/:id/sources/bulk", func(t *testing.T) {
+	t.Run("POST /threat_models/:threat_model_id/sources/bulk", func(t *testing.T) {
 		testSourceBulkCreate(t, suite)
 	})
 }

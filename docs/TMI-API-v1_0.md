@@ -25,10 +25,10 @@ This document describes a RESTful API with WebSocket support for threat modeling
 
 - `**GET /threat_models**`: Lists threat models accessible to the user as name-ID pairs (supports pagination and sorting).
 - `**POST /threat_models**`: Creates a new threat model (owner set to creator).
-- `**GET /threat_models/{id}**`: Retrieves a threat model's full details.
-- `**PUT /threat_models/{id}**`: Fully updates a threat model.
-- `**PATCH /threat_models/{id}**`: Partially updates a threat model (JSON Patch).
-- `**DELETE /threat_models/{id}**`: Deletes a threat model (owner-only).
+- `**GET /threat_models/{threat_model_id}**`: Retrieves a threat model's full details.
+- `**PUT /threat_models/{threat_model_id}**`: Fully updates a threat model.
+- `**PATCH /threat_models/{threat_model_id}**`: Partially updates a threat model (JSON Patch).
+- `**DELETE /threat_models/{threat_model_id}**`: Deletes a threat model (owner-only).
 
 ### Diagram Management
 
@@ -74,6 +74,7 @@ This document describes a RESTful API with WebSocket support for threat modeling
 ### Metadata Management
 
 #### Threat Model Metadata
+
 - `**GET /threat_models/{threat_model_id}/metadata**`: Lists all metadata for a threat model.
 - `**POST /threat_models/{threat_model_id}/metadata**`: Creates or updates multiple metadata entries.
 - `**GET /threat_models/{threat_model_id}/metadata/{key}**`: Retrieves a specific metadata value.
@@ -81,6 +82,7 @@ This document describes a RESTful API with WebSocket support for threat modeling
 - `**DELETE /threat_models/{threat_model_id}/metadata/{key}**`: Deletes a metadata entry.
 
 #### Diagram Metadata
+
 - `**GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata**`: Lists all metadata for a diagram within a threat model.
 - `**POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata**`: Creates or updates multiple metadata entries.
 - `**GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key}**`: Retrieves a specific metadata value.
@@ -89,6 +91,7 @@ This document describes a RESTful API with WebSocket support for threat modeling
 - `**POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/bulk**`: Creates multiple metadata entries in a single operation.
 
 #### Threat Metadata
+
 - `**GET /threat_models/{threat_model_id}/threats/{threat_id}/metadata**`: Lists all metadata for a threat.
 - `**POST /threat_models/{threat_model_id}/threats/{threat_id}/metadata**`: Creates or updates multiple metadata entries.
 - `**GET /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key}**`: Retrieves a specific metadata value.
@@ -96,6 +99,7 @@ This document describes a RESTful API with WebSocket support for threat modeling
 - `**DELETE /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key}**`: Deletes a metadata entry.
 
 #### Document Metadata
+
 - `**GET /threat_models/{threat_model_id}/documents/{document_id}/metadata**`: Lists all metadata for a document.
 - `**POST /threat_models/{threat_model_id}/documents/{document_id}/metadata**`: Creates or updates multiple metadata entries.
 - `**GET /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key}**`: Retrieves a specific metadata value.
@@ -103,6 +107,7 @@ This document describes a RESTful API with WebSocket support for threat modeling
 - `**DELETE /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key}**`: Deletes a metadata entry.
 
 #### Source Metadata
+
 - `**GET /threat_models/{threat_model_id}/sources/{source_id}/metadata**`: Lists all metadata for a source reference.
 - `**POST /threat_models/{threat_model_id}/sources/{source_id}/metadata**`: Creates or updates multiple metadata entries.
 - `**GET /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key}**`: Retrieves a specific metadata value.
@@ -110,6 +115,7 @@ This document describes a RESTful API with WebSocket support for threat modeling
 - `**DELETE /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key}**`: Deletes a metadata entry.
 
 #### Cell Operations
+
 - `**GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/cells/{cell_id}/metadata**`: Lists all metadata for a diagram cell.
 - `**POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/cells/{cell_id}/metadata**`: Creates or updates multiple metadata entries.
 - `**GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}**`: Retrieves a specific metadata value.
@@ -121,21 +127,26 @@ This document describes a RESTful API with WebSocket support for threat modeling
 ### Bulk and Batch Operations
 
 #### Threat Bulk Operations
+
 - `**POST /threat_models/{threat_model_id}/threats/bulk**`: Creates multiple threats in a single request.
 - `**PUT /threat_models/{threat_model_id}/threats/bulk**`: Updates multiple threats in a single request.
 
-#### Threat Batch Operations  
+#### Threat Batch Operations
+
 - `**POST /threat_models/{threat_model_id}/threats/batch/patch**`: Applies JSON Patch operations to multiple threats.
 - `**DELETE /threat_models/{threat_model_id}/threats/batch**`: Deletes multiple threats by ID.
 
 #### Document and Source Bulk Operations
+
 - `**POST /threat_models/{threat_model_id}/documents/bulk**`: Creates multiple documents in a single request.
 - `**POST /threat_models/{threat_model_id}/sources/bulk**`: Creates multiple source references in a single request.
 
 #### Cell Batch Operations
+
 - `**POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/cells/batch/patch**`: Applies JSON Patch operations to multiple cells.
 
 #### Metadata Bulk Operations
+
 - `**POST /threat_models/{threat_model_id}/metadata/bulk**`: Creates multiple threat model metadata entries.
 - `**POST /threat_models/{threat_model_id}/threats/{threat_id}/metadata/bulk**`: Creates multiple threat metadata entries.
 - `**POST /threat_models/{threat_model_id}/documents/{document_id}/metadata/bulk**`: Creates multiple document metadata entries.
@@ -982,9 +993,9 @@ Content-Type: application/json
 ```json
 {
   "metadata": [
-    {"key": "priority", "value": "P1"},
-    {"key": "owner", "value": "security-team"},
-    {"key": "due_date", "value": "2025-08-15"}
+    { "key": "priority", "value": "P1" },
+    { "key": "owner", "value": "security-team" },
+    { "key": "due_date", "value": "2025-08-15" }
   ]
 }
 ```
@@ -1108,7 +1119,7 @@ Content-Type: application/json
   {
     "name": "Architecture Overview",
     "description": "System architecture document",
-    "url": "https://docs.example.com/architecture.pdf", 
+    "url": "https://docs.example.com/architecture.pdf",
     "document_type": "Architecture"
   }
 ]
@@ -1154,7 +1165,7 @@ Content-Type: application/json
     "name": "Database Layer",
     "description": "Database connection and queries",
     "url": "https://github.com/example/app/blob/main/db/postgres.go",
-    "repository": "example/app", 
+    "repository": "example/app",
     "branch": "main",
     "file_path": "db/postgres.go"
   }

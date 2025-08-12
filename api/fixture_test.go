@@ -114,8 +114,8 @@ func TestThreatModelRoleBasedAccess(t *testing.T) {
 	// Add handlers
 	handler := NewThreatModelHandler()
 	for _, r := range []*gin.Engine{ownerRouter, writerRouter, readerRouter} {
-		r.GET("/threat_models/:id", handler.GetThreatModelByID)
-		r.DELETE("/threat_models/:id", handler.DeleteThreatModel)
+		r.GET("/threat_models/:threat_model_id", handler.GetThreatModelByID)
+		r.DELETE("/threat_models/:threat_model_id", handler.DeleteThreatModel)
 	}
 
 	// Test owner access
@@ -198,9 +198,9 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 
 	// Add handlers
 	handler := NewThreatModelHandler()
-	ownerRouter.PUT("/threat_models/:id", handler.UpdateThreatModel)
-	ownerRouter.PATCH("/threat_models/:id", handler.PatchThreatModel)
-	ownerRouter.GET("/threat_models/:id", handler.GetThreatModelByID)
+	ownerRouter.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
+	ownerRouter.PATCH("/threat_models/:threat_model_id", handler.PatchThreatModel)
+	ownerRouter.GET("/threat_models/:threat_model_id", handler.GetThreatModelByID)
 
 	// Verify the test threat model exists before starting
 	req, _ := http.NewRequest("GET", "/threat_models/"+threatModelID, nil)

@@ -114,8 +114,8 @@ The threat model API now includes comprehensive input validation to prevent subm
 **Validation Coverage:**
 
 - POST `/threat_models`: Rejects all prohibited fields with descriptive error messages
-- PUT `/threat_models/:id`: Uses restricted request struct to prevent prohibited fields
-- PATCH `/threat_models/:id`: Validates JSON patch paths against prohibited field list
+- PUT `/threat_models/:threat_model_id`: Uses restricted request struct to prevent prohibited fields
+- PATCH `/threat_models/:threat_model_id`: Validates JSON patch paths against prohibited field list
 
 **Error Responses:**
 All prohibited field submissions return HTTP 400 with descriptive error messages explaining why each field cannot be set directly.
@@ -328,17 +328,17 @@ Root Entities:
 ├── Standalone Diagrams (/diagrams)
 
 Sub-Entities (under Threat Models):
-├── Diagrams (/threat_models/:id/diagrams)
-├── Threats (/threat_models/:id/threats)
-├── Documents (/threat_models/:id/documents)
-├── Sources (/threat_models/:id/sources)
+├── Diagrams (/threat_models/:threat_model_id/diagrams)
+├── Threats (/threat_models/:threat_model_id/threats)
+├── Documents (/threat_models/:threat_model_id/documents)
+├── Sources (/threat_models/:threat_model_id/sources)
 
 Sub-Sub-Entities (Metadata):
-├── Threat Model Metadata (/threat_models/:id/metadata)
-├── Diagram Metadata (/threat_models/:id/diagrams/:diagram_id/metadata)
-├── Threat Metadata (/threat_models/:id/threats/:threat_id/metadata)
-├── Document Metadata (/threat_models/:id/documents/:document_id/metadata)
-├── Source Metadata (/threat_models/:id/sources/:source_id/metadata)
+├── Threat Model Metadata (/threat_models/:threat_model_id/metadata)
+├── Diagram Metadata (/threat_models/:threat_model_id/diagrams/:diagram_id/metadata)
+├── Threat Metadata (/threat_models/:threat_model_id/threats/:threat_id/metadata)
+├── Document Metadata (/threat_models/:threat_model_id/documents/:document_id/metadata)
+├── Source Metadata (/threat_models/:threat_model_id/sources/:source_id/metadata)
 
 Sub-Sub-Sub-Entities:
 ├── Diagram Cells (/diagrams/:id/cells/:cell_id)

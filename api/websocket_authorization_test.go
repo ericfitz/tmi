@@ -127,7 +127,7 @@ func TestWebSocketAuthorizationHTTPEndpoint(t *testing.T) {
 
 	// Create WebSocket hub and register route
 	wsHub := NewWebSocketHub()
-	router.GET("/threat_models/:id/diagrams/:diagram_id/ws", wsHub.HandleWS)
+	router.GET("/threat_models/:threat_model_id/diagrams/:diagram_id/ws", wsHub.HandleWS)
 
 	// Test unauthenticated request
 	threatModelID := uuid.New().String()
@@ -162,7 +162,7 @@ func TestWebSocketAuthorizationInvalidDiagramID(t *testing.T) {
 
 	// Create WebSocket hub and register route
 	wsHub := NewWebSocketHub()
-	router.GET("/threat_models/:id/diagrams/:diagram_id/ws", wsHub.HandleWS)
+	router.GET("/threat_models/:threat_model_id/diagrams/:diagram_id/ws", wsHub.HandleWS)
 
 	tests := []struct {
 		name           string

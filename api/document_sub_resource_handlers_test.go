@@ -79,12 +79,12 @@ func setupDocumentSubResourceHandler() (*gin.Engine, *MockDocumentStore) {
 	})
 
 	// Register document sub-resource routes
-	r.GET("/threat_models/:id/documents", handler.GetDocuments)
-	r.POST("/threat_models/:id/documents", handler.CreateDocument)
-	r.GET("/threat_models/:id/documents/:document_id", handler.GetDocument)
-	r.PUT("/threat_models/:id/documents/:document_id", handler.UpdateDocument)
-	r.DELETE("/threat_models/:id/documents/:document_id", handler.DeleteDocument)
-	r.POST("/threat_models/:id/documents/bulk", handler.BulkCreateDocuments)
+	r.GET("/threat_models/:threat_model_id/documents", handler.GetDocuments)
+	r.POST("/threat_models/:threat_model_id/documents", handler.CreateDocument)
+	r.GET("/threat_models/:threat_model_id/documents/:document_id", handler.GetDocument)
+	r.PUT("/threat_models/:threat_model_id/documents/:document_id", handler.UpdateDocument)
+	r.DELETE("/threat_models/:threat_model_id/documents/:document_id", handler.DeleteDocument)
+	r.POST("/threat_models/:threat_model_id/documents/bulk", handler.BulkCreateDocuments)
 
 	return r, mockDocumentStore
 }

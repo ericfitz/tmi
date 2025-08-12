@@ -79,12 +79,12 @@ func setupSourceSubResourceHandler() (*gin.Engine, *MockSourceStore) {
 	})
 
 	// Register source sub-resource routes
-	r.GET("/threat_models/:id/sources", handler.GetSources)
-	r.POST("/threat_models/:id/sources", handler.CreateSource)
-	r.GET("/threat_models/:id/sources/:source_id", handler.GetSource)
-	r.PUT("/threat_models/:id/sources/:source_id", handler.UpdateSource)
-	r.DELETE("/threat_models/:id/sources/:source_id", handler.DeleteSource)
-	r.POST("/threat_models/:id/sources/bulk", handler.BulkCreateSources)
+	r.GET("/threat_models/:threat_model_id/sources", handler.GetSources)
+	r.POST("/threat_models/:threat_model_id/sources", handler.CreateSource)
+	r.GET("/threat_models/:threat_model_id/sources/:source_id", handler.GetSource)
+	r.PUT("/threat_models/:threat_model_id/sources/:source_id", handler.UpdateSource)
+	r.DELETE("/threat_models/:threat_model_id/sources/:source_id", handler.DeleteSource)
+	r.POST("/threat_models/:threat_model_id/sources/bulk", handler.BulkCreateSources)
 
 	return r, mockSourceStore
 }

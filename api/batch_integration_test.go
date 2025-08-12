@@ -20,11 +20,11 @@ func TestBatchIntegration(t *testing.T) {
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 
-	t.Run("POST /threat_models/:id/threats/batch/patch", func(t *testing.T) {
+	t.Run("POST /threat_models/:threat_model_id/threats/batch/patch", func(t *testing.T) {
 		testBatchPatchThreats(t, suite)
 	})
 
-	t.Run("DELETE /threat_models/:id/threats/batch", func(t *testing.T) {
+	t.Run("DELETE /threat_models/:threat_model_id/threats/batch", func(t *testing.T) {
 		testBatchDeleteThreats(t, suite)
 	})
 }
@@ -38,19 +38,19 @@ func TestBulkIntegration(t *testing.T) {
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 
-	t.Run("POST /threat_models/:id/threats/bulk", func(t *testing.T) {
+	t.Run("POST /threat_models/:threat_model_id/threats/bulk", func(t *testing.T) {
 		testBulkCreateThreats(t, suite)
 	})
 
-	t.Run("PUT /threat_models/:id/threats/bulk", func(t *testing.T) {
+	t.Run("PUT /threat_models/:threat_model_id/threats/bulk", func(t *testing.T) {
 		testBulkUpdateThreats(t, suite)
 	})
 
-	t.Run("POST /threat_models/:id/documents/bulk", func(t *testing.T) {
+	t.Run("POST /threat_models/:threat_model_id/documents/bulk", func(t *testing.T) {
 		testBulkCreateDocuments(t, suite)
 	})
 
-	t.Run("POST /threat_models/:id/sources/bulk", func(t *testing.T) {
+	t.Run("POST /threat_models/:threat_model_id/sources/bulk", func(t *testing.T) {
 		testBulkCreateSources(t, suite)
 	})
 }

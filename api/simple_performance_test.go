@@ -21,18 +21,18 @@ func BenchmarkSubResourceRoutePerformance(b *testing.B) {
 	router := gin.New()
 
 	// Register basic routes for performance testing
-	router.GET("/threat_models/:id", func(c *gin.Context) {
+	router.GET("/threat_models/:threat_model_id", func(c *gin.Context) {
 		// Mock response for performance testing
 		c.JSON(200, gin.H{
-			"id":          c.Param("id"),
+			"id":          c.Param("threat_model_id"),
 			"name":        "Test Threat Model",
 			"description": "Performance test threat model",
 		})
 	})
 
-	router.GET("/threat_models/:id/basic", func(c *gin.Context) {
+	router.GET("/threat_models/:threat_model_id/basic", func(c *gin.Context) {
 		// Simple response for overhead measurement
-		c.JSON(200, gin.H{"status": "ok", "id": c.Param("id")})
+		c.JSON(200, gin.H{"status": "ok", "id": c.Param("threat_model_id")})
 	})
 
 	threatModelID := TestFixtures.ThreatModelID

@@ -34,7 +34,7 @@ func (h *DocumentSubResourceHandler) GetDocuments(c *gin.Context) {
 	logger.Debug("GetDocuments - retrieving documents for threat model")
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	if threatModelID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
 		return
@@ -129,7 +129,7 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 	logger.Debug("CreateDocument - creating new document")
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	if threatModelID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
 		return
@@ -197,7 +197,7 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	}
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	if _, err := ParseUUID(threatModelID); err != nil {
 		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
 		return
@@ -280,7 +280,7 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 	logger.Debug("BulkCreateDocuments - creating multiple documents")
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	if threatModelID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
 		return

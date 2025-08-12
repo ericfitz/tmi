@@ -37,8 +37,8 @@ servers:
       - jwtAuth: []
 
 channels:
-  '/threat_models/{id}/diagrams/{diagram_id}/ws':
-    address: '/threat_models/{id}/diagrams/{diagram_id}/ws'
+  '/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws':
+    address: '/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws'
     description: |
       WebSocket endpoint for collaborative diagram editing. Each diagram has its own collaboration session.
       Users must have at least reader permissions on the parent threat model to connect.

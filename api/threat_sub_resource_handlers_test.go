@@ -31,14 +31,14 @@ func setupThreatSubResourceHandler() (*gin.Engine, *MockThreatStore) {
 	})
 
 	// Register threat sub-resource routes
-	r.GET("/threat_models/:id/threats", handler.GetThreats)
-	r.POST("/threat_models/:id/threats", handler.CreateThreat)
-	r.GET("/threat_models/:id/threats/:threat_id", handler.GetThreat)
-	r.PUT("/threat_models/:id/threats/:threat_id", handler.UpdateThreat)
-	r.PATCH("/threat_models/:id/threats/:threat_id", handler.PatchThreat)
-	r.DELETE("/threat_models/:id/threats/:threat_id", handler.DeleteThreat)
-	r.POST("/threat_models/:id/threats/bulk", handler.BulkCreateThreats)
-	r.PUT("/threat_models/:id/threats/bulk", handler.BulkUpdateThreats)
+	r.GET("/threat_models/:threat_model_id/threats", handler.GetThreats)
+	r.POST("/threat_models/:threat_model_id/threats", handler.CreateThreat)
+	r.GET("/threat_models/:threat_model_id/threats/:threat_id", handler.GetThreat)
+	r.PUT("/threat_models/:threat_model_id/threats/:threat_id", handler.UpdateThreat)
+	r.PATCH("/threat_models/:threat_model_id/threats/:threat_id", handler.PatchThreat)
+	r.DELETE("/threat_models/:threat_model_id/threats/:threat_id", handler.DeleteThreat)
+	r.POST("/threat_models/:threat_model_id/threats/bulk", handler.BulkCreateThreats)
+	r.PUT("/threat_models/:threat_model_id/threats/bulk", handler.BulkUpdateThreats)
 
 	return r, mockThreatStore
 }

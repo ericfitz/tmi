@@ -824,7 +824,7 @@ func (s *DiagramSession) Run() {
 // HandleWS handles WebSocket connections
 func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Get threat model ID and diagram ID from path
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	diagramID := c.Param("diagram_id")
 
 	// Validate threat model ID format

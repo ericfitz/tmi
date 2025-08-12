@@ -40,10 +40,10 @@ func setupThreatModelRouterWithUser(userName string) *gin.Engine {
 	handler := NewThreatModelHandler()
 	r.GET("/threat_models", handler.GetThreatModels)
 	r.POST("/threat_models", handler.CreateThreatModel)
-	r.GET("/threat_models/:id", handler.GetThreatModelByID)
-	r.PUT("/threat_models/:id", handler.UpdateThreatModel)
-	r.PATCH("/threat_models/:id", handler.PatchThreatModel)
-	r.DELETE("/threat_models/:id", handler.DeleteThreatModel)
+	r.GET("/threat_models/:threat_model_id", handler.GetThreatModelByID)
+	r.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
+	r.PATCH("/threat_models/:threat_model_id", handler.PatchThreatModel)
+	r.DELETE("/threat_models/:threat_model_id", handler.DeleteThreatModel)
 
 	return r
 }

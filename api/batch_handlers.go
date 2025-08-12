@@ -56,7 +56,7 @@ func (h *BatchHandler) BatchPatchThreats(c *gin.Context) {
 	logger.Debug("BatchPatchThreats - applying patch operations to multiple threats")
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	if threatModelID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
 		return
@@ -182,7 +182,7 @@ func (h *BatchHandler) BatchDeleteThreats(c *gin.Context) {
 	logger.Debug("BatchDeleteThreats - deleting multiple threats")
 
 	// Extract threat model ID from URL
-	threatModelID := c.Param("id")
+	threatModelID := c.Param("threat_model_id")
 	if threatModelID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
 		return

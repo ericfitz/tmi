@@ -41,10 +41,10 @@ var fieldErrorRegistry = &FieldErrorRegistry{
 		"created_by":  "The creator field is read-only and set during creation.",
 
 		// Sub-entity collections
-		"diagrams":   "Diagrams must be managed via the /threat_models/:id/diagrams sub-entity endpoints.",
-		"documents":  "Documents must be managed via the /threat_models/:id/documents sub-entity endpoints.",
-		"threats":    "Threats must be managed via the /threat_models/:id/threats sub-entity endpoints.",
-		"sourceCode": "Source code entries must be managed via the /threat_models/:id/sources sub-entity endpoints.",
+		"diagrams":   "Diagrams must be managed via the /threat_models/:threat_model_id/diagrams sub-entity endpoints.",
+		"documents":  "Documents must be managed via the /threat_models/:threat_model_id/documents sub-entity endpoints.",
+		"threats":    "Threats must be managed via the /threat_models/:threat_model_id/threats sub-entity endpoints.",
+		"sourceCode": "Source code entries must be managed via the /threat_models/:threat_model_id/sources sub-entity endpoints.",
 	},
 }
 

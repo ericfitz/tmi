@@ -599,40 +599,40 @@ func (s *Server) PostThreatModelsIdMetadataBulk(c *gin.Context) {
 
 // Threat Model Diagrams
 func (s *Server) GetThreatModelsThreatModelIdDiagrams(c *gin.Context) {
-	threatModelId := c.Param("id")
+	threatModelId := c.Param("threat_model_id")
 	handler := api.NewThreatModelDiagramHandler(s.apiServer.GetWebSocketHub())
 	handler.GetDiagrams(c, threatModelId)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDiagrams(c *gin.Context) {
-	threatModelId := c.Param("id")
+	threatModelId := c.Param("threat_model_id")
 	handler := api.NewThreatModelDiagramHandler(s.apiServer.GetWebSocketHub())
 	handler.CreateDiagram(c, threatModelId)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context) {
-	threatModelId := c.Param("id")
+	threatModelId := c.Param("threat_model_id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler(s.apiServer.GetWebSocketHub())
 	handler.GetDiagramByID(c, threatModelId, diagramId)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context) {
-	threatModelId := c.Param("id")
+	threatModelId := c.Param("threat_model_id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler(s.apiServer.GetWebSocketHub())
 	handler.UpdateDiagram(c, threatModelId, diagramId)
 }
 
 func (s *Server) PatchThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context) {
-	threatModelId := c.Param("id")
+	threatModelId := c.Param("threat_model_id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler(s.apiServer.GetWebSocketHub())
 	handler.PatchDiagram(c, threatModelId, diagramId)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context) {
-	threatModelId := c.Param("id")
+	threatModelId := c.Param("threat_model_id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler(s.apiServer.GetWebSocketHub())
 	handler.DeleteDiagram(c, threatModelId, diagramId)
@@ -640,21 +640,21 @@ func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramId(c *gin.Context
 
 // Threat Model Diagram Collaboration
 func (s *Server) GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context) {
-	threatModelId := c.Param("id")
+	threatModelId := c.Param("threat_model_id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler(s.apiServer.GetWebSocketHub())
 	handler.GetDiagramCollaborate(c, threatModelId, diagramId)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context) {
-	threatModelId := c.Param("id")
+	threatModelId := c.Param("threat_model_id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler(s.apiServer.GetWebSocketHub())
 	handler.PostDiagramCollaborate(c, threatModelId, diagramId)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context) {
-	threatModelId := c.Param("id")
+	threatModelId := c.Param("threat_model_id")
 	diagramId := c.Param("diagram_id")
 	handler := api.NewThreatModelDiagramHandler(s.apiServer.GetWebSocketHub())
 	handler.DeleteDiagramCollaborate(c, threatModelId, diagramId)
