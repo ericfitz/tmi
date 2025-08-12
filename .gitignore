@@ -24,6 +24,7 @@
 # Include subdirectories (but avoid overriding specific ignores)
 !*/
 !scripts/*
+!python-sdk/**
 
 # Explicitly ignore unwanted files and directories
 *.log
