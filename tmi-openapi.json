@@ -2419,36 +2419,36 @@
                   "required": [
                     "providers"
                   ]
+                },
+                "example": {
+                  "providers": [
+                    {
+                      "id": "google",
+                      "name": "Google",
+                      "icon": "fa-brands fa-google",
+                      "auth_url": "http://localhost:8080/auth/login/google",
+                      "redirect_uri": "http://localhost:8080/auth/callback",
+                      "client_id": "675196260523-e8ppeu62pv222jhnpebe929b2tgl2jm0.apps.googleusercontent.com"
+                    },
+                    {
+                      "id": "github",
+                      "name": "GitHub",
+                      "icon": "fa-brands fa-github",
+                      "auth_url": "http://localhost:8080/auth/login/github",
+                      "redirect_uri": "http://localhost:8080/auth/callback",
+                      "client_id": "your-github-client-id"
+                    },
+                    {
+                      "id": "microsoft",
+                      "name": "Microsoft",
+                      "icon": "fa-brands fa-microsoft",
+                      "auth_url": "http://localhost:8080/auth/login/microsoft",
+                      "redirect_uri": "http://localhost:8080/auth/callback",
+                      "client_id": "your-microsoft-client-id"
+                    }
+                  ]
                 }
               }
-            },
-            "example": {
-              "providers": [
-                {
-                  "id": "google",
-                  "name": "Google",
-                  "icon": "fa-brands fa-google",
-                  "auth_url": "http://localhost:8080/auth/login/google",
-                  "redirect_uri": "http://localhost:8080/auth/callback",
-                  "client_id": "675196260523-e8ppeu62pv222jhnpebe929b2tgl2jm0.apps.googleusercontent.com"
-                },
-                {
-                  "id": "github",
-                  "name": "GitHub",
-                  "icon": "fa-brands fa-github",
-                  "auth_url": "http://localhost:8080/auth/login/github",
-                  "redirect_uri": "http://localhost:8080/auth/callback",
-                  "client_id": "your-github-client-id"
-                },
-                {
-                  "id": "microsoft",
-                  "name": "Microsoft",
-                  "icon": "fa-brands fa-microsoft",
-                  "auth_url": "http://localhost:8080/auth/login/microsoft",
-                  "redirect_uri": "http://localhost:8080/auth/callback",
-                  "client_id": "your-microsoft-client-id"
-                }
-              ]
             }
           },
           "500": {
@@ -2512,21 +2512,7 @@
                   "type": "string",
                   "format": "uri"
                 },
-                "description": "OAuth provider authorization URL with client_id, redirect_uri, response_type, scope, and state parameters",
-                "examples": {
-                  "google": {
-                    "summary": "Google OAuth authorization URL",
-                    "value": "https://accounts.google.com/o/oauth2/auth?client_id=your_client_id&redirect_uri=http://localhost:8080/auth/callback&response_type=code&scope=openid+profile+email&state=random_state_abc123"
-                  },
-                  "github": {
-                    "summary": "GitHub OAuth authorization URL",
-                    "value": "https://github.com/login/oauth/authorize?client_id=your_client_id&redirect_uri=http://localhost:8080/auth/callback&response_type=code&scope=user:email&state=random_state_abc123"
-                  },
-                  "microsoft": {
-                    "summary": "Microsoft OAuth authorization URL",
-                    "value": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=your_client_id&redirect_uri=http://localhost:8080/auth/callback&response_type=code&scope=openid+profile+email+User.Read&state=random_state_abc123"
-                  }
-                }
+                "description": "OAuth provider authorization URL with client_id, redirect_uri, response_type, scope, and state parameters"
               }
             }
           },
@@ -3028,22 +3014,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                },
-                "examples": {
-                  "blacklist_error": {
-                    "summary": "Failed to blacklist token",
-                    "value": {
-                      "error": "server_error",
-                      "error_description": "Failed to logout"
-                    }
-                  },
-                  "service_error": {
-                    "summary": "Authentication service error",
-                    "value": {
-                      "error": "server_error",
-                      "error_description": "Authentication service error"
-                    }
-                  }
                 }
               }
             }
@@ -3519,46 +3489,6 @@
           "500": {
             "$ref": "#/components/responses/Error"
           }
-        },
-        "example": {
-          "request": "PUT /threat_models/550e8400-e29b-41d4-a716-446655440000\nAuthorization: Bearer <JWT>\nContent-Type: application/json\n{\"id\": \"550e8400-e29b-41d4-a716-446655440000\", \"name\": \"Updated Threat Model\", \"description\": \"Updated threats\", \"created_at\": \"2025-04-06T12:00:00Z\", \"modified_at\": \"2025-04-06T12:00:00Z\", \"owner\": \"user@example.com\", \"created_by\": \"user@example.com\", \"threat_model_framework\": \"STRIDE\", \"authorization\": [{\"subject\": \"user@example.com\", \"role\": \"owner\"}], \"metadata\": [], \"documents\": [], \"sourceCode\": [{\"id\": \"6ba7b810-1dad-11d1-8080-00c04fd430c8\", \"name\": \"GitHub Repo\", \"description\": \"Technical design document for the Example application\", \"type\": \"git\", \"url\": \"https://github.com/ericfitz/tmi-ux.git\", \"parameters\": {\"refType\": \"branch\", \"refValue\": \"main\"}, \"metadata\": []}], \"diagrams\": [], \"threats\": []}",
-          "response": {
-            "status": 200,
-            "body": {
-              "id": "550e8400-e29b-41d4-a716-446655440000",
-              "name": "Updated Threat Model",
-              "description": "Updated threats",
-              "created_at": "2025-04-06T12:00:00Z",
-              "modified_at": "2025-04-06T12:45:00Z",
-              "owner": "user@example.com",
-              "created_by": "user@example.com",
-              "threat_model_framework": "STRIDE",
-              "authorization": [
-                {
-                  "subject": "user@example.com",
-                  "role": "owner"
-                }
-              ],
-              "metadata": [],
-              "documents": [],
-              "sourceCode": [
-                {
-                  "id": "6ba7b810-1dad-11d1-8080-00c04fd430c8",
-                  "name": "GitHub Repo",
-                  "description": "Source code for the tmi-ux application",
-                  "type": "git",
-                  "url": "https://github.com/ericfitz/tmi-ux.git",
-                  "parameters": {
-                    "refType": "branch",
-                    "refValue": "main"
-                  },
-                  "metadata": []
-                }
-              ],
-              "diagrams": [],
-              "threats": []
-            }
-          }
         }
       },
       "patch": {
@@ -3648,48 +3578,6 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
-          }
-        },
-        "example": {
-          "request": "PATCH /threat_models/550e8400-e29b-41d4-a716-446655440000\nAuthorization: Bearer <JWT>\nContent-Type: application/json\n[{\"op\": \"add\", \"path\": \"/threats/-\", \"value\": {\"id\": \"6ba7b810-9dad-11d1-80b4-00c04fd430c8\", \"threat_model_id\": \"550e8400-e29b-41d4-a716-446655440000\", \"name\": \"Data Breach\", \"description\": \"Unauthorized access\", \"created_at\": \"2025-04-06T12:01:00Z\", \"modified_at\": \"2025-04-06T12:01:00Z\", \"severity\": \"High\", \"priority\": \"High\", \"mitigated\": false, \"status\": \"Open\", \"threat_type\": \"Information Disclosure\", \"metadata\": []}}]",
-          "response": {
-            "status": 200,
-            "body": {
-              "id": "550e8400-e29b-41d4-a716-446655440000",
-              "name": "System Threat Model",
-              "description": "Threats for system X",
-              "created_at": "2025-04-06T12:00:00Z",
-              "modified_at": "2025-04-06T12:01:00Z",
-              "owner": "user@example.com",
-              "created_by": "user@example.com",
-              "threat_model_framework": "STRIDE",
-              "authorization": [
-                {
-                  "subject": "user@example.com",
-                  "role": "owner"
-                }
-              ],
-              "metadata": [],
-              "documents": [],
-              "sourceCode": [],
-              "diagrams": [],
-              "threats": [
-                {
-                  "id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
-                  "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
-                  "name": "Data Breach",
-                  "description": "Unauthorized access",
-                  "created_at": "2025-04-06T12:01:00Z",
-                  "modified_at": "2025-04-06T12:01:00Z",
-                  "severity": "High",
-                  "priority": "High",
-                  "mitigated": false,
-                  "status": "Open",
-                  "threat_type": "Information Disclosure",
-                  "metadata": []
-                }
-              ]
-            }
           }
         }
       },
