@@ -2910,10 +2910,10 @@
               "Location": {
                 "schema": {
                   "type": "string",
-                  "format": "uri"
+                  "format": "uri",
+                  "example": "http://localhost:4200/auth/callback?access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&expires_in=3600&token_type=Bearer&state=random_state_abc123"
                 },
-                "description": "Client callback URL with access_token, refresh_token, expires_in, token_type, and state as query parameters",
-                "example": "http://localhost:4200/auth/callback?access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&expires_in=3600&token_type=Bearer&state=random_state_abc123"
+                "description": "Client callback URL with access_token, refresh_token, expires_in, token_type, and state as query parameters"
               }
             }
           },
@@ -3014,48 +3014,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "examples": {
-          "successful_logout": {
-            "summary": "Successful logout with valid token",
-            "description": "A user successfully logs out with a valid JWT token",
-            "value": {
-              "request": {
-                "method": "POST",
-                "url": "/auth/logout",
-                "headers": {
-                  "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiZXhwIjoxNjkwMjIyNDAwLCJpYXQiOjE2OTAyMTg4MDB9.signature",
-                  "Content-Type": "application/json"
-                },
-                "body": "{}"
-              },
-              "response": {
-                "status": 204,
-                "body": ""
-              }
-            }
-          },
-          "logout_without_token": {
-            "summary": "Logout attempt without token",
-            "description": "Attempting to logout without providing an Authorization header",
-            "value": {
-              "request": {
-                "method": "POST",
-                "url": "/auth/logout",
-                "headers": {
-                  "Content-Type": "application/json"
-                },
-                "body": "{}"
-              },
-              "response": {
-                "status": 401,
-                "body": {
-                  "error": "unauthorized",
-                  "error_description": "Missing Authorization header"
                 }
               }
             }
@@ -3621,12 +3579,6 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
-          }
-        },
-        "example": {
-          "request": "DELETE /threat_models/550e8400-e29b-41d4-a716-446655440000\nAuthorization: Bearer <JWT>",
-          "response": {
-            "status": 204
           }
         }
       }
