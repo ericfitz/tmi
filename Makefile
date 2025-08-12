@@ -1,7 +1,7 @@
 .PHONY: build build-check-db test test-unit lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi openapi-endpoints test-api test-api-full dev-test dev-test-full debug-auth-endpoints list
 
 # Default build target
-VERSION := 0.1.0
+VERSION := 0.9.0
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "development")
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 

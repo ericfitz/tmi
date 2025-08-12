@@ -20,7 +20,7 @@ COPY . .
 
 # Build the application with development flags
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X github.com/ericfitz/tmi/api.VersionMajor=0 -X github.com/ericfitz/tmi/api.VersionMinor=1 -X github.com/ericfitz/tmi/api.VersionPatch=0 -X github.com/ericfitz/tmi/api.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'development') -X github.com/ericfitz/tmi/api.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    -ldflags "-X github.com/ericfitz/tmi/api.VersionMajor=0 -X github.com/ericfitz/tmi/api.VersionMinor=9 -X github.com/ericfitz/tmi/api.VersionPatch=0 -X github.com/ericfitz/tmi/api.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'development') -X github.com/ericfitz/tmi/api.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -o server \
     ./cmd/server
 
