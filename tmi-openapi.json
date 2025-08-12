@@ -636,11 +636,19 @@
                 "default": 0
               },
               "attrs": {
-                "$ref": "#/components/schemas/NodeAttrs",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/NodeAttrs"
+                  }
+                ],
                 "description": "Visual styling attributes for the node"
               },
               "ports": {
-                "$ref": "#/components/schemas/PortConfiguration",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/PortConfiguration"
+                  }
+                ],
                 "description": "Port configuration for connections"
               },
               "parent": {
@@ -832,15 +840,27 @@
                 "description": "Edge type identifier"
               },
               "source": {
-                "$ref": "#/components/schemas/EdgeTerminal",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EdgeTerminal"
+                  }
+                ],
                 "description": "Source connection point"
               },
               "target": {
-                "$ref": "#/components/schemas/EdgeTerminal",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EdgeTerminal"
+                  }
+                ],
                 "description": "Target connection point"
               },
               "attrs": {
-                "$ref": "#/components/schemas/EdgeAttrs",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EdgeAttrs"
+                  }
+                ],
                 "description": "Visual styling attributes for the edge"
               },
               "labels": {
@@ -858,15 +878,27 @@
                 "description": "Intermediate waypoints for edge routing"
               },
               "router": {
-                "$ref": "#/components/schemas/EdgeRouter",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EdgeRouter"
+                  }
+                ],
                 "description": "Edge routing algorithm configuration for path calculation"
               },
               "connector": {
-                "$ref": "#/components/schemas/EdgeConnector",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EdgeConnector"
+                  }
+                ],
                 "description": "Edge connector style configuration for visual appearance"
               },
               "defaultLabel": {
-                "$ref": "#/components/schemas/EdgeLabel",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EdgeLabel"
+                  }
+                ],
                 "description": "Default label configuration applied to edges without explicit labels"
               },
               "label": {
@@ -2514,57 +2546,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "examples": {
-          "client_callback_flow": {
-            "summary": "OAuth flow with client callback (Recommended for SPAs)",
-            "description": "Complete OAuth flow where TMI redirects back to the client application with tokens",
-            "value": {
-              "step1": {
-                "description": "Client initiates OAuth with callback URL",
-                "request": "GET /auth/login/google?state=abc123&client_callback=http%3A%2F%2Flocalhost%3A4200%2Fauth%2Fcallback"
-              },
-              "step2": {
-                "description": "TMI redirects to OAuth provider",
-                "response": "302 Redirect to https://accounts.google.com/o/oauth2/auth?client_id=your_client_id&redirect_uri=http://localhost:8080/auth/callback&response_type=code&scope=openid+profile+email&state=server_generated_state"
-              },
-              "step3": {
-                "description": "OAuth provider redirects back to TMI",
-                "callback": "GET /auth/callback?code=oauth_authorization_code&state=server_generated_state"
-              },
-              "step4": {
-                "description": "TMI processes OAuth and redirects to client with tokens",
-                "response": "302 Redirect to http://localhost:4200/auth/callback?access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&expires_in=3600&token_type=Bearer&state=abc123"
-              }
-            }
-          },
-          "legacy_flow": {
-            "summary": "Legacy OAuth flow (JSON response)",
-            "description": "Traditional OAuth flow where TMI returns tokens as JSON",
-            "value": {
-              "step1": {
-                "description": "Client initiates OAuth without callback URL",
-                "request": "GET /auth/login/google?state=abc123"
-              },
-              "step2": {
-                "description": "TMI redirects to OAuth provider",
-                "response": "302 Redirect to https://accounts.google.com/o/oauth2/auth?client_id=your_client_id&redirect_uri=http://localhost:8080/auth/callback&response_type=code&scope=openid+profile+email&state=server_generated_state"
-              },
-              "step3": {
-                "description": "OAuth provider redirects back to TMI",
-                "callback": "GET /auth/callback?code=oauth_authorization_code&state=server_generated_state"
-              },
-              "step4": {
-                "description": "TMI returns tokens as JSON response",
-                "response": {
-                  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                  "token_type": "Bearer",
-                  "expires_in": 3600
                 }
               }
             }
@@ -5204,44 +5185,25 @@
               "maxLength": 36
             },
             "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "threat_ids",
+            "in": "query",
+            "required": true,
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "maxItems": 20,
+              "minItems": 1
+            },
+            "description": "Comma-separated list of threat IDs to delete (e.g., id1,id2,id3)"
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "threat_ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "uuid"
-                    },
-                    "maxItems": 20,
-                    "description": "Array of threat IDs to delete"
-                  }
-                },
-                "required": [
-                  "threat_ids"
-                ]
-              },
-              "examples": {
-                "batchDeleteThreats": {
-                  "summary": "Delete multiple threats by ID",
-                  "value": {
-                    "threat_ids": [
-                      "750e8400-e29b-41d4-a716-446655440001",
-                      "750e8400-e29b-41d4-a716-446655440002",
-                      "750e8400-e29b-41d4-a716-446655440003"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Threats deleted successfully",
@@ -8339,8 +8301,12 @@
             "$ref": "#/components/responses/Error"
           },
           "409": {
-            "description": "Collaboration session already exists",
-            "$ref": "#/components/responses/Error"
+            "allOf": [
+              {
+                "$ref": "#/components/responses/Error"
+              }
+            ],
+            "description": "Collaboration session already exists"
           },
           "500": {
             "$ref": "#/components/responses/Error"
