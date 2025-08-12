@@ -35,7 +35,7 @@ func (h *Handlers) RegisterRoutes(router *gin.Engine) {
 	auth := router.Group("/auth")
 	{
 		auth.GET("/providers", h.GetProviders)
-		auth.GET("/authorize/:provider", h.Authorize)
+		auth.GET("/login/:provider", h.Authorize)
 		auth.GET("/callback", h.Callback)
 		auth.POST("/exchange/:provider", h.Exchange)
 		auth.POST("/token", h.Token)
@@ -98,7 +98,7 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 		}
 
 		// Build the authorization URL for this provider
-		authURL := fmt.Sprintf("%s/auth/authorize/%s", getBaseURL(c), id)
+		authURL := fmt.Sprintf("%s/auth/login/%s", getBaseURL(c), id)
 
 		providers = append(providers, ProviderInfo{
 			ID:          id,

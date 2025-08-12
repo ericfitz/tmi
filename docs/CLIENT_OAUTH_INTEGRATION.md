@@ -47,7 +47,7 @@ console.log(providers);
 //     "id": "google",
 //     "name": "Google", 
 //     "icon": "fa-brands fa-google",
-//     "auth_url": "http://localhost:8080/auth/authorize/google",
+//     "auth_url": "http://localhost:8080/auth/login/google",
 //     "redirect_uri": "http://localhost:8080/auth/callback",
 //     "client_id": "675196260523-..."
 //   }
@@ -101,7 +101,7 @@ const { providers } = await response.json();
       "id": "google",
       "name": "Google",
       "icon": "fa-brands fa-google",
-      "auth_url": "http://localhost:8080/auth/authorize/google",
+      "auth_url": "http://localhost:8080/auth/login/google",
       "redirect_uri": "http://localhost:8080/auth/callback",
       "client_id": "675196260523-e8ppeu62pv222jhnpebe929b2tgl2jm0.apps.googleusercontent.com"
     }
@@ -565,7 +565,7 @@ Solution: Ensure your client is redirecting to TMI's auth endpoints,
 not directly to OAuth providers.
 
 ✗ Wrong: https://accounts.google.com/o/oauth2/auth
-✓ Correct: http://localhost:8080/auth/authorize/google
+✓ Correct: http://localhost:8080/auth/login/google
 ```
 
 **Issue: "Failed to exchange authorization code"**

@@ -2416,7 +2416,7 @@
                   "id": "google",
                   "name": "Google",
                   "icon": "fa-brands fa-google",
-                  "auth_url": "http://localhost:8080/auth/authorize/google",
+                  "auth_url": "http://localhost:8080/auth/login/google",
                   "redirect_uri": "http://localhost:8080/auth/callback",
                   "client_id": "675196260523-e8ppeu62pv222jhnpebe929b2tgl2jm0.apps.googleusercontent.com"
                 },
@@ -2424,7 +2424,7 @@
                   "id": "github",
                   "name": "GitHub",
                   "icon": "fa-brands fa-github",
-                  "auth_url": "http://localhost:8080/auth/authorize/github",
+                  "auth_url": "http://localhost:8080/auth/login/github",
                   "redirect_uri": "http://localhost:8080/auth/callback",
                   "client_id": "your-github-client-id"
                 },
@@ -2432,7 +2432,7 @@
                   "id": "microsoft",
                   "name": "Microsoft",
                   "icon": "fa-brands fa-microsoft",
-                  "auth_url": "http://localhost:8080/auth/authorize/microsoft",
+                  "auth_url": "http://localhost:8080/auth/login/microsoft",
                   "redirect_uri": "http://localhost:8080/auth/callback",
                   "client_id": "your-microsoft-client-id"
                 }
@@ -2445,7 +2445,7 @@
         }
       }
     },
-    "/auth/authorize/{provider}": {
+    "/auth/login/{provider}": {
       "get": {
         "tags": [
           "Authentication"
@@ -2546,7 +2546,7 @@
             "value": {
               "step1": {
                 "description": "Client initiates OAuth with callback URL",
-                "request": "GET /auth/authorize/google?state=abc123&client_callback=http%3A%2F%2Flocalhost%3A4200%2Fauth%2Fcallback"
+                "request": "GET /auth/login/google?state=abc123&client_callback=http%3A%2F%2Flocalhost%3A4200%2Fauth%2Fcallback"
               },
               "step2": {
                 "description": "TMI redirects to OAuth provider",
@@ -2568,7 +2568,7 @@
             "value": {
               "step1": {
                 "description": "Client initiates OAuth without callback URL",
-                "request": "GET /auth/authorize/google?state=abc123"
+                "request": "GET /auth/login/google?state=abc123"
               },
               "step2": {
                 "description": "TMI redirects to OAuth provider",
@@ -2587,48 +2587,6 @@
                   "expires_in": 3600
                 }
               }
-            }
-          }
-        }
-      }
-    },
-    "/auth/login": {
-      "get": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "Initiate OAuth login",
-        "description": "Redirects the user to an OAuth provider for authentication",
-        "operationId": "initiateOAuthLogin",
-        "parameters": [
-          {
-            "name": "redirect_uri",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Optional URI to redirect to after login"
-          }
-        ],
-        "responses": {
-          "302": {
-            "description": "Redirect to OAuth provider",
-            "headers": {
-              "Location": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "URL of the OAuth provider's authorization endpoint"
-              }
-            }
-          }
-        },
-        "example": {
-          "request": "GET /auth/login?redirect_uri=https://client.example.com/callback",
-          "response": {
-            "status": 302,
-            "headers": {
-              "Location": "https://oauth-provider.com/auth?client_id=abc&response_type=code&redirect_uri=https://client.example.com/callback"
             }
           }
         }

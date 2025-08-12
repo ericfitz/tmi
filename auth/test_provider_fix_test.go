@@ -16,7 +16,7 @@ func TestTestProviderURLs(t *testing.T) {
 			ID:               "test",
 			ClientID:         "test-client-id",
 			ClientSecret:     "test-oauth-secret-12345",
-			AuthorizationURL: "http://localhost:8080/auth/authorize/test",
+			AuthorizationURL: "http://localhost:8080/auth/login/test",
 			TokenURL:         "http://localhost:8080/auth/token/test",
 			UserInfoURL:      "",
 			Scopes:           []string{"profile", "email"},
@@ -40,7 +40,7 @@ func TestTestProviderURLs(t *testing.T) {
 		config := OAuthProviderConfig{
 			ID:               "test",
 			ClientID:         "test-client-id",
-			AuthorizationURL: "http://localhost:8080/auth/authorize/test",
+			AuthorizationURL: "http://localhost:8080/auth/login/test",
 			TokenURL:         "http://localhost:8080/auth/token/test",
 			Scopes:           []string{"profile", "email"},
 		}

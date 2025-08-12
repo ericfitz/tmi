@@ -102,12 +102,11 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 			c.Request.URL.Path == "/version" ||
 			c.Request.URL.Path == "/metrics" ||
 			c.Request.URL.Path == "/api/server-info" ||
-			c.Request.URL.Path == "/auth/login" ||
 			c.Request.URL.Path == "/auth/callback" ||
 			c.Request.URL.Path == "/auth/providers" ||
 			c.Request.URL.Path == "/auth/token" ||
 			c.Request.URL.Path == "/auth/refresh" ||
-			strings.HasPrefix(c.Request.URL.Path, "/auth/authorize/") ||
+			strings.HasPrefix(c.Request.URL.Path, "/auth/login/") ||
 			strings.HasPrefix(c.Request.URL.Path, "/auth/exchange/") ||
 			c.Request.URL.Path == "/site.webmanifest" ||
 			c.Request.URL.Path == "/favicon.ico" ||
@@ -255,93 +254,6 @@ func (s *Server) GetApiInfo(c *gin.Context) {
 	apiServer := api.NewServer()
 	apiInfoHandler := api.NewApiInfoHandler(apiServer)
 	apiInfoHandler.GetApiInfo(c)
-}
-
-func (s *Server) GetAuthLogin(c *gin.Context) {
-	// In dev mode, show a simple login page instead of redirecting to OAuth
-	if s.config.Logging.IsDev {
-		loginHTML := `
-		<!DOCTYPE html>
-		<html>
-		<head>
-			<title>TMI Dev Login</title>
-			<link rel="icon" href="/favicon.ico" type="image/x-icon">
-			<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
-			<style>
-				body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
-				.container { max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
-				h1 { color: #333; }
-				input, select { width: 100%; padding: 8px; margin: 8px 0; box-sizing: border-box; }
-				button { background-color: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; }
-				button:hover { background-color: #45a049; }
-			</style>
-		</head>
-		<body>
-			<div class="container">
-				<h1>TMI Development Login</h1>
-				<form id="loginForm">
-					<div>
-						<label for="username">Username:</label>
-						<input type="text" id="username" name="username" value="user@example.com" placeholder="Enter username or email" required>
-					</div>
-					<div>
-						<label for="role">Role:</label>
-						<select id="role" name="role">
-							<option value="owner">Owner</option>
-							<option value="reader">Reader</option>
-							<option value="writer">Writer</option>
-						</select>
-					</div>
-					<div>
-						<button type="submit">Login</button>
-					</div>
-				</form>
-				<div id="result" style="margin-top: 20px;"></div>
-			</div>
-
-			<script>
-				document.getElementById('loginForm').addEventListener('submit', function(e) {
-					e.preventDefault();
-					
-					const username = document.getElementById('username').value;
-					const role = document.getElementById('role').value;
-					
-					fetch('/auth/callback?username=' + encodeURIComponent(username) + '&role=' + encodeURIComponent(role))
-						.then(response => response.json())
-						.then(data => {
-							document.getElementById('result').innerHTML = 
-								'<p>Login successful! Copy this token to use in your Authorization header:</p>' +
-								'<pre style="background: #f4f4f4; padding: 10px; overflow-x: auto;">Bearer ' + data.token + '</pre>' +
-								'<button onclick="copyToken()">Copy Token</button>' +
-								'<button onclick="storeAndRedirect()">Save & Go to App</button>';
-							
-							window.tokenData = data.token;
-						})
-						.catch(error => {
-							document.getElementById('result').innerHTML = '<p>Error: ' + error.message + '</p>';
-						});
-				});
-				
-				function copyToken() {
-					navigator.clipboard.writeText('Bearer ' + window.tokenData);
-					alert('Token copied to clipboard');
-				}
-				
-				function storeAndRedirect() {
-					localStorage.setItem('tmi_auth_token', 'Bearer ' + window.tokenData);
-					window.location.href = '/';
-				}
-			</script>
-		</body>
-		</html>
-		`
-		c.Header("Content-Type", "text/html")
-		c.String(http.StatusOK, loginHTML)
-		return
-	}
-
-	// In production, redirect to the actual OAuth provider
-	c.Redirect(http.StatusFound, s.config.Auth.OAuth.CallbackURL)
 }
 
 func (s *Server) GetAuthCallback(c *gin.Context) {
@@ -1137,7 +1049,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Create a custom router that skips auth routes
 	customRouter := &customGinRouter{
 		router:     r,
-		skipRoutes: []string{"/auth/login", "/auth/callback", "/auth/logout"},
+		skipRoutes: []string{"/auth/callback", "/auth/logout"},
 	}
 	api.RegisterGinHandlers(customRouter, server)
 

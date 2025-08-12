@@ -13,7 +13,6 @@ type GinServerInterface interface {
 	GetApiInfo(c *gin.Context)
 
 	// Authentication
-	GetAuthLogin(c *gin.Context)
 	GetAuthCallback(c *gin.Context)
 	PostAuthLogout(c *gin.Context)
 
@@ -124,7 +123,6 @@ func RegisterGinHandlers(r GinRouter, si GinServerInterface) {
 	r.GET("/", si.GetApiInfo)
 
 	// Auth
-	r.GET("/auth/login", si.GetAuthLogin)
 	r.GET("/auth/callback", si.GetAuthCallback)
 	r.POST("/auth/logout", si.PostAuthLogout)
 

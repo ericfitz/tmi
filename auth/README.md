@@ -114,7 +114,7 @@ func main() {
 ### OAuth Flow
 
 - `GET /auth/providers` - List available OAuth providers
-- `GET /auth/authorize/:provider` - Redirect to OAuth provider for authentication
+- `GET /auth/login/:provider` - Redirect to OAuth provider for authentication
 - `GET /auth/callback` - Handle OAuth callback and issue JWT tokens
 
 ### Token Management

@@ -371,7 +371,7 @@ reset-db:
 test-api:
 	@if [ "$(auth)" = "only" ]; then \
 		echo "🔐 Getting JWT token via OAuth test provider..."; \
-		AUTH_REDIRECT=$$(curl -s "http://localhost:8080/auth/authorize/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
+		AUTH_REDIRECT=$$(curl -s "http://localhost:8080/auth/login/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
 		if [ -n "$$AUTH_REDIRECT" ]; then \
 			echo "✅ Token:"; \
 			curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null || curl -s "$$AUTH_REDIRECT"; \
@@ -387,7 +387,7 @@ test-api:
 		curl -v "http://localhost:8080/threat_models" 2>&1 | grep -E "(401|unauthorized)" || echo "❌ Expected 401 Unauthorized"; \
 		echo ""; \
 		echo "2. Testing authenticated access..."; \
-		AUTH_REDIRECT=$$(curl -s "http://localhost:8080/auth/authorize/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
+		AUTH_REDIRECT=$$(curl -s "http://localhost:8080/auth/login/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
 		if [ -n "$$AUTH_REDIRECT" ]; then \
 			TOKEN=$$(curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null); \
 			if [ "$$TOKEN" != "null" ] && [ -n "$$TOKEN" ]; then \
@@ -487,7 +487,7 @@ debug-auth-endpoints:
 	@curl -s -w "\n  Status: %{http_code}\n" "http://localhost:8080/auth/providers" | head -3
 	@echo ""
 	@echo "4. Testing test provider auth URL:"
-	@curl -s -w "\n  Status: %{http_code}\n" "http://localhost:8080/auth/authorize/test"
+	@curl -s -w "\n  Status: %{http_code}\n" "http://localhost:8080/auth/login/test"
 	@echo ""
 	@echo "5. Getting redirect headers from test provider:"
-	@curl -s -I "http://localhost:8080/auth/authorize/test" | grep -i location
+	@curl -s -I "http://localhost:8080/auth/login/test" | grep -i location
