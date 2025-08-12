@@ -119,7 +119,7 @@ func main() {
 
 ### Token Management
 
-- `POST /auth/token` - Exchange authorization code for JWT tokens
+- `POST /auth/token/:provider` - Exchange authorization code for JWT tokens
 - `POST /auth/refresh` - Refresh an expired JWT token
 - `POST /auth/logout` - Revoke a refresh token
 

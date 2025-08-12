@@ -197,7 +197,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 		config: config,
 	}
 
-	router.POST("/auth/exchange/:provider", handlers.Exchange)
+	router.POST("/auth/token/:provider", handlers.Exchange)
 
 	tests := []struct {
 		name           string
@@ -239,7 +239,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body, _ := json.Marshal(tt.requestBody)
-			req := httptest.NewRequest("POST", "/auth/exchange/"+tt.provider, bytes.NewBuffer(body))
+			req := httptest.NewRequest("POST", "/auth/token/"+tt.provider, bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 

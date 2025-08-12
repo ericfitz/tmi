@@ -2592,66 +2592,7 @@
         }
       }
     },
-    "/auth/token": {
-      "post": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "Exchange authorization code for JWT",
-        "description": "Exchanges an OAuth authorization code for a JWT token",
-        "operationId": "exchangeToken",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "code": {
-                    "type": "string",
-                    "description": "Authorization code from OAuth provider"
-                  },
-                  "provider": {
-                    "type": "string",
-                    "description": "OAuth provider identifier"
-                  },
-                  "redirect_uri": {
-                    "type": "string",
-                    "format": "uri",
-                    "description": "Redirect URI used in the authorization request"
-                  }
-                },
-                "required": [
-                  "code",
-                  "provider"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "JWT issued successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthTokenResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/auth/exchange/{provider}": {
+    "/auth/token/{provider}": {
       "post": {
         "tags": [
           "Authentication"

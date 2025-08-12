@@ -94,7 +94,7 @@ class TMIOAuth {
     localStorage.removeItem('oauth_provider');
 
     // Exchange code with TMI server
-    const response = await fetch(`${this.tmiServerUrl}/auth/exchange/${provider}`, {
+    const response = await fetch(`${this.tmiServerUrl}/auth/token/${provider}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -254,7 +254,7 @@ Get list of configured OAuth providers.
 }
 ```
 
-#### `POST /auth/exchange/{provider}`
+#### `POST /auth/token/{provider}`
 Exchange OAuth authorization code for TMI JWT tokens.
 
 **Parameters:**
@@ -289,7 +289,7 @@ Refresh an expired access token.
 }
 ```
 
-**Response:** Same as `/auth/exchange/{provider}`
+**Response:** Same as `/auth/token/{provider}`
 
 #### `POST /auth/logout`
 Invalidate current session (requires Bearer token).
