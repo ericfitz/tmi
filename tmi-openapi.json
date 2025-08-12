@@ -1787,26 +1787,6 @@
               }
             }
           }
-        },
-        "example": {
-          "groups": {
-            "in": {
-              "position": "left"
-            },
-            "out": {
-              "position": "right"
-            }
-          },
-          "items": [
-            {
-              "id": "port_in_1",
-              "group": "in"
-            },
-            {
-              "id": "port_out_1",
-              "group": "out"
-            }
-          ]
         }
       },
       "PaginatedResponse": {
@@ -2644,11 +2624,6 @@
                   "code",
                   "redirect_uri"
                 ]
-              },
-              "example": {
-                "code": "4/0AX4XfWiXY2BZ_example_auth_code_from_google",
-                "state": "random_state_value_abc123",
-                "redirect_uri": "https://your-web-app.com/auth/callback"
               }
             }
           }
@@ -2755,9 +2730,6 @@
                 "required": [
                   "refresh_token"
                 ]
-              },
-              "example": {
-                "refresh_token": "8xLOxBtZp8_example_refresh_token"
               }
             }
           }
@@ -2837,10 +2809,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                },
-                "example": {
-                  "error": "Internal server error",
-                  "error_description": "Unable to process token refresh request"
                 }
               }
             }
