@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -169,4 +171,176 @@ func (m *Middleware) RequireReader() gin.HandlerFunc {
 		// For now, we'll just allow all authenticated users
 		c.Next()
 	}
+}
+
+// Admin middleware functions
+
+// RequireAdminAuth is a middleware that requires admin authentication
+func (m *Middleware) RequireAdminAuth(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Check if admin interface is enabled
+		if !cfg.IsAdminEnabled() {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+				"error": "Admin interface is not enabled",
+			})
+			return
+		}
+
+		// First, require standard authentication
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.Redirect(http.StatusFound, "/auth/login")
+			return
+		}
+
+		// Check if the Authorization header has the correct format
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			c.Redirect(http.StatusFound, "/auth/login")
+			return
+		}
+
+		// Validate the token
+		tokenString := parts[1]
+		claims, err := m.service.ValidateToken(tokenString)
+		if err != nil {
+			c.Redirect(http.StatusFound, "/auth/login")
+			return
+		}
+
+		// Check if user is an admin
+		if !cfg.IsUserAdmin(claims.Email) {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "Admin privileges required",
+			})
+			return
+		}
+
+		// Set claims and user in context
+		c.Set(string(ClaimsContextKey), claims)
+
+		// Get the user from the database
+		user, err := m.service.GetUserByEmail(c.Request.Context(), claims.Email)
+		if err == nil {
+			c.Set(string(UserContextKey), user)
+		}
+
+		c.Next()
+	}
+}
+
+// RequireAdminAuthAPI is a middleware for admin API endpoints (returns JSON errors)
+func (m *Middleware) RequireAdminAuthAPI(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Check if admin interface is enabled
+		if !cfg.IsAdminEnabled() {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+				"error": "Admin interface is not enabled",
+			})
+			return
+		}
+
+		// Extract the token from the Authorization header
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Authorization header is required",
+			})
+			return
+		}
+
+		// Check if the Authorization header has the correct format
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Authorization header format must be Bearer {token}",
+			})
+			return
+		}
+
+		// Validate the token
+		tokenString := parts[1]
+		claims, err := m.service.ValidateToken(tokenString)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": fmt.Sprintf("Invalid token: %v", err),
+			})
+			return
+		}
+
+		// Check if user is an admin
+		if !cfg.IsUserAdmin(claims.Email) {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "Admin privileges required",
+			})
+			return
+		}
+
+		// Set claims and user in context
+		c.Set(string(ClaimsContextKey), claims)
+
+		// Get the user from the database
+		user, err := m.service.GetUserByEmail(c.Request.Context(), claims.Email)
+		if err == nil {
+			c.Set(string(UserContextKey), user)
+		}
+
+		c.Next()
+	}
+}
+
+// CheckIPAllowlist is a middleware that checks if the client IP is in the admin allowlist
+func CheckIPAllowlist(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// If no IP allowlist is configured, allow all
+		if len(cfg.Admin.Security.IPAllowlist) == 0 {
+			c.Next()
+			return
+		}
+
+		clientIP := c.ClientIP()
+		allowed := false
+
+		for _, allowedIP := range cfg.Admin.Security.IPAllowlist {
+			if isIPAllowed(clientIP, allowedIP) {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "Access denied from this IP address",
+			})
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// isIPAllowed checks if the client IP is allowed based on the allowlist entry
+func isIPAllowed(clientIP, allowedEntry string) bool {
+	// Parse client IP
+	ip := net.ParseIP(clientIP)
+	if ip == nil {
+		return false
+	}
+
+	// Check if allowedEntry is a CIDR
+	if strings.Contains(allowedEntry, "/") {
+		_, cidr, err := net.ParseCIDR(allowedEntry)
+		if err != nil {
+			return false
+		}
+		return cidr.Contains(ip)
+	}
+
+	// Direct IP comparison
+	allowedIP := net.ParseIP(allowedEntry)
+	if allowedIP == nil {
+		return false
+	}
+
+	return ip.Equal(allowedIP)
 }

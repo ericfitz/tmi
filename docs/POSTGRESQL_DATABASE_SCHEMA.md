@@ -75,14 +75,14 @@ erDiagram
 
 Core user profiles with OAuth authentication.
 
-| Column      | Type        | Constraints                             | Description                 |
-| ----------- | ----------- | --------------------------------------- | --------------------------- |
-| id          | UUID        | PRIMARY KEY, DEFAULT uuid_generate_v4() | Unique user identifier      |
-| email       | TEXT        | NOT NULL, UNIQUE                        | User email address          |
-| name        | TEXT        | NOT NULL                                | User display name           |
-| created_at  | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                 | Account creation time       |
-| modified_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                 | Last profile update         |
-| last_login  | TIMESTAMPTZ |                                         | Most recent login timestamp |
+| Column      | Type         | Constraints                             | Description                   |
+| ----------- | ------------ | --------------------------------------- | ----------------------------- |
+| id          | UUID         | PRIMARY KEY, DEFAULT uuid_generate_v4() | Unique user identifier        |
+| email       | VARCHAR(255) | NOT NULL, UNIQUE                        | User email address            |
+| name        | VARCHAR(255) | NOT NULL                                | User display name             |
+| created_at  | TIMESTAMPTZ  | NOT NULL, DEFAULT CURRENT_TIMESTAMP     | Account creation time         |
+| modified_at | TIMESTAMPTZ  | NOT NULL, DEFAULT CURRENT_TIMESTAMP     | Last profile update           |
+| last_login  | TIMESTAMPTZ  |                                         | Most recent login TIMESTAMPTZ |
 
 **Indexes:**
 
@@ -93,23 +93,20 @@ Core user profiles with OAuth authentication.
 
 OAuth provider linkage with support for multiple providers per user.
 
-| Column           | Type        | Constraints                                      | Description                  |
-| ---------------- | ----------- | ------------------------------------------------ | ---------------------------- |
-| id               | UUID        | PRIMARY KEY, DEFAULT uuid_generate_v4()          | Unique link identifier       |
-| user_id          | UUID        | NOT NULL, REFERENCES users(id) ON DELETE CASCADE | User reference               |
-| provider         | TEXT        | NOT NULL, CHECK provider validation              | OAuth provider name          |
-| provider_user_id | TEXT        | NOT NULL                                         | Provider-specific user ID    |
-| provider_email   | TEXT        |                                                  | Email from provider          |
-| provider_name    | TEXT        |                                                  | Name from provider           |
-| is_primary       | BOOLEAN     | DEFAULT FALSE                                    | Primary provider designation |
-| created_at       | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                          | Link creation time           |
-| modified_at      | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                          | Last sync time               |
+| Column           | Type         | Constraints                                      | Description                  |
+| ---------------- | ------------ | ------------------------------------------------ | ---------------------------- |
+| id               | UUID         | PRIMARY KEY, DEFAULT uuid_generate_v4()          | Unique link identifier       |
+| user_id          | UUID         | NOT NULL, REFERENCES users(id) ON DELETE CASCADE | User reference               |
+| provider         | VARCHAR(50)  | NOT NULL                                         | OAuth provider name          |
+| provider_user_id | VARCHAR(255) | NOT NULL                                         | Provider-specific user ID    |
+| email            | VARCHAR(255) | NOT NULL                                         | Email from provider          |
+| is_primary       | BOOLEAN      | DEFAULT FALSE                                    | Primary provider designation |
+| created_at       | TIMESTAMPTZ  | NOT NULL, DEFAULT CURRENT_TIMESTAMP              | Link creation time           |
+| last_login       | TIMESTAMPTZ  |                                                  | Last provider login          |
 
 **Constraints:**
 
-- `user_providers_user_id_provider_key` (UNIQUE user_id, provider)
-- `user_providers_provider_provider_user_id_key` (UNIQUE provider, provider_user_id)
-- `user_providers_unique_primary_per_user` (UNIQUE partial index on user_id WHERE is_primary = true)
+- `UNIQUE(user_id, provider)` - One link per provider per user
 
 **Supported Providers:** google, github, microsoft, apple, facebook, twitter
 
@@ -117,13 +114,13 @@ OAuth provider linkage with support for multiple providers per user.
 
 JWT refresh token management for secure session handling.
 
-| Column     | Type        | Constraints                                      | Description         |
-| ---------- | ----------- | ------------------------------------------------ | ------------------- |
-| id         | UUID        | PRIMARY KEY, DEFAULT uuid_generate_v4()          | Token identifier    |
-| user_id    | UUID        | NOT NULL, REFERENCES users(id) ON DELETE CASCADE | User reference      |
-| token_hash | TEXT        | NOT NULL, UNIQUE                                 | Hashed token value  |
-| expires_at | TIMESTAMPTZ | NOT NULL, CHECK expires_at > created_at          | Token expiry        |
-| created_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                          | Token creation time |
+| Column     | Type         | Constraints                                      | Description         |
+| ---------- | ------------ | ------------------------------------------------ | ------------------- |
+| id         | UUID         | PRIMARY KEY, DEFAULT uuid_generate_v4()          | Token identifier    |
+| user_id    | UUID         | NOT NULL, REFERENCES users(id) ON DELETE CASCADE | User reference      |
+| token      | VARCHAR(255) | NOT NULL, UNIQUE                                 | Token value         |
+| expires_at | TIMESTAMPTZ  | NOT NULL                                         | Token expiry        |
+| created_at | TIMESTAMPTZ  | NOT NULL, DEFAULT CURRENT_TIMESTAMP              | Token creation time |
 
 ### Core Business Tables
 
@@ -131,21 +128,17 @@ JWT refresh token management for secure session handling.
 
 Central entities representing threat modeling projects.
 
-| Column                 | Type        | Constraints                                          | Description                |
-| ---------------------- | ----------- | ---------------------------------------------------- | -------------------------- |
-| id                     | UUID        | PRIMARY KEY, DEFAULT uuid_generate_v4()              | Unique model identifier    |
-| name                   | TEXT        | NOT NULL, CHECK LENGTH > 0                           | Model name                 |
-| description            | TEXT        |                                                      | Model description          |
-| owner_email            | TEXT        | NOT NULL, REFERENCES users(email) ON DELETE RESTRICT | Current owner              |
-| created_by             | TEXT        | NOT NULL                                             | Original creator email     |
-| threat_model_framework | TEXT        | CHECK framework validation                           | Modeling framework         |
-| issue_url              | TEXT        |                                                      | External issue tracker URL |
-| document_count         | INTEGER     | NOT NULL DEFAULT 0                                   | Cached document count      |
-| source_count           | INTEGER     | NOT NULL DEFAULT 0                                   | Cached source count        |
-| diagram_count          | INTEGER     | NOT NULL DEFAULT 0                                   | Cached diagram count       |
-| threat_count           | INTEGER     | NOT NULL DEFAULT 0                                   | Cached threat count        |
-| created_at             | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                              | Creation time              |
-| modified_at            | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                              | Last modification          |
+| Column                 | Type          | Constraints                                           | Description                |
+| ---------------------- | ------------- | ----------------------------------------------------- | -------------------------- |
+| id                     | UUID          | PRIMARY KEY, DEFAULT uuid_generate_v4()               | Unique model identifier    |
+| owner_email            | VARCHAR(255)  | NOT NULL, REFERENCES users(email) ON DELETE RESTRICT  | Current owner              |
+| name                   | VARCHAR(255)  | NOT NULL                                              | Model name                 |
+| description            | TEXT          |                                                       | Model description          |
+| created_by             | VARCHAR(256)  | NOT NULL                                              | Original creator email     |
+| threat_model_framework | VARCHAR(50)   | NOT NULL DEFAULT 'STRIDE', CHECK framework validation | Modeling framework         |
+| issue_url              | VARCHAR(1024) |                                                       | External issue tracker URL |
+| created_at             | TIMESTAMPTZ   | NOT NULL, DEFAULT CURRENT_TIMESTAMP                   | Creation time              |
+| modified_at            | TIMESTAMPTZ   | NOT NULL, DEFAULT CURRENT_TIMESTAMP                   | Last modification          |
 
 **Supported Frameworks:** CIA, STRIDE, LINDDUN, DIE, PLOT4ai
 
@@ -153,18 +146,18 @@ Central entities representing threat modeling projects.
 
 Role-based access control matrix for threat models.
 
-| Column          | Type        | Constraints                                              | Description              |
-| --------------- | ----------- | -------------------------------------------------------- | ------------------------ |
-| id              | UUID        | PRIMARY KEY, DEFAULT uuid_generate_v4()                  | Access record identifier |
-| threat_model_id | UUID        | NOT NULL, REFERENCES threat_models(id) ON DELETE CASCADE | Threat model reference   |
-| user_email      | TEXT        | NOT NULL, REFERENCES users(email) ON DELETE CASCADE      | User reference           |
-| role            | TEXT        | NOT NULL, CHECK role validation                          | Access role              |
-| granted_by      | TEXT        | NOT NULL                                                 | Who granted access       |
-| granted_at      | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | When access was granted  |
+| Column          | Type         | Constraints                                              | Description              |
+| --------------- | ------------ | -------------------------------------------------------- | ------------------------ |
+| id              | UUID         | PRIMARY KEY, DEFAULT uuid_generate_v4()                  | Access record identifier |
+| threat_model_id | UUID         | NOT NULL, REFERENCES threat_models(id) ON DELETE CASCADE | Threat model reference   |
+| user_email      | VARCHAR(255) | NOT NULL, REFERENCES users(email) ON DELETE CASCADE      | User reference           |
+| role            | VARCHAR(50)  | NOT NULL, CHECK role IN ('owner', 'writer', 'reader')    | Access role              |
+| created_at      | TIMESTAMPTZ  | NOT NULL, DEFAULT CURRENT_TIMESTAMP                      | Access creation time     |
+| modified_at     | TIMESTAMPTZ  | NOT NULL, DEFAULT CURRENT_TIMESTAMP                      | Last update              |
 
 **Constraints:**
 
-- `threat_model_access_threat_model_id_user_email_key` (UNIQUE threat_model_id, user_email)
+- `UNIQUE(threat_model_id, user_email)` - One role per user per threat model
 
 **Roles:** owner, writer, reader
 
@@ -172,27 +165,27 @@ Role-based access control matrix for threat models.
 
 Individual security threats within threat models.
 
-| Column          | Type        | Constraints                                              | Description             |
-| --------------- | ----------- | -------------------------------------------------------- | ----------------------- |
-| id              | UUID        | PRIMARY KEY, DEFAULT uuid_generate_v4()                  | Threat identifier       |
-| threat_model_id | UUID        | NOT NULL, REFERENCES threat_models(id) ON DELETE CASCADE | Parent model            |
-| diagram_id      | UUID        | REFERENCES diagrams(id) ON DELETE SET NULL               | Optional diagram link   |
-| cell_id         | TEXT        |                                                          | Diagram cell identifier |
-| name            | TEXT        | NOT NULL, CHECK LENGTH > 0                               | Threat name             |
-| description     | TEXT        |                                                          | Detailed description    |
-| severity        | TEXT        | CHECK severity validation                                | Severity level          |
-| likelihood      | TEXT        |                                                          | Likelihood level        |
-| risk_level      | TEXT        |                                                          | Overall risk level      |
-| score           | DECIMAL(3,1) | CHECK score >= 0.0 AND score <= 10.0                    | Numeric risk score      |
-| priority        | TEXT        |                                                          | Priority classification |
-| mitigated       | BOOLEAN     | DEFAULT FALSE                                            | Mitigation status       |
-| status          | TEXT        | NOT NULL, DEFAULT 'Active'                               | Current threat status   |
-| threat_type     | TEXT        | NOT NULL, DEFAULT 'Unspecified'                         | Threat category         |
-| mitigation      | TEXT        |                                                          | Mitigation details      |
-| issue_url       | TEXT        |                                                          | External tracker link   |
-| metadata        | JSONB       |                                                          | Flexible metadata       |
-| created_at      | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | Creation time           |
-| modified_at     | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | Last update             |
+| Column          | Type          | Constraints                                                                | Description             |
+| --------------- | ------------- | -------------------------------------------------------------------------- | ----------------------- |
+| id              | UUID          | PRIMARY KEY, DEFAULT uuid_generate_v4()                                    | Threat identifier       |
+| threat_model_id | UUID          | NOT NULL, REFERENCES threat_models(id) ON DELETE CASCADE                   | Parent model            |
+| diagram_id      | UUID          | REFERENCES diagrams(id) ON DELETE SET NULL                                 | Optional diagram link   |
+| cell_id         | UUID          |                                                                            | Diagram cell identifier |
+| name            | VARCHAR(255)  | NOT NULL                                                                   | Threat name             |
+| description     | TEXT          |                                                                            | Detailed description    |
+| severity        | VARCHAR(50)   | CHECK severity IN ('Unknown', 'None', 'Low', 'Medium', 'High', 'Critical') | Severity level          |
+| likelihood      | VARCHAR(50)   |                                                                            | Likelihood level        |
+| risk_level      | VARCHAR(50)   |                                                                            | Overall risk level      |
+| score           | DECIMAL(3,1)  | CHECK score >= 0.0 AND score <= 10.0                                       | Numeric risk score      |
+| priority        | VARCHAR(16)   | NOT NULL DEFAULT 'Medium'                                                  | Priority classification |
+| mitigated       | BOOLEAN       | NOT NULL DEFAULT FALSE                                                     | Mitigation status       |
+| status          | VARCHAR(256)  | NOT NULL DEFAULT 'Active'                                                  | Current threat status   |
+| threat_type     | VARCHAR(256)  | NOT NULL DEFAULT 'Unspecified'                                             | Threat category         |
+| mitigation      | TEXT          |                                                                            | Mitigation details      |
+| issue_url       | VARCHAR(1024) |                                                                            | External tracker link   |
+| metadata        | JSONB         |                                                                            | Flexible metadata       |
+| created_at      | TIMESTAMPTZ   | NOT NULL, DEFAULT CURRENT_TIMESTAMP                                        | Creation time           |
+| modified_at     | TIMESTAMPTZ   | NOT NULL, DEFAULT CURRENT_TIMESTAMP                                        | Last update             |
 
 **Severity Levels:** Unknown, None, Low, Medium, High, Critical
 
@@ -202,17 +195,17 @@ Individual security threats within threat models.
 
 Visual diagram storage with JSONB cell data.
 
-| Column          | Type        | Constraints                                              | Description         |
-| --------------- | ----------- | -------------------------------------------------------- | ------------------- |
-| id              | UUID        | PRIMARY KEY, DEFAULT uuid_generate_v4()                  | Diagram identifier  |
-| threat_model_id | UUID        | NOT NULL, REFERENCES threat_models(id) ON DELETE CASCADE | Parent model        |
-| name            | TEXT        | NOT NULL, CHECK LENGTH > 0                               | Diagram name        |
-| type            | TEXT        | NOT NULL, CHECK type = 'DFD-1.0.0'                       | Diagram type        |
-| description     | TEXT        |                                                          | Diagram description |
-| metadata        | JSONB       | DEFAULT '[]'::jsonb                                      | Metadata array      |
-| cells           | JSONB       | DEFAULT '[]'::jsonb                                      | Diagram elements    |
-| created_at      | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | Creation time       |
-| modified_at     | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | Last modification   |
+| Column          | Type         | Constraints                                              | Description        |
+| --------------- | ------------ | -------------------------------------------------------- | ------------------ |
+| id              | UUID         | PRIMARY KEY, DEFAULT uuid_generate_v4()                  | Diagram identifier |
+| threat_model_id | UUID         | NOT NULL, REFERENCES threat_models(id) ON DELETE CASCADE | Parent model       |
+| name            | VARCHAR(255) | NOT NULL                                                 | Diagram name       |
+| type            | VARCHAR(50)  | CHECK type IN ('DFD-1.0.0')                              | Diagram type       |
+| content         | TEXT         |                                                          | Diagram content    |
+| cells           | JSONB        |                                                          | Diagram elements   |
+| metadata        | JSONB        |                                                          | Metadata           |
+| created_at      | TIMESTAMPTZ  | NOT NULL, DEFAULT CURRENT_TIMESTAMP                      | Creation time      |
+| modified_at     | TIMESTAMPTZ  | NOT NULL, DEFAULT CURRENT_TIMESTAMP                      | Last modification  |
 
 **Indexes:**
 
@@ -223,31 +216,31 @@ Visual diagram storage with JSONB cell data.
 
 Document references for threat models.
 
-| Column          | Type        | Constraints                                              | Description          |
-| --------------- | ----------- | -------------------------------------------------------- | -------------------- |
-| id              | UUID        | PRIMARY KEY, DEFAULT uuid_generate_v4()                  | Document identifier  |
-| threat_model_id | UUID        | NOT NULL, REFERENCES threat_models(id) ON DELETE CASCADE | Parent model         |
-| name            | TEXT        | NOT NULL, CHECK LENGTH > 0                               | Document name        |
-| url             | TEXT        | NOT NULL, CHECK LENGTH > 0                               | Document URL         |
-| description     | TEXT        |                                                          | Document description |
-| created_at      | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | Creation time        |
-| modified_at     | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | Last update          |
+| Column          | Type          | Constraints                                              | Description          |
+| --------------- | ------------- | -------------------------------------------------------- | -------------------- |
+| id              | UUID          | PRIMARY KEY, DEFAULT uuid_generate_v4()                  | Document identifier  |
+| threat_model_id | UUID          | NOT NULL, REFERENCES threat_models(id) ON DELETE CASCADE | Parent model         |
+| name            | VARCHAR(256)  | NOT NULL                                                 | Document name        |
+| url             | VARCHAR(1024) | NOT NULL                                                 | Document URL         |
+| description     | VARCHAR(1024) |                                                          | Document description |
+| created_at      | TIMESTAMPTZ   | NOT NULL, DEFAULT CURRENT_TIMESTAMP                      | Creation time        |
+| modified_at     | TIMESTAMPTZ   | NOT NULL, DEFAULT CURRENT_TIMESTAMP                      | Last update          |
 
 #### `sources`
 
 Source code repository references.
 
-| Column          | Type        | Constraints                                              | Description              |
-| --------------- | ----------- | -------------------------------------------------------- | ------------------------ |
-| id              | UUID        | PRIMARY KEY, DEFAULT uuid_generate_v4()                  | Source identifier        |
-| threat_model_id | UUID        | NOT NULL, REFERENCES threat_models(id) ON DELETE CASCADE | Parent model             |
-| name            | TEXT        | NOT NULL, CHECK LENGTH > 0                               | Source name              |
-| url             | TEXT        | NOT NULL, CHECK LENGTH > 0                               | Repository URL           |
-| description     | TEXT        |                                                          | Source description       |
-| type            | TEXT        | CHECK type validation                                    | Repository type          |
-| parameters      | JSONB       |                                                          | Configuration parameters |
-| created_at      | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | Creation time            |
-| modified_at     | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | Last update              |
+| Column          | Type          | Constraints                                              | Description              |
+| --------------- | ------------- | -------------------------------------------------------- | ------------------------ |
+| id              | UUID          | PRIMARY KEY, DEFAULT uuid_generate_v4()                  | Source identifier        |
+| threat_model_id | UUID          | NOT NULL, REFERENCES threat_models(id) ON DELETE CASCADE | Parent model             |
+| name            | VARCHAR(256)  |                                                          | Source name              |
+| url             | VARCHAR(1024) | NOT NULL                                                 | Repository URL           |
+| description     | VARCHAR(1024) |                                                          | Source description       |
+| type            | VARCHAR(50)   | CHECK type IN ('git', 'svn', 'mercurial', 'other')       | Repository type          |
+| parameters      | JSONB         |                                                          | Configuration parameters |
+| created_at      | TIMESTAMPTZ   | NOT NULL, DEFAULT CURRENT_TIMESTAMP                      | Creation time            |
+| modified_at     | TIMESTAMPTZ   | NOT NULL, DEFAULT CURRENT_TIMESTAMP                      | Last update              |
 
 **Repository Types:** git, svn, mercurial, other
 
@@ -257,15 +250,15 @@ Source code repository references.
 
 Flexible key-value metadata for all entity types.
 
-| Column      | Type        | Constraints                             | Description         |
-| ----------- | ----------- | --------------------------------------- | ------------------- |
-| id          | UUID        | PRIMARY KEY, DEFAULT uuid_generate_v4() | Metadata identifier |
-| entity_type | TEXT        | NOT NULL, CHECK entity type validation  | Target entity type  |
-| entity_id   | UUID        | NOT NULL                                | Target entity ID    |
-| key         | TEXT        | NOT NULL, CHECK key format validation   | Metadata key        |
-| value       | TEXT        | NOT NULL                                | Metadata value      |
-| created_at  | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                 | Creation time       |
-| modified_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                 | Last update         |
+| Column      | Type         | Constraints                                                                                        | Description         |
+| ----------- | ------------ | -------------------------------------------------------------------------------------------------- | ------------------- |
+| id          | UUID         | PRIMARY KEY, DEFAULT uuid_generate_v4()                                                            | Metadata identifier |
+| entity_type | VARCHAR(50)  | NOT NULL, CHECK entity_type IN ('threat_model', 'threat', 'diagram', 'document', 'source', 'cell') | Target entity type  |
+| entity_id   | UUID         | NOT NULL                                                                                           | Target entity ID    |
+| key         | VARCHAR(128) | NOT NULL                                                                                           | Metadata key        |
+| value       | TEXT         | NOT NULL                                                                                           | Metadata value      |
+| created_at  | TIMESTAMPTZ  | NOT NULL, DEFAULT CURRENT_TIMESTAMP                                                                | Creation time       |
+| modified_at | TIMESTAMPTZ  | NOT NULL, DEFAULT CURRENT_TIMESTAMP                                                                | Last update         |
 
 **Constraints:**
 
@@ -281,15 +274,14 @@ Flexible key-value metadata for all entity types.
 
 WebSocket collaboration session management.
 
-| Column          | Type        | Constraints                                              | Description        |
-| --------------- | ----------- | -------------------------------------------------------- | ------------------ |
-| id              | UUID        | PRIMARY KEY, DEFAULT uuid_generate_v4()                  | Session identifier |
-| threat_model_id | UUID        | NOT NULL, REFERENCES threat_models(id) ON DELETE CASCADE | Parent model       |
-| diagram_id      | UUID        | REFERENCES diagrams(id) ON DELETE CASCADE                | Optional diagram   |
-| websocket_url   | TEXT        | NOT NULL                                                 | WebSocket endpoint |
-| expires_at      | TIMESTAMPTZ | CHECK expires_at > created_at                            | Optional expiry    |
-| created_at      | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | Session start      |
-| modified_at     | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                  | Last activity      |
+| Column          | Type          | Constraints                             | Description        |
+| --------------- | ------------- | --------------------------------------- | ------------------ |
+| id              | UUID          | PRIMARY KEY, DEFAULT uuid_generate_v4() | Session identifier |
+| threat_model_id | UUID          | NOT NULL                                | Parent model       |
+| diagram_id      | UUID          | NOT NULL                                | Diagram reference  |
+| websocket_url   | VARCHAR(1024) | NOT NULL                                | WebSocket endpoint |
+| created_at      | TIMESTAMPTZ   | NOT NULL, DEFAULT CURRENT_TIMESTAMP     | Session start      |
+| expires_at      | TIMESTAMPTZ   |                                         | Optional expiry    |
 
 #### `session_participants`
 
@@ -300,12 +292,12 @@ Collaboration session participant tracking.
 | id         | UUID        | PRIMARY KEY, DEFAULT uuid_generate_v4()                           | Participation identifier |
 | session_id | UUID        | NOT NULL, REFERENCES collaboration_sessions(id) ON DELETE CASCADE | Session reference        |
 | user_id    | UUID        | NOT NULL, REFERENCES users(id) ON DELETE CASCADE                  | Participant              |
-| joined_at  | TIMESTAMPTZ | NOT NULL, DEFAULT NOW()                                           | Join time                |
+| joined_at  | TIMESTAMPTZ | NOT NULL, DEFAULT CURRENT_TIMESTAMP                               | Join time                |
 | left_at    | TIMESTAMPTZ |                                                                   | Leave time               |
 
 **Constraints:**
 
-- `session_participants_unique_active` (UNIQUE session_id, user_id WHERE left_at IS NULL)
+- `idx_session_participants_active_unique` (UNIQUE session_id, user_id WHERE left_at IS NULL)
 
 ## Migration History
 
@@ -316,31 +308,38 @@ The database schema uses a consolidated migration approach with 2 main migration
 | Migration | File                           | Description                                                |
 | --------- | ------------------------------ | ---------------------------------------------------------- |
 | 001       | 001_core_infrastructure.up.sql | Authentication, sessions, and collaboration infrastructure |
-| 002       | 002_business_domain.up.sql      | Business entities, relationships, and performance indexes  |
+| 002       | 002_business_domain.up.sql     | Business entities, relationships, and performance indexes  |
 
 ### Migration 001: Core Infrastructure
+
 **Authentication & Session Management:**
+
 - `users` - Core user profiles with OAuth support
-- `user_providers` - Multi-provider OAuth linking (Google, GitHub, Microsoft, Apple, Facebook, Twitter)  
+- `user_providers` - Multi-provider OAuth linking (Google, GitHub, Microsoft, Apple, Facebook, Twitter)
 - `refresh_tokens` - JWT refresh token management
 
 **Real-time Collaboration:**
+
 - `collaboration_sessions` - WebSocket session management
 - `session_participants` - Active participant tracking
 
 ### Migration 002: Business Domain
+
 **Core Business Entities:**
+
 - `threat_models` - Central threat modeling projects with framework support (CIA, STRIDE, LINDDUN, DIE, PLOT4ai)
 - `threat_model_access` - Role-based access control (owner, writer, reader)
 - `threats` - Individual security threats with severity levels and JSONB metadata
 - `diagrams` - Visual diagram storage with JSONB cells for real-time collaboration
 
 **Sub-resource Entities:**
+
 - `documents` - Document reference management
 - `sources` - Source code repository references with type validation (git, svn, mercurial, other)
 - `metadata` - Flexible key-value metadata for all entity types
 
 **Performance & Indexes:**
+
 - 40+ strategic indexes for query optimization
 - GIN indexes on JSONB columns (cells, metadata, parameters)
 - Composite indexes for pagination and authorization queries
@@ -349,12 +348,13 @@ The database schema uses a consolidated migration approach with 2 main migration
 ### Historical Evolution
 
 The schema evolved from 18 incremental migrations (preserved in `/auth/migrations/old/`) covering:
+
 1. Basic authentication (migrations 001-002, 007)
 2. Core business logic (migrations 003-006)
 3. Enhanced threat modeling (migrations 008-010)
 4. Sub-resource management (migrations 011-012)
 5. Metadata system (migrations 013, 017)
-6. Real-time collaboration (migrations 014-015)  
+6. Real-time collaboration (migrations 014-015)
 7. Performance optimization (migrations 016, 018)
 
 The consolidated migrations provide the same final schema with improved maintainability and simplified deployment.
@@ -491,11 +491,13 @@ ON threat_model_access (threat_model_id);
 The TMI project provides comprehensive database migration and management tools:
 
 **Migration Commands:**
+
 - `make migrate` - Apply pending migrations
-- `make check-migrations` - Verify migration state without changes  
+- `make check-migrations` - Verify migration state without changes
 - `make ensure-migrations` - Auto-apply missing migrations with validation
 
 **Migration Tools:**
+
 - `/cmd/migrate/main.go` - Migration execution command
 - `/cmd/check-db/main.go` - Database state validation
 - `github.com/golang-migrate/migrate/v4` - Migration library with PostgreSQL driver
@@ -503,20 +505,23 @@ The TMI project provides comprehensive database migration and management tools:
 ### Development Environment
 
 **Docker Configuration:**
+
 - Custom PostgreSQL image: `Dockerfile.postgres` (Bitnami base with security updates)
 - Development container: `tmi-postgresql` (port 5432)
 - Integration testing: `tmi-integration-postgres` (port 5433)
 
 **Make Targets:**
+
 - `make dev-db` - Start development database with automatic migrations
 - `make stop-db` - Stop database (preserves data)
 - `make delete-db` - Remove database and data (destructive)
 - `make reset-db` - Interactive database reset with confirmation
 
 **Environment Variables:**
+
 ```bash
 POSTGRES_HOST=localhost          # Database host
-POSTGRES_PORT=5432              # Database port  
+POSTGRES_PORT=5432              # Database port
 POSTGRES_USER=tmi_dev           # Database user
 POSTGRES_PASSWORD=dev123        # Database password
 POSTGRES_DB=tmi_dev             # Database name
@@ -526,23 +531,27 @@ POSTGRES_SSLMODE=disable        # SSL configuration
 ### Connection Configuration
 
 **Go Database Configuration:**
+
 - **Driver**: PostgreSQL with `pgx/v4` driver (`github.com/jackc/pgx/v4/stdlib`)
 - **Connection Pool**: 10 max open connections, 2 max idle connections
 - **Timeouts**: 1 hour max connection lifetime, 30 minutes max idle time
 - **Health Checks**: Automatic connection ping validation
 
 **Dual-Mode Operation:**
+
 - **Development/Production**: PostgreSQL database with full persistence
 - **Testing**: In-memory storage for fast unit tests (`TMI_STORE_TYPE=memory`)
 
 ### Performance Monitoring
 
 **Database Health Checks:**
+
 - Connection pool statistics and health monitoring
 - Query performance monitoring through application logs
 - Migration state validation and consistency checks
 
 **Indexing Strategy:**
+
 - Strategic indexing for common query patterns (authorization, pagination, sub-resource queries)
 - GIN indexes for JSONB columns enabling fast JSON path queries
 - Partial indexes for entity-specific metadata queries

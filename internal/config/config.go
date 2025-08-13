@@ -3,8 +3,10 @@ package config
 import (
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +22,7 @@ type Config struct {
 	Auth      AuthConfig      `yaml:"auth"`
 	Logging   LoggingConfig   `yaml:"logging"`
 	Telemetry TelemetryConfig `yaml:"telemetry"`
+	Admin     AdminConfig     `yaml:"admin"`
 }
 
 // ServerConfig holds HTTP server configuration
@@ -147,6 +150,37 @@ type TelemetryLoggingConfig struct {
 	Headers            map[string]string `yaml:"headers"`
 }
 
+// AdminConfig holds admin interface configuration
+type AdminConfig struct {
+	Enabled    bool                `yaml:"enabled" env:"TMI_ADMIN_ENABLED"`
+	PathPrefix string              `yaml:"path_prefix" env:"TMI_ADMIN_PATH_PREFIX"`
+	Users      AdminUsersConfig    `yaml:"users"`
+	Session    AdminSessionConfig  `yaml:"session"`
+	Security   AdminSecurityConfig `yaml:"security"`
+}
+
+// AdminUsersConfig holds admin user configuration
+type AdminUsersConfig struct {
+	PrimaryEmail     string   `yaml:"primary_email" env:"TMI_ADMIN_USERS_PRIMARY_EMAIL"`
+	AdditionalEmails []string `yaml:"additional_emails" env:"TMI_ADMIN_USERS_ADDITIONAL_EMAILS"`
+	AutoPromoteFirst bool     `yaml:"auto_promote_first" env:"TMI_ADMIN_USERS_AUTO_PROMOTE_FIRST"`
+}
+
+// AdminSessionConfig holds admin session configuration
+type AdminSessionConfig struct {
+	TimeoutMinutes   int  `yaml:"timeout_minutes" env:"TMI_ADMIN_SESSION_TIMEOUT_MINUTES"`
+	ReauthRequired   bool `yaml:"reauth_required" env:"TMI_ADMIN_SESSION_REAUTH_REQUIRED"`
+	ExtendOnActivity bool `yaml:"extend_on_activity" env:"TMI_ADMIN_SESSION_EXTEND_ON_ACTIVITY"`
+}
+
+// AdminSecurityConfig holds admin security configuration
+type AdminSecurityConfig struct {
+	RequireMFA       bool     `yaml:"require_mfa" env:"TMI_ADMIN_SECURITY_REQUIRE_MFA"`
+	AuditLogging     bool     `yaml:"audit_logging" env:"TMI_ADMIN_SECURITY_AUDIT_LOGGING"`
+	RateLimitEnabled bool     `yaml:"rate_limit_enabled" env:"TMI_ADMIN_SECURITY_RATE_LIMIT_ENABLED"`
+	IPAllowlist      []string `yaml:"ip_allowlist" env:"TMI_ADMIN_SECURITY_IP_ALLOWLIST"`
+}
+
 // Load loads configuration from YAML file with environment variable overrides
 func Load(configFile string) (*Config, error) {
 	config := getDefaultConfig()
@@ -252,6 +286,26 @@ func getDefaultConfig() *Config {
 				Headers:            make(map[string]string),
 			},
 			ResourceAttributes: make(map[string]string),
+		},
+		Admin: AdminConfig{
+			Enabled:    false,
+			PathPrefix: "/admin",
+			Users: AdminUsersConfig{
+				PrimaryEmail:     "",
+				AdditionalEmails: []string{},
+				AutoPromoteFirst: false,
+			},
+			Session: AdminSessionConfig{
+				TimeoutMinutes:   240,
+				ReauthRequired:   true,
+				ExtendOnActivity: true,
+			},
+			Security: AdminSecurityConfig{
+				RequireMFA:       false,
+				AuditLogging:     true,
+				RateLimitEnabled: true,
+				IPAllowlist:      []string{},
+			},
 		},
 	}
 }
@@ -452,6 +506,21 @@ func setFieldFromString(field reflect.Value, value string) error {
 			}
 			field.SetInt(intVal)
 		}
+	case reflect.Slice:
+		// Handle string slices (comma-separated values)
+		if field.Type().Elem().Kind() == reflect.String {
+			parts := strings.Split(value, ",")
+			slice := make([]string, 0, len(parts))
+			for _, part := range parts {
+				trimmed := strings.TrimSpace(part)
+				if trimmed != "" {
+					slice = append(slice, trimmed)
+				}
+			}
+			field.Set(reflect.ValueOf(slice))
+		} else {
+			return fmt.Errorf("unsupported slice type: %s", field.Type().Elem().Kind())
+		}
 	default:
 		return fmt.Errorf("unsupported field type: %s", field.Kind())
 	}
@@ -511,7 +580,69 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("at least one oauth provider must be enabled and configured")
 	}
 
+	// Validate admin configuration
+	if err := c.validateAdminConfig(); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// validateAdminConfig validates admin-specific configuration
+func (c *Config) validateAdminConfig() error {
+	// If admin is disabled, no further validation needed
+	if !c.Admin.Enabled {
+		return nil
+	}
+
+	// If admin is enabled, primary email is required
+	if c.Admin.Users.PrimaryEmail == "" {
+		return fmt.Errorf("admin primary email is required when admin interface is enabled")
+	}
+
+	// Validate primary email format
+	if !isValidEmail(c.Admin.Users.PrimaryEmail) {
+		return fmt.Errorf("invalid primary admin email format: %s", c.Admin.Users.PrimaryEmail)
+	}
+
+	// Validate additional emails
+	for _, email := range c.Admin.Users.AdditionalEmails {
+		if !isValidEmail(email) {
+			return fmt.Errorf("invalid additional admin email format: %s", email)
+		}
+	}
+
+	// Validate session timeout
+	if c.Admin.Session.TimeoutMinutes < 5 {
+		return fmt.Errorf("admin session timeout must be at least 5 minutes")
+	}
+
+	// Validate IP allowlist format
+	for _, ip := range c.Admin.Security.IPAllowlist {
+		if !isValidIPOrCIDR(ip) {
+			return fmt.Errorf("invalid IP/CIDR in admin allowlist: %s", ip)
+		}
+	}
+
+	return nil
+}
+
+// isValidEmail validates email address format
+func isValidEmail(email string) bool {
+	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	return emailRegex.MatchString(email)
+}
+
+// isValidIPOrCIDR validates IP address or CIDR notation
+func isValidIPOrCIDR(ipStr string) bool {
+	// Check if it's a valid IP address
+	if net.ParseIP(ipStr) != nil {
+		return true
+	}
+
+	// Check if it's a valid CIDR
+	_, _, err := net.ParseCIDR(ipStr)
+	return err == nil
 }
 
 // IsTestMode returns true if running in test mode
@@ -610,4 +741,31 @@ type TelemetryRuntimeConfig struct {
 	IsDevelopment   bool
 	ConsoleExporter bool
 	DebugMode       bool
+}
+
+// Admin helper methods
+
+// IsAdminEnabled returns true if admin interface is enabled
+func (c *Config) IsAdminEnabled() bool {
+	return c.Admin.Enabled
+}
+
+// IsUserAdmin checks if the given email is configured as an admin
+func (c *Config) IsUserAdmin(email string) bool {
+	if email == c.Admin.Users.PrimaryEmail {
+		return true
+	}
+
+	for _, adminEmail := range c.Admin.Users.AdditionalEmails {
+		if email == adminEmail {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetAdminTimeout returns the admin session timeout duration
+func (c *Config) GetAdminTimeout() time.Duration {
+	return time.Duration(c.Admin.Session.TimeoutMinutes) * time.Minute
 }

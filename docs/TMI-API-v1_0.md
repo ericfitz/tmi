@@ -14,12 +14,17 @@ This document describes a RESTful API with WebSocket support for threat modeling
 ### API Information
 
 - `**GET /**`: Returns service, API, and operator information without authentication.
+- `**GET /api/server-info**`: Returns server configuration information (TLS status, WebSocket base URL).
 
 ### Authentication
 
-- `**GET /auth/login**`: Redirects to OAuth provider for login.
-- `**GET /auth/callback**`: Exchanges OAuth code for JWT.
+- `**GET /auth/providers**`: Lists available OAuth providers.
+- `**GET /auth/login/{provider}**`: Redirects to OAuth provider for login.
+- `**GET /auth/callback**`: Handles OAuth callback from provider.
+- `**POST /auth/token/{provider}**`: Exchanges authorization code for JWT tokens.
+- `**POST /auth/refresh**`: Refreshes access token using refresh token.
 - `**POST /auth/logout**`: Invalidates JWT and ends session.
+- `**GET /auth/me**`: Returns current authenticated user information.
 
 ### Threat Model Management
 
@@ -44,7 +49,8 @@ This document describes a RESTful API with WebSocket support for threat modeling
 - `**GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate**`: Gets collaboration session status.
 - `**POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate**`: Joins or starts a session.
 - `**DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate**`: Leaves a session.
-- **WebSocket**: `wss://api.example.com/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws` for real-time updates.
+- `**GET /collaboration/sessions**`: Lists all active collaboration sessions accessible to the user.
+- **WebSocket**: `/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws` for real-time updates.
 
 ### Threat Sub-Resources
 
@@ -114,15 +120,6 @@ This document describes a RESTful API with WebSocket support for threat modeling
 - `**PUT /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key}**`: Sets a metadata key-value pair.
 - `**DELETE /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key}**`: Deletes a metadata entry.
 
-#### Cell Operations
-
-- `**GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/cells/{cell_id}/metadata**`: Lists all metadata for a diagram cell.
-- `**POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/cells/{cell_id}/metadata**`: Creates or updates multiple metadata entries.
-- `**GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}**`: Retrieves a specific metadata value.
-- `**PUT /threat_models/{threat_model_id}/diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}**`: Sets a metadata key-value pair.
-- `**DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}**`: Deletes a metadata entry.
-- `**PATCH /threat_models/{threat_model_id}/diagrams/{diagram_id}/cells/{cell_id}**`: Partially updates a cell (JSON Patch).
-- `**POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/cells/batch/patch**`: Applies JSON Patch operations to multiple cells.
 
 ### Bulk and Batch Operations
 
@@ -141,9 +138,6 @@ This document describes a RESTful API with WebSocket support for threat modeling
 - `**POST /threat_models/{threat_model_id}/documents/bulk**`: Creates multiple documents in a single request.
 - `**POST /threat_models/{threat_model_id}/sources/bulk**`: Creates multiple source references in a single request.
 
-#### Cell Batch Operations
-
-- `**POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/cells/batch/patch**`: Applies JSON Patch operations to multiple cells.
 
 #### Metadata Bulk Operations
 
@@ -340,7 +334,7 @@ This document describes a RESTful API with WebSocket support for threat modeling
 
 ## Implementation Notes
 
-- **Security**: All endpoints except `/` and `/auth/login` and `/auth/callback` require JWT.
+- **Security**: All endpoints except `/`, `/api/server-info`, `/auth/providers`, `/auth/login/{provider}`, `/auth/callback`, `/auth/token/{provider}`, and static files require JWT.
 - **Validation**: Server enforces role-based access, UUID uniqueness, email format, and referential integrity.
 - **Scalability**: Stateless JWTs and WebSocket sessions support horizontal scaling.
 - **Future Enhancements**:
@@ -384,10 +378,30 @@ GET /
 
 ### Authentication
 
+#### List OAuth Providers
+
+```http
+GET /auth/providers
+```
+
+**Response** (200):
+
+```json
+{
+  "providers": [
+    {
+      "id": "test",
+      "name": "Test Provider",
+      "login_url": "/auth/login/test"
+    }
+  ]
+}
+```
+
 #### Initiate Login
 
 ```http
-GET /auth/login?redirect_uri=https://client.example.com/callback
+GET /auth/login/test?redirect_uri=https://client.example.com/callback
 ```
 
 **Response**: 302 Redirect, `Location: https://oauth-provider.com/auth?...`
@@ -398,12 +412,66 @@ GET /auth/login?redirect_uri=https://client.example.com/callback
 GET /auth/callback?code=abc123&state=xyz789
 ```
 
+**Response**: 302 Redirect to client with tokens
+
+#### Exchange Code for Token
+
+```http
+POST /auth/token/test
+Content-Type: application/json
+
+{
+  "code": "abc123",
+  "redirect_uri": "https://client.example.com/callback"
+}
+```
+
 **Response** (200):
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "def456...",
+  "token_type": "Bearer",
   "expires_in": 3600
+}
+```
+
+#### Refresh Token
+
+```http
+POST /auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "def456..."
+}
+```
+
+**Response** (200):
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 3600
+}
+```
+
+#### Get Current User
+
+```http
+GET /auth/me
+Authorization: Bearer <JWT>
+```
+
+**Response** (200):
+
+```json
+{
+  "sub": "user@example.com",
+  "name": "John Doe",
+  "email": "user@example.com"
 }
 ```
 

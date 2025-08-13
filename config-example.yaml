@@ -154,3 +154,21 @@ telemetry:
     resource_attributes:
         deployment.environment: "development"
         service.instance.id: "local-dev"
+
+admin:
+    enabled: false                  # Enable admin interface (SECURITY: disabled by default)
+    path_prefix: "/admin"           # Admin interface URL prefix
+    users:
+        primary_email: ""           # Primary admin email (REQUIRED when enabled)
+        additional_emails: []       # Additional admin emails
+        auto_promote_first: false   # Auto-promote first user to admin (dev only)
+    session:
+        timeout_minutes: 240        # Admin session timeout (4 hours)
+        reauth_required: true       # Require re-auth for sensitive operations
+        extend_on_activity: true    # Extend session on activity
+    security:
+        require_mfa: false          # Require MFA for admin operations (future)
+        audit_logging: true         # Log all admin actions
+        rate_limit_enabled: true    # Rate limit admin endpoints
+        ip_allowlist: []            # IP allowlist (empty = no restrictions)
+                                   # Examples: ["192.168.1.0/24", "10.0.0.0/8"]
