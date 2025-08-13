@@ -99,7 +99,7 @@ func setupThreatMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
 		c.Set("userName", "test@example.com")
-		c.Set("userRole", Writer)
+		c.Set("userRole", RoleWriter)
 		c.Next()
 	})
 
@@ -125,7 +125,7 @@ func setupDocumentMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
 		c.Set("userName", "test@example.com")
-		c.Set("userRole", Writer)
+		c.Set("userRole", RoleWriter)
 		c.Next()
 	})
 
@@ -716,7 +716,7 @@ func setupSourceMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
 		c.Set("userName", "test@example.com")
-		c.Set("userRole", Writer)
+		c.Set("userRole", RoleWriter)
 		c.Next()
 	})
 
@@ -742,7 +742,7 @@ func setupThreatModelMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
 		c.Set("userName", "test@example.com")
-		c.Set("userRole", Writer)
+		c.Set("userRole", RoleWriter)
 		c.Next()
 	})
 
@@ -768,7 +768,7 @@ func setupDiagramMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
 		c.Set("userName", "test@example.com")
-		c.Set("userRole", Writer)
+		c.Set("userRole", RoleWriter)
 		c.Next()
 	})
 

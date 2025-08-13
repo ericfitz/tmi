@@ -1,4 +1,4 @@
-.PHONY: build build-check-db test test-unit lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi openapi-endpoints test-api test-api-full dev-test dev-test-full debug-auth-endpoints list
+.PHONY: build build-check-db test test-unit lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi openapi-endpoints test-api test-api-full dev-test dev-test-full test-collaboration-permissions test-collaboration-permissions-v2 clean-dev debug-auth-endpoints list
 
 # Default build target
 VERSION := 0.9.0
@@ -473,6 +473,21 @@ dev-test: build
 
 # Full development test - sets up environment and runs development tests
 dev-test-full: test-api-full
+
+# Clean development environment (kill processes, clean DBs)
+clean-dev:
+	@echo "🧹 Cleaning development environment..."
+	@./scripts/clean-dev.sh
+
+# Test collaboration session permissions end-to-end (original version)
+test-collaboration-permissions:
+	@echo "🧪 Running comprehensive collaboration session permissions test..."
+	@./scripts/test-collaboration-permissions.sh
+
+# Test collaboration session permissions end-to-end (v2 - improved version)
+test-collaboration-permissions-v2:
+	@echo "🧪 Running comprehensive collaboration session permissions test (v2)..."
+	@./scripts/test-collaboration-permissions-v2.sh
 
 # Debug auth endpoints - check what's available
 debug-auth-endpoints:

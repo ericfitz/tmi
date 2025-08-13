@@ -431,9 +431,9 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 
 		// Convert clients to participants
 		participants := make([]struct {
-			JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
-			Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
-			UserId      *string                                          `json:"user_id,omitempty"`
+			JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
+			Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
+			UserId      *string                                      `json:"user_id,omitempty"`
 		}, 0, len(session.Clients))
 
 		// Get the threat model to check permissions for participants
@@ -458,11 +458,11 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 				writerPerms := CollaborationSessionParticipantsPermissionsWriter
 				permissions = &writerPerms
 			}
-			
+
 			participants = append(participants, struct {
-				JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
-				Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
-				UserId      *string                                          `json:"user_id,omitempty"`
+				JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
+				Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
+				UserId      *string                                      `json:"user_id,omitempty"`
 			}{
 				JoinedAt:    &session.LastActivity,
 				Permissions: permissions,
@@ -503,25 +503,24 @@ func getSessionPermissionsForUser(userName string, tm *ThreatModel) *Collaborati
 		permissions := CollaborationSessionParticipantsPermissionsWriter
 		return &permissions
 	}
-	
+
 	// Check for reader access (lowest permission that grants session access)
 	hasReaderAccess, err := CheckResourceAccess(userName, tm, RoleReader)
 	if err == nil && hasReaderAccess {
 		permissions := CollaborationSessionParticipantsPermissionsReader
 		return &permissions
 	}
-	
+
 	// No access
 	return nil
 }
 
 // buildCollaborationSessionFromDiagramSession creates a CollaborationSession struct from a DiagramSession
 func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Context, diagramID string, session *DiagramSession, currentUser string) (*CollaborationSession, error) {
-	log.Printf("[DEBUG] buildCollaborationSessionFromDiagramSession: Starting for diagramID='%s', currentUser='%s', sessionOwner='%s'", diagramID, currentUser, session.Owner)
-	
+
 	session.mu.RLock()
 	defer session.mu.RUnlock()
-	
+
 	// Convert diagram ID to UUID
 	diagramUUID, err := uuid.Parse(diagramID)
 	if err != nil {
@@ -536,13 +535,10 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 	}
 
 	// Get the threat model to check access and extract name
-	log.Printf("[DEBUG] buildCollaborationSessionFromDiagramSession: Getting threat model '%s'", session.ThreatModelID)
 	tm, err := ThreatModelStore.Get(session.ThreatModelID)
 	if err != nil {
-		log.Printf("[ERROR] buildCollaborationSessionFromDiagramSession: Failed to get threat model '%s': %v", session.ThreatModelID, err)
 		return nil, fmt.Errorf("threat model not found: %w", err)
 	}
-	log.Printf("[DEBUG] buildCollaborationSessionFromDiagramSession: Successfully retrieved threat model '%s', Name='%s'", session.ThreatModelID, tm.Name)
 
 	// Find the diagram in the threat model to get its name
 	var diagramName string
@@ -559,31 +555,31 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 
 	// Convert clients to participants with proper permissions
 	participants := make([]struct {
-		JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
-		Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
-		UserId      *string                                          `json:"user_id,omitempty"`
+		JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
+		Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
+		UserId      *string                                      `json:"user_id,omitempty"`
 	}, 0, len(session.Clients))
 
 	// Track whether current user is already in participants
 	currentUserFound := false
-	
+
 	for client := range session.Clients {
 		// Get user's session permissions using existing auth system
 		permissions := getSessionPermissionsForUser(client.UserName, &tm)
-		
+
 		if permissions == nil {
 			// User is unauthorized, skip them
 			continue
 		}
-		
+
 		if client.UserName == currentUser {
 			currentUserFound = true
 		}
-		
+
 		participants = append(participants, struct {
-			JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
-			Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
-			UserId      *string                                          `json:"user_id,omitempty"`
+			JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
+			Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
+			UserId      *string                                      `json:"user_id,omitempty"`
 		}{
 			JoinedAt:    &session.LastActivity,
 			Permissions: permissions,
@@ -593,21 +589,19 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 
 	// Add current user if not anonymous and not already in participants
 	if currentUser != "" && !currentUserFound {
-		log.Printf("[DEBUG] buildCollaborationSessionFromDiagramSession: Getting session permissions for user '%s'", currentUser)
 		permissions := getSessionPermissionsForUser(currentUser, &tm)
-		
+
 		if permissions == nil {
-			// Current user is unauthorized - this shouldn't happen since CheckResourceAccess already passed
-			log.Printf("[ERROR] buildCollaborationSessionFromDiagramSession: User '%s' passed CheckResourceAccess but failed getSessionPermissionsForUser", currentUser)
+			// Current user is unauthorized
 			return nil, fmt.Errorf("user %s is not authorized to access this threat model", currentUser)
 		}
-		
+
 		joinTime := time.Now().UTC()
-		
+
 		participants = append(participants, struct {
-			JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
-			Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
-			UserId      *string                                          `json:"user_id,omitempty"`
+			JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
+			Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
+			UserId      *string                                      `json:"user_id,omitempty"`
 		}{
 			JoinedAt:    &joinTime,
 			Permissions: permissions,
@@ -692,24 +686,24 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 
 		// Convert clients to participants - include sessions even with no clients
 		participants := make([]struct {
-			JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
-			Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
-			UserId      *string                                          `json:"user_id,omitempty"`
+			JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
+			Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
+			UserId      *string                                      `json:"user_id,omitempty"`
 		}, 0, len(session.Clients))
 
 		for client := range session.Clients {
 			// Get user's session permissions using existing auth system
 			permissions := getSessionPermissionsForUser(client.UserName, &tm)
-			
+
 			if permissions == nil {
 				// User is unauthorized, skip them
 				continue
 			}
-			
+
 			participants = append(participants, struct {
-				JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
-				Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
-				UserId      *string                                          `json:"user_id,omitempty"`
+				JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
+				Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
+				UserId      *string                                      `json:"user_id,omitempty"`
 			}{
 				JoinedAt:    &session.LastActivity,
 				Permissions: permissions,

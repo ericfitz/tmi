@@ -699,7 +699,8 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 	// Build proper CollaborationSession response
 	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, userName)
 	if err != nil {
-		HandleRequestError(c, ServerError("Failed to build collaboration session response"))
+		// Temporarily return detailed error for debugging
+		HandleRequestError(c, ServerError("Failed to build collaboration session response: "+err.Error()))
 		return
 	}
 

@@ -30,7 +30,5 @@ fi
 
 # Start the TMI service with the development configuration and dev build tags
 echo "Starting TMI service with development configuration..."
-go run -tags dev cmd/server/main.go --config=config-development.yaml
-
-# Note: The above command will block until the service is stopped
-# To stop the service, press Ctrl+C
+echo "Server output will be logged to server.log"
+go run -tags dev cmd/server/main.go --config=config-development.yaml > server.log 2>&1 &

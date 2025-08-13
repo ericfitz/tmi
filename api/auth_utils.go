@@ -245,6 +245,10 @@ func ExtractAuthData(resource interface{}) (AuthorizationData, error) {
 		authData.Owner = r.Owner
 		authData.Authorization = r.Authorization
 		return authData, nil
+	case *ThreatModel:
+		authData.Owner = r.Owner
+		authData.Authorization = r.Authorization
+		return authData, nil
 	case DfdDiagram:
 		// For diagrams, use TestFixtures pattern for now
 		if TestFixtures.Owner != "" {

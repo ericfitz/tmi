@@ -85,7 +85,7 @@ func TestCreateThreatModel(t *testing.T) {
 	assert.NotEmpty(t, tm.Id)
 	assert.Len(t, tm.Authorization, 1)
 	assert.Equal(t, "test@example.com", tm.Authorization[0].Subject)
-	assert.Equal(t, Owner, tm.Authorization[0].Role)
+	assert.Equal(t, RoleOwner, tm.Authorization[0].Role)
 }
 
 // TestGetThreatModels tests listing threat models
@@ -369,7 +369,7 @@ func TestUpdateThreatModelOwnerChange(t *testing.T) {
 	// Check that the original owner is still in the authorization list with owner role
 	foundOriginalOwner := false
 	for _, auth := range resultTM.Authorization {
-		if auth.Subject == "test@example.com" && auth.Role == Owner {
+		if auth.Subject == "test@example.com" && auth.Role == RoleOwner {
 			foundOriginalOwner = true
 			break
 		}
