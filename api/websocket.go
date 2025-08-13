@@ -431,17 +431,42 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 
 		// Convert clients to participants
 		participants := make([]struct {
-			JoinedAt *time.Time `json:"joined_at,omitempty"`
-			UserId   *string    `json:"user_id,omitempty"`
+			JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
+			Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
+			UserId      *string                                          `json:"user_id,omitempty"`
 		}, 0, len(session.Clients))
 
+		// Get the threat model to check permissions for participants
+		var tm *ThreatModel
+		if session.ThreatModelID != "" {
+			if threatModel, err := ThreatModelStore.Get(session.ThreatModelID); err == nil {
+				tm = &threatModel
+			}
+		}
+
 		for client := range session.Clients {
+			// Get user's session permissions using existing auth system
+			var permissions *CollaborationSessionParticipantsPermissions
+			if tm != nil {
+				permissions = getSessionPermissionsForUser(client.UserName, tm)
+				if permissions == nil {
+					// User is unauthorized, skip them
+					continue
+				}
+			} else {
+				// Fallback to writer permissions if threat model not available
+				writerPerms := CollaborationSessionParticipantsPermissionsWriter
+				permissions = &writerPerms
+			}
+			
 			participants = append(participants, struct {
-				JoinedAt *time.Time `json:"joined_at,omitempty"`
-				UserId   *string    `json:"user_id,omitempty"`
+				JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
+				Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
+				UserId      *string                                          `json:"user_id,omitempty"`
 			}{
-				JoinedAt: &session.LastActivity,
-				UserId:   &client.UserName,
+				JoinedAt:    &session.LastActivity,
+				Permissions: permissions,
+				UserId:      &client.UserName,
 			})
 		}
 
@@ -456,16 +481,158 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 		}
 
 		sessions = append(sessions, CollaborationSession{
-			SessionId:     &sessionUUID,
-			DiagramId:     diagramUUID,
-			ThreatModelId: threatModelId,
-			Participants:  participants,
-			WebsocketUrl:  fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId.String(), diagramID),
+			SessionId:      &sessionUUID,
+			SessionManager: &session.Owner,
+			DiagramId:      diagramUUID,
+			ThreatModelId:  threatModelId,
+			Participants:   participants,
+			WebsocketUrl:   fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId.String(), diagramID),
 		})
 		session.mu.RUnlock()
 	}
 
 	return sessions
+}
+
+// getSessionPermissionsForUser determines session permissions using the existing auth system
+func getSessionPermissionsForUser(userName string, tm *ThreatModel) *CollaborationSessionParticipantsPermissions {
+	// Use the existing AccessCheck system to determine permissions
+	// Check for writer/owner access first (highest permission)
+	hasWriterAccess, err := CheckResourceAccess(userName, tm, RoleWriter)
+	if err == nil && hasWriterAccess {
+		permissions := CollaborationSessionParticipantsPermissionsWriter
+		return &permissions
+	}
+	
+	// Check for reader access (lowest permission that grants session access)
+	hasReaderAccess, err := CheckResourceAccess(userName, tm, RoleReader)
+	if err == nil && hasReaderAccess {
+		permissions := CollaborationSessionParticipantsPermissionsReader
+		return &permissions
+	}
+	
+	// No access
+	return nil
+}
+
+// buildCollaborationSessionFromDiagramSession creates a CollaborationSession struct from a DiagramSession
+func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Context, diagramID string, session *DiagramSession, currentUser string) (*CollaborationSession, error) {
+	log.Printf("[DEBUG] buildCollaborationSessionFromDiagramSession: Starting for diagramID='%s', currentUser='%s', sessionOwner='%s'", diagramID, currentUser, session.Owner)
+	
+	session.mu.RLock()
+	defer session.mu.RUnlock()
+	
+	// Convert diagram ID to UUID
+	diagramUUID, err := uuid.Parse(diagramID)
+	if err != nil {
+		log.Printf("[ERROR] buildCollaborationSessionFromDiagramSession: Failed to parse diagram ID '%s': %v", diagramID, err)
+		return nil, fmt.Errorf("invalid diagram ID: %w", err)
+	}
+
+	// Parse threat model ID
+	threatModelId, err := uuid.Parse(session.ThreatModelID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid threat model ID: %w", err)
+	}
+
+	// Get the threat model to check access and extract name
+	log.Printf("[DEBUG] buildCollaborationSessionFromDiagramSession: Getting threat model '%s'", session.ThreatModelID)
+	tm, err := ThreatModelStore.Get(session.ThreatModelID)
+	if err != nil {
+		log.Printf("[ERROR] buildCollaborationSessionFromDiagramSession: Failed to get threat model '%s': %v", session.ThreatModelID, err)
+		return nil, fmt.Errorf("threat model not found: %w", err)
+	}
+	log.Printf("[DEBUG] buildCollaborationSessionFromDiagramSession: Successfully retrieved threat model '%s', Name='%s'", session.ThreatModelID, tm.Name)
+
+	// Find the diagram in the threat model to get its name
+	var diagramName string
+	if tm.Diagrams != nil {
+		for _, diagramUnion := range *tm.Diagrams {
+			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+				if dfdDiag.Id.String() == diagramID {
+					diagramName = dfdDiag.Name
+					break
+				}
+			}
+		}
+	}
+
+	// Convert clients to participants with proper permissions
+	participants := make([]struct {
+		JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
+		Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
+		UserId      *string                                          `json:"user_id,omitempty"`
+	}, 0, len(session.Clients))
+
+	// Track whether current user is already in participants
+	currentUserFound := false
+	
+	for client := range session.Clients {
+		// Get user's session permissions using existing auth system
+		permissions := getSessionPermissionsForUser(client.UserName, &tm)
+		
+		if permissions == nil {
+			// User is unauthorized, skip them
+			continue
+		}
+		
+		if client.UserName == currentUser {
+			currentUserFound = true
+		}
+		
+		participants = append(participants, struct {
+			JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
+			Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
+			UserId      *string                                          `json:"user_id,omitempty"`
+		}{
+			JoinedAt:    &session.LastActivity,
+			Permissions: permissions,
+			UserId:      &client.UserName,
+		})
+	}
+
+	// Add current user if not anonymous and not already in participants
+	if currentUser != "" && !currentUserFound {
+		log.Printf("[DEBUG] buildCollaborationSessionFromDiagramSession: Getting session permissions for user '%s'", currentUser)
+		permissions := getSessionPermissionsForUser(currentUser, &tm)
+		
+		if permissions == nil {
+			// Current user is unauthorized - this shouldn't happen since CheckResourceAccess already passed
+			log.Printf("[ERROR] buildCollaborationSessionFromDiagramSession: User '%s' passed CheckResourceAccess but failed getSessionPermissionsForUser", currentUser)
+			return nil, fmt.Errorf("user %s is not authorized to access this threat model", currentUser)
+		}
+		
+		joinTime := time.Now().UTC()
+		
+		participants = append(participants, struct {
+			JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
+			Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
+			UserId      *string                                          `json:"user_id,omitempty"`
+		}{
+			JoinedAt:    &joinTime,
+			Permissions: permissions,
+			UserId:      &currentUser,
+		})
+	}
+
+	// Convert session ID to UUID
+	sessionUUID, err := uuid.Parse(session.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid session ID: %w", err)
+	}
+
+	collaborationSession := &CollaborationSession{
+		SessionId:       &sessionUUID,
+		SessionManager:  &session.Owner,
+		DiagramId:       diagramUUID,
+		DiagramName:     diagramName,
+		ThreatModelId:   threatModelId,
+		ThreatModelName: tm.Name,
+		Participants:    participants,
+		WebsocketUrl:    h.buildWebSocketURL(c, threatModelId, diagramID),
+	}
+
+	return collaborationSession, nil
 }
 
 // GetActiveSessionsForUser returns all active collaboration sessions that the specified user has access to
@@ -525,17 +692,28 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 
 		// Convert clients to participants - include sessions even with no clients
 		participants := make([]struct {
-			JoinedAt *time.Time `json:"joined_at,omitempty"`
-			UserId   *string    `json:"user_id,omitempty"`
+			JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
+			Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
+			UserId      *string                                          `json:"user_id,omitempty"`
 		}, 0, len(session.Clients))
 
 		for client := range session.Clients {
+			// Get user's session permissions using existing auth system
+			permissions := getSessionPermissionsForUser(client.UserName, &tm)
+			
+			if permissions == nil {
+				// User is unauthorized, skip them
+				continue
+			}
+			
 			participants = append(participants, struct {
-				JoinedAt *time.Time `json:"joined_at,omitempty"`
-				UserId   *string    `json:"user_id,omitempty"`
+				JoinedAt    *time.Time                                       `json:"joined_at,omitempty"`
+				Permissions *CollaborationSessionParticipantsPermissions     `json:"permissions,omitempty"`
+				UserId      *string                                          `json:"user_id,omitempty"`
 			}{
-				JoinedAt: &session.LastActivity,
-				UserId:   &client.UserName,
+				JoinedAt:    &session.LastActivity,
+				Permissions: permissions,
+				UserId:      &client.UserName,
 			})
 		}
 
@@ -548,6 +726,7 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 
 		sessions = append(sessions, CollaborationSession{
 			SessionId:       &sessionUUID,
+			SessionManager:  &session.Owner,
 			DiagramId:       diagramUUID,
 			DiagramName:     diagramName,
 			ThreatModelId:   threatModelId,

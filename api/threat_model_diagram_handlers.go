@@ -696,41 +696,14 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 	// Get or create collaboration session
 	session := h.wsHub.GetOrCreateSession(diagramId, threatModelId, userName)
 
-	// Get current participants
-	participants := make([]gin.H, 0)
-	session.mu.RLock()
-	for client := range session.Clients {
-		participants = append(participants, gin.H{
-			"user_id":   client.UserName,
-			"joined_at": session.LastActivity.Format(time.RFC3339),
-		})
-	}
-	session.mu.RUnlock()
-
-	// Add current user if not anonymous and not already in participants
-	if userName != "" {
-		userFound := false
-		for _, participant := range participants {
-			if participant["user_id"] == userName {
-				userFound = true
-				break
-			}
-		}
-		if !userFound {
-			participants = append(participants, gin.H{
-				"user_id":   userName,
-				"joined_at": time.Now().UTC().Format(time.RFC3339),
-			})
-		}
+	// Build proper CollaborationSession response
+	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, userName)
+	if err != nil {
+		HandleRequestError(c, ServerError("Failed to build collaboration session response"))
+		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"session_id":      session.ID,
-		"threat_model_id": threatModelId,
-		"diagram_id":      diagramId,
-		"participants":    participants,
-		"websocket_url":   h.buildWebSocketURL(c, threatModelId, diagramId),
-	})
+	c.JSON(http.StatusCreated, collaborationSession)
 }
 
 // DeleteDiagramCollaborate leaves a collaboration session for a diagram within a threat model

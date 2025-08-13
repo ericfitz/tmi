@@ -90,11 +90,11 @@ type Role = AuthorizationRole
 
 const (
 	// RoleOwner has full control over the resource
-	RoleOwner Role = Owner
+	RoleOwner Role = AuthorizationRoleOwner
 	// RoleWriter can edit but not delete or change ownership
-	RoleWriter Role = Writer
+	RoleWriter Role = AuthorizationRoleWriter
 	// RoleReader can only view the resource
-	RoleReader Role = Reader
+	RoleReader Role = AuthorizationRoleReader
 )
 
 // ErrAccessDenied indicates an authorization failure
