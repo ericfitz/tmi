@@ -7,8 +7,10 @@
 5. Owner Field Precedence: The user listed in the "owner" field automatically gets owner role permissions, regardless of what appears in the authorization field. If the same user appears in both the owner field and authorization list, the owner field takes absolute precedence and they receive owner permissions.
 6. Owner Transfer Protection: When an owner changes the owner field to a different username, the handler automatically adds the original owner as a subject in the authorization field with "owner" role. This prevents owners from losing access when transferring ownership.
 7. Subject Duplication Validation: Input validation prevents duplicate subjects in the authorization field to maintain data integrity. Requests containing duplicate subjects will be rejected as invalid.
-8. Permission Resolution for Multiple Roles: If validation is bypassed and a user appears multiple times in the authorization field with different roles, the system grants the highest role (owner > writer > reader). However, input validation should prevent this scenario.
-9. Role Updates: If a patch request includes a subject that already exists in the authorization field, the new role value will overwrite the existing role for that subject.
+8. Permission Resolution for Multiple Roles: If a user appears multiple times in the authorization field with different roles, the system grants the highest role (owner > writer > reader). However, input validation should prevent this scenario.
+9. Role Updates: If a patch request for the authorization field includes a subject that already exists in the authorization field, the new role value will overwrite the existing role for that subject.
+10. Role precedence: Owner > Writer > Reader.
+11. Canonical order: There is no canonical ordering to entries in authorization; authorization checks do not short-circuit on the first match for a user. If the requesting user is not the owner, then all authorization entries are considered in the authorization decision.
 
 # User-Immutable Properties
 
@@ -21,24 +23,29 @@
 The system uses the following logic to determine a user's effective permissions:
 
 ## Owner Field Precedence
-1. **Owner Check**: If the user matches the value in the "owner" field, they receive owner-level permissions regardless of any authorization list entries.
-2. **Authorization List Check**: If the user is not the owner, the system checks the authorization list for their permissions.
 
-## Multiple Role Resolution  
+1. **Owner Check**: If the user matches the value in the "owner" field, they receive owner-level permissions regardless of any authorization list entries.
+2. **Authorization List Check**: If the user is not the owner, the system checks the authorization list for their permissions. All entries in authorization are checked in accordance with rule 11.
+
+## Multiple Role Resolution
+
 If a user appears multiple times in the authorization list with different roles (which should be prevented by input validation), the system grants the highest role:
-- **Role Hierarchy**: owner > writer > reader
-- **Example**: A user with both "reader" and "writer" roles receives "writer" permissions
+
+- **Role Precedence**: owner > writer > reader (rule 10)
+- **Example**: A user with both "reader" and "writer" roles receives "writer" permissions because "writer" has higher precedence.
 - **Example**: A user with "reader", "writer", and "owner" roles receives "owner" permissions
 
 ## Owner-Subject Duplication
+
 The system gracefully handles cases where the owner also appears in the authorization list:
+
 - **Owner in auth list with lower role**: Owner field wins (e.g., owner="user1", auth=[{subject="user1", role="reader"}] → user gets owner permissions)
 - **Owner in auth list with equal role**: Both provide same permissions (e.g., owner="user1", auth=[{subject="user1", role="owner"}] → user gets owner permissions)
-- **Supports ownership transitions**: Allows scenarios like owner="user1", auth=[{subject="user2", role="owner"}] for safe ownership transfers
+- **Supports ownership transitions**: Allows scenarios like owner="user1", auth=[{subject="user1", role="owner"},{subject="user2", role="owner"}] for safe ownership transfers with no unowned intermediate state.
 
 # Authorization Checking
 
-1. Authorization checking is primarily performed by middleware. The middleware allows creates for authorized users (rule 1 above), and for requests involving a specific object, the middleware retrieves the Owner and Authorization fields from the server, and implements rules 2, 3, 4, 5, and 8 above.
+1. Authorization checking is primarily performed by middleware. The middleware allows creates for authorized users (rule 1 above), and for requests involving a specific object, the middleware retrieves the Owner and Authorization fields from the server, and implements rules 2, 3, 4, 5, 8 and 11 above.
 2. Rules 6, 7, and 9 above are implemented in the handler, since they require reading the entire request.
 
 # Authorization Testing
@@ -50,7 +57,7 @@ Described below are test cases for our authorization rules and custom ownership 
 - TestValidateDuplicateSubjects: Verifies that input validation rejects requests with duplicate subjects in the authorization field
 - TestPermissionResolution: Comprehensive test of permission resolution logic:
   - Owner field takes absolute precedence over authorization list entries
-  - When multiple roles exist for the same subject, the highest role wins (owner > writer > reader) 
+  - When multiple roles exist for the same subject, the highest role wins (owner > writer > reader)
   - Single role assignments work correctly with role hierarchy
 - TestIsHigherRole: Tests the role comparison logic used for permission resolution
 
