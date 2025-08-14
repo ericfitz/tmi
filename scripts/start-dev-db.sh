@@ -24,7 +24,7 @@ if ! docker ps -a --format '{{.Names}}' | grep -q $CONTAINER_NAME; then
     
     # Wait for PostgreSQL to initialize (new containers need more time)
     echo "Waiting for PostgreSQL to initialize (new container)..."
-    sleep 8
+    sleep 10
 else
     # Check if the container is running
     if ! docker ps --format '{{.Names}}' | grep -q $CONTAINER_NAME; then
@@ -51,7 +51,7 @@ fi
 echo "Verifying PostgreSQL connection..."
 
 # Wait for PostgreSQL to be ready with retries
-MAX_RETRIES=10
+MAX_RETRIES=15
 RETRY_COUNT=0
 POSTGRES_READY=false
 
@@ -70,6 +70,7 @@ if [ "$POSTGRES_READY" = true ]; then
     echo "PostgreSQL is ready."
 else
     echo "Warning: PostgreSQL is not responding after $MAX_RETRIES attempts. The container may need more time to initialize."
+    exit 1
 fi
 
 echo "Database container is ready for TMI service."
