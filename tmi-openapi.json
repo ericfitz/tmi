@@ -1435,7 +1435,8 @@
           "participants": [
             {
               "user_id": "user@example.com",
-              "joined_at": "2025-04-06T12:02:00Z"
+              "joined_at": "2025-04-06T12:02:00Z",
+              "permissions": "writer"
             }
           ],
           "websocket_url": "wss://api.example.com/threat_models/5311D207-AFD5-4A1A-BA83-14C1445DC257/diagrams/DFF7F4A9-CBCE-4001-9198-2706C86F7EF3/ws"

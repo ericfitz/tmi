@@ -59,6 +59,9 @@ type DiagramSession struct {
 	// Client sequence tracking for out-of-order detection
 	clientLastSequence map[string]uint64
 
+	// Intended participants (users who have joined via REST API, regardless of WebSocket status)
+	IntendedParticipants map[string]time.Time
+
 	// Mutex for thread safety
 	mu sync.RWMutex
 }
@@ -282,15 +285,21 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 		LastActivity:  time.Now().UTC(),
 
 		// Enhanced collaboration state
-		Owner:              ownerUserID,
-		CurrentPresenter:   ownerUserID, // Owner starts as presenter
-		NextSequenceNumber: 1,
-		OperationHistory:   NewOperationHistory(),
-		recentCorrections:  make(map[string]int),
-		clientLastSequence: make(map[string]uint64),
+		Owner:                ownerUserID,
+		CurrentPresenter:     ownerUserID, // Owner starts as presenter
+		NextSequenceNumber:   1,
+		OperationHistory:     NewOperationHistory(),
+		recentCorrections:    make(map[string]int),
+		clientLastSequence:   make(map[string]uint64),
+		IntendedParticipants: make(map[string]time.Time),
 	}
 
 	h.Diagrams[diagramID] = session
+
+	// Add owner as initial intended participant
+	if ownerUserID != "" {
+		session.IntendedParticipants[ownerUserID] = time.Now().UTC()
+	}
 
 	// Record session start
 	if GlobalPerformanceMonitor != nil {
@@ -309,6 +318,18 @@ func NewOperationHistory() *OperationHistory {
 		CurrentState:    make(map[string]*Cell),
 		MaxEntries:      100, // Keep last 100 operations
 		CurrentPosition: 0,   // No operations applied yet
+	}
+}
+
+// AddIntendedParticipant adds a user to the intended participants list
+func (h *WebSocketHub) AddIntendedParticipant(diagramID string, userName string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if session, ok := h.Diagrams[diagramID]; ok {
+		session.mu.Lock()
+		session.IntendedParticipants[userName] = time.Now().UTC()
+		session.mu.Unlock()
 	}
 }
 
@@ -571,11 +592,12 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 		JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
 		Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
 		UserId      *string                                      `json:"user_id,omitempty"`
-	}, 0, len(session.Clients))
+	}, 0, len(session.Clients)+len(session.IntendedParticipants))
 
-	// Track whether current user is already in participants
-	currentUserFound := false
+	// Track users already processed to avoid duplicates
+	processedUsers := make(map[string]bool)
 
+	// First, add users from active WebSocket clients
 	for client := range session.Clients {
 		// Get user's session permissions using existing auth system
 		permissions := getSessionPermissionsForUser(client.UserName, &tm)
@@ -585,9 +607,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 			continue
 		}
 
-		if client.UserName == currentUser {
-			currentUserFound = true
-		}
+		processedUsers[client.UserName] = true
 
 		participants = append(participants, struct {
 			JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
@@ -600,8 +620,36 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 		})
 	}
 
-	// Add current user if not anonymous and not already in participants
-	if currentUser != "" && !currentUserFound {
+	// Then, add intended participants who don't have active WebSocket connections
+	for userName, joinTime := range session.IntendedParticipants {
+		if processedUsers[userName] {
+			// User already added as active client, skip
+			continue
+		}
+
+		// Get user's session permissions using existing auth system
+		permissions := getSessionPermissionsForUser(userName, &tm)
+
+		if permissions == nil {
+			// User is unauthorized, skip them
+			continue
+		}
+
+		processedUsers[userName] = true
+
+		participants = append(participants, struct {
+			JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
+			Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
+			UserId      *string                                      `json:"user_id,omitempty"`
+		}{
+			JoinedAt:    &joinTime,
+			Permissions: permissions,
+			UserId:      &userName,
+		})
+	}
+
+	// Finally, ensure current user is included if not already processed
+	if currentUser != "" && !processedUsers[currentUser] {
 		permissions := getSessionPermissionsForUser(currentUser, &tm)
 
 		if permissions == nil {

@@ -709,6 +709,11 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 	// Get or create collaboration session
 	session := h.wsHub.GetOrCreateSession(diagramId, threatModelId, userName)
 
+	// Pre-register the joining user as an intended participant
+	if userName != "" {
+		h.wsHub.AddIntendedParticipant(diagramId, userName)
+	}
+
 	// Build proper CollaborationSession response
 	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, userName)
 	if err != nil {
@@ -717,7 +722,7 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 		return
 	}
 
-	c.JSON(http.StatusCreated, collaborationSession)
+	c.JSON(http.StatusOK, collaborationSession)
 }
 
 // DeleteDiagramCollaborate leaves a collaboration session for a diagram within a threat model
