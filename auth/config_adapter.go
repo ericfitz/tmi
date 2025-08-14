@@ -3,11 +3,11 @@ package auth
 import (
 	"context"
 	"fmt"
-	"log"
 	"path/filepath"
 
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -113,6 +113,6 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) error {
 	// Store global reference to database manager
 	globalDBManager = dbManager
 
-	log.Println("Authentication system initialized successfully")
+	logging.Get().Info("Authentication system initialized successfully")
 	return nil
 }

@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -180,7 +180,7 @@ var upgrader = websocket.Upgrader{
 			}
 		}
 
-		log.Printf("Rejected WebSocket connection from origin: %s", origin)
+		logging.Get().Warn("Rejected WebSocket connection from origin: %s", origin)
 		return false
 	},
 }
@@ -524,7 +524,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 	// Convert diagram ID to UUID
 	diagramUUID, err := uuid.Parse(diagramID)
 	if err != nil {
-		log.Printf("[ERROR] buildCollaborationSessionFromDiagramSession: Failed to parse diagram ID '%s': %v", diagramID, err)
+		logging.Get().Error("buildCollaborationSessionFromDiagramSession: Failed to parse diagram ID '%s': %v", diagramID, err)
 		return nil, fmt.Errorf("invalid diagram ID: %w", err)
 	}
 
@@ -760,36 +760,36 @@ func (h *WebSocketHub) userHasAccessToThreatModel(userName string, threatModelId
 func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_types.UUID {
 	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), return empty UUID
 	if ThreatModelStore == nil {
-		log.Printf("[DEBUG] ThreatModelStore is nil, denying WebSocket access for diagram %s", diagramID)
+		logging.Get().Debug(" ThreatModelStore is nil, denying WebSocket access for diagram %s", diagramID)
 		return openapi_types.UUID{}
 	}
 
 	// Search through all threat models to find the one containing this diagram
 	// Use a large limit to get all threat models (in practice we should have pagination)
 	threatModels := ThreatModelStore.List(0, 1000, nil)
-	log.Printf("[DEBUG] Searching for diagram %s in %d threat models", diagramID, len(threatModels))
+	logging.Get().Debug(" Searching for diagram %s in %d threat models", diagramID, len(threatModels))
 
 	for _, tm := range threatModels {
 		if tm.Diagrams != nil {
-			log.Printf("[DEBUG] Checking threat model %s with %d diagrams", tm.Id.String(), len(*tm.Diagrams))
+			logging.Get().Debug(" Checking threat model %s with %d diagrams", tm.Id.String(), len(*tm.Diagrams))
 			for _, diagramUnion := range *tm.Diagrams {
 				// Convert union type to DfdDiagram to get the ID
 				if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
-					log.Printf("[DEBUG] Found diagram %s in threat model %s", dfdDiag.Id.String(), tm.Id.String())
+					logging.Get().Debug(" Found diagram %s in threat model %s", dfdDiag.Id.String(), tm.Id.String())
 					if dfdDiag.Id.String() == diagramID {
-						log.Printf("[DEBUG] Match found! Diagram %s belongs to threat model %s", diagramID, tm.Id.String())
+						logging.Get().Debug(" Match found! Diagram %s belongs to threat model %s", diagramID, tm.Id.String())
 						return *tm.Id
 					}
 				} else {
-					log.Printf("[DEBUG] Failed to convert diagram union to DfdDiagram: %v", err)
+					logging.Get().Debug(" Failed to convert diagram union to DfdDiagram: %v", err)
 				}
 			}
 		} else {
-			log.Printf("[DEBUG] Threat model %s has nil Diagrams", tm.Id.String())
+			logging.Get().Debug(" Threat model %s has nil Diagrams", tm.Id.String())
 		}
 	}
 
-	log.Printf("[DEBUG] Diagram %s not found in any threat model", diagramID)
+	logging.Get().Debug(" Diagram %s not found in any threat model", diagramID)
 	return openapi_types.UUID{}
 }
 
@@ -1049,7 +1049,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Upgrade to WebSocket
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("Failed to upgrade connection: %v", err)
+		logging.Get().Info("Failed to upgrade connection: %v", err)
 		return
 	}
 
@@ -1176,7 +1176,7 @@ func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte)
 	}
 
 	if err := json.Unmarshal(message, &baseMsg); err != nil {
-		log.Printf("Error parsing message: %v", err)
+		logging.Get().Info("Error parsing message: %v", err)
 		return
 	}
 
@@ -1221,7 +1221,7 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 
 	var msg DiagramOperationMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		log.Printf("Error parsing diagram operation: %v", err)
+		logging.Get().Info("Error parsing diagram operation: %v", err)
 		return
 	}
 
@@ -1232,7 +1232,7 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 
 	// Validate message
 	if msg.UserID != client.UserName {
-		log.Printf("User ID mismatch in diagram operation: %s != %s", msg.UserID, client.UserName)
+		logging.Get().Info("User ID mismatch in diagram operation: %s != %s", msg.UserID, client.UserName)
 		return
 	}
 
@@ -1254,11 +1254,11 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 
 		if exists && *msg.SequenceNumber != expectedSeq {
 			if *msg.SequenceNumber < expectedSeq {
-				log.Printf("Duplicate or old message from %s: expected %d, got %d",
+				logging.Get().Info("Duplicate or old message from %s: expected %d, got %d",
 					client.UserName, expectedSeq, *msg.SequenceNumber)
 				s.trackPotentialSyncIssue(client.UserName, "duplicate_message")
 			} else {
-				log.Printf("Message gap detected from %s: expected %d, got %d (gap of %d)",
+				logging.Get().Info("Message gap detected from %s: expected %d, got %d (gap of %d)",
 					client.UserName, expectedSeq, *msg.SequenceNumber, *msg.SequenceNumber-expectedSeq)
 				s.trackPotentialSyncIssue(client.UserName, "message_gap")
 			}
@@ -1281,12 +1281,12 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 	processor := NewCellOperationProcessor(DiagramStore)
 	result, err := processor.ProcessCellOperations(s.DiagramID, msg.Operation)
 	if err != nil {
-		log.Printf("Failed to process cell operation: %v", err)
+		logging.Get().Info("Failed to process cell operation: %v", err)
 		return
 	}
 
 	if !result.Valid {
-		log.Printf("Operation %s validation failed: %s", msg.OperationID, result.Reason)
+		logging.Get().Info("Operation %s validation failed: %s", msg.OperationID, result.Reason)
 
 		if result.CorrectionNeeded {
 			s.sendStateCorrection(client, result.CellsModified)
@@ -1295,7 +1295,7 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 	}
 
 	if !result.StateChanged {
-		log.Printf("Operation %s resulted in no state changes", msg.OperationID)
+		logging.Get().Info("Operation %s resulted in no state changes", msg.OperationID)
 
 		// Record operation performance even for no-op operations
 		if GlobalPerformanceMonitor != nil {
@@ -1330,7 +1330,7 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 		GlobalPerformanceMonitor.RecordOperation(perf)
 	}
 
-	log.Printf("Successfully applied operation %s from %s with sequence %d",
+	logging.Get().Info("Successfully applied operation %s from %s with sequence %d",
 		msg.OperationID, msg.UserID, *msg.SequenceNumber)
 
 	// Broadcast to all other clients (not the sender)
@@ -1341,13 +1341,13 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, message []byte) {
 	var msg PresenterRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		log.Printf("Error parsing presenter request: %v", err)
+		logging.Get().Info("Error parsing presenter request: %v", err)
 		return
 	}
 
 	// Validate user ID matches client
 	if msg.UserID != client.UserName {
-		log.Printf("User ID mismatch in presenter request: %s != %s", msg.UserID, client.UserName)
+		logging.Get().Info("User ID mismatch in presenter request: %s != %s", msg.UserID, client.UserName)
 		return
 	}
 
@@ -1358,7 +1358,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 
 	// If user is already the presenter, ignore
 	if msg.UserID == currentPresenter {
-		log.Printf("User %s is already the presenter", msg.UserID)
+		logging.Get().Info("User %s is already the presenter", msg.UserID)
 		return
 	}
 
@@ -1374,7 +1374,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 			CurrentPresenter: msg.UserID,
 		}
 		s.broadcastMessage(broadcastMsg)
-		log.Printf("Owner %s became presenter in session %s", msg.UserID, s.ID)
+		logging.Get().Info("Owner %s became presenter in session %s", msg.UserID, s.ID)
 		return
 	}
 
@@ -1384,9 +1384,9 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	if ownerClient != nil {
 		// Forward the request to the owner for approval
 		s.sendToClient(ownerClient, msg)
-		log.Printf("Forwarded presenter request from %s to owner %s in session %s", msg.UserID, owner, s.ID)
+		logging.Get().Info("Forwarded presenter request from %s to owner %s in session %s", msg.UserID, owner, s.ID)
 	} else {
-		log.Printf("Owner %s not connected, cannot process presenter request from %s", owner, msg.UserID)
+		logging.Get().Info("Owner %s not connected, cannot process presenter request from %s", owner, msg.UserID)
 
 		// Send denial to requester since owner is not available
 		deniedMsg := PresenterDeniedMessage{
@@ -1402,7 +1402,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message []byte) {
 	var msg ChangePresenterMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		log.Printf("Error parsing change presenter: %v", err)
+		logging.Get().Info("Error parsing change presenter: %v", err)
 		return
 	}
 
@@ -1412,7 +1412,7 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 	s.mu.RUnlock()
 
 	if client.UserName != owner {
-		log.Printf("Non-owner attempted to change presenter: %s", client.UserName)
+		logging.Get().Info("Non-owner attempted to change presenter: %s", client.UserName)
 		return
 	}
 
@@ -1427,14 +1427,14 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 		CurrentPresenter: msg.NewPresenter,
 	}
 	s.broadcastMessage(broadcastMsg)
-	log.Printf("Owner %s changed presenter to %s in session %s", client.UserName, msg.NewPresenter, s.ID)
+	logging.Get().Info("Owner %s changed presenter to %s in session %s", client.UserName, msg.NewPresenter, s.ID)
 }
 
 // processPresenterDenied handles owner denying presenter requests
 func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message []byte) {
 	var msg PresenterDeniedMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		log.Printf("Error parsing presenter denied: %v", err)
+		logging.Get().Info("Error parsing presenter denied: %v", err)
 		return
 	}
 
@@ -1444,13 +1444,13 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	s.mu.RUnlock()
 
 	if client.UserName != owner {
-		log.Printf("Non-owner attempted to deny presenter request: %s", client.UserName)
+		logging.Get().Info("Non-owner attempted to deny presenter request: %s", client.UserName)
 		return
 	}
 
 	// Validate user ID matches client (sender should be owner)
 	if msg.UserID != client.UserName {
-		log.Printf("User ID mismatch in presenter denied: %s != %s", msg.UserID, client.UserName)
+		logging.Get().Info("User ID mismatch in presenter denied: %s != %s", msg.UserID, client.UserName)
 		return
 	}
 
@@ -1458,9 +1458,9 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	targetClient := s.findClientByUserID(msg.TargetUser)
 	if targetClient != nil {
 		s.sendToClient(targetClient, msg)
-		log.Printf("Owner %s denied presenter request from %s in session %s", msg.UserID, msg.TargetUser, s.ID)
+		logging.Get().Info("Owner %s denied presenter request from %s in session %s", msg.UserID, msg.TargetUser, s.ID)
 	} else {
-		log.Printf("Target user %s not found for presenter denial in session %s", msg.TargetUser, s.ID)
+		logging.Get().Info("Target user %s not found for presenter denial in session %s", msg.TargetUser, s.ID)
 	}
 }
 
@@ -1468,13 +1468,13 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message []byte) {
 	var msg PresenterCursorMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		log.Printf("Error parsing presenter cursor: %v", err)
+		logging.Get().Info("Error parsing presenter cursor: %v", err)
 		return
 	}
 
 	// Validate user ID matches client
 	if msg.UserID != client.UserName {
-		log.Printf("User ID mismatch in presenter cursor: %s != %s", msg.UserID, client.UserName)
+		logging.Get().Info("User ID mismatch in presenter cursor: %s != %s", msg.UserID, client.UserName)
 		return
 	}
 
@@ -1484,7 +1484,7 @@ func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message
 	s.mu.RUnlock()
 
 	if client.UserName != currentPresenter {
-		log.Printf("Non-presenter attempted to send cursor: %s", client.UserName)
+		logging.Get().Info("Non-presenter attempted to send cursor: %s", client.UserName)
 		return
 	}
 
@@ -1496,13 +1496,13 @@ func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message
 func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, message []byte) {
 	var msg PresenterSelectionMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		log.Printf("Error parsing presenter selection: %v", err)
+		logging.Get().Info("Error parsing presenter selection: %v", err)
 		return
 	}
 
 	// Validate user ID matches client
 	if msg.UserID != client.UserName {
-		log.Printf("User ID mismatch in presenter selection: %s != %s", msg.UserID, client.UserName)
+		logging.Get().Info("User ID mismatch in presenter selection: %s != %s", msg.UserID, client.UserName)
 		return
 	}
 
@@ -1512,7 +1512,7 @@ func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, mess
 	s.mu.RUnlock()
 
 	if client.UserName != currentPresenter {
-		log.Printf("Non-presenter attempted to send selection: %s", client.UserName)
+		logging.Get().Info("Non-presenter attempted to send selection: %s", client.UserName)
 		return
 	}
 
@@ -1524,17 +1524,17 @@ func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, mess
 func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message []byte) {
 	var msg ResyncRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		log.Printf("Error parsing resync request: %v", err)
+		logging.Get().Info("Error parsing resync request: %v", err)
 		return
 	}
 
 	// Validate user ID matches client
 	if msg.UserID != client.UserName {
-		log.Printf("User ID mismatch in resync request: %s != %s", msg.UserID, client.UserName)
+		logging.Get().Info("User ID mismatch in resync request: %s != %s", msg.UserID, client.UserName)
 		return
 	}
 
-	log.Printf("Client %s requested resync for diagram %s", client.UserName, s.DiagramID)
+	logging.Get().Info("Client %s requested resync for diagram %s", client.UserName, s.DiagramID)
 
 	// According to the plan, we use REST API for resync for simplicity
 	// Send a message telling the client to use the REST endpoint for resync
@@ -1548,7 +1548,7 @@ func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message [
 	}
 
 	s.sendToClient(client, resyncResponse)
-	log.Printf("Sent resync response to %s for diagram %s", msg.UserID, s.DiagramID)
+	logging.Get().Info("Sent resync response to %s for diagram %s", msg.UserID, s.DiagramID)
 
 	// Record performance metrics
 	if GlobalPerformanceMonitor != nil {
@@ -1560,13 +1560,13 @@ func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message [
 func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []byte) {
 	var msg UndoRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		log.Printf("Error parsing undo request: %v", err)
+		logging.Get().Info("Error parsing undo request: %v", err)
 		return
 	}
 
 	// Validate user ID matches client
 	if msg.UserID != client.UserName {
-		log.Printf("User ID mismatch in undo request: %s != %s", msg.UserID, client.UserName)
+		logging.Get().Info("User ID mismatch in undo request: %s != %s", msg.UserID, client.UserName)
 		return
 	}
 
@@ -1578,7 +1578,7 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 
 	// Check if undo is possible
 	if !s.OperationHistory.CanUndo() {
-		log.Printf("No operations to undo for user %s", client.UserName)
+		logging.Get().Info("No operations to undo for user %s", client.UserName)
 		// Send message indicating no undo available
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -1592,7 +1592,7 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 	// Get the operation to undo
 	entry, previousState, ok := s.OperationHistory.GetUndoOperation()
 	if !ok {
-		log.Printf("Failed to get undo operation for user %s", client.UserName)
+		logging.Get().Info("Failed to get undo operation for user %s", client.UserName)
 		// Send resync required as fallback
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -1606,7 +1606,7 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 	// Apply the undo by restoring previous state
 	err := s.applyHistoryState(previousState)
 	if err != nil {
-		log.Printf("Failed to apply undo state: %v", err)
+		logging.Get().Info("Failed to apply undo state: %v", err)
 		// Send resync required as fallback
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -1627,20 +1627,20 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 		Message:       "resync_required", // For now, tell clients to resync
 	}
 	s.broadcastToAllClients(response)
-	log.Printf("Processed undo request from %s, reverted to sequence %d", client.UserName, entry.SequenceNumber-1)
+	logging.Get().Info("Processed undo request from %s, reverted to sequence %d", client.UserName, entry.SequenceNumber-1)
 }
 
 // processRedoRequest handles redo requests
 func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []byte) {
 	var msg RedoRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		log.Printf("Error parsing redo request: %v", err)
+		logging.Get().Info("Error parsing redo request: %v", err)
 		return
 	}
 
 	// Validate user ID matches client
 	if msg.UserID != client.UserName {
-		log.Printf("User ID mismatch in redo request: %s != %s", msg.UserID, client.UserName)
+		logging.Get().Info("User ID mismatch in redo request: %s != %s", msg.UserID, client.UserName)
 		return
 	}
 
@@ -1652,7 +1652,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 
 	// Check if redo is possible
 	if !s.OperationHistory.CanRedo() {
-		log.Printf("No operations to redo for user %s", client.UserName)
+		logging.Get().Info("No operations to redo for user %s", client.UserName)
 		// Send message indicating no redo available
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -1666,7 +1666,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 	// Get the operation to redo
 	entry, ok := s.OperationHistory.GetRedoOperation()
 	if !ok {
-		log.Printf("Failed to get redo operation for user %s", client.UserName)
+		logging.Get().Info("Failed to get redo operation for user %s", client.UserName)
 		// Send resync required as fallback
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -1680,7 +1680,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 	// Apply the redo by re-executing the operation
 	err := s.applyHistoryOperation(entry.Operation)
 	if err != nil {
-		log.Printf("Failed to apply redo operation: %v", err)
+		logging.Get().Info("Failed to apply redo operation: %v", err)
 		// Send resync required as fallback
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -1701,7 +1701,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 		Message:       "resync_required", // For now, tell clients to resync
 	}
 	s.broadcastToAllClients(response)
-	log.Printf("Processed redo request from %s, restored to sequence %d", client.UserName, entry.SequenceNumber)
+	logging.Get().Info("Processed redo request from %s, restored to sequence %d", client.UserName, entry.SequenceNumber)
 }
 
 // processLegacyMessage handles backward compatibility with old message format
@@ -1711,13 +1711,13 @@ func (s *DiagramSession) processLegacyMessage(client *WebSocketClient, message [
 		Operation json.RawMessage `json:"operation"`
 	}
 	if err := json.Unmarshal(message, &clientMsg); err != nil {
-		log.Printf("Error parsing legacy WebSocket message: %v", err)
+		logging.Get().Info("Error parsing legacy WebSocket message: %v", err)
 		return
 	}
 
 	// Validate message size
 	if len(clientMsg.Operation) > 1024*50 { // 50KB limit
-		log.Printf("Operation too large (%d bytes), ignoring", len(clientMsg.Operation))
+		logging.Get().Info("Operation too large (%d bytes), ignoring", len(clientMsg.Operation))
 		return
 	}
 
@@ -1731,13 +1731,13 @@ func (s *DiagramSession) processLegacyMessage(client *WebSocketClient, message [
 	// Unmarshal operation
 	var op DiagramOperation
 	if err := json.Unmarshal(clientMsg.Operation, &op); err != nil {
-		log.Printf("Error parsing operation: %v", err)
+		logging.Get().Info("Error parsing operation: %v", err)
 		return
 	}
 
 	// Validate operation
 	if err := validateDiagramOperation(op); err != nil {
-		log.Printf("Invalid diagram operation: %v", err)
+		logging.Get().Info("Invalid diagram operation: %v", err)
 		return
 	}
 
@@ -1745,14 +1745,14 @@ func (s *DiagramSession) processLegacyMessage(client *WebSocketClient, message [
 
 	// Apply operation to the diagram
 	if err := applyDiagramOperation(s.DiagramID, op); err != nil {
-		log.Printf("Error applying operation to diagram: %v", err)
+		logging.Get().Info("Error applying operation to diagram: %v", err)
 		// Still broadcast the operation to maintain consistency
 	}
 
 	// Marshal and broadcast
 	msgBytes, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("Error marshaling message: %v", err)
+		logging.Get().Info("Error marshaling message: %v", err)
 		return
 	}
 
@@ -1766,7 +1766,7 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	log.Printf("Presenter %s disconnected from session %s, reassigning presenter", disconnectedUserID, s.ID)
+	logging.Get().Info("Presenter %s disconnected from session %s, reassigning presenter", disconnectedUserID, s.ID)
 
 	// Reset presenter according to the plan:
 	// 1. First try to set presenter back to session owner
@@ -1789,7 +1789,7 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		// Get the threat model to check user permissions
 		tm, err := ThreatModelStore.Get(s.ThreatModelID)
 		if err != nil {
-			log.Printf("Failed to get threat model %s for presenter reassignment: %v", s.ThreatModelID, err)
+			logging.Get().Info("Failed to get threat model %s for presenter reassignment: %v", s.ThreatModelID, err)
 		} else {
 			// Find first connected user with write permissions
 			for client := range s.Clients {
@@ -1817,11 +1817,11 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		s.broadcastMessage(broadcastMsg)
 		s.mu.Lock()
 
-		log.Printf("Set new presenter to %s in session %s after %s disconnected", newPresenter, s.ID, disconnectedUserID)
+		logging.Get().Info("Set new presenter to %s in session %s after %s disconnected", newPresenter, s.ID, disconnectedUserID)
 	} else {
 		// No suitable presenter found, clear presenter
 		s.CurrentPresenter = ""
-		log.Printf("No suitable presenter found for session %s after %s disconnected", s.ID, disconnectedUserID)
+		logging.Get().Info("No suitable presenter found for session %s after %s disconnected", s.ID, disconnectedUserID)
 	}
 }
 
@@ -1926,7 +1926,7 @@ func (s *DiagramSession) sendStateCorrectionWithReason(client *WebSocketClient, 
 		return
 	}
 
-	log.Printf("Sending state correction to %s for cells %v (reason: %s)", client.UserName, affectedCellIDs, reason)
+	logging.Get().Info("Sending state correction to %s for cells %v (reason: %s)", client.UserName, affectedCellIDs, reason)
 
 	// Check user permission level for enhanced messaging
 	userRole := s.getUserRole(client.UserName)
@@ -1939,7 +1939,7 @@ func (s *DiagramSession) sendEnhancedStateCorrection(client *WebSocketClient, af
 	// Get current diagram state
 	diagram, err := DiagramStore.Get(s.DiagramID)
 	if err != nil {
-		log.Printf("Error getting diagram for state correction: %v", err)
+		logging.Get().Info("Error getting diagram for state correction: %v", err)
 		return
 	}
 
@@ -1995,24 +1995,24 @@ func (s *DiagramSession) logEnhancedStateCorrection(userID string, reason string
 
 	switch reason {
 	case "unauthorized_operation":
-		log.Printf("STATE CORRECTION [UNAUTHORIZED]: User %s (%s role) attempted unauthorized operation - sent %d cell corrections, %d deletions (total cells: %d)",
+		logging.Get().Warn("STATE CORRECTION [UNAUTHORIZED]: User %s (%s role) attempted unauthorized operation - sent %d cell corrections, %d deletions (total cells: %d)",
 			userID, roleStr, correctionsSent, deletionsSent, totalCells)
 
 		// Enhanced security logging for unauthorized operations
 		if userRole == RoleReader {
-			log.Printf("SECURITY ALERT: Read-only user %s attempted to modify diagram %s", userID, s.DiagramID)
+			logging.Get().Error("SECURITY ALERT: Read-only user %s attempted to modify diagram %s", userID, s.DiagramID)
 		}
 
 	case "operation_failed":
-		log.Printf("STATE CORRECTION [OPERATION_FAILED]: User %s (%s role) operation failed - sent %d cell corrections, %d deletions (total cells: %d)",
+		logging.Get().Warn("STATE CORRECTION [OPERATION_FAILED]: User %s (%s role) operation failed - sent %d cell corrections, %d deletions (total cells: %d)",
 			userID, roleStr, correctionsSent, deletionsSent, totalCells)
 
 	case "out_of_order_sequence", "duplicate_message", "message_gap":
-		log.Printf("STATE CORRECTION [SYNC_ISSUE]: User %s (%s role) sync issue (%s) - sent %d cell corrections, %d deletions (total cells: %d)",
+		logging.Get().Warn("STATE CORRECTION [SYNC_ISSUE]: User %s (%s role) sync issue (%s) - sent %d cell corrections, %d deletions (total cells: %d)",
 			userID, roleStr, reason, correctionsSent, deletionsSent, totalCells)
 
 	default:
-		log.Printf("STATE CORRECTION [%s]: User %s (%s role) - sent %d cell corrections, %d deletions (total cells: %d)",
+		logging.Get().Warn("STATE CORRECTION [%s]: User %s (%s role) - sent %d cell corrections, %d deletions (total cells: %d)",
 			strings.ToUpper(reason), userID, roleStr, correctionsSent, deletionsSent, totalCells)
 	}
 }
@@ -2036,7 +2036,7 @@ func (s *DiagramSession) trackCorrectionEvent(userID, reason string) {
 
 	// Log potential sync issues
 	if s.recentCorrections[correctionKey] >= 3 {
-		log.Printf("WARNING: User %s has received %d state corrections for reason '%s' - potential sync issue",
+		logging.Get().Warn("WARNING: User %s has received %d state corrections for reason '%s' - potential sync issue",
 			userID, s.recentCorrections[correctionKey], reason)
 	}
 }
@@ -2058,7 +2058,7 @@ func (s *DiagramSession) trackPotentialSyncIssue(userID, issueType string) {
 
 	// Log potential sync issues based on frequency
 	if s.recentCorrections[issueKey] >= 5 {
-		log.Printf("WARNING: User %s has experienced %d '%s' issues - may need resync",
+		logging.Get().Warn("WARNING: User %s has experienced %d '%s' issues - may need resync",
 			userID, s.recentCorrections[issueKey], issueType)
 
 		// Send automatic resync recommendation to client
@@ -2074,7 +2074,7 @@ func (s *DiagramSession) sendResyncRecommendation(userID, issueType string) {
 	// Find the client by user ID
 	client := s.findClientByUserID(userID)
 	if client == nil {
-		log.Printf("Cannot send resync recommendation: client %s not found", userID)
+		logging.Get().Info("Cannot send resync recommendation: client %s not found", userID)
 		return
 	}
 
@@ -2089,7 +2089,7 @@ func (s *DiagramSession) sendResyncRecommendation(userID, issueType string) {
 	}
 
 	s.sendToClient(client, resyncResponse)
-	log.Printf("Sent automatic resync recommendation to %s due to %s issues", userID, issueType)
+	logging.Get().Info("Sent automatic resync recommendation to %s due to %s issues", userID, issueType)
 }
 
 // applyHistoryState applies a historical state to the diagram (for undo)
@@ -2111,7 +2111,7 @@ func (s *DiagramSession) applyHistoryState(state map[string]*Cell) error {
 		// Convert Cell to DfdDiagram_Cells_Item
 		cellUnion, err := converter.ConvertCellToUnionItem(*cell)
 		if err != nil {
-			log.Printf("Warning: failed to convert cell %s: %v", cell.Id.String(), err)
+			logging.Get().Info("Warning: failed to convert cell %s: %v", cell.Id.String(), err)
 			continue
 		}
 		diagram.Cells = append(diagram.Cells, cellUnion)
@@ -2145,7 +2145,7 @@ func (s *DiagramSession) applyHistoryOperation(operation CellPatchOperation) err
 func (s *DiagramSession) broadcastToAllClients(message interface{}) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("Error marshaling broadcast message: %v", err)
+		logging.Get().Info("Error marshaling broadcast message: %v", err)
 		return
 	}
 
@@ -2161,7 +2161,7 @@ func (s *DiagramSession) broadcastToAllClients(message interface{}) {
 		select {
 		case client.Send <- msgBytes:
 		default:
-			log.Printf("Failed to send message to client %s", client.UserName)
+			logging.Get().Info("Failed to send message to client %s", client.UserName)
 		}
 	}
 }
@@ -2170,14 +2170,14 @@ func (s *DiagramSession) broadcastToAllClients(message interface{}) {
 func (s *DiagramSession) sendToClient(client *WebSocketClient, message interface{}) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("Error marshaling message: %v", err)
+		logging.Get().Info("Error marshaling message: %v", err)
 		return
 	}
 
 	select {
 	case client.Send <- msgBytes:
 	default:
-		log.Printf("Client send channel full, dropping message")
+		logging.Get().Info("Client send channel full, dropping message")
 	}
 }
 
@@ -2185,7 +2185,7 @@ func (s *DiagramSession) sendToClient(client *WebSocketClient, message interface
 func (s *DiagramSession) broadcastMessage(message interface{}) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("Error marshaling broadcast message: %v", err)
+		logging.Get().Info("Error marshaling broadcast message: %v", err)
 		return
 	}
 
@@ -2196,7 +2196,7 @@ func (s *DiagramSession) broadcastMessage(message interface{}) {
 func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message interface{}) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("Error marshaling message: %v", err)
+		logging.Get().Info("Error marshaling message: %v", err)
 		return
 	}
 
@@ -2206,7 +2206,7 @@ func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message inte
 			select {
 			case client.Send <- msgBytes:
 			default:
-				log.Printf("Client send channel full, dropping message")
+				logging.Get().Info("Client send channel full, dropping message")
 			}
 		}
 	}
@@ -2529,7 +2529,7 @@ func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOper
 	// Get current diagram state
 	diagram, err := DiagramStore.Get(s.DiagramID)
 	if err != nil {
-		log.Printf("Failed to get diagram %s: %v", s.DiagramID, err)
+		logging.Get().Info("Failed to get diagram %s: %v", s.DiagramID, err)
 		return false
 	}
 
@@ -2546,7 +2546,7 @@ func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOper
 	result := s.processAndValidateCellOperations(&diagram, currentState, msg.Operation)
 
 	if !result.Valid {
-		log.Printf("Operation %s validation failed: %s", msg.OperationID, result.Reason)
+		logging.Get().Info("Operation %s validation failed: %s", msg.OperationID, result.Reason)
 
 		if result.CorrectionNeeded {
 			s.sendStateCorrection(client, result.CellsModified)
@@ -2556,14 +2556,14 @@ func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOper
 	}
 
 	if !result.StateChanged {
-		log.Printf("Operation %s resulted in no state changes", msg.OperationID)
+		logging.Get().Info("Operation %s resulted in no state changes", msg.OperationID)
 		return false // Don't broadcast no-op operations
 	}
 
 	// Update operation history
 	s.addToHistory(msg, result.PreviousState, currentState)
 
-	log.Printf("Successfully applied operation %s from %s with sequence %d",
+	logging.Get().Info("Successfully applied operation %s from %s with sequence %d",
 		msg.OperationID, msg.UserID, *msg.SequenceNumber)
 
 	return true
@@ -2677,7 +2677,7 @@ func (s *DiagramSession) validateAddOperation(diagram *DfdDiagram, currentState 
 
 	// Save changes
 	if err := DiagramStore.Update(s.DiagramID, *diagram); err != nil {
-		log.Printf("Failed to save diagram after add operation: %v", err)
+		logging.Get().Info("Failed to save diagram after add operation: %v", err)
 		result.Valid = false
 		result.Reason = "save_failed"
 		return result
@@ -2748,7 +2748,7 @@ func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentSta
 
 	// Save changes
 	if err := DiagramStore.Update(s.DiagramID, *diagram); err != nil {
-		log.Printf("Failed to save diagram after update operation: %v", err)
+		logging.Get().Info("Failed to save diagram after update operation: %v", err)
 		result.Valid = false
 		result.Reason = "save_failed"
 		return result
@@ -2791,7 +2791,7 @@ func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentSta
 	if found {
 		// Save changes
 		if err := DiagramStore.Update(s.DiagramID, *diagram); err != nil {
-			log.Printf("Failed to save diagram after remove operation: %v", err)
+			logging.Get().Info("Failed to save diagram after remove operation: %v", err)
 			result.Valid = false
 			result.Reason = "save_failed"
 			return result
@@ -2991,18 +2991,18 @@ func (c *WebSocketClient) ReadPump() {
 	defer func() {
 		c.Session.Unregister <- c
 		if err := c.Conn.Close(); err != nil {
-			log.Printf("Error closing connection: %v", err)
+			logging.Get().Info("Error closing connection: %v", err)
 		}
 	}()
 
 	c.Conn.SetReadLimit(4096) // 4KB message limit
 	if err := c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
-		log.Printf("Error setting read deadline: %v", err)
+		logging.Get().Info("Error setting read deadline: %v", err)
 		return
 	}
 	c.Conn.SetPongHandler(func(string) error {
 		if err := c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
-			log.Printf("Error setting read deadline in pong handler: %v", err)
+			logging.Get().Info("Error setting read deadline in pong handler: %v", err)
 		}
 		return nil
 	})
@@ -3011,7 +3011,7 @@ func (c *WebSocketClient) ReadPump() {
 		_, message, err := c.Conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
+				logging.Get().Info("WebSocket error: %v", err)
 			}
 			break
 		}
@@ -3098,7 +3098,7 @@ func (c *WebSocketClient) WritePump() {
 	defer func() {
 		ticker.Stop()
 		if err := c.Conn.Close(); err != nil {
-			log.Printf("Error closing connection: %v", err)
+			logging.Get().Info("Error closing connection: %v", err)
 		}
 	}()
 
@@ -3106,13 +3106,13 @@ func (c *WebSocketClient) WritePump() {
 		select {
 		case message, ok := <-c.Send:
 			if err := c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-				log.Printf("Error setting write deadline: %v", err)
+				logging.Get().Info("Error setting write deadline: %v", err)
 				return
 			}
 			if !ok {
 				// Hub closed the channel
 				if err := c.Conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
-					log.Printf("Error writing close message: %v", err)
+					logging.Get().Info("Error writing close message: %v", err)
 				}
 				return
 			}
@@ -3122,7 +3122,7 @@ func (c *WebSocketClient) WritePump() {
 				return
 			}
 			if _, err := w.Write(message); err != nil {
-				log.Printf("Error writing message: %v", err)
+				logging.Get().Info("Error writing message: %v", err)
 				return
 			}
 
@@ -3130,11 +3130,11 @@ func (c *WebSocketClient) WritePump() {
 			n := len(c.Send)
 			for i := 0; i < n; i++ {
 				if _, err := w.Write([]byte{'\n'}); err != nil {
-					log.Printf("Error writing newline: %v", err)
+					logging.Get().Info("Error writing newline: %v", err)
 					return
 				}
 				if _, err := w.Write(<-c.Send); err != nil {
-					log.Printf("Error writing queued message: %v", err)
+					logging.Get().Info("Error writing queued message: %v", err)
 					return
 				}
 			}
@@ -3144,7 +3144,7 @@ func (c *WebSocketClient) WritePump() {
 			}
 		case <-ticker.C:
 			if err := c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-				log.Printf("Error setting write deadline for ping: %v", err)
+				logging.Get().Info("Error setting write deadline for ping: %v", err)
 				return
 			}
 			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {

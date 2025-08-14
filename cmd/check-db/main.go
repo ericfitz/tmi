@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -16,7 +15,7 @@ import (
 func main() {
 	// Load environment variables
 	if err := godotenv.Load(".env.dev"); err != nil {
-		log.Printf("Warning: Could not load .env.dev: %v", err)
+		logging.Get().Warn("Warning: Could not load .env.dev: %v", err)
 	}
 
 	// Initialize logger for consistent logging
@@ -25,12 +24,13 @@ func main() {
 		IsDev:            true,
 		AlsoLogToConsole: true,
 	}); err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
+		logging.Get().Error("Failed to initialize logger: %v", err)
+		os.Exit(1)
 	}
 	logger := logging.Get()
 	defer func() {
 		if err := logger.Close(); err != nil {
-			log.Printf("Error closing logger: %v", err)
+			logging.Get().Warn("Error closing logger: %v", err)
 		}
 	}()
 

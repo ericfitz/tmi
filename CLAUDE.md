@@ -170,6 +170,17 @@ make test-api-full               # Full automated API testing (setup + test + cl
 - Integration tests (`make test-integration`) should use real databases and test full workflows
 - Always run `make lint` and `make build` after making changes
 
+## Logging Requirements
+
+**CRITICAL: Never use the standard `log` package. Always use structured logging.**
+
+- **ALWAYS** use `github.com/ericfitz/tmi/internal/logging` for all logging operations
+- **NEVER** import or use the standard `log` package (`"log"`) in any Go code
+- Use `logging.Get()` for global logging or `logging.Get().WithContext(c)` for request-scoped logging
+- Available log levels: `Debug()`, `Info()`, `Warn()`, `Error()`
+- Structured logging provides request context (request ID, user, IP), consistent formatting, and log rotation
+- For main functions that need to exit on fatal errors, use `logging.Get().Error()` followed by `os.Exit(1)` instead of `log.Fatalf()`
+
 ### OpenAPI Integration
 
 - API code generated from tmi-openapi.json using oapi-codegen v2

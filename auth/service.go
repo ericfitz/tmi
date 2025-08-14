@@ -5,8 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"time"
+
+	"github.com/ericfitz/tmi/internal/logging"
 
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/golang-jwt/jwt/v5"
@@ -323,7 +324,7 @@ func (s *Service) GetUserProviders(ctx context.Context, userID string) ([]UserPr
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			log.Printf("Error closing rows: %v", err)
+			logging.Get().Error("Error closing rows: %v", err)
 		}
 	}()
 

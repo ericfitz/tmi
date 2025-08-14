@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -1122,13 +1121,15 @@ func main() {
 	// Parse command line flags
 	configFile, generateConfig, err := config.ParseFlags()
 	if err != nil {
-		log.Fatalf("Error parsing flags: %v", err)
+		logging.Get().Error("Error parsing flags: %v", err)
+		os.Exit(1)
 	}
 
 	// Generate example config files if requested
 	if generateConfig {
 		if err := config.GenerateExampleConfig(); err != nil {
-			log.Fatalf("Error generating config: %v", err)
+			logging.Get().Error("Error generating config: %v", err)
+			os.Exit(1)
 		}
 		return
 	}
@@ -1136,7 +1137,8 @@ func main() {
 	// Load configuration
 	cfg, err := config.Load(configFile)
 	if err != nil {
-		log.Fatalf("Error loading configuration: %v", err)
+		logging.Get().Error("Error loading configuration: %v", err)
+		os.Exit(1)
 	}
 
 	// Initialize logger
@@ -1149,14 +1151,15 @@ func main() {
 		MaxBackups:       cfg.Logging.MaxBackups,
 		AlsoLogToConsole: cfg.Logging.AlsoLogToConsole,
 	}); err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
+		logging.Get().Error("Failed to initialize logger: %v", err)
+		os.Exit(1)
 	}
 
 	// Get logger instance
 	logger := logging.Get()
 	defer func() {
 		if err := logger.Close(); err != nil {
-			log.Printf("Error closing logger: %v", err)
+			logging.Get().Error("Error closing logger: %v", err)
 		}
 	}()
 

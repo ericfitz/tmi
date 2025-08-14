@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,7 +26,7 @@ func main() {
 
 	// Load environment variables
 	if err := godotenv.Load(*envFile); err != nil {
-		log.Printf("Warning: Could not load env file %s: %v", *envFile, err)
+		logging.Get().Info("Warning: Could not load env file %s: %v", *envFile, err)
 	}
 
 	// Create database configuration
@@ -44,13 +43,14 @@ func main() {
 	dbManager := db.NewManager()
 
 	// Initialize PostgreSQL connection
-	log.Printf("Connecting to PostgreSQL at %s:%s/%s", pgConfig.Host, pgConfig.Port, pgConfig.Database)
+	logging.Get().Info("Connecting to PostgreSQL at %s:%s/%s", pgConfig.Host, pgConfig.Port, pgConfig.Database)
 	if err := dbManager.InitPostgres(pgConfig); err != nil {
-		log.Fatalf("Failed to connect to PostgreSQL: %v", err)
+		logging.Get().Error("Failed to connect to PostgreSQL: %v", err)
+		os.Exit(1)
 	}
 	defer func() {
 		if err := dbManager.Close(); err != nil {
-			log.Printf("Error closing database manager: %v", err)
+			logging.Get().Info("Error closing database manager: %v", err)
 		}
 	}()
 
@@ -74,10 +74,11 @@ func main() {
 	}
 
 	if migrationsPath == "" {
-		log.Fatalf("Could not find migrations directory. Tried paths: %v", possiblePaths)
+		logging.Get().Error("Could not find migrations directory. Tried paths: %v", possiblePaths)
+		os.Exit(1)
 	}
 
-	log.Printf("Using migrations from: %s", absPath)
+	logging.Get().Info("Using migrations from: %s", absPath)
 
 	// Create migration config
 	migrationConfig := db.MigrationConfig{
@@ -87,23 +88,26 @@ func main() {
 
 	// Run migrations based on flags
 	if *down {
-		log.Println("Running down migrations...")
+		logging.Get().Info("Running down migrations...")
 		if err := dbManager.MigrateDown(migrationConfig); err != nil {
-			log.Fatalf("Failed to run down migrations: %v", err)
+			logging.Get().Error("Failed to run down migrations: %v", err)
+			os.Exit(1)
 		}
-		log.Println("Down migrations completed successfully")
+		logging.Get().Info("Down migrations completed successfully")
 	} else if *steps != 0 {
-		log.Printf("Running %d migration steps...", *steps)
+		logging.Get().Info("Running %d migration steps...", *steps)
 		if err := dbManager.MigrateStep(migrationConfig, *steps); err != nil {
-			log.Fatalf("Failed to run migration steps: %v", err)
+			logging.Get().Error("Failed to run migration steps: %v", err)
+			os.Exit(1)
 		}
-		log.Printf("%d migration steps completed successfully", *steps)
+		logging.Get().Info("%d migration steps completed successfully", *steps)
 	} else {
-		log.Println("Running all pending migrations...")
+		logging.Get().Info("Running all pending migrations...")
 		if err := dbManager.RunMigrations(migrationConfig); err != nil {
-			log.Fatalf("Failed to run migrations: %v", err)
+			logging.Get().Error("Failed to run migrations: %v", err)
+			os.Exit(1)
 		}
-		log.Println("All migrations completed successfully")
+		logging.Get().Info("All migrations completed successfully")
 	}
 
 	fmt.Println("\nDatabase migration complete!")
@@ -122,13 +126,13 @@ func validateSchema(pgConfig db.PostgresConfig) {
 		IsDev:            true,
 		AlsoLogToConsole: true,
 	}); err != nil {
-		log.Printf("Warning: Failed to initialize logger: %v", err)
+		logging.Get().Info("Warning: Failed to initialize logger: %v", err)
 		return
 	}
 	logger := logging.Get()
 	defer func() {
 		if err := logger.Close(); err != nil {
-			log.Printf("Error closing logger: %v", err)
+			logging.Get().Info("Error closing logger: %v", err)
 		}
 	}()
 
