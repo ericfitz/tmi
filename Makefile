@@ -1,4 +1,4 @@
-.PHONY: build-server build-check-db run-tests test-unit test-integration test-integration-cleanup run-lint clean-artifacts start-dev start-prod start-dev-db start-dev-redis stop-dev-db stop-dev-redis delete-dev-db delete-dev-redis build-dev-app build-postgres build-redis generate-api generate-config start-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config validate-asyncapi validate-openapi list-openapi-endpoints report-coverage report-coverage-unit report-coverage-integration generate-coverage-report ensure-migrations check-migrations run-migrations reset-database test-api test-api-full test-dev test-dev-full test-collaboration-permissions test-collaboration-permissions-v2 clean-dev-env debug-auth-endpoints list-targets
+.PHONY: build-server build-check-db run-tests test-unit test-integration test-integration-cleanup run-lint clean-artifacts start-dev start-prod start-dev-db start-dev-redis stop-dev-db stop-dev-redis delete-dev-db delete-dev-redis build-dev-app build-postgres build-redis generate-api generate-config start-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config validate-asyncapi validate-openapi list-openapi-endpoints report-coverage report-coverage-unit report-coverage-integration generate-coverage-report ensure-migrations check-migrations run-migrations reset-database test-api test-api-full test-dev test-dev-full test-collaboration-permissions test-collaboration-permissions-v2 clean-dev-env debug-auth-endpoints list-targets sync-shared push-shared subtree-help
 
 # Backward compatibility aliases
 .PHONY: build test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app gen-api gen-config dev-observability coverage coverage-unit coverage-integration coverage-report migrate reset-db dev-test dev-test-full clean-dev openapi-endpoints list
@@ -473,3 +473,47 @@ dev-test-full: test-dev-full
 clean-dev: clean-dev-env
 openapi-endpoints: list-openapi-endpoints
 list: list-targets
+
+# Git Subtree Management for Shared Resources
+.PHONY: sync-shared push-shared subtree-help
+
+# Update shared directory from source files
+sync-shared:
+	@echo "🔄 Syncing shared directory from source files..."
+	@echo "Copying API specifications..."
+	@cp tmi-openapi.json shared/api-specs/
+	@cp tmi-asyncapi.yaml shared/api-specs/
+	@echo "Copying documentation..."
+	@cp docs/CLIENT_INTEGRATION_GUIDE.md shared/docs/
+	@cp docs/TMI-API-v1_0.md shared/docs/
+	@cp docs/CLIENT_OAUTH_INTEGRATION.md shared/docs/
+	@cp docs/AUTHORIZATION.md shared/docs/
+	@cp docs/COLLABORATIVE_EDITING_PLAN.md shared/docs/
+	@cp docs/*.png shared/docs/ 2>/dev/null || true
+	@echo "Copying SDK examples..."
+	@rm -rf shared/sdk-examples/python-sdk
+	@cp -r python-sdk shared/sdk-examples/
+	@echo "✅ Shared directory synchronized"
+
+# Push shared branch to GitHub for subtree consumption
+push-shared:
+	@echo "🚀 Pushing shared branch for subtree consumption..."
+	@git add shared/
+	@git commit -m "Update shared resources for client consumption" || echo "No changes to commit"
+	@git subtree push --prefix=shared origin shared
+	@echo "✅ Shared branch pushed to GitHub"
+
+# Show help for subtree operations
+subtree-help:
+	@echo "📖 TMI Git Subtree Management"
+	@echo ""
+	@echo "Available targets:"
+	@echo "  sync-shared   - Update shared/ directory from source files"
+	@echo "  push-shared   - Push shared branch to GitHub for client consumption"
+	@echo "  subtree-help  - Show this help message"
+	@echo ""
+	@echo "For TMI-UX client repo to consume:"
+	@echo "  git subtree add --prefix=shared-api https://github.com/yourusername/tmi.git shared --squash"
+	@echo ""
+	@echo "For TMI-UX to pull updates:"
+	@echo "  git subtree pull --prefix=shared-api https://github.com/yourusername/tmi.git shared --squash"
