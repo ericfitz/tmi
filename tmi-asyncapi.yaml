@@ -70,6 +70,8 @@ channels:
         $ref: '#/components/messages/JoinEvent'
       leaveEvent:
         $ref: '#/components/messages/LeaveEvent'
+      sessionEndedEvent:
+        $ref: '#/components/messages/SessionEndedEvent'
       updateEvent:
         $ref: '#/components/messages/UpdateEvent'
       diagramOperationMessage:
@@ -143,6 +145,7 @@ operations:
       - $ref: '#/components/messages/ServerMessage'
       - $ref: '#/components/messages/JoinEvent'
       - $ref: '#/components/messages/LeaveEvent'
+      - $ref: '#/components/messages/SessionEndedEvent'
       - $ref: '#/components/messages/UpdateEvent'
       - $ref: '#/components/messages/DiagramOperationMessage'
       - $ref: '#/components/messages/PresenterDeniedMessage'
@@ -577,6 +580,36 @@ components:
             message_type: redo_request
             user_id: alice@example.com
 
+    SessionEndedEvent:
+      name: SessionEndedEvent
+      title: Session Ended Event
+      summary: Notification when collaboration session is terminated
+      description: |
+        Sent to all participants when the collaboration session is ended,
+        typically when the session manager/owner disconnects. Clients should
+        gracefully handle session termination and clean up local state.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ServerMessagePayload'
+          - type: object
+            properties:
+              event:
+                const: session_ended
+              message:
+                type: string
+                description: Reason for session termination
+                example: "Session manager disconnected"
+            required:
+              - message
+      examples:
+        - name: SessionManagerLeft
+          summary: Example of session ending due to manager departure
+          payload:
+            event: session_ended
+            user_id: sessionmanager@example.com
+            timestamp: '2024-01-15T14:30:00Z'
+            message: "Session manager disconnected"
+
   schemas:
     ClientMessagePayload:
       type: object
@@ -594,8 +627,8 @@ components:
       properties:
         event:
           type: string
-          enum: [join, leave, update]
-          description: Type of event (join, leave, or update)
+          enum: [join, leave, update, session_ended]
+          description: Type of event (join, leave, update, or session_ended)
         user_id:
           type: string
           description: Identifier of the user who triggered the event (email or username)

@@ -43,6 +43,7 @@ type GinServerInterface interface {
 	// Threat Model Diagram Collaboration
 	GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context)
 	PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context)
+	PutThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context)
 	DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context)
 
 	// Threat Model Diagram Metadata
@@ -153,6 +154,7 @@ func RegisterGinHandlers(r GinRouter, si GinServerInterface) {
 	// Threat Model Diagram Collaboration
 	r.GET("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", si.GetThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 	r.POST("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", si.PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
+	r.PUT("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", si.PutThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 	r.DELETE("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", si.DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate)
 
 	// Threat Model Diagram Metadata

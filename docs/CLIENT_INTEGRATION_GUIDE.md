@@ -116,12 +116,16 @@ async function getActiveCollaborationSessions(jwtToken) {
 // ]
 ```
 
-### 2. Starting a New Collaboration Session
+### 2. Creating vs Joining Collaboration Sessions
 
-**POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate** - Start or join session
+**IMPORTANT**: Use different endpoints for creating vs joining collaboration sessions.
+
+#### Creating a New Session
+
+**POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate** - Create session (fails if one exists)
 
 ```javascript
-async function startOrJoinCollaborationSession(threatModelId, diagramId, jwtToken) {
+async function createCollaborationSession(threatModelId, diagramId, jwtToken) {
   const response = await fetch(
     `/threat_models/${threatModelId}/diagrams/${diagramId}/collaborate`, 
     {
@@ -134,15 +138,93 @@ async function startOrJoinCollaborationSession(threatModelId, diagramId, jwtToke
     }
   );
   
-  if (!response.ok) {
+  if (response.status === 201) {
+    // SUCCESS: Session created
+    return await response.json();
+  } else if (response.status === 409) {
+    // Session already exists - get join URL
+    const conflict = await response.json();
+    throw new SessionExistsError(conflict.join_url);
+  } else {
+    throw new Error(`Failed to create session: ${response.status} ${response.statusText}`);
+  }
+}
+```
+
+#### Joining an Existing Session
+
+**PUT /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate** - Join session (fails if none exists)
+
+```javascript
+async function joinCollaborationSession(threatModelId, diagramId, jwtToken) {
+  const response = await fetch(
+    `/threat_models/${threatModelId}/diagrams/${diagramId}/collaborate`, 
+    {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${jwtToken}`,
+        'Content-Type': 'application/json'
+      }
+      // No body required - user identity comes from JWT
+    }
+  );
+  
+  if (response.status === 200) {
+    // SUCCESS: Joined session
+    return await response.json();
+  } else if (response.status === 404) {
+    // No session exists
+    throw new NoSessionError('No collaboration session exists for this diagram');
+  } else {
     throw new Error(`Failed to join session: ${response.status} ${response.statusText}`);
   }
-  
-  const session = await response.json();
-  return session;
+}
+```
+
+#### Smart Session Handler
+
+```javascript
+async function startOrJoinCollaborationSession(threatModelId, diagramId, jwtToken) {
+  try {
+    // Try creating first
+    return await createCollaborationSession(threatModelId, diagramId, jwtToken);
+  } catch (error) {
+    if (error instanceof SessionExistsError) {
+      // Session exists, join it instead
+      return await joinCollaborationSession(threatModelId, diagramId, jwtToken);
+    }
+    throw error; // Re-throw other errors
+  }
 }
 
-// Success Response (200 OK) - CollaborationSession object:
+```
+
+#### Response Format and Important Notes
+
+**CRITICAL**: Always use the HTTP status code to determine success:
+- **201** = Session created successfully (POST)
+- **200** = Session joined successfully (PUT)  
+- **409** = Session already exists (POST) - use join_url to join instead
+- **404** = No session exists (PUT) - create one first
+
+**DO NOT** evaluate the response payload to determine success. Status codes are authoritative.
+
+```javascript
+class SessionExistsError extends Error {
+  constructor(joinUrl) {
+    super('Session already exists');
+    this.joinUrl = joinUrl;
+  }
+}
+
+class NoSessionError extends Error {
+  constructor(message) {
+    super(message);
+  }
+}
+```
+
+// Success Response (201/200) - CollaborationSession object:
 // {
 //   "session_id": "053d62c1-8a5d-48db-8a0a-707cacceb6ab",
 //   "session_manager": "testuser-25542959@test.tmi",
@@ -164,6 +246,13 @@ async function startOrJoinCollaborationSession(threatModelId, diagramId, jwtToke
 //   ],
 //   "websocket_url": "ws://localhost:8080/threat_models/60fd.../diagrams/422b.../ws"
 // }
+//
+// IMPORTANT NOTES:
+// - The "participants" array shows users AUTHORIZED to join the session
+// - It does NOT show users currently connected to the WebSocket
+// - Connection/activity status is handled within the WebSocket session itself
+// - A successful response (201/200) means the REST API call succeeded
+// - Do NOT use the response payload to determine session or connection status
 ```
 
 ### 3. Complete Session Join Flow
@@ -182,20 +271,13 @@ class CollaborationSessionManager {
     try {
       // Step 1: Join session via REST API (REQUIRED FIRST STEP)
       console.log('Step 1: Joining collaboration session via REST API...');
-      this.currentSession = await this.startOrJoinSession(threatModelId, diagramId);
+      this.currentSession = await startOrJoinCollaborationSession(threatModelId, diagramId, this.jwtToken);
       
-      // Step 2: Verify you're included in participants list  
-      console.log('Step 2: Verifying participant registration...');
-      const currentUser = this.parseJWT(this.jwtToken).sub; // or .email
-      const isParticipant = this.currentSession.participants.some(
-        p => p.user_id === currentUser
-      );
+      // Step 2: REST API success verification
+      // IMPORTANT: Do NOT verify participants list - it shows authorized users, not connected users
+      console.log('Step 2: REST API call succeeded - authorization complete...');
       
-      if (!isParticipant) {
-        throw new Error('Failed to register as session participant');
-      }
-      
-      console.log(`✅ Successfully joined session with ${this.currentSession.participants.length} participants`);
+      console.log(`✅ Successfully authorized for session with ${this.currentSession.participants.length} authorized participants`);
       
       // Step 3: Establish WebSocket connection using provided URL
       console.log('Step 3: Establishing WebSocket connection...');
@@ -442,6 +524,11 @@ class ParticipantManager {
         console.log(`User ${message.user_id} left the session`);
         this.handleUserLeft(message.user_id, message.timestamp);
       }
+      
+      if (message.event === 'session_ended') {
+        console.log(`Session ended: ${message.message}`);
+        this.handleSessionEnded(message);
+      }
     });
   }
   
@@ -487,6 +574,54 @@ class ParticipantManager {
     }
   }
   
+  handleSessionEnded(message) {
+    // Session manager left - session is being terminated
+    console.log(`Session terminated: ${message.message}`);
+    
+    // Show prominent notification to user
+    this.showNotification(
+      `Session ended: ${message.message}`, 
+      'warning', 
+      { duration: 0, persistent: true } // Persistent notification
+    );
+    
+    // Clean up local state
+    this.currentParticipants = [];
+    this.updateParticipantUI();
+    
+    // Disable editing capabilities
+    this.disableCollaborativeEditing();
+    
+    // Optionally redirect user or offer to rejoin
+    this.handleSessionTermination();
+  }
+  
+  disableCollaborativeEditing() {
+    // Disable diagram editing
+    if (this.diagramEditor) {
+      this.diagramEditor.setReadOnly(true);
+    }
+    
+    // Update UI to show session ended state
+    this.updateUIForSessionEnded();
+  }
+  
+  handleSessionTermination() {
+    // Show options to user
+    const actions = [
+      {
+        text: 'Return to Dashboard',
+        action: () => window.location.href = '/dashboard'
+      },
+      {
+        text: 'Start New Session', 
+        action: () => this.startNewCollaborationSession()
+      }
+    ];
+    
+    this.showActionDialog('Session Ended', message.message, actions);
+  }
+  
   updateParticipantUI() {
     // Update your UI to show current participants with their permissions
     const participantElements = this.currentParticipants.map(p => `
@@ -528,6 +663,16 @@ class ParticipantManager {
   "event": "leave", 
   "user_id": "testuser-20492675@test.tmi",
   "timestamp": "2025-08-14T02:45:20.123Z"
+}
+```
+
+**Session Ended Event:**
+```javascript
+{
+  "event": "session_ended",
+  "user_id": "testuser-25542959@test.tmi", // Session manager who left
+  "message": "Session ended: session manager has left",
+  "timestamp": "2025-08-14T02:46:15.789Z"
 }
 ```
 
@@ -722,7 +867,7 @@ this.ws.send(JSON.stringify({
 #### Core Message Handler
 ```javascript
 handleMessage(message) {
-  // Handle legacy event format (join/leave events)
+  // Handle legacy event format (join/leave/session_ended events)
   if (message.event) {
     switch (message.event) {
       case 'join':
@@ -730,6 +875,9 @@ handleMessage(message) {
         break;
       case 'leave':
         this.handleUserLeft(message);
+        break;
+      case 'session_ended':
+        this.handleSessionEnded(message);
         break;
     }
     return;
@@ -788,6 +936,16 @@ handleUserLeft(message) {
   // Update participant list if needed
   if (this.participantManager) {
     this.participantManager.handleUserLeft(message.user_id, message.timestamp);
+  }
+}
+
+handleSessionEnded(message) {
+  console.log(`Session ended: ${message.message} (by ${message.user_id})`);
+  this.emit('session_ended', message);
+  
+  // Handle session termination
+  if (this.participantManager) {
+    this.participantManager.handleSessionEnded(message);
   }
 }
 ```
@@ -1378,6 +1536,13 @@ interface UserLeftEvent {
   timestamp: string; // ISO 8601 timestamp
 }
 
+interface SessionEndedEvent {
+  event: 'session_ended';
+  user_id: string; // Session manager who left
+  message: string; // Reason for session termination
+  timestamp: string; // ISO 8601 timestamp
+}
+
 // Union type for all WebSocket messages
 type WebSocketMessage = DiagramOperationMessage | 
                        PresenterRequestMessage | 
@@ -1389,7 +1554,8 @@ type WebSocketMessage = DiagramOperationMessage |
                        UndoRequestMessage |
                        HistoryOperationMessage |
                        UserJoinedEvent |
-                       UserLeftEvent;
+                       UserLeftEvent |
+                       SessionEndedEvent;
 
 // Client Configuration
 interface TMIClientConfig {

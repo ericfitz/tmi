@@ -652,8 +652,8 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	})
 }
 
-// PostDiagramCollaborate joins or starts a collaboration session for a diagram within a threat model
-func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
+// CreateDiagramCollaborate creates a new collaboration session for a diagram within a threat model
+func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
 	// Similar to DiagramHandler.PostDiagramCollaborate but with threat model access check
 	// For brevity, this implementation is simplified
 
@@ -706,10 +706,18 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 		return
 	}
 
-	// Get or create collaboration session
-	session := h.wsHub.GetOrCreateSession(diagramId, threatModelId, userName)
+	// Create new collaboration session (fails if one already exists)
+	session, err := h.wsHub.CreateSession(diagramId, threatModelId, userName)
+	if err != nil {
+		// Session already exists, return 409 with join URL
+		c.JSON(http.StatusConflict, gin.H{
+			"error":    "Collaboration session already exists for this diagram",
+			"join_url": fmt.Sprintf("/threat_models/%s/diagrams/%s/collaborate", threatModelId, diagramId),
+		})
+		return
+	}
 
-	// Pre-register the joining user as an intended participant
+	// Pre-register the creating user as an intended participant
 	if userName != "" {
 		h.wsHub.AddIntendedParticipant(diagramId, userName)
 	}
@@ -722,7 +730,86 @@ func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threa
 		return
 	}
 
+	c.JSON(http.StatusCreated, collaborationSession)
+}
+
+// JoinDiagramCollaborate joins an existing collaboration session for a diagram within a threat model
+func (h *ThreatModelDiagramHandler) JoinDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
+	// Get username from JWT claim
+	userName, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		// For collaboration endpoints, allow anonymous users
+		userName = ""
+	}
+
+	// Get the threat model to check access
+	tm, err := ThreatModelStore.Get(threatModelId)
+	if err != nil {
+		HandleRequestError(c, NotFoundError("Threat model not found"))
+		return
+	}
+
+	// Check if user has access to the threat model
+	hasReadAccess, err := CheckResourceAccess(userName, tm, RoleReader)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	if !hasReadAccess {
+		HandleRequestError(c, ForbiddenError("You don't have sufficient permissions to access this threat model"))
+		return
+	}
+
+	// Check if the diagram is associated with this threat model
+	diagramFound := false
+	if tm.Diagrams != nil {
+		for _, diagUnion := range *tm.Diagrams {
+			// Convert union type to DfdDiagram to get the ID
+			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+				diagramFound = true
+				break
+			}
+		}
+	}
+
+	if !diagramFound {
+		HandleRequestError(c, NotFoundError("Diagram not found in this threat model"))
+		return
+	}
+
+	// Get diagram from store
+	_, err = DiagramStore.Get(diagramId)
+	if err != nil {
+		HandleRequestError(c, NotFoundError("Diagram not found"))
+		return
+	}
+
+	// Join existing collaboration session (fails if none exists)
+	session, err := h.wsHub.JoinSession(diagramId, userName)
+	if err != nil {
+		HandleRequestError(c, NotFoundError("No collaboration session exists for this diagram"))
+		return
+	}
+
+	// Pre-register the joining user as an intended participant
+	if userName != "" {
+		h.wsHub.AddIntendedParticipant(diagramId, userName)
+	}
+
+	// Build proper CollaborationSession response
+	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, userName)
+	if err != nil {
+		HandleRequestError(c, ServerError("Failed to build collaboration session response: "+err.Error()))
+		return
+	}
+
 	c.JSON(http.StatusOK, collaborationSession)
+}
+
+// PostDiagramCollaborate joins or starts a collaboration session for a diagram within a threat model (DEPRECATED - use CreateDiagramCollaborate)
+func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
+	// For backward compatibility, delegate to CreateDiagramCollaborate
+	h.CreateDiagramCollaborate(c, threatModelId, diagramId)
 }
 
 // DeleteDiagramCollaborate leaves a collaboration session for a diagram within a threat model

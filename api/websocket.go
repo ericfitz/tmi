@@ -45,6 +45,9 @@ type DiagramSession struct {
 	// Last activity timestamp
 	LastActivity time.Time
 
+	// Reference to the hub for cleanup when session terminates
+	Hub *WebSocketHub
+
 	// Enhanced collaboration state
 	// Session owner (user who created the session)
 	Owner string
@@ -107,12 +110,14 @@ type WebSocketClient struct {
 
 // WebSocketMessage represents the legacy message format (kept for backward compatibility)
 type WebSocketMessage struct {
-	// Type of message (update, join, leave)
+	// Type of message (update, join, leave, session_ended)
 	Event string `json:"event"`
 	// User who sent the message
 	UserID string `json:"user_id"`
 	// Diagram operation
 	Operation DiagramOperation `json:"operation,omitempty"`
+	// Optional message text for events like session_ended
+	Message string `json:"message,omitempty"`
 	// Timestamp
 	Timestamp time.Time `json:"timestamp"`
 }
@@ -255,6 +260,78 @@ func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_t
 	return fmt.Sprintf("%s://%s/threat_models/%s/diagrams/%s/ws", scheme, host, threatModelId.String(), diagramID)
 }
 
+// GetSession returns an existing session or nil if none exists
+func (h *WebSocketHub) GetSession(diagramID string) *DiagramSession {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if session, ok := h.Diagrams[diagramID]; ok {
+		return session
+	}
+	return nil
+}
+
+// CreateSession creates a new collaboration session if none exists, returns error if one already exists
+func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, ownerUserID string) (*DiagramSession, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if _, ok := h.Diagrams[diagramID]; ok {
+		return nil, fmt.Errorf("collaboration session already exists for diagram %s", diagramID)
+	}
+
+	session := &DiagramSession{
+		ID:            uuid.New().String(),
+		DiagramID:     diagramID,
+		ThreatModelID: threatModelID,
+		Clients:       make(map[*WebSocketClient]bool),
+		Broadcast:     make(chan []byte),
+		Register:      make(chan *WebSocketClient),
+		Unregister:    make(chan *WebSocketClient),
+		LastActivity:  time.Now().UTC(),
+		Hub:           h, // Reference to the hub for cleanup
+
+		// Enhanced collaboration state
+		Owner:                ownerUserID,
+		CurrentPresenter:     ownerUserID, // Owner starts as presenter
+		NextSequenceNumber:   1,
+		OperationHistory:     NewOperationHistory(),
+		recentCorrections:    make(map[string]int),
+		clientLastSequence:   make(map[string]uint64),
+		IntendedParticipants: make(map[string]time.Time),
+	}
+
+	h.Diagrams[diagramID] = session
+
+	// Add owner as initial intended participant
+	if ownerUserID != "" {
+		session.IntendedParticipants[ownerUserID] = time.Now().UTC()
+	}
+
+	// Record session start
+	if GlobalPerformanceMonitor != nil {
+		GlobalPerformanceMonitor.RecordSessionStart(session.ID, diagramID)
+	}
+
+	go session.Run()
+
+	return session, nil
+}
+
+// JoinSession joins an existing collaboration session, returns error if none exists
+func (h *WebSocketHub) JoinSession(diagramID string, userID string) (*DiagramSession, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	session, ok := h.Diagrams[diagramID]
+	if !ok {
+		return nil, fmt.Errorf("no collaboration session exists for diagram %s", diagramID)
+	}
+
+	session.LastActivity = time.Now().UTC()
+	return session, nil
+}
+
 // GetOrCreateSession returns an existing session or creates a new one
 func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string, ownerUserID string) *DiagramSession {
 	h.mu.Lock()
@@ -283,6 +360,7 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 		Register:      make(chan *WebSocketClient),
 		Unregister:    make(chan *WebSocketClient),
 		LastActivity:  time.Now().UTC(),
+		Hub:           h, // Reference to the hub for cleanup
 
 		// Enhanced collaboration state
 		Owner:                ownerUserID,
@@ -434,18 +512,6 @@ func (h *OperationHistory) cleanupOldEntries() {
 			delete(h.Operations, seq)
 		}
 	}
-}
-
-// GetSession returns an existing session or nil if none exists
-func (h *WebSocketHub) GetSession(diagramID string) *DiagramSession {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	if session, ok := h.Diagrams[diagramID]; ok {
-		return session
-	}
-
-	return nil
 }
 
 // GetActiveSessions returns all active collaboration sessions
@@ -990,6 +1056,9 @@ func (h *WebSocketHub) StartCleanupTimer(ctx context.Context) {
 
 // Run processes messages for a diagram session
 func (s *DiagramSession) Run() {
+	// Defer cleanup when session terminates
+	defer s.cleanupSession()
+
 	for {
 		select {
 		case client := <-s.Register:
@@ -1018,11 +1087,20 @@ func (s *DiagramSession) Run() {
 				// Check if the leaving client was the current presenter
 				wasPresenter := client.UserName == s.CurrentPresenter
 
+				// Check if the leaving client was the session owner/manager
+				wasOwner := client.UserName == s.Owner
+
 				s.mu.Unlock()
 
 				// Handle presenter leaving session
 				if wasPresenter {
 					s.handlePresenterDisconnection(client.UserName)
+				}
+
+				// Handle session owner/manager leaving session
+				if wasOwner {
+					s.handleOwnerDisconnection(client.UserName)
+					return // Exit the session run loop to terminate the session
 				}
 			} else {
 				s.mu.Unlock()
@@ -1883,6 +1961,101 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		// No suitable presenter found, clear presenter
 		s.CurrentPresenter = ""
 		logging.Get().Info("No suitable presenter found for session %s after %s disconnected", s.ID, disconnectedUserID)
+	}
+}
+
+// handleOwnerDisconnection handles when the session owner/manager leaves
+// This method broadcasts session termination messages and prepares for session cleanup
+func (s *DiagramSession) handleOwnerDisconnection(disconnectedOwnerID string) {
+	logging.Get().Info("Session owner %s disconnected from session %s, initiating session termination", disconnectedOwnerID, s.ID)
+
+	// Broadcast session termination notification to all remaining participants
+	s.broadcastSessionTermination(disconnectedOwnerID)
+
+	// Give clients a brief moment to process the termination message
+	time.Sleep(100 * time.Millisecond)
+
+	// Close all remaining client connections gracefully
+	s.mu.Lock()
+	for client := range s.Clients {
+		if client.UserName != disconnectedOwnerID { // Owner already disconnected
+			close(client.Send)
+			logging.Get().Debug("Closed connection for participant %s due to session termination", client.UserName)
+		}
+	}
+
+	// Clear the clients map
+	s.Clients = make(map[*WebSocketClient]bool)
+	s.mu.Unlock()
+
+	logging.Get().Info("Session %s terminated due to owner departure", s.ID)
+
+	// The session will be removed from the hub when the Run() method returns
+}
+
+// broadcastSessionTermination sends termination messages to all participants
+func (s *DiagramSession) broadcastSessionTermination(ownerID string) {
+	// Create session termination message
+	terminationMsg := WebSocketMessage{
+		Event:     "session_ended",
+		UserID:    ownerID,
+		Timestamp: time.Now().UTC(),
+		Message:   "Session ended: session manager has left",
+	}
+
+	// Broadcast to all clients
+	if msgBytes, err := json.Marshal(terminationMsg); err == nil {
+		s.mu.RLock()
+		for client := range s.Clients {
+			if client.UserName != ownerID { // Don't send to the disconnected owner
+				select {
+				case client.Send <- msgBytes:
+					logging.Get().Debug("Sent session termination message to %s", client.UserName)
+				default:
+					logging.Get().Warn("Failed to send session termination message to %s (channel full)", client.UserName)
+				}
+			}
+		}
+		s.mu.RUnlock()
+	} else {
+		logging.Get().Error("Failed to marshal session termination message: %v", err)
+	}
+
+	// Also send a final leave message for the owner
+	leaveMsg := WebSocketMessage{
+		Event:     "leave",
+		UserID:    ownerID,
+		Timestamp: time.Now().UTC(),
+	}
+
+	if msgBytes, err := json.Marshal(leaveMsg); err == nil {
+		s.mu.RLock()
+		for client := range s.Clients {
+			if client.UserName != ownerID {
+				select {
+				case client.Send <- msgBytes:
+				default:
+					// Ignore if channel is full - termination is more important
+				}
+			}
+		}
+		s.mu.RUnlock()
+	}
+}
+
+// cleanupSession removes this session from the hub when it terminates
+func (s *DiagramSession) cleanupSession() {
+	if s.Hub != nil {
+		s.Hub.mu.Lock()
+		delete(s.Hub.Diagrams, s.DiagramID)
+		s.Hub.mu.Unlock()
+
+		logging.Get().Info("Session %s removed from hub after termination", s.ID)
+
+		// Record session end
+		if GlobalPerformanceMonitor != nil {
+			GlobalPerformanceMonitor.RecordSessionEnd(s.ID)
+		}
 	}
 }
 

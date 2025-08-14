@@ -8046,7 +8046,7 @@
           "Collaboration"
         ],
         "summary": "Get diagram collaboration session",
-        "description": "Retrieves the current collaboration session details for a diagram",
+        "description": "Retrieves the current collaboration session details for a diagram. The session payload indicates who has been authorized to the session, not who is currently active in the WebSocket session. The 200 status indicates successful retrieval - clients must NOT evaluate the payload to determine session status.",
         "operationId": "getDiagramCollaborationSession",
         "security": [
           {
@@ -8106,9 +8106,9 @@
         "tags": [
           "Collaboration"
         ],
-        "summary": "Start diagram collaboration session",
-        "description": "Creates a new collaboration session for real-time diagram editing",
-        "operationId": "startDiagramCollaborationSession",
+        "summary": "Create diagram collaboration session",
+        "description": "Creates a new collaboration session for real-time diagram editing. Only one collaboration session can exist per diagram at a time. If a session already exists, returns 409 with a link to join the existing session.",
+        "operationId": "createDiagramCollaborationSession",
         "security": [
           {
             "bearerAuth": []
@@ -8140,7 +8140,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Collaboration session started successfully",
+            "description": "Collaboration session created successfully. The 201 status indicates successful creation - clients must NOT evaluate the payload to determine success.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8162,6 +8162,87 @@
             "$ref": "#/components/responses/Error"
           },
           "409": {
+            "description": "Collaboration session already exists for this diagram",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error", "join_url"],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Error message indicating session already exists"
+                    },
+                    "join_url": {
+                      "type": "string",
+                      "description": "URL to join the existing collaboration session",
+                      "example": "/threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "Join diagram collaboration session",
+        "description": "Joins an existing collaboration session for real-time diagram editing. The session must already exist.",
+        "operationId": "joinDiagramCollaborationSession",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "diagram_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the diagram (UUID)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully joined collaboration session. The 200 status indicates successful join - clients must NOT evaluate the payload to determine success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollaborationSession"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "description": "No collaboration session exists for this diagram",
             "$ref": "#/components/responses/Error"
           },
           "500": {

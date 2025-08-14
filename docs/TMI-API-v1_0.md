@@ -804,6 +804,8 @@ Authorization: Bearer <JWT>
 
 #### Get Collaboration Session Status
 
+Retrieves the current collaboration session details for a diagram. The session payload indicates who has been authorized to the session, not who is currently active in the WebSocket session. The 200 status indicates successful retrieval - clients must NOT evaluate the payload to determine session status.
+
 ```http
 GET /threat_models/550e8400-e29b-41d4-a716-446655440000/diagrams/123e4567-e89b-12d3-a456-426614174000/collaborate
 Authorization: Bearer <JWT>
@@ -817,20 +819,28 @@ Authorization: Bearer <JWT>
   "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
   "diagram_id": "123e4567-e89b-12d3-a456-426614174000",
   "participants": [
-    { "user_id": "user@example.com", "joined_at": "2025-04-06T12:02:00Z" }
+    { "user_id": "user@example.com", "joined_at": "2025-04-06T12:02:00Z", "permissions": "writer" }
   ],
   "websocket_url": "wss://api.example.com/threat_models/550e8400-e29b-41d4-a716-446655440000/diagrams/123e4567-e89b-12d3-a456-426614174000/ws"
 }
 ```
 
-#### Start/Join a Collaboration Session
+**Important Notes:**
+- The `participants` array shows users authorized to join the session, not users currently connected to the WebSocket
+- Connection and activity status is handled within the WebSocket session itself
+- A 200 response indicates successful retrieval regardless of participants or session state
+
+#### Create a Collaboration Session
+
+Creates a new collaboration session for a diagram. Only one session can exist per diagram at a time.
 
 ```http
 POST /threat_models/550e8400-e29b-41d4-a716-446655440000/diagrams/123e4567-e89b-12d3-a456-426614174000/collaborate
 Authorization: Bearer <JWT>
 ```
 
-**Response** (200):
+**Response** (201 - Success):
+*The 201 status indicates successful creation - clients must NOT evaluate the payload to determine success.*
 
 ```json
 {
@@ -838,9 +848,52 @@ Authorization: Bearer <JWT>
   "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
   "diagram_id": "123e4567-e89b-12d3-a456-426614174000",
   "participants": [
-    { "user_id": "user@example.com", "joined_at": "2025-04-06T12:02:00Z" }
+    { "user_id": "user@example.com", "joined_at": "2025-04-06T12:02:00Z", "permissions": "writer" }
   ],
   "websocket_url": "wss://api.example.com/threat_models/550e8400-e29b-41d4-a716-446655440000/diagrams/123e4567-e89b-12d3-a456-426614174000/ws"
+}
+```
+
+**Response** (409 - Session Already Exists):
+
+```json
+{
+  "error": "Collaboration session already exists for this diagram",
+  "join_url": "/threat_models/550e8400-e29b-41d4-a716-446655440000/diagrams/123e4567-e89b-12d3-a456-426614174000/collaborate"
+}
+```
+
+#### Join a Collaboration Session
+
+Joins an existing collaboration session for a diagram.
+
+```http
+PUT /threat_models/550e8400-e29b-41d4-a716-446655440000/diagrams/123e4567-e89b-12d3-a456-426614174000/collaborate
+Authorization: Bearer <JWT>
+```
+
+**Response** (200 - Success):
+*The 200 status indicates successful join - clients must NOT evaluate the payload to determine success.*
+
+```json
+{
+  "session_id": "abc123-session-uuid",
+  "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+  "diagram_id": "123e4567-e89b-12d3-a456-426614174000",
+  "participants": [
+    { "user_id": "creator@example.com", "joined_at": "2025-04-06T12:00:00Z", "permissions": "writer" },
+    { "user_id": "user@example.com", "joined_at": "2025-04-06T12:02:00Z", "permissions": "writer" }
+  ],
+  "websocket_url": "wss://api.example.com/threat_models/550e8400-e29b-41d4-a716-446655440000/diagrams/123e4567-e89b-12d3-a456-426614174000/ws"
+}
+```
+
+**Response** (404 - No Session Exists):
+
+```json
+{
+  "error": "unauthorized",
+  "error_description": "No collaboration session exists for this diagram"
 }
 ```
 
