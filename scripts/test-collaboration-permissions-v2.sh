@@ -13,7 +13,7 @@ echo -e "${BLUE}🧪 Testing collaboration session permissions (v2)${NC}"
 # Function to cleanup and exit
 cleanup() {
     echo -e "${YELLOW}🧹 Final cleanup...${NC}"
-    make clean-dev > /dev/null 2>&1 || true
+    make clean-dev-env > /dev/null 2>&1 || true
     exit $1
 }
 
@@ -21,10 +21,10 @@ cleanup() {
 trap 'cleanup $?' EXIT
 
 echo -e "${YELLOW}1. 🧹 Cleaning development environment...${NC}"
-make clean-dev
+make clean-dev-env
 
 echo -e "${YELLOW}2. 🚀 Starting development environment...${NC}"
-make dev > /dev/null 2>&1 &
+make start-dev > /dev/null 2>&1 &
 DEV_PID=$!
 
 echo -e "${YELLOW}3. ⏳ Waiting for server to start...${NC}"

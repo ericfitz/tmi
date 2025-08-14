@@ -148,7 +148,7 @@ export OTEL_CONSOLE_EXPORTER=true
 
 3. **Run the application:**
 ```bash
-make dev
+make start-dev
 ```
 
 4. **Access the observability tools:**

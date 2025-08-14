@@ -17,7 +17,7 @@ cd "$PROJECT_ROOT" || { echo "❌ Error: Failed to change to project root direct
 # Check if PostgreSQL container is running
 if ! docker ps --format '{{.Names}}' | grep -q $CONTAINER_NAME; then
     echo "❌ Error: PostgreSQL container '$CONTAINER_NAME' is not running"
-    echo "   Run 'make dev-db' first to start the database"
+    echo "   Run 'make start-dev-db' first to start the database"
     exit 1
 fi
 
@@ -86,7 +86,7 @@ if [ $VALIDATION_EXIT_CODE -ne 0 ]; then
             echo "1. Check the migration files in auth/migrations/"
             echo "2. Ensure the database is in a clean state"
             echo "3. Run migrations manually: cd cmd/migrate && go run main.go up"
-            echo "4. Or reset the database: docker rm -f $CONTAINER_NAME && make dev-db"
+            echo "4. Or reset the database: docker rm -f $CONTAINER_NAME && make start-dev-db"
             exit 1
         fi
     else

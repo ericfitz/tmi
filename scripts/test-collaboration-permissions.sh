@@ -15,8 +15,8 @@ cleanup() {
     echo -e "${YELLOW}🧹 Cleaning up...${NC}"
     # Kill anything using port 8080
     lsof -ti:8080 | xargs kill -9 2>/dev/null || true
-    make delete-db > /dev/null 2>&1 || true
-    make delete-redis > /dev/null 2>&1 || true
+    make delete-dev-db > /dev/null 2>&1 || true
+    make delete-dev-redis > /dev/null 2>&1 || true
     exit $1
 }
 
@@ -26,18 +26,18 @@ trap 'cleanup $?' EXIT
 echo -e "${YELLOW}1. 🛑 Stopping any running processes and cleaning up...${NC}"
 # Kill anything using port 8080
 lsof -ti:8080 | xargs kill -9 2>/dev/null || true
-make delete-db > /dev/null 2>&1 || true
-make delete-redis > /dev/null 2>&1 || true
+make delete-dev-db > /dev/null 2>&1 || true
+make delete-dev-redis > /dev/null 2>&1 || true
 
 echo -e "${YELLOW}2. 🗃️ Starting fresh database and redis...${NC}"
-make dev-db > /dev/null 2>&1
-make dev-redis > /dev/null 2>&1
+make start-dev-db > /dev/null 2>&1
+make start-dev-redis > /dev/null 2>&1
 
 echo -e "${YELLOW}3. 🔨 Building server...${NC}"
-make build
+make build-server
 
 echo -e "${YELLOW}4. 🚀 Starting server...${NC}"
-make dev > collaboration_test_server.log 2>&1 &
+make start-dev > collaboration_test_server.log 2>&1 &
 SERVER_PID=$!
 sleep 8
 

@@ -492,7 +492,7 @@ The TMI project provides comprehensive database migration and management tools:
 
 **Migration Commands:**
 
-- `make migrate` - Apply pending migrations
+- `make run-migrations` - Apply pending migrations
 - `make check-migrations` - Verify migration state without changes
 - `make ensure-migrations` - Auto-apply missing migrations with validation
 
@@ -512,10 +512,10 @@ The TMI project provides comprehensive database migration and management tools:
 
 **Make Targets:**
 
-- `make dev-db` - Start development database with automatic migrations
-- `make stop-db` - Stop database (preserves data)
-- `make delete-db` - Remove database and data (destructive)
-- `make reset-db` - Interactive database reset with confirmation
+- `make start-dev-db` - Start development database with automatic migrations
+- `make stop-dev-db` - Stop database (preserves data)
+- `make delete-dev-db` - Remove database and data (destructive)
+- `make reset-database` - Interactive database reset with confirmation
 
 **Environment Variables:**
 

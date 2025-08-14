@@ -54,7 +54,7 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	}
 
 	// Create test database configuration using environment variables
-	// These defaults match what scripts/integration-test.sh sets up
+	// These defaults match what scripts/start-integration-tests.sh sets up
 	postgresConfig := db.PostgresConfig{
 		Host:     getEnvOrDefault("TEST_DB_HOST", "localhost"),
 		Port:     getEnvOrDefault("TEST_DB_PORT", "5433"),

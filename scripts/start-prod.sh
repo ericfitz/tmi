@@ -20,7 +20,7 @@ fi
 # Ensure binary is built
 if [ ! -f bin/server ]; then
     echo "Building TMI server..."
-    make build || { echo "Error: Failed to build server"; exit 1; }
+    make build-server || { echo "Error: Failed to build server"; exit 1; }
 fi
 
 # Validate critical environment variables are set

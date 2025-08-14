@@ -32,7 +32,7 @@ go mod download
 ### Running the server
 
 ```bash
-make build
+make build-server
 ./bin/server
 ```
 
@@ -83,31 +83,31 @@ This pattern is used for all entity types (diagrams, threat models, threats) and
 ### Building
 
 ```bash
-make build
+make build-server
 ```
 
 ### Testing
 
 ```bash
-make test
+make run-tests
 ```
 
 Run a specific test:
 
 ```bash
-make test-one name=TestGetDiagrams
+make test-unit name=TestGetDiagrams
 ```
 
 ### Linting
 
 ```bash
-make lint
+make run-lint
 ```
 
 ### Generating API code
 
 ```bash
-make gen-api
+make generate-api
 ```
 
 ## API Documentation

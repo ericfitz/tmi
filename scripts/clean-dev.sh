@@ -11,8 +11,8 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}🧹 Cleaning development environment${NC}"
 
 echo -e "${YELLOW}1. 🗃️ Cleaning up databases and Redis...${NC}"
-make delete-db > /dev/null 2>&1 || true
-make delete-redis > /dev/null 2>&1 || true
+make delete-dev-db > /dev/null 2>&1 || true
+make delete-dev-redis > /dev/null 2>&1 || true
 
 echo -e "${YELLOW}2. 🛑 Killing any processes on port 8080...${NC}"
 lsof -ti:8080 | xargs kill -9 2>/dev/null || true

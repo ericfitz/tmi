@@ -6,7 +6,7 @@ A tool to patch JSON files by replacing content at specific JSON paths.
 Useful for making precise modifications to large JSON files like OpenAPI specifications.
 
 Usage:
-    python json_patcher.py --sourcefile input.json --jsonpath "$.components.schemas.ThreatModel" --patchfile patch.json
+    python patch-json.py --sourcefile input.json --jsonpath "$.components.schemas.ThreatModel" --patchfile patch.json
 
 Features:
 - Backs up the original file before modification
@@ -165,13 +165,13 @@ def main():
         epilog="""
 Examples:
   # Replace a schema definition
-  python json_patcher.py --sourcefile api.json --jsonpath "$.components.schemas.ThreatModel" --patchfile new_threat_model.json
+  python patch-json.py --sourcefile api.json --jsonpath "$.components.schemas.ThreatModel" --patchfile new_threat_model.json
   
   # Replace a specific endpoint
-  python json_patcher.py --sourcefile api.json --jsonpath "$.paths./threat_models.post" --patchfile new_endpoint.json
+  python patch-json.py --sourcefile api.json --jsonpath "$.paths./threat_models.post" --patchfile new_endpoint.json
   
   # Add Input/Output schema separation
-  python json_patcher.py --sourcefile api.json --jsonpath "$.components.schemas" --patchfile updated_schemas.json
+  python patch-json.py --sourcefile api.json --jsonpath "$.components.schemas" --patchfile updated_schemas.json
         """
     )
     

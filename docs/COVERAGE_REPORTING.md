@@ -18,7 +18,7 @@ The coverage reporting system provides:
 To generate a comprehensive coverage report including both unit and integration tests:
 
 ```bash
-make coverage
+make report-coverage
 ```
 
 This will:
@@ -35,7 +35,7 @@ This will:
 For faster feedback during development:
 
 ```bash
-make coverage-unit
+make report-coverage-unit
 ```
 
 ### Generate Integration Tests Only
@@ -43,7 +43,7 @@ make coverage-unit
 To test database interactions and full workflows:
 
 ```bash
-make coverage-integration
+make report-coverage-integration
 ```
 
 ### Generate Reports Without HTML
@@ -51,7 +51,7 @@ make coverage-integration
 For CI/CD environments where HTML is not needed:
 
 ```bash
-make coverage-report
+make generate-coverage-report
 ```
 
 ## Script Options
@@ -190,7 +190,7 @@ These ports are chosen to avoid conflicts with development databases.
 ```yaml
 - name: Generate Coverage Report
   run: |
-    make coverage-report
+    make generate-coverage-report
     
 - name: Upload Coverage
   uses: actions/upload-artifact@v3

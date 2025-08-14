@@ -18,18 +18,18 @@ This repository contains API documentation and Go implementation for a Collabora
 
 ## Commands
 
-- List targets: `make list` (lists all available make targets)
-- Build: `make build` (creates bin/server executable)
-- Lint: `make lint` (runs golangci-lint)
-- Generate API: `make gen-api` (uses oapi-codegen with config from oapi-codegen-config.yaml)
-- Development: `make dev` (starts full dev environment with DB and Redis)
-- Dev DB only: `make dev-db` (starts PostgreSQL container)
-- Dev Redis only: `make dev-redis` (starts Redis container)
+- List targets: `make list-targets` (lists all available make targets)
+- Build: `make build-server` (creates bin/server executable)
+- Lint: `make run-lint` (runs golangci-lint)
+- Generate API: `make generate-api` (uses oapi-codegen with config from oapi-codegen-config.yaml)
+- Development: `make start-dev` (starts full dev environment with DB and Redis)
+- Dev DB only: `make start-dev-db` (starts PostgreSQL container)
+- Dev Redis only: `make start-dev-redis` (starts Redis container)
 
 ### OpenAPI Schema Management
 
-- JSON Patcher Tool: `python3 scripts/json_patcher.py` - Utility for making precise modifications to OpenAPI specification
-  - Patch schema: `python3 scripts/json_patcher.py -s tmi-openapi.json -p "$.components.schemas.SchemaName" -f patch.json`
+- JSON Patcher Tool: `python3 scripts/patch-json.py` - Utility for making precise modifications to OpenAPI specification
+  - Patch schema: `python3 scripts/patch-json.py -s tmi-openapi.json -p "$.components.schemas.SchemaName" -f patch.json`
   - Creates automatic backups and validates JSON structure
   - Useful for implementing Input/Output schema separation or other targeted schema modifications
 - Validate OpenAPI: `make validate-openapi [file=path/to/spec.json]` (validates OpenAPI specification with comprehensive JSON syntax and detailed analysis)
@@ -45,31 +45,31 @@ This repository contains API documentation and Go implementation for a Collabora
 - Integration tests: `make test-integration` (requires database, runs with automatic setup/cleanup)
   - Specific test: `make test-integration name=TestName` 
   - Cleanup only: `make test-integration-cleanup`
-- Alias: `make test` (same as `make test-unit` for backward compatibility)
+- Alias: `make run-tests` (same as `make test-unit` for backward compatibility)
 
 #### Specialized Testing  
 - Telemetry tests: `make test-telemetry` (unit tests for telemetry components)
   - Integration mode: `make test-telemetry integration=true`
-- API testing: `make test-api` (requires running server via `make dev`)
+- API testing: `make test-api` (requires running server via `make start-dev`)
   - Auth token only: `make test-api auth=only`
   - No auth test only: `make test-api noauth=true`
 - Full API test: `make test-api-full` (automated setup: kills servers, starts DB/Redis, starts server, runs tests, cleans up)
-- Development test: `make dev-test` (builds and tests API endpoints, requires running server)
-- Full dev test: `make dev-test-full` (alias for `make test-api-full`)
+- Development test: `make test-dev` (builds and tests API endpoints, requires running server)
+- Full dev test: `make test-dev-full` (alias for `make test-api-full`)
 
 #### Testing Examples
 ```bash
 # Standard development workflow
 make test-unit                    # Fast unit tests
 make test-integration            # Full integration tests with database
-make lint && make build          # Code quality check and build
+make run-lint && make build-server # Code quality check and build
 
 # Specific testing
 make test-unit name=TestStore_CRUD              # Run one unit test
 make test-integration name=TestDatabaseIntegration  # Run one integration test
 
 # API testing (requires server)
-make dev                         # Start server first
+make start-dev                   # Start server first
 make test-api                    # Test API endpoints with auth
 
 # Automated API testing (no manual setup required)
@@ -142,15 +142,15 @@ make test-api-full               # Full automated API testing (setup + test + cl
 
 ## User Preferences
 
-- After changing any file, run `make lint` and fix any issues caused by the change
-- After changing any executable or test file, run `make build` and fix any issues, then run `make test-unit` and fix any issues
+- After changing any file, run `make run-lint` and fix any issues caused by the change
+- After changing any executable or test file, run `make build-server` and fix any issues, then run `make test-unit` and fix any issues
 - Do not disable or skip failing tests, either diagnose to root cause and fix either the test issue or code issue, or ask the user what to do
 - Always use make targets for testing - never run `go test` commands directly
 - For database-dependent functionality, also run `make test-integration` to ensure full integration works
 
 ## Make Command Memories
 
-- `make list` is useful for quickly discovering and reviewing all available make targets in the project
+- `make list-targets` is useful for quickly discovering and reviewing all available make targets in the project
 - `make validate-asyncapi` validates the AsyncAPI specification for the project
 
 ## Test Execution Guidelines
@@ -160,7 +160,7 @@ make test-api-full               # Full automated API testing (setup + test + cl
 - Unit tests: Use `make test-unit` or `make test-unit name=TestName`
 - Integration tests: Use `make test-integration` or `make test-integration name=TestName` 
 - Never create ad hoc `go test` commands - they will miss configuration settings and dependencies
-- Never create ad hoc commands to run the server - use `make dev` or other make targets
+- Never create ad hoc commands to run the server - use `make start-dev` or other make targets
 - All testing must go through make targets to ensure proper environment setup
 
 ## Test Philosophy
@@ -168,7 +168,7 @@ make test-api-full               # Full automated API testing (setup + test + cl
 - Never disable or skip failing tests - investigate to root cause and fix
 - Unit tests (`make test-unit`) should be fast and require no external dependencies
 - Integration tests (`make test-integration`) should use real databases and test full workflows
-- Always run `make lint` and `make build` after making changes
+- Always run `make run-lint` and `make build-server` after making changes
 
 ## Logging Requirements
 
@@ -193,4 +193,4 @@ make test-api-full               # Full automated API testing (setup + test + cl
 - Always use a normal oauth login flow with the "test" provider when performing any development or testing task that requires authentication
 - Use `make test-api auth=only` to get JWT tokens for testing
 - OAuth test provider generates JWT tokens with user claims (email, name, sub)
-- For API testing, use `make test-api` (requires `make dev` first)
+- For API testing, use `make test-api` (requires `make start-dev` first)

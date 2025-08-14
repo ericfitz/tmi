@@ -31,7 +31,7 @@ The easiest way to run integration tests is using the automated script:
 make test-integration
 
 # Or run the script directly
-./scripts/integration-test.sh
+./scripts/start-integration-tests.sh
 ```
 
 This will automatically:

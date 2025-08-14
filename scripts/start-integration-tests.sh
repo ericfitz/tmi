@@ -6,7 +6,7 @@
 # Note: We don't use 'set -e' here because we want to handle test failures gracefully
 # and still perform cleanup while preserving the correct exit code
 
-# Configuration
+# Configuration (matches existing setup scripts)
 POSTGRES_TEST_PORT=5433
 REDIS_TEST_PORT=6380
 POSTGRES_CONTAINER="tmi-integration-postgres"
@@ -14,6 +14,7 @@ REDIS_CONTAINER="tmi-integration-redis"
 POSTGRES_USER="tmi_dev"
 POSTGRES_PASSWORD="dev123"
 POSTGRES_DB="tmi_integration_test"
+SERVER_PORT=8081
 
 # Colors for output
 RED='\033[0;31m'
@@ -39,65 +40,55 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Cleanup function
+# Cleanup function - uses same cleanup logic as Makefile test-integration-cleanup target
 cleanup() {
     local exit_code=$?
-    log_info "Cleaning up test containers..."
+    log_info "Cleaning up integration test environment..."
+    
+    # Stop integration server
+    if [ -f .integration-server.pid ]; then
+        PID=$(cat .integration-server.pid)
+        if ps -p $PID > /dev/null 2>&1; then
+            log_info "Stopping integration server (PID: $PID)..."
+            kill $PID 2>/dev/null || true
+            sleep 2
+            if ps -p $PID > /dev/null 2>&1; then
+                log_info "Force killing integration server (PID: $PID)..."
+                kill -9 $PID 2>/dev/null || true
+            fi
+        fi
+        rm -f .integration-server.pid
+    fi
+    
+    # Check for processes listening on port
+    PIDS=$(lsof -ti :$SERVER_PORT 2>/dev/null || true)
+    if [ -n "$PIDS" ]; then
+        log_info "Found processes on port $SERVER_PORT: $PIDS"
+        for PID in $PIDS; do
+            log_info "Stopping process $PID listening on port $SERVER_PORT..."
+            kill $PID 2>/dev/null || true
+            sleep 1
+            if ps -p $PID > /dev/null 2>&1; then
+                log_info "Force killing process $PID..."
+                kill -9 $PID 2>/dev/null || true
+            fi
+        done
+    fi
+    
+    # Stop containers
+    log_info "Stopping integration test containers..."
     docker stop $POSTGRES_CONTAINER $REDIS_CONTAINER 2>/dev/null || true
     docker rm $POSTGRES_CONTAINER $REDIS_CONTAINER 2>/dev/null || true
+    
+    # Clean up log files
+    rm -f server-integration.log integration-test.log config-integration-test.yaml
+    
     log_success "Cleanup completed"
     exit $exit_code
 }
 
 # Trap cleanup on script exit, preserving exit code
 trap cleanup EXIT
-
-# Function to wait for PostgreSQL to be ready
-wait_for_postgres() {
-    log_info "Waiting for PostgreSQL to be ready..."
-    local max_attempts=30
-    local attempt=1
-    
-    while [ $attempt -le $max_attempts ]; do
-        if docker exec $POSTGRES_CONTAINER pg_isready -h localhost -p 5432 -U $POSTGRES_USER >/dev/null 2>&1; then
-            log_success "PostgreSQL is ready!"
-            return 0
-        fi
-        
-        echo -n "."
-        sleep 1
-        attempt=$((attempt + 1))
-    done
-    
-    log_error "PostgreSQL failed to start within $max_attempts seconds"
-    return 1
-}
-
-# Function to wait for Redis to be ready
-wait_for_redis() {
-    log_info "Waiting for Redis to be ready..."
-    local max_attempts=30
-    local attempt=1
-    
-    while [ $attempt -le $max_attempts ]; do
-        if docker exec $REDIS_CONTAINER redis-cli ping >/dev/null 2>&1; then
-            log_success "Redis is ready!"
-            return 0
-        fi
-        
-        echo -n "."
-        sleep 1
-        attempt=$((attempt + 1))
-    done
-    
-    log_error "Redis failed to start within $max_attempts seconds"
-    return 1
-}
-
-# Function to check if container is running
-is_container_running() {
-    docker ps --format '{{.Names}}' | grep -q "^$1$"
-}
 
 # Main execution
 main() {
@@ -111,73 +102,70 @@ main() {
         exit 1
     fi
     
-    # Stop and remove existing containers if they exist
-    log_info "Cleaning up any existing test containers..."
-    docker stop $POSTGRES_CONTAINER $REDIS_CONTAINER 2>/dev/null || true
-    docker rm $POSTGRES_CONTAINER $REDIS_CONTAINER 2>/dev/null || true
+    # 1. Cleanup any existing environment (same as Makefile)
+    log_info "1️⃣  Cleaning up any existing test environment..."
+    pkill -f "bin/server.*test" || true
+    pkill -f "go run.*server.*test" || true
+    docker rm -f $POSTGRES_CONTAINER $REDIS_CONTAINER 2>/dev/null || true
+    sleep 2
     
-    # Start PostgreSQL container
-    log_info "Starting PostgreSQL test container..."
-    docker run -d \
-        --name $POSTGRES_CONTAINER \
-        -p $POSTGRES_TEST_PORT:5432 \
-        -e POSTGRES_USER=$POSTGRES_USER \
-        -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
-        -e POSTGRES_DB=$POSTGRES_DB \
-        postgres:13 >/dev/null
-    
-    # Start Redis container
-    log_info "Starting Redis test container..."
-    docker run -d \
-        --name $REDIS_CONTAINER \
-        -p $REDIS_TEST_PORT:6379 \
-        redis:7 >/dev/null
-    
-    # Wait for databases to be ready
-    if ! wait_for_postgres; then
-        log_error "Failed to start PostgreSQL"
+    # 2. Start test databases using existing script
+    log_info "2️⃣  Starting test databases..."
+    if ! ./scripts/start-integration-db.sh; then
+        log_error "Failed to start integration databases"
         return 1
     fi
     
-    if ! wait_for_redis; then
-        log_error "Failed to start Redis"
+    # 3. Build server binary
+    log_info "3️⃣  Building server binary..."
+    if ! make build-server; then
+        log_error "Failed to build server"
         return 1
     fi
     
-    # Run database migrations (single source of truth)
-    log_info "Running database migrations..."
-    if ! POSTGRES_HOST=localhost \
-    POSTGRES_PORT=$POSTGRES_TEST_PORT \
-    POSTGRES_USER=$POSTGRES_USER \
-    POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
-    POSTGRES_DB=$POSTGRES_DB \
-        go run cmd/migrate/main.go up; then
-        log_error "Database migration failed!"
+    # 4. Start test server using existing script
+    log_info "4️⃣  Starting test server..."
+    if ! ./scripts/start-integration-server.sh & echo $! > .integration-server.pid; then
+        log_error "Failed to start integration server"
+        return 1
+    fi
+    sleep 2
+    
+    if [ -f .integration-server.pid ]; then
+        log_info "Server started with PID: $(cat .integration-server.pid)"
+    else
+        log_error "Failed to capture server PID"
         return 1
     fi
     
-    # Validate migration state
-    log_info "Validating database migration state..."
-    if ! POSTGRES_HOST=localhost \
-    POSTGRES_PORT=$POSTGRES_TEST_PORT \
-    POSTGRES_USER=$POSTGRES_USER \
-    POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
-    POSTGRES_DB=$POSTGRES_DB \
-        go run cmd/check-db/main.go; then
-        log_error "Migration validation failed in integration test setup!"
+    # 5. Wait for server to be ready
+    log_info "5️⃣  Waiting for server to be ready..."
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        if curl -s http://localhost:$SERVER_PORT/health >/dev/null 2>&1; then
+            log_success "Server is ready!"
+            break
+        fi
+        log_info "   Waiting for server... (attempt $i/10)"
+        sleep 3
+    done
+    
+    if ! curl -s http://localhost:$SERVER_PORT/health >/dev/null 2>&1; then
+        log_error "Server failed to start within timeout"
+        cat server-integration.log 2>/dev/null || true
         return 1
     fi
     
-    # Run integration tests
+    # 6. Run integration tests
+    log_info "6️⃣  Running integration tests..."
     if [ -n "$TEST_NAME" ]; then
-        log_info "Running specific integration test: $TEST_NAME"
+        log_info "Running specific test: $TEST_NAME"
         TEST_PATTERN="$TEST_NAME"
     else
         log_info "Running all integration tests..."
-        TEST_PATTERN="(TestDatabase.*Integration|Test.*Integration|TestIntegrationWithRedis|TestRedisConsistency|TestPerformanceWithAndWithoutRedis)"
+        TEST_PATTERN="Integration"
     fi
     
-    # Run tests and capture exit code
+    # Run tests and capture exit code (matches Makefile environment)
     TEST_EXIT_CODE=0
     TEST_DB_HOST=localhost \
     TEST_DB_PORT=$POSTGRES_TEST_PORT \
@@ -186,12 +174,19 @@ main() {
     TEST_DB_NAME=$POSTGRES_DB \
     TEST_REDIS_HOST=localhost \
     TEST_REDIS_PORT=$REDIS_TEST_PORT \
-        go test -v ./api -run "$TEST_PATTERN" || TEST_EXIT_CODE=$?
+    TEST_SERVER_URL=http://localhost:$SERVER_PORT \
+        go test -v -timeout=10m ./api/... -run "$TEST_PATTERN" \
+        | tee integration-test.log \
+        || TEST_EXIT_CODE=$?
     
+    echo ""
     if [ $TEST_EXIT_CODE -eq 0 ]; then
-        log_success "Integration tests completed successfully!"
+        log_success "All integration tests passed!"
     else
         log_error "Integration tests failed with exit code $TEST_EXIT_CODE"
+        echo ""
+        log_info "📋 Failed test summary:"
+        grep -E "FAIL:|--- FAIL" integration-test.log || true
     fi
     
     return $TEST_EXIT_CODE

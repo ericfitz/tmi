@@ -4,7 +4,7 @@
 
 ```bash
 # Start development environment
-make dev
+make start-dev
 ```
 
 This will:
@@ -48,8 +48,8 @@ For authentication, configure OAuth applications:
 Development uses Docker containers:
 
 ```bash
-make dev-db      # Start PostgreSQL only
-make dev-redis   # Start Redis only
+make start-dev-db      # Start PostgreSQL only
+make start-dev-redis   # Start Redis only
 ```
 
 **Connection details:**
@@ -59,11 +59,11 @@ make dev-redis   # Start Redis only
 ## Available Commands
 
 ```bash
-make dev          # Start development server
-make build        # Build production binary
-make test         # Run tests
-make lint         # Run linter
-make gen-config   # Generate config templates
+make start-dev          # Start development server
+make build-server       # Build production binary
+make run-tests          # Run tests
+make run-lint           # Run linter
+make generate-config    # Generate config templates
 ```
 
 ## Production Deployment
@@ -72,7 +72,7 @@ For production, use:
 
 ```bash
 # Build optimized binary
-make build
+make build-server
 
 # Deploy with production config
 ./bin/server --config=config-production.yaml

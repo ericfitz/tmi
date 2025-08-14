@@ -54,7 +54,7 @@ git clone <repository-url>
 cd tmi
 
 # Build the server
-make build
+make build-server
 # or
 go build -o bin/server cmd/server/main.go
 ```

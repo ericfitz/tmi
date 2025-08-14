@@ -39,7 +39,7 @@ log_success() {
 # Ensure we have a server binary
 if [ ! -f "bin/server" ]; then
     echo "❌ Server binary not found at bin/server"
-    echo "   Run 'make build' first"
+    echo "   Run 'make build-server' first"
     exit 1
 fi
 

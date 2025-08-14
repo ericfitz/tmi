@@ -1,11 +1,14 @@
-.PHONY: build build-check-db test test-unit lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app build-postgres build-redis gen-config dev-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config test-integration test-integration-cleanup coverage coverage-unit coverage-integration coverage-report ensure-migrations check-migrations migrate validate-asyncapi validate-openapi openapi-endpoints test-api test-api-full dev-test dev-test-full test-collaboration-permissions test-collaboration-permissions-v2 clean-dev debug-auth-endpoints list
+.PHONY: build-server build-check-db run-tests test-unit test-integration test-integration-cleanup run-lint clean-artifacts start-dev start-prod start-dev-db start-dev-redis stop-dev-db stop-dev-redis delete-dev-db delete-dev-redis build-dev-app build-postgres build-redis generate-api generate-config start-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config validate-asyncapi validate-openapi list-openapi-endpoints report-coverage report-coverage-unit report-coverage-integration generate-coverage-report ensure-migrations check-migrations run-migrations reset-database test-api test-api-full test-dev test-dev-full test-collaboration-permissions test-collaboration-permissions-v2 clean-dev-env debug-auth-endpoints list-targets
+
+# Backward compatibility aliases
+.PHONY: build test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app gen-api gen-config dev-observability coverage coverage-unit coverage-integration coverage-report migrate reset-db dev-test dev-test-full clean-dev openapi-endpoints list
 
 # Default build target
 VERSION := 0.9.0
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "development")
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-build:
+build-server:
 	go build -o bin/server github.com/ericfitz/tmi/cmd/server
 
 # Build check-db executable
@@ -13,7 +16,7 @@ build-check-db:
 	go build -o check-db cmd/check-db/main.go
 
 # List all available make targets
-list:
+list-targets:
 	@make -qp | awk -F':' '/^[a-zA-Z0-9][^$$#\/\t=]*:([^=]|$$)/ {print $$1}' | sort
 
 # Run unit tests (fast, no external dependencies)
@@ -34,78 +37,13 @@ test-unit:
 		fi; \
 	fi
 
-# Run integration tests with complete environment setup (databases in containers, server native)
+# Run integration tests with complete environment setup
 test-integration:
-	@echo "🚀 Starting robust integration test environment..."
-	@echo ""
-	@echo "1️⃣  Cleaning up any existing test environment..."
-	@pkill -f "bin/server.*test" || true
-	@pkill -f "go run.*server.*test" || true
-	@docker rm -f tmi-integration-postgres tmi-integration-redis 2>/dev/null || true
-	@sleep 2
-	
-	@echo "2️⃣  Starting test databases in containers..."
-	@./scripts/start-integration-db.sh
-	
-	@echo "3️⃣  Building server binary..."
-	@$(MAKE) build
-	
-	@echo "4️⃣  Starting test server (native)..."
-	@./scripts/start-integration-server.sh & echo $$! > .integration-server.pid; \
-	sleep 2; \
-	if [ -f .integration-server.pid ]; then \
-		echo "Server started with PID: $$(cat .integration-server.pid)"; \
-	else \
-		echo "❌ Failed to capture server PID"; \
-		exit 1; \
-	fi
-	
-	@echo "5️⃣  Waiting for server to be ready..."
-	@for i in 1 2 3 4 5 6 7 8 9 10; do \
-		if curl -s http://localhost:8081/health >/dev/null 2>&1; then \
-			echo "✅ Server is ready!"; \
-			break; \
-		fi; \
-		echo "   Waiting for server... (attempt $$i/10)"; \
-		sleep 3; \
-	done
-	@if ! curl -s http://localhost:8081/health >/dev/null 2>&1; then \
-		echo "❌ Server failed to start within timeout"; \
-		cat server-integration.log 2>/dev/null || true; \
-		$(MAKE) test-integration-cleanup; \
-		exit 1; \
-	fi
-	
-	@echo "6️⃣  Running integration tests..."
 	@if [ -n "$(name)" ]; then \
-		echo "Running specific test: $(name)"; \
-		TEST_PATTERN="$(name)"; \
+		./scripts/start-integration-tests.sh --test-name $(name); \
 	else \
-		TEST_PATTERN="Integration"; \
-	fi; \
-	TEST_EXIT_CODE=0; \
-	TEST_DB_HOST=localhost \
-	TEST_DB_PORT=5433 \
-	TEST_DB_USER=tmi_dev \
-	TEST_DB_PASSWORD=dev123 \
-	TEST_DB_NAME=tmi_integration_test \
-	TEST_REDIS_HOST=localhost \
-	TEST_REDIS_PORT=6380 \
-	TEST_SERVER_URL=http://localhost:8081 \
-		go test -v -timeout=10m ./api/... -run "$$TEST_PATTERN" \
-		| tee integration-test.log \
-		|| TEST_EXIT_CODE=$$?; \
-	echo ""; \
-	if [ $$TEST_EXIT_CODE -eq 0 ]; then \
-		echo "✅ All integration tests passed!"; \
-	else \
-		echo "❌ Integration tests failed with exit code $$TEST_EXIT_CODE"; \
-		echo ""; \
-		echo "📋 Failed test summary:"; \
-		grep -E "FAIL:|--- FAIL" integration-test.log || true; \
-	fi; \
-	$(MAKE) test-integration-cleanup; \
-	exit $$TEST_EXIT_CODE
+		./scripts/start-integration-tests.sh; \
+	fi
 
 # Cleanup integration test environment (containers and server)
 test-integration-cleanup:
@@ -144,14 +82,14 @@ test-integration-cleanup:
 	@echo "✅ Cleanup completed"
 
 # Alias for backward compatibility
-test: test-unit
+run-tests: test-unit
 
 # Run linter
-lint:
+run-lint:
 	golangci-lint run
 
 # Generate API from OpenAPI spec
-gen-api:
+generate-api:
 	oapi-codegen -config oapi-codegen-config.yaml tmi-openapi.json
 
 # Note: AsyncAPI Go types are manually implemented in api/asyncapi_types.go
@@ -176,11 +114,11 @@ validate-openapi:
 	uv run scripts/validate_openapi.py "$$FILE"
 
 # List OpenAPI endpoints with HTTP methods and response codes
-openapi-endpoints:
+list-openapi-endpoints:
 	@FILE=$${file:-tmi-openapi.json}; \
 	if [ ! -f "$$FILE" ]; then \
 		echo "❌ File not found: $$FILE"; \
-		echo "Usage: make openapi-endpoints [file=path/to/openapi.json]"; \
+		echo "Usage: make list-openapi-endpoints [file=path/to/openapi.json]"; \
 		exit 1; \
 	fi; \
 	echo "📋 OpenAPI Endpoints from $$FILE:"; \
@@ -199,58 +137,58 @@ openapi-endpoints:
 	' "$$FILE" | sort
 
 # Clean build artifacts
-clean:
+clean-artifacts:
 	rm -rf ./bin/*
 	rm -f check-db
 
 # Start development environment
-dev: build-check-db
+start-dev: build-check-db
 	@echo "Starting TMI development environment..."
 	@./scripts/start-dev.sh
 
 # Start production environment
-prod:
+start-prod:
 	@echo "Starting TMI production environment..."
 	@./scripts/start-prod.sh
 
 # Development Database and Cache Management
 
 # Start development database only
-dev-db:
+start-dev-db:
 	@echo "Starting development database..."
 	@./scripts/start-dev-db.sh
 	@echo "Applying database migrations..."
 	@cd cmd/migrate && go run main.go up
 
 # Start development Redis only
-dev-redis:
+start-dev-redis:
 	@echo "Starting development Redis..."
 	@./scripts/start-dev-redis.sh
 
 # Stop development database (preserves data)
-stop-db:
+stop-dev-db:
 	@echo "Stopping development database..."
 	@docker stop tmi-postgresql || true
 
 # Stop development Redis (preserves data)
-stop-redis:
+stop-dev-redis:
 	@echo "Stopping development Redis..."
 	@docker stop tmi-redis || true
 
 # Delete development database (removes container and data)
-delete-db:
+delete-dev-db:
 	@echo "🗑️  Deleting development database (container and data)..."
 	@docker rm -f tmi-postgresql || true
 	@echo "✅ Database container removed!"
 
 # Delete development Redis (removes container and data) 
-delete-redis:
+delete-dev-redis:
 	@echo "🗑️  Deleting development Redis (container and data)..."
 	@docker rm -f tmi-redis || true
 	@echo "✅ Redis container removed!"
 
 # Build development Docker container for app
-dev-app:
+build-dev-app:
 	@echo "Building TMI development Docker container..."
 	docker build -f Dockerfile.dev -t tmi-app .
 
@@ -265,14 +203,14 @@ build-redis:
 	docker build -f Dockerfile.redis -t tmi-redis .
 
 # Generate configuration files
-gen-config:
+generate-config:
 	@echo "Generating configuration files..."
 	go run github.com/ericfitz/tmi/cmd/server --generate-config
 
 # OpenTelemetry and Observability Stack Management
 
 # Start local observability stack (Grafana, Prometheus, Jaeger, Loki, OpenTelemetry Collector)
-dev-observability:
+start-observability:
 	@echo "Starting TMI Observability Stack..."
 	@./scripts/start-observability.sh
 
@@ -322,22 +260,22 @@ export-telemetry:
 clean-telemetry: delete-observability
 
 # Generate comprehensive test coverage report (unit + integration)
-coverage:
+report-coverage:
 	@echo "Generating comprehensive test coverage report..."
 	./scripts/coverage-report.sh
 
 # Generate unit test coverage only
-coverage-unit:
+report-coverage-unit:
 	@echo "Generating unit test coverage report..."
 	./scripts/coverage-report.sh --unit-only
 
 # Generate integration test coverage only
-coverage-integration:
+report-coverage-integration:
 	@echo "Generating integration test coverage report..."
 	./scripts/coverage-report.sh --integration-only
 
 # Generate coverage report without HTML
-coverage-report:
+generate-coverage-report:
 	@echo "Generating coverage report (no HTML)..."
 	./scripts/coverage-report.sh --no-html
 
@@ -354,16 +292,16 @@ check-migrations:
 	@cd cmd/check-db && go run main.go
 
 # Run database migrations manually
-migrate:
+run-migrations:
 	@echo "Running database migrations..."
 	@cd cmd/migrate && go run main.go up
 
 # Reset database (interactive confirmation - destroys all data)
-reset-db:
+reset-database:
 	@echo "⚠️  WARNING: This will destroy all database data!"
 	@read -p "Are you sure? Type 'yes' to continue: " confirm && [ "$$confirm" = "yes" ] || exit 1
-	@$(MAKE) delete-db
-	@echo "Database reset. Run 'make dev-db' to create a fresh database."
+	@$(MAKE) delete-dev-db
+	@echo "Database reset. Run 'make start-dev-db' to create a fresh database."
 
 # Testing and Development Authentication Targets
 
@@ -415,16 +353,16 @@ test-api-full:
 	@docker rm -f tmi-postgresql tmi-redis || true
 	
 	@echo "3. 🗃️  Starting development database..."
-	@$(MAKE) dev-db
+	@$(MAKE) start-dev-db
 	
 	@echo "4. 📦 Starting development Redis..."
-	@$(MAKE) dev-redis
+	@$(MAKE) start-dev-redis
 	
 	@echo "5. ⏳ Waiting for services to be ready..."
 	@sleep 5
 	
 	@echo "6. 🔨 Building server..."
-	@$(MAKE) build
+	@$(MAKE) build-server
 	
 	@echo "7. 📝 Ensuring configuration files exist..."
 	@if [ ! -f config-development.yaml ]; then \
@@ -463,19 +401,19 @@ test-api-full:
 	@echo "✅ Full API test completed successfully!"
 
 # Quick development test - builds and tests key endpoints
-dev-test: build
+test-dev: build-server
 	@echo "🚀 Running quick development test..."
 	@if ! pgrep -f "bin/server" > /dev/null; then \
-		echo "❌ Server not running. Start with 'make dev' first"; \
+		echo "❌ Server not running. Start with 'make start-dev' first"; \
 		exit 1; \
 	fi
 	@$(MAKE) test-api
 
 # Full development test - sets up environment and runs development tests
-dev-test-full: test-api-full
+test-dev-full: test-api-full
 
 # Clean development environment (kill processes, clean DBs)
-clean-dev:
+clean-dev-env:
 	@echo "🧹 Cleaning development environment..."
 	@./scripts/clean-dev.sh
 
@@ -506,3 +444,32 @@ debug-auth-endpoints:
 	@echo ""
 	@echo "5. Getting redirect headers from test provider:"
 	@curl -s -I "http://localhost:8080/auth/login/test" | grep -i location
+
+# Backward compatibility aliases for common targets
+build: build-server
+test: run-tests
+lint: run-lint
+clean: clean-artifacts
+dev: start-dev
+prod: start-prod
+dev-db: start-dev-db
+dev-redis: start-dev-redis
+stop-db: stop-dev-db
+stop-redis: stop-dev-redis
+delete-db: delete-dev-db
+delete-redis: delete-dev-redis
+dev-app: build-dev-app
+gen-api: generate-api
+gen-config: generate-config
+dev-observability: start-observability
+coverage: report-coverage
+coverage-unit: report-coverage-unit
+coverage-integration: report-coverage-integration
+coverage-report: generate-coverage-report
+migrate: run-migrations
+reset-db: reset-database
+dev-test: test-dev
+dev-test-full: test-dev-full
+clean-dev: clean-dev-env
+openapi-endpoints: list-openapi-endpoints
+list: list-targets
