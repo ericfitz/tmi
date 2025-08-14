@@ -18,6 +18,11 @@ echo "Ensuring PostgreSQL Docker container is running..."
 echo "Ensuring Redis Docker container is running..."
 "$SCRIPT_DIR/start-dev-redis.sh" || { echo "Error: Failed to start Redis container"; exit 1; }
 
+# Applying database migrations
+echo "Ensuring PostgreSQL database migrations are applied"
+cd "$PROJECT_ROOT/cmd/migrate" && go run main.go up
+cd "$PROJECT_ROOT"
+
 # Ensure all database migrations are applied
 echo "Ensuring database migrations are applied..."
 "$SCRIPT_DIR/ensure-migrations.sh" || { echo "Error: Database migrations failed"; exit 1; }
