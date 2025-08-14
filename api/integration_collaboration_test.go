@@ -514,7 +514,7 @@ func testCollaborationSessionsEndpoint(t *testing.T, suite *SubEntityIntegration
 
 	t.Run("MockActiveSession", func(t *testing.T) {
 		// Manually create a session in the WebSocket hub for testing
-		server := NewServer()
+		server := NewServerForTests()
 		diagramUUID, err := uuid.Parse(diagramID)
 		require.NoError(t, err, "Should parse diagram ID as UUID")
 		// Create a mock session directly in the hub

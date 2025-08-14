@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -445,4 +447,84 @@ func Recoverer() gin.HandlerFunc {
 		}()
 		c.Next()
 	}
+}
+
+// Token redaction patterns
+var (
+	// Authorization header patterns
+	authHeaderRegex = regexp.MustCompile(`(?i)(authorization|x-auth-token|x-api-key|bearer):\s*([^\s]+)`)
+	// Query parameter patterns
+	tokenParamRegex = regexp.MustCompile(`(?i)(token|auth|bearer|key|secret|password)=([^&\s]+)`)
+	// JWT token pattern (basic detection)
+	jwtRegex = regexp.MustCompile(`eyJ[A-Za-z0-9_=-]+\.eyJ[A-Za-z0-9_=-]+\.?[A-Za-z0-9_=-]*`)
+)
+
+// RedactSensitiveInfo removes or masks sensitive information from strings
+func RedactSensitiveInfo(input string) string {
+	if input == "" {
+		return input
+	}
+
+	// Redact authorization headers
+	input = authHeaderRegex.ReplaceAllString(input, "$1: [REDACTED]")
+
+	// Redact query parameters with sensitive names
+	input = tokenParamRegex.ReplaceAllString(input, "$1=[REDACTED]")
+
+	// Redact JWT tokens (basic pattern matching)
+	input = jwtRegex.ReplaceAllString(input, "[JWT_REDACTED]")
+
+	return input
+}
+
+// RedactHeaders creates a copy of headers map with sensitive values redacted
+func RedactHeaders(headers map[string][]string) map[string][]string {
+	if headers == nil {
+		return nil
+	}
+
+	redacted := make(map[string][]string)
+	sensitiveHeaders := map[string]bool{
+		"authorization": true,
+		"x-auth-token":  true,
+		"x-api-key":     true,
+		"cookie":        true,
+		"set-cookie":    true,
+	}
+
+	for key, values := range headers {
+		lowerKey := strings.ToLower(key)
+		if sensitiveHeaders[lowerKey] {
+			redacted[key] = []string{"[REDACTED]"}
+		} else {
+			// Still check individual values for embedded tokens
+			redactedValues := make([]string, len(values))
+			for i, value := range values {
+				redactedValues[i] = RedactSensitiveInfo(value)
+			}
+			redacted[key] = redactedValues
+		}
+	}
+
+	return redacted
+}
+
+// RedactURL creates a redacted version of a URL with sensitive query parameters masked
+func RedactURL(rawURL string) string {
+	if rawURL == "" {
+		return rawURL
+	}
+
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		// If parsing fails, do basic string redaction
+		return RedactSensitiveInfo(rawURL)
+	}
+
+	// Redact query parameters
+	if parsedURL.RawQuery != "" {
+		parsedURL.RawQuery = RedactSensitiveInfo(parsedURL.RawQuery)
+	}
+
+	return parsedURL.String()
 }

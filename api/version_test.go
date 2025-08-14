@@ -22,13 +22,13 @@ func TestApiInfoHandler_GetApiInfo(t *testing.T) {
 			name:        "JSON response with server",
 			headers:     map[string]string{"Accept": "application/json"},
 			expectHTML:  false,
-			setupServer: func() *Server { return NewServer() },
+			setupServer: func() *Server { return NewServerForTests() },
 		},
 		{
 			name:        "HTML response with server",
 			headers:     map[string]string{"Accept": "text/html"},
 			expectHTML:  true,
-			setupServer: func() *Server { return NewServer() },
+			setupServer: func() *Server { return NewServerForTests() },
 		},
 		{
 			name:        "JSON response without server",
@@ -101,7 +101,7 @@ func TestApiInfoHandler_GetApiInfo_WithTLS(t *testing.T) {
 		c.Next()
 	})
 
-	server := NewServer()
+	server := NewServerForTests()
 	handler := NewApiInfoHandler(server)
 	router.GET("/", handler.GetApiInfo)
 
@@ -137,7 +137,7 @@ func TestApiInfoHandler_GetApiInfo_WithCustomPort(t *testing.T) {
 		c.Next()
 	})
 
-	server := NewServer()
+	server := NewServerForTests()
 	handler := NewApiInfoHandler(server)
 	router.GET("/", handler.GetApiInfo)
 

@@ -226,7 +226,7 @@ func TestHandleCollaborationSessions(t *testing.T) {
 
 			// Create server with fresh WebSocket hub
 			server := &Server{
-				wsHub: NewWebSocketHub(),
+				wsHub: NewWebSocketHubForTests(),
 			}
 
 			// Setup test sessions
@@ -279,7 +279,7 @@ func TestHandleCollaborationSessions(t *testing.T) {
 
 func TestWebSocketHub_GetActiveSessions(t *testing.T) {
 	// Test the hub method directly
-	hub := NewWebSocketHub()
+	hub := NewWebSocketHubForTests()
 
 	// Test empty hub
 	sessions := hub.GetActiveSessions()

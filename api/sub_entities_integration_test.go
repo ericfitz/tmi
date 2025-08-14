@@ -152,12 +152,12 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	InitializeDatabaseStores(dbManager.Postgres().GetDB())
 
 	// Initialize API server and register custom WebSocket handlers
-	server := NewServer()
+	server := NewServerForTests()
 	server.RegisterHandlers(router)
 
 	// Register API handlers directly
 	threatModelHandler := NewThreatModelHandler()
-	diagramHandler := NewThreatModelDiagramHandler(NewWebSocketHub())
+	diagramHandler := NewThreatModelDiagramHandler(NewWebSocketHubForTests())
 
 	// Threat Model routes
 	router.GET("/threat_models", threatModelHandler.GetThreatModels)

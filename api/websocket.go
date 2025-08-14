@@ -22,6 +22,8 @@ type WebSocketHub struct {
 	Diagrams map[string]*DiagramSession
 	// Mutex for thread safety
 	mu sync.RWMutex
+	// WebSocket logging configuration
+	LoggingConfig logging.WebSocketLoggingConfig
 }
 
 // DiagramSession represents a collaborative editing session
@@ -186,10 +188,21 @@ var upgrader = websocket.Upgrader{
 }
 
 // NewWebSocketHub creates a new WebSocket hub
-func NewWebSocketHub() *WebSocketHub {
+func NewWebSocketHub(loggingConfig logging.WebSocketLoggingConfig) *WebSocketHub {
 	return &WebSocketHub{
-		Diagrams: make(map[string]*DiagramSession),
+		Diagrams:      make(map[string]*DiagramSession),
+		LoggingConfig: loggingConfig,
 	}
+}
+
+// NewWebSocketHubForTests creates a WebSocket hub with default test configuration
+func NewWebSocketHubForTests() *WebSocketHub {
+	return NewWebSocketHub(logging.WebSocketLoggingConfig{
+		Enabled:        false, // Disable logging in tests by default
+		RedactTokens:   true,
+		MaxMessageSize: 5 * 1024,
+		OnlyDebugLevel: true,
+	})
 }
 
 // buildWebSocketURL constructs the absolute WebSocket URL from request context
@@ -3016,6 +3029,18 @@ func (c *WebSocketClient) ReadPump() {
 			break
 		}
 
+		// Log inbound WebSocket message
+		if c.Session != nil && c.Hub != nil {
+			logging.LogWebSocketMessage(
+				logging.WSMessageInbound,
+				c.Session.ID,
+				c.UserName,
+				"text",
+				message,
+				c.Hub.LoggingConfig,
+			)
+		}
+
 		// Process message using enhanced message handler
 		c.Session.ProcessMessage(c, message)
 	}
@@ -3117,6 +3142,18 @@ func (c *WebSocketClient) WritePump() {
 				return
 			}
 
+			// Log outbound WebSocket message
+			if c.Session != nil && c.Hub != nil {
+				logging.LogWebSocketMessage(
+					logging.WSMessageOutbound,
+					c.Session.ID,
+					c.UserName,
+					"text",
+					message,
+					c.Hub.LoggingConfig,
+				)
+			}
+
 			w, err := c.Conn.NextWriter(websocket.TextMessage)
 			if err != nil {
 				return
@@ -3133,7 +3170,22 @@ func (c *WebSocketClient) WritePump() {
 					logging.Get().Info("Error writing newline: %v", err)
 					return
 				}
-				if _, err := w.Write(<-c.Send); err != nil {
+
+				queuedMessage := <-c.Send
+
+				// Log queued outbound WebSocket message
+				if c.Session != nil && c.Hub != nil {
+					logging.LogWebSocketMessage(
+						logging.WSMessageOutbound,
+						c.Session.ID,
+						c.UserName,
+						"text",
+						queuedMessage,
+						c.Hub.LoggingConfig,
+					)
+				}
+
+				if _, err := w.Write(queuedMessage); err != nil {
 					logging.Get().Info("Error writing queued message: %v", err)
 					return
 				}

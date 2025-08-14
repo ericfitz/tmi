@@ -249,7 +249,14 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist) gin.
 
 func (s *Server) GetApiInfo(c *gin.Context) {
 	// Create API server to provide WebSocket URL building functionality
-	apiServer := api.NewServer()
+	// Use minimal logging config since this is just for API info
+	wsLoggingConfig := logging.WebSocketLoggingConfig{
+		Enabled:        false, // No WebSocket activity in API info endpoint
+		RedactTokens:   true,
+		MaxMessageSize: 5 * 1024,
+		OnlyDebugLevel: true,
+	}
+	apiServer := api.NewServer(wsLoggingConfig)
 	apiInfoHandler := api.NewApiInfoHandler(apiServer)
 	apiInfoHandler.GetApiInfo(c)
 }
@@ -929,6 +936,23 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		r.Use(logging.LoggerMiddleware())
 	}
 
+	// Add enhanced request/response logging middleware if configured
+	if config.Logging.LogAPIRequests || config.Logging.LogAPIResponses {
+		requestConfig := logging.RequestResponseLoggingConfig{
+			LogRequests:    config.Logging.LogAPIRequests,
+			LogResponses:   config.Logging.LogAPIResponses,
+			RedactTokens:   config.Logging.RedactAuthTokens,
+			MaxBodySize:    10 * 1024, // 10KB
+			OnlyDebugLevel: true,
+			SkipPaths: []string{
+				"/health",
+				"/metrics",
+				"/favicon.ico",
+			},
+		}
+		r.Use(logging.RequestResponseLogger(requestConfig))
+	}
+
 	r.Use(logging.Recoverer()) // Use our recoverer
 	r.Use(api.CORS())
 	r.Use(api.ContextTimeout(30 * time.Second))
@@ -954,8 +978,16 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Security middleware with public path handling
 	r.Use(PublicPathsMiddleware()) // Identify public paths first
 
+	// Create WebSocket logging configuration from main config
+	wsLoggingConfig := logging.WebSocketLoggingConfig{
+		Enabled:        config.Logging.LogWebSocketMsg,
+		RedactTokens:   config.Logging.RedactAuthTokens,
+		MaxMessageSize: 5 * 1024, // 5KB default
+		OnlyDebugLevel: true,
+	}
+
 	// Create API server with handlers
-	apiServer := api.NewServer()
+	apiServer := api.NewServer(wsLoggingConfig)
 
 	// Setup server with handlers
 	server := &Server{

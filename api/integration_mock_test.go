@@ -36,7 +36,7 @@ func TestEndpointIntegrationMock(t *testing.T) {
 
 	// Register handlers
 	threatModelHandler := NewThreatModelHandler()
-	diagramHandler := NewThreatModelDiagramHandler(NewWebSocketHub())
+	diagramHandler := NewThreatModelDiagramHandler(NewWebSocketHubForTests())
 
 	// Threat Model routes
 	router.GET("/threat_models", threatModelHandler.GetThreatModels)

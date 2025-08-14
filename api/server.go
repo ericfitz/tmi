@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/ericfitz/tmi/internal/logging"
 )
 
 // Server is the main API server instance
@@ -18,12 +20,22 @@ type Server struct {
 }
 
 // NewServer creates a new API server instance
-func NewServer() *Server {
+func NewServer(wsLoggingConfig logging.WebSocketLoggingConfig) *Server {
 	return &Server{
 		threatModelHandler: NewThreatModelHandler(),
 		// diagramHandler:     NewDiagramHandler(),  // Disabled - diagram endpoints removed
-		wsHub: NewWebSocketHub(),
+		wsHub: NewWebSocketHub(wsLoggingConfig),
 	}
+}
+
+// NewServerForTests creates a server with default test configuration
+func NewServerForTests() *Server {
+	return NewServer(logging.WebSocketLoggingConfig{
+		Enabled:        false, // Disable logging in tests by default
+		RedactTokens:   true,
+		MaxMessageSize: 5 * 1024,
+		OnlyDebugLevel: true,
+	})
 }
 
 // ServerInfo provides information about the server configuration
