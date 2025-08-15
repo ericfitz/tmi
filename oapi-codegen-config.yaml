@@ -3,5 +3,5 @@ package: api
 output: api/api.go
 generate:
   models: true
-  echo-server: true
+  gin-server: true
   embedded-spec: true

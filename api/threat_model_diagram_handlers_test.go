@@ -193,8 +193,7 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 
 	r.ServeHTTP(diagW, diagReq)
 
-	// Debug output for response
-	fmt.Printf("[TEST RESPONSE] Status: %d, Body: %s\n", diagW.Code, diagW.Body.String())
+	// Debug output for response removed - use test output if needed
 
 	// Assert response
 	assert.Equal(t, http.StatusCreated, diagW.Code)
@@ -644,7 +643,7 @@ func TestPostThreatModelDiagramCollaborate(t *testing.T) {
 	r.ServeHTTP(postW, postReq)
 
 	// Assert response
-	assert.Equal(t, http.StatusOK, postW.Code)
+	assert.Equal(t, http.StatusCreated, postW.Code)
 
 	// Parse response
 	var session map[string]interface{}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -210,13 +211,13 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	createdTM, err := ThreatModelStore.Create(tm, idSetter)
 	if err != nil {
 		// Log the actual error for debugging
-		fmt.Printf("[ERROR] Failed to create threat model: %v\n", err)
+		logging.Get().WithContext(c).Error("Failed to create threat model: %v", err)
 
 		// Check if this is a foreign key constraint violation (stale user session)
 		if isForeignKeyConstraintError(err) {
 			// This indicates the user's JWT token is valid but they no longer exist in the database
 			// This happens when user account is deleted but JWT hasn't expired yet
-			fmt.Printf("[WARN] Foreign key constraint violation for user %s - invalidating session\n", userName)
+			logging.Get().WithContext(c).Warn("Foreign key constraint violation for user %s - invalidating session", userName)
 
 			// Try to blacklist the token to prevent future use
 			if tokenStr, err := extractTokenFromRequest(c); err == nil {
@@ -253,7 +254,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 
 	// Parse ID from URL parameter
 	id := c.Param("threat_model_id")
-	fmt.Printf("[DEBUG HANDLER] UpdateThreatModel called for ID: %s\n", id)
+	logging.Get().WithContext(c).Debug("[HANDLER] UpdateThreatModel called for ID: %s", id)
 
 	// Parse and validate request body using OpenAPI validation
 	var request UpdateThreatModelRequest
@@ -262,7 +263,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("[DEBUG HANDLER] Successfully parsed request: %+v\n", request)
+	logging.Get().WithContext(c).Debug("[HANDLER] Successfully parsed request: %+v", request)
 
 	// Get username from JWT claim
 	userName, _, err := ValidateAuthenticatedUser(c)
@@ -381,7 +382,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 // PatchThreatModel partially updates a threat model
 func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	id := c.Param("threat_model_id")
-	fmt.Printf("[DEBUG HANDLER] PatchThreatModel called for ID: %s\n", id)
+	logging.Get().WithContext(c).Debug("[HANDLER] PatchThreatModel called for ID: %s", id)
 
 	// Phase 1: Parse request and validate user
 	operations, err := ParsePatchRequest(c)
@@ -389,7 +390,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		HandleRequestError(c, err)
 		return
 	}
-	fmt.Printf("[DEBUG HANDLER] Successfully parsed PATCH request with %d operations\n", len(operations))
+	logging.Get().WithContext(c).Debug("[HANDLER] Successfully parsed PATCH request with %d operations", len(operations))
 
 	// Validate patch operations against prohibited fields
 	prohibitedPaths := []string{
@@ -622,7 +623,7 @@ func authorizationEqual(a, b []Authorization) bool {
 // validatePatchedThreatModel performs validation on the patched threat model
 func validatePatchedThreatModel(original, patched ThreatModel, userName string) error {
 	// Add debug logging
-	fmt.Printf("[DEBUG] Validating patched threat model: %+v\n", patched)
+	logging.Get().Debug("Validating patched threat model: %+v", patched)
 
 	// 1. Ensure ID is not changed
 	if patched.Id != original.Id {

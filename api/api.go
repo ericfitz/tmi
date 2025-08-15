@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/labstack/echo/v4"
+	"github.com/gin-gonic/gin"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -2232,2558 +2232,3282 @@ func (t *EdgeRouter) UnmarshalJSON(b []byte) error {
 type ServerInterface interface {
 	// Get API information
 	// (GET /)
-	GetApiInfo(ctx echo.Context) error
+	GetApiInfo(c *gin.Context)
 	// Handle OAuth callback
 	// (GET /auth/callback)
-	HandleOAuthCallback(ctx echo.Context, params HandleOAuthCallbackParams) error
+	HandleOAuthCallback(c *gin.Context, params HandleOAuthCallbackParams)
 	// Initiate OAuth authorization flow
 	// (GET /auth/login/{provider})
-	AuthorizeOAuthProvider(ctx echo.Context, provider AuthorizeOAuthProviderParamsProvider, params AuthorizeOAuthProviderParams) error
+	AuthorizeOAuthProvider(c *gin.Context, provider AuthorizeOAuthProviderParamsProvider, params AuthorizeOAuthProviderParams)
 	// Logout user
 	// (POST /auth/logout)
-	LogoutUser(ctx echo.Context) error
+	LogoutUser(c *gin.Context)
 	// Get current user information
 	// (GET /auth/me)
-	GetCurrentUser(ctx echo.Context) error
+	GetCurrentUser(c *gin.Context)
 	// List available OAuth providers
 	// (GET /auth/providers)
-	GetAuthProviders(ctx echo.Context) error
+	GetAuthProviders(c *gin.Context)
 	// Refresh JWT token
 	// (POST /auth/refresh)
-	RefreshToken(ctx echo.Context) error
+	RefreshToken(c *gin.Context)
 	// Exchange OAuth authorization code for JWT tokens
 	// (POST /auth/token/{provider})
-	ExchangeOAuthCode(ctx echo.Context, provider ExchangeOAuthCodeParamsProvider) error
+	ExchangeOAuthCode(c *gin.Context, provider ExchangeOAuthCodeParamsProvider)
 	// List active collaboration sessions
 	// (GET /collaboration/sessions)
-	GetCollaborationSessions(ctx echo.Context) error
+	GetCollaborationSessions(c *gin.Context)
 	// List threat models
 	// (GET /threat_models)
-	ListThreatModels(ctx echo.Context, params ListThreatModelsParams) error
+	ListThreatModels(c *gin.Context, params ListThreatModelsParams)
 	// Create a threat model
 	// (POST /threat_models)
-	CreateThreatModel(ctx echo.Context) error
+	CreateThreatModel(c *gin.Context)
 	// Delete a threat model
 	// (DELETE /threat_models/{threat_model_id})
-	DeleteThreatModel(ctx echo.Context, threatModelId openapi_types.UUID) error
+	DeleteThreatModel(c *gin.Context, threatModelId openapi_types.UUID)
 	// Retrieve a threat model
 	// (GET /threat_models/{threat_model_id})
-	GetThreatModel(ctx echo.Context, threatModelId openapi_types.UUID) error
+	GetThreatModel(c *gin.Context, threatModelId openapi_types.UUID)
 	// Partially update a threat model
 	// (PATCH /threat_models/{threat_model_id})
-	PatchThreatModel(ctx echo.Context, threatModelId openapi_types.UUID) error
+	PatchThreatModel(c *gin.Context, threatModelId openapi_types.UUID)
 	// Update a threat model
 	// (PUT /threat_models/{threat_model_id})
-	UpdateThreatModel(ctx echo.Context, threatModelId openapi_types.UUID) error
+	UpdateThreatModel(c *gin.Context, threatModelId openapi_types.UUID)
 	// List threat model diagrams
 	// (GET /threat_models/{threat_model_id}/diagrams)
-	GetThreatModelDiagrams(ctx echo.Context, threatModelId openapi_types.UUID, params GetThreatModelDiagramsParams) error
+	GetThreatModelDiagrams(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelDiagramsParams)
 	// Create a new diagram
 	// (POST /threat_models/{threat_model_id}/diagrams)
-	CreateThreatModelDiagram(ctx echo.Context, threatModelId openapi_types.UUID) error
+	CreateThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID)
 	// Delete a diagram
 	// (DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id})
-	DeleteThreatModelDiagram(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	DeleteThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
 	// Get a specific diagram
 	// (GET /threat_models/{threat_model_id}/diagrams/{diagram_id})
-	GetThreatModelDiagram(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	GetThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
 	// Partially update a diagram
 	// (PATCH /threat_models/{threat_model_id}/diagrams/{diagram_id})
-	PatchThreatModelDiagram(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	PatchThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
 	// Update a diagram
 	// (PUT /threat_models/{threat_model_id}/diagrams/{diagram_id})
-	UpdateThreatModelDiagram(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	UpdateThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
 	// End diagram collaboration session
 	// (DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate)
-	EndDiagramCollaborationSession(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	EndDiagramCollaborationSession(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
 	// Get diagram collaboration session
 	// (GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate)
-	GetDiagramCollaborationSession(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
-	// Start diagram collaboration session
+	GetDiagramCollaborationSession(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
+	// Create diagram collaboration session
 	// (POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate)
-	StartDiagramCollaborationSession(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	CreateDiagramCollaborationSession(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
+	// Join diagram collaboration session
+	// (PUT /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate)
+	JoinDiagramCollaborationSession(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
 	// Get diagram metadata
 	// (GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata)
-	GetDiagramMetadata(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	GetDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
 	// Create diagram metadata
 	// (POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata)
-	CreateDiagramMetadata(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	CreateDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
 	// Bulk create diagram metadata
 	// (POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/bulk)
-	BulkCreateDiagramMetadata(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) error
+	BulkCreateDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
 	// Delete diagram metadata by key
 	// (DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key})
-	DeleteDiagramMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) error
+	DeleteDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string)
 	// Get diagram metadata by key
 	// (GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key})
-	GetDiagramMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) error
+	GetDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string)
 	// Update diagram metadata by key
 	// (PUT /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key})
-	UpdateDiagramMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) error
+	UpdateDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string)
 	// List documents in a threat model
 	// (GET /threat_models/{threat_model_id}/documents)
-	GetThreatModelDocuments(ctx echo.Context, threatModelId openapi_types.UUID, params GetThreatModelDocumentsParams) error
+	GetThreatModelDocuments(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelDocumentsParams)
 	// Create a new document
 	// (POST /threat_models/{threat_model_id}/documents)
-	CreateThreatModelDocument(ctx echo.Context, threatModelId openapi_types.UUID) error
+	CreateThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID)
 	// Bulk create documents
 	// (POST /threat_models/{threat_model_id}/documents/bulk)
-	BulkCreateThreatModelDocuments(ctx echo.Context, threatModelId openapi_types.UUID) error
+	BulkCreateThreatModelDocuments(c *gin.Context, threatModelId openapi_types.UUID)
 	// Delete a document
 	// (DELETE /threat_models/{threat_model_id}/documents/{document_id})
-	DeleteThreatModelDocument(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) error
+	DeleteThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID)
 	// Get a specific document
 	// (GET /threat_models/{threat_model_id}/documents/{document_id})
-	GetThreatModelDocument(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) error
+	GetThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID)
 	// Update a document
 	// (PUT /threat_models/{threat_model_id}/documents/{document_id})
-	UpdateThreatModelDocument(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) error
+	UpdateThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID)
 	// Get document metadata
 	// (GET /threat_models/{threat_model_id}/documents/{document_id}/metadata)
-	GetDocumentMetadata(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) error
+	GetDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID)
 	// Create document metadata
 	// (POST /threat_models/{threat_model_id}/documents/{document_id}/metadata)
-	CreateDocumentMetadata(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) error
+	CreateDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID)
 	// Bulk create document metadata
 	// (POST /threat_models/{threat_model_id}/documents/{document_id}/metadata/bulk)
-	BulkCreateDocumentMetadata(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) error
+	BulkCreateDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID)
 	// Delete document metadata by key
 	// (DELETE /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key})
-	DeleteDocumentMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) error
+	DeleteDocumentMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string)
 	// Get document metadata by key
 	// (GET /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key})
-	GetDocumentMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) error
+	GetDocumentMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string)
 	// Update document metadata by key
 	// (PUT /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key})
-	UpdateDocumentMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) error
+	UpdateDocumentMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string)
 	// Get threat model metadata
 	// (GET /threat_models/{threat_model_id}/metadata)
-	GetThreatModelMetadata(ctx echo.Context, threatModelId openapi_types.UUID) error
+	GetThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID)
 	// Create threat model metadata
 	// (POST /threat_models/{threat_model_id}/metadata)
-	CreateThreatModelMetadata(ctx echo.Context, threatModelId openapi_types.UUID) error
+	CreateThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID)
 	// Bulk create threat model metadata
 	// (POST /threat_models/{threat_model_id}/metadata/bulk)
-	BulkCreateThreatModelMetadata(ctx echo.Context, threatModelId openapi_types.UUID) error
+	BulkCreateThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID)
 	// Delete threat model metadata by key
 	// (DELETE /threat_models/{threat_model_id}/metadata/{key})
-	DeleteThreatModelMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, key string) error
+	DeleteThreatModelMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, key string)
 	// Get threat model metadata by key
 	// (GET /threat_models/{threat_model_id}/metadata/{key})
-	GetThreatModelMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, key string) error
+	GetThreatModelMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, key string)
 	// Update threat model metadata by key
 	// (PUT /threat_models/{threat_model_id}/metadata/{key})
-	UpdateThreatModelMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, key string) error
+	UpdateThreatModelMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, key string)
 	// List sources in a threat model
 	// (GET /threat_models/{threat_model_id}/sources)
-	GetThreatModelSources(ctx echo.Context, threatModelId openapi_types.UUID, params GetThreatModelSourcesParams) error
+	GetThreatModelSources(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelSourcesParams)
 	// Create a new source reference
 	// (POST /threat_models/{threat_model_id}/sources)
-	CreateThreatModelSource(ctx echo.Context, threatModelId openapi_types.UUID) error
+	CreateThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID)
 	// Bulk create sources
 	// (POST /threat_models/{threat_model_id}/sources/bulk)
-	BulkCreateThreatModelSources(ctx echo.Context, threatModelId openapi_types.UUID) error
+	BulkCreateThreatModelSources(c *gin.Context, threatModelId openapi_types.UUID)
 	// Delete a source reference
 	// (DELETE /threat_models/{threat_model_id}/sources/{source_id})
-	DeleteThreatModelSource(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) error
+	DeleteThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID)
 	// Get a specific source reference
 	// (GET /threat_models/{threat_model_id}/sources/{source_id})
-	GetThreatModelSource(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) error
+	GetThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID)
 	// Update a source reference
 	// (PUT /threat_models/{threat_model_id}/sources/{source_id})
-	UpdateThreatModelSource(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) error
+	UpdateThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID)
 	// Get source metadata
 	// (GET /threat_models/{threat_model_id}/sources/{source_id}/metadata)
-	GetSourceMetadata(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) error
+	GetSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID)
 	// Create source metadata
 	// (POST /threat_models/{threat_model_id}/sources/{source_id}/metadata)
-	CreateSourceMetadata(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) error
+	CreateSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID)
 	// Bulk create source metadata
 	// (POST /threat_models/{threat_model_id}/sources/{source_id}/metadata/bulk)
-	BulkCreateSourceMetadata(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) error
+	BulkCreateSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID)
 	// Delete source metadata by key
 	// (DELETE /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key})
-	DeleteSourceMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) error
+	DeleteSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string)
 	// Get source metadata by key
 	// (GET /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key})
-	GetSourceMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) error
+	GetSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string)
 	// Update source metadata by key
 	// (PUT /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key})
-	UpdateSourceMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) error
+	UpdateSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string)
 	// List threats in a threat model
 	// (GET /threat_models/{threat_model_id}/threats)
-	GetThreatModelThreats(ctx echo.Context, threatModelId openapi_types.UUID, params GetThreatModelThreatsParams) error
+	GetThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelThreatsParams)
 	// Create a new threat
 	// (POST /threat_models/{threat_model_id}/threats)
-	CreateThreatModelThreat(ctx echo.Context, threatModelId openapi_types.UUID) error
+	CreateThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID)
 	// Batch delete threats
 	// (DELETE /threat_models/{threat_model_id}/threats/batch)
-	BatchDeleteThreatModelThreats(ctx echo.Context, threatModelId openapi_types.UUID, params BatchDeleteThreatModelThreatsParams) error
+	BatchDeleteThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID, params BatchDeleteThreatModelThreatsParams)
 	// Batch patch threats
 	// (POST /threat_models/{threat_model_id}/threats/batch/patch)
-	BatchPatchThreatModelThreats(ctx echo.Context, threatModelId openapi_types.UUID) error
+	BatchPatchThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID)
 	// Bulk create threats
 	// (POST /threat_models/{threat_model_id}/threats/bulk)
-	BulkCreateThreatModelThreats(ctx echo.Context, threatModelId openapi_types.UUID) error
+	BulkCreateThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID)
 	// Bulk update threats
 	// (PUT /threat_models/{threat_model_id}/threats/bulk)
-	BulkUpdateThreatModelThreats(ctx echo.Context, threatModelId openapi_types.UUID) error
+	BulkUpdateThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID)
 	// Delete a threat
 	// (DELETE /threat_models/{threat_model_id}/threats/{threat_id})
-	DeleteThreatModelThreat(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) error
+	DeleteThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID)
 	// Get a specific threat
 	// (GET /threat_models/{threat_model_id}/threats/{threat_id})
-	GetThreatModelThreat(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) error
+	GetThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID)
 	// Partially update a threat
 	// (PATCH /threat_models/{threat_model_id}/threats/{threat_id})
-	PatchThreatModelThreat(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) error
+	PatchThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID)
 	// Update a threat
 	// (PUT /threat_models/{threat_model_id}/threats/{threat_id})
-	UpdateThreatModelThreat(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) error
+	UpdateThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID)
 	// Get threat metadata
 	// (GET /threat_models/{threat_model_id}/threats/{threat_id}/metadata)
-	GetThreatMetadata(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) error
+	GetThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID)
 	// Create threat metadata
 	// (POST /threat_models/{threat_model_id}/threats/{threat_id}/metadata)
-	CreateThreatMetadata(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) error
+	CreateThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID)
 	// Bulk create threat metadata
 	// (POST /threat_models/{threat_model_id}/threats/{threat_id}/metadata/bulk)
-	BulkCreateThreatMetadata(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) error
+	BulkCreateThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID)
 	// Delete threat metadata by key
 	// (DELETE /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key})
-	DeleteThreatMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string) error
+	DeleteThreatMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string)
 	// Get threat metadata by key
 	// (GET /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key})
-	GetThreatMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string) error
+	GetThreatMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string)
 	// Update threat metadata by key
 	// (PUT /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key})
-	UpdateThreatMetadataByKey(ctx echo.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string) error
+	UpdateThreatMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string)
 }
 
-// ServerInterfaceWrapper converts echo contexts to parameters.
+// ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
-	Handler ServerInterface
+	Handler            ServerInterface
+	HandlerMiddlewares []MiddlewareFunc
+	ErrorHandler       func(*gin.Context, error, int)
 }
 
-// GetApiInfo converts echo context to params.
-func (w *ServerInterfaceWrapper) GetApiInfo(ctx echo.Context) error {
-	var err error
+type MiddlewareFunc func(c *gin.Context)
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetApiInfo(ctx)
-	return err
+// GetApiInfo operation middleware
+func (siw *ServerInterfaceWrapper) GetApiInfo(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetApiInfo(c)
 }
 
-// HandleOAuthCallback converts echo context to params.
-func (w *ServerInterfaceWrapper) HandleOAuthCallback(ctx echo.Context) error {
+// HandleOAuthCallback operation middleware
+func (siw *ServerInterfaceWrapper) HandleOAuthCallback(c *gin.Context) {
+
 	var err error
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params HandleOAuthCallbackParams
+
 	// ------------- Required query parameter "code" -------------
 
-	err = runtime.BindQueryParameter("form", true, true, "code", ctx.QueryParams(), &params.Code)
+	if paramValue := c.Query("code"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument code is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "code", c.Request.URL.Query(), &params.Code)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter code: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter code: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "state" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "state", ctx.QueryParams(), &params.State)
+	err = runtime.BindQueryParameter("form", true, false, "state", c.Request.URL.Query(), &params.State)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter state: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter state: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.HandleOAuthCallback(ctx, params)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleOAuthCallback(c, params)
 }
 
-// AuthorizeOAuthProvider converts echo context to params.
-func (w *ServerInterfaceWrapper) AuthorizeOAuthProvider(ctx echo.Context) error {
+// AuthorizeOAuthProvider operation middleware
+func (siw *ServerInterfaceWrapper) AuthorizeOAuthProvider(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "provider" -------------
 	var provider AuthorizeOAuthProviderParamsProvider
 
-	err = runtime.BindStyledParameterWithOptions("simple", "provider", ctx.Param("provider"), &provider, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "provider", c.Param("provider"), &provider, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter provider: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params AuthorizeOAuthProviderParams
+
 	// ------------- Optional query parameter "client_callback" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "client_callback", ctx.QueryParams(), &params.ClientCallback)
+	err = runtime.BindQueryParameter("form", true, false, "client_callback", c.Request.URL.Query(), &params.ClientCallback)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter client_callback: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter client_callback: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "state" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "state", ctx.QueryParams(), &params.State)
+	err = runtime.BindQueryParameter("form", true, false, "state", c.Request.URL.Query(), &params.State)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter state: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter state: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.AuthorizeOAuthProvider(ctx, provider, params)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AuthorizeOAuthProvider(c, provider, params)
 }
 
-// LogoutUser converts echo context to params.
-func (w *ServerInterfaceWrapper) LogoutUser(ctx echo.Context) error {
-	var err error
+// LogoutUser operation middleware
+func (siw *ServerInterfaceWrapper) LogoutUser(c *gin.Context) {
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.LogoutUser(ctx)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LogoutUser(c)
 }
 
-// GetCurrentUser converts echo context to params.
-func (w *ServerInterfaceWrapper) GetCurrentUser(ctx echo.Context) error {
-	var err error
+// GetCurrentUser operation middleware
+func (siw *ServerInterfaceWrapper) GetCurrentUser(c *gin.Context) {
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetCurrentUser(ctx)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetCurrentUser(c)
 }
 
-// GetAuthProviders converts echo context to params.
-func (w *ServerInterfaceWrapper) GetAuthProviders(ctx echo.Context) error {
-	var err error
+// GetAuthProviders operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthProviders(c *gin.Context) {
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetAuthProviders(ctx)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAuthProviders(c)
 }
 
-// RefreshToken converts echo context to params.
-func (w *ServerInterfaceWrapper) RefreshToken(ctx echo.Context) error {
-	var err error
+// RefreshToken operation middleware
+func (siw *ServerInterfaceWrapper) RefreshToken(c *gin.Context) {
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.RefreshToken(ctx)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RefreshToken(c)
 }
 
-// ExchangeOAuthCode converts echo context to params.
-func (w *ServerInterfaceWrapper) ExchangeOAuthCode(ctx echo.Context) error {
+// ExchangeOAuthCode operation middleware
+func (siw *ServerInterfaceWrapper) ExchangeOAuthCode(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "provider" -------------
 	var provider ExchangeOAuthCodeParamsProvider
 
-	err = runtime.BindStyledParameterWithOptions("simple", "provider", ctx.Param("provider"), &provider, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "provider", c.Param("provider"), &provider, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter provider: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter provider: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.ExchangeOAuthCode(ctx, provider)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ExchangeOAuthCode(c, provider)
 }
 
-// GetCollaborationSessions converts echo context to params.
-func (w *ServerInterfaceWrapper) GetCollaborationSessions(ctx echo.Context) error {
-	var err error
+// GetCollaborationSessions operation middleware
+func (siw *ServerInterfaceWrapper) GetCollaborationSessions(c *gin.Context) {
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetCollaborationSessions(ctx)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetCollaborationSessions(c)
 }
 
-// ListThreatModels converts echo context to params.
-func (w *ServerInterfaceWrapper) ListThreatModels(ctx echo.Context) error {
+// ListThreatModels operation middleware
+func (siw *ServerInterfaceWrapper) ListThreatModels(c *gin.Context) {
+
 	var err error
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListThreatModelsParams
+
 	// ------------- Optional query parameter "limit" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "limit", ctx.QueryParams(), &params.Limit)
+	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter limit: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "offset" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "offset", ctx.QueryParams(), &params.Offset)
+	err = runtime.BindQueryParameter("form", true, false, "offset", c.Request.URL.Query(), &params.Offset)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter offset: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "sort" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "sort", ctx.QueryParams(), &params.Sort)
+	err = runtime.BindQueryParameter("form", true, false, "sort", c.Request.URL.Query(), &params.Sort)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter sort: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "owner" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "owner", ctx.QueryParams(), &params.Owner)
+	err = runtime.BindQueryParameter("form", true, false, "owner", c.Request.URL.Query(), &params.Owner)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter owner: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter owner: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "name" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "name", ctx.QueryParams(), &params.Name)
+	err = runtime.BindQueryParameter("form", true, false, "name", c.Request.URL.Query(), &params.Name)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter name: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter name: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "description" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "description", ctx.QueryParams(), &params.Description)
+	err = runtime.BindQueryParameter("form", true, false, "description", c.Request.URL.Query(), &params.Description)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter description: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter description: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "issue_url" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "issue_url", ctx.QueryParams(), &params.IssueUrl)
+	err = runtime.BindQueryParameter("form", true, false, "issue_url", c.Request.URL.Query(), &params.IssueUrl)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter issue_url: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter issue_url: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "created_after" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "created_after", ctx.QueryParams(), &params.CreatedAfter)
+	err = runtime.BindQueryParameter("form", true, false, "created_after", c.Request.URL.Query(), &params.CreatedAfter)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter created_after: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter created_after: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "created_before" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "created_before", ctx.QueryParams(), &params.CreatedBefore)
+	err = runtime.BindQueryParameter("form", true, false, "created_before", c.Request.URL.Query(), &params.CreatedBefore)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter created_before: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter created_before: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "modified_after" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "modified_after", ctx.QueryParams(), &params.ModifiedAfter)
+	err = runtime.BindQueryParameter("form", true, false, "modified_after", c.Request.URL.Query(), &params.ModifiedAfter)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter modified_after: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter modified_after: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "modified_before" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "modified_before", ctx.QueryParams(), &params.ModifiedBefore)
+	err = runtime.BindQueryParameter("form", true, false, "modified_before", c.Request.URL.Query(), &params.ModifiedBefore)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter modified_before: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter modified_before: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.ListThreatModels(ctx, params)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListThreatModels(c, params)
 }
 
-// CreateThreatModel converts echo context to params.
-func (w *ServerInterfaceWrapper) CreateThreatModel(ctx echo.Context) error {
-	var err error
+// CreateThreatModel operation middleware
+func (siw *ServerInterfaceWrapper) CreateThreatModel(c *gin.Context) {
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.CreateThreatModel(ctx)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateThreatModel(c)
 }
 
-// DeleteThreatModel converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteThreatModel(ctx echo.Context) error {
+// DeleteThreatModel operation middleware
+func (siw *ServerInterfaceWrapper) DeleteThreatModel(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteThreatModel(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteThreatModel(c, threatModelId)
 }
 
-// GetThreatModel converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatModel(ctx echo.Context) error {
+// GetThreatModel operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModel(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatModel(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatModel(c, threatModelId)
 }
 
-// PatchThreatModel converts echo context to params.
-func (w *ServerInterfaceWrapper) PatchThreatModel(ctx echo.Context) error {
+// PatchThreatModel operation middleware
+func (siw *ServerInterfaceWrapper) PatchThreatModel(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PatchThreatModel(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PatchThreatModel(c, threatModelId)
 }
 
-// UpdateThreatModel converts echo context to params.
-func (w *ServerInterfaceWrapper) UpdateThreatModel(ctx echo.Context) error {
+// UpdateThreatModel operation middleware
+func (siw *ServerInterfaceWrapper) UpdateThreatModel(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UpdateThreatModel(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateThreatModel(c, threatModelId)
 }
 
-// GetThreatModelDiagrams converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatModelDiagrams(ctx echo.Context) error {
+// GetThreatModelDiagrams operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModelDiagrams(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetThreatModelDiagramsParams
+
 	// ------------- Optional query parameter "limit" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "limit", ctx.QueryParams(), &params.Limit)
+	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter limit: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "offset" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "offset", ctx.QueryParams(), &params.Offset)
+	err = runtime.BindQueryParameter("form", true, false, "offset", c.Request.URL.Query(), &params.Offset)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter offset: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatModelDiagrams(ctx, threatModelId, params)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatModelDiagrams(c, threatModelId, params)
 }
 
-// CreateThreatModelDiagram converts echo context to params.
-func (w *ServerInterfaceWrapper) CreateThreatModelDiagram(ctx echo.Context) error {
+// CreateThreatModelDiagram operation middleware
+func (siw *ServerInterfaceWrapper) CreateThreatModelDiagram(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.CreateThreatModelDiagram(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateThreatModelDiagram(c, threatModelId)
 }
 
-// DeleteThreatModelDiagram converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteThreatModelDiagram(ctx echo.Context) error {
+// DeleteThreatModelDiagram operation middleware
+func (siw *ServerInterfaceWrapper) DeleteThreatModelDiagram(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteThreatModelDiagram(ctx, threatModelId, diagramId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteThreatModelDiagram(c, threatModelId, diagramId)
 }
 
-// GetThreatModelDiagram converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatModelDiagram(ctx echo.Context) error {
+// GetThreatModelDiagram operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModelDiagram(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatModelDiagram(ctx, threatModelId, diagramId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatModelDiagram(c, threatModelId, diagramId)
 }
 
-// PatchThreatModelDiagram converts echo context to params.
-func (w *ServerInterfaceWrapper) PatchThreatModelDiagram(ctx echo.Context) error {
+// PatchThreatModelDiagram operation middleware
+func (siw *ServerInterfaceWrapper) PatchThreatModelDiagram(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PatchThreatModelDiagram(ctx, threatModelId, diagramId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PatchThreatModelDiagram(c, threatModelId, diagramId)
 }
 
-// UpdateThreatModelDiagram converts echo context to params.
-func (w *ServerInterfaceWrapper) UpdateThreatModelDiagram(ctx echo.Context) error {
+// UpdateThreatModelDiagram operation middleware
+func (siw *ServerInterfaceWrapper) UpdateThreatModelDiagram(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UpdateThreatModelDiagram(ctx, threatModelId, diagramId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateThreatModelDiagram(c, threatModelId, diagramId)
 }
 
-// EndDiagramCollaborationSession converts echo context to params.
-func (w *ServerInterfaceWrapper) EndDiagramCollaborationSession(ctx echo.Context) error {
+// EndDiagramCollaborationSession operation middleware
+func (siw *ServerInterfaceWrapper) EndDiagramCollaborationSession(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.EndDiagramCollaborationSession(ctx, threatModelId, diagramId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.EndDiagramCollaborationSession(c, threatModelId, diagramId)
 }
 
-// GetDiagramCollaborationSession converts echo context to params.
-func (w *ServerInterfaceWrapper) GetDiagramCollaborationSession(ctx echo.Context) error {
+// GetDiagramCollaborationSession operation middleware
+func (siw *ServerInterfaceWrapper) GetDiagramCollaborationSession(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetDiagramCollaborationSession(ctx, threatModelId, diagramId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetDiagramCollaborationSession(c, threatModelId, diagramId)
 }
 
-// StartDiagramCollaborationSession converts echo context to params.
-func (w *ServerInterfaceWrapper) StartDiagramCollaborationSession(ctx echo.Context) error {
+// CreateDiagramCollaborationSession operation middleware
+func (siw *ServerInterfaceWrapper) CreateDiagramCollaborationSession(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.StartDiagramCollaborationSession(ctx, threatModelId, diagramId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateDiagramCollaborationSession(c, threatModelId, diagramId)
 }
 
-// GetDiagramMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) GetDiagramMetadata(ctx echo.Context) error {
+// JoinDiagramCollaborationSession operation middleware
+func (siw *ServerInterfaceWrapper) JoinDiagramCollaborationSession(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetDiagramMetadata(ctx, threatModelId, diagramId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.JoinDiagramCollaborationSession(c, threatModelId, diagramId)
 }
 
-// CreateDiagramMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) CreateDiagramMetadata(ctx echo.Context) error {
+// GetDiagramMetadata operation middleware
+func (siw *ServerInterfaceWrapper) GetDiagramMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.CreateDiagramMetadata(ctx, threatModelId, diagramId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetDiagramMetadata(c, threatModelId, diagramId)
 }
 
-// BulkCreateDiagramMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) BulkCreateDiagramMetadata(ctx echo.Context) error {
+// CreateDiagramMetadata operation middleware
+func (siw *ServerInterfaceWrapper) CreateDiagramMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BulkCreateDiagramMetadata(ctx, threatModelId, diagramId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateDiagramMetadata(c, threatModelId, diagramId)
 }
 
-// DeleteDiagramMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteDiagramMetadataByKey(ctx echo.Context) error {
+// BulkCreateDiagramMetadata operation middleware
+func (siw *ServerInterfaceWrapper) BulkCreateDiagramMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BulkCreateDiagramMetadata(c, threatModelId, diagramId)
+}
+
+// DeleteDiagramMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDiagramMetadataByKey(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "diagram_id" -------------
+	var diagramId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteDiagramMetadataByKey(ctx, threatModelId, diagramId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteDiagramMetadataByKey(c, threatModelId, diagramId, key)
 }
 
-// GetDiagramMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) GetDiagramMetadataByKey(ctx echo.Context) error {
+// GetDiagramMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) GetDiagramMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetDiagramMetadataByKey(ctx, threatModelId, diagramId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetDiagramMetadataByKey(c, threatModelId, diagramId, key)
 }
 
-// UpdateDiagramMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) UpdateDiagramMetadataByKey(ctx echo.Context) error {
+// UpdateDiagramMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) UpdateDiagramMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "diagram_id" -------------
 	var diagramId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", ctx.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter diagram_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UpdateDiagramMetadataByKey(ctx, threatModelId, diagramId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateDiagramMetadataByKey(c, threatModelId, diagramId, key)
 }
 
-// GetThreatModelDocuments converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatModelDocuments(ctx echo.Context) error {
+// GetThreatModelDocuments operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModelDocuments(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetThreatModelDocumentsParams
+
 	// ------------- Optional query parameter "limit" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "limit", ctx.QueryParams(), &params.Limit)
+	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter limit: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "offset" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "offset", ctx.QueryParams(), &params.Offset)
+	err = runtime.BindQueryParameter("form", true, false, "offset", c.Request.URL.Query(), &params.Offset)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter offset: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatModelDocuments(ctx, threatModelId, params)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatModelDocuments(c, threatModelId, params)
 }
 
-// CreateThreatModelDocument converts echo context to params.
-func (w *ServerInterfaceWrapper) CreateThreatModelDocument(ctx echo.Context) error {
+// CreateThreatModelDocument operation middleware
+func (siw *ServerInterfaceWrapper) CreateThreatModelDocument(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.CreateThreatModelDocument(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateThreatModelDocument(c, threatModelId)
 }
 
-// BulkCreateThreatModelDocuments converts echo context to params.
-func (w *ServerInterfaceWrapper) BulkCreateThreatModelDocuments(ctx echo.Context) error {
+// BulkCreateThreatModelDocuments operation middleware
+func (siw *ServerInterfaceWrapper) BulkCreateThreatModelDocuments(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BulkCreateThreatModelDocuments(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BulkCreateThreatModelDocuments(c, threatModelId)
 }
 
-// DeleteThreatModelDocument converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteThreatModelDocument(ctx echo.Context) error {
+// DeleteThreatModelDocument operation middleware
+func (siw *ServerInterfaceWrapper) DeleteThreatModelDocument(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "document_id" -------------
 	var documentId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteThreatModelDocument(ctx, threatModelId, documentId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteThreatModelDocument(c, threatModelId, documentId)
 }
 
-// GetThreatModelDocument converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatModelDocument(ctx echo.Context) error {
+// GetThreatModelDocument operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModelDocument(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "document_id" -------------
 	var documentId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatModelDocument(ctx, threatModelId, documentId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatModelDocument(c, threatModelId, documentId)
 }
 
-// UpdateThreatModelDocument converts echo context to params.
-func (w *ServerInterfaceWrapper) UpdateThreatModelDocument(ctx echo.Context) error {
+// UpdateThreatModelDocument operation middleware
+func (siw *ServerInterfaceWrapper) UpdateThreatModelDocument(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "document_id" -------------
 	var documentId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UpdateThreatModelDocument(ctx, threatModelId, documentId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateThreatModelDocument(c, threatModelId, documentId)
 }
 
-// GetDocumentMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) GetDocumentMetadata(ctx echo.Context) error {
+// GetDocumentMetadata operation middleware
+func (siw *ServerInterfaceWrapper) GetDocumentMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "document_id" -------------
 	var documentId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetDocumentMetadata(ctx, threatModelId, documentId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetDocumentMetadata(c, threatModelId, documentId)
 }
 
-// CreateDocumentMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) CreateDocumentMetadata(ctx echo.Context) error {
+// CreateDocumentMetadata operation middleware
+func (siw *ServerInterfaceWrapper) CreateDocumentMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "document_id" -------------
 	var documentId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.CreateDocumentMetadata(ctx, threatModelId, documentId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateDocumentMetadata(c, threatModelId, documentId)
 }
 
-// BulkCreateDocumentMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) BulkCreateDocumentMetadata(ctx echo.Context) error {
+// BulkCreateDocumentMetadata operation middleware
+func (siw *ServerInterfaceWrapper) BulkCreateDocumentMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "document_id" -------------
 	var documentId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BulkCreateDocumentMetadata(ctx, threatModelId, documentId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BulkCreateDocumentMetadata(c, threatModelId, documentId)
 }
 
-// DeleteDocumentMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteDocumentMetadataByKey(ctx echo.Context) error {
+// DeleteDocumentMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDocumentMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "document_id" -------------
 	var documentId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteDocumentMetadataByKey(ctx, threatModelId, documentId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteDocumentMetadataByKey(c, threatModelId, documentId, key)
 }
 
-// GetDocumentMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) GetDocumentMetadataByKey(ctx echo.Context) error {
+// GetDocumentMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) GetDocumentMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "document_id" -------------
 	var documentId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetDocumentMetadataByKey(ctx, threatModelId, documentId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetDocumentMetadataByKey(c, threatModelId, documentId, key)
 }
 
-// UpdateDocumentMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) UpdateDocumentMetadataByKey(ctx echo.Context) error {
+// UpdateDocumentMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) UpdateDocumentMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "document_id" -------------
 	var documentId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "document_id", ctx.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter document_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UpdateDocumentMetadataByKey(ctx, threatModelId, documentId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateDocumentMetadataByKey(c, threatModelId, documentId, key)
 }
 
-// GetThreatModelMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatModelMetadata(ctx echo.Context) error {
+// GetThreatModelMetadata operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModelMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatModelMetadata(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatModelMetadata(c, threatModelId)
 }
 
-// CreateThreatModelMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) CreateThreatModelMetadata(ctx echo.Context) error {
+// CreateThreatModelMetadata operation middleware
+func (siw *ServerInterfaceWrapper) CreateThreatModelMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.CreateThreatModelMetadata(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateThreatModelMetadata(c, threatModelId)
 }
 
-// BulkCreateThreatModelMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) BulkCreateThreatModelMetadata(ctx echo.Context) error {
+// BulkCreateThreatModelMetadata operation middleware
+func (siw *ServerInterfaceWrapper) BulkCreateThreatModelMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BulkCreateThreatModelMetadata(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BulkCreateThreatModelMetadata(c, threatModelId)
 }
 
-// DeleteThreatModelMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteThreatModelMetadataByKey(ctx echo.Context) error {
+// DeleteThreatModelMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) DeleteThreatModelMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteThreatModelMetadataByKey(ctx, threatModelId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteThreatModelMetadataByKey(c, threatModelId, key)
 }
 
-// GetThreatModelMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatModelMetadataByKey(ctx echo.Context) error {
+// GetThreatModelMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModelMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatModelMetadataByKey(ctx, threatModelId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatModelMetadataByKey(c, threatModelId, key)
 }
 
-// UpdateThreatModelMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) UpdateThreatModelMetadataByKey(ctx echo.Context) error {
+// UpdateThreatModelMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) UpdateThreatModelMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UpdateThreatModelMetadataByKey(ctx, threatModelId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateThreatModelMetadataByKey(c, threatModelId, key)
 }
 
-// GetThreatModelSources converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatModelSources(ctx echo.Context) error {
+// GetThreatModelSources operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModelSources(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetThreatModelSourcesParams
+
 	// ------------- Optional query parameter "limit" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "limit", ctx.QueryParams(), &params.Limit)
+	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter limit: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "offset" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "offset", ctx.QueryParams(), &params.Offset)
+	err = runtime.BindQueryParameter("form", true, false, "offset", c.Request.URL.Query(), &params.Offset)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter offset: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatModelSources(ctx, threatModelId, params)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatModelSources(c, threatModelId, params)
 }
 
-// CreateThreatModelSource converts echo context to params.
-func (w *ServerInterfaceWrapper) CreateThreatModelSource(ctx echo.Context) error {
+// CreateThreatModelSource operation middleware
+func (siw *ServerInterfaceWrapper) CreateThreatModelSource(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.CreateThreatModelSource(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateThreatModelSource(c, threatModelId)
 }
 
-// BulkCreateThreatModelSources converts echo context to params.
-func (w *ServerInterfaceWrapper) BulkCreateThreatModelSources(ctx echo.Context) error {
+// BulkCreateThreatModelSources operation middleware
+func (siw *ServerInterfaceWrapper) BulkCreateThreatModelSources(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BulkCreateThreatModelSources(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BulkCreateThreatModelSources(c, threatModelId)
 }
 
-// DeleteThreatModelSource converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteThreatModelSource(ctx echo.Context) error {
+// DeleteThreatModelSource operation middleware
+func (siw *ServerInterfaceWrapper) DeleteThreatModelSource(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "source_id" -------------
 	var sourceId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteThreatModelSource(ctx, threatModelId, sourceId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteThreatModelSource(c, threatModelId, sourceId)
 }
 
-// GetThreatModelSource converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatModelSource(ctx echo.Context) error {
+// GetThreatModelSource operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModelSource(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "source_id" -------------
 	var sourceId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatModelSource(ctx, threatModelId, sourceId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatModelSource(c, threatModelId, sourceId)
 }
 
-// UpdateThreatModelSource converts echo context to params.
-func (w *ServerInterfaceWrapper) UpdateThreatModelSource(ctx echo.Context) error {
+// UpdateThreatModelSource operation middleware
+func (siw *ServerInterfaceWrapper) UpdateThreatModelSource(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "source_id" -------------
 	var sourceId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UpdateThreatModelSource(ctx, threatModelId, sourceId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateThreatModelSource(c, threatModelId, sourceId)
 }
 
-// GetSourceMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) GetSourceMetadata(ctx echo.Context) error {
+// GetSourceMetadata operation middleware
+func (siw *ServerInterfaceWrapper) GetSourceMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "source_id" -------------
 	var sourceId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetSourceMetadata(ctx, threatModelId, sourceId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetSourceMetadata(c, threatModelId, sourceId)
 }
 
-// CreateSourceMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) CreateSourceMetadata(ctx echo.Context) error {
+// CreateSourceMetadata operation middleware
+func (siw *ServerInterfaceWrapper) CreateSourceMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "source_id" -------------
 	var sourceId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.CreateSourceMetadata(ctx, threatModelId, sourceId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateSourceMetadata(c, threatModelId, sourceId)
 }
 
-// BulkCreateSourceMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) BulkCreateSourceMetadata(ctx echo.Context) error {
+// BulkCreateSourceMetadata operation middleware
+func (siw *ServerInterfaceWrapper) BulkCreateSourceMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "source_id" -------------
 	var sourceId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BulkCreateSourceMetadata(ctx, threatModelId, sourceId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BulkCreateSourceMetadata(c, threatModelId, sourceId)
 }
 
-// DeleteSourceMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteSourceMetadataByKey(ctx echo.Context) error {
+// DeleteSourceMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSourceMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "source_id" -------------
 	var sourceId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteSourceMetadataByKey(ctx, threatModelId, sourceId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteSourceMetadataByKey(c, threatModelId, sourceId, key)
 }
 
-// GetSourceMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) GetSourceMetadataByKey(ctx echo.Context) error {
+// GetSourceMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) GetSourceMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "source_id" -------------
 	var sourceId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetSourceMetadataByKey(ctx, threatModelId, sourceId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetSourceMetadataByKey(c, threatModelId, sourceId, key)
 }
 
-// UpdateSourceMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) UpdateSourceMetadataByKey(ctx echo.Context) error {
+// UpdateSourceMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSourceMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "source_id" -------------
 	var sourceId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "source_id", ctx.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter source_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UpdateSourceMetadataByKey(ctx, threatModelId, sourceId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateSourceMetadataByKey(c, threatModelId, sourceId, key)
 }
 
-// GetThreatModelThreats converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatModelThreats(ctx echo.Context) error {
+// GetThreatModelThreats operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModelThreats(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetThreatModelThreatsParams
+
 	// ------------- Optional query parameter "limit" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "limit", ctx.QueryParams(), &params.Limit)
+	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter limit: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Optional query parameter "offset" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "offset", ctx.QueryParams(), &params.Offset)
+	err = runtime.BindQueryParameter("form", true, false, "offset", c.Request.URL.Query(), &params.Offset)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter offset: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatModelThreats(ctx, threatModelId, params)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatModelThreats(c, threatModelId, params)
 }
 
-// CreateThreatModelThreat converts echo context to params.
-func (w *ServerInterfaceWrapper) CreateThreatModelThreat(ctx echo.Context) error {
+// CreateThreatModelThreat operation middleware
+func (siw *ServerInterfaceWrapper) CreateThreatModelThreat(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.CreateThreatModelThreat(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateThreatModelThreat(c, threatModelId)
 }
 
-// BatchDeleteThreatModelThreats converts echo context to params.
-func (w *ServerInterfaceWrapper) BatchDeleteThreatModelThreats(ctx echo.Context) error {
+// BatchDeleteThreatModelThreats operation middleware
+func (siw *ServerInterfaceWrapper) BatchDeleteThreatModelThreats(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params BatchDeleteThreatModelThreatsParams
+
 	// ------------- Required query parameter "threat_ids" -------------
 
-	err = runtime.BindQueryParameter("form", false, true, "threat_ids", ctx.QueryParams(), &params.ThreatIds)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_ids: %s", err))
+	if paramValue := c.Query("threat_ids"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument threat_ids is required, but not found"), http.StatusBadRequest)
+		return
 	}
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BatchDeleteThreatModelThreats(ctx, threatModelId, params)
-	return err
+	err = runtime.BindQueryParameter("form", false, true, "threat_ids", c.Request.URL.Query(), &params.ThreatIds)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_ids: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BatchDeleteThreatModelThreats(c, threatModelId, params)
 }
 
-// BatchPatchThreatModelThreats converts echo context to params.
-func (w *ServerInterfaceWrapper) BatchPatchThreatModelThreats(ctx echo.Context) error {
+// BatchPatchThreatModelThreats operation middleware
+func (siw *ServerInterfaceWrapper) BatchPatchThreatModelThreats(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BatchPatchThreatModelThreats(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BatchPatchThreatModelThreats(c, threatModelId)
 }
 
-// BulkCreateThreatModelThreats converts echo context to params.
-func (w *ServerInterfaceWrapper) BulkCreateThreatModelThreats(ctx echo.Context) error {
+// BulkCreateThreatModelThreats operation middleware
+func (siw *ServerInterfaceWrapper) BulkCreateThreatModelThreats(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BulkCreateThreatModelThreats(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BulkCreateThreatModelThreats(c, threatModelId)
 }
 
-// BulkUpdateThreatModelThreats converts echo context to params.
-func (w *ServerInterfaceWrapper) BulkUpdateThreatModelThreats(ctx echo.Context) error {
+// BulkUpdateThreatModelThreats operation middleware
+func (siw *ServerInterfaceWrapper) BulkUpdateThreatModelThreats(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BulkUpdateThreatModelThreats(ctx, threatModelId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BulkUpdateThreatModelThreats(c, threatModelId)
 }
 
-// DeleteThreatModelThreat converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteThreatModelThreat(ctx echo.Context) error {
+// DeleteThreatModelThreat operation middleware
+func (siw *ServerInterfaceWrapper) DeleteThreatModelThreat(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "threat_id" -------------
 	var threatId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteThreatModelThreat(ctx, threatModelId, threatId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteThreatModelThreat(c, threatModelId, threatId)
 }
 
-// GetThreatModelThreat converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatModelThreat(ctx echo.Context) error {
+// GetThreatModelThreat operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModelThreat(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "threat_id" -------------
 	var threatId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatModelThreat(ctx, threatModelId, threatId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatModelThreat(c, threatModelId, threatId)
 }
 
-// PatchThreatModelThreat converts echo context to params.
-func (w *ServerInterfaceWrapper) PatchThreatModelThreat(ctx echo.Context) error {
+// PatchThreatModelThreat operation middleware
+func (siw *ServerInterfaceWrapper) PatchThreatModelThreat(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "threat_id" -------------
 	var threatId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PatchThreatModelThreat(ctx, threatModelId, threatId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PatchThreatModelThreat(c, threatModelId, threatId)
 }
 
-// UpdateThreatModelThreat converts echo context to params.
-func (w *ServerInterfaceWrapper) UpdateThreatModelThreat(ctx echo.Context) error {
+// UpdateThreatModelThreat operation middleware
+func (siw *ServerInterfaceWrapper) UpdateThreatModelThreat(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "threat_id" -------------
 	var threatId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UpdateThreatModelThreat(ctx, threatModelId, threatId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateThreatModelThreat(c, threatModelId, threatId)
 }
 
-// GetThreatMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatMetadata(ctx echo.Context) error {
+// GetThreatMetadata operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "threat_id" -------------
 	var threatId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatMetadata(ctx, threatModelId, threatId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatMetadata(c, threatModelId, threatId)
 }
 
-// CreateThreatMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) CreateThreatMetadata(ctx echo.Context) error {
+// CreateThreatMetadata operation middleware
+func (siw *ServerInterfaceWrapper) CreateThreatMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "threat_id" -------------
 	var threatId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.CreateThreatMetadata(ctx, threatModelId, threatId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateThreatMetadata(c, threatModelId, threatId)
 }
 
-// BulkCreateThreatMetadata converts echo context to params.
-func (w *ServerInterfaceWrapper) BulkCreateThreatMetadata(ctx echo.Context) error {
+// BulkCreateThreatMetadata operation middleware
+func (siw *ServerInterfaceWrapper) BulkCreateThreatMetadata(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "threat_id" -------------
 	var threatId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BulkCreateThreatMetadata(ctx, threatModelId, threatId)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BulkCreateThreatMetadata(c, threatModelId, threatId)
 }
 
-// DeleteThreatMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) DeleteThreatMetadataByKey(ctx echo.Context) error {
+// DeleteThreatMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) DeleteThreatMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "threat_id" -------------
 	var threatId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeleteThreatMetadataByKey(ctx, threatModelId, threatId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteThreatMetadataByKey(c, threatModelId, threatId, key)
 }
 
-// GetThreatMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) GetThreatMetadataByKey(ctx echo.Context) error {
+// GetThreatMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "threat_id" -------------
 	var threatId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetThreatMetadataByKey(ctx, threatModelId, threatId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetThreatMetadataByKey(c, threatModelId, threatId, key)
 }
 
-// UpdateThreatMetadataByKey converts echo context to params.
-func (w *ServerInterfaceWrapper) UpdateThreatMetadataByKey(ctx echo.Context) error {
+// UpdateThreatMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) UpdateThreatMetadataByKey(c *gin.Context) {
+
 	var err error
+
 	// ------------- Path parameter "threat_model_id" -------------
 	var threatModelId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", ctx.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_model_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "threat_id" -------------
 	var threatId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", ctx.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter threat_id: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		return
 	}
 
 	// ------------- Path parameter "key" -------------
 	var key string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "key", ctx.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter key: %s", err))
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	c.Set(BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UpdateThreatMetadataByKey(ctx, threatModelId, threatId, key)
-	return err
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateThreatMetadataByKey(c, threatModelId, threatId, key)
 }
 
-// This is a simple interface which specifies echo.Route addition functions which
-// are present on both echo.Echo and echo.Group, since we want to allow using
-// either of them for path registration
-type EchoRouter interface {
-	CONNECT(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	DELETE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	GET(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	HEAD(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	OPTIONS(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	PATCH(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	POST(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	PUT(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	TRACE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
+// GinServerOptions provides options for the Gin server.
+type GinServerOptions struct {
+	BaseURL      string
+	Middlewares  []MiddlewareFunc
+	ErrorHandler func(*gin.Context, error, int)
 }
 
-// RegisterHandlers adds each server route to the EchoRouter.
-func RegisterHandlers(router EchoRouter, si ServerInterface) {
-	RegisterHandlersWithBaseURL(router, si, "")
+// RegisterHandlers creates http.Handler with routing matching OpenAPI spec.
+func RegisterHandlers(router gin.IRouter, si ServerInterface) {
+	RegisterHandlersWithOptions(router, si, GinServerOptions{})
 }
 
-// Registers handlers, and prepends BaseURL to the paths, so that the paths
-// can be served under a prefix.
-func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL string) {
+// RegisterHandlersWithOptions creates http.Handler with additional options
+func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options GinServerOptions) {
+	errorHandler := options.ErrorHandler
+	if errorHandler == nil {
+		errorHandler = func(c *gin.Context, err error, statusCode int) {
+			c.JSON(statusCode, gin.H{"msg": err.Error()})
+		}
+	}
 
 	wrapper := ServerInterfaceWrapper{
-		Handler: si,
+		Handler:            si,
+		HandlerMiddlewares: options.Middlewares,
+		ErrorHandler:       errorHandler,
 	}
 
-	router.GET(baseURL+"/", wrapper.GetApiInfo)
-	router.GET(baseURL+"/auth/callback", wrapper.HandleOAuthCallback)
-	router.GET(baseURL+"/auth/login/:provider", wrapper.AuthorizeOAuthProvider)
-	router.POST(baseURL+"/auth/logout", wrapper.LogoutUser)
-	router.GET(baseURL+"/auth/me", wrapper.GetCurrentUser)
-	router.GET(baseURL+"/auth/providers", wrapper.GetAuthProviders)
-	router.POST(baseURL+"/auth/refresh", wrapper.RefreshToken)
-	router.POST(baseURL+"/auth/token/:provider", wrapper.ExchangeOAuthCode)
-	router.GET(baseURL+"/collaboration/sessions", wrapper.GetCollaborationSessions)
-	router.GET(baseURL+"/threat_models", wrapper.ListThreatModels)
-	router.POST(baseURL+"/threat_models", wrapper.CreateThreatModel)
-	router.DELETE(baseURL+"/threat_models/:threat_model_id", wrapper.DeleteThreatModel)
-	router.GET(baseURL+"/threat_models/:threat_model_id", wrapper.GetThreatModel)
-	router.PATCH(baseURL+"/threat_models/:threat_model_id", wrapper.PatchThreatModel)
-	router.PUT(baseURL+"/threat_models/:threat_model_id", wrapper.UpdateThreatModel)
-	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams", wrapper.GetThreatModelDiagrams)
-	router.POST(baseURL+"/threat_models/:threat_model_id/diagrams", wrapper.CreateThreatModelDiagram)
-	router.DELETE(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id", wrapper.DeleteThreatModelDiagram)
-	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id", wrapper.GetThreatModelDiagram)
-	router.PATCH(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id", wrapper.PatchThreatModelDiagram)
-	router.PUT(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id", wrapper.UpdateThreatModelDiagram)
-	router.DELETE(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.EndDiagramCollaborationSession)
-	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.GetDiagramCollaborationSession)
-	router.POST(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.StartDiagramCollaborationSession)
-	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", wrapper.GetDiagramMetadata)
-	router.POST(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", wrapper.CreateDiagramMetadata)
-	router.POST(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/bulk", wrapper.BulkCreateDiagramMetadata)
-	router.DELETE(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/:key", wrapper.DeleteDiagramMetadataByKey)
-	router.GET(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/:key", wrapper.GetDiagramMetadataByKey)
-	router.PUT(baseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/:key", wrapper.UpdateDiagramMetadataByKey)
-	router.GET(baseURL+"/threat_models/:threat_model_id/documents", wrapper.GetThreatModelDocuments)
-	router.POST(baseURL+"/threat_models/:threat_model_id/documents", wrapper.CreateThreatModelDocument)
-	router.POST(baseURL+"/threat_models/:threat_model_id/documents/bulk", wrapper.BulkCreateThreatModelDocuments)
-	router.DELETE(baseURL+"/threat_models/:threat_model_id/documents/:document_id", wrapper.DeleteThreatModelDocument)
-	router.GET(baseURL+"/threat_models/:threat_model_id/documents/:document_id", wrapper.GetThreatModelDocument)
-	router.PUT(baseURL+"/threat_models/:threat_model_id/documents/:document_id", wrapper.UpdateThreatModelDocument)
-	router.GET(baseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata", wrapper.GetDocumentMetadata)
-	router.POST(baseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata", wrapper.CreateDocumentMetadata)
-	router.POST(baseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata/bulk", wrapper.BulkCreateDocumentMetadata)
-	router.DELETE(baseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata/:key", wrapper.DeleteDocumentMetadataByKey)
-	router.GET(baseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata/:key", wrapper.GetDocumentMetadataByKey)
-	router.PUT(baseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata/:key", wrapper.UpdateDocumentMetadataByKey)
-	router.GET(baseURL+"/threat_models/:threat_model_id/metadata", wrapper.GetThreatModelMetadata)
-	router.POST(baseURL+"/threat_models/:threat_model_id/metadata", wrapper.CreateThreatModelMetadata)
-	router.POST(baseURL+"/threat_models/:threat_model_id/metadata/bulk", wrapper.BulkCreateThreatModelMetadata)
-	router.DELETE(baseURL+"/threat_models/:threat_model_id/metadata/:key", wrapper.DeleteThreatModelMetadataByKey)
-	router.GET(baseURL+"/threat_models/:threat_model_id/metadata/:key", wrapper.GetThreatModelMetadataByKey)
-	router.PUT(baseURL+"/threat_models/:threat_model_id/metadata/:key", wrapper.UpdateThreatModelMetadataByKey)
-	router.GET(baseURL+"/threat_models/:threat_model_id/sources", wrapper.GetThreatModelSources)
-	router.POST(baseURL+"/threat_models/:threat_model_id/sources", wrapper.CreateThreatModelSource)
-	router.POST(baseURL+"/threat_models/:threat_model_id/sources/bulk", wrapper.BulkCreateThreatModelSources)
-	router.DELETE(baseURL+"/threat_models/:threat_model_id/sources/:source_id", wrapper.DeleteThreatModelSource)
-	router.GET(baseURL+"/threat_models/:threat_model_id/sources/:source_id", wrapper.GetThreatModelSource)
-	router.PUT(baseURL+"/threat_models/:threat_model_id/sources/:source_id", wrapper.UpdateThreatModelSource)
-	router.GET(baseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata", wrapper.GetSourceMetadata)
-	router.POST(baseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata", wrapper.CreateSourceMetadata)
-	router.POST(baseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata/bulk", wrapper.BulkCreateSourceMetadata)
-	router.DELETE(baseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata/:key", wrapper.DeleteSourceMetadataByKey)
-	router.GET(baseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata/:key", wrapper.GetSourceMetadataByKey)
-	router.PUT(baseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata/:key", wrapper.UpdateSourceMetadataByKey)
-	router.GET(baseURL+"/threat_models/:threat_model_id/threats", wrapper.GetThreatModelThreats)
-	router.POST(baseURL+"/threat_models/:threat_model_id/threats", wrapper.CreateThreatModelThreat)
-	router.DELETE(baseURL+"/threat_models/:threat_model_id/threats/batch", wrapper.BatchDeleteThreatModelThreats)
-	router.POST(baseURL+"/threat_models/:threat_model_id/threats/batch/patch", wrapper.BatchPatchThreatModelThreats)
-	router.POST(baseURL+"/threat_models/:threat_model_id/threats/bulk", wrapper.BulkCreateThreatModelThreats)
-	router.PUT(baseURL+"/threat_models/:threat_model_id/threats/bulk", wrapper.BulkUpdateThreatModelThreats)
-	router.DELETE(baseURL+"/threat_models/:threat_model_id/threats/:threat_id", wrapper.DeleteThreatModelThreat)
-	router.GET(baseURL+"/threat_models/:threat_model_id/threats/:threat_id", wrapper.GetThreatModelThreat)
-	router.PATCH(baseURL+"/threat_models/:threat_model_id/threats/:threat_id", wrapper.PatchThreatModelThreat)
-	router.PUT(baseURL+"/threat_models/:threat_model_id/threats/:threat_id", wrapper.UpdateThreatModelThreat)
-	router.GET(baseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata", wrapper.GetThreatMetadata)
-	router.POST(baseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata", wrapper.CreateThreatMetadata)
-	router.POST(baseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata/bulk", wrapper.BulkCreateThreatMetadata)
-	router.DELETE(baseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", wrapper.DeleteThreatMetadataByKey)
-	router.GET(baseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", wrapper.GetThreatMetadataByKey)
-	router.PUT(baseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", wrapper.UpdateThreatMetadataByKey)
-
+	router.GET(options.BaseURL+"/", wrapper.GetApiInfo)
+	router.GET(options.BaseURL+"/auth/callback", wrapper.HandleOAuthCallback)
+	router.GET(options.BaseURL+"/auth/login/:provider", wrapper.AuthorizeOAuthProvider)
+	router.POST(options.BaseURL+"/auth/logout", wrapper.LogoutUser)
+	router.GET(options.BaseURL+"/auth/me", wrapper.GetCurrentUser)
+	router.GET(options.BaseURL+"/auth/providers", wrapper.GetAuthProviders)
+	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
+	router.POST(options.BaseURL+"/auth/token/:provider", wrapper.ExchangeOAuthCode)
+	router.GET(options.BaseURL+"/collaboration/sessions", wrapper.GetCollaborationSessions)
+	router.GET(options.BaseURL+"/threat_models", wrapper.ListThreatModels)
+	router.POST(options.BaseURL+"/threat_models", wrapper.CreateThreatModel)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id", wrapper.DeleteThreatModel)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id", wrapper.GetThreatModel)
+	router.PATCH(options.BaseURL+"/threat_models/:threat_model_id", wrapper.PatchThreatModel)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id", wrapper.UpdateThreatModel)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/diagrams", wrapper.GetThreatModelDiagrams)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/diagrams", wrapper.CreateThreatModelDiagram)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id", wrapper.DeleteThreatModelDiagram)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id", wrapper.GetThreatModelDiagram)
+	router.PATCH(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id", wrapper.PatchThreatModelDiagram)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id", wrapper.UpdateThreatModelDiagram)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.EndDiagramCollaborationSession)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.GetDiagramCollaborationSession)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.CreateDiagramCollaborationSession)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.JoinDiagramCollaborationSession)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", wrapper.GetDiagramMetadata)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", wrapper.CreateDiagramMetadata)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/bulk", wrapper.BulkCreateDiagramMetadata)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/:key", wrapper.DeleteDiagramMetadataByKey)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/:key", wrapper.GetDiagramMetadataByKey)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/:key", wrapper.UpdateDiagramMetadataByKey)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/documents", wrapper.GetThreatModelDocuments)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/documents", wrapper.CreateThreatModelDocument)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/documents/bulk", wrapper.BulkCreateThreatModelDocuments)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/documents/:document_id", wrapper.DeleteThreatModelDocument)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/documents/:document_id", wrapper.GetThreatModelDocument)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/documents/:document_id", wrapper.UpdateThreatModelDocument)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata", wrapper.GetDocumentMetadata)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata", wrapper.CreateDocumentMetadata)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata/bulk", wrapper.BulkCreateDocumentMetadata)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata/:key", wrapper.DeleteDocumentMetadataByKey)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata/:key", wrapper.GetDocumentMetadataByKey)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/documents/:document_id/metadata/:key", wrapper.UpdateDocumentMetadataByKey)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/metadata", wrapper.GetThreatModelMetadata)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/metadata", wrapper.CreateThreatModelMetadata)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/metadata/bulk", wrapper.BulkCreateThreatModelMetadata)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/metadata/:key", wrapper.DeleteThreatModelMetadataByKey)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/metadata/:key", wrapper.GetThreatModelMetadataByKey)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/metadata/:key", wrapper.UpdateThreatModelMetadataByKey)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/sources", wrapper.GetThreatModelSources)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/sources", wrapper.CreateThreatModelSource)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/sources/bulk", wrapper.BulkCreateThreatModelSources)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/sources/:source_id", wrapper.DeleteThreatModelSource)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/sources/:source_id", wrapper.GetThreatModelSource)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/sources/:source_id", wrapper.UpdateThreatModelSource)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata", wrapper.GetSourceMetadata)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata", wrapper.CreateSourceMetadata)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata/bulk", wrapper.BulkCreateSourceMetadata)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata/:key", wrapper.DeleteSourceMetadataByKey)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata/:key", wrapper.GetSourceMetadataByKey)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/sources/:source_id/metadata/:key", wrapper.UpdateSourceMetadataByKey)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/threats", wrapper.GetThreatModelThreats)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/threats", wrapper.CreateThreatModelThreat)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/threats/batch", wrapper.BatchDeleteThreatModelThreats)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/threats/batch/patch", wrapper.BatchPatchThreatModelThreats)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/threats/bulk", wrapper.BulkCreateThreatModelThreats)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/threats/bulk", wrapper.BulkUpdateThreatModelThreats)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/threats/:threat_id", wrapper.DeleteThreatModelThreat)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/threats/:threat_id", wrapper.GetThreatModelThreat)
+	router.PATCH(options.BaseURL+"/threat_models/:threat_model_id/threats/:threat_id", wrapper.PatchThreatModelThreat)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/threats/:threat_id", wrapper.UpdateThreatModelThreat)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata", wrapper.GetThreatMetadata)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata", wrapper.CreateThreatMetadata)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata/bulk", wrapper.BulkCreateThreatMetadata)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", wrapper.DeleteThreatMetadataByKey)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", wrapper.GetThreatMetadataByKey)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", wrapper.UpdateThreatMetadataByKey)
 }
 
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"3b2u9/Pbz/8TAAD//6wRcULiFQIA",
+	"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",
+	"+/H1x/8JAAD//wb7HtbBHQIA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

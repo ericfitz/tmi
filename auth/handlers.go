@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -32,19 +33,31 @@ func NewHandlers(service *Service, config Config) *Handlers {
 
 // RegisterRoutes registers the authentication routes
 func (h *Handlers) RegisterRoutes(router *gin.Engine) {
+	logger := logging.Get()
+	logger.Info("[AUTH_MODULE] Starting route registration")
+
 	auth := router.Group("/auth")
 	{
+		logger.Info("[AUTH_MODULE] Registering route: GET /auth/providers")
 		auth.GET("/providers", h.GetProviders)
+		logger.Info("[AUTH_MODULE] Registering route: GET /auth/login/:provider")
 		auth.GET("/login/:provider", h.Authorize)
+		logger.Info("[AUTH_MODULE] Registering route: GET /auth/callback")
 		auth.GET("/callback", h.Callback)
+		logger.Info("[AUTH_MODULE] Registering route: POST /auth/token/:provider")
 		auth.POST("/token/:provider", h.Exchange)
+		logger.Info("[AUTH_MODULE] Registering route: POST /auth/refresh")
 		auth.POST("/refresh", h.Refresh)
+		logger.Info("[AUTH_MODULE] Registering route: POST /auth/logout")
 		auth.POST("/logout", h.Logout)
+		logger.Info("[AUTH_MODULE] Registering route: GET /auth/me (with auth middleware)")
 		auth.GET("/me", h.AuthMiddleware().AuthRequired(), h.Me)
 	}
 
+	logger.Info("[AUTH_MODULE] Registering test provider routes")
 	// Register test provider routes (only in dev/test builds)
 	h.registerTestProviderRoutes(router)
+	logger.Info("[AUTH_MODULE] Route registration completed")
 }
 
 // AuthMiddleware returns the authentication middleware
@@ -654,15 +667,38 @@ func (h *Handlers) Logout(c *gin.Context) {
 
 // Me returns the current user
 func (h *Handlers) Me(c *gin.Context) {
+	// First try to get the full user object from context (for auth middleware)
 	user, err := GetUserFromContext(c.Request.Context())
-	if err != nil {
+	if err == nil {
+		c.JSON(http.StatusOK, user)
+		return
+	}
+
+	// If full user not available, try to get userName from JWT middleware context
+	userNameInterface, exists := c.Get("userName")
+	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found in context",
+			"error": "User not authenticated",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	userName, ok := userNameInterface.(string)
+	if !ok || userName == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Invalid user context",
+		})
+		return
+	}
+
+	// Return a minimal user object with the available information from JWT
+	c.JSON(http.StatusOK, gin.H{
+		"email":         userName,
+		"name":          userName, // We don't have the full name from JWT, so use email
+		"id":            "",       // We don't have user ID from JWT
+		"authenticated": true,
+		"source":        "jwt",
+	})
 }
 
 // Helper functions

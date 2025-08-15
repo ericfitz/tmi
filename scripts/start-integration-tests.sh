@@ -125,10 +125,8 @@ main() {
     
     # 4. Start test server using existing script
     log_info "4️⃣  Starting test server..."
-    if ! ./scripts/start-integration-server.sh & echo $! > .integration-server.pid; then
-        log_error "Failed to start integration server"
-        return 1
-    fi
+    ./scripts/start-integration-server.sh &
+    echo $! > .integration-server.pid
     sleep 2
     
     if [ -f .integration-server.pid ]; then
@@ -141,7 +139,7 @@ main() {
     # 5. Wait for server to be ready
     log_info "5️⃣  Waiting for server to be ready..."
     for i in 1 2 3 4 5 6 7 8 9 10; do
-        if curl -s http://localhost:$SERVER_PORT/health >/dev/null 2>&1; then
+        if curl -s http://localhost:$SERVER_PORT/ >/dev/null 2>&1; then
             log_success "Server is ready!"
             break
         fi
@@ -149,7 +147,7 @@ main() {
         sleep 3
     done
     
-    if ! curl -s http://localhost:$SERVER_PORT/health >/dev/null 2>&1; then
+    if ! curl -s http://localhost:$SERVER_PORT/ >/dev/null 2>&1; then
         log_error "Server failed to start within timeout"
         cat server-integration.log 2>/dev/null || true
         return 1

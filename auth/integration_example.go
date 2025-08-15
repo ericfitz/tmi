@@ -147,7 +147,7 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 	}
 
 	// Register generated routes with our server implementation
-	api.RegisterGinHandlers(r, server)
+	api.RegisterHandlers(r, apiServer)
 
 	// Register WebSocket and custom routes
 	apiServer.RegisterHandlers(r)

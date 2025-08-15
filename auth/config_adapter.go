@@ -69,7 +69,7 @@ func convertOAuthProviders(unified map[string]config.OAuthProviderConfig) map[st
 }
 
 // InitAuthWithConfig initializes the auth system with unified configuration
-func InitAuthWithConfig(router *gin.Engine, unified *config.Config) error {
+func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, error) {
 	authConfig := ConfigFromUnified(unified)
 
 	// Create database manager
@@ -78,12 +78,12 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) error {
 	// Initialize PostgreSQL
 	pgConfig, redisConfig := authConfig.ToDBConfig()
 	if err := dbManager.InitPostgres(pgConfig); err != nil {
-		return fmt.Errorf("failed to initialize postgres: %w", err)
+		return nil, fmt.Errorf("failed to initialize postgres: %w", err)
 	}
 
 	// Initialize Redis
 	if err := dbManager.InitRedis(redisConfig); err != nil {
-		return fmt.Errorf("failed to initialize redis: %w", err)
+		return nil, fmt.Errorf("failed to initialize redis: %w", err)
 	}
 
 	// Run database migrations
@@ -92,20 +92,22 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) error {
 		MigrationsPath: migrationsPath,
 		DatabaseName:   authConfig.Postgres.Database,
 	}); err != nil {
-		return fmt.Errorf("failed to run migrations: %w", err)
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	// Create authentication service
 	service, err := NewService(dbManager, authConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create auth service: %w", err)
+		return nil, fmt.Errorf("failed to create auth service: %w", err)
 	}
 
 	// Create authentication handlers
 	handlers := NewHandlers(service, authConfig)
 
 	// Register routes
-	handlers.RegisterRoutes(router)
+	// Skip route registration - routes will be handled by OpenAPI integration
+	logging.Get().Info("[AUTH_CONFIG_ADAPTER] Route registration DISABLED - delegating to OpenAPI")
+	// handlers.RegisterRoutes(router) // Disabled to avoid conflicts with OpenAPI routes
 
 	// Start background job for periodic cache rebuilding
 	go startCacheRebuildJob(context.Background(), dbManager)
@@ -114,5 +116,5 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) error {
 	globalDBManager = dbManager
 
 	logging.Get().Info("Authentication system initialized successfully")
-	return nil
+	return handlers, nil
 }

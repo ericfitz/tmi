@@ -220,7 +220,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	if err := diagramUnion.FromDfdDiagram(createdDiagram); err != nil {
 		// Delete the created diagram if we can't add it to the threat model
 		if deleteErr := DiagramStore.Delete(createdDiagram.Id.String()); deleteErr != nil {
-			fmt.Printf("Failed to delete diagram after union conversion failure: %v\n", deleteErr)
+			logging.Get().WithContext(c).Error("Failed to delete diagram after union conversion failure: %v", deleteErr)
 		}
 		HandleRequestError(c, ServerError("Failed to convert diagram: "+err.Error()))
 		return
@@ -239,7 +239,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		// If updating the threat model fails, delete the created diagram
 		if deleteErr := DiagramStore.Delete(createdDiagram.Id.String()); deleteErr != nil {
 			// Log the error but continue with the main error response
-			fmt.Printf("Failed to delete diagram after threat model update failure: %v\n", deleteErr)
+			logging.Get().WithContext(c).Error("Failed to delete diagram after threat model update failure: %v", deleteErr)
 		}
 		HandleRequestError(c, ServerError("Failed to update threat model with new diagram"))
 		return
@@ -784,11 +784,14 @@ func (h *ThreatModelDiagramHandler) JoinDiagramCollaborate(c *gin.Context, threa
 		return
 	}
 
-	// Join existing collaboration session (fails if none exists)
+	// Try to join existing collaboration session first
 	session, err := h.wsHub.JoinSession(diagramId, userName)
+	statusCode := http.StatusOK // Default for joining existing session
+
 	if err != nil {
-		HandleRequestError(c, NotFoundError("No collaboration session exists for this diagram"))
-		return
+		// No existing session, create a new one
+		session = h.wsHub.GetOrCreateSession(diagramId, threatModelId, userName)
+		statusCode = http.StatusCreated // New session created
 	}
 
 	// Pre-register the joining user as an intended participant
@@ -803,7 +806,7 @@ func (h *ThreatModelDiagramHandler) JoinDiagramCollaborate(c *gin.Context, threa
 		return
 	}
 
-	c.JSON(http.StatusOK, collaborationSession)
+	c.JSON(statusCode, collaborationSession)
 }
 
 // PostDiagramCollaborate joins or starts a collaboration session for a diagram within a threat model (DEPRECATED - use CreateDiagramCollaborate)

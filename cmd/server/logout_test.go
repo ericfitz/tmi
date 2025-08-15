@@ -130,7 +130,7 @@ func TestLogoutEndpoint(t *testing.T) {
 
 		// Create Gin router with JWT middleware
 		r := gin.New()
-		r.Use(JWTMiddleware(cfg, tokenBlacklist))
+		r.Use(JWTMiddleware(cfg, tokenBlacklist, nil)) // nil authHandlers for this test
 		r.GET("/protected", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"message": "success"})
 		})

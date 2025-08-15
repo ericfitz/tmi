@@ -90,7 +90,7 @@ run-lint:
 
 # Generate API from OpenAPI spec
 generate-api:
-	oapi-codegen -config oapi-codegen-config.yaml tmi-openapi.json
+	oapi-codegen -config oapi-codegen-config.yaml shared/api-specs/tmi-openapi.json
 
 # Note: AsyncAPI Go types are manually implemented in api/asyncapi_types.go
 # due to asyncapi-codegen parsing issues with AsyncAPI v3.0 specifications
@@ -101,7 +101,7 @@ validate-asyncapi:
 
 # Validate OpenAPI specification with comprehensive analysis
 validate-openapi:
-	@FILE=$${file:-tmi-openapi.json}; \
+	@FILE=$${file:-shared/api-specs/tmi-openapi.json}; \
 	if [ ! -f "$$FILE" ]; then \
 		echo "❌ File not found: $$FILE"; \
 		echo "Usage: make validate-openapi [file=path/to/openapi.json]"; \
@@ -115,7 +115,7 @@ validate-openapi:
 
 # List OpenAPI endpoints with HTTP methods and response codes
 list-openapi-endpoints:
-	@FILE=$${file:-tmi-openapi.json}; \
+	@FILE=$${file:-shared/api-specs/tmi-openapi.json}; \
 	if [ ! -f "$$FILE" ]; then \
 		echo "❌ File not found: $$FILE"; \
 		echo "Usage: make list-openapi-endpoints [file=path/to/openapi.json]"; \
@@ -427,6 +427,11 @@ test-collaboration-permissions-v2:
 	@echo "🧪 Running comprehensive collaboration session permissions test (v2)..."
 	@./scripts/test-collaboration-permissions-v2.sh
 
+# Test session creation and join integration (OAuth flow, threat models, collaboration)
+test-session-join-integration:
+	@echo "🧪 Running session creation and join integration test..."
+	@./scripts/test-session-join-integration.sh
+
 # Debug auth endpoints - check what's available
 debug-auth-endpoints:
 	@echo "🔍 Checking available auth endpoints..."
@@ -481,7 +486,7 @@ list: list-targets
 sync-shared:
 	@echo "🔄 Syncing shared directory from source files..."
 	@echo "Copying API specifications..."
-	@cp tmi-openapi.json shared/api-specs/
+	@echo "⚠️  Note: tmi-openapi.json is now maintained in shared/api-specs/ (authoritative version)"
 	@cp tmi-asyncapi.yaml shared/api-specs/
 	@echo "Copying documentation..."
 	@cp docs/CLIENT_INTEGRATION_GUIDE.md shared/docs/

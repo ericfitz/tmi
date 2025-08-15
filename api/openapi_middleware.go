@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
 	middleware "github.com/oapi-codegen/gin-middleware"
 )
@@ -12,6 +13,12 @@ import (
 // OpenAPIErrorHandler converts OpenAPI validation errors to TMI's error format
 func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 	var tmiError error
+
+	// Enhanced debug logging for OpenAPI validation failures with request tracing
+	requestID := getRequestID(c)
+	logger := logging.GetContextLogger(c)
+	logger.Error("OPENAPI_VALIDATION_FAILED [%s] %s %s -> %d: %s",
+		requestID, c.Request.Method, c.Request.URL.Path, statusCode, message)
 
 	switch statusCode {
 	case http.StatusBadRequest:
@@ -28,6 +35,11 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 	default:
 		tmiError = ServerError(message)
 	}
+
+	// Log the final error being returned to client for debugging
+	requestError := tmiError.(*RequestError)
+	logger.Error("OPENAPI_ERROR_CONVERTED [%s] Code: %s, Message: %s",
+		requestID, requestError.Code, requestError.Message)
 
 	HandleRequestError(c, tmiError)
 }
@@ -74,14 +86,27 @@ func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 
 	// Return a wrapper that skips validation for WebSocket routes
 	return func(c *gin.Context) {
+		requestID := getRequestID(c)
+		logger := logging.GetContextLogger(c)
+
 		// Skip OpenAPI validation for WebSocket endpoints
 		// WebSocket endpoints are not REST APIs and shouldn't be validated against OpenAPI spec
 		if strings.HasSuffix(c.Request.URL.Path, "/ws") {
+			logger.Debug("OPENAPI_VALIDATION_SKIPPED [%s] WebSocket endpoint: %s %s",
+				requestID, c.Request.Method, c.Request.URL.Path)
 			c.Next()
 			return
 		}
 
-		// Apply OpenAPI validation for all other routes
+		// Log that OpenAPI validation is being applied
+		logger.Debug("OPENAPI_VALIDATION_STARTING [%s] %s %s",
+			requestID, c.Request.Method, c.Request.URL.Path)
+
+		// Apply OpenAPI validation for all routes
 		validator(c)
+
+		// Log if validation passed (if we get here, validation succeeded)
+		logger.Debug("OPENAPI_VALIDATION_PASSED [%s] %s %s",
+			requestID, c.Request.Method, c.Request.URL.Path)
 	}, nil
 }

@@ -188,9 +188,35 @@ make test-api-full               # Full automated API testing (setup + test + cl
 - Generated types in api/api.go include Echo server handlers and embedded spec
 - Config file: oapi-codegen-config.yaml
 
+## Clean Architecture - Request Flow
+
+**Current Architecture (Post-Cleanup)**:
+
+The system now uses a clean, single-router architecture with OpenAPI-driven routing:
+
+1. **Single Router Architecture**: All HTTP requests flow through the OpenAPI specification
+2. **Request Tracing**: Comprehensive module-tagged debug logging for all requests
+3. **Authentication Flow**: 
+   - JWT middleware validates tokens and sets user context
+   - ThreatModelMiddleware and DiagramMiddleware handle resource-specific authorization
+   - Auth handlers integrate cleanly with OpenAPI endpoints
+4. **No Route Conflicts**: Single source of truth for all routing eliminates duplicate route registration panics
+
+**Request Flow**:
+```
+HTTP Request → OpenAPI Route Registration → ServerInterface Implementation → 
+JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
+```
+
+**Key Components**:
+- `api/server.go`: Main OpenAPI server with single router
+- `api/*_middleware.go`: Resource-specific authorization middleware
+- `auth/handlers.go`: Authentication endpoints integrated via auth service adapter
+- `api/request_tracing.go`: Module-tagged request logging for debugging
+
 ## Authentication Memories
 
-- Always use a normal oauth login flow with the "test" provider when performing any development or testing task that requires authentication
+- Always use a normal oauth login flow with the "test" provider when performing any development or testing task that requires authentication  
 - Use `make test-api auth=only` to get JWT tokens for testing
 - OAuth test provider generates JWT tokens with user claims (email, name, sub)
 - For API testing, use `make test-api` (requires `make start-dev` first)

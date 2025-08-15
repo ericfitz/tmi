@@ -121,8 +121,8 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 	}
 }
 
-// JWT Middleware factory function that takes config and token blacklist
-func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist) gin.HandlerFunc {
+// JWT Middleware factory function that takes config, token blacklist, and auth handlers
+func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get a context-aware logger
 		logger := logging.GetContextLogger(c)
@@ -238,6 +238,29 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist) gin.
 					if role, ok := roleValue.(string); ok {
 						logger.Debug("User role from token: %s", role)
 						c.Set("userTokenRole", role)
+					}
+				}
+
+				// If auth handlers are available, fetch the full user object and set it in context
+				if authHandlers != nil {
+					// Get the auth service from the handlers to fetch user by email
+					// The 'sub' claim in our JWT is the user's email address
+					dbManager := auth.GetDatabaseManager()
+					if dbManager != nil {
+						service, err := auth.NewService(dbManager, auth.ConfigFromUnified(cfg))
+						if err != nil {
+							logger.Debug("Failed to create auth service for user lookup: %v", err)
+						} else {
+							// Fetch the user by email (which is stored in 'sub' claim)
+							user, err := service.GetUserByEmail(c.Request.Context(), sub)
+							if err != nil {
+								logger.Debug("Failed to fetch user by email %s: %v", sub, err)
+							} else {
+								// Set the full user object in context using auth package's expected key
+								c.Set(string(auth.UserContextKey), user)
+								logger.Debug("Full user object set in context for user: %s", user.Email)
+							}
+						}
 					}
 				}
 			}
@@ -1006,9 +1029,19 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// This must be done before registering API routes to avoid conflicts
 	logger := logging.Get()
 	logger.Info("Initializing authentication system with database connections")
-	if err := auth.InitAuthWithConfig(r, config); err != nil {
+	authHandlers, err := auth.InitAuthWithConfig(r, config)
+	if err != nil {
 		logger.Error("Failed to initialize authentication system: %v", err)
 		// Continue anyway for development purposes
+	}
+
+	// Set up auth service adapter for OpenAPI integration
+	if authHandlers != nil {
+		authServiceAdapter := api.NewAuthServiceAdapter(authHandlers)
+		apiServer.SetAuthService(authServiceAdapter)
+		logger.Info("Auth service adapter configured for OpenAPI integration")
+	} else {
+		logger.Warn("Auth handlers not available - auth endpoints will return errors")
 	}
 
 	// Initialize token blacklist service
@@ -1020,8 +1053,12 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		logger.Warn("Redis not available - token blacklist service disabled")
 	}
 
-	// Now add JWT middleware with token blacklist support
-	r.Use(JWTMiddleware(config, server.tokenBlacklist)) // JWT auth with public path skipping
+	// Add comprehensive request tracing middleware first
+	r.Use(api.DetailedRequestLoggingMiddleware())
+	r.Use(api.RouteMatchingMiddleware())
+
+	// Now add JWT middleware with token blacklist support and auth handlers for user lookup
+	r.Use(JWTMiddleware(config, server.tokenBlacklist, authHandlers)) // JWT auth with public path skipping
 
 	// Add server middleware to make API server available in context
 	r.Use(func(c *gin.Context) {
@@ -1041,7 +1078,8 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.Use(api.ThreatModelMiddleware())
 	r.Use(api.DiagramMiddleware())
 
-	// Register WebSocket and custom routes
+	// Register WebSocket and custom non-REST routes
+	logger.Info("Registering WebSocket and custom routes")
 	apiServer.RegisterHandlers(r)
 
 	// Initialize database stores for API data persistence
@@ -1083,12 +1121,13 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	}
 
 	// Register API routes except for auth routes which are handled by the auth package
-	// Create a custom router that skips auth routes
-	customRouter := &customGinRouter{
-		router:     r,
-		skipRoutes: []string{"/auth/callback", "/auth/logout"},
-	}
-	api.RegisterGinHandlers(customRouter, server)
+	// Register OpenAPI-generated routes with the API server instance
+	logger.Info("[MAIN_MODULE] Starting OpenAPI route registration")
+	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /auth/me -> GetCurrentUser")
+	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /auth/providers -> GetAuthProviders")
+	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /collaboration/sessions -> GetCollaborationSessions")
+	api.RegisterHandlers(r, apiServer)
+	logger.Info("[MAIN_MODULE] OpenAPI route registration completed")
 
 	// Add development routes when in dev mode
 	if config.Logging.IsDev {
@@ -1098,62 +1137,6 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	}
 
 	return r, apiServer
-}
-
-// customGinRouter is a wrapper around gin.Engine that skips certain routes
-type customGinRouter struct {
-	router     *gin.Engine
-	skipRoutes []string
-}
-
-// GET implements the GinRouter interface
-func (r *customGinRouter) GET(path string, handlers ...gin.HandlerFunc) gin.IRoutes {
-	for _, skipRoute := range r.skipRoutes {
-		if path == skipRoute {
-			return r.router // Skip this route
-		}
-	}
-	return r.router.GET(path, handlers...)
-}
-
-// POST implements the GinRouter interface
-func (r *customGinRouter) POST(path string, handlers ...gin.HandlerFunc) gin.IRoutes {
-	for _, skipRoute := range r.skipRoutes {
-		if path == skipRoute {
-			return r.router // Skip this route
-		}
-	}
-	return r.router.POST(path, handlers...)
-}
-
-// PUT implements the GinRouter interface
-func (r *customGinRouter) PUT(path string, handlers ...gin.HandlerFunc) gin.IRoutes {
-	for _, skipRoute := range r.skipRoutes {
-		if path == skipRoute {
-			return r.router // Skip this route
-		}
-	}
-	return r.router.PUT(path, handlers...)
-}
-
-// DELETE implements the GinRouter interface
-func (r *customGinRouter) DELETE(path string, handlers ...gin.HandlerFunc) gin.IRoutes {
-	for _, skipRoute := range r.skipRoutes {
-		if path == skipRoute {
-			return r.router // Skip this route
-		}
-	}
-	return r.router.DELETE(path, handlers...)
-}
-
-// PATCH implements the GinRouter interface
-func (r *customGinRouter) PATCH(path string, handlers ...gin.HandlerFunc) gin.IRoutes {
-	for _, skipRoute := range r.skipRoutes {
-		if path == skipRoute {
-			return r.router // Skip this route
-		}
-	}
-	return r.router.PATCH(path, handlers...)
 }
 
 func main() {
