@@ -243,11 +243,9 @@ type AuthService interface {
 
 // GetApiInfo returns API information
 func (s *Server) GetApiInfo(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"name":        "TMI API",
-		"version":     "1.0",
-		"description": "Threat Modeling Interface API",
-	})
+	// Delegate to ApiInfoHandler for proper OpenAPI-compliant response
+	handler := NewApiInfoHandler(s)
+	handler.GetApiInfo(c)
 }
 
 // Authentication Methods (delegate to auth service)
