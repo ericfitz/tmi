@@ -1,4 +1,4 @@
-.PHONY: build-server build-check-db run-tests test-unit test-integration test-integration-cleanup run-lint clean-artifacts start-dev start-prod start-dev-db start-dev-redis stop-dev-db stop-dev-redis delete-dev-db delete-dev-redis build-dev-app build-postgres build-redis generate-api generate-config start-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config validate-asyncapi validate-openapi list-openapi-endpoints report-coverage report-coverage-unit report-coverage-integration generate-coverage-report ensure-migrations check-migrations run-migrations reset-database test-api test-api-full test-dev test-dev-full test-collaboration-permissions test-collaboration-permissions-v2 clean-dev-env debug-auth-endpoints list-targets sync-shared push-shared subtree-help
+.PHONY: build-server build-check-db run-tests test-unit test-integration test-integration-cleanup run-lint clean-artifacts start-dev start-prod start-dev-db start-dev-redis stop-dev-db stop-dev-redis delete-dev-db delete-dev-redis build-dev-app build-postgres build-redis generate-api generate-config start-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config validate-asyncapi validate-openapi list-openapi-endpoints report-coverage report-coverage-unit report-coverage-integration generate-coverage-report ensure-migrations check-migrations run-migrations reset-database test-api test-api-full test-api-script test-dev test-dev-full test-collaboration-permissions test-collaboration-permissions-v2 clean-dev-env debug-auth-endpoints list-targets sync-shared push-shared subtree-help analyze-endpoints analyze-dead-code cleanup-dead-code
 
 # Backward compatibility aliases
 .PHONY: build test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app gen-api gen-config dev-observability coverage coverage-unit coverage-integration coverage-report migrate reset-db dev-test dev-test-full clean-dev openapi-endpoints list
@@ -412,6 +412,16 @@ test-dev: build-server
 # Full development test - sets up environment and runs development tests
 test-dev-full: test-api-full
 
+# Run API test scripts using Python testing tool
+test-api-script:
+	@if [ -z "$(script)" ]; then \
+		echo "Usage: make test-api-script script=path/to/test.txt"; \
+		echo "Example: make test-api-script script=test_examples/basic_api_test.txt"; \
+		exit 1; \
+	fi
+	@echo "🧪 Running API test script: $(script)"
+	@uv run scripts/api_test.py $(script)
+
 # Clean development environment (kill processes, clean DBs)
 clean-dev-env:
 	@echo "🧹 Cleaning development environment..."
@@ -522,3 +532,30 @@ subtree-help:
 	@echo ""
 	@echo "For TMI-UX to pull updates:"
 	@echo "  git subtree pull --prefix=shared-api https://github.com/yourusername/tmi.git shared --squash"
+
+# Endpoint Analysis
+
+# Analyze all API endpoints for implementation status, handlers, and middleware
+analyze-endpoints:
+	@echo "🔍 Analyzing TMI API endpoints..."
+	@uv run scripts/analyze_endpoints.py
+	@echo ""
+	@echo "📊 Report generated: endpoint_analysis_report.md"
+	@echo "🔗 View the report:"
+	@echo "   cat endpoint_analysis_report.md"
+
+# Analyze and clean up dead code from OpenAPI refactor
+analyze-dead-code:
+	@echo "🔍 Analyzing dead code from OpenAPI refactor..."
+	@python3 scripts/cleanup_dead_code.py --dry-run
+	@echo ""
+	@echo "📊 Report generated: dead_code_analysis_report.md"
+	@echo "🔗 View the report:"
+	@echo "   cat dead_code_analysis_report.md"
+
+# Clean up dead code (with confirmation)
+cleanup-dead-code:
+	@echo "⚠️  This will automatically remove safe dead code"
+	@echo "📖 Review dead_code_analysis_report.md first"
+	@read -p "Continue? (y/N): " confirm && [ "$$confirm" = "y" ] || exit 1
+	@python3 scripts/cleanup_dead_code.py --auto-fix

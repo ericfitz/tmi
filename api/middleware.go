@@ -43,11 +43,6 @@ func ParseLogLevel(level string) LogLevel {
 	}
 }
 
-// RequestLogger is a middleware that logs HTTP requests (deprecated, use logging.LoggerMiddleware)
-func RequestLogger(logLevel LogLevel) gin.HandlerFunc {
-	return logging.LoggerMiddleware()
-}
-
 // CORS middleware to handle Cross-Origin Resource Sharing
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -78,11 +73,6 @@ func ContextTimeout(timeout time.Duration) gin.HandlerFunc {
 		// Continue processing
 		c.Next()
 	}
-}
-
-// Recoverer middleware recovers from panics and logs the error (deprecated, use logging.Recoverer)
-func Recoverer() gin.HandlerFunc {
-	return logging.Recoverer()
 }
 
 // Role represents a user role with permission levels

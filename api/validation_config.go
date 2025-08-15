@@ -251,7 +251,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		ProhibitedFields: []string{
 			"id",
 		},
-		CustomValidators: []ValidatorFunc{ValidateUUIDFields},
+		CustomValidators: []ValidatorFunc{ValidateUUIDFieldsFromStruct},
 		Operation:        "POST",
 	},
 
@@ -259,7 +259,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		ProhibitedFields: []string{
 			"id",
 		},
-		CustomValidators: []ValidatorFunc{ValidateUUIDFields},
+		CustomValidators: []ValidatorFunc{ValidateUUIDFieldsFromStruct},
 		Operation:        "PUT",
 	},
 
@@ -290,7 +290,7 @@ var ValidateAuthorizationEntriesFunc ValidatorFunc = ValidateAuthorizationEntrie
 
 // ValidateUUIDFieldsFunc validates UUID format for ID fields
 var ValidateUUIDFieldsFunc ValidatorFunc = func(data interface{}) error {
-	return ValidateUUIDFields(data)
+	return ValidateUUIDFieldsFromStruct(data)
 }
 
 // ValidateDiagramTypeFunc validates diagram type field

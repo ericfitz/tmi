@@ -231,14 +231,6 @@ func ValidateAuthorizationEntriesFromStruct(data interface{}) error {
 	return validateAuthorizationEntries(data)
 }
 
-// ValidateUUIDFields validates UUID format for ID fields
-// Deprecated: Use ValidateUUIDFieldsFromStruct instead
-func ValidateUUIDFields(data interface{}) error {
-	// UUID validation is now handled by ValidateUUIDFieldsFromStruct
-	// This function maintains compatibility with existing code
-	return ValidateUUIDFieldsFromStruct(data)
-}
-
 // ValidateDiagramType validates diagram type field
 func ValidateDiagramType(data interface{}) error {
 	v := reflect.ValueOf(data)

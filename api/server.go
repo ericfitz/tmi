@@ -14,8 +14,15 @@ import (
 // Server is the main API server instance
 type Server struct {
 	// Handlers
-	threatModelHandler *ThreatModelHandler
-	// diagramHandler     *DiagramHandler  // Disabled - diagram endpoints removed
+	threatModelHandler         *ThreatModelHandler
+	documentHandler            *DocumentSubResourceHandler
+	sourceHandler              *SourceSubResourceHandler
+	threatHandler              *ThreatSubResourceHandler
+	batchHandler               *BatchHandler
+	documentMetadataHandler    *DocumentMetadataHandler
+	sourceMetadataHandler      *SourceMetadataHandler
+	threatMetadataHandler      *ThreatMetadataHandler
+	threatModelMetadataHandler *ThreatModelMetadataHandler
 	// WebSocket hub
 	wsHub *WebSocketHub
 	// Auth handlers (for delegating auth-related methods)
@@ -25,9 +32,16 @@ type Server struct {
 // NewServer creates a new API server instance
 func NewServer(wsLoggingConfig logging.WebSocketLoggingConfig) *Server {
 	return &Server{
-		threatModelHandler: NewThreatModelHandler(),
-		// diagramHandler:     NewDiagramHandler(),  // Disabled - diagram endpoints removed
-		wsHub: NewWebSocketHub(wsLoggingConfig),
+		threatModelHandler:         NewThreatModelHandler(),
+		documentHandler:            NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
+		sourceHandler:              NewSourceSubResourceHandler(GlobalSourceStore, nil, nil, nil),
+		threatHandler:              NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
+		batchHandler:               NewBatchHandler(GlobalThreatStore, nil, nil, nil),
+		documentMetadataHandler:    NewDocumentMetadataHandlerSimple(),
+		sourceMetadataHandler:      NewSourceMetadataHandlerSimple(),
+		threatMetadataHandler:      NewThreatMetadataHandlerSimple(),
+		threatModelMetadataHandler: NewThreatModelMetadataHandlerSimple(),
+		wsHub:                      NewWebSocketHub(wsLoggingConfig),
 		// authService will be set separately via SetAuthService
 	}
 }
@@ -350,7 +364,7 @@ func (s *Server) CreateThreatModel(c *gin.Context) {
 func (s *Server) GetThreatModel(c *gin.Context, threatModelId openapi_types.UUID) {
 	// Set path parameter for handler
 	c.Params = append(c.Params, gin.Param{Key: "id", Value: threatModelId.String()})
-	HandleRequestError(c, ServerError("GetThreatModel not yet implemented")) // Placeholder implementation
+	s.threatModelHandler.GetThreatModelByID(c)
 }
 
 // UpdateThreatModel updates a threat model
@@ -375,21 +389,18 @@ func (s *Server) DeleteThreatModel(c *gin.Context, threatModelId openapi_types.U
 
 // GetThreatModelDiagrams lists diagrams for a threat model
 func (s *Server) GetThreatModelDiagrams(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelDiagramsParams) {
-	// handler := &ThreatModelDiagramHandler{wsHub: s.wsHub} // Unused
-	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
-	HandleRequestError(c, ServerError("GetThreatModelDiagrams not yet implemented"))
+	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
+	handler.GetDiagrams(c, threatModelId.String())
 }
 
 // CreateThreatModelDiagram creates a new diagram
 func (s *Server) CreateThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID) {
-	// handler := &ThreatModelDiagramHandler{wsHub: s.wsHub} // Unused
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	HandleRequestError(c, ServerError("CreateThreatModelDiagram not yet implemented"))
 }
 
 // GetThreatModelDiagram gets a specific diagram
 func (s *Server) GetThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	// handler := &ThreatModelDiagramHandler{wsHub: s.wsHub} // Unused
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "diagram_id", Value: diagramId.String()})
 	HandleRequestError(c, ServerError("GetThreatModelDiagram not yet implemented"))
@@ -397,7 +408,6 @@ func (s *Server) GetThreatModelDiagram(c *gin.Context, threatModelId openapi_typ
 
 // UpdateThreatModelDiagram updates a diagram
 func (s *Server) UpdateThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	// handler := &ThreatModelDiagramHandler{wsHub: s.wsHub} // Unused
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "diagram_id", Value: diagramId.String()})
 	HandleRequestError(c, ServerError("UpdateThreatModelDiagram not yet implemented"))
@@ -405,7 +415,6 @@ func (s *Server) UpdateThreatModelDiagram(c *gin.Context, threatModelId openapi_
 
 // PatchThreatModelDiagram partially updates a diagram
 func (s *Server) PatchThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	// handler := &ThreatModelDiagramHandler{wsHub: s.wsHub} // Unused
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "diagram_id", Value: diagramId.String()})
 	HandleRequestError(c, ServerError("PatchThreatModelDiagram not yet implemented"))
@@ -413,7 +422,6 @@ func (s *Server) PatchThreatModelDiagram(c *gin.Context, threatModelId openapi_t
 
 // DeleteThreatModelDiagram deletes a diagram
 func (s *Server) DeleteThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	// handler := &ThreatModelDiagramHandler{wsHub: s.wsHub} // Unused
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "diagram_id", Value: diagramId.String()})
 	HandleRequestError(c, ServerError("DeleteThreatModelDiagram not yet implemented"))
@@ -457,244 +465,262 @@ func (s *Server) UpdateDiagramMetadataByKey(c *gin.Context, threatModelId openap
 
 // GetThreatModelDocuments lists documents
 func (s *Server) GetThreatModelDocuments(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelDocumentsParams) {
-	HandleRequestError(c, ServerError("Documents not yet implemented"))
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.documentHandler.GetDocuments(c)
 }
 
 // CreateThreatModelDocument creates a document
 func (s *Server) CreateThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Documents not yet implemented"))
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.documentHandler.CreateDocument(c)
 }
 
 // BulkCreateThreatModelDocuments bulk creates documents
 func (s *Server) BulkCreateThreatModelDocuments(c *gin.Context, threatModelId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Documents not yet implemented"))
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.documentHandler.BulkCreateDocuments(c)
 }
 
 // DeleteThreatModelDocument deletes a document
 func (s *Server) DeleteThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Documents not yet implemented"))
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "document_id", Value: documentId.String()})
+	s.documentHandler.DeleteDocument(c)
 }
 
 // GetThreatModelDocument gets a document
 func (s *Server) GetThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Documents not yet implemented"))
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "document_id", Value: documentId.String()})
+	s.documentHandler.GetDocument(c)
 }
 
 // UpdateThreatModelDocument updates a document
 func (s *Server) UpdateThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Documents not yet implemented"))
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "document_id", Value: documentId.String()})
+	s.documentHandler.UpdateDocument(c)
 }
 
 // Document Metadata Methods - Placeholder implementations
 
 // GetDocumentMetadata gets document metadata
 func (s *Server) GetDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Document metadata not yet implemented"))
+	s.documentMetadataHandler.GetDocumentMetadata(c)
 }
 
 // CreateDocumentMetadata creates document metadata
 func (s *Server) CreateDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Document metadata not yet implemented"))
+	s.documentMetadataHandler.CreateDocumentMetadata(c)
 }
 
 // BulkCreateDocumentMetadata bulk creates document metadata
 func (s *Server) BulkCreateDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Document metadata not yet implemented"))
+	s.documentMetadataHandler.BulkCreateDocumentMetadata(c)
 }
 
 // DeleteDocumentMetadataByKey deletes document metadata by key
 func (s *Server) DeleteDocumentMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Document metadata not yet implemented"))
+	s.documentMetadataHandler.DeleteDocumentMetadata(c)
 }
 
 // GetDocumentMetadataByKey gets document metadata by key
 func (s *Server) GetDocumentMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Document metadata not yet implemented"))
+	s.documentMetadataHandler.GetDocumentMetadataByKey(c)
 }
 
 // UpdateDocumentMetadataByKey updates document metadata by key
 func (s *Server) UpdateDocumentMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Document metadata not yet implemented"))
+	s.documentMetadataHandler.UpdateDocumentMetadata(c)
 }
 
 // Threat Model Metadata Methods - Placeholder implementations
 
 // GetThreatModelMetadata gets threat model metadata
 func (s *Server) GetThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threat model metadata not yet implemented"))
+	s.threatModelMetadataHandler.GetThreatModelMetadata(c)
 }
 
 // CreateThreatModelMetadata creates threat model metadata
 func (s *Server) CreateThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threat model metadata not yet implemented"))
+	s.threatModelMetadataHandler.CreateThreatModelMetadata(c)
 }
 
 // BulkCreateThreatModelMetadata bulk creates threat model metadata
 func (s *Server) BulkCreateThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threat model metadata not yet implemented"))
+	s.threatModelMetadataHandler.BulkCreateThreatModelMetadata(c)
 }
 
 // DeleteThreatModelMetadataByKey deletes threat model metadata by key
 func (s *Server) DeleteThreatModelMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Threat model metadata not yet implemented"))
+	s.threatModelMetadataHandler.DeleteThreatModelMetadata(c)
 }
 
 // GetThreatModelMetadataByKey gets threat model metadata by key
 func (s *Server) GetThreatModelMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Threat model metadata not yet implemented"))
+	s.threatModelMetadataHandler.GetThreatModelMetadataByKey(c)
 }
 
 // UpdateThreatModelMetadataByKey updates threat model metadata by key
 func (s *Server) UpdateThreatModelMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Threat model metadata not yet implemented"))
+	s.threatModelMetadataHandler.UpdateThreatModelMetadata(c)
 }
 
 // Source Methods - Placeholder implementations
 
 // GetThreatModelSources lists sources
 func (s *Server) GetThreatModelSources(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelSourcesParams) {
-	HandleRequestError(c, ServerError("Sources not yet implemented"))
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.sourceHandler.GetSources(c)
 }
 
 // CreateThreatModelSource creates a source
 func (s *Server) CreateThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Sources not yet implemented"))
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.sourceHandler.CreateSource(c)
 }
 
 // BulkCreateThreatModelSources bulk creates sources
 func (s *Server) BulkCreateThreatModelSources(c *gin.Context, threatModelId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Sources not yet implemented"))
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.sourceHandler.BulkCreateSources(c)
 }
 
 // DeleteThreatModelSource deletes a source
 func (s *Server) DeleteThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Sources not yet implemented"))
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "source_id", Value: sourceId.String()})
+	s.sourceHandler.DeleteSource(c)
 }
 
 // GetThreatModelSource gets a source
 func (s *Server) GetThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Sources not yet implemented"))
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "source_id", Value: sourceId.String()})
+	s.sourceHandler.GetSource(c)
 }
 
 // UpdateThreatModelSource updates a source
 func (s *Server) UpdateThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Sources not yet implemented"))
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "source_id", Value: sourceId.String()})
+	s.sourceHandler.UpdateSource(c)
 }
 
 // Source Metadata Methods - Placeholder implementations
 
 // GetSourceMetadata gets source metadata
 func (s *Server) GetSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Source metadata not yet implemented"))
+	s.sourceMetadataHandler.GetSourceMetadata(c)
 }
 
 // CreateSourceMetadata creates source metadata
 func (s *Server) CreateSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Source metadata not yet implemented"))
+	s.sourceMetadataHandler.CreateSourceMetadata(c)
 }
 
 // BulkCreateSourceMetadata bulk creates source metadata
 func (s *Server) BulkCreateSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Source metadata not yet implemented"))
+	s.sourceMetadataHandler.BulkCreateSourceMetadata(c)
 }
 
 // DeleteSourceMetadataByKey deletes source metadata by key
 func (s *Server) DeleteSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Source metadata not yet implemented"))
+	s.sourceMetadataHandler.DeleteSourceMetadata(c)
 }
 
 // GetSourceMetadataByKey gets source metadata by key
 func (s *Server) GetSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Source metadata not yet implemented"))
+	s.sourceMetadataHandler.GetSourceMetadataByKey(c)
 }
 
 // UpdateSourceMetadataByKey updates source metadata by key
 func (s *Server) UpdateSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Source metadata not yet implemented"))
+	s.sourceMetadataHandler.UpdateSourceMetadata(c)
 }
 
 // Threat Methods - Placeholder implementations
 
 // GetThreatModelThreats lists threats
 func (s *Server) GetThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelThreatsParams) {
-	HandleRequestError(c, ServerError("Threats not yet implemented"))
+	s.threatHandler.GetThreats(c)
 }
 
 // CreateThreatModelThreat creates a threat
 func (s *Server) CreateThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threats not yet implemented"))
+	s.threatHandler.CreateThreat(c)
 }
 
 // BatchDeleteThreatModelThreats batch deletes threats
 func (s *Server) BatchDeleteThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID, params BatchDeleteThreatModelThreatsParams) {
-	HandleRequestError(c, ServerError("Threats not yet implemented"))
+	s.batchHandler.BatchDeleteThreats(c)
 }
 
 // BatchPatchThreatModelThreats batch patches threats
 func (s *Server) BatchPatchThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threats not yet implemented"))
+	s.batchHandler.BatchPatchThreats(c)
 }
 
 // BulkCreateThreatModelThreats bulk creates threats
 func (s *Server) BulkCreateThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threats not yet implemented"))
+	s.threatHandler.BulkCreateThreats(c)
 }
 
 // BulkUpdateThreatModelThreats bulk updates threats
 func (s *Server) BulkUpdateThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threats not yet implemented"))
+	s.threatHandler.BulkUpdateThreats(c)
 }
 
 // DeleteThreatModelThreat deletes a threat
 func (s *Server) DeleteThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threats not yet implemented"))
+	s.threatHandler.DeleteThreat(c)
 }
 
 // GetThreatModelThreat gets a threat
 func (s *Server) GetThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threats not yet implemented"))
+	s.threatHandler.GetThreat(c)
 }
 
 // PatchThreatModelThreat patches a threat
 func (s *Server) PatchThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threats not yet implemented"))
+	s.threatHandler.PatchThreat(c)
 }
 
 // UpdateThreatModelThreat updates a threat
 func (s *Server) UpdateThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threats not yet implemented"))
+	s.threatHandler.UpdateThreat(c)
 }
 
 // Threat Metadata Methods - Placeholder implementations
 
 // GetThreatMetadata gets threat metadata
 func (s *Server) GetThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threat metadata not yet implemented"))
+	s.threatMetadataHandler.GetThreatMetadata(c)
 }
 
 // CreateThreatMetadata creates threat metadata
 func (s *Server) CreateThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threat metadata not yet implemented"))
+	s.threatMetadataHandler.CreateThreatMetadata(c)
 }
 
 // BulkCreateThreatMetadata bulk creates threat metadata
 func (s *Server) BulkCreateThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Threat metadata not yet implemented"))
+	s.threatMetadataHandler.BulkCreateThreatMetadata(c)
 }
 
 // DeleteThreatMetadataByKey deletes threat metadata by key
 func (s *Server) DeleteThreatMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Threat metadata not yet implemented"))
+	s.threatMetadataHandler.DeleteThreatMetadata(c)
 }
 
 // GetThreatMetadataByKey gets threat metadata by key
 func (s *Server) GetThreatMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Threat metadata not yet implemented"))
+	s.threatMetadataHandler.GetThreatMetadataByKey(c)
 }
 
 // UpdateThreatMetadataByKey updates threat metadata by key
 func (s *Server) UpdateThreatMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Threat metadata not yet implemented"))
+	s.threatMetadataHandler.UpdateThreatMetadata(c)
 }
 
 // Legacy ServerInterface wrapper methods for backward compatibility

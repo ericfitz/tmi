@@ -34,6 +34,48 @@ This repository contains API documentation and Go implementation for a Collabora
   - Useful for implementing Input/Output schema separation or other targeted schema modifications
 - Validate OpenAPI: `make validate-openapi [file=path/to/spec.json]` (validates OpenAPI specification with comprehensive JSON syntax and detailed analysis)
 
+### API Testing Tool
+
+- **Ad-hoc API Testing**: `make test-api-script script=<script.txt>` - Human-readable API testing with simple script format
+  - **Location**: `scripts/api_test.py` (executable Python script)
+  - **Examples**: `test_examples/` directory contains sample test scripts
+  - **Features**: OAuth authentication, variable substitution, JSON expectations, response validation
+  - **Script Format**:
+    ```
+    server localhost    # Configure server (optional)
+    port 8080          # Configure port (optional) 
+    auth user1         # Authenticate user via OAuth
+    request createtm post /threat_models $user1.jwt$ body={"name":"Test"}
+    expect $createtm.status$ == 201
+    expect $createtm.body.id$ exists
+    ```
+
+## Critical Development Guidelines
+
+**MANDATORY: Always use Make targets - NEVER run commands directly**
+
+- ❌ **NEVER run**: `go run`, `go test`, `./bin/server`, `docker run`, `docker exec`
+- ✅ **ALWAYS use**: `make start-dev`, `make test-unit`, `make test-integration`, `make build-server`
+- **Reason**: Make targets provide consistent, repeatable configurations with proper environment setup
+
+**Examples of FORBIDDEN practices:**
+```bash
+# ❌ DON'T DO THESE:
+go run cmd/server/main.go --config=config-development.yaml
+go test ./api/...
+./bin/server --config=config-development.yaml
+docker exec tmi-postgresql psql -U postgres
+docker run -d postgres:13
+
+# ✅ DO THESE INSTEAD:
+make start-dev
+make test-unit
+make test-integration
+make start-dev-db
+```
+
+**Container Management**: Use `make start-dev-db`, `make start-dev-redis`, `make start-dev` for all container operations.
+
 ### Testing Commands
 
 **IMPORTANT: Always use make targets for testing. Never run `go test` commands directly.**
@@ -220,3 +262,7 @@ JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
 - Use `make test-api auth=only` to get JWT tokens for testing
 - OAuth test provider generates JWT tokens with user claims (email, name, sub)
 - For API testing, use `make test-api` (requires `make start-dev` first)
+
+## Python Development Memories
+
+- Run python scripts with uv. When creating python scripts, add uv toml to the script for automatic package management.
