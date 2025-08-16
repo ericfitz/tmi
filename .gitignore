@@ -8,7 +8,7 @@
 !go.sum
 !go.mod
 !license.txt
-!tmi-openapi.json
+!shared/api-specs/tmi-openapi.json
 !static/*
 !Makefile
 !generate-api

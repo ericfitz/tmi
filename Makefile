@@ -490,25 +490,7 @@ openapi-endpoints: list-openapi-endpoints
 list: list-targets
 
 # Git Subtree Management for Shared Resources
-.PHONY: sync-shared push-shared subtree-help
-
-# Update shared directory from source files
-sync-shared:
-	@echo "🔄 Syncing shared directory from source files..."
-	@echo "Copying API specifications..."
-	@echo "⚠️  Note: tmi-openapi.json is now maintained in shared/api-specs/ (authoritative version)"
-	@cp tmi-asyncapi.yaml shared/api-specs/
-	@echo "Copying documentation..."
-	@cp docs/CLIENT_INTEGRATION_GUIDE.md shared/docs/
-	@cp docs/TMI-API-v1_0.md shared/docs/
-	@cp docs/CLIENT_OAUTH_INTEGRATION.md shared/docs/
-	@cp docs/AUTHORIZATION.md shared/docs/
-	@cp docs/COLLABORATIVE_EDITING_PLAN.md shared/docs/
-	@cp docs/*.png shared/docs/ 2>/dev/null || true
-	@echo "Copying SDK examples..."
-	@rm -rf shared/sdk-examples/python-sdk
-	@cp -r python-sdk shared/sdk-examples/
-	@echo "✅ Shared directory synchronized"
+.PHONY: push-shared subtree-help
 
 # Push shared branch to GitHub for subtree consumption
 push-shared:

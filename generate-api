@@ -1,3 +1,3 @@
 #!/bin/bash
 make gen-api
-# oapi-codegen -config oapi-codegen-config.yaml tmi-openapi.json
+# oapi-codegen -config oapi-codegen-config.yaml shared/api-specs/tmi-openapi.json

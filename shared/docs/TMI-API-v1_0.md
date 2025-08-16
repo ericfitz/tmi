@@ -367,7 +367,7 @@ GET /
   },
   "api": {
     "version": "1.0",
-    "specification": "https://github.com/ericfitz/tmi/blob/main/tmi-openapi.json"
+    "specification": "https://github.com/ericfitz/tmi/blob/main/shared/api-specs/tmi-openapi.json"
   },
   "operator": {
     "name": "Example Organization",

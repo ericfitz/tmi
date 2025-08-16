@@ -9,7 +9,7 @@ This repository contains API documentation and Go implementation for a Collabora
 ## Key Files
 
 - docs/TMI-API-v1_0.md - API documentation in Markdown
-- tmi-openapi.json - OpenAPI specification
+- shared/api-specs/tmi-openapi.json - OpenAPI specification
 - api/store.go - Generic typed map storage implementation
 - api/server.go - Main API server with WebSocket support
 - api/websocket.go - WebSocket hub for real-time collaboration
@@ -29,7 +29,7 @@ This repository contains API documentation and Go implementation for a Collabora
 ### OpenAPI Schema Management
 
 - JSON Patcher Tool: `python3 scripts/patch-json.py` - Utility for making precise modifications to OpenAPI specification
-  - Patch schema: `python3 scripts/patch-json.py -s tmi-openapi.json -p "$.components.schemas.SchemaName" -f patch.json`
+  - Patch schema: `python3 scripts/patch-json.py -s shared/api-specs/tmi-openapi.json -p "$.components.schemas.SchemaName" -f patch.json`
   - Creates automatic backups and validates JSON structure
   - Useful for implementing Input/Output schema separation or other targeted schema modifications
 - Validate OpenAPI: `make validate-openapi [file=path/to/spec.json]` (validates OpenAPI specification with comprehensive JSON syntax and detailed analysis)
@@ -225,7 +225,7 @@ make test-api-full               # Full automated API testing (setup + test + cl
 
 ### OpenAPI Integration
 
-- API code generated from tmi-openapi.json using oapi-codegen v2
+- API code generated from shared/api-specs/tmi-openapi.json using oapi-codegen v2
 - OpenAPI validation middleware clears security schemes (auth handled by JWT middleware)
 - Generated types in api/api.go include Echo server handlers and embedded spec
 - Config file: oapi-codegen-config.yaml

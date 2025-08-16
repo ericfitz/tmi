@@ -43,7 +43,7 @@ The server will start on port 8080 by default.
 - `api/` - API types and handlers
 - `cmd/server/` - Server entry point and configuration
 - `tmi-api-v1_0.md` - API documentation
-- `tmi-openapi.json` - OpenAPI specification
+- `shared/api-specs/tmi-openapi.json` - OpenAPI specification
 
 ## Architecture
 
