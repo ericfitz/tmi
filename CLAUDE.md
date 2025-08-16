@@ -56,6 +56,7 @@ This repository contains API documentation and Go implementation for a Collabora
   - **Location**: `scripts/oauth-client-callback-stub.py` (standalone Python script)
   - **Purpose**: Captures OAuth authorization codes and states from TMI's test provider for automated testing
   - **Features**: Two-route HTTP server with OAuth callback handler and credentials API
+  - **Logging**: Structured logging to `/tmp/oauth-stub.log` with RFC3339 timestamps and dual console output
   - **Usage**:
     - **Route 1 (`GET /`)**: Receives OAuth redirects, stores latest code/state parameters
     - **Route 2 (`GET /latest`)**: Returns stored credentials as JSON for testing frameworks
@@ -72,7 +73,11 @@ This repository contains API documentation and Go implementation for a Collabora
     # Retrieve captured credentials
     curl http://localhost:8079/latest
     # Returns: {"code": "test_auth_code_...", "state": "AbCdEf..."}
+    
+    # Monitor logs for debugging
+    tail -f /tmp/oauth-stub.log
     ```
+  - **Log Format**: `YYYY-MM-DDTHH:MM:SS.sssZ <message>` with detailed API request logging including IP, method, path, status, and response payload
   - **StepCI Integration**: Enables real OAuth testing by fetching actual authorization codes from TMI's test provider
   - **Client Development**: Simplifies OAuth integration testing without implementing full callback handlers
 

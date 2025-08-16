@@ -95,6 +95,7 @@ The OAuth tests require a callback stub to capture authorization codes from the 
 - **Route 1** (`GET /`): Receives OAuth callbacks, stores latest code/state
 - **Route 2** (`GET /latest`): Returns stored credentials as JSON for StepCI consumption
 - **Automatic Integration**: StepCI tests fetch real OAuth codes via `/latest` endpoint
+- **Structured Logging**: All requests and events logged to `/tmp/oauth-stub.log` with RFC3339 timestamps
 
 **Usage:**
 ```bash
@@ -103,6 +104,9 @@ python3 scripts/oauth-client-callback-stub.py --port 8079
 
 # In another terminal, run OAuth tests
 stepci run stepci/auth/oauth-flow.yml
+
+# Monitor logs (optional)
+tail -f /tmp/oauth-stub.log
 ```
 
 **API Response:**
@@ -111,7 +115,15 @@ GET http://localhost:8079/latest
 {"code": "test_auth_code_1234567890", "state": "AbCdEf123456"}
 ```
 
-This approach solves StepCI's variable substitution limitations by using real OAuth authorization codes captured from the actual OAuth flow.
+**Log Output:**
+```
+2025-08-16T16:57:29.8050Z Server listening on http://localhost:8079/...
+2025-08-16T16:58:48.7159Z Received OAuth redirect: Code=test_auth_code_1234567890, State=AbCdEf123456
+2025-08-16T16:58:48.7161Z API request: 127.0.0.1 GET /?code=test_auth_code_1234567890&state=AbCdEf123456 HTTP/1.1 200 "Redirect received. Check server logs for details."
+2025-08-16T16:58:52.2411Z API request: 127.0.0.1 GET /latest HTTP/1.1 200 {"code": "test_auth_code_1234567890", "state": "AbCdEf123456"}
+```
+
+This approach solves StepCI's variable substitution limitations by using real OAuth authorization codes captured from the actual OAuth flow. All activity is logged to `/tmp/oauth-stub.log` for debugging and monitoring purposes.
 
 ### CRUD Operations Testing
 - **Complete Lifecycle**: Create → Read → Update → Delete for all entities

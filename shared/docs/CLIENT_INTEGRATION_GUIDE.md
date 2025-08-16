@@ -96,6 +96,11 @@ The OAuth callback stub (`scripts/oauth-client-callback-stub.py`) is a developme
 - Enables automated testing tools to fetch real authorization codes
 - Provides both code and state parameters for complete OAuth flows
 
+**Structured Logging**:
+- All requests and events logged to `/tmp/oauth-stub.log` with RFC3339 timestamps
+- Dual output: logs written to file and echoed to console
+- Detailed API request logging includes IP, method, path, HTTP status, and response payload
+
 #### Usage
 
 **Starting the Callback Stub:**
@@ -105,6 +110,9 @@ python3 scripts/oauth-client-callback-stub.py
 
 # Start with custom port
 python3 scripts/oauth-client-callback-stub.py --port 9000
+
+# Monitor logs in real-time (optional)
+tail -f /tmp/oauth-stub.log
 ```
 
 **Integration with TMI OAuth Flow:**
@@ -117,6 +125,9 @@ curl "http://localhost:8080/auth/login/test?client_callback=http://localhost:807
 
 # 3. Fetch the captured OAuth credentials
 curl http://localhost:8079/latest
+
+# 4. Review detailed logs for debugging
+cat /tmp/oauth-stub.log
 ```
 
 **Response Format:**
@@ -125,6 +136,15 @@ curl http://localhost:8079/latest
   "code": "test_auth_code_1234567890",
   "state": "AbCdEf123456"
 }
+```
+
+**Log Output Example:**
+```
+2025-08-16T16:57:29.8050Z Server listening on http://localhost:8079/...
+2025-08-16T16:58:48.7159Z Received OAuth redirect: Code=test_auth_code_1234567890, State=AbCdEf123456
+2025-08-16T16:58:48.7161Z API request: 127.0.0.1 GET /?code=test_auth_code_1234567890&state=AbCdEf123456 HTTP/1.1 200 "Redirect received. Check server logs for details."
+2025-08-16T16:58:52.2411Z API request: 127.0.0.1 GET /latest HTTP/1.1 200 {"code": "test_auth_code_1234567890", "state": "AbCdEf123456"}
+2025-08-16T16:59:06.9897Z Server has shut down.
 ```
 
 #### Client Integration Example
@@ -241,6 +261,7 @@ steps:
 - **Testing Framework Integration**: Solves variable substitution issues in testing tools
 - **Simple Setup**: Single Python script with no external dependencies
 - **Graceful Shutdown**: Supports clean termination for automated testing pipelines
+- **Comprehensive Logging**: Detailed request/response logging to `/tmp/oauth-stub.log` for debugging
 
 #### Security Notes
 
