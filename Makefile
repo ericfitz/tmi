@@ -54,24 +54,32 @@ load-config-file:
 
 infra-db-start:
 	$(call log_info,"Starting PostgreSQL container...")
-	@if [ -z "$(INFRASTRUCTURE_POSTGRES_CONTAINER)" ]; then \
-		echo "Error: PostgreSQL configuration not loaded. Set INFRASTRUCTURE_POSTGRES_CONTAINER variable."; \
-		exit 1; \
-	fi
-	@if ! docker ps -a --format "{{.Names}}" | grep -q "^$(INFRASTRUCTURE_POSTGRES_CONTAINER)$$"; then \
-		$(call log_info,"Creating new PostgreSQL container..."); \
+	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
+	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
+	PORT="$(INFRASTRUCTURE_POSTGRES_PORT)"; \
+	if [ -z "$$PORT" ]; then PORT="5432"; fi; \
+	USER="$(INFRASTRUCTURE_POSTGRES_USER)"; \
+	if [ -z "$$USER" ]; then USER="tmi_dev"; fi; \
+	PASSWORD="$(INFRASTRUCTURE_POSTGRES_PASSWORD)"; \
+	if [ -z "$$PASSWORD" ]; then PASSWORD="dev123"; fi; \
+	DATABASE="$(INFRASTRUCTURE_POSTGRES_DATABASE)"; \
+	if [ -z "$$DATABASE" ]; then DATABASE="tmi_dev"; fi; \
+	IMAGE="$(INFRASTRUCTURE_POSTGRES_IMAGE)"; \
+	if [ -z "$$IMAGE" ]; then IMAGE="postgres:14-alpine"; fi; \
+	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
+		echo -e "$(BLUE)[INFO]$(NC) Creating new PostgreSQL container..."; \
 		docker run -d \
-			--name $(INFRASTRUCTURE_POSTGRES_CONTAINER) \
-			-p $(INFRASTRUCTURE_POSTGRES_PORT):5432 \
-			-e POSTGRES_USER=$(INFRASTRUCTURE_POSTGRES_USER) \
-			-e POSTGRES_PASSWORD=$(INFRASTRUCTURE_POSTGRES_PASSWORD) \
-			-e POSTGRES_DB=$(INFRASTRUCTURE_POSTGRES_DATABASE) \
-			$(INFRASTRUCTURE_POSTGRES_IMAGE); \
-	elif ! docker ps --format "{{.Names}}" | grep -q "^$(INFRASTRUCTURE_POSTGRES_CONTAINER)$$"; then \
-		$(call log_info,"Starting existing PostgreSQL container..."); \
-		docker start $(INFRASTRUCTURE_POSTGRES_CONTAINER); \
-	fi
-	$(call log_success,"PostgreSQL container is running on port $(INFRASTRUCTURE_POSTGRES_PORT)")
+			--name $$CONTAINER \
+			-p $$PORT:5432 \
+			-e POSTGRES_USER=$$USER \
+			-e POSTGRES_PASSWORD=$$PASSWORD \
+			-e POSTGRES_DB=$$DATABASE \
+			$$IMAGE; \
+	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
+		echo -e "$(BLUE)[INFO]$(NC) Starting existing PostgreSQL container..."; \
+		docker start $$CONTAINER; \
+	fi; \
+	echo "✅ PostgreSQL container is running on port $$PORT"
 
 infra-db-stop:
 	$(call log_info,"Stopping PostgreSQL container: $(INFRASTRUCTURE_POSTGRES_CONTAINER)")
@@ -85,21 +93,23 @@ infra-db-clean:
 
 infra-redis-start:
 	$(call log_info,"Starting Redis container...")
-	@if [ -z "$(INFRASTRUCTURE_REDIS_CONTAINER)" ]; then \
-		echo "Error: Redis configuration not loaded. Set INFRASTRUCTURE_REDIS_CONTAINER variable."; \
-		exit 1; \
-	fi
-	@if ! docker ps -a --format "{{.Names}}" | grep -q "^$(INFRASTRUCTURE_REDIS_CONTAINER)$$"; then \
-		$(call log_info,"Creating new Redis container..."); \
+	@CONTAINER="$(INFRASTRUCTURE_REDIS_CONTAINER)"; \
+	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-redis"; fi; \
+	PORT="$(INFRASTRUCTURE_REDIS_PORT)"; \
+	if [ -z "$$PORT" ]; then PORT="6379"; fi; \
+	IMAGE="$(INFRASTRUCTURE_REDIS_IMAGE)"; \
+	if [ -z "$$IMAGE" ]; then IMAGE="redis:7-alpine"; fi; \
+	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
+		echo -e "$(BLUE)[INFO]$(NC) Creating new Redis container..."; \
 		docker run -d \
-			--name $(INFRASTRUCTURE_REDIS_CONTAINER) \
-			-p $(INFRASTRUCTURE_REDIS_PORT):6379 \
-			$(INFRASTRUCTURE_REDIS_IMAGE); \
-	elif ! docker ps --format "{{.Names}}" | grep -q "^$(INFRASTRUCTURE_REDIS_CONTAINER)$$"; then \
-		$(call log_info,"Starting existing Redis container..."); \
-		docker start $(INFRASTRUCTURE_REDIS_CONTAINER); \
-	fi
-	$(call log_success,"Redis container is running on port $(INFRASTRUCTURE_REDIS_PORT)")
+			--name $$CONTAINER \
+			-p $$PORT:6379 \
+			$$IMAGE; \
+	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
+		echo -e "$(BLUE)[INFO]$(NC) Starting existing Redis container..."; \
+		docker start $$CONTAINER; \
+	fi; \
+	echo "✅ Redis container is running on port $$PORT"
 
 infra-redis-stop:
 	$(call log_info,"Stopping Redis container: $(INFRASTRUCTURE_REDIS_CONTAINER)")
@@ -151,7 +161,7 @@ infra-observability-clean:
 
 build-server:
 	$(call log_info,"Building server binary...")
-	@go build -o bin/server github.com/ericfitz/tmi/cmd/server
+	@go build -tags="dev" -o bin/server github.com/ericfitz/tmi/cmd/server
 	$(call log_success,"Server binary built: bin/server")
 
 build-migrate:
@@ -195,9 +205,13 @@ db-check:
 db-wait:
 	$(call log_info,"Waiting for database to be ready...")
 	@timeout=$${TIMEOUTS_DB_READY:-30}; \
+	CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
+	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
+	USER="$(INFRASTRUCTURE_POSTGRES_USER)"; \
+	if [ -z "$$USER" ]; then USER="tmi_dev"; fi; \
 	while [ $$timeout -gt 0 ]; do \
-		if docker exec $(INFRASTRUCTURE_POSTGRES_CONTAINER) pg_isready -U $(INFRASTRUCTURE_POSTGRES_USER) >/dev/null 2>&1; then \
-			$(call log_success,"Database is ready!"); \
+		if docker exec $$CONTAINER pg_isready -U $$USER >/dev/null 2>&1; then \
+			echo -e "$(GREEN)[SUCCESS]$(NC) Database is ready!"; \
 			break; \
 		fi; \
 		echo "⏳ Waiting for database... ($$timeout seconds remaining)"; \
@@ -205,7 +219,7 @@ db-wait:
 		timeout=$$((timeout - 2)); \
 	done; \
 	if [ $$timeout -le 0 ]; then \
-		$(call log_error,"Database failed to start within $${TIMEOUTS_DB_READY:-30} seconds"); \
+		echo -e "$(RED)[ERROR]$(NC) Database failed to start within 30 seconds"; \
 		exit 1; \
 	fi
 
@@ -217,15 +231,13 @@ db-wait:
 
 process-stop:
 	$(call log_info,"Killing processes on port $(SERVER_PORT)")
-	@if [ -z "$(SERVER_PORT)" ]; then \
-		echo "Error: SERVER_PORT not configured"; \
-		exit 1; \
-	fi; \
-	PIDS=$$(lsof -ti :$(SERVER_PORT) 2>/dev/null || true); \
+	@PORT="$(SERVER_PORT)"; \
+	if [ -z "$$PORT" ]; then PORT="8080"; fi; \
+	PIDS=$$(lsof -ti :$$PORT 2>/dev/null || true); \
 	if [ -n "$$PIDS" ]; then \
-		echo "Found processes on port $(SERVER_PORT): $$PIDS"; \
+		echo "Found processes on port $$PORT: $$PIDS"; \
 		for PID in $$PIDS; do \
-			echo "Stopping process $$PID listening on port $(SERVER_PORT)..."; \
+			echo "Stopping process $$PID listening on port $$PORT..."; \
 			kill $$PID 2>/dev/null || true; \
 			sleep 1; \
 			if ps -p $$PID > /dev/null 2>&1; then \
@@ -233,23 +245,25 @@ process-stop:
 				kill -9 $$PID 2>/dev/null || true; \
 			fi; \
 		done; \
-		echo "All processes on port $(SERVER_PORT) have been killed"; \
+		echo "All processes on port $$PORT have been killed"; \
 	else \
-		echo "No processes found listening on port $(SERVER_PORT)"; \
+		echo "No processes found listening on port $$PORT"; \
 	fi
 
 server-start:
 	$(call log_info,"Starting server on port $(SERVER_PORT)")
-	@if [ -z "$(SERVER_BINARY)" ]; then \
-		echo "Error: SERVER_BINARY not configured"; \
-		exit 1; \
-	fi; \
+	@LOG_FILE="$(SERVER_LOG_FILE)"; \
+	if [ -z "$$LOG_FILE" ]; then LOG_FILE="server.log"; fi; \
+	CONFIG_FILE="$(SERVER_CONFIG_FILE)"; \
+	if [ -z "$$CONFIG_FILE" ]; then CONFIG_FILE="config-development.yml"; fi; \
+	BINARY="$(SERVER_BINARY)"; \
+	if [ -z "$$BINARY" ]; then BINARY="bin/server"; fi; \
 	if [ -n "$(SERVER_TAGS)" ]; then \
 		echo "Starting server with build tags: $(SERVER_TAGS)"; \
-		go run -tags $(SERVER_TAGS) cmd/server/main.go --config=$(SERVER_CONFIG_FILE) > $(SERVER_LOG_FILE) 2>&1 & \
+		go run -tags $(SERVER_TAGS) cmd/server/main.go --config=$$CONFIG_FILE > $$LOG_FILE 2>&1 & \
 	else \
-		echo "Starting server binary: $(SERVER_BINARY)"; \
-		$(SERVER_BINARY) --config=$(SERVER_CONFIG_FILE) > $(SERVER_LOG_FILE) 2>&1 & \
+		echo "Starting server binary: $$BINARY"; \
+		$$BINARY --config=$$CONFIG_FILE > $$LOG_FILE 2>&1 & \
 	fi; \
 	echo $$! > .server.pid
 	$(call log_success,"Server started with PID: $$(cat .server.pid)")
@@ -275,8 +289,10 @@ server-stop:
 process-wait:
 	$(call log_info,"Waiting for server to be ready on port $(SERVER_PORT)")
 	@timeout=$${TIMEOUTS_SERVER_READY:-30}; \
+	PORT="$(SERVER_PORT)"; \
+	if [ -z "$$PORT" ]; then PORT="8080"; fi; \
 	while [ $$timeout -gt 0 ]; do \
-		if curl -s http://localhost:$(SERVER_PORT)/ >/dev/null 2>&1; then \
+		if curl -s http://localhost:$$PORT/ >/dev/null 2>&1; then \
 			$(call log_success,"Server is ready!"); \
 			break; \
 		fi; \
@@ -285,7 +301,7 @@ process-wait:
 		timeout=$$((timeout - 2)); \
 	done; \
 	if [ $$timeout -le 0 ]; then \
-		$(call log_error,"Server failed to start within $${TIMEOUTS_SERVER_READY:-30} seconds"); \
+		$(call log_error,"Server failed to start within 30 seconds"); \
 		exit 1; \
 	fi
 
@@ -402,7 +418,7 @@ clean-files:
 	@if [ -n "$(CLEANUP_FILES)" ] && [ "$(CLEANUP_FILES)" != "" ]; then \
 		for file in $(CLEANUP_FILES); do \
 			if [ -f "$$file" ]; then \
-				$(call log_info,"Removing file: $$file"); \
+				echo -e "$(BLUE)[INFO]$(NC) Removing file: $$file"; \
 				rm -f "$$file"; \
 			fi; \
 		done; \
@@ -410,7 +426,7 @@ clean-files:
 	@if [ -n "$(ARTIFACTS_LOG_FILES)" ] && [ "$(ARTIFACTS_LOG_FILES)" != "" ]; then \
 		for file in $(ARTIFACTS_LOG_FILES); do \
 			if [ -f "$$file" ]; then \
-				$(call log_info,"Removing log file: $$file"); \
+				echo -e "$(BLUE)[INFO]$(NC) Removing log file: $$file"; \
 				rm -f "$$file"; \
 			fi; \
 		done; \
@@ -418,7 +434,7 @@ clean-files:
 	@if [ -n "$(ARTIFACTS_PID_FILES)" ] && [ "$(ARTIFACTS_PID_FILES)" != "" ]; then \
 		for file in $(ARTIFACTS_PID_FILES); do \
 			if [ -f "$$file" ]; then \
-				$(call log_info,"Removing PID file: $$file"); \
+				echo -e "$(BLUE)[INFO]$(NC) Removing PID file: $$file"; \
 				rm -f "$$file"; \
 			fi; \
 		done; \
@@ -429,7 +445,7 @@ clean-containers:
 	$(call log_info,"Cleaning up containers...")
 	@if [ -n "$(CLEANUP_CONTAINERS)" ] && [ "$(CLEANUP_CONTAINERS)" != "" ]; then \
 		for container in $(CLEANUP_CONTAINERS); do \
-			$(call log_info,"Stopping and removing container: $$container"); \
+			echo -e "$(BLUE)[INFO]$(NC) Stopping and removing container: $$container"; \
 			docker stop $$container 2>/dev/null || true; \
 			docker rm $$container 2>/dev/null || true; \
 		done; \
@@ -440,7 +456,7 @@ clean-processes:
 	$(call log_info,"Cleaning up processes...")
 	@if [ -n "$(CLEANUP_PROCESSES)" ] && [ "$(CLEANUP_PROCESSES)" != "" ]; then \
 		for port in $(CLEANUP_PROCESSES); do \
-			$(call log_info,"Killing processes on port: $$port"); \
+			echo -e "$(BLUE)[INFO]$(NC) Killing processes on port: $$port"; \
 			PIDS=$$(lsof -ti :$$port 2>/dev/null || true); \
 			if [ -n "$$PIDS" ]; then \
 				for PID in $$PIDS; do \
@@ -466,17 +482,19 @@ clean-all: clean-processes clean-containers clean-files
 # Unit Testing - Fast tests with no external dependencies
 test-unit:
 	@CONFIG_FILE=config/test-unit.yml; \
-	$(call log_info,"Loading configuration from $$CONFIG_FILE"); \
+	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
 	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
-	$(call log_info,"Starting unit tests..."); \
+	echo -e "$(BLUE)[INFO]$(NC) Starting unit tests..."; \
 	TMI_LOGGING_IS_TEST=true go test -short ./... -v; \
 	rm -f .config.tmp.mk integration-test.log server.log .server.pid
 
 # Integration Testing - Full environment with database and server
 test-integration:
-	$(call load-config,test-integration)
-	$(call log_info,"Starting integration tests with configuration: $(NAME)")
-	@trap 'make -f $(MAKEFILE_LIST) clean-all CONFIG_FILE=config/test-integration.yml' EXIT; \
+	@CONFIG_FILE=config/test-integration.yml; \
+	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
+	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
+	echo -e "$(BLUE)[INFO]$(NC) Starting integration tests with configuration: Integration Testing Configuration"; \
+	trap 'CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all' EXIT; \
 	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all && \
 	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
 	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start && \
@@ -489,56 +507,68 @@ test-integration:
 
 # Development Environment - Start local dev environment
 dev-start:
-	$(call load-config,dev-environment)
-	$(call log_info,"Starting development environment: $(NAME)")
-	@CONFIG_FILE=config/dev-environment.yml INFRASTRUCTURE_POSTGRES_CONTAINER=$(INFRASTRUCTURE_POSTGRES_CONTAINER) INFRASTRUCTURE_POSTGRES_PORT=$(INFRASTRUCTURE_POSTGRES_PORT) INFRASTRUCTURE_POSTGRES_USER=$(INFRASTRUCTURE_POSTGRES_USER) INFRASTRUCTURE_POSTGRES_PASSWORD=$(INFRASTRUCTURE_POSTGRES_PASSWORD) INFRASTRUCTURE_POSTGRES_DATABASE=$(INFRASTRUCTURE_POSTGRES_DATABASE) INFRASTRUCTURE_POSTGRES_IMAGE=$(INFRASTRUCTURE_POSTGRES_IMAGE) $(MAKE) -f $(MAKEFILE_LIST) infra-db-start
-	@CONFIG_FILE=config/dev-environment.yml INFRASTRUCTURE_REDIS_CONTAINER=$(INFRASTRUCTURE_REDIS_CONTAINER) INFRASTRUCTURE_REDIS_PORT=$(INFRASTRUCTURE_REDIS_PORT) INFRASTRUCTURE_REDIS_IMAGE=$(INFRASTRUCTURE_REDIS_IMAGE) $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start
-	@CONFIG_FILE=config/dev-environment.yml INFRASTRUCTURE_POSTGRES_CONTAINER=$(INFRASTRUCTURE_POSTGRES_CONTAINER) INFRASTRUCTURE_POSTGRES_USER=$(INFRASTRUCTURE_POSTGRES_USER) TIMEOUTS_DB_READY=$(TIMEOUTS_DB_READY) $(MAKE) -f $(MAKEFILE_LIST) db-wait
-	@go build -o bin/check-db cmd/check-db/main.go
-	@CONFIG_FILE=config/dev-environment.yml POSTGRES_URL=$(POSTGRES_URL) $(MAKE) -f $(MAKEFILE_LIST) db-migrate
-	@if [ ! -f $(SERVER_CONFIG_FILE) ]; then \
-		$(call log_info,"Generating development configuration..."); \
+	@CONFIG_FILE=config/dev-environment.yml; \
+	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
+	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
+	echo -e "$(BLUE)[INFO]$(NC) Starting development environment: Development Environment Configuration"; \
+	trap 'CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all' EXIT; \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
+	go build -o bin/check-db cmd/check-db/main.go && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate && \
+	eval $$(uv run scripts/yaml-to-make.py config/dev-environment.yml | grep '^SERVER_CONFIG_FILE := ' | sed 's/SERVER_CONFIG_FILE := /SERVER_CONFIG_FILE=/'); \
+	if [ ! -f "$$SERVER_CONFIG_FILE" ]; then \
+		echo -e "$(BLUE)[INFO]$(NC) Generating development configuration..."; \
 		go run cmd/server/main.go --generate-config || { echo "Error: Failed to generate config files"; exit 1; }; \
-	fi
-	@CONFIG_FILE=config/dev-environment.yml SERVER_PORT=$(SERVER_PORT) SERVER_BINARY=$(SERVER_BINARY) SERVER_CONFIG_FILE=$(SERVER_CONFIG_FILE) $(MAKE) -f $(MAKEFILE_LIST) server-start
-	$(call log_success,"Development environment started on port $(SERVER_PORT)")
+	fi && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) server-start
+	@eval $$(uv run scripts/yaml-to-make.py config/dev-environment.yml | grep '^SERVER_PORT := ' | sed 's/SERVER_PORT := /SERVER_PORT=/'); \
+	echo -e "$(GREEN)[SUCCESS]$(NC) Development environment started on port $$SERVER_PORT"
 
 # Development Environment Cleanup
 dev-clean:
-	$(call load-config,dev-environment)
-	$(call log_info,"Cleaning development environment: $(NAME)")
-	@CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all
+	@CONFIG_FILE=config/dev-environment.yml; \
+	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
+	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
+	echo -e "$(BLUE)[INFO]$(NC) Cleaning development environment: Development Environment Configuration"; \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all
 
 # Coverage Report Generation - Comprehensive testing with coverage
 test-coverage:
-	$(call load-config,coverage-report)
-	$(call log_info,"Generating coverage reports: $(NAME)")
-	@trap 'make clean-all CONFIG_FILE=$(CONFIG_FILE)' EXIT; \
-	$(MAKE) clean-all && \
-	mkdir -p $(COVERAGE_DIRECTORY) && \
-	$(MAKE) test-coverage-unit && \
-	$(MAKE) infra-db-start && \
-	$(MAKE) infra-redis-start && \
-	$(MAKE) db-wait && \
-	$(MAKE) db-migrate && \
-	$(MAKE) test-coverage-integration && \
-	$(MAKE) coverage-merge && \
-	$(MAKE) coverage-reports
+	@CONFIG_FILE=config/coverage-report.yml; \
+	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
+	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
+	echo -e "$(BLUE)[INFO]$(NC) Generating coverage reports: Coverage Report Configuration"; \
+	trap 'CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all' EXIT; \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all && \
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^COVERAGE_DIRECTORY := ' | sed 's/:=/=/'); \
+	mkdir -p $$COVERAGE_DIRECTORY && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) test-coverage-unit && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) test-coverage-integration && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) coverage-merge && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) coverage-reports
 
 # StepCI Full Integration Testing
 stepci-full:
-	$(call load-config,stepci-full)
-	$(call log_info,"Running StepCI full integration tests: $(NAME)")
-	@trap 'make clean-all CONFIG_FILE=$(CONFIG_FILE)' EXIT; \
-	$(MAKE) clean-processes && \
-	$(MAKE) infra-db-start && \
-	$(MAKE) infra-redis-start && \
-	$(MAKE) db-wait && \
-	$(MAKE) build-server && \
-	$(MAKE) db-migrate && \
-	$(MAKE) server-start && \
-	$(MAKE) process-wait && \
-	$(MAKE) stepci-execute
+	@CONFIG_FILE=config/stepci-full.yml; \
+	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
+	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
+	echo -e "$(BLUE)[INFO]$(NC) Running StepCI full integration tests: StepCI Full Integration Testing"; \
+	trap 'CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all' EXIT; \
+	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) clean-processes && \
+	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
+	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start && \
+	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
+	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) build-server && \
+	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate && \
+	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) server-start && \
+	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) process-wait && \
+	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) stepci-execute
 
 # ============================================================================
 # SPECIALIZED ATOMIC COMPONENTS - Coverage and StepCI
@@ -691,18 +721,6 @@ observability-start:
 	echo "To stop: make observability-stop"; \
 	echo "To view logs: docker compose -f $$OBSERVABILITY_COMPOSE_FILE logs -f [service]"; \
 	rm -f .config.tmp.mk
-	@echo ""
-	@echo "🎉 Observability stack started!"
-	@echo ""
-	@echo "Services:"
-	@echo "  📊 Grafana:     $(GRAFANA_URL) (admin/admin)"
-	@echo "  🔍 Jaeger:      $(JAEGER_URL)"
-	@echo "  📈 Prometheus:  $(PROMETHEUS_URL)"
-	@echo "  📋 Loki:       $(LOKI_URL)"
-	@echo "  📡 OTel:       http://localhost:$(OTEL_COLLECTOR_PORT) (HTTP) / :$(OTEL_COLLECTOR_GRPC_PORT) (gRPC)"
-	@echo ""
-	@echo "To stop: make observability-stop"
-	@echo "To view logs: docker-compose -f $(OBSERVABILITY_COMPOSE_FILE) logs -f [service]"
 
 # Observability Stack - Stop monitoring services
 observability-stop:
@@ -761,29 +779,34 @@ obs-wait: observability-wait
 
 # Legacy test-api target (simplified)
 test-api:
-	$(call load-config,dev-environment)
-	@$(call log_info,"Testing API endpoints...")
-	@if [ "$(auth)" = "only" ]; then \
-		$(call log_info,"Getting JWT token via OAuth test provider..."); \
-		AUTH_REDIRECT=$$(curl -s "http://localhost:$(SERVER_PORT)/auth/login/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
+	@CONFIG_FILE=config/dev-environment.yml; \
+	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
+	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
+	echo -e "$(BLUE)[INFO]$(NC) Testing API endpoints..."; \
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^SERVER_PORT := ' | sed 's/:=/=/'); \
+	if [ -z "$$SERVER_PORT" ]; then SERVER_PORT="8080"; fi; \
+	if [ "$(auth)" = "only" ]; then \
+		echo -e "$(BLUE)[INFO]$(NC) Getting JWT token via OAuth test provider..."; \
+		AUTH_REDIRECT=$$(curl -s "http://localhost:$$SERVER_PORT/auth/login/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
 		if [ -n "$$AUTH_REDIRECT" ]; then \
-			$(call log_success,"Token:"); \
+			echo -e "$(GREEN)[SUCCESS]$(NC) Token:"; \
 			curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null || curl -s "$$AUTH_REDIRECT"; \
 		else \
-			$(call log_error,"Failed to get OAuth authorization redirect"); \
+			echo -e "$(RED)[ERROR]$(NC) Failed to get OAuth authorization redirect"; \
 		fi; \
 	else \
-		$(call log_info,"Testing authenticated access..."); \
-		AUTH_REDIRECT=$$(curl -s "http://localhost:$(SERVER_PORT)/auth/login/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
+		echo -e "$(BLUE)[INFO]$(NC) Testing authenticated access..."; \
+		AUTH_REDIRECT=$$(curl -s "http://localhost:$$SERVER_PORT/auth/login/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
 		if [ -n "$$AUTH_REDIRECT" ]; then \
 			TOKEN=$$(curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null); \
 			if [ "$$TOKEN" != "null" ] && [ -n "$$TOKEN" ]; then \
-				$(call log_success,"Got token: $$TOKEN"); \
-				$(call log_info,"Testing /threat_models endpoint..."); \
-				curl -H "Authorization: Bearer $$TOKEN" "http://localhost:$(SERVER_PORT)/threat_models" | jq .; \
+				echo -e "$(GREEN)[SUCCESS]$(NC) Got token: $$TOKEN"; \
+				echo -e "$(BLUE)[INFO]$(NC) Testing /threat_models endpoint..."; \
+				curl -H "Authorization: Bearer $$TOKEN" "http://localhost:$$SERVER_PORT/threat_models" | jq .; \
 			fi; \
 		fi; \
-	fi
+	fi; \
+	rm -f .config.tmp.mk
 
 # ============================================================================
 # HELP AND UTILITIES

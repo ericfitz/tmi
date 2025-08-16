@@ -160,13 +160,18 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	// Get optional client callback URL from query parameter
 	clientCallback := c.Query("client_callback")
 
-	// Generate a state parameter to prevent CSRF
-	state, err := generateRandomState()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to generate state parameter",
-		})
-		return
+	// Get state parameter from client or generate one if not provided
+	state := c.Query("state")
+	if state == "" {
+		// Generate a state parameter to prevent CSRF if client didn't provide one
+		var err error
+		state, err = generateRandomState()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to generate state parameter",
+			})
+			return
+		}
 	}
 
 	// Store the state and client callback in Redis with a 10-minute expiration
@@ -199,19 +204,6 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	// Get the authorization URL
 	authURL := provider.GetAuthorizationURL(state)
-
-	// For test provider, check if client_callback is provided and modify the URL
-	if providerID == "test" && clientCallback != "" {
-		// Parse the generated auth URL to extract code and state
-		if parsedURL, err := url.Parse(authURL); err == nil {
-			// Create new URL with client callback
-			if newCallbackURL, err := url.Parse(clientCallback); err == nil {
-				// Preserve the query parameters (code and state)
-				newCallbackURL.RawQuery = parsedURL.RawQuery
-				authURL = newCallbackURL.String()
-			}
-		}
-	}
 
 	// Redirect to the authorization URL
 	c.Redirect(http.StatusFound, authURL)

@@ -124,8 +124,6 @@
 **Status**: Implemented
 **Handler**: `CreateThreatModelDiagram()` in `server.go`
 **Middleware Stack**: RequestTracing → CORS → OpenAPIValidation → JWTAuthentication → ThreatModelMiddleware → DiagramMiddleware
-**Notes**:
-- WebSocket support
 
 ### ✅ DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}
 **Summary**: Delete a diagram
@@ -133,8 +131,6 @@
 **Status**: Implemented
 **Handler**: `DeleteThreatModelDiagram()` in `server.go`
 **Middleware Stack**: RequestTracing → CORS → OpenAPIValidation → JWTAuthentication → ThreatModelMiddleware → DiagramMiddleware
-**Notes**:
-- WebSocket support
 
 ### ✅ GET /threat_models/{threat_model_id}/diagrams/{diagram_id}
 **Summary**: Get a specific diagram
@@ -142,8 +138,6 @@
 **Status**: Implemented
 **Handler**: `GetThreatModelDiagram()` in `server.go`
 **Middleware Stack**: RequestTracing → CORS → OpenAPIValidation → JWTAuthentication → ThreatModelMiddleware → DiagramMiddleware
-**Notes**:
-- WebSocket support
 
 ### ✅ PATCH /threat_models/{threat_model_id}/diagrams/{diagram_id}
 **Summary**: Partially update a diagram
@@ -158,8 +152,6 @@
 **Status**: Implemented
 **Handler**: `UpdateThreatModelDiagram()` in `server.go`
 **Middleware Stack**: RequestTracing → CORS → OpenAPIValidation → JWTAuthentication → ThreatModelMiddleware → DiagramMiddleware
-**Notes**:
-- WebSocket support
 
 ### ✅ DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate
 **Summary**: End diagram collaboration session

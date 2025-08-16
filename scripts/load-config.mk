@@ -13,8 +13,9 @@ endif
 
 # Load YAML configuration into Make variables
 # Note: Use a temporary file to avoid shell evaluation issues
-$(shell uv run scripts/yaml-to-make.py $(CONFIG_FILE) > .config.tmp.mk)
-include .config.tmp.mk
+CONFIG_TMP_FILE := .config.$(shell echo $(CONFIG_FILE) | sed 's|/|_|g' | sed 's|\.yml||').mk
+$(shell uv run scripts/yaml-to-make.py $(CONFIG_FILE) > $(CONFIG_TMP_FILE))
+include $(CONFIG_TMP_FILE)
 
 # Debug output (uncomment to see loaded variables)
 # $(info Loaded configuration from $(CONFIG_FILE))
