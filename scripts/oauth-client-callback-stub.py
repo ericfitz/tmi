@@ -249,10 +249,8 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 # Log API request
                 logger.info(f"API request: {client_ip} {method} {self.path} {http_version} 500 \"{error_msg}\"")
             except:
-                # If we can't even send an error response, just log and exit
+                # If we can't even send an error response, just log it
                 logger.error("Failed to send error response to client")
-            
-            sys.exit(1)
 
 
 def run_server(port):

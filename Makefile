@@ -559,13 +559,14 @@ stepci-full:
 	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
 	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
 	echo -e "$(BLUE)[INFO]$(NC) Running StepCI full integration tests: StepCI Full Integration Testing"; \
-	trap 'CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all' EXIT; \
+	trap 'CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all; $(MAKE) -f $(MAKEFILE_LIST) oauth-stub-stop' EXIT; \
 	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) clean-processes && \
 	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
 	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start && \
 	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
 	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) build-server && \
 	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate && \
+	$(MAKE) -f $(MAKEFILE_LIST) oauth-stub-start && \
 	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) server-start && \
 	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) process-wait && \
 	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) stepci-execute
