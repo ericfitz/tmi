@@ -223,7 +223,7 @@ process-stop:
 	fi; \
 	PIDS=$$(lsof -ti :$(SERVER_PORT) 2>/dev/null || true); \
 	if [ -n "$$PIDS" ]; then \
-		$(call log_info,"Found processes on port $(SERVER_PORT): $$PIDS"); \
+		echo "Found processes on port $(SERVER_PORT): $$PIDS"; \
 		for PID in $$PIDS; do \
 			echo "Stopping process $$PID listening on port $(SERVER_PORT)..."; \
 			kill $$PID 2>/dev/null || true; \
@@ -233,9 +233,9 @@ process-stop:
 				kill -9 $$PID 2>/dev/null || true; \
 			fi; \
 		done; \
-		$(call log_success,"All processes on port $(SERVER_PORT) have been killed"); \
+		echo "All processes on port $(SERVER_PORT) have been killed"; \
 	else \
-		$(call log_info,"No processes found listening on port $(SERVER_PORT)"); \
+		echo "No processes found listening on port $(SERVER_PORT)"; \
 	fi
 
 server-start:
@@ -245,10 +245,10 @@ server-start:
 		exit 1; \
 	fi; \
 	if [ -n "$(SERVER_TAGS)" ]; then \
-		$(call log_info,"Starting server with build tags: $(SERVER_TAGS)"); \
+		echo "Starting server with build tags: $(SERVER_TAGS)"; \
 		go run -tags $(SERVER_TAGS) cmd/server/main.go --config=$(SERVER_CONFIG_FILE) > $(SERVER_LOG_FILE) 2>&1 & \
 	else \
-		$(call log_info,"Starting server binary: $(SERVER_BINARY)"); \
+		echo "Starting server binary: $(SERVER_BINARY)"; \
 		$(SERVER_BINARY) --config=$(SERVER_CONFIG_FILE) > $(SERVER_LOG_FILE) 2>&1 & \
 	fi; \
 	echo $$! > .server.pid
@@ -259,11 +259,11 @@ server-stop:
 	@if [ -f .server.pid ]; then \
 		PID=$$(cat .server.pid); \
 		if ps -p $$PID > /dev/null 2>&1; then \
-			$(call log_info,"Stopping server (PID: $$PID)..."); \
+			echo "Stopping server (PID: $$PID)..."; \
 			kill $$PID 2>/dev/null || true; \
 			sleep 2; \
 			if ps -p $$PID > /dev/null 2>&1; then \
-				$(call log_info,"Force killing server (PID: $$PID)..."); \
+				echo "Force killing server (PID: $$PID)..."; \
 				kill -9 $$PID 2>/dev/null || true; \
 			fi; \
 		fi; \
@@ -491,16 +491,16 @@ test-integration:
 dev-start:
 	$(call load-config,dev-environment)
 	$(call log_info,"Starting development environment: $(NAME)")
-	@CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start
-	@CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start
-	@CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait
+	@CONFIG_FILE=config/dev-environment.yml INFRASTRUCTURE_POSTGRES_CONTAINER=$(INFRASTRUCTURE_POSTGRES_CONTAINER) INFRASTRUCTURE_POSTGRES_PORT=$(INFRASTRUCTURE_POSTGRES_PORT) INFRASTRUCTURE_POSTGRES_USER=$(INFRASTRUCTURE_POSTGRES_USER) INFRASTRUCTURE_POSTGRES_PASSWORD=$(INFRASTRUCTURE_POSTGRES_PASSWORD) INFRASTRUCTURE_POSTGRES_DATABASE=$(INFRASTRUCTURE_POSTGRES_DATABASE) INFRASTRUCTURE_POSTGRES_IMAGE=$(INFRASTRUCTURE_POSTGRES_IMAGE) $(MAKE) -f $(MAKEFILE_LIST) infra-db-start
+	@CONFIG_FILE=config/dev-environment.yml INFRASTRUCTURE_REDIS_CONTAINER=$(INFRASTRUCTURE_REDIS_CONTAINER) INFRASTRUCTURE_REDIS_PORT=$(INFRASTRUCTURE_REDIS_PORT) INFRASTRUCTURE_REDIS_IMAGE=$(INFRASTRUCTURE_REDIS_IMAGE) $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start
+	@CONFIG_FILE=config/dev-environment.yml INFRASTRUCTURE_POSTGRES_CONTAINER=$(INFRASTRUCTURE_POSTGRES_CONTAINER) INFRASTRUCTURE_POSTGRES_USER=$(INFRASTRUCTURE_POSTGRES_USER) TIMEOUTS_DB_READY=$(TIMEOUTS_DB_READY) $(MAKE) -f $(MAKEFILE_LIST) db-wait
 	@go build -o bin/check-db cmd/check-db/main.go
-	@CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate
+	@CONFIG_FILE=config/dev-environment.yml POSTGRES_URL=$(POSTGRES_URL) $(MAKE) -f $(MAKEFILE_LIST) db-migrate
 	@if [ ! -f $(SERVER_CONFIG_FILE) ]; then \
 		$(call log_info,"Generating development configuration..."); \
 		go run cmd/server/main.go --generate-config || { echo "Error: Failed to generate config files"; exit 1; }; \
 	fi
-	@CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) server-start
+	@CONFIG_FILE=config/dev-environment.yml SERVER_PORT=$(SERVER_PORT) SERVER_BINARY=$(SERVER_BINARY) SERVER_CONFIG_FILE=$(SERVER_CONFIG_FILE) $(MAKE) -f $(MAKEFILE_LIST) server-start
 	$(call log_success,"Development environment started on port $(SERVER_PORT)")
 
 # Development Environment Cleanup

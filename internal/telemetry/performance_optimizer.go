@@ -68,12 +68,6 @@ type ResourceMonitor struct {
 	gcPauseTime    time.Duration
 	lastUpdate     time.Time
 	meter          metric.Meter
-
-	// Metrics
-	cpuUtilizationGauge    metric.Float64ObservableGauge
-	memoryUtilizationGauge metric.Float64ObservableGauge
-	goroutineCountGauge    metric.Int64ObservableGauge
-	gcPauseHistogram       metric.Float64Histogram
 }
 
 // ThroughputAnalyzer analyzes request throughput patterns
@@ -93,7 +87,6 @@ type ThroughputAnalyzer struct {
 
 // LatencyAnalyzer analyzes request latency patterns
 type LatencyAnalyzer struct {
-	totalLatency time.Duration
 	requestCount int64
 	avgLatency   time.Duration
 	p95Latency   time.Duration
@@ -118,7 +111,6 @@ type AdaptiveController struct {
 	// Learning parameters
 	learningRate float64
 	momentum     float64
-	lastDecision OptimizationDecision
 
 	mu sync.RWMutex
 }
