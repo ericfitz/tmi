@@ -111,14 +111,14 @@ TMI supports two configuration methods that can be combined:
 ```
 
 This creates:
-- `config-development.yaml` - Development configuration
-- `config-production.yaml` - Production configuration template
+- `config-development.yml` - Development configuration
+- `config-production.yml` - Production configuration template
 - `docker-compose.env` - Environment variables for containers
 
 ### Configuration File Structure
 
 ```yaml
-# config-production.yaml
+# config-production.yml
 server:
   port: "8080"
   interface: "0.0.0.0"
@@ -383,7 +383,7 @@ Type=simple
 User=tmi
 Group=tmi
 WorkingDirectory=/opt/tmi
-ExecStart=/opt/tmi/tmi-server --config=/etc/tmi/production.yaml
+ExecStart=/opt/tmi/tmi-server --config=/etc/tmi/production.yml
 Restart=always
 RestartSec=5
 Environment=TMI_AUTH_JWT_SECRET=your-secure-jwt-secret
@@ -413,7 +413,7 @@ sudo chown tmi:tmi /var/log/tmi
 
 # Copy binary and config
 sudo cp tmi-server /opt/tmi/
-sudo cp config-production.yaml /etc/tmi/production.yaml
+sudo cp config-production.yml /etc/tmi/production.yml
 sudo cp -r auth/migrations /opt/tmi/
 sudo cp -r static /opt/tmi/
 
@@ -505,7 +505,7 @@ docker-compose up -d --scale tmi=3
 
 **Kubernetes Manifests:**
 
-`namespace.yaml`:
+`namespace.yml`:
 ```yaml
 apiVersion: v1
 kind: Namespace
@@ -513,7 +513,7 @@ metadata:
   name: tmi
 ```
 
-`configmap.yaml`:
+`configmap.yml`:
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -527,7 +527,7 @@ data:
   TMI_LOGGING_LEVEL: "info"
 ```
 
-`secret.yaml`:
+`secrets.yml`:
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -542,7 +542,7 @@ data:
   TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET: <base64-encoded-client-secret>
 ```
 
-`deployment.yaml`:
+`deployment.yml`:
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -590,7 +590,7 @@ spec:
             cpu: "500m"
 ```
 
-`service.yaml`:
+`service.yml`:
 ```yaml
 apiVersion: v1
 kind: Service
@@ -608,11 +608,11 @@ spec:
 
 **Deploy to Kubernetes:**
 ```bash
-kubectl apply -f namespace.yaml
-kubectl apply -f configmap.yaml
-kubectl apply -f secret.yaml
-kubectl apply -f deployment.yaml
-kubectl apply -f service.yaml
+kubectl apply -f namespace.yml
+kubectl apply -f configmap.yml
+kubectl apply -f secrets.yml
+kubectl apply -f deployment.yml
+kubectl apply -f service.yml
 
 # Check deployment
 kubectl get pods -n tmi

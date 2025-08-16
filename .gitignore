@@ -12,23 +12,32 @@
 !static/*
 !Makefile
 !generate-api
-!oapi-codegen-config.yaml
+!oapi-codegen-config.yml
 !.golangci.yml
 !docs/*
 !make-containers-dev*.sh
 !Dockerfile*
 !.dockerignore
-!config-example.yaml
-!tmi-asyncapi.yaml
+!config-example.yml
+!tmi-asyncapi.yml
 
 # Include subdirectories (but avoid overriding specific ignores)
 !*/
-!scripts/*
-!python-sdk/**
+!scripts/**
+!shared/**
 
 # Explicitly ignore unwanted files and directories
 *.log
-logs/
+**/logs/**
 .DS_Store
-bin/*
-config-development.yaml
+config-development.yml
+scripts/unused
+scripts/unused/**
+coverage/
+coverage_html/
+.venv/
+.venv/**
+**/bin/**
+server
+check-db
+migrate

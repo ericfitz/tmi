@@ -9,7 +9,7 @@ import (
 
 // AsyncAPI Message Types
 // These types are manually implemented based on our AsyncAPI v3.0 specification
-// in tmi-asyncapi.yaml to provide type safety and validation for WebSocket messages
+// in tmi-asyncapi.yml to provide type safety and validation for WebSocket messages
 
 // MessageType represents the type of WebSocket message
 type MessageType string

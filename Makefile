@@ -1,418 +1,231 @@
-.PHONY: build-server build-check-db run-tests test-unit test-integration run-lint clean-artifacts start-dev start-prod start-dev-db start-dev-redis stop-dev-db stop-dev-redis delete-dev-db delete-dev-redis build-dev-app build-postgres build-redis generate-api generate-config start-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config validate-asyncapi validate-openapi list-openapi-endpoints report-coverage report-coverage-unit report-coverage-integration generate-coverage-report ensure-migrations check-migrations run-migrations reset-database test-api kill clean-dev-env debug-auth-endpoints list-targets sync-shared push-shared subtree-help analyze-endpoints analyze-dead-code cleanup-dead-code test-stepci test-stepci-full test-stepci-auth test-stepci-threat-models test-stepci-threats test-stepci-diagrams test-stepci-integration
+# TMI Refactored Makefile - Atomic Components with Configuration-Driven Composition
+# This Makefile uses YAML configuration files and atomic components for maximum reusability.
 
-# Backward compatibility aliases
-.PHONY: build test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app gen-api gen-config dev-observability coverage coverage-unit coverage-integration coverage-report migrate reset-db clean-dev openapi-endpoints list stepci stepci-full stepci-auth
+.PHONY: help list-targets
 
 # Default build target
 VERSION := 0.9.0
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "development")
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+# Colors for output
+BLUE := \033[0;34m
+GREEN := \033[0;32m
+YELLOW := \033[1;33m
+RED := \033[0;31m
+NC := \033[0m
+
+# Logging functions
+define log_info
+	@echo -e "$(BLUE)[INFO]$(NC) $(1)"
+endef
+
+define log_success
+	@echo -e "$(GREEN)[SUCCESS]$(NC) $(1)"
+endef
+
+define log_warning
+	@echo -e "$(YELLOW)[WARNING]$(NC) $(1)"
+endef
+
+define log_error
+	@echo -e "$(RED)[ERROR]$(NC) $(1)"
+endef
+
+# Configuration loading function
+define load-config
+	$(eval CONFIG_FILE := config/$(1).yml)
+	$(eval include scripts/load-config.mk)
+endef
+
+# Helper target to load configuration file
+.PHONY: load-config-file
+load-config-file:
+	@if [ -n "$(CONFIG_FILE)" ]; then \
+		echo "Loading configuration from $(CONFIG_FILE)"; \
+		include scripts/load-config.mk; \
+	fi
+
+# ============================================================================
+# ATOMIC COMPONENTS - Infrastructure Management
+# ============================================================================
+
+.PHONY: infra-db-start infra-db-stop infra-db-clean infra-redis-start infra-redis-stop infra-redis-clean infra-observability-start infra-observability-stop infra-observability-clean
+
+infra-db-start:
+	$(call log_info,"Starting PostgreSQL container...")
+	@if [ -z "$(INFRASTRUCTURE_POSTGRES_CONTAINER)" ]; then \
+		echo "Error: PostgreSQL configuration not loaded. Set INFRASTRUCTURE_POSTGRES_CONTAINER variable."; \
+		exit 1; \
+	fi
+	@if ! docker ps -a --format "{{.Names}}" | grep -q "^$(INFRASTRUCTURE_POSTGRES_CONTAINER)$$"; then \
+		$(call log_info,"Creating new PostgreSQL container..."); \
+		docker run -d \
+			--name $(INFRASTRUCTURE_POSTGRES_CONTAINER) \
+			-p $(INFRASTRUCTURE_POSTGRES_PORT):5432 \
+			-e POSTGRES_USER=$(INFRASTRUCTURE_POSTGRES_USER) \
+			-e POSTGRES_PASSWORD=$(INFRASTRUCTURE_POSTGRES_PASSWORD) \
+			-e POSTGRES_DB=$(INFRASTRUCTURE_POSTGRES_DATABASE) \
+			$(INFRASTRUCTURE_POSTGRES_IMAGE); \
+	elif ! docker ps --format "{{.Names}}" | grep -q "^$(INFRASTRUCTURE_POSTGRES_CONTAINER)$$"; then \
+		$(call log_info,"Starting existing PostgreSQL container..."); \
+		docker start $(INFRASTRUCTURE_POSTGRES_CONTAINER); \
+	fi
+	$(call log_success,"PostgreSQL container is running on port $(INFRASTRUCTURE_POSTGRES_PORT)")
+
+infra-db-stop:
+	$(call log_info,"Stopping PostgreSQL container: $(INFRASTRUCTURE_POSTGRES_CONTAINER)")
+	@docker stop $(INFRASTRUCTURE_POSTGRES_CONTAINER) 2>/dev/null || true
+	$(call log_success,"PostgreSQL container stopped")
+
+infra-db-clean:
+	$(call log_warning,"Removing PostgreSQL container and data: $(INFRASTRUCTURE_POSTGRES_CONTAINER)")
+	@docker rm -f $(INFRASTRUCTURE_POSTGRES_CONTAINER) 2>/dev/null || true
+	$(call log_success,"PostgreSQL container and data removed")
+
+infra-redis-start:
+	$(call log_info,"Starting Redis container...")
+	@if [ -z "$(INFRASTRUCTURE_REDIS_CONTAINER)" ]; then \
+		echo "Error: Redis configuration not loaded. Set INFRASTRUCTURE_REDIS_CONTAINER variable."; \
+		exit 1; \
+	fi
+	@if ! docker ps -a --format "{{.Names}}" | grep -q "^$(INFRASTRUCTURE_REDIS_CONTAINER)$$"; then \
+		$(call log_info,"Creating new Redis container..."); \
+		docker run -d \
+			--name $(INFRASTRUCTURE_REDIS_CONTAINER) \
+			-p $(INFRASTRUCTURE_REDIS_PORT):6379 \
+			$(INFRASTRUCTURE_REDIS_IMAGE); \
+	elif ! docker ps --format "{{.Names}}" | grep -q "^$(INFRASTRUCTURE_REDIS_CONTAINER)$$"; then \
+		$(call log_info,"Starting existing Redis container..."); \
+		docker start $(INFRASTRUCTURE_REDIS_CONTAINER); \
+	fi
+	$(call log_success,"Redis container is running on port $(INFRASTRUCTURE_REDIS_PORT)")
+
+infra-redis-stop:
+	$(call log_info,"Stopping Redis container: $(INFRASTRUCTURE_REDIS_CONTAINER)")
+	@docker stop $(INFRASTRUCTURE_REDIS_CONTAINER) 2>/dev/null || true
+	$(call log_success,"Redis container stopped")
+
+infra-redis-clean:
+	$(call log_warning,"Removing Redis container and data: $(INFRASTRUCTURE_REDIS_CONTAINER)")
+	@docker rm -f $(INFRASTRUCTURE_REDIS_CONTAINER) 2>/dev/null || true
+	$(call log_success,"Redis container and data removed")
+
+infra-observability-start:
+	$(call log_info,"Starting observability stack...")
+	@if [ -z "$(OBSERVABILITY_COMPOSE_FILE)" ]; then \
+		echo "Error: Observability configuration not loaded. Set OBSERVABILITY_COMPOSE_FILE variable."; \
+		exit 1; \
+	fi
+	@if ! docker info >/dev/null 2>&1; then \
+		$(call log_error,"Docker is not running. Please start Docker first."); \
+		exit 1; \
+	fi
+	$(call log_info,"Starting services with $(OBSERVABILITY_COMPOSE_FILE)...")
+	@docker-compose -f $(OBSERVABILITY_COMPOSE_FILE) up -d
+	$(call log_success,"Observability stack started")
+
+infra-observability-stop:
+	$(call log_info,"Stopping observability stack...")
+	@if [ -z "$(OBSERVABILITY_COMPOSE_FILE)" ]; then \
+		echo "Error: Observability configuration not loaded. Set OBSERVABILITY_COMPOSE_FILE variable."; \
+		exit 1; \
+	fi
+	@docker-compose -f $(OBSERVABILITY_COMPOSE_FILE) down
+	$(call log_success,"Observability stack stopped")
+
+infra-observability-clean:
+	$(call log_warning,"Removing observability stack and data...")
+	@if [ -z "$(OBSERVABILITY_COMPOSE_FILE)" ]; then \
+		echo "Error: Observability configuration not loaded. Set OBSERVABILITY_COMPOSE_FILE variable."; \
+		exit 1; \
+	fi
+	@docker-compose -f $(OBSERVABILITY_COMPOSE_FILE) down -v --remove-orphans
+	$(call log_success,"Observability stack and data removed")
+
+# ============================================================================
+# ATOMIC COMPONENTS - Build Management
+# ============================================================================
+
+.PHONY: build-server build-migrate build-clean
+
 build-server:
-	go build -o bin/server github.com/ericfitz/tmi/cmd/server
+	$(call log_info,"Building server binary...")
+	@go build -o bin/server github.com/ericfitz/tmi/cmd/server
+	$(call log_success,"Server binary built: bin/server")
 
-# Build check-db executable
-build-check-db:
-	go build -o check-db cmd/check-db/main.go
+build-migrate:
+	$(call log_info,"Building migration tool...")
+	@go build -o bin/migrate github.com/ericfitz/tmi/cmd/migrate
+	$(call log_success,"Migration tool built: bin/migrate")
 
-# List all available make targets
-list-targets:
-	@make -qp | awk -F':' '/^[a-zA-Z0-9][^$$#\/\t=]*:([^=]|$$)/ {print $$1}' | sort
+build-clean:
+	$(call log_info,"Cleaning build artifacts...")
+	@rm -rf ./bin/*
+	@rm -f check-db migrate
+	$(call log_success,"Build artifacts cleaned")
 
-# Run unit tests (fast, no external dependencies)
-test-unit:
-	@if [ -n "$(name)" ]; then \
-		echo "Running specific unit test: $(name)"; \
-		TMI_LOGGING_IS_TEST=true go test -short ./... -run $(name) -v; \
+# ============================================================================
+# ATOMIC COMPONENTS - Database Operations
+# ============================================================================
+
+.PHONY: db-migrate db-check db-wait
+
+db-migrate:
+	$(call log_info,"Running database migrations...")
+	@if [ -f "./bin/migrate" ]; then \
+		./bin/migrate up; \
+	elif [ -f "./migrate" ]; then \
+		./migrate up; \
 	else \
-		echo "Running all unit tests..."; \
-		TEST_CMD="TMI_LOGGING_IS_TEST=true go test -short ./..."; \
-		if [ "$(count1)" = "true" ]; then \
-			TEST_CMD="$$TEST_CMD --count=1"; \
-		fi; \
-		if [ "$(passfail)" = "true" ]; then \
-			eval $$TEST_CMD | grep -E "FAIL|PASS"; \
-		else \
-			eval $$TEST_CMD; \
-		fi; \
+		cd cmd/migrate && go run main.go up; \
+	fi
+	$(call log_success,"Database migrations completed")
+
+db-check:
+	$(call log_info,"Checking database migration status...")
+	@if [ -f "./bin/check-db" ]; then \
+		./bin/check-db; \
+	elif [ -f "./check-db" ]; then \
+		./check-db; \
+	else \
+		cd cmd/check-db && go run main.go; \
 	fi
 
-
-# Run integration tests with complete environment setup
-test-integration:
-	@if [ -n "$(name)" ]; then \
-		./scripts/start-integration-tests.sh --test-name $(name); \
-	else \
-		./scripts/start-integration-tests.sh; \
-	fi
-
-# Alias for backward compatibility
-run-tests: test-unit
-
-# Run linter
-run-lint:
-	golangci-lint run
-
-# Generate API from OpenAPI spec
-generate-api:
-	oapi-codegen -config oapi-codegen-config.yaml shared/api-specs/tmi-openapi.json
-
-# Note: AsyncAPI Go types are manually implemented in api/asyncapi_types.go
-# due to asyncapi-codegen parsing issues with AsyncAPI v3.0 specifications
-
-# Validate AsyncAPI WebSocket specification
-validate-asyncapi:
-	uv run scripts/validate_asyncapi.py tmi-asyncapi.yaml
-
-# Validate OpenAPI specification with comprehensive analysis
-validate-openapi:
-	@FILE=$${file:-shared/api-specs/tmi-openapi.json}; \
-	if [ ! -f "$$FILE" ]; then \
-		echo "❌ File not found: $$FILE"; \
-		echo "Usage: make validate-openapi [file=path/to/openapi.json]"; \
-		exit 1; \
-	fi; \
-	echo "🔍 Validating OpenAPI specification: $$FILE"; \
-	echo "1️⃣  Checking JSON syntax..."; \
-	python -m json.tool "$$FILE" > /dev/null && echo "✅ JSON syntax is valid"; \
-	echo "2️⃣  Running detailed OpenAPI analysis..."; \
-	uv run scripts/validate_openapi.py "$$FILE"
-
-# List OpenAPI endpoints with HTTP methods and response codes
-list-openapi-endpoints:
-	@FILE=$${file:-shared/api-specs/tmi-openapi.json}; \
-	if [ ! -f "$$FILE" ]; then \
-		echo "❌ File not found: $$FILE"; \
-		echo "Usage: make list-openapi-endpoints [file=path/to/openapi.json]"; \
-		exit 1; \
-	fi; \
-	echo "📋 OpenAPI Endpoints from $$FILE:"; \
-	echo ""; \
-	jq -r ' \
-		.paths \
-		| with_entries(select(.value | type == "object")) \
-		| to_entries[] \
-		| .key as $$path \
-		| .value \
-		| with_entries(select(.value | type == "object")) \
-		| to_entries[] \
-		| select(.key | ascii_downcase | IN("get", "post", "put", "delete", "patch", "options", "head", "trace")) \
-		| select(.value.responses | type == "object") \
-		| "\($$path) \(.key | ascii_upcase): \( [.value.responses | keys_unsorted[] // "none"] | join(", ") )" \
-	' "$$FILE" | sort
-
-# Clean build artifacts
-clean-artifacts:
-	rm -rf ./bin/*
-	rm -f check-db
-
-# Start development environment
-start-dev: build-check-db
-	@echo "Starting TMI development environment..."
-	@./scripts/start-dev.sh
-
-# Start production environment
-start-prod:
-	@echo "Starting TMI production environment..."
-	@./scripts/start-prod.sh
-
-# Development Database and Cache Management
-
-# Start development database only
-start-dev-db:
-	@echo "Starting development database..."
-	@./scripts/start-dev-db.sh
-	@echo "Applying database migrations..."
-	@cd cmd/migrate && go run main.go up
-
-# Start development Redis only
-start-dev-redis:
-	@echo "Starting development Redis..."
-	@./scripts/start-dev-redis.sh
-
-# Stop development database (preserves data)
-stop-dev-db:
-	@echo "Stopping development database..."
-	@docker stop tmi-postgresql || true
-
-# Stop development Redis (preserves data)
-stop-dev-redis:
-	@echo "Stopping development Redis..."
-	@docker stop tmi-redis || true
-
-# Delete development database (removes container and data)
-delete-dev-db:
-	@echo "🗑️  Deleting development database (container and data)..."
-	@docker rm -f tmi-postgresql || true
-	@echo "✅ Database container removed!"
-
-# Delete development Redis (removes container and data) 
-delete-dev-redis:
-	@echo "🗑️  Deleting development Redis (container and data)..."
-	@docker rm -f tmi-redis || true
-	@echo "✅ Redis container removed!"
-
-# Build development Docker container for app
-build-dev-app:
-	@echo "Building TMI development Docker container..."
-	docker build -f Dockerfile.dev -t tmi-app .
-
-# Build custom PostgreSQL Docker container
-build-postgres:
-	@echo "Building custom PostgreSQL Docker container..."
-	docker build -f Dockerfile.postgres -t tmi-postgres .
-
-# Build custom Redis Docker container
-build-redis:
-	@echo "Building custom Redis Docker container..."
-	docker build -f Dockerfile.redis -t tmi-redis .
-
-# Generate configuration files
-generate-config:
-	@echo "Generating configuration files..."
-	go run github.com/ericfitz/tmi/cmd/server --generate-config
-
-# OpenTelemetry and Observability Stack Management
-
-# Start local observability stack (Grafana, Prometheus, Jaeger, Loki, OpenTelemetry Collector)
-start-observability:
-	@echo "Starting TMI Observability Stack..."
-	@./scripts/start-observability.sh
-
-# Stop observability stack (preserves data volumes)
-stop-observability:
-	@echo "Stopping TMI Observability Stack..."
-	@./scripts/stop-observability.sh
-
-# Delete observability stack (removes containers, volumes, and networks - destroys all data)
-delete-observability:
-	@echo "🗑️  Deleting TMI Observability Stack (containers, volumes, networks)..."
-	@docker-compose -f docker-compose.observability.yml down -v --remove-orphans
-	@echo "✅ Observability stack completely removed!"
-
-# Run telemetry tests (unit and integration)
-test-telemetry:
-	@if [ "$(integration)" = "true" ]; then \
-		echo "Running telemetry integration tests..."; \
-		go test ./internal/telemetry/... -tags=integration -v; \
-	else \
-		echo "Running telemetry unit tests..."; \
-		go test ./internal/telemetry/... -v; \
-	fi
-
-# Run telemetry benchmarks
-benchmark-telemetry:
-	@echo "Running telemetry benchmarks..."
-	go test ./internal/telemetry/... -bench=. -benchmem
-
-# Validate OpenTelemetry configuration
-validate-otel-config:
-	@echo "Validating OpenTelemetry configuration..."
-	go run ./internal/telemetry/cmd/validate-config
-
-# Generate sample telemetry data for testing
-generate-telemetry-data:
-	@echo "Generating sample telemetry data..."
-	go run ./internal/telemetry/cmd/generate-data
-
-# Export telemetry data
-export-telemetry:
-	@echo "Exporting telemetry data..."
-	curl -s http://localhost:8080/metrics > /tmp/tmi-metrics.txt
-	@echo "Metrics exported to /tmp/tmi-metrics.txt"
-
-# Clean up telemetry data (alias for delete-observability)
-clean-telemetry: delete-observability
-
-# Generate comprehensive test coverage report (unit + integration)
-report-coverage:
-	@echo "Generating comprehensive test coverage report..."
-	./scripts/coverage-report.sh
-
-# Generate unit test coverage only
-report-coverage-unit:
-	@echo "Generating unit test coverage report..."
-	./scripts/coverage-report.sh --unit-only
-
-# Generate integration test coverage only
-report-coverage-integration:
-	@echo "Generating integration test coverage report..."
-	./scripts/coverage-report.sh --integration-only
-
-# Generate coverage report without HTML
-generate-coverage-report:
-	@echo "Generating coverage report (no HTML)..."
-	./scripts/coverage-report.sh --no-html
-
-# Database and Migration Management
-
-# Ensure all database migrations are applied (with auto-fix)
-ensure-migrations: build-check-db
-	@echo "Ensuring all database migrations are applied..."
-	@./scripts/ensure-migrations.sh
-
-# Check migration state without auto-fix
-check-migrations:
-	@echo "Checking database migration state..."
-	@cd cmd/check-db && go run main.go
-
-# Run database migrations manually
-run-migrations:
-	@echo "Running database migrations..."
-	@cd cmd/migrate && go run main.go up
-
-# Reset database (interactive confirmation - destroys all data)
-reset-database:
-	@echo "⚠️  WARNING: This will destroy all database data!"
-	@read -p "Are you sure? Type 'yes' to continue: " confirm && [ "$$confirm" = "yes" ] || exit 1
-	@$(MAKE) delete-dev-db
-	@echo "Database reset. Run 'make start-dev-db' to create a fresh database."
-
-# Testing and Development Authentication Targets
-
-# Test live API endpoints (requires running server)
-test-api:
-	@if [ "$(auth)" = "only" ]; then \
-		echo "🔐 Getting JWT token via OAuth test provider..."; \
-		AUTH_REDIRECT=$$(curl -s "http://localhost:8080/auth/login/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
-		if [ -n "$$AUTH_REDIRECT" ]; then \
-			echo "✅ Token:"; \
-			curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null || curl -s "$$AUTH_REDIRECT"; \
-		else \
-			echo "❌ Failed to get OAuth authorization redirect"; \
-		fi; \
-	elif [ "$(noauth)" = "true" ]; then \
-		echo "🚫 Testing unauthenticated access (should return 401)..."; \
-		curl -v "http://localhost:8080/threat_models" 2>&1 | grep -E "(401|unauthorized)" || echo "❌ Expected 401 Unauthorized"; \
-	else \
-		echo "🧪 Testing API endpoints..."; \
-		echo "1. Testing unauthenticated access (should fail)..."; \
-		curl -v "http://localhost:8080/threat_models" 2>&1 | grep -E "(401|unauthorized)" || echo "❌ Expected 401 Unauthorized"; \
-		echo ""; \
-		echo "2. Testing authenticated access..."; \
-		AUTH_REDIRECT=$$(curl -s "http://localhost:8080/auth/login/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
-		if [ -n "$$AUTH_REDIRECT" ]; then \
-			TOKEN=$$(curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null); \
-			if [ "$$TOKEN" != "null" ] && [ -n "$$TOKEN" ]; then \
-				echo "✅ Got token: $$TOKEN"; \
-				echo "3. Testing /threat_models endpoint..."; \
-				curl -H "Authorization: Bearer $$TOKEN" "http://localhost:8080/threat_models" | jq .; \
-			else \
-				echo "❌ Failed to get token from OAuth callback"; \
-			fi; \
-		else \
-			echo "❌ Failed to get OAuth authorization redirect"; \
-		fi; \
-	fi
-
-
-
-# StepCI Integration Testing Targets
-# Run all StepCI integration tests
-test-stepci:
-	@if [ -n "$(test)" ]; then \
-		echo "🧪 Running specific StepCI test: $(test)"; \
-		if [ ! -f "stepci/$(test)" ]; then \
-			echo "❌ Test file not found: stepci/$(test)"; \
-			echo "Available tests:"; \
-			find stepci -name "*.yml" -not -path "*/utils/*" | sed 's|stepci/||' | sort; \
-			exit 1; \
-		fi; \
-		stepci run "stepci/$(test)"; \
-	else \
-		echo "🧪 Running all StepCI integration tests..."; \
-		echo "📂 Test files:"; \
-		find stepci -name "*.yml" -not -path "*/utils/*" | sed 's|stepci/||' | sort; \
-		echo ""; \
-		for test_file in $$(find stepci -name "*.yml" -not -path "*/utils/*" | sort); do \
-			echo "🔍 Running: $$test_file"; \
-			stepci run "$$test_file" || echo "❌ Test failed: $$test_file"; \
-			echo ""; \
-		done; \
-	fi
-
-# Run StepCI tests with full environment setup
-test-stepci-full:
-	@echo "🚀 Setting up full development environment for StepCI testing..."
-	@echo "1. 🛑 Stopping any running server processes..."
-	@pkill -f "cmd/server/main.go" || true
-	@pkill -f "bin/server" || true
-	@lsof -ti:8080 | xargs kill -9 2>/dev/null || true
-	
-	@echo "2. 🐘 Starting PostgreSQL and Redis..."
-	@$(MAKE) start-dev-db >/dev/null 2>&1
-	@$(MAKE) start-dev-redis >/dev/null 2>&1
-	@sleep 3
-	
-	@echo "3. 🏗️  Building server..."
-	@$(MAKE) build-server
-	
-	@echo "4. 🚀 Starting TMI server..."
-	@$(MAKE) start-dev >/dev/null 2>&1 &
-	@echo "5. ⏳ Waiting for server to be ready..."
-	@timeout=30; \
+db-wait:
+	$(call log_info,"Waiting for database to be ready...")
+	@timeout=$${TIMEOUTS_DB_READY:-30}; \
 	while [ $$timeout -gt 0 ]; do \
-		if curl -s http://localhost:8080/ >/dev/null 2>&1; then \
-			echo "✅ Server is ready!"; \
+		if docker exec $(INFRASTRUCTURE_POSTGRES_CONTAINER) pg_isready -U $(INFRASTRUCTURE_POSTGRES_USER) >/dev/null 2>&1; then \
+			$(call log_success,"Database is ready!"); \
 			break; \
 		fi; \
-		echo "⏳ Waiting for server... ($$timeout seconds remaining)"; \
+		echo "⏳ Waiting for database... ($$timeout seconds remaining)"; \
 		sleep 2; \
 		timeout=$$((timeout - 2)); \
 	done; \
 	if [ $$timeout -le 0 ]; then \
-		echo "❌ Server failed to start within 30 seconds"; \
-		pkill -f "bin/server" || true; \
+		$(call log_error,"Database failed to start within $${TIMEOUTS_DB_READY:-30} seconds"); \
 		exit 1; \
 	fi
-	
-	@echo "6. 🧪 Running StepCI tests..."
-	@$(MAKE) test-stepci test="$(test)" || (echo "❌ StepCI tests failed"; pkill -f "bin/server" || true; exit 1)
-	
-	@echo "7. 🛑 Cleaning up server..."
-	@pkill -f "bin/server" || true
-	@echo "✅ StepCI integration testing complete!"
 
-# Run StepCI authentication tests only
-test-stepci-auth:
-	@echo "🔐 Running StepCI authentication tests..."
-	@stepci run stepci/auth/oauth-flow.yml
-	@stepci run stepci/auth/token-management.yml
-	@stepci run stepci/auth/user-operations.yml
+# ============================================================================
+# ATOMIC COMPONENTS - Process Management
+# ============================================================================
 
-# Run StepCI threat models tests only
-test-stepci-threat-models:
-	@echo "🎯 Running StepCI threat models tests..."
-	@stepci run stepci/threat-models/crud-operations.yml
-	@stepci run stepci/threat-models/validation-failures.yml
-	@stepci run stepci/threat-models/search-filtering.yml
+.PHONY: process-stop process-wait server-start server-stop observability-wait observability-health
 
-# Run StepCI threats tests only
-test-stepci-threats:
-	@echo "⚠️  Running StepCI threats tests..."
-	@stepci run stepci/threats/crud-operations.yml
-	@stepci run stepci/threats/bulk-operations.yml
-
-# Run StepCI diagrams tests only
-test-stepci-diagrams:
-	@echo "📊 Running StepCI diagrams tests..."
-	@stepci run stepci/diagrams/collaboration.yml
-
-# Run StepCI integration tests only
-test-stepci-integration:
-	@echo "🔗 Running StepCI integration tests..."
-	@stepci run stepci/integration/full-workflow.yml
-	@stepci run stepci/integration/rbac-permissions.yml
-
-# Kill process listening on port 8080 (or custom port)
-kill:
-	@PORT=$${port:-8080}; \
-	echo "🔫 Killing processes listening on port $$PORT..."; \
-	PIDS=$$(lsof -ti :$$PORT 2>/dev/null || true); \
+process-stop:
+	$(call log_info,"Killing processes on port $(SERVER_PORT)")
+	@if [ -z "$(SERVER_PORT)" ]; then \
+		echo "Error: SERVER_PORT not configured"; \
+		exit 1; \
+	fi; \
+	PIDS=$$(lsof -ti :$(SERVER_PORT) 2>/dev/null || true); \
 	if [ -n "$$PIDS" ]; then \
-		echo "Found processes on port $$PORT: $$PIDS"; \
+		$(call log_info,"Found processes on port $(SERVER_PORT): $$PIDS"); \
 		for PID in $$PIDS; do \
-			echo "Stopping process $$PID listening on port $$PORT..."; \
+			echo "Stopping process $$PID listening on port $(SERVER_PORT)..."; \
 			kill $$PID 2>/dev/null || true; \
 			sleep 1; \
 			if ps -p $$PID > /dev/null 2>&1; then \
@@ -420,114 +233,593 @@ kill:
 				kill -9 $$PID 2>/dev/null || true; \
 			fi; \
 		done; \
-		echo "✅ All processes on port $$PORT have been killed"; \
+		$(call log_success,"All processes on port $(SERVER_PORT) have been killed"); \
 	else \
-		echo "ℹ️  No processes found listening on port $$PORT"; \
+		$(call log_info,"No processes found listening on port $(SERVER_PORT)"); \
 	fi
 
-# Clean development environment (kill processes, clean DBs)
-clean-dev-env:
-	@echo "🧹 Cleaning development environment..."
-	@./scripts/clean-dev.sh
+server-start:
+	$(call log_info,"Starting server on port $(SERVER_PORT)")
+	@if [ -z "$(SERVER_BINARY)" ]; then \
+		echo "Error: SERVER_BINARY not configured"; \
+		exit 1; \
+	fi; \
+	if [ -n "$(SERVER_TAGS)" ]; then \
+		$(call log_info,"Starting server with build tags: $(SERVER_TAGS)"); \
+		go run -tags $(SERVER_TAGS) cmd/server/main.go --config=$(SERVER_CONFIG_FILE) > $(SERVER_LOG_FILE) 2>&1 & \
+	else \
+		$(call log_info,"Starting server binary: $(SERVER_BINARY)"); \
+		$(SERVER_BINARY) --config=$(SERVER_CONFIG_FILE) > $(SERVER_LOG_FILE) 2>&1 & \
+	fi; \
+	echo $$! > .server.pid
+	$(call log_success,"Server started with PID: $$(cat .server.pid)")
 
+server-stop:
+	$(call log_info,"Stopping server...")
+	@if [ -f .server.pid ]; then \
+		PID=$$(cat .server.pid); \
+		if ps -p $$PID > /dev/null 2>&1; then \
+			$(call log_info,"Stopping server (PID: $$PID)..."); \
+			kill $$PID 2>/dev/null || true; \
+			sleep 2; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				$(call log_info,"Force killing server (PID: $$PID)..."); \
+				kill -9 $$PID 2>/dev/null || true; \
+			fi; \
+		fi; \
+		rm -f .server.pid; \
+	fi
+	@$(MAKE) process-stop
+	$(call log_success,"Server stopped")
 
-# Debug auth endpoints - check what's available
-debug-auth-endpoints:
-	@echo "🔍 Checking available auth endpoints..."
-	@echo "1. Testing /auth/login (should show dev login page):"
-	@curl -s -w "\n  Status: %{http_code}\n" "http://localhost:8080/auth/login" | head -5
-	@echo ""
-	@echo "2. Testing /auth/callback directly:"
-	@curl -s -w "\n  Status: %{http_code}\n" "http://localhost:8080/auth/callback?username=test@example.com&role=owner"
-	@echo ""
-	@echo "3. Testing /auth/providers:"
-	@curl -s -w "\n  Status: %{http_code}\n" "http://localhost:8080/auth/providers" | head -3
-	@echo ""
-	@echo "4. Testing test provider auth URL:"
-	@curl -s -w "\n  Status: %{http_code}\n" "http://localhost:8080/auth/login/test"
-	@echo ""
-	@echo "5. Getting redirect headers from test provider:"
-	@curl -s -I "http://localhost:8080/auth/login/test" | grep -i location
+process-wait:
+	$(call log_info,"Waiting for server to be ready on port $(SERVER_PORT)")
+	@timeout=$${TIMEOUTS_SERVER_READY:-30}; \
+	while [ $$timeout -gt 0 ]; do \
+		if curl -s http://localhost:$(SERVER_PORT)/ >/dev/null 2>&1; then \
+			$(call log_success,"Server is ready!"); \
+			break; \
+		fi; \
+		echo "⏳ Waiting for server... ($$timeout seconds remaining)"; \
+		sleep 2; \
+		timeout=$$((timeout - 2)); \
+	done; \
+	if [ $$timeout -le 0 ]; then \
+		$(call log_error,"Server failed to start within $${TIMEOUTS_SERVER_READY:-30} seconds"); \
+		exit 1; \
+	fi
 
-# Backward compatibility aliases for common targets
+observability-wait:
+	$(call log_info,"Waiting for observability services to be ready...")
+	@timeout=$${TIMEOUTS_STACK_READY:-60}; \
+	echo "⏳ Waiting for services to start..."; \
+	sleep 10; \
+	while [ $$timeout -gt 0 ]; do \
+		if $(MAKE) observability-health >/dev/null 2>&1; then \
+			$(call log_success,"Observability services are ready!"); \
+			break; \
+		fi; \
+		echo "⏳ Services starting... ($$timeout seconds remaining)"; \
+		sleep 5; \
+		timeout=$$((timeout - 5)); \
+	done; \
+	if [ $$timeout -le 0 ]; then \
+		$(call log_error,"Observability services failed to start within $${TIMEOUTS_STACK_READY:-60} seconds"); \
+		exit 1; \
+	fi
+
+observability-health:
+	$(call log_info,"Checking observability service health...")
+	@HEALTH_OK=true; \
+	if curl -f http://localhost:$(JAEGER_PORT)/api/services >/dev/null 2>&1; then \
+		echo "✅ Jaeger UI available at http://localhost:$(JAEGER_PORT)"; \
+	else \
+		echo "⚠️  Jaeger not ready at port $(JAEGER_PORT)"; \
+		HEALTH_OK=false; \
+	fi; \
+	if curl -f http://localhost:$(PROMETHEUS_PORT)/-/ready >/dev/null 2>&1; then \
+		echo "✅ Prometheus available at http://localhost:$(PROMETHEUS_PORT)"; \
+	else \
+		echo "⚠️  Prometheus not ready at port $(PROMETHEUS_PORT)"; \
+		HEALTH_OK=false; \
+	fi; \
+	if curl -f http://localhost:$(GRAFANA_PORT)/api/health >/dev/null 2>&1; then \
+		echo "✅ Grafana available at http://localhost:$(GRAFANA_PORT)"; \
+	else \
+		echo "⚠️  Grafana not ready at port $(GRAFANA_PORT)"; \
+		HEALTH_OK=false; \
+	fi; \
+	if curl -f http://localhost:$(OTEL_COLLECTOR_PORT)/v1/traces >/dev/null 2>&1; then \
+		echo "✅ OpenTelemetry Collector ready at http://localhost:$(OTEL_COLLECTOR_PORT)"; \
+	else \
+		echo "⚠️  OpenTelemetry Collector not ready at port $(OTEL_COLLECTOR_PORT)"; \
+		HEALTH_OK=false; \
+	fi; \
+	if [ "$$HEALTH_OK" = "false" ]; then \
+		exit 1; \
+	fi
+
+# ============================================================================
+# ATOMIC COMPONENTS - Test Execution
+# ============================================================================
+
+.PHONY: test-unit-execute test-integration-execute
+
+test-unit-execute:
+	$(call log_info,"Executing unit tests...")
+	@if [ -n "$(TEST_PATTERN)" ] && [ "$(TEST_PATTERN)" != "" ]; then \
+		echo "Running specific unit test: $(TEST_PATTERN)"; \
+		TEST_CMD="$(ENVIRONMENT_TMI_LOGGING_IS_TEST)=true go test -short ./... -run $(TEST_PATTERN) -v"; \
+	else \
+		echo "Running all unit tests..."; \
+		TEST_CMD="$(ENVIRONMENT_TMI_LOGGING_IS_TEST)=true go test -short ./..."; \
+	fi; \
+	if [ "$(TEST_COUNT1)" = "true" ]; then \
+		TEST_CMD="$$TEST_CMD --count=1"; \
+	fi; \
+	if [ "$(TEST_TAGS)" != "" ]; then \
+		TEST_CMD="$$TEST_CMD -tags='$(TEST_TAGS)'"; \
+	fi; \
+	if [ "$(TEST_TIMEOUT)" != "" ]; then \
+		TEST_CMD="$$TEST_CMD -timeout=$(TEST_TIMEOUT)"; \
+	fi; \
+	eval $$TEST_CMD
+	$(call log_success,"Unit tests completed")
+
+test-integration-execute:
+	$(call log_info,"Executing integration tests...")
+	@TEST_EXIT_CODE=0; \
+	$(ENVIRONMENT_TMI_LOGGING_IS_TEST)=true \
+	TEST_DB_HOST=localhost \
+	TEST_DB_PORT=$(INFRASTRUCTURE_POSTGRES_PORT) \
+	TEST_DB_USER=$(INFRASTRUCTURE_POSTGRES_USER) \
+	TEST_DB_PASSWORD=$(INFRASTRUCTURE_POSTGRES_PASSWORD) \
+	TEST_DB_NAME=$(INFRASTRUCTURE_POSTGRES_DATABASE) \
+	TEST_REDIS_HOST=localhost \
+	TEST_REDIS_PORT=$(INFRASTRUCTURE_REDIS_PORT) \
+	TEST_SERVER_URL=http://localhost:$(SERVER_PORT) \
+		go test -v -timeout=$(TEST_TIMEOUT) $(TEST_PACKAGES) -run "$(TEST_PATTERN)" \
+		| tee integration-test.log \
+		|| TEST_EXIT_CODE=$$?; \
+	if [ $$TEST_EXIT_CODE -eq 0 ]; then \
+		$(call log_success,"Integration tests completed successfully"); \
+	else \
+		$(call log_error,"Integration tests failed with exit code $$TEST_EXIT_CODE"); \
+		echo ""; \
+		$(call log_info,"Failed test summary:"); \
+		grep -E "FAIL:|--- FAIL" integration-test.log || true; \
+		exit $$TEST_EXIT_CODE; \
+	fi
+
+# ============================================================================
+# ATOMIC COMPONENTS - Cleanup Operations
+# ============================================================================
+
+.PHONY: clean-files clean-containers clean-processes clean-all
+
+clean-files:
+	$(call log_info,"Cleaning up files...")
+	@if [ -n "$(CLEANUP_FILES)" ] && [ "$(CLEANUP_FILES)" != "" ]; then \
+		for file in $(CLEANUP_FILES); do \
+			if [ -f "$$file" ]; then \
+				$(call log_info,"Removing file: $$file"); \
+				rm -f "$$file"; \
+			fi; \
+		done; \
+	fi
+	@if [ -n "$(ARTIFACTS_LOG_FILES)" ] && [ "$(ARTIFACTS_LOG_FILES)" != "" ]; then \
+		for file in $(ARTIFACTS_LOG_FILES); do \
+			if [ -f "$$file" ]; then \
+				$(call log_info,"Removing log file: $$file"); \
+				rm -f "$$file"; \
+			fi; \
+		done; \
+	fi
+	@if [ -n "$(ARTIFACTS_PID_FILES)" ] && [ "$(ARTIFACTS_PID_FILES)" != "" ]; then \
+		for file in $(ARTIFACTS_PID_FILES); do \
+			if [ -f "$$file" ]; then \
+				$(call log_info,"Removing PID file: $$file"); \
+				rm -f "$$file"; \
+			fi; \
+		done; \
+	fi
+	$(call log_success,"File cleanup completed")
+
+clean-containers:
+	$(call log_info,"Cleaning up containers...")
+	@if [ -n "$(CLEANUP_CONTAINERS)" ] && [ "$(CLEANUP_CONTAINERS)" != "" ]; then \
+		for container in $(CLEANUP_CONTAINERS); do \
+			$(call log_info,"Stopping and removing container: $$container"); \
+			docker stop $$container 2>/dev/null || true; \
+			docker rm $$container 2>/dev/null || true; \
+		done; \
+	fi
+	$(call log_success,"Container cleanup completed")
+
+clean-processes:
+	$(call log_info,"Cleaning up processes...")
+	@if [ -n "$(CLEANUP_PROCESSES)" ] && [ "$(CLEANUP_PROCESSES)" != "" ]; then \
+		for port in $(CLEANUP_PROCESSES); do \
+			$(call log_info,"Killing processes on port: $$port"); \
+			PIDS=$$(lsof -ti :$$port 2>/dev/null || true); \
+			if [ -n "$$PIDS" ]; then \
+				for PID in $$PIDS; do \
+					kill $$PID 2>/dev/null || true; \
+					sleep 1; \
+					if ps -p $$PID > /dev/null 2>&1; then \
+						kill -9 $$PID 2>/dev/null || true; \
+					fi; \
+				done; \
+			fi; \
+		done; \
+	fi
+	$(call log_success,"Process cleanup completed")
+
+clean-all: clean-processes clean-containers clean-files
+
+# ============================================================================
+# COMPOSITE TARGETS - Main User-Facing Commands
+# ============================================================================
+
+.PHONY: test-unit test-integration dev-start dev-clean test-coverage stepci-full observability-start observability-stop observability-clean test-telemetry
+
+# Unit Testing - Fast tests with no external dependencies
+test-unit:
+	@CONFIG_FILE=config/test-unit.yml; \
+	$(call log_info,"Loading configuration from $$CONFIG_FILE"); \
+	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
+	$(call log_info,"Starting unit tests..."); \
+	TMI_LOGGING_IS_TEST=true go test -short ./... -v; \
+	rm -f .config.tmp.mk integration-test.log server.log .server.pid
+
+# Integration Testing - Full environment with database and server
+test-integration:
+	$(call load-config,test-integration)
+	$(call log_info,"Starting integration tests with configuration: $(NAME)")
+	@trap 'make -f $(MAKEFILE_LIST) clean-all CONFIG_FILE=config/test-integration.yml' EXIT; \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) build-server && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) server-start && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) process-wait && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) test-integration-execute
+
+# Development Environment - Start local dev environment
+dev-start:
+	$(call load-config,dev-environment)
+	$(call log_info,"Starting development environment: $(NAME)")
+	@CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start
+	@CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start
+	@CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait
+	@go build -o bin/check-db cmd/check-db/main.go
+	@CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate
+	@if [ ! -f $(SERVER_CONFIG_FILE) ]; then \
+		$(call log_info,"Generating development configuration..."); \
+		go run cmd/server/main.go --generate-config || { echo "Error: Failed to generate config files"; exit 1; }; \
+	fi
+	@CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) server-start
+	$(call log_success,"Development environment started on port $(SERVER_PORT)")
+
+# Development Environment Cleanup
+dev-clean:
+	$(call load-config,dev-environment)
+	$(call log_info,"Cleaning development environment: $(NAME)")
+	@CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all
+
+# Coverage Report Generation - Comprehensive testing with coverage
+test-coverage:
+	$(call load-config,coverage-report)
+	$(call log_info,"Generating coverage reports: $(NAME)")
+	@trap 'make clean-all CONFIG_FILE=$(CONFIG_FILE)' EXIT; \
+	$(MAKE) clean-all && \
+	mkdir -p $(COVERAGE_DIRECTORY) && \
+	$(MAKE) test-coverage-unit && \
+	$(MAKE) infra-db-start && \
+	$(MAKE) infra-redis-start && \
+	$(MAKE) db-wait && \
+	$(MAKE) db-migrate && \
+	$(MAKE) test-coverage-integration && \
+	$(MAKE) coverage-merge && \
+	$(MAKE) coverage-reports
+
+# StepCI Full Integration Testing
+stepci-full:
+	$(call load-config,stepci-full)
+	$(call log_info,"Running StepCI full integration tests: $(NAME)")
+	@trap 'make clean-all CONFIG_FILE=$(CONFIG_FILE)' EXIT; \
+	$(MAKE) clean-processes && \
+	$(MAKE) infra-db-start && \
+	$(MAKE) infra-redis-start && \
+	$(MAKE) db-wait && \
+	$(MAKE) build-server && \
+	$(MAKE) db-migrate && \
+	$(MAKE) server-start && \
+	$(MAKE) process-wait && \
+	$(MAKE) stepci-execute
+
+# ============================================================================
+# SPECIALIZED ATOMIC COMPONENTS - Coverage and StepCI
+# ============================================================================
+
+.PHONY: test-coverage-unit test-coverage-integration coverage-merge coverage-reports stepci-execute
+
+test-coverage-unit:
+	$(call log_info,"Running unit tests with coverage...")
+	@$(ENVIRONMENT_TMI_LOGGING_IS_TEST)=true go test \
+		-coverprofile="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" \
+		-covermode=$(COVERAGE_MODE) \
+		-coverpkg=./... \
+		$(TEST_UNIT_PACKAGES) \
+		-tags="$(TEST_UNIT_TAGS)" \
+		-timeout=$(TEST_UNIT_TIMEOUT) \
+		-v
+	$(call log_success,"Unit test coverage completed")
+
+test-coverage-integration:
+	$(call log_info,"Running integration tests with coverage...")
+	@$(ENVIRONMENT_TMI_LOGGING_IS_TEST)=true \
+	TMI_POSTGRES_HOST=localhost \
+	TMI_POSTGRES_PORT=$(INFRASTRUCTURE_POSTGRES_PORT) \
+	TMI_POSTGRES_USER=$(INFRASTRUCTURE_POSTGRES_USER) \
+	TMI_POSTGRES_PASSWORD=$(INFRASTRUCTURE_POSTGRES_PASSWORD) \
+	TMI_POSTGRES_DATABASE=$(INFRASTRUCTURE_POSTGRES_DATABASE) \
+	TMI_REDIS_HOST=localhost \
+	TMI_REDIS_PORT=$(INFRASTRUCTURE_REDIS_PORT) \
+	go test \
+		-coverprofile="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" \
+		-covermode=$(COVERAGE_MODE) \
+		-coverpkg=./... \
+		-tags=$(TEST_INTEGRATION_TAGS) \
+		$(TEST_INTEGRATION_PACKAGES) \
+		-timeout=$(TEST_INTEGRATION_TIMEOUT) \
+		-v
+	$(call log_success,"Integration test coverage completed")
+
+coverage-merge:
+	$(call log_info,"Merging coverage profiles...")
+	@if ! command -v gocovmerge >/dev/null 2>&1; then \
+		$(call log_info,"Installing gocovmerge..."); \
+		go install $(TOOLS_GOCOVMERGE); \
+	fi
+	@gocovmerge \
+		"$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" \
+		"$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" \
+		> "$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)"
+	$(call log_success,"Coverage profiles merged")
+
+coverage-reports:
+	$(call log_info,"Generating coverage reports...")
+	@mkdir -p coverage_html
+	@if [ "$(OUTPUT_HTML_ENABLED)" = "true" ]; then \
+		go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" -o "coverage_html/$(COVERAGE_UNIT_HTML_REPORT)"; \
+		go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" -o "coverage_html/$(COVERAGE_INTEGRATION_HTML_REPORT)"; \
+		go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" -o "coverage_html/$(COVERAGE_COMBINED_HTML_REPORT)"; \
+	fi
+	@if [ "$(OUTPUT_TEXT_ENABLED)" = "true" ]; then \
+		go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_DETAILED_REPORT)"; \
+		go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_DETAILED_REPORT)"; \
+		go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_DETAILED_REPORT)"; \
+	fi
+	@if [ "$(OUTPUT_SUMMARY_ENABLED)" = "true" ]; then \
+		$(call log_info,"Generating coverage summary..."); \
+		echo "TMI Test Coverage Summary" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
+		echo "Generated: $$(date)" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
+		echo "======================================" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
+		echo "" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
+		go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" | tail -1 >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
+		cat "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
+	fi
+	$(call log_success,"Coverage reports generated in $(COVERAGE_DIRECTORY)/ and coverage_html/")
+
+stepci-execute:
+	$(call log_info,"Executing StepCI tests...")
+	@if [ -n "$(TEST_PATTERN)" ] && [ "$(TEST_PATTERN)" != "" ]; then \
+		$(call log_info,"Running specific StepCI test: $(TEST_PATTERN)"); \
+		if [ ! -f "$(STEPCI_TEST_DIRECTORY)/$(TEST_PATTERN)" ]; then \
+			$(call log_error,"Test file not found: $(STEPCI_TEST_DIRECTORY)/$(TEST_PATTERN)"); \
+			$(call log_info,"Available tests:"); \
+			find $(STEPCI_TEST_DIRECTORY) -name "*.yml" -not -path "$(STEPCI_EXCLUDE_PATHS)" | sed 's|$(STEPCI_TEST_DIRECTORY)/||' | sort; \
+			exit 1; \
+		fi; \
+		stepci run "$(STEPCI_TEST_DIRECTORY)/$(TEST_PATTERN)"; \
+	else \
+		$(call log_info,"Running all StepCI integration tests..."); \
+		for test_file in $$(find $(STEPCI_TEST_DIRECTORY) -name "*.yml" -not -path "$(STEPCI_EXCLUDE_PATHS)" | sort); do \
+			$(call log_info,"Running: $$test_file"); \
+			stepci run "$$test_file" || echo "❌ Test failed: $$test_file"; \
+			echo ""; \
+		done; \
+	fi
+	$(call log_success,"StepCI tests completed")
+
+# Observability Stack - Start monitoring and telemetry services
+observability-start:
+	@CONFIG_FILE=config/observability.yml; \
+	$(call log_info,"Loading configuration from $$CONFIG_FILE"); \
+	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
+	$(call log_info,"Starting observability stack..."); \
+	if ! docker info >/dev/null 2>&1; then \
+		echo "Error: Docker is not running. Please start Docker first."; \
+		exit 1; \
+	fi; \
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^OBSERVABILITY_COMPOSE_FILE := ' | sed 's/:=/=/');
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^GRAFANA_PORT := ' | sed 's/:=/=/');
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^PROMETHEUS_PORT := ' | sed 's/:=/=/');
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^JAEGER_PORT := ' | sed 's/:=/=/');
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^OTEL_COLLECTOR_PORT := ' | sed 's/:=/=/');
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^GRAFANA_URL := ' | sed 's/:=/=/');
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^PROMETHEUS_URL := ' | sed 's/:=/=/');
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^JAEGER_URL := ' | sed 's/:=/=/');
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^LOKI_URL := ' | sed 's/:=/=/');
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^OTEL_COLLECTOR_GRPC_PORT := ' | sed 's/:=/=/');
+	echo "Starting services with $$OBSERVABILITY_COMPOSE_FILE..."; \
+	docker compose -f $$OBSERVABILITY_COMPOSE_FILE up -d; \
+	echo "⏳ Waiting for services to start..."; \
+	sleep 10; \
+	timeout=60; \
+	while [ $$timeout -gt 0 ]; do \
+		HEALTH_OK=true; \
+		if ! curl -f http://localhost:$$JAEGER_PORT/api/services >/dev/null 2>&1; then HEALTH_OK=false; fi; \
+		if ! curl -f http://localhost:$$PROMETHEUS_PORT/-/ready >/dev/null 2>&1; then HEALTH_OK=false; fi; \
+		if ! curl -f http://localhost:$$GRAFANA_PORT/api/health >/dev/null 2>&1; then HEALTH_OK=false; fi; \
+		if ! curl -f http://localhost:$$OTEL_COLLECTOR_PORT/v1/traces >/dev/null 2>&1; then HEALTH_OK=false; fi; \
+		if [ "$$HEALTH_OK" = "true" ]; then \
+			echo "✅ All services are ready!"; \
+			break; \
+		fi; \
+		echo "⏳ Services starting... ($$timeout seconds remaining)"; \
+		sleep 5; \
+		timeout=$$((timeout - 5)); \
+	done; \
+	if [ $$timeout -le 0 ]; then \
+		echo "Services failed to start within 60 seconds"; \
+		exit 1; \
+	fi; \
+	echo ""; \
+	echo "🎉 Observability stack started!"; \
+	echo ""; \
+	echo "Services:"; \
+	echo "  📊 Grafana:     $$GRAFANA_URL (admin/admin)"; \
+	echo "  🔍 Jaeger:      $$JAEGER_URL"; \
+	echo "  📈 Prometheus:  $$PROMETHEUS_URL"; \
+	echo "  📋 Loki:       $$LOKI_URL"; \
+	echo "  📡 OTel:       http://localhost:$$OTEL_COLLECTOR_PORT (HTTP) / :$$OTEL_COLLECTOR_GRPC_PORT (gRPC)"; \
+	echo ""; \
+	echo "To stop: make observability-stop"; \
+	echo "To view logs: docker compose -f $$OBSERVABILITY_COMPOSE_FILE logs -f [service]"; \
+	rm -f .config.tmp.mk
+	@echo ""
+	@echo "🎉 Observability stack started!"
+	@echo ""
+	@echo "Services:"
+	@echo "  📊 Grafana:     $(GRAFANA_URL) (admin/admin)"
+	@echo "  🔍 Jaeger:      $(JAEGER_URL)"
+	@echo "  📈 Prometheus:  $(PROMETHEUS_URL)"
+	@echo "  📋 Loki:       $(LOKI_URL)"
+	@echo "  📡 OTel:       http://localhost:$(OTEL_COLLECTOR_PORT) (HTTP) / :$(OTEL_COLLECTOR_GRPC_PORT) (gRPC)"
+	@echo ""
+	@echo "To stop: make observability-stop"
+	@echo "To view logs: docker-compose -f $(OBSERVABILITY_COMPOSE_FILE) logs -f [service]"
+
+# Observability Stack - Stop monitoring services
+observability-stop:
+	@CONFIG_FILE=config/observability.yml; \
+	echo "🛑 Stopping observability stack..."; \
+	COMPOSE_FILE=$$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^OBSERVABILITY_COMPOSE_FILE := ' | sed 's/^OBSERVABILITY_COMPOSE_FILE := //'); \
+	docker compose -f $$COMPOSE_FILE down; \
+	echo "✅ Observability stack stopped!"
+
+# Observability Stack - Clean up with data removal
+observability-clean:
+	@CONFIG_FILE=config/observability.yml; \
+	echo "🧹 Cleaning observability stack - this will delete all observability data"; \
+	COMPOSE_FILE=$$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^OBSERVABILITY_COMPOSE_FILE := ' | sed 's/^OBSERVABILITY_COMPOSE_FILE := //'); \
+	docker compose -f $$COMPOSE_FILE down -v --remove-orphans; \
+	echo "✅ Observability stack and data removed!"
+
+# Telemetry Testing - Test telemetry components with observability stack
+test-telemetry:
+	@CONFIG_FILE=config/observability.yml; \
+	echo "🧪 Testing telemetry components..."; \
+	trap 'make observability-clean' EXIT; \
+	make observability-start; \
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^TELEMETRY_TEST_PACKAGES := ' | sed 's/:=/=/'); \
+	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^TELEMETRY_INTEGRATION_TAGS := ' | sed 's/:=/=/'); \
+	echo "Running telemetry tests..."; \
+	TMI_LOGGING_IS_TEST=true go test \
+		$$TELEMETRY_TEST_PACKAGES \
+		-tags="$$TELEMETRY_INTEGRATION_TAGS" \
+		-timeout=5m \
+		-v; \
+	echo "✅ Telemetry tests completed"
+
+# ============================================================================
+# BACKWARD COMPATIBILITY ALIASES
+# ============================================================================
+
+.PHONY: build build-all test lint clean dev prod test-api obs-start obs-stop obs-clean obs-health obs-wait
+
+# Keep backward compatibility with existing commands
 build: build-server
-test: run-tests
-lint: run-lint
-clean: clean-artifacts
-dev: start-dev
-prod: start-prod
-dev-db: start-dev-db
-dev-redis: start-dev-redis
-stop-db: stop-dev-db
-stop-redis: stop-dev-redis
-delete-db: delete-dev-db
-delete-redis: delete-dev-redis
-dev-app: build-dev-app
-gen-api: generate-api
-gen-config: generate-config
-dev-observability: start-observability
-coverage: report-coverage
-coverage-unit: report-coverage-unit
-coverage-integration: report-coverage-integration
-coverage-report: generate-coverage-report
-migrate: run-migrations
-reset-db: reset-database
-clean-dev: clean-dev-env
-openapi-endpoints: list-openapi-endpoints
-list: list-targets
-stepci: test-stepci
-stepci-full: test-stepci-full
-stepci-auth: test-stepci-auth
+build-all: build-server
+test: test-unit
+lint:
+	@golangci-lint run
+clean: build-clean
+dev: dev-start
+prod: dev-start  # For now, prod is same as dev
 
-# Git Subtree Management for Shared Resources
-.PHONY: push-shared subtree-help
+# Observability aliases (obs-* shortcuts)
+obs-start: observability-start
+obs-stop: observability-stop
+obs-clean: observability-clean
+obs-health: observability-health
+obs-wait: observability-wait
 
-# Push shared branch to GitHub for subtree consumption
-push-shared:
-	@echo "🚀 Pushing shared branch for subtree consumption..."
-	@git add shared/
-	@git commit -m "Update shared resources for client consumption" || echo "No changes to commit"
-	@git subtree push --prefix=shared origin shared
-	@echo "✅ Shared branch pushed to GitHub"
+# Legacy test-api target (simplified)
+test-api:
+	$(call load-config,dev-environment)
+	@$(call log_info,"Testing API endpoints...")
+	@if [ "$(auth)" = "only" ]; then \
+		$(call log_info,"Getting JWT token via OAuth test provider..."); \
+		AUTH_REDIRECT=$$(curl -s "http://localhost:$(SERVER_PORT)/auth/login/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
+		if [ -n "$$AUTH_REDIRECT" ]; then \
+			$(call log_success,"Token:"); \
+			curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null || curl -s "$$AUTH_REDIRECT"; \
+		else \
+			$(call log_error,"Failed to get OAuth authorization redirect"); \
+		fi; \
+	else \
+		$(call log_info,"Testing authenticated access..."); \
+		AUTH_REDIRECT=$$(curl -s "http://localhost:$(SERVER_PORT)/auth/login/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
+		if [ -n "$$AUTH_REDIRECT" ]; then \
+			TOKEN=$$(curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null); \
+			if [ "$$TOKEN" != "null" ] && [ -n "$$TOKEN" ]; then \
+				$(call log_success,"Got token: $$TOKEN"); \
+				$(call log_info,"Testing /threat_models endpoint..."); \
+				curl -H "Authorization: Bearer $$TOKEN" "http://localhost:$(SERVER_PORT)/threat_models" | jq .; \
+			fi; \
+		fi; \
+	fi
 
-# Show help for subtree operations
-subtree-help:
-	@echo "📖 TMI Git Subtree Management"
+# ============================================================================
+# HELP AND UTILITIES
+# ============================================================================
+
+help:
+	@echo "TMI Refactored Makefile - Configuration-Driven Atomic Components"
 	@echo ""
-	@echo "Available targets:"
-	@echo "  sync-shared   - Update shared/ directory from source files"
-	@echo "  push-shared   - Push shared branch to GitHub for client consumption"
-	@echo "  subtree-help  - Show this help message"
+	@echo "Usage: make <target> [CONFIG=<config-name>]"
 	@echo ""
-	@echo "For TMI-UX client repo to consume:"
-	@echo "  git subtree add --prefix=shared-api https://github.com/yourusername/tmi.git shared --squash"
+	@echo "Core Composite Targets (use these):"
+	@echo "  test-unit              - Run unit tests"
+	@echo "  test-integration       - Run integration tests with full setup"
+	@echo "  dev-start              - Start development environment"
+	@echo "  dev-clean              - Clean development environment"
+	@echo "  observability-start    - Start OpenTelemetry monitoring stack (alias: obs-start)"
+	@echo "  observability-stop     - Stop monitoring services (alias: obs-stop)"
+	@echo "  observability-clean    - Clean monitoring stack with data removal (alias: obs-clean)"
+	@echo "  test-telemetry         - Test telemetry components with monitoring stack"
 	@echo ""
-	@echo "For TMI-UX to pull updates:"
-	@echo "  git subtree pull --prefix=shared-api https://github.com/yourusername/tmi.git shared --squash"
-
-# Endpoint Analysis
-
-# Analyze all API endpoints for implementation status, handlers, and middleware
-analyze-endpoints:
-	@echo "🔍 Analyzing TMI API endpoints..."
-	@uv run scripts/analyze_endpoints.py
+	@echo "Atomic Components (building blocks):"
+	@echo "  infra-db-start         - Start PostgreSQL container"
+	@echo "  infra-redis-start      - Start Redis container"
+	@echo "  build-server           - Build server binary"
+	@echo "  db-migrate             - Run database migrations"
+	@echo "  server-start           - Start server"
+	@echo "  clean-all              - Clean up everything"
 	@echo ""
-	@echo "📊 Report generated: endpoint_analysis_report.md"
-	@echo "🔗 View the report:"
-	@echo "   cat endpoint_analysis_report.md"
-
-# Analyze and clean up dead code from OpenAPI refactor
-analyze-dead-code:
-	@echo "🔍 Analyzing dead code from OpenAPI refactor..."
-	@python3 scripts/cleanup_dead_code.py --dry-run
+	@echo "Configuration Files:"
+	@echo "  config/test-unit.yml           - Unit testing configuration"
+	@echo "  config/test-integration.yml    - Integration testing configuration"
+	@echo "  config/dev-environment.yml     - Development environment configuration"
+	@echo "  config/coverage-report.yml     - Coverage reporting configuration"
+	@echo "  config/stepci-full.yml         - StepCI testing configuration"
+	@echo "  config/observability.yml       - OpenTelemetry observability stack configuration"
 	@echo ""
-	@echo "📊 Report generated: dead_code_analysis_report.md"
-	@echo "🔗 View the report:"
-	@echo "   cat dead_code_analysis_report.md"
 
-# Clean up dead code (with confirmation)
-cleanup-dead-code:
-	@echo "⚠️  This will automatically remove safe dead code"
-	@echo "📖 Review dead_code_analysis_report.md first"
-	@read -p "Continue? (y/N): " confirm && [ "$$confirm" = "y" ] || exit 1
-	@python3 scripts/cleanup_dead_code.py --auto-fix
+list-targets:
+	@make -qp | awk -F':' '/^[a-zA-Z0-9][^$$#\/\t=]*:([^=]|$$)/ {print $$1}' | grep -v '^Makefile$$' | sort

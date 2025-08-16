@@ -31,15 +31,15 @@ func ParseFlags() (configFile string, generateConfig bool, err error) {
 // GenerateExampleConfig generates example configuration files
 func GenerateExampleConfig() error {
 	fmt.Println("Configuration files already exist in the project:")
-	fmt.Println("- config-example.yaml - Template configuration file")
-	fmt.Println("- config-development.yaml - Development configuration (if present)")
-	fmt.Println("- config-production.yaml - Production configuration template")
-	fmt.Println("- config-test.yaml - Test configuration")
+	fmt.Println("- config-example.yml - Template configuration file")
+	fmt.Println("- config-development.yml - Development configuration (if present)")
+	fmt.Println("- config-production.yml - Production configuration template")
+	fmt.Println("- config-test.yml - Test configuration")
 	fmt.Println("")
 	fmt.Println("To customize for your environment:")
-	fmt.Println("1. Copy config-example.yaml to config-development.yaml")
-	fmt.Println("2. Edit config-development.yaml with your settings")
-	fmt.Println("3. For production, customize config-production.yaml")
+	fmt.Println("1. Copy config-example.yml to config-development.yml")
+	fmt.Println("2. Edit config-development.yml with your settings")
+	fmt.Println("3. For production, customize config-production.yml")
 	fmt.Println("")
 	fmt.Println("Note: Environment variables can override any YAML setting using TMI_ prefix.")
 	return nil

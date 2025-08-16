@@ -194,7 +194,7 @@ if config.Admin.Enabled {
 
 ### **Development Configuration**
 ```yaml
-# config-dev.yaml
+# config-dev.yml
 admin:
   enabled: true
   users:
@@ -213,7 +213,7 @@ admin:
 
 ### **Production Configuration**
 ```yaml
-# config-prod.yaml
+# config-prod.yml
 admin:
   enabled: false  # Must be explicitly enabled
   users:

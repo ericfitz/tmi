@@ -11,7 +11,7 @@
 AsyncAPI YAML validation script using Pydantic and JSON Schema.
 
 This script validates our TMI AsyncAPI specification against AsyncAPI 3.0.0 schema.
-Run with: uv run validate_asyncapi.py tmi-asyncapi.yaml
+Run with: uv run validate_asyncapi.py tmi-asyncapi.yml
 """
 
 import sys

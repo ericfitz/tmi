@@ -48,7 +48,7 @@ This will automatically:
 If you need to clean up test containers manually:
 
 ```bash
-make test-integration-cleanup
+make clean-all
 ```
 
 ## Configuration
@@ -131,7 +131,7 @@ If you encounter Docker-related errors:
 docker info
 
 # Clean up any stuck containers
-make test-integration-cleanup
+make clean-all
 ```
 
 ### Port Conflicts

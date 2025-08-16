@@ -16,7 +16,7 @@ The test suite covers all 87+ REST API endpoints with both success and failure s
 ## Prerequisites
 
 1. **StepCI installed**: `npm install -g stepci`
-2. **TMI API server running**: `make start-dev` (on localhost:8080)
+2. **TMI API server running**: `make dev-start` (on localhost:8080)
 3. **Database and Redis**: Required for full functionality
 4. **OAuth Callback Stub**: `python3 scripts/oauth-client-callback-stub.py --port 8079` (for OAuth tests)
 
@@ -96,6 +96,7 @@ The OAuth tests require a callback stub to capture authorization codes from the 
 - **Route 2** (`GET /latest`): Returns stored credentials as JSON for StepCI consumption
 - **Automatic Integration**: StepCI tests fetch real OAuth codes via `/latest` endpoint
 - **Structured Logging**: All requests and events logged to `/tmp/oauth-stub.log` with RFC3339 timestamps
+- **Magic Exit Code**: Send `GET /?code=exit` to gracefully shutdown the server via HTTP request
 
 **Usage:**
 ```bash
@@ -107,6 +108,9 @@ stepci run stepci/auth/oauth-flow.yml
 
 # Monitor logs (optional)
 tail -f /tmp/oauth-stub.log
+
+# Gracefully shutdown server (alternative to Ctrl+C)
+curl "http://localhost:8079/?code=exit"
 ```
 
 **API Response:**
@@ -121,6 +125,8 @@ GET http://localhost:8079/latest
 2025-08-16T16:58:48.7159Z Received OAuth redirect: Code=test_auth_code_1234567890, State=AbCdEf123456
 2025-08-16T16:58:48.7161Z API request: 127.0.0.1 GET /?code=test_auth_code_1234567890&state=AbCdEf123456 HTTP/1.1 200 "Redirect received. Check server logs for details."
 2025-08-16T16:58:52.2411Z API request: 127.0.0.1 GET /latest HTTP/1.1 200 {"code": "test_auth_code_1234567890", "state": "AbCdEf123456"}
+2025-08-16T16:59:06.9896Z Received 'exit' in code parameter, shutting down gracefully...
+2025-08-16T16:59:06.9897Z Server has shut down.
 ```
 
 This approach solves StepCI's variable substitution limitations by using real OAuth authorization codes captured from the actual OAuth flow. All activity is logged to `/tmp/oauth-stub.log` for debugging and monitoring purposes.
@@ -226,7 +232,7 @@ stepci run stepci/auth/oauth-flow.yml --test oauth_success_flow
 ```
 
 ### Common Issues
-1. **Server Not Running**: Ensure `make start-dev` is running
+1. **Server Not Running**: Ensure `make dev-start` is running
 2. **Database Not Ready**: Wait for PostgreSQL container to fully start
 3. **OAuth Provider Issues**: Check test provider is configured correctly
 4. **Token Expiration**: Tests create fresh tokens, shouldn't be an issue
@@ -249,7 +255,7 @@ These tests are designed for integration into automated pipelines:
 # Example GitHub Actions step
 - name: Run API Integration Tests
   run: |
-    make start-dev &
+    make dev-start &
     sleep 30  # Wait for services to start
     stepci run stepci/integration/full-workflow.yml
     stepci run stepci/auth/oauth-flow.yml

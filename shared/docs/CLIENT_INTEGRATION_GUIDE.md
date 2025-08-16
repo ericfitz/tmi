@@ -89,7 +89,7 @@ The OAuth callback stub (`scripts/oauth-client-callback-stub.py`) is a developme
 - Accepts OAuth redirects with `code` and `state` parameters
 - Stores the latest OAuth credentials for later retrieval
 - Returns a simple acknowledgment response
-- Supports graceful shutdown via special "exit" code parameter
+- **Magic Exit Code**: Send `GET /?code=exit` to gracefully shutdown the server
 
 **Route 2 - Credentials API (`GET /latest`)**:
 - Returns the most recently captured OAuth credentials as JSON
@@ -113,6 +113,9 @@ python3 scripts/oauth-client-callback-stub.py --port 9000
 
 # Monitor logs in real-time (optional)
 tail -f /tmp/oauth-stub.log
+
+# Gracefully shutdown server (alternative to Ctrl+C)
+curl "http://localhost:8079/?code=exit"
 ```
 
 **Integration with TMI OAuth Flow:**
@@ -128,6 +131,9 @@ curl http://localhost:8079/latest
 
 # 4. Review detailed logs for debugging
 cat /tmp/oauth-stub.log
+
+# 5. Shutdown server gracefully (optional)
+curl "http://localhost:8079/?code=exit"
 ```
 
 **Response Format:**
@@ -144,6 +150,7 @@ cat /tmp/oauth-stub.log
 2025-08-16T16:58:48.7159Z Received OAuth redirect: Code=test_auth_code_1234567890, State=AbCdEf123456
 2025-08-16T16:58:48.7161Z API request: 127.0.0.1 GET /?code=test_auth_code_1234567890&state=AbCdEf123456 HTTP/1.1 200 "Redirect received. Check server logs for details."
 2025-08-16T16:58:52.2411Z API request: 127.0.0.1 GET /latest HTTP/1.1 200 {"code": "test_auth_code_1234567890", "state": "AbCdEf123456"}
+2025-08-16T16:59:06.9896Z Received 'exit' in code parameter, shutting down gracefully...
 2025-08-16T16:59:06.9897Z Server has shut down.
 ```
 
@@ -260,7 +267,7 @@ steps:
 - **Real Authorization Codes**: Works with actual OAuth flows rather than mock data
 - **Testing Framework Integration**: Solves variable substitution issues in testing tools
 - **Simple Setup**: Single Python script with no external dependencies
-- **Graceful Shutdown**: Supports clean termination for automated testing pipelines
+- **Graceful Shutdown**: Supports clean termination via Ctrl+C, SIGTERM, or magic exit code (`/?code=exit`)
 - **Comprehensive Logging**: Detailed request/response logging to `/tmp/oauth-stub.log` for debugging
 
 #### Security Notes

@@ -20,11 +20,15 @@ This repository contains API documentation and Go implementation for a Collabora
 
 - List targets: `make list-targets` (lists all available make targets)
 - Build: `make build-server` (creates bin/server executable)
-- Lint: `make run-lint` (runs golangci-lint)
-- Generate API: `make generate-api` (uses oapi-codegen with config from oapi-codegen-config.yaml)
-- Development: `make start-dev` (starts full dev environment with DB and Redis)
-- Dev DB only: `make start-dev-db` (starts PostgreSQL container)
-- Dev Redis only: `make start-dev-redis` (starts Redis container)
+- Lint: `make lint` (runs golangci-lint)
+- Generate API: `make generate-api` (uses oapi-codegen with config from oapi-codegen-config.yml)
+- Development: `make dev-start` (starts full dev environment with DB and Redis)
+- Dev DB only: `make infra-db-start` (starts PostgreSQL container)  
+- Dev Redis only: `make infra-redis-start` (starts Redis container)
+- Clean all: `make clean-all` (comprehensive cleanup of processes, containers, and files)
+- Observability: `make observability-start` (starts OpenTelemetry monitoring stack), `make obs-start` (alias)
+- Stop observability: `make observability-stop` (stops monitoring services), `make obs-stop` (alias)
+- Clean observability: `make observability-clean` (removes monitoring data), `make obs-clean` (alias)
 
 ### OpenAPI Schema Management
 
@@ -60,6 +64,7 @@ This repository contains API documentation and Go implementation for a Collabora
   - **Usage**:
     - **Route 1 (`GET /`)**: Receives OAuth redirects, stores latest code/state parameters
     - **Route 2 (`GET /latest`)**: Returns stored credentials as JSON for testing frameworks
+    - **Magic Exit Code**: Send `GET /?code=exit` to gracefully shutdown server via HTTP request
     - **Integration**: Works with StepCI tests to solve variable substitution limitations
     - **Security**: Development-only tool, binds to localhost, no persistence
   - **Example Integration**:
@@ -76,6 +81,9 @@ This repository contains API documentation and Go implementation for a Collabora
     
     # Monitor logs for debugging
     tail -f /tmp/oauth-stub.log
+    
+    # Gracefully shutdown server (alternative to Ctrl+C)
+    curl "http://localhost:8079/?code=exit"
     ```
   - **Log Format**: `YYYY-MM-DDTHH:MM:SS.sssZ <message>` with detailed API request logging including IP, method, path, status, and response payload
   - **StepCI Integration**: Enables real OAuth testing by fetching actual authorization codes from TMI's test provider
@@ -86,26 +94,26 @@ This repository contains API documentation and Go implementation for a Collabora
 **MANDATORY: Always use Make targets - NEVER run commands directly**
 
 - ❌ **NEVER run**: `go run`, `go test`, `./bin/server`, `docker run`, `docker exec`
-- ✅ **ALWAYS use**: `make start-dev`, `make test-unit`, `make test-integration`, `make build-server`
+- ✅ **ALWAYS use**: `make dev-start`, `make test-unit`, `make test-integration`, `make build-server`
 - **Reason**: Make targets provide consistent, repeatable configurations with proper environment setup
 
 **Examples of FORBIDDEN practices:**
 ```bash
 # ❌ DON'T DO THESE:
-go run cmd/server/main.go --config=config-development.yaml
+go run cmd/server/main.go --config=config-development.yml
 go test ./api/...
-./bin/server --config=config-development.yaml
+./bin/server --config=config-development.yml
 docker exec tmi-postgresql psql -U postgres
 docker run -d postgres:13
 
 # ✅ DO THESE INSTEAD:
-make start-dev
+make dev-start
 make test-unit
 make test-integration
-make start-dev-db
+make infra-db-start
 ```
 
-**Container Management**: Use `make start-dev-db`, `make start-dev-redis`, `make start-dev` for all container operations.
+**Container Management**: Use `make infra-db-start`, `make infra-redis-start`, `make dev-start` for all container operations.
 
 ### Testing Commands
 
@@ -117,13 +125,12 @@ make start-dev-db
   - Options: `make test-unit count1=true passfail=true`
 - Integration tests: `make test-integration` (requires database, runs with automatic setup/cleanup)
   - Specific test: `make test-integration name=TestName` 
-  - Cleanup only: `make test-integration-cleanup`
-- Alias: `make run-tests` (same as `make test-unit` for backward compatibility)
+  - Cleanup only: `make clean-all`
 
 #### Specialized Testing  
 - Telemetry tests: `make test-telemetry` (unit tests for telemetry components)
   - Integration mode: `make test-telemetry integration=true`
-- API testing: `make test-api` (requires running server via `make start-dev`)
+- API testing: `make test-api` (requires running server via `make dev-start`)
   - Auth token only: `make test-api auth=only`
   - No auth test only: `make test-api noauth=true`
 - Full API test: `make test-api-full` (automated setup: kills servers, starts DB/Redis, starts server, runs tests, cleans up)
@@ -135,14 +142,14 @@ make start-dev-db
 # Standard development workflow
 make test-unit                    # Fast unit tests
 make test-integration            # Full integration tests with database
-make run-lint && make build-server # Code quality check and build
+make lint && make build-server # Code quality check and build
 
 # Specific testing
 make test-unit name=TestStore_CRUD              # Run one unit test
 make test-integration name=TestDatabaseIntegration  # Run one integration test
 
 # API testing (requires server)
-make start-dev                   # Start server first
+make dev-start                   # Start server first
 make test-api                    # Test API endpoints with auth
 
 # Automated API testing (no manual setup required)
@@ -215,7 +222,7 @@ make test-api-full               # Full automated API testing (setup + test + cl
 
 ## User Preferences
 
-- After changing any file, run `make run-lint` and fix any issues caused by the change
+- After changing any file, run `make lint` and fix any issues caused by the change
 - After changing any executable or test file, run `make build-server` and fix any issues, then run `make test-unit` and fix any issues
 - Do not disable or skip failing tests, either diagnose to root cause and fix either the test issue or code issue, or ask the user what to do
 - Always use make targets for testing - never run `go test` commands directly
@@ -233,7 +240,7 @@ make test-api-full               # Full automated API testing (setup + test + cl
 - Unit tests: Use `make test-unit` or `make test-unit name=TestName`
 - Integration tests: Use `make test-integration` or `make test-integration name=TestName` 
 - Never create ad hoc `go test` commands - they will miss configuration settings and dependencies
-- Never create ad hoc commands to run the server - use `make start-dev` or other make targets
+- Never create ad hoc commands to run the server - use `make dev-start` or other make targets
 - All testing must go through make targets to ensure proper environment setup
 
 ## Test Philosophy
@@ -241,7 +248,7 @@ make test-api-full               # Full automated API testing (setup + test + cl
 - Never disable or skip failing tests - investigate to root cause and fix
 - Unit tests (`make test-unit`) should be fast and require no external dependencies
 - Integration tests (`make test-integration`) should use real databases and test full workflows
-- Always run `make run-lint` and `make build-server` after making changes
+- Always run `make lint` and `make build-server` after making changes
 
 ## Logging Requirements
 
@@ -259,7 +266,7 @@ make test-api-full               # Full automated API testing (setup + test + cl
 - API code generated from shared/api-specs/tmi-openapi.json using oapi-codegen v2
 - OpenAPI validation middleware clears security schemes (auth handled by JWT middleware)
 - Generated types in api/api.go include Echo server handlers and embedded spec
-- Config file: oapi-codegen-config.yaml
+- Config file: oapi-codegen-config.yml
 
 ## Clean Architecture - Request Flow
 
@@ -292,7 +299,7 @@ JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
 - Always use a normal oauth login flow with the "test" provider when performing any development or testing task that requires authentication  
 - Use `make test-api auth=only` to get JWT tokens for testing
 - OAuth test provider generates JWT tokens with user claims (email, name, sub)
-- For API testing, use `make test-api` (requires `make start-dev` first)
+- For API testing, use `make test-api` (requires `make dev-start` first)
 
 ## Python Development Memories
 

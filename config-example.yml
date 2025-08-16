@@ -1,7 +1,7 @@
 # TMI Example Configuration File
 # 
 # This file provides an example configuration for the TMI server.
-# Copy this to config-development.yaml or config-production.yaml and customize.
+# Copy this to config-development.yml or config-production.yml and customize.
 # Environment variables can override any value using the TMI_ prefix.
 # 
 # Examples:

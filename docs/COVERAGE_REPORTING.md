@@ -161,7 +161,7 @@ docker info
 If test databases fail to start:
 ```bash
 # Clean up any existing containers
-make test-integration-cleanup
+make clean-all
 
 # Or manually clean up
 docker stop tmi-integration-postgres tmi-integration-redis

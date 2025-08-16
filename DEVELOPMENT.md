@@ -4,12 +4,12 @@
 
 ```bash
 # Start development environment
-make start-dev
+make dev-start
 ```
 
 This will:
 1. Start PostgreSQL & Redis containers via Docker
-2. Generate `config-development.yaml` if it doesn't exist
+2. Generate `config-development.yml` if it doesn't exist
 3. Start the TMI server with development configuration
 
 ## Configuration
@@ -17,8 +17,8 @@ This will:
 TMI uses YAML configuration files with environment variable overrides.
 
 **Generated files:**
-- `config-development.yaml` - Development configuration
-- `config-production.yaml` - Production template  
+- `config-development.yml` - Development configuration
+- `config-production.yml` - Production template  
 - `docker-compose.env` - Container environment variables
 
 **Environment variables for secrets:**
@@ -26,7 +26,7 @@ TMI uses YAML configuration files with environment variable overrides.
 TMI_DATABASE_POSTGRES_PASSWORD         # Database password (automatically set to 'postgres' for dev)
 ```
 
-**OAuth credentials are stored directly in `config-development.yaml` for development convenience.**
+**OAuth credentials are stored directly in `config-development.yml` for development convenience.**
 
 ## OAuth Setup
 
@@ -36,7 +36,7 @@ For authentication, configure OAuth applications:
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create OAuth 2.0 credentials
 3. Add redirect URI: `http://localhost:8080/auth/callback`
-4. Update the OAuth credentials in `config-development.yaml`
+4. Update the OAuth credentials in `config-development.yml`
 
 ### GitHub OAuth (Optional)
 1. Go to GitHub Settings → Developer settings → OAuth Apps
@@ -48,8 +48,8 @@ For authentication, configure OAuth applications:
 Development uses Docker containers:
 
 ```bash
-make start-dev-db      # Start PostgreSQL only
-make start-dev-redis   # Start Redis only
+make infra-db-start    # Start PostgreSQL only
+make infra-redis-start # Start Redis only
 ```
 
 **Connection details:**
@@ -59,10 +59,10 @@ make start-dev-redis   # Start Redis only
 ## Available Commands
 
 ```bash
-make start-dev          # Start development server
+make dev-start          # Start development server
 make build-server       # Build production binary
-make run-tests          # Run tests
-make run-lint           # Run linter
+make test-unit          # Run unit tests
+make lint               # Run linter
 make generate-config    # Generate config templates
 ```
 
@@ -75,7 +75,7 @@ For production, use:
 make build-server
 
 # Deploy with production config
-./bin/server --config=config-production.yaml
+./bin/server --config=config-production.yml
 ```
 
 Set production environment variables:

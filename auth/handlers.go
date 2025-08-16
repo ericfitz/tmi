@@ -199,7 +199,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	// Get the authorization URL
 	authURL := provider.GetAuthorizationURL(state)
-	
+
 	// For test provider, check if client_callback is provided and modify the URL
 	if providerID == "test" && clientCallback != "" {
 		// Parse the generated auth URL to extract code and state

@@ -89,7 +89,7 @@ make build-server
 ### Testing
 
 ```bash
-make run-tests
+make test-unit
 ```
 
 Run a specific test:
@@ -101,7 +101,7 @@ make test-unit name=TestGetDiagrams
 ### Linting
 
 ```bash
-make run-lint
+make lint
 ```
 
 ### Generating API code

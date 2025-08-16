@@ -15,7 +15,7 @@ Now I want to come up with a plan for enabling actual collaborative editing. We 
 5. how to handle out-of-order messages or conflicting messages, e.g. an update after a delete, and
 6. whether any new messages are needed.
 
-We need to develop and refine a plan, and write it down. Part of the plan will be to update tmi-asyncapi.yaml, part of the plan will be to write documentation for client developers, and of course implementation and testing plans. Please take a first stab at the plan and then review it with me.
+We need to develop and refine a plan, and write it down. Part of the plan will be to update tmi-asyncapi.yml, part of the plan will be to write documentation for client developers, and of course implementation and testing plans. Please take a first stab at the plan and then review it with me.
 
 ## 2
 
