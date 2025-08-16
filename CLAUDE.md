@@ -50,6 +50,32 @@ This repository contains API documentation and Go implementation for a Collabora
     expect $createtm.body.id$ exists
     ```
 
+### OAuth Callback Stub
+
+- **OAuth Development Tool**: `python3 scripts/oauth-client-callback-stub.py --port 8079` - Lightweight OAuth callback handler for development and testing
+  - **Location**: `scripts/oauth-client-callback-stub.py` (standalone Python script)
+  - **Purpose**: Captures OAuth authorization codes and states from TMI's test provider for automated testing
+  - **Features**: Two-route HTTP server with OAuth callback handler and credentials API
+  - **Usage**:
+    - **Route 1 (`GET /`)**: Receives OAuth redirects, stores latest code/state parameters
+    - **Route 2 (`GET /latest`)**: Returns stored credentials as JSON for testing frameworks
+    - **Integration**: Works with StepCI tests to solve variable substitution limitations
+    - **Security**: Development-only tool, binds to localhost, no persistence
+  - **Example Integration**:
+    ```bash
+    # Start OAuth callback stub
+    python3 scripts/oauth-client-callback-stub.py --port 8079
+    
+    # Initiate OAuth flow with callback stub
+    curl "http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/"
+    
+    # Retrieve captured credentials
+    curl http://localhost:8079/latest
+    # Returns: {"code": "test_auth_code_...", "state": "AbCdEf..."}
+    ```
+  - **StepCI Integration**: Enables real OAuth testing by fetching actual authorization codes from TMI's test provider
+  - **Client Development**: Simplifies OAuth integration testing without implementing full callback handlers
+
 ## Critical Development Guidelines
 
 **MANDATORY: Always use Make targets - NEVER run commands directly**

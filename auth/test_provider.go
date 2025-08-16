@@ -74,6 +74,33 @@ func (p *TestProvider) GetAuthorizationURL(state string) string {
 	return fmt.Sprintf("%s?code=%s&state=%s", callbackURL, authCode, state)
 }
 
+// GetAuthorizationURLWithCallback returns the test authorization URL with custom callback
+// This allows the test provider to use different callback URLs as needed
+func (p *TestProvider) GetAuthorizationURLWithCallback(state string, callbackURL string) string {
+	// For test provider, generate a fake auth code and redirect directly to callback
+	authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
+	
+	// Use provided callback URL or fall back to default
+	if callbackURL == "" {
+		callbackURL = p.oauth2Config.RedirectURL
+		if callbackURL == "" {
+			callbackURL = "http://localhost:8080/auth/callback"
+		}
+	}
+	
+	// Parse the callback URL and add query parameters
+	if parsedURL, err := url.Parse(callbackURL); err == nil {
+		params := url.Values{}
+		params.Add("code", authCode)
+		params.Add("state", state)
+		parsedURL.RawQuery = params.Encode()
+		return parsedURL.String()
+	}
+	
+	// Fallback if URL parsing fails
+	return fmt.Sprintf("%s?code=%s&state=%s", callbackURL, authCode, state)
+}
+
 // ExchangeCode simulates token exchange and always succeeds
 func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenResponse, error) {
 	// Generate a fake access token

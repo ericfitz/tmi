@@ -1,7 +1,7 @@
-.PHONY: build-server build-check-db run-tests test-unit test-integration test-integration-cleanup run-lint clean-artifacts start-dev start-prod start-dev-db start-dev-redis stop-dev-db stop-dev-redis delete-dev-db delete-dev-redis build-dev-app build-postgres build-redis generate-api generate-config start-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config validate-asyncapi validate-openapi list-openapi-endpoints report-coverage report-coverage-unit report-coverage-integration generate-coverage-report ensure-migrations check-migrations run-migrations reset-database test-api test-api-full test-api-script test-dev test-dev-full test-collaboration-permissions test-collaboration-permissions-v2 clean-dev-env debug-auth-endpoints list-targets sync-shared push-shared subtree-help analyze-endpoints analyze-dead-code cleanup-dead-code
+.PHONY: build-server build-check-db run-tests test-unit test-integration run-lint clean-artifacts start-dev start-prod start-dev-db start-dev-redis stop-dev-db stop-dev-redis delete-dev-db delete-dev-redis build-dev-app build-postgres build-redis generate-api generate-config start-observability stop-observability delete-observability test-telemetry benchmark-telemetry validate-otel-config validate-asyncapi validate-openapi list-openapi-endpoints report-coverage report-coverage-unit report-coverage-integration generate-coverage-report ensure-migrations check-migrations run-migrations reset-database test-api kill clean-dev-env debug-auth-endpoints list-targets sync-shared push-shared subtree-help analyze-endpoints analyze-dead-code cleanup-dead-code test-stepci test-stepci-full test-stepci-auth test-stepci-threat-models test-stepci-threats test-stepci-diagrams test-stepci-integration
 
 # Backward compatibility aliases
-.PHONY: build test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app gen-api gen-config dev-observability coverage coverage-unit coverage-integration coverage-report migrate reset-db dev-test dev-test-full clean-dev openapi-endpoints list
+.PHONY: build test lint clean dev prod dev-db dev-redis stop-db stop-redis delete-db delete-redis dev-app gen-api gen-config dev-observability coverage coverage-unit coverage-integration coverage-report migrate reset-db clean-dev openapi-endpoints list stepci stepci-full stepci-auth
 
 # Default build target
 VERSION := 0.9.0
@@ -37,6 +37,7 @@ test-unit:
 		fi; \
 	fi
 
+
 # Run integration tests with complete environment setup
 test-integration:
 	@if [ -n "$(name)" ]; then \
@@ -44,42 +45,6 @@ test-integration:
 	else \
 		./scripts/start-integration-tests.sh; \
 	fi
-
-# Cleanup integration test environment (containers and server)
-test-integration-cleanup:
-	@echo "🧹 Cleaning up integration test environment..."
-	@if [ -f .integration-server.pid ]; then \
-		PID=$$(cat .integration-server.pid); \
-		if ps -p $$PID > /dev/null 2>&1; then \
-			echo "Stopping integration server (PID: $$PID)..."; \
-			kill $$PID 2>/dev/null || true; \
-			sleep 2; \
-			if ps -p $$PID > /dev/null 2>&1; then \
-				echo "Force killing integration server (PID: $$PID)..."; \
-				kill -9 $$PID 2>/dev/null || true; \
-			fi; \
-		fi; \
-		rm -f .integration-server.pid; \
-	fi
-	@echo "Checking for processes listening on port 8081..."
-	@PIDS=$$(lsof -ti :8081 2>/dev/null || true); \
-	if [ -n "$$PIDS" ]; then \
-		echo "Found processes on port 8081: $$PIDS"; \
-		for PID in $$PIDS; do \
-			echo "Stopping process $$PID listening on port 8081..."; \
-			kill $$PID 2>/dev/null || true; \
-			sleep 1; \
-			if ps -p $$PID > /dev/null 2>&1; then \
-				echo "Force killing process $$PID..."; \
-				kill -9 $$PID 2>/dev/null || true; \
-			fi; \
-		done; \
-	fi
-	@echo "Stopping integration test containers only..."
-	@docker stop tmi-integration-postgres tmi-integration-redis 2>/dev/null || true
-	@docker rm tmi-integration-postgres tmi-integration-redis 2>/dev/null || true
-	@rm -f server-integration.log integration-test.log config-integration-test.yaml
-	@echo "✅ Cleanup completed"
 
 # Alias for backward compatibility
 run-tests: test-unit
@@ -340,107 +305,131 @@ test-api:
 		fi; \
 	fi
 
-# Full API test with environment setup - kills existing server, sets up fresh environment, and runs tests
-test-api-full:
-	@echo "🚀 Setting up full development environment for API testing..."
-	
+
+
+# StepCI Integration Testing Targets
+# Run all StepCI integration tests
+test-stepci:
+	@if [ -n "$(test)" ]; then \
+		echo "🧪 Running specific StepCI test: $(test)"; \
+		if [ ! -f "stepci/$(test)" ]; then \
+			echo "❌ Test file not found: stepci/$(test)"; \
+			echo "Available tests:"; \
+			find stepci -name "*.yml" -not -path "*/utils/*" | sed 's|stepci/||' | sort; \
+			exit 1; \
+		fi; \
+		stepci run "stepci/$(test)"; \
+	else \
+		echo "🧪 Running all StepCI integration tests..."; \
+		echo "📂 Test files:"; \
+		find stepci -name "*.yml" -not -path "*/utils/*" | sed 's|stepci/||' | sort; \
+		echo ""; \
+		for test_file in $$(find stepci -name "*.yml" -not -path "*/utils/*" | sort); do \
+			echo "🔍 Running: $$test_file"; \
+			stepci run "$$test_file" || echo "❌ Test failed: $$test_file"; \
+			echo ""; \
+		done; \
+	fi
+
+# Run StepCI tests with full environment setup
+test-stepci-full:
+	@echo "🚀 Setting up full development environment for StepCI testing..."
 	@echo "1. 🛑 Stopping any running server processes..."
 	@pkill -f "cmd/server/main.go" || true
 	@pkill -f "bin/server" || true
-	@sleep 2
+	@lsof -ti:8080 | xargs kill -9 2>/dev/null || true
 	
-	@echo "2. 🗑️  Cleaning up existing containers..."
-	@docker rm -f tmi-postgresql tmi-redis || true
+	@echo "2. 🐘 Starting PostgreSQL and Redis..."
+	@$(MAKE) start-dev-db >/dev/null 2>&1
+	@$(MAKE) start-dev-redis >/dev/null 2>&1
+	@sleep 3
 	
-	@echo "3. 🗃️  Starting development database..."
-	@$(MAKE) start-dev-db
-	
-	@echo "4. 📦 Starting development Redis..."
-	@$(MAKE) start-dev-redis
-	
-	@echo "5. ⏳ Waiting for services to be ready..."
-	@sleep 5
-	
-	@echo "6. 🔨 Building server..."
+	@echo "3. 🏗️  Building server..."
 	@$(MAKE) build-server
 	
-	@echo "7. 📝 Ensuring configuration files exist..."
-	@if [ ! -f config-development.yaml ]; then \
-		echo "   Generating development configuration..."; \
-		go run cmd/server/main.go --generate-config || exit 1; \
-	fi
-	
-	@echo "8. 🚀 Starting development server in background..."
-	@nohup go run -tags dev cmd/server/main.go --config=config-development.yaml > server.log 2>&1 & \
-	SERVER_PID=$$!; \
-	echo "Server started with PID: $$SERVER_PID"; \
-	echo "9. ⏳ Waiting for server to start..."; \
-	for i in 1 2 3 4 5 6 7 8 9 10; do \
-		if curl -s http://localhost:8080/health >/dev/null 2>&1; then \
+	@echo "4. 🚀 Starting TMI server..."
+	@$(MAKE) start-dev >/dev/null 2>&1 &
+	@echo "5. ⏳ Waiting for server to be ready..."
+	@timeout=30; \
+	while [ $$timeout -gt 0 ]; do \
+		if curl -s http://localhost:8080/ >/dev/null 2>&1; then \
 			echo "✅ Server is ready!"; \
 			break; \
 		fi; \
-		echo "   Waiting for server... (attempt $$i/10)"; \
-		sleep 3; \
+		echo "⏳ Waiting for server... ($$timeout seconds remaining)"; \
+		sleep 2; \
+		timeout=$$((timeout - 2)); \
 	done; \
-	if ! curl -s http://localhost:8080/health >/dev/null 2>&1; then \
-		echo "❌ Server failed to start within timeout"; \
-		echo "Server log:"; \
-		tail -20 server.log || true; \
-		pkill -f "cmd/server/main.go" || true; \
+	if [ $$timeout -le 0 ]; then \
+		echo "❌ Server failed to start within 30 seconds"; \
+		pkill -f "bin/server" || true; \
 		exit 1; \
 	fi
 	
-	@echo "10. 🧪 Running API tests..."
-	@$(MAKE) test-api || (echo "❌ API tests failed"; pkill -f "cmd/server/main.go" || true; pkill -f "bin/server" || true; exit 1)
+	@echo "6. 🧪 Running StepCI tests..."
+	@$(MAKE) test-stepci test="$(test)" || (echo "❌ StepCI tests failed"; pkill -f "bin/server" || true; exit 1)
 	
-	@echo "11. 🛑 Cleaning up server..."
-	@pkill -f "cmd/server/main.go" || true
+	@echo "7. 🛑 Cleaning up server..."
 	@pkill -f "bin/server" || true
-	
-	@echo "✅ Full API test completed successfully!"
+	@echo "✅ StepCI integration testing complete!"
 
-# Quick development test - builds and tests key endpoints
-test-dev: build-server
-	@echo "🚀 Running quick development test..."
-	@if ! pgrep -f "bin/server" > /dev/null; then \
-		echo "❌ Server not running. Start with 'make start-dev' first"; \
-		exit 1; \
+# Run StepCI authentication tests only
+test-stepci-auth:
+	@echo "🔐 Running StepCI authentication tests..."
+	@stepci run stepci/auth/oauth-flow.yml
+	@stepci run stepci/auth/token-management.yml
+	@stepci run stepci/auth/user-operations.yml
+
+# Run StepCI threat models tests only
+test-stepci-threat-models:
+	@echo "🎯 Running StepCI threat models tests..."
+	@stepci run stepci/threat-models/crud-operations.yml
+	@stepci run stepci/threat-models/validation-failures.yml
+	@stepci run stepci/threat-models/search-filtering.yml
+
+# Run StepCI threats tests only
+test-stepci-threats:
+	@echo "⚠️  Running StepCI threats tests..."
+	@stepci run stepci/threats/crud-operations.yml
+	@stepci run stepci/threats/bulk-operations.yml
+
+# Run StepCI diagrams tests only
+test-stepci-diagrams:
+	@echo "📊 Running StepCI diagrams tests..."
+	@stepci run stepci/diagrams/collaboration.yml
+
+# Run StepCI integration tests only
+test-stepci-integration:
+	@echo "🔗 Running StepCI integration tests..."
+	@stepci run stepci/integration/full-workflow.yml
+	@stepci run stepci/integration/rbac-permissions.yml
+
+# Kill process listening on port 8080 (or custom port)
+kill:
+	@PORT=$${port:-8080}; \
+	echo "🔫 Killing processes listening on port $$PORT..."; \
+	PIDS=$$(lsof -ti :$$PORT 2>/dev/null || true); \
+	if [ -n "$$PIDS" ]; then \
+		echo "Found processes on port $$PORT: $$PIDS"; \
+		for PID in $$PIDS; do \
+			echo "Stopping process $$PID listening on port $$PORT..."; \
+			kill $$PID 2>/dev/null || true; \
+			sleep 1; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				echo "Force killing process $$PID..."; \
+				kill -9 $$PID 2>/dev/null || true; \
+			fi; \
+		done; \
+		echo "✅ All processes on port $$PORT have been killed"; \
+	else \
+		echo "ℹ️  No processes found listening on port $$PORT"; \
 	fi
-	@$(MAKE) test-api
-
-# Full development test - sets up environment and runs development tests
-test-dev-full: test-api-full
-
-# Run API test scripts using Python testing tool
-test-api-script:
-	@if [ -z "$(script)" ]; then \
-		echo "Usage: make test-api-script script=path/to/test.txt"; \
-		echo "Example: make test-api-script script=test_examples/basic_api_test.txt"; \
-		exit 1; \
-	fi
-	@echo "🧪 Running API test script: $(script)"
-	@uv run scripts/api_test.py $(script)
 
 # Clean development environment (kill processes, clean DBs)
 clean-dev-env:
 	@echo "🧹 Cleaning development environment..."
 	@./scripts/clean-dev.sh
 
-# Test collaboration session permissions end-to-end (original version)
-test-collaboration-permissions:
-	@echo "🧪 Running comprehensive collaboration session permissions test..."
-	@./scripts/test-collaboration-permissions.sh
-
-# Test collaboration session permissions end-to-end (v2 - improved version)
-test-collaboration-permissions-v2:
-	@echo "🧪 Running comprehensive collaboration session permissions test (v2)..."
-	@./scripts/test-collaboration-permissions-v2.sh
-
-# Test session creation and join integration (OAuth flow, threat models, collaboration)
-test-session-join-integration:
-	@echo "🧪 Running session creation and join integration test..."
-	@./scripts/test-session-join-integration.sh
 
 # Debug auth endpoints - check what's available
 debug-auth-endpoints:
@@ -483,11 +472,12 @@ coverage-integration: report-coverage-integration
 coverage-report: generate-coverage-report
 migrate: run-migrations
 reset-db: reset-database
-dev-test: test-dev
-dev-test-full: test-dev-full
 clean-dev: clean-dev-env
 openapi-endpoints: list-openapi-endpoints
 list: list-targets
+stepci: test-stepci
+stepci-full: test-stepci-full
+stepci-auth: test-stepci-auth
 
 # Git Subtree Management for Shared Resources
 .PHONY: push-shared subtree-help

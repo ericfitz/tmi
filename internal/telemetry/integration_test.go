@@ -235,7 +235,7 @@ func (suite *IntegrationTestSuite) setupHTTPServer() error {
 	router.Use(httpTracing.TracingLoggerMiddleware())
 
 	// Test endpoints
-	router.GET("/health", suite.healthHandler)
+	router.GET("/", suite.healthHandler)
 	router.GET("/api/v1/threat-models", suite.listThreatModelsHandler)
 	router.POST("/api/v1/threat-models", suite.createThreatModelHandler)
 	router.GET("/api/v1/threat-models/:id", suite.getThreatModelHandler)
@@ -523,7 +523,7 @@ func (suite *IntegrationTestSuite) testHTTPEndpoints(t *testing.T) {
 		path     string
 		expected int
 	}{
-		{"GET", "/health", http.StatusOK},
+		{"GET", "/", http.StatusOK},
 		{"GET", "/api/v1/threat-models", http.StatusOK},
 		{"POST", "/api/v1/threat-models", http.StatusCreated},
 		{"GET", "/api/v1/threat-models/tm123", http.StatusOK},
@@ -748,7 +748,7 @@ func BenchmarkHTTPRequestWithTelemetry(b *testing.B) {
 	defer suite.Cleanup()
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	url := suite.httpServer.URL + "/health"
+	url := suite.httpServer.URL + "/"
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {

@@ -276,7 +276,7 @@ func (s *Server) HandleOAuthCallback(c *gin.Context, params HandleOAuthCallbackP
 }
 
 // AuthorizeOAuthProvider initiates OAuth flow
-func (s *Server) AuthorizeOAuthProvider(c *gin.Context, provider AuthorizeOAuthProviderParamsProvider, params AuthorizeOAuthProviderParams) {
+func (s *Server) AuthorizeOAuthProvider(c *gin.Context, provider string, params AuthorizeOAuthProviderParams) {
 	logger := logging.Get()
 	logger.Info("[SERVER_INTERFACE] AuthorizeOAuthProvider called for provider: %s", provider)
 	if s.authService != nil {
@@ -331,7 +331,7 @@ func (s *Server) RefreshToken(c *gin.Context) {
 }
 
 // ExchangeOAuthCode exchanges auth code for tokens
-func (s *Server) ExchangeOAuthCode(c *gin.Context, provider ExchangeOAuthCodeParamsProvider) {
+func (s *Server) ExchangeOAuthCode(c *gin.Context, provider string) {
 	logger := logging.Get()
 	logger.Info("[SERVER_INTERFACE] ExchangeOAuthCode called for provider: %s", provider)
 	if s.authService != nil {

@@ -180,7 +180,6 @@ func DefaultRequestResponseConfig() RequestResponseLoggingConfig {
 		MaxBodySize:    10 * 1024, // 10KB
 		OnlyDebugLevel: true,
 		SkipPaths: []string{
-			"/health",
 			"/metrics",
 			"/favicon.ico",
 		},

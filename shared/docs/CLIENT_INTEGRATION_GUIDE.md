@@ -7,6 +7,7 @@ This guide provides frontend developers with everything needed to implement coll
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [OAuth Integration & Testing](#oauth-integration--testing)
 - [Collaboration Session Management](#collaboration-session-management)
 - [Authentication & Connection](#authentication--connection)
 - [Message Types & Protocol](#message-types--protocol)
@@ -67,6 +68,188 @@ await client.sendBatchOperation([
   { id: 'cell-2', operation: 'update', data: cellData2 }
 ]);
 ```
+
+## OAuth Integration & Testing
+
+### OAuth Callback Stub for Client Development
+
+When developing and testing OAuth integration with TMI, you may need to capture OAuth authorization codes without implementing a full OAuth callback handler. TMI provides a lightweight OAuth callback stub that simplifies testing and development.
+
+#### Overview
+
+The OAuth callback stub (`scripts/oauth-client-callback-stub.py`) is a development tool that:
+- Receives OAuth redirect callbacks from TMI's test OAuth provider
+- Stores the latest authorization code and state parameters
+- Provides an API endpoint to retrieve credentials for automated testing
+- Solves variable substitution limitations in testing frameworks like StepCI
+
+#### Features
+
+**Route 1 - OAuth Callback Handler (`GET /`)**:
+- Accepts OAuth redirects with `code` and `state` parameters
+- Stores the latest OAuth credentials for later retrieval
+- Returns a simple acknowledgment response
+- Supports graceful shutdown via special "exit" code parameter
+
+**Route 2 - Credentials API (`GET /latest`)**:
+- Returns the most recently captured OAuth credentials as JSON
+- Enables automated testing tools to fetch real authorization codes
+- Provides both code and state parameters for complete OAuth flows
+
+#### Usage
+
+**Starting the Callback Stub:**
+```bash
+# Start with default port (8079)
+python3 scripts/oauth-client-callback-stub.py
+
+# Start with custom port
+python3 scripts/oauth-client-callback-stub.py --port 9000
+```
+
+**Integration with TMI OAuth Flow:**
+```bash
+# 1. Start the callback stub
+python3 scripts/oauth-client-callback-stub.py --port 8079
+
+# 2. In your client application, initiate OAuth with callback URL
+curl "http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/"
+
+# 3. Fetch the captured OAuth credentials
+curl http://localhost:8079/latest
+```
+
+**Response Format:**
+```json
+{
+  "code": "test_auth_code_1234567890",
+  "state": "AbCdEf123456"
+}
+```
+
+#### Client Integration Example
+
+**JavaScript OAuth Flow with Callback Stub:**
+```javascript
+class OAuthTestingHelper {
+  constructor(callbackStubUrl = 'http://localhost:8079') {
+    this.callbackStubUrl = callbackStubUrl;
+  }
+  
+  async performOAuthFlow(tmiServerUrl = 'http://localhost:8080') {
+    // Step 1: Initiate OAuth flow with callback stub
+    const authUrl = `${tmiServerUrl}/auth/login/test?client_callback=${this.callbackStubUrl}/`;
+    
+    // In browser environment, redirect to auth URL
+    window.location.href = authUrl;
+    
+    // In testing environment, make request to trigger OAuth
+    // The OAuth flow will redirect to your callback stub
+  }
+  
+  async getOAuthCredentials() {
+    const response = await fetch(`${this.callbackStubUrl}/latest`);
+    if (!response.ok) {
+      throw new Error(`Failed to get OAuth credentials: ${response.status}`);
+    }
+    return await response.json(); // { code: "...", state: "..." }
+  }
+  
+  async exchangeCodeForTokens(code, redirectUri, serverUrl = 'http://localhost:8080') {
+    const response = await fetch(`${serverUrl}/auth/token/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: code,
+        redirect_uri: redirectUri
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Token exchange failed: ${response.status}`);
+    }
+    
+    return await response.json(); // { access_token: "...", refresh_token: "..." }
+  }
+}
+
+// Example usage in tests
+async function testOAuthIntegration() {
+  const oauthHelper = new OAuthTestingHelper();
+  
+  // Start OAuth flow (this would normally involve user interaction)
+  await oauthHelper.performOAuthFlow();
+  
+  // Wait for callback processing
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // Retrieve captured credentials
+  const credentials = await oauthHelper.getOAuthCredentials();
+  console.log('OAuth credentials:', credentials);
+  
+  // Exchange code for JWT tokens
+  const tokens = await oauthHelper.exchangeCodeForTokens(
+    credentials.code, 
+    'http://localhost:8079/'
+  );
+  console.log('JWT tokens:', tokens);
+}
+```
+
+#### Automated Testing Integration
+
+**StepCI Integration:**
+```yaml
+steps:
+  - id: initiate_oauth
+    name: Start OAuth flow with callback stub
+    http:
+      url: /auth/login/test?client_callback=http://localhost:8079/
+      method: GET
+      followRedirects: true
+
+  - id: fetch_credentials
+    name: Get real OAuth credentials from stub
+    http:
+      url: http://localhost:8079/latest
+      method: GET
+      check:
+        status: 200
+        schema:
+          type: object
+          properties:
+            code: { type: string }
+            state: { type: string }
+    captures:
+      auth_code: { jsonpath: $.code }
+      auth_state: { jsonpath: $.state }
+
+  - id: exchange_tokens
+    name: Exchange real code for JWT tokens
+    http:
+      url: /auth/token/test
+      method: POST
+      json:
+        code: "{{ auth_code }}"
+        redirect_uri: "http://localhost:8079/"
+```
+
+#### Development Benefits
+
+- **No Complex OAuth Handling**: Eliminates need to implement full OAuth callback logic during development
+- **Real Authorization Codes**: Works with actual OAuth flows rather than mock data
+- **Testing Framework Integration**: Solves variable substitution issues in testing tools
+- **Simple Setup**: Single Python script with no external dependencies
+- **Graceful Shutdown**: Supports clean termination for automated testing pipelines
+
+#### Security Notes
+
+- **Development Only**: This tool is for development and testing environments only
+- **No Production Use**: Never use the callback stub in production environments
+- **Local Binding**: Binds to localhost only for security
+- **No Persistence**: Credentials are stored in memory and lost on restart
+
+The OAuth callback stub streamlines OAuth development and testing workflows by providing a simple, reliable way to capture and retrieve OAuth authorization codes during client application development.
 
 ## Collaboration Session Management
 

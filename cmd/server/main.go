@@ -975,7 +975,6 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 			MaxBodySize:    10 * 1024, // 10KB
 			OnlyDebugLevel: true,
 			SkipPaths: []string{
-				"/health",
 				"/metrics",
 				"/favicon.ico",
 			},

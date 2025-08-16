@@ -199,6 +199,19 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	// Get the authorization URL
 	authURL := provider.GetAuthorizationURL(state)
+	
+	// For test provider, check if client_callback is provided and modify the URL
+	if providerID == "test" && clientCallback != "" {
+		// Parse the generated auth URL to extract code and state
+		if parsedURL, err := url.Parse(authURL); err == nil {
+			// Create new URL with client callback
+			if newCallbackURL, err := url.Parse(clientCallback); err == nil {
+				// Preserve the query parameters (code and state)
+				newCallbackURL.RawQuery = parsedURL.RawQuery
+				authURL = newCallbackURL.String()
+			}
+		}
+	}
 
 	// Redirect to the authorization URL
 	c.Redirect(http.StatusFound, authURL)

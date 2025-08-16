@@ -2493,13 +2493,7 @@
             "required": true,
             "description": "OAuth provider identifier",
             "schema": {
-              "type": "string",
-              "enum": [
-                "github",
-                "google",
-                "microsoft",
-                "test"
-              ]
+              "type": "string"
             }
           },
           {
@@ -2575,12 +2569,7 @@
             "required": true,
             "description": "OAuth provider identifier",
             "schema": {
-              "type": "string",
-              "enum": [
-                "google",
-                "github",
-                "microsoft"
-              ]
+              "type": "string"
             }
           }
         ],
@@ -2645,7 +2634,7 @@
                     "summary": "Invalid provider",
                     "value": {
                       "error": "Invalid provider: invalid_provider",
-                      "error_description": "Provider 'invalid_provider' is not supported. Supported providers: google, github, microsoft"
+                      "error_description": "Provider 'invalid_provider' is not configured or supported"
                     }
                   },
                   "missing_code": {

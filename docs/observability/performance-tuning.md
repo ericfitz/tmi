@@ -19,6 +19,7 @@ This guide provides comprehensive performance tuning strategies for the TMI Open
 ## Overview
 
 Performance tuning for OpenTelemetry involves optimizing multiple layers:
+
 - Telemetry data collection and processing
 - Network communication and serialization
 - Memory usage and garbage collection
@@ -32,34 +33,37 @@ The goal is to maintain comprehensive observability while minimizing performance
 ### Key Performance Indicators
 
 1. **Telemetry Overhead**
+
    ```promql
    # CPU overhead from telemetry
    rate(process_cpu_seconds_total{job="tmi-api"}[5m]) * 100
-   
+
    # Memory overhead
    (go_memstats_heap_inuse_bytes / go_memstats_sys_bytes) * 100
-   
+
    # Goroutine overhead
    go_goroutines
    ```
 
 2. **Telemetry Pipeline Performance**
+
    ```promql
    # Export latency
    otel_exporter_send_duration_seconds
-   
+
    # Queue utilization
    otel_processor_queue_size / otel_processor_queue_capacity * 100
-   
+
    # Drop rate
    rate(otel_processor_dropped_spans_total[5m])
    ```
 
 3. **Application Performance Impact**
+
    ```promql
    # Request latency with/without telemetry
    histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
-   
+
    # Throughput impact
    rate(http_requests_total[5m])
    ```
@@ -109,13 +113,13 @@ sampling:
   default_strategy:
     type: probabilistic
     param: 0.1
-  
+
   per_service_strategies:
     - service: "tmi-api"
       type: adaptive
       max_traces_per_second: 100
       per_operation_strategies:
-        - operation: "GET /health"
+        - operation: "GET /"
           type: probabilistic
           param: 0.01
         - operation: "POST /api/v1/threat-models"
@@ -131,14 +135,14 @@ Implement dynamic sampling based on system load:
 func (s *DynamicSampler) ShouldSample(ctx context.Context) bool {
     cpuUsage := s.resourceMonitor.GetCPUUsage()
     memoryUsage := s.resourceMonitor.GetMemoryUsage()
-    
+
     // Reduce sampling under high load
     if cpuUsage > 80 || memoryUsage > 80 {
         return rand.Float64() < 0.05 // 5% sampling
     } else if cpuUsage > 60 || memoryUsage > 60 {
         return rand.Float64() < 0.1  // 10% sampling
     }
-    
+
     return rand.Float64() < 0.2 // 20% sampling
 }
 ```
@@ -375,7 +379,7 @@ func (c *TraceCache) Get(traceID string) (*Trace, bool) {
         c.recordCacheHit()
         return trace.(*Trace), true
     }
-    
+
     c.recordCacheMiss()
     return nil, false
 }
@@ -418,7 +422,7 @@ func (p *WorkerPool) Start() {
         worker := NewWorker(p.workerPool)
         worker.Start()
     }
-    
+
     go p.dispatch()
 }
 
@@ -461,7 +465,7 @@ semaphore := make(chan struct{}, 10)
 func export(data []byte) error {
     semaphore <- struct{}{}
     defer func() { <-semaphore }()
-    
+
     return doExport(data)
 }
 ```
@@ -471,6 +475,7 @@ func export(data []byte) error {
 ### Environment-Specific Configurations
 
 #### High-Traffic Production
+
 ```bash
 # Conservative sampling
 OTEL_TRACING_SAMPLE_RATE=0.01
@@ -489,6 +494,7 @@ OTEL_PERFORMANCE_PROFILE=high
 ```
 
 #### Low-Latency Production
+
 ```bash
 # Moderate sampling
 OTEL_TRACING_SAMPLE_RATE=0.05
@@ -506,6 +512,7 @@ OTEL_PERFORMANCE_PROFILE=medium
 ```
 
 #### Resource-Constrained Production
+
 ```bash
 # Very conservative sampling
 OTEL_TRACING_SAMPLE_RATE=0.005
@@ -599,14 +606,14 @@ Implement custom optimization logic:
 func (o *CustomOptimizer) OptimizeForLatency(ctx context.Context) {
     currentLatency := o.getAverageLatency()
     targetLatency := 100 * time.Millisecond
-    
+
     if currentLatency > targetLatency {
         // Reduce batch sizes
         o.adjustBatchSize(0.8)
-        
+
         // Increase sampling aggressiveness
         o.adjustSamplingRate(0.7)
-        
+
         // Prioritize low-latency exporters
         o.switchToFastExporter()
     }
@@ -667,6 +674,7 @@ Create comprehensive performance monitoring:
 ## Troubleshooting Performance Issues
 
 ### High Memory Usage
+
 ```bash
 # Check memory usage
 go tool pprof http://localhost:6060/debug/pprof/heap
@@ -680,6 +688,7 @@ GOGC=50
 ```
 
 ### High CPU Usage
+
 ```bash
 # Check CPU hotspots
 go tool pprof http://localhost:6060/debug/pprof/profile
@@ -692,6 +701,7 @@ OTEL_EXPORTER_OTLP_COMPRESSION=gzip
 ```
 
 ### High Latency
+
 ```bash
 # Reduce batch timeout
 OTEL_TRACING_BATCH_TIMEOUT=1s

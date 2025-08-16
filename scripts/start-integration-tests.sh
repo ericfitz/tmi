@@ -42,7 +42,6 @@ log_error() {
 
 # Cleanup function - uses same cleanup logic as Makefile test-integration-cleanup target
 cleanup() {
-    local exit_code=$?
     log_info "Cleaning up integration test environment..."
     
     # Stop integration server
@@ -84,11 +83,17 @@ cleanup() {
     rm -f server-integration.log integration-test.log config-integration-test.yaml
     
     log_success "Cleanup completed"
+}
+
+# Cleanup and exit with preserved exit code
+cleanup_and_exit() {
+    local exit_code=$?
+    cleanup
     exit $exit_code
 }
 
 # Trap cleanup on script exit, preserving exit code
-trap cleanup EXIT
+trap cleanup_and_exit EXIT
 
 # Main execution
 main() {
@@ -102,12 +107,9 @@ main() {
         exit 1
     fi
     
-    # 1. Cleanup any existing environment (same as Makefile)
+    # 1. Cleanup any existing environment
     log_info "1️⃣  Cleaning up any existing test environment..."
-    pkill -f "bin/server.*test" || true
-    pkill -f "go run.*server.*test" || true
-    docker rm -f $POSTGRES_CONTAINER $REDIS_CONTAINER 2>/dev/null || true
-    sleep 2
+    cleanup
     
     # 2. Start test databases using existing script
     log_info "2️⃣  Starting test databases..."
@@ -215,8 +217,7 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         --cleanup-only)
-            cleanup
-            exit 0
+            cleanup_and_exit
             ;;
         --test-name)
             TEST_NAME="$2"

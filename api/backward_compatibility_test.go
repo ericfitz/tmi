@@ -171,7 +171,7 @@ func (bct *BackwardCompatibilityTest) testAuthEndpoints(t *testing.T) {
 		{
 			name:           "GetHealthCheck",
 			method:         "GET",
-			path:           "/health",
+			path:           "/",
 			body:           nil,
 			expectedStatus: http.StatusOK,
 			description:    "Health check should work",
@@ -197,16 +197,9 @@ func (bct *BackwardCompatibilityTest) testHealthEndpoints(t *testing.T) {
 		{
 			name:           "HealthCheck",
 			method:         "GET",
-			path:           "/health",
+			path:           "/",
 			expectedStatus: http.StatusOK,
 			description:    "Health endpoint should work",
-		},
-		{
-			name:           "ReadinessCheck",
-			method:         "GET",
-			path:           "/ready",
-			expectedStatus: http.StatusOK,
-			description:    "Readiness endpoint should work",
 		},
 	}
 
@@ -350,7 +343,7 @@ func (bct *BackwardCompatibilityTest) TestContentTypeCompatibility(t *testing.T)
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/health", nil)
+			req := httptest.NewRequest("GET", "/", nil)
 			req.Header.Set("Content-Type", tc.contentType)
 			req.Header.Set("Accept", tc.accept)
 
