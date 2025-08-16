@@ -56,38 +56,82 @@ This repository contains API documentation and Go implementation for a Collabora
 
 ### OAuth Callback Stub
 
-- **OAuth Development Tool**: `python3 scripts/oauth-client-callback-stub.py --port 8079` - Lightweight OAuth callback handler for development and testing
+- **OAuth Development Tool**: `make oauth-stub-start` or `uv run scripts/oauth-client-callback-stub.py --port 8079` - Universal OAuth callback handler supporting both Authorization Code and Implicit flows
   - **Location**: `scripts/oauth-client-callback-stub.py` (standalone Python script)
-  - **Purpose**: Captures OAuth authorization codes and states from TMI's test provider for automated testing
-  - **Features**: Two-route HTTP server with OAuth callback handler and credentials API
-  - **Logging**: Structured logging to `/tmp/oauth-stub.log` with RFC3339 timestamps and dual console output
-  - **Usage**:
-    - **Route 1 (`GET /`)**: Receives OAuth redirects, stores latest code/state parameters
-    - **Route 2 (`GET /latest`)**: Returns stored credentials as JSON for testing frameworks
-    - **Magic Exit Code**: Send `GET /?code=exit` to gracefully shutdown server via HTTP request
-    - **Integration**: Works with StepCI tests to solve variable substitution limitations
-    - **Security**: Development-only tool, binds to localhost, no persistence
+  - **Purpose**: Captures OAuth credentials from TMI server supporting both OAuth2 Authorization Code Flow and Implicit Flow
+  - **Flow Detection**: Automatically detects and handles both OAuth flows:
+    - **Authorization Code Flow**: Receives `code` and `state`, client exchanges code for tokens
+    - **Implicit Flow**: Receives tokens directly (`access_token`, `refresh_token`, etc.)
+  - **Features**: 
+    - Two-route HTTP server with OAuth callback handler and credentials API
+    - Automatic flow type detection and appropriate response formatting
+    - Enhanced debugging with detailed parameter logging
+  - **Logging**: Comprehensive structured logging to `/tmp/oauth-stub.log` with RFC3339 timestamps and dual console output
+  - **Make Commands**:
+    - `make oauth-stub-start` - Start OAuth stub on port 8079
+    - `make oauth-stub-stop` - Stop OAuth stub gracefully  
+    - `make oauth-stub-status` - Check if OAuth stub is running
+  - **API Routes**:
+    - **Route 1 (`GET /`)**: Receives OAuth redirects, analyzes flow type, stores credentials
+    - **Route 2 (`GET /latest`)**: Returns flow-appropriate JSON response for client integration
+  - **Response Formats**:
+    ```json
+    // Authorization Code Flow Response
+    {
+      "flow_type": "authorization_code",
+      "code": "test_auth_code_1234567890",
+      "state": "AbCdEf...",
+      "ready_for_token_exchange": true
+    }
+    
+    // Implicit Flow Response (TMI's current implementation)
+    {
+      "flow_type": "implicit",
+      "state": "AbCdEf...",
+      "access_token": "eyJhbGc...",
+      "refresh_token": "uuid-string",
+      "token_type": "Bearer",
+      "expires_in": "3600",
+      "tokens_ready": true
+    }
+    
+    // No data yet
+    {
+      "flow_type": "none",
+      "error": "No OAuth data received yet"
+    }
+    ```
   - **Example Integration**:
     ```bash
     # Start OAuth callback stub
-    python3 scripts/oauth-client-callback-stub.py --port 8079
+    make oauth-stub-start
     
     # Initiate OAuth flow with callback stub
     curl "http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/"
     
-    # Retrieve captured credentials
-    curl http://localhost:8079/latest
-    # Returns: {"code": "test_auth_code_...", "state": "AbCdEf..."}
+    # Check what type of flow was used and get credentials
+    curl http://localhost:8079/latest | jq '.'
     
-    # Monitor logs for debugging
+    # Monitor detailed logs for debugging flow details
     tail -f /tmp/oauth-stub.log
     
-    # Gracefully shutdown server (alternative to Ctrl+C)
+    # Stop OAuth stub
+    make oauth-stub-stop
+    
+    # Alternative: Gracefully shutdown via HTTP (for automation)
     curl "http://localhost:8079/?code=exit"
     ```
-  - **Log Format**: `YYYY-MM-DDTHH:MM:SS.sssZ <message>` with detailed API request logging including IP, method, path, status, and response payload
-  - **StepCI Integration**: Enables real OAuth testing by fetching actual authorization codes from TMI's test provider
-  - **Client Development**: Simplifies OAuth integration testing without implementing full callback handlers
+  - **Enhanced Logging**: 
+    - `YYYY-MM-DDTHH:MM:SS.sssZ <message>` format with detailed flow analysis
+    - Logs all query parameters received from server
+    - Flow type detection and analysis (`Authorization Code Flow`, `Implicit Flow`, etc.)
+    - Complete request/response logging for debugging
+  - **Client Integration**: 
+    - **Implicit Flow Clients**: Use `access_token` directly from `/latest` response
+    - **Authorization Code Clients**: Use `code` from `/latest` response for token exchange
+    - **Test Frameworks**: Works with StepCI for automated OAuth flow testing
+    - **Development**: Simplifies OAuth integration testing without implementing full callback handlers
+  - **Security**: Development-only tool, binds to localhost, no persistence, handles both OAuth flow types securely
 
 ## Critical Development Guidelines
 

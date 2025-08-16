@@ -73,64 +73,109 @@ await client.sendBatchOperation([
 
 ### OAuth Callback Stub for Client Development
 
-When developing and testing OAuth integration with TMI, you may need to capture OAuth authorization codes without implementing a full OAuth callback handler. TMI provides a lightweight OAuth callback stub that simplifies testing and development.
+When developing and testing OAuth integration with TMI, you may need to capture OAuth credentials without implementing a full OAuth callback handler. TMI provides a universal OAuth callback stub that automatically detects and handles both OAuth2 Authorization Code Flow and Implicit Flow.
 
 #### Overview
 
 The OAuth callback stub (`scripts/oauth-client-callback-stub.py`) is a development tool that:
-- Receives OAuth redirect callbacks from TMI's test OAuth provider
-- Stores the latest authorization code and state parameters
-- Provides an API endpoint to retrieve credentials for automated testing
-- Solves variable substitution limitations in testing frameworks like StepCI
+- **Universal Flow Support**: Automatically detects and handles both Authorization Code Flow and Implicit Flow
+- **Flow Detection**: Analyzes incoming parameters to determine OAuth flow type  
+- **Smart Response**: Returns appropriate JSON structure based on detected flow
+- **Enhanced Logging**: Comprehensive parameter analysis and flow type detection
+- **Make Integration**: Controlled via `make oauth-stub-start/stop/status` commands
+
+#### OAuth Flow Support
+
+**TMI Currently Uses: Implicit Flow**
+- Server sends tokens directly: `access_token`, `refresh_token`, `token_type`, `expires_in`
+- Client receives ready-to-use JWT tokens immediately
+- No code exchange step required
+
+**Also Supports: Authorization Code Flow**  
+- Server sends authorization code: `code` and `state`
+- Client must exchange code for tokens via `/auth/token/` endpoint
+- Standard OAuth2 security model
 
 #### Features
 
 **Route 1 - OAuth Callback Handler (`GET /`)**:
-- Accepts OAuth redirects with `code` and `state` parameters
-- Stores the latest OAuth credentials for later retrieval
-- Returns a simple acknowledgment response
+- **Automatic Flow Detection**: Analyzes parameters to determine flow type
+- **Parameter Logging**: Logs all received parameters with detailed analysis
+- **Flow-Specific Storage**: Stores appropriate credentials based on detected flow
 - **Magic Exit Code**: Send `GET /?code=exit` to gracefully shutdown the server
 
 **Route 2 - Credentials API (`GET /latest`)**:
-- Returns the most recently captured OAuth credentials as JSON
-- Enables automated testing tools to fetch real authorization codes
-- Provides both code and state parameters for complete OAuth flows
+- **Flow-Aware Response**: Returns JSON structure appropriate for detected flow type
+- **Ready-to-Use Data**: Provides exactly what clients need for each flow
+- **Status Indicators**: Includes `tokens_ready` or `ready_for_token_exchange` flags
 
-**Structured Logging**:
-- All requests and events logged to `/tmp/oauth-stub.log` with RFC3339 timestamps
-- Dual output: logs written to file and echoed to console
-- Detailed API request logging includes IP, method, path, HTTP status, and response payload
+**Enhanced Logging**:
+- **Flow Analysis**: Detailed logging of flow type detection (`Authorization Code Flow`, `Implicit Flow`, etc.)
+- **Parameter Breakdown**: Complete analysis of all received query parameters
+- **RFC3339 timestamps** with dual console/file output to `/tmp/oauth-stub.log`
+- **Request/Response tracking** with complete debugging information
 
 #### Usage
 
 **Starting the Callback Stub:**
 ```bash
-# Start with default port (8079)
-python3 scripts/oauth-client-callback-stub.py
+# Recommended: Use make targets for management
+make oauth-stub-start         # Start on port 8079
+make oauth-stub-status        # Check if running
+make oauth-stub-stop          # Stop gracefully
 
-# Start with custom port
-python3 scripts/oauth-client-callback-stub.py --port 9000
+# Alternative: Direct execution with uv
+uv run scripts/oauth-client-callback-stub.py              # Default port 8079
+uv run scripts/oauth-client-callback-stub.py --port 9000  # Custom port
 
-# Monitor logs in real-time (optional)
+# Monitor logs in real-time
 tail -f /tmp/oauth-stub.log
 
-# Gracefully shutdown server (alternative to Ctrl+C)
+# Gracefully shutdown via HTTP (for automation)
 curl "http://localhost:8079/?code=exit"
 ```
 
 **Integration with TMI OAuth Flow:**
 ```bash
 # 1. Start the callback stub
-python3 scripts/oauth-client-callback-stub.py --port 8079
+make oauth-stub-start
 
-# 2. In your client application, initiate OAuth with callback URL
+# 2. Initiate OAuth flow (TMI uses Implicit Flow)
 curl "http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/"
 
-# 3. Fetch the captured OAuth credentials
-curl http://localhost:8079/latest
+# 3. Fetch the captured credentials with flow detection
+curl http://localhost:8079/latest | jq '.'
 
 # 4. Review detailed logs for debugging
 cat /tmp/oauth-stub.log
+```
+
+**Response Formats by Flow Type:**
+```json
+// Implicit Flow Response (TMI's current implementation)
+{
+  "flow_type": "implicit",
+  "state": "AbCdEf123...",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "550e8400-e29b-41d4-a716-446655440000",
+  "token_type": "Bearer",
+  "expires_in": "3600",
+  "tokens_ready": true
+}
+
+// Authorization Code Flow Response (for completeness)
+{
+  "flow_type": "authorization_code",
+  "code": "test_auth_code_1234567890",
+  "state": "AbCdEf123...",
+  "ready_for_token_exchange": true
+}
+
+// No Data Yet
+{
+  "flow_type": "none",
+  "error": "No OAuth data received yet"
+}
 
 # 5. Shutdown server gracefully (optional)
 curl "http://localhost:8079/?code=exit"
@@ -179,7 +224,31 @@ class OAuthTestingHelper {
     if (!response.ok) {
       throw new Error(`Failed to get OAuth credentials: ${response.status}`);
     }
-    return await response.json(); // { code: "...", state: "..." }
+    return await response.json(); // Flow-aware response with flow_type
+  }
+  
+  async getAccessTokens(serverUrl = 'http://localhost:8080') {
+    const credentials = await this.getOAuthCredentials();
+    
+    if (credentials.flow_type === 'implicit') {
+      // TMI uses Implicit Flow - tokens are ready immediately
+      return {
+        access_token: credentials.access_token,
+        refresh_token: credentials.refresh_token,
+        token_type: credentials.token_type,
+        expires_in: credentials.expires_in,
+        flow_type: 'implicit'
+      };
+    } else if (credentials.flow_type === 'authorization_code') {
+      // Authorization Code Flow - exchange code for tokens
+      return await this.exchangeCodeForTokens(
+        credentials.code, 
+        `${this.callbackStubUrl}/`, 
+        serverUrl
+      );
+    } else {
+      throw new Error(`Unsupported flow type: ${credentials.flow_type}`);
+    }
   }
   
   async exchangeCodeForTokens(code, redirectUri, serverUrl = 'http://localhost:8080') {
@@ -196,7 +265,8 @@ class OAuthTestingHelper {
       throw new Error(`Token exchange failed: ${response.status}`);
     }
     
-    return await response.json(); // { access_token: "...", refresh_token: "..." }
+    const tokens = await response.json();
+    return { ...tokens, flow_type: 'authorization_code' };
   }
 }
 

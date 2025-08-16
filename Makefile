@@ -665,6 +665,70 @@ stepci-execute:
 	fi
 	$(call log_success,"StepCI tests completed")
 
+# OAuth Stub - Development tool for OAuth callback testing
+.PHONY: oauth-stub-start oauth-stub-stop oauth-stub-status
+oauth-stub-start:
+	$(call log_info,"Starting OAuth callback stub on port 8079...")
+	@if pgrep -f "oauth-client-callback-stub.py" > /dev/null; then \
+		echo -e "$(YELLOW)[WARNING]$(NC) OAuth stub is already running"; \
+		echo -e "$(BLUE)[INFO]$(NC) PID: $$(pgrep -f 'oauth-client-callback-stub.py')"; \
+	else \
+		uv run scripts/oauth-client-callback-stub.py --port 8079 & \
+		echo $$! > .oauth-stub.pid; \
+		sleep 2; \
+		if pgrep -f "oauth-client-callback-stub.py" > /dev/null; then \
+			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub started on http://localhost:8079/"; \
+			echo -e "$(BLUE)[INFO]$(NC) Log file: /tmp/oauth-stub.log"; \
+			echo -e "$(BLUE)[INFO]$(NC) PID: $$(cat .oauth-stub.pid)"; \
+		else \
+			echo -e "$(RED)[ERROR]$(NC) Failed to start OAuth stub"; \
+			rm -f .oauth-stub.pid; \
+			exit 1; \
+		fi; \
+	fi
+
+oauth-stub-stop:
+	$(call log_info,"Stopping OAuth callback stub...")
+	@if [ -f .oauth-stub.pid ]; then \
+		PID=$$(cat .oauth-stub.pid); \
+		if kill $$PID 2>/dev/null; then \
+			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub stopped (PID: $$PID)"; \
+		else \
+			echo -e "$(YELLOW)[WARNING]$(NC) Process $$PID not found, cleaning up PID file"; \
+		fi; \
+		rm -f .oauth-stub.pid; \
+	else \
+		PIDS=$$(pgrep -f "oauth-client-callback-stub.py" || true); \
+		if [ -n "$$PIDS" ]; then \
+			echo -e "$(BLUE)[INFO]$(NC) Found OAuth stub processes: $$PIDS"; \
+			kill $$PIDS 2>/dev/null || true; \
+			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub processes terminated"; \
+		else \
+			echo -e "$(YELLOW)[WARNING]$(NC) OAuth stub is not running"; \
+		fi; \
+	fi
+
+oauth-stub-status:
+	@if [ -f .oauth-stub.pid ]; then \
+		PID=$$(cat .oauth-stub.pid); \
+		if kill -0 $$PID 2>/dev/null; then \
+			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub is running (PID: $$PID)"; \
+			echo -e "$(BLUE)[INFO]$(NC) URL: http://localhost:8079/"; \
+			echo -e "$(BLUE)[INFO]$(NC) Latest endpoint: http://localhost:8079/latest"; \
+		else \
+			echo -e "$(YELLOW)[WARNING]$(NC) PID file exists but process $$PID is not running"; \
+			rm -f .oauth-stub.pid; \
+		fi; \
+	else \
+		PIDS=$$(pgrep -f "oauth-client-callback-stub.py" || true); \
+		if [ -n "$$PIDS" ]; then \
+			echo -e "$(YELLOW)[WARNING]$(NC) OAuth stub is running but no PID file found"; \
+			echo -e "$(BLUE)[INFO]$(NC) PIDs: $$PIDS"; \
+		else \
+			echo -e "$(BLUE)[INFO]$(NC) OAuth stub is not running"; \
+		fi; \
+	fi
+
 # Observability Stack - Start monitoring and telemetry services
 observability-start:
 	@CONFIG_FILE=config/observability.yml; \

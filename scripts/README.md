@@ -18,7 +18,7 @@ This directory contains scripts that are actively used by the refactored build s
 
 ### Development Utilities
 - **`patch-json.py`** - Precise JSON modification utility for OpenAPI specs
-- **`oauth-client-callback-stub.py`** - OAuth callback stub for development testing
+- **`oauth-client-callback-stub.py`** - Universal OAuth callback handler supporting both Authorization Code and Implicit flows for development testing. Use `make oauth-stub-start` to run.
 
 ## Container Management
 

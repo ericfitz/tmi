@@ -268,9 +268,17 @@ func (h *Handlers) Callback(c *gin.Context) {
 	// Exchange the authorization code for tokens
 	tokenResponse, err := provider.ExchangeCode(ctx, code)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to exchange code for tokens: %v", err),
-		})
+		// Check if it's an invalid code error (client error) vs server error
+		if strings.Contains(err.Error(), "invalid authorization code") ||
+			strings.Contains(err.Error(), "authorization code is required") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("Failed to exchange code for tokens: %v", err),
+			})
+		}
 		return
 	}
 
@@ -427,9 +435,17 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	// Exchange authorization code for tokens
 	tokenResponse, err := provider.ExchangeCode(ctx, req.Code)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to exchange authorization code: %v", err),
-		})
+		// Check if it's an invalid code error (client error) vs server error
+		if strings.Contains(err.Error(), "invalid authorization code") ||
+			strings.Contains(err.Error(), "authorization code is required") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("Failed to exchange authorization code: %v", err),
+			})
+		}
 		return
 	}
 
