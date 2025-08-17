@@ -1,4 +1,4 @@
-version: "1.0"
+version: "1.1"
 name: User Operations Tests
 config:
   http:
@@ -15,14 +15,9 @@ tests:
       # Load pre-generated user credentials
       - id: load_user_credentials
         name: Load Alice's credentials for user operations testing
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           access_token:
-            value: "{{ env.ALICE_TOKEN }}"
+            value: "${{ env.ALICE_TOKEN }}"
           user_id:
             value: "{{ alice_email }}"
           user_email:
@@ -87,14 +82,9 @@ tests:
       # Load pre-generated user credentials for logout test
       - id: load_credentials_for_logout
         name: Load Alice's credentials for logout testing
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           access_token:
-            value: "{{ env.ALICE_TOKEN }}"
+            value: "${{ env.ALICE_TOKEN }}"
           user_id:
             value: "{{ alice_email }}"
           user_email:
@@ -140,14 +130,9 @@ tests:
       # Load credentials for tests that need a valid token to test other failure modes
       - id: load_credentials_for_failures
         name: Load Alice's credentials for failure testing
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           access_token:
-            value: "{{ env.ALICE_TOKEN }}"
+            value: "${{ env.ALICE_TOKEN }}"
       - id: user_info_no_auth
         name: Get user info without authentication
         http:
@@ -224,11 +209,6 @@ tests:
       # Test multiple concurrent sessions using pre-generated credentials
       - id: load_session_1_credentials
         name: Load Bob's credentials for first session
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           token_1:
             value: "{{ env.BOB_TOKEN }}"
@@ -239,11 +219,6 @@ tests:
 
       - id: load_session_2_credentials
         name: Load Chuck's credentials for second session
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           token_2:
             value: "{{ env.CHUCK_TOKEN }}"

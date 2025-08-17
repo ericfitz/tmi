@@ -1,4 +1,4 @@
-version: "1.0"
+version: "1.1"
 name: Role-Based Access Control Integration Tests
 config:
   http:
@@ -15,14 +15,9 @@ tests:
       # Load owner user credentials
       - id: load_owner_credentials
         name: Load Alice's owner credentials
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           owner_token:
-            value: "{{ env.ALICE_TOKEN }}"
+            value: "${{ env.ALICE_TOKEN }}"
           owner_user_id:
             value: "alice@test.tmi"
           owner_email:
@@ -61,11 +56,6 @@ tests:
       # Load writer user credentials
       - id: load_writer_credentials
         name: Load Bob's writer credentials
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           writer_token:
             value: "{{ env.BOB_TOKEN }}"
@@ -90,11 +80,6 @@ tests:
       # Load reader user credentials
       - id: load_reader_credentials
         name: Load Chuck's reader credentials
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           reader_token:
             value: "{{ env.CHUCK_TOKEN }}"

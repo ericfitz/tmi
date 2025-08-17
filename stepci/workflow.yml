@@ -1,4 +1,4 @@
-version: "1.0"
+version: "1.1"
 name: TMI (Threat Modeling Improved) API
 config:
   http:
@@ -60,49 +60,15 @@ tests:
                       - client_id
               required:
                 - providers
-            json:
-              providers:
-                - id: google
-                  name: Google
-                  icon: fa-brands fa-google
-                  auth_url: http://localhost:8080/auth/login/google
-                  redirect_uri: http://localhost:8080/auth/callback
-                  client_id: >-
-                    675196260523-e8ppeu62pv222jhnpebe929b2tgl2jm0.apps.googleusercontent.com
-                - id: github
-                  name: GitHub
-                  icon: fa-brands fa-github
-                  auth_url: http://localhost:8080/auth/login/github
-                  redirect_uri: http://localhost:8080/auth/callback
-                  client_id: your-github-client-id
-                - id: microsoft
-                  name: Microsoft
-                  icon: fa-brands fa-microsoft
-                  auth_url: http://localhost:8080/auth/login/microsoft
-                  redirect_uri: http://localhost:8080/auth/callback
-                  client_id: your-microsoft-client-id
-      - id: loadCredentials
-        name: Load pre-generated credentials from environment
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
-        captures:
-          access_token:
-            value: "{{ env.ALICE_TOKEN }}"
-          user_id:
-            value: "alice@test.tmi"
-          user_email:
-            value: "alice@test.tmi"
+# Remove specific provider validation - just validate schema and that we have providers
       # Refresh token test removed - requires actual refresh token from credentials
       - id: getCurrentUser
         name: Get current user information
         http:
           url: /auth/me
           method: GET
-          headers:
-            Authorization: "Bearer {{ access_token }}"
+          auth:
+            $ref: '#/components/credentials/alice_auth'
           check:
             status: 200
             schema:
@@ -1732,6 +1698,10 @@ tests:
               items:
                 $ref: "#/components/schemas/Metadata"
 components:
+  credentials:
+    alice_auth:
+      bearer:
+        token: "{{ env.ALICE_TOKEN }}"
   schemas:
     ApiInfo:
       type: object

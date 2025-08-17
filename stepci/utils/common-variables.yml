@@ -1,4 +1,4 @@
-version: "1.0"
+version: "1.1"
 name: Common Variables and Configuration
 config:
   http:
@@ -48,284 +48,28 @@ config:
     forbidden_message: "Forbidden"
     not_found_message: "Not Found"
     bad_request_message: "Bad Request"
-    
-# Reusable components for common operations
+
 components:
-  # Pre-generated Credential Components (use environment variables)
-  # Run with: ALICE_TOKEN=$(jq -r '.access_token' tmp/alice.json) stepci run test.yml
+  # Proper StepCI v1.1 credentials components - no external dependencies
+  credentials:
+    alice_auth:
+      bearer:
+        token: "{{ env.ALICE_TOKEN }}"
+    bob_auth:
+      bearer:
+        token: "{{ env.BOB_TOKEN }}"
+    chuck_auth:
+      bearer:
+        token: "{{ env.CHUCK_TOKEN }}"
   
-  alice_auth:
-    - id: setup_alice_auth
-      name: Setup Alice's authentication from environment
-      http:
-        url: http://httpbin.org/get
-        method: GET
-        check:
-          status: 200
-        captures:
-          alice_token:
-            value: "{{ env.ALICE_TOKEN }}"
-          alice_user_id:
-            value: "alice@test.tmi"
-          alice_email:
-            value: "alice@test.tmi"
-  
-  bob_auth:
-    - id: setup_bob_auth
-      name: Setup Bob's authentication from environment
-      http:
-        url: http://httpbin.org/get
-        method: GET
-        check:
-          status: 200
-        captures:
-          bob_token:
-            value: "{{ env.BOB_TOKEN }}"
-          bob_user_id:
-            value: "bob@test.tmi"
-          bob_email:
-            value: "bob@test.tmi"
-  
-  chuck_auth:
-    - id: setup_chuck_auth
-      name: Setup Chuck's authentication from environment
-      http:
-        url: http://httpbin.org/get
-        method: GET
-        check:
-          status: 200
-        captures:
-          chuck_token:
-            value: "{{ env.CHUCK_TOKEN }}"
-          chuck_user_id:
-            value: "chuck@test.tmi"
-          chuck_email:
-            value: "chuck@test.tmi"
-  # OAuth Authentication Flow with Stub Integration
-  oauth_flow:
-    - id: get_providers
-      name: Get OAuth providers
-      http:
-        url: /auth/providers
-        method: GET
-        check:
-          status: 200
-          schema:
-            type: object
-            properties:
-              providers:
-                type: array
-    
-    - id: initiate_oauth_with_stub
-      name: Initiate OAuth flow with callback stub
-      http:
-        url: /auth/login/{{ oauth_provider }}?client_callback={{ oauth_callback_url }}&user_hint={{ user_hint || test_user_default }}
-        method: GET
-        followRedirects: true
-        check:
-          status: 200
-    
-    - id: wait_for_callback
-      name: Wait for OAuth callback processing
-      http:
-        url: http://httpbin.org/delay/0.1
-        method: GET
-        check:
-          status: 200
-    
-    - id: fetch_oauth_credentials
-      name: Fetch OAuth credentials from callback stub
-      http:
-        url: "{{ oauth_stub_url }}/latest"
-        method: GET
-        check:
-          status: 200
-          schema:
-            type: object
-            properties:
-              flow_type:
-                type: string
-              state:
-                type: string
-        captures:
-          flow_type:
-            jsonpath: $.flow_type
-          oauth_code:
-            jsonpath: $.code
-          oauth_state:
-            jsonpath: $.state
-          stub_access_token:
-            jsonpath: $.access_token
-          stub_refresh_token:
-            jsonpath: $.refresh_token
-    
-    - id: exchange_oauth_code
-      name: Exchange OAuth code for JWT tokens (Authorization Code Flow)
-      if: flow_type == "authorization_code"
-      http:
-        url: /auth/token/{{ oauth_provider }}
-        method: POST
-        headers:
-          Content-Type: "{{ content_type_json }}"
-        json:
-          code: "{{ oauth_code }}"
-          redirect_uri: "{{ oauth_callback_url }}"
-        check:
-          status: 200
-          schema:
-            type: object
-            properties:
-              access_token:
-                type: string
-              refresh_token:
-                type: string
-              expires_in:
-                type: number
-              token_type:
-                type: string
-        captures:
-          access_token:
-            jsonpath: $.access_token
-          refresh_token:
-            jsonpath: $.refresh_token
-    
-    - id: use_implicit_tokens
-      name: Use tokens from implicit flow
-      if: flow_type == "implicit"
-      http:
-        url: http://httpbin.org/get
-        method: GET
-        check:
-          status: 200
-        captures:
-          access_token:
-            value: "{{ stub_access_token }}"
-          refresh_token:
-            value: "{{ stub_refresh_token }}"
-    
-    - id: get_fresh_token
-      name: Get fresh token as fallback (StepCI workaround)
-      http:
-        url: /auth/token/{{ oauth_provider }}
-        method: POST
-        headers:
-          Content-Type: "{{ content_type_json }}"
-        json:
-          code: "test_auth_code_stepci"
-          redirect_uri: "{{ oauth_callback_url }}"
-        check:
-          status: 200
-        captures:
-          fresh_access_token:
-            jsonpath: $.access_token
-
-  # User-specific OAuth Authentication Flows
-  oauth_flow_with_user:
-    - id: initiate_oauth_with_user_hint
-      name: Initiate OAuth flow with specific user hint
-      http:
-        url: /auth/login/{{ oauth_provider }}?client_callback={{ oauth_callback_url }}&user_hint={{ user_hint }}
-        method: GET
-        followRedirects: true
-        check:
-          status: 200
-    
-    - id: wait_for_callback
-      name: Wait for OAuth callback processing
-      http:
-        url: http://httpbin.org/delay/0.1
-        method: GET
-        check:
-          status: 200
-    
-    - id: fetch_oauth_credentials
-      name: Fetch OAuth credentials from callback stub
-      http:
-        url: "{{ oauth_stub_url }}/latest"
-        method: GET
-        check:
-          status: 200
-        captures:
-          flow_type:
-            jsonpath: $.flow_type
-          oauth_code:
-            jsonpath: $.code
-          stub_access_token:
-            jsonpath: $.access_token
-    
-    - id: get_fresh_token_with_hint
-      name: Get fresh token for specific user
-      http:
-        url: /auth/token/{{ oauth_provider }}
-        method: POST
-        headers:
-          Content-Type: "{{ content_type_json }}"
-        json:
-          code: "test_auth_code_{{ user_hint }}"
-          redirect_uri: "{{ oauth_callback_url }}"
-          user_hint: "{{ user_hint }}"
-        check:
-          status: 200
-        captures:
-          user_access_token:
-            jsonpath: $.access_token
-          user_refresh_token:
-            jsonpath: $.refresh_token
-    
-    - id: get_user_info
-      name: Get user information with JWT
-      http:
-        url: /auth/me
-        method: GET
-        headers:
-          Authorization: "Bearer {{ user_access_token }}"
-        check:
-          status: 200
-          jsonpath:
-            $.email: "{{ user_hint }}@test.tmi"
-        captures:
-          user_id:
-            jsonpath: $.sub
-          user_email:
-            jsonpath: $.email
-          user_name:
-            jsonpath: $.name
-
   # Common Error Response Schema
-  error_response_schema:
-    type: object
-    properties:
-      error:
-        type: string
-      message:
-        type: string
-      details:
-        type: object
-
-  # JWT Authorization Header (use fresh_access_token as fallback for StepCI issues)
-  jwt_header:
-    Authorization: "Bearer {{ fresh_access_token }}"
-    Content-Type: "{{ content_type_json }}"
-    Accept: "{{ accept_json }}"
-    
-  # Alternative JWT headers for different token sources
-  jwt_header_oauth:
-    Authorization: "Bearer {{ access_token }}"
-    Content-Type: "{{ content_type_json }}"
-    Accept: "{{ accept_json }}"
-    
-  # Pre-generated credential headers
-  alice_headers:
-    Authorization: "Bearer {{ alice_token }}"
-    Content-Type: "{{ content_type_json }}"
-    Accept: "{{ accept_json }}"
-    
-  bob_headers:
-    Authorization: "Bearer {{ bob_token }}"
-    Content-Type: "{{ content_type_json }}"
-    Accept: "{{ accept_json }}"
-    
-  chuck_headers:
-    Authorization: "Bearer {{ chuck_token }}"
-    Content-Type: "{{ content_type_json }}"
-    Accept: "{{ accept_json }}"
+  schemas:
+    error_response:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object

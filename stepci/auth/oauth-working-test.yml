@@ -20,11 +20,7 @@ tests:
       # 2. Wait for callback
       - id: wait
         name: Wait for callback
-        http:
-          url: http://httpbin.org/delay/1
-          method: GET
-          check:
-            status: 200
+        wait: 1s
 
       # 3. Get token directly from OAuth stub
       - id: get_token

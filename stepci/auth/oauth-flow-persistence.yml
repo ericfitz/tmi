@@ -29,11 +29,7 @@ tests:
       # Wait for alice callback processing
       - id: wait_alice_callback
         name: Wait for Alice OAuth callback processing
-        http:
-          url: http://httpbin.org/delay/1
-          method: GET
-          check:
-            status: 200
+        wait: 1s
 
       # Setup credentials for user 'bob' 
       - id: setup_bob_oauth
@@ -48,11 +44,7 @@ tests:
       # Wait for bob callback processing
       - id: wait_bob_callback
         name: Wait for Bob OAuth callback processing
-        http:
-          url: http://httpbin.org/delay/1
-          method: GET
-          check:
-            status: 200
+        wait: 1s
 
       # Setup credentials for user 'qa-automation'
       - id: setup_qa_oauth
@@ -67,11 +59,7 @@ tests:
       # Wait for qa-automation callback processing
       - id: wait_qa_callback
         name: Wait for QA OAuth callback processing
-        http:
-          url: http://httpbin.org/delay/1
-          method: GET
-          check:
-            status: 200
+        wait: 1s
 
       # Verify alice credentials are available
       - id: get_alice_credentials
@@ -197,11 +185,6 @@ tests:
       # Use Alice's pre-established credentials
       - id: get_alice_jwt_from_file
         name: Get Alice JWT from credential file
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           alice_jwt:
             shell: 'cat /tmp/alice.json | jq -r ".access_token"'
@@ -236,11 +219,6 @@ tests:
       # Use Bob's pre-established credentials
       - id: get_bob_jwt_from_file
         name: Get Bob JWT from credential file
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           bob_jwt:
             shell: 'cat /tmp/bob.json | jq -r ".access_token"'
@@ -365,22 +343,12 @@ tests:
       # Test direct file access to credentials
       - id: verify_alice_file_exists
         name: Verify Alice's credential file exists
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           alice_file_check:
             shell: 'test -f /tmp/alice.json && echo "exists" || echo "missing"'
 
       - id: verify_alice_file_content
         name: Verify Alice's credential file content
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           alice_email_from_file:
             shell: 'cat /tmp/alice.json | jq -r ".email // .user_email // empty"'
@@ -411,11 +379,6 @@ tests:
       # Test that both methods return the same token
       - id: compare_credential_sources
         name: Compare file vs stub credential sources
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           tokens_match:
             shell: 'file_token=$(cat /tmp/alice.json | jq -r ".access_token"); stub_token=$(curl -s "http://localhost:8079/creds?userid=alice" | jq -r ".access_token"); test "$file_token" = "$stub_token" && echo "match" || echo "mismatch"'

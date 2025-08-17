@@ -10,14 +10,9 @@ tests:
       # Load pre-generated credentials
       - id: setup_credentials
         name: Setup Alice's credentials from environment
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           access_token:
-            value: "{{ env.ALICE_TOKEN }}"
+            value: "${{ env.ALICE_TOKEN }}"
           user_id:
             value: "alice@test.tmi"
           user_email:
@@ -42,11 +37,6 @@ tests:
       # Load pre-generated credentials
       - id: setup_bob_credentials
         name: Setup Bob's credentials from environment
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           bob_token:
             value: "{{ env.BOB_TOKEN }}"
@@ -74,11 +64,6 @@ tests:
       # Load pre-generated credentials
       - id: setup_chuck_credentials
         name: Setup Chuck's credentials from environment
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           chuck_token:
             value: "{{ env.CHUCK_TOKEN }}"

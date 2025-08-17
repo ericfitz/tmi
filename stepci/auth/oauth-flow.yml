@@ -70,11 +70,7 @@ tests:
       # Wait for callback processing to complete
       - id: wait_for_callback
         name: Wait for OAuth callback processing
-        http:
-          url: http://httpbin.org/delay/0.5
-          method: GET
-          check:
-            status: 200
+        wait: 500ms
 
       # Fetch real OAuth credentials from callback stub (handles both flows)
       - id: fetch_oauth_credentials
@@ -162,11 +158,6 @@ tests:
       - id: use_implicit_tokens
         name: Use tokens from implicit flow (Implicit Flow only)
         if: flow_type == "implicit"
-        http:
-          url: http://httpbin.org/get
-          method: GET
-          check:
-            status: 200
         captures:
           access_token:
             value: "${{ captures.fetch_oauth_credentials.access_token_from_stub }}"
@@ -344,11 +335,7 @@ tests:
 
       - id: wait_for_alice_callback
         name: Wait for Alice OAuth callback processing
-        http:
-          url: http://httpbin.org/delay/0.5
-          method: GET
-          check:
-            status: 200
+        wait: 500ms
 
       - id: get_alice_token
         name: Get Alice's token with user hint

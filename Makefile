@@ -53,7 +53,7 @@ load-config-file:
 .PHONY: infra-db-start infra-db-stop infra-db-clean infra-redis-start infra-redis-stop infra-redis-clean infra-observability-start infra-observability-stop infra-observability-clean
 
 infra-db-start:
-	$(call log_info,"Starting PostgreSQL container...")
+	$(call log_info,Starting PostgreSQL container...)
 	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
 	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
 	PORT="$(INFRASTRUCTURE_POSTGRES_PORT)"; \
@@ -82,7 +82,7 @@ infra-db-start:
 	echo "✅ PostgreSQL container is running on port $$PORT"
 
 infra-db-stop:
-	$(call log_info,"Stopping PostgreSQL container: $(INFRASTRUCTURE_POSTGRES_CONTAINER)")
+	$(call log_info,Stopping PostgreSQL container: $(INFRASTRUCTURE_POSTGRES_CONTAINER))
 	@docker stop $(INFRASTRUCTURE_POSTGRES_CONTAINER) 2>/dev/null || true
 	$(call log_success,"PostgreSQL container stopped")
 
@@ -92,7 +92,7 @@ infra-db-clean:
 	$(call log_success,"PostgreSQL container and data removed")
 
 infra-redis-start:
-	$(call log_info,"Starting Redis container...")
+	$(call log_info,Starting Redis container...)
 	@CONTAINER="$(INFRASTRUCTURE_REDIS_CONTAINER)"; \
 	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-redis"; fi; \
 	PORT="$(INFRASTRUCTURE_REDIS_PORT)"; \
@@ -112,7 +112,7 @@ infra-redis-start:
 	echo "✅ Redis container is running on port $$PORT"
 
 infra-redis-stop:
-	$(call log_info,"Stopping Redis container: $(INFRASTRUCTURE_REDIS_CONTAINER)")
+	$(call log_info,Stopping Redis container: $(INFRASTRUCTURE_REDIS_CONTAINER))
 	@docker stop $(INFRASTRUCTURE_REDIS_CONTAINER) 2>/dev/null || true
 	$(call log_success,"Redis container stopped")
 
@@ -160,12 +160,12 @@ infra-observability-clean:
 .PHONY: build-server build-migrate build-clean generate-api gen-api
 
 build-server:
-	$(call log_info,"Building server binary...")
+	$(call log_info,Building server binary...)
 	@go build -tags="dev" -o bin/server github.com/ericfitz/tmi/cmd/server
 	$(call log_success,"Server binary built: bin/server")
 
 build-migrate:
-	$(call log_info,"Building migration tool...")
+	$(call log_info,Building migration tool...)
 	@go build -o bin/migrate github.com/ericfitz/tmi/cmd/migrate
 	$(call log_success,"Migration tool built: bin/migrate")
 
@@ -654,7 +654,7 @@ coverage-reports:
 	$(call log_success,"Coverage reports generated in $(COVERAGE_DIRECTORY)/ and coverage_html/")
 
 stepci-execute:
-	$(call log_info,"Executing StepCI tests...")
+	$(call log_info,Executing StepCI tests...)
 	@if [ -n "$(TEST_PATTERN)" ] && [ "$(TEST_PATTERN)" != "" ]; then \
 		echo -e "\033[0;34m[INFO]\033[0m Running specific StepCI test: $(TEST_PATTERN)"; \
 		if [ ! -f "$(STEPCI_TEST_DIRECTORY)/$(TEST_PATTERN)" ]; then \
@@ -836,7 +836,7 @@ test-telemetry:
 
 # Complete environment cleanup for StepCI preparation
 stepci-cleanup:
-	$(call log_info,"Cleaning up environment for StepCI preparation...")
+	$(call log_info,Cleaning up environment for StepCI preparation...)
 	@$(MAKE) server-stop 2>/dev/null || true
 	@$(MAKE) oauth-stub-stop 2>/dev/null || true
 	@# Stop and clean containers with default names
@@ -864,7 +864,7 @@ stepci-cleanup:
 
 # Setup clean environment for StepCI testing
 stepci-setup:
-	$(call log_info,"Setting up clean environment for StepCI testing...")
+	$(call log_info,Setting up clean environment for StepCI testing...)
 	@CONFIG_FILE=config/dev-environment.yml; \
 	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
 	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
@@ -887,14 +887,14 @@ stepci-setup:
 # Authenticate a user and save credentials to JSON file
 # Usage: make stepci-auth-user user=alice
 stepci-auth-user:
-	$(call log_info,"Authenticating user: $(user)")
+	$(call log_info,Authenticating user: $(user))
 	@if [ -z "$(user)" ]; then \
 		echo -e "$(RED)[ERROR]$(NC) Usage: make stepci-auth-user user=<username>"; \
 		echo -e "$(BLUE)[INFO]$(NC) Example: make stepci-auth-user user=alice"; \
 		exit 1; \
 	fi
 	@echo -e "$(BLUE)[INFO]$(NC) Initiating OAuth flow for user: $(user)..."
-	@curl -s "http://localhost:8080/auth/login/test?user_hint=$(user)&client_callback=http://localhost:8079/" > /dev/null || { \
+	@curl -sL "http://localhost:8080/auth/login/test?user_hint=$(user)&client_callback=http://localhost:8079/" > /dev/null || { \
 		echo -e "$(RED)[ERROR]$(NC) Failed to initiate OAuth flow for $(user)"; \
 		exit 1; \
 	}
@@ -916,7 +916,7 @@ stepci-auth-user:
 
 # Complete StepCI preparation - cleanup, setup, and authenticate test users
 stepci-prep:
-	$(call log_info,"Preparing complete environment for StepCI API tests...")
+	$(call log_info,Preparing complete environment for StepCI API tests...)
 	@echo -e "$(BLUE)[INFO]$(NC) Step 1: Cleaning up any existing environment..."
 	@$(MAKE) stepci-cleanup
 	@echo -e "$(BLUE)[INFO]$(NC) Step 2: Setting up fresh environment..."
@@ -936,7 +936,7 @@ stepci-prep:
 # Run StepCI tests using pre-generated credentials  
 # Usage: make run-stepci-test file=stepci/workflow.yml
 run-stepci-test:
-	$(call log_info,"Running StepCI test with pre-generated credentials...")
+	$(call log_info,Running StepCI test with pre-generated credentials...)
 	@if [ -z "$(file)" ]; then \
 		echo -e "$(RED)[ERROR]$(NC) Usage: make run-stepci-test file=<test-file>"; \
 		echo -e "$(BLUE)[INFO]$(NC) Example: make run-stepci-test file=stepci/workflow.yml"; \
@@ -952,7 +952,7 @@ run-stepci-test:
 
 # Run all modified StepCI tests (uses pre-generated credentials)
 run-stepci-tests:
-	$(call log_info,"Running all modified StepCI tests with pre-generated credentials...")
+	$(call log_info,Running all modified StepCI tests with pre-generated credentials...)
 	@echo -e "$(BLUE)[INFO]$(NC) Running StepCI tests with pre-generated credentials..."
 	@for test_file in \
 		stepci/workflow.yml \

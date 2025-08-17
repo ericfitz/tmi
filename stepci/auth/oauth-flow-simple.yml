@@ -22,11 +22,7 @@ tests:
       # 2. Wait for processing
       - id: wait
         name: Wait for OAuth callback processing
-        http:
-          url: http://httpbin.org/delay/0.5
-          method: GET
-          check:
-            status: 200
+        wait: 500ms
 
       # 3. Get tokens from stub
       - id: get_tokens
@@ -43,16 +39,12 @@ tests:
           access_token:
             jsonpath: $.access_token
 
-      # 4. Debug - show what we captured
+      # 4. Debug - show what we captured (via capture validation)
       - id: debug_token
         name: Debug captured token
-        http:
-          url: http://httpbin.org/post
-          method: POST
-          json:
-            captured_token: "${{captures.access_token}}"
-          check:
-            status: 200
+        captures:
+          token_validation:
+            value: "${{captures.access_token}}"
 
       # 5. Test JWT token
       - id: test_token
