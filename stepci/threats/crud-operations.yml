@@ -4,29 +4,27 @@ config:
   http:
     baseURL: http://localhost:8080
   variables:
-    # User Hint for Threat CRUD Testing
-    threat_crud_user_hint: "threat-user"  # Creates threat-user@test.tmi
+    # Pre-generated user credentials
+    alice_email: "alice@test.tmi"  # Owner user for threat CRUD testing
 tests:
   threats_crud_success:
     name: Threats CRUD Operations - Success Cases
     steps:
-      # Authenticate user using fallback method
-      - id: authenticate_user
-        name: Authenticate user via OAuth with user hint
+      # Load pre-generated user credentials
+      - id: load_user_credentials
+        name: Load Alice's credentials for threat CRUD tests
         http:
-          url: /auth/token/test
-          method: POST
-          headers:
-            Content-Type: application/json
-          json:
-            code: "test_auth_code_{{ threat_crud_user_hint }}"
-            redirect_uri: "http://localhost:8079/"
-            user_hint: "{{ threat_crud_user_hint }}"
+          url: http://httpbin.org/get
+          method: GET
           check:
             status: 200
         captures:
           access_token:
-            jsonpath: $.access_token
+            value: "{{ env.ALICE_TOKEN }}"
+          user_id:
+            value: "{{ alice_email }}"
+          user_email:
+            value: "{{ alice_email }}"
 
       - id: create_parent_threat_model
         name: Create parent threat model for threats

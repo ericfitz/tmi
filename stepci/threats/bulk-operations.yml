@@ -7,22 +7,21 @@ tests:
   bulk_create_threats_success:
     name: Bulk Create Threats - Success Cases
     steps:
-      # Authenticate user using fallback method
-      - id: authenticate_user
-        name: Authenticate user via OAuth
+      # Load pre-generated user credentials
+      - id: load_user_credentials
+        name: Load Alice's credentials for bulk operations tests
         http:
-          url: /auth/token/test
-          method: POST
-          headers:
-            Content-Type: application/json
-          json:
-            code: "test_auth_code_stepci"
-            redirect_uri: "http://localhost:8079/"
+          url: http://httpbin.org/get
+          method: GET
           check:
             status: 200
         captures:
           access_token:
-            jsonpath: $.access_token
+            value: "{{ env.ALICE_TOKEN }}"
+          user_id:
+            value: "alice@test.tmi"
+          user_email:
+            value: "alice@test.tmi"
 
       - id: create_parent_threat_model
         name: Create parent threat model for bulk threats

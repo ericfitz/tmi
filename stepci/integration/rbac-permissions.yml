@@ -4,31 +4,29 @@ config:
   http:
     baseURL: http://localhost:8080
   variables:
-    # User Hints for Different Roles - Creates Predictable Test Users
-    owner_user_hint: "alice"      # Creates alice@test.tmi
-    writer_user_hint: "bob"       # Creates bob@test.tmi
-    reader_user_hint: "charlie"   # Creates charlie@test.tmi
+    # Pre-generated user credentials for RBAC testing
+    owner_user_hint: "alice"      # Owner user - alice@test.tmi
+    writer_user_hint: "bob"       # Writer user - bob@test.tmi  
+    reader_user_hint: "chuck"     # Reader user - chuck@test.tmi
 tests:
   rbac_threat_model_permissions:
     name: RBAC Testing for Threat Models
     steps:
-      # Create owner user and threat model
-      - id: authenticate_owner
-        name: Authenticate owner user (Alice)
+      # Load owner user credentials
+      - id: load_owner_credentials
+        name: Load Alice's owner credentials
         http:
-          url: /auth/token/test
-          method: POST
-          headers:
-            Content-Type: application/json
-          json:
-            code: "test_auth_code_{{ owner_user_hint }}"
-            redirect_uri: "http://localhost:8079/"
-            user_hint: "{{ owner_user_hint }}"
+          url: http://httpbin.org/get
+          method: GET
           check:
             status: 200
         captures:
           owner_token:
-            jsonpath: $.access_token
+            value: "{{ env.ALICE_TOKEN }}"
+          owner_user_id:
+            value: "alice@test.tmi"
+          owner_email:
+            value: "alice@test.tmi"
 
       - id: owner_get_user_info
         name: Get owner user information (validate predictable Alice identity)
@@ -40,13 +38,8 @@ tests:
           check:
             status: 200
             jsonpath:
-              $.email: "{{ owner_user_hint }}@test.tmi"
-              $.name: "{{ owner_user_hint | title }} (Test User)"
-        captures:
-          owner_user_id:
-            jsonpath: $.sub
-          owner_email:
-            jsonpath: $.email
+              $.email: "alice@test.tmi"
+              $.name: "Alice (Test User)"
 
       - id: owner_creates_threat_model
         name: Owner creates threat model
@@ -65,23 +58,21 @@ tests:
           threat_model_id:
             jsonpath: $.id
 
-      # Create second user (will be granted writer role)
-      - id: authenticate_writer
-        name: Authenticate writer user (Bob)
+      # Load writer user credentials
+      - id: load_writer_credentials
+        name: Load Bob's writer credentials
         http:
-          url: /auth/token/test
-          method: POST
-          headers:
-            Content-Type: application/json
-          json:
-            code: "test_auth_code_{{ writer_user_hint }}"
-            redirect_uri: "http://localhost:8079/"
-            user_hint: "{{ writer_user_hint }}"
+          url: http://httpbin.org/get
+          method: GET
           check:
             status: 200
         captures:
           writer_token:
-            jsonpath: $.access_token
+            value: "{{ env.BOB_TOKEN }}"
+          writer_user_id:
+            value: "bob@test.tmi"
+          writer_email:
+            value: "bob@test.tmi"
 
       - id: writer_get_user_info
         name: Get writer user information (validate predictable Bob identity)
@@ -93,34 +84,27 @@ tests:
           check:
             status: 200
             jsonpath:
-              $.email: "{{ writer_user_hint }}@test.tmi"
-              $.name: "{{ writer_user_hint | title }} (Test User)"
-        captures:
-          writer_user_id:
-            jsonpath: $.sub
-          writer_email:
-            jsonpath: $.email
+              $.email: "bob@test.tmi"
+              $.name: "Bob (Test User)"
 
-      # Create third user (will be granted reader role)
-      - id: authenticate_reader
-        name: Authenticate reader user (Charlie)
+      # Load reader user credentials
+      - id: load_reader_credentials
+        name: Load Chuck's reader credentials
         http:
-          url: /auth/token/test
-          method: POST
-          headers:
-            Content-Type: application/json
-          json:
-            code: "test_auth_code_{{ reader_user_hint }}"
-            redirect_uri: "http://localhost:8079/"
-            user_hint: "{{ reader_user_hint }}"
+          url: http://httpbin.org/get
+          method: GET
           check:
             status: 200
         captures:
           reader_token:
-            jsonpath: $.access_token
+            value: "{{ env.CHUCK_TOKEN }}"
+          reader_user_id:
+            value: "chuck@test.tmi"
+          reader_email:
+            value: "chuck@test.tmi"
 
       - id: reader_get_user_info
-        name: Get reader user information (validate predictable Charlie identity)
+        name: Get reader user information (validate predictable Chuck identity)
         http:
           url: /auth/me
           method: GET
@@ -129,13 +113,8 @@ tests:
           check:
             status: 200
             jsonpath:
-              $.email: "{{ reader_user_hint }}@test.tmi"
-              $.name: "{{ reader_user_hint | title }} (Test User)"
-        captures:
-          reader_user_id:
-            jsonpath: $.sub
-          reader_email:
-            jsonpath: $.email
+              $.email: "chuck@test.tmi"
+              $.name: "Chuck (Test User)"
 
       # Test initial access - only owner should be able to see the threat model
       - id: owner_can_read_own_tm

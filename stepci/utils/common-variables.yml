@@ -9,7 +9,13 @@ config:
     oauth_stub_url: "http://localhost:8079"
     oauth_callback_url: "http://localhost:8079/"
     
-    # User Hint Configuration for Predictable Test Users
+    # Pre-generated User Credentials (from tmp/ directory)
+    # These users are created by 'make stepci-prep' and have persistent credentials
+    alice_email: "alice@test.tmi"     # Owner user with full permissions
+    bob_email: "bob@test.tmi"         # Writer user with write permissions
+    chuck_email: "chuck@test.tmi"     # Reader user with read permissions
+    
+    # Legacy User Hint Configuration (for OAuth-specific tests only)
     # Format: 3-20 characters, alphanumeric + hyphens, case-insensitive
     # Generates: {hint}@test.tmi email addresses for consistent testing
     test_user_owner: "alice"          # Creates alice@test.tmi
@@ -45,6 +51,56 @@ config:
     
 # Reusable components for common operations
 components:
+  # Pre-generated Credential Components (use environment variables)
+  # Run with: ALICE_TOKEN=$(jq -r '.access_token' tmp/alice.json) stepci run test.yml
+  
+  alice_auth:
+    - id: setup_alice_auth
+      name: Setup Alice's authentication from environment
+      http:
+        url: http://httpbin.org/get
+        method: GET
+        check:
+          status: 200
+        captures:
+          alice_token:
+            value: "{{ env.ALICE_TOKEN }}"
+          alice_user_id:
+            value: "alice@test.tmi"
+          alice_email:
+            value: "alice@test.tmi"
+  
+  bob_auth:
+    - id: setup_bob_auth
+      name: Setup Bob's authentication from environment
+      http:
+        url: http://httpbin.org/get
+        method: GET
+        check:
+          status: 200
+        captures:
+          bob_token:
+            value: "{{ env.BOB_TOKEN }}"
+          bob_user_id:
+            value: "bob@test.tmi"
+          bob_email:
+            value: "bob@test.tmi"
+  
+  chuck_auth:
+    - id: setup_chuck_auth
+      name: Setup Chuck's authentication from environment
+      http:
+        url: http://httpbin.org/get
+        method: GET
+        check:
+          status: 200
+        captures:
+          chuck_token:
+            value: "{{ env.CHUCK_TOKEN }}"
+          chuck_user_id:
+            value: "chuck@test.tmi"
+          chuck_email:
+            value: "chuck@test.tmi"
   # OAuth Authentication Flow with Stub Integration
   oauth_flow:
     - id: get_providers
@@ -255,5 +311,21 @@ components:
   # Alternative JWT headers for different token sources
   jwt_header_oauth:
     Authorization: "Bearer {{ access_token }}"
+    Content-Type: "{{ content_type_json }}"
+    Accept: "{{ accept_json }}"
+    
+  # Pre-generated credential headers
+  alice_headers:
+    Authorization: "Bearer {{ alice_token }}"
+    Content-Type: "{{ content_type_json }}"
+    Accept: "{{ accept_json }}"
+    
+  bob_headers:
+    Authorization: "Bearer {{ bob_token }}"
+    Content-Type: "{{ content_type_json }}"
+    Accept: "{{ accept_json }}"
+    
+  chuck_headers:
+    Authorization: "Bearer {{ chuck_token }}"
     Content-Type: "{{ content_type_json }}"
     Accept: "{{ accept_json }}"

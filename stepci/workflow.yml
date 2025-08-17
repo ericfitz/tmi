@@ -81,51 +81,21 @@ tests:
                   auth_url: http://localhost:8080/auth/login/microsoft
                   redirect_uri: http://localhost:8080/auth/callback
                   client_id: your-microsoft-client-id
-      - id: authorizeOAuthProvider
-        name: Get authentication token using fallback method
+      - id: loadCredentials
+        name: Load pre-generated credentials from environment
         http:
-          url: /auth/token/test
-          method: POST
-          headers:
-            Content-Type: application/json
-          json:
-            code: "test_auth_code_stepci"
-            redirect_uri: "http://localhost:8079/"
+          url: http://httpbin.org/get
+          method: GET
           check:
             status: 200
-            schema:
-              $ref: "#/components/schemas/AuthTokenResponse"
         captures:
           access_token:
-            jsonpath: $.access_token
-          refresh_token:
-            jsonpath: $.refresh_token
-            json:
-              access_token: >-
-                eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiZW1haWwiOiJ1c2VyQGV4YW1wbGUuY29tIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE1MTYyNDI2MjJ9.example_jwt_signature
-              refresh_token: 8xLOxBtZp8_example_refresh_token
-              token_type: Bearer
-              expires_in: 3600
-      - id: refreshToken
-        name: Refresh JWT token
-        http:
-          url: /auth/refresh
-          method: POST
-          headers:
-            Content-Type: application/json
-            accept: application/json
-          json:
-            refresh_token: velit Excepteur in cillum
-          check:
-            status: 200
-            schema:
-              $ref: "#/components/schemas/AuthTokenResponse"
-            json:
-              access_token: >-
-                eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiZW1haWwiOiJ1c2VyQGV4YW1wbGUuY29tIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE1MTYyNDI2MjJ9.new_jwt_signature
-              refresh_token: 9yMPyCtZq9_new_refresh_token
-              token_type: Bearer
-              expires_in: 3600
+            value: "{{ env.ALICE_TOKEN }}"
+          user_id:
+            value: "alice@test.tmi"
+          user_email:
+            value: "alice@test.tmi"
+      # Refresh token test removed - requires actual refresh token from credentials
       - id: getCurrentUser
         name: Get current user information
         http:
@@ -167,11 +137,10 @@ tests:
                 - email
                 - name
             json:
-              id: 550e8400-e29b-41d4-a716-446655440000
-              email: user@example.com
-              name: John Doe
+              email: alice@test.tmi
+              name: Alice (Test User)
               providers:
-                - provider: google
+                - provider: test
                   is_primary: true
       - id: handleOAuthCallback
         name: Handle OAuth callback

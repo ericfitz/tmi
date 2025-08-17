@@ -829,6 +829,155 @@ test-telemetry:
 	echo "✅ Telemetry tests completed"
 
 # ============================================================================
+# STEPCI PREPARATION - Environment Setup for API Testing
+# ============================================================================
+
+.PHONY: stepci-cleanup stepci-setup stepci-auth-user stepci-prep run-stepci-test run-stepci-tests
+
+# Complete environment cleanup for StepCI preparation
+stepci-cleanup:
+	$(call log_info,"Cleaning up environment for StepCI preparation...")
+	@$(MAKE) server-stop 2>/dev/null || true
+	@$(MAKE) oauth-stub-stop 2>/dev/null || true
+	@# Stop and clean containers with default names
+	@echo -e "$(BLUE)[INFO]$(NC) Stopping and cleaning PostgreSQL container..."
+	@docker stop tmi-postgresql 2>/dev/null || true
+	@docker rm -f tmi-postgresql 2>/dev/null || true
+	@echo -e "$(BLUE)[INFO]$(NC) Stopping and cleaning Redis container..."
+	@docker stop tmi-redis 2>/dev/null || true
+	@docker rm -f tmi-redis 2>/dev/null || true
+	@# Kill any remaining processes on port 8080
+	@echo -e "$(BLUE)[INFO]$(NC) Killing any remaining processes on port 8080..."
+	@PIDS=$$(lsof -ti :8080 2>/dev/null || true); \
+	if [ -n "$$PIDS" ]; then \
+		for PID in $$PIDS; do \
+			kill $$PID 2>/dev/null || true; \
+			sleep 1; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				kill -9 $$PID 2>/dev/null || true; \
+			fi; \
+		done; \
+	fi
+	@rm -f .server.pid .oauth-stub.pid server.log
+	@rm -rf tmp/alice.json tmp/bob.json tmp/chuck.json
+	$(call log_success,"Environment cleanup completed")
+
+# Setup clean environment for StepCI testing
+stepci-setup:
+	$(call log_info,"Setting up clean environment for StepCI testing...")
+	@CONFIG_FILE=config/dev-environment.yml; \
+	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
+	$(MAKE) build-server && \
+	go build -o bin/check-db cmd/check-db/main.go && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate && \
+	eval $$(uv run scripts/yaml-to-make.py config/dev-environment.yml | grep '^SERVER_CONFIG_FILE := ' | sed 's/SERVER_CONFIG_FILE := /SERVER_CONFIG_FILE=/'); \
+	if [ ! -f "$$SERVER_CONFIG_FILE" ]; then \
+		echo -e "$(BLUE)[INFO]$(NC) Generating development configuration..."; \
+		go run cmd/server/main.go --generate-config || { echo "Error: Failed to generate config files"; exit 1; }; \
+	fi && \
+	$(MAKE) oauth-stub-start && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) server-start && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) process-wait; \
+	rm -f .config.tmp.mk
+	$(call log_success,"Environment setup completed")
+
+# Authenticate a user and save credentials to JSON file
+# Usage: make stepci-auth-user user=alice
+stepci-auth-user:
+	$(call log_info,"Authenticating user: $(user)")
+	@if [ -z "$(user)" ]; then \
+		echo -e "$(RED)[ERROR]$(NC) Usage: make stepci-auth-user user=<username>"; \
+		echo -e "$(BLUE)[INFO]$(NC) Example: make stepci-auth-user user=alice"; \
+		exit 1; \
+	fi
+	@echo -e "$(BLUE)[INFO]$(NC) Initiating OAuth flow for user: $(user)..."
+	@curl -s "http://localhost:8080/auth/login/test?user_hint=$(user)&client_callback=http://localhost:8079/" > /dev/null || { \
+		echo -e "$(RED)[ERROR]$(NC) Failed to initiate OAuth flow for $(user)"; \
+		exit 1; \
+	}
+	@sleep 2
+	@echo -e "$(BLUE)[INFO]$(NC) Retrieving credentials for user: $(user)..."
+	@CREDS=$$(curl -s "http://localhost:8079/creds?userid=$(user)" 2>/dev/null); \
+	if [ -z "$$CREDS" ] || echo "$$CREDS" | grep -q '"error"'; then \
+		echo -e "$(RED)[ERROR]$(NC) Failed to retrieve credentials for user $(user)"; \
+		echo -e "$(BLUE)[INFO]$(NC) Response: $$CREDS"; \
+		exit 1; \
+	fi; \
+	mkdir -p tmp; \
+	echo "$$CREDS" > "tmp/$(user).json"; \
+	echo -e "$(GREEN)[SUCCESS]$(NC) Credentials saved to tmp/$(user).json"
+	@if [ -f "tmp/$(user).json" ]; then \
+		echo -e "$(BLUE)[INFO]$(NC) Credential summary for $(user):"; \
+		jq -r '"User: " + (.email // "unknown") + ", Token expires: " + (.expires_in // "unknown") + "s"' "tmp/$(user).json" 2>/dev/null || echo "Raw credentials saved"; \
+	fi
+
+# Complete StepCI preparation - cleanup, setup, and authenticate test users
+stepci-prep:
+	$(call log_info,"Preparing complete environment for StepCI API tests...")
+	@echo -e "$(BLUE)[INFO]$(NC) Step 1: Cleaning up any existing environment..."
+	@$(MAKE) stepci-cleanup
+	@echo -e "$(BLUE)[INFO]$(NC) Step 2: Setting up fresh environment..."
+	@$(MAKE) stepci-setup
+	@echo -e "$(BLUE)[INFO]$(NC) Step 3: Authenticating test users..."
+	@$(MAKE) stepci-auth-user user=alice
+	@$(MAKE) stepci-auth-user user=bob
+	@$(MAKE) stepci-auth-user user=chuck
+	@echo -e "$(GREEN)[SUCCESS]$(NC) StepCI environment preparation completed!"
+	@echo -e "$(BLUE)[INFO]$(NC) Environment ready:"
+	@echo -e "$(BLUE)[INFO]$(NC)   - Server running on http://localhost:8080"
+	@echo -e "$(BLUE)[INFO]$(NC)   - OAuth stub running on http://localhost:8079"
+	@echo -e "$(BLUE)[INFO]$(NC)   - Database and Redis containers running"
+	@echo -e "$(BLUE)[INFO]$(NC)   - Test user credentials: tmp/alice.json, tmp/bob.json, tmp/chuck.json"
+	@echo -e "$(BLUE)[INFO]$(NC) To clean up when done: make stepci-cleanup"
+
+# Run StepCI tests using pre-generated credentials  
+# Usage: make run-stepci-test file=stepci/workflow.yml
+run-stepci-test:
+	$(call log_info,"Running StepCI test with pre-generated credentials...")
+	@if [ -z "$(file)" ]; then \
+		echo -e "$(RED)[ERROR]$(NC) Usage: make run-stepci-test file=<test-file>"; \
+		echo -e "$(BLUE)[INFO]$(NC) Example: make run-stepci-test file=stepci/workflow.yml"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(file)" ]; then \
+		echo -e "$(RED)[ERROR]$(NC) Test file not found: $(file)"; \
+		exit 1; \
+	fi
+	@echo -e "$(BLUE)[INFO]$(NC) Running StepCI test: $(file)"
+	@./scripts/run-stepci-with-creds.sh run "$(file)"
+	$(call log_success,"StepCI test completed: $(file)")
+
+# Run all modified StepCI tests (uses pre-generated credentials)
+run-stepci-tests:
+	$(call log_info,"Running all modified StepCI tests with pre-generated credentials...")
+	@echo -e "$(BLUE)[INFO]$(NC) Running StepCI tests with pre-generated credentials..."
+	@for test_file in \
+		stepci/workflow.yml \
+		stepci/threat-models/crud-operations.yml \
+		stepci/threat-models/search-filtering.yml \
+		stepci/threat-models/validation-failures.yml \
+		stepci/threats/crud-operations.yml \
+		stepci/threats/bulk-operations.yml \
+		stepci/diagrams/collaboration.yml \
+		stepci/integration/full-workflow.yml \
+		stepci/integration/rbac-permissions.yml \
+		stepci/auth/oauth-env-test.yml \
+		stepci/auth/user-operations.yml; do \
+		echo -e "$(BLUE)[INFO]$(NC) Running: $$test_file"; \
+		if ./scripts/run-stepci-with-creds.sh run "$$test_file"; then \
+			echo -e "$(GREEN)[SUCCESS]$(NC) $$test_file passed"; \
+		else \
+			echo -e "$(RED)[ERROR]$(NC) $$test_file failed"; \
+		fi; \
+		echo ""; \
+		sleep 1; \
+	done
+	$(call log_success,"All StepCI tests completed")
+
+# ============================================================================
 # BACKWARD COMPATIBILITY ALIASES
 # ============================================================================
 

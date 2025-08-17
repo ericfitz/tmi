@@ -4,32 +4,28 @@ config:
   http:
     baseURL: http://localhost:8080
   variables:
-    # User Hints for CRUD Testing
-    crud_user_hint: "tm-crud-user"      # Creates tm-crud-user@test.tmi
-    edge_case_user_hint: "tm-edge-user" # Creates tm-edge-user@test.tmi
+    # Pre-generated user credentials (loaded via environment variables)
+    alice_email: "alice@test.tmi"       # Owner user for CRUD testing
+    bob_email: "bob@test.tmi"          # Writer user for CRUD testing
 tests:
   threat_model_crud_success:
     name: Threat Model CRUD Operations - Success Cases
     steps:
-      # Authenticate user using fallback method
-      - id: authenticate_user
-        name: Authenticate user via OAuth with user hint
+      # Load pre-generated user credentials
+      - id: load_user_credentials
+        name: Load Alice's credentials from environment
         http:
-          url: /auth/token/test
-          method: POST
-          headers:
-            Content-Type: application/json
-          json:
-            code: "test_auth_code_{{ crud_user_hint }}"
-            redirect_uri: "http://localhost:8079/"
-            user_hint: "{{ crud_user_hint }}"
+          url: http://httpbin.org/get
+          method: GET
           check:
             status: 200
         captures:
           access_token:
-            jsonpath: $.access_token
+            value: "{{ env.ALICE_TOKEN }}"
           user_id:
-            jsonpath: $.user_id
+            value: "{{ alice_email }}"
+          user_email:
+            value: "{{ alice_email }}"
 
       # CREATE - Test threat model creation
       - id: create_threat_model
@@ -214,23 +210,21 @@ tests:
   threat_model_edge_cases:
     name: Threat Model Edge Cases and Boundary Testing
     steps:
-      # Authenticate user
-      - id: authenticate_for_edge_cases
-        name: Authenticate edge case user for testing
+      # Load pre-generated user credentials
+      - id: load_credentials_for_edge_cases
+        name: Load Bob's credentials for edge case testing
         http:
-          url: /auth/token/test
-          method: POST
-          headers:
-            Content-Type: application/json
-          json:
-            code: "test_auth_code_{{ edge_case_user_hint }}"
-            redirect_uri: "http://localhost:8079/"
-            user_hint: "{{ edge_case_user_hint }}"
+          url: http://httpbin.org/get
+          method: GET
           check:
             status: 200
         captures:
           access_token:
-            jsonpath: $.access_token
+            value: "{{ env.BOB_TOKEN }}"
+          user_id:
+            value: "{{ bob_email }}"
+          user_email:
+            value: "{{ bob_email }}"
 
       # Test minimal valid threat model
       - id: create_minimal_threat_model

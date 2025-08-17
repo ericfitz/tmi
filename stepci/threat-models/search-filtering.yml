@@ -7,22 +7,21 @@ tests:
   threat_model_search_and_pagination:
     name: Threat Model Search, Filtering and Pagination
     steps:
-      # Authenticate user using fallback method
-      - id: authenticate_user
-        name: Authenticate user for search tests
+      # Load pre-generated user credentials
+      - id: load_user_credentials
+        name: Load Alice's credentials for search tests
         http:
-          url: /auth/token/test
-          method: POST
-          headers:
-            Content-Type: application/json
-          json:
-            code: "test_auth_code_stepci"
-            redirect_uri: "http://localhost:8079/"
+          url: http://httpbin.org/get
+          method: GET
           check:
             status: 200
         captures:
           access_token:
-            jsonpath: $.access_token
+            value: "{{ env.ALICE_TOKEN }}"
+          user_id:
+            value: "alice@test.tmi"
+          user_email:
+            value: "alice@test.tmi"
 
       # Create multiple threat models for testing
       - id: create_tm_ecommerce

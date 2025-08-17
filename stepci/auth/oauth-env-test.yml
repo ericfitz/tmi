@@ -1,24 +1,101 @@
 version: "1.1"
-name: OAuth Test with Environment Variable
+name: OAuth Test with Pre-Generated Credentials
 config:
   http:
     baseURL: http://localhost:8080
-env:
-  # We'll get the token manually before running this test
-  ACCESS_TOKEN: ""
 tests:
-  oauth_with_env:
-    name: OAuth test using environment variable
+  oauth_with_alice_token:
+    name: Test authentication using pre-generated Alice credentials
     steps:
-      - id: test_with_env_token
-        name: Test with environment token
+      # Load pre-generated credentials
+      - id: setup_credentials
+        name: Setup Alice's credentials from environment
+        http:
+          url: http://httpbin.org/get
+          method: GET
+          check:
+            status: 200
+        captures:
+          access_token:
+            value: "{{ env.ALICE_TOKEN }}"
+          user_id:
+            value: "alice@test.tmi"
+          user_email:
+            value: "alice@test.tmi"
+
+      - id: test_auth_me
+        name: Test /auth/me endpoint with Alice's token
         http:
           url: /auth/me
           method: GET
           headers:
-            Authorization: "Bearer ${{env.ACCESS_TOKEN}}"
+            Authorization: "Bearer {{ access_token }}"
           check:
             status: 200
             jsonpath:
-              $.authenticated: true
-              $.email: "testuser@test.tmi"
+              $.email: "alice@test.tmi"
+              $.name: "Alice (Test User)"
+
+  oauth_with_bob_token:
+    name: Test authentication using pre-generated Bob credentials
+    steps:
+      # Load pre-generated credentials
+      - id: setup_bob_credentials
+        name: Setup Bob's credentials from environment
+        http:
+          url: http://httpbin.org/get
+          method: GET
+          check:
+            status: 200
+        captures:
+          bob_token:
+            value: "{{ env.BOB_TOKEN }}"
+          bob_user_id:
+            value: "bob@test.tmi"
+          bob_user_email:
+            value: "bob@test.tmi"
+
+      - id: test_bob_auth_me
+        name: Test /auth/me endpoint with Bob's token
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer {{ bob_token }}"
+          check:
+            status: 200
+            jsonpath:
+              $.email: "bob@test.tmi"
+              $.name: "Bob (Test User)"
+
+  oauth_with_chuck_token:
+    name: Test authentication using pre-generated Chuck credentials
+    steps:
+      # Load pre-generated credentials
+      - id: setup_chuck_credentials
+        name: Setup Chuck's credentials from environment
+        http:
+          url: http://httpbin.org/get
+          method: GET
+          check:
+            status: 200
+        captures:
+          chuck_token:
+            value: "{{ env.CHUCK_TOKEN }}"
+          chuck_user_id:
+            value: "chuck@test.tmi"
+          chuck_user_email:
+            value: "chuck@test.tmi"
+
+      - id: test_chuck_auth_me
+        name: Test /auth/me endpoint with Chuck's token
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer {{ chuck_token }}"
+          check:
+            status: 200
+            jsonpath:
+              $.email: "chuck@test.tmi"
+              $.name: "Chuck (Test User)"

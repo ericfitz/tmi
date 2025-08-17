@@ -7,22 +7,21 @@ tests:
   collaboration_session_success:
     name: Diagram Collaboration Session Management - Success Cases
     steps:
-      # Authenticate first user
-      - id: authenticate_user1
-        name: Authenticate first user via OAuth
+      # Load pre-generated credentials for first user (Alice)
+      - id: load_user1_credentials
+        name: Load Alice's credentials for collaboration tests
         http:
-          url: /auth/token/test
-          method: POST
-          headers:
-            Content-Type: application/json
-          json:
-            code: "test_auth_code_stepci"
-            redirect_uri: "http://localhost:8079/"
+          url: http://httpbin.org/get
+          method: GET
           check:
             status: 200
         captures:
           user1_token:
-            jsonpath: $.access_token
+            value: "{{ env.ALICE_TOKEN }}"
+          user1_id:
+            value: "alice@test.tmi"
+          user1_email:
+            value: "alice@test.tmi"
 
       # Create threat model and diagram for collaboration testing
       - id: create_threat_model
@@ -165,22 +164,21 @@ tests:
                   type: string
                   pattern: "/threat_models/.+/diagrams/.+/collaborate"
 
-      # Authenticate second user
-      - id: authenticate_user2
-        name: Authenticate second user for collaboration
+      # Load pre-generated credentials for second user (Bob)
+      - id: load_user2_credentials
+        name: Load Bob's credentials for collaboration tests
         http:
-          url: /auth/token/test
-          method: POST
-          headers:
-            Content-Type: application/json
-          json:
-            code: "test_auth_code_stepci"
-            redirect_uri: "http://localhost:8079/"
+          url: http://httpbin.org/get
+          method: GET
           check:
             status: 200
         captures:
           user2_token:
-            jsonpath: $.access_token
+            value: "{{ env.BOB_TOKEN }}"
+          user2_id:
+            value: "bob@test.tmi"
+          user2_email:
+            value: "bob@test.tmi"
 
       # Test PUT - Join existing collaboration session
       - id: join_collaboration_session
