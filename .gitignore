@@ -42,3 +42,5 @@ coverage_html/
 server
 check-db
 migrate
+.config.*.mk
+test.mk
