@@ -19,6 +19,10 @@ This directory contains scripts that are actively used by the refactored build s
 ### Development Utilities
 - **`patch-json.py`** - Precise JSON modification utility for OpenAPI specs
 - **`oauth-client-callback-stub.py`** - Universal OAuth callback handler supporting both Authorization Code and Implicit flows for development testing. Use `make oauth-stub-start` to run.
+  - **Features**: OAuth callback capture, credential persistence, user-specific credential retrieval
+  - **Endpoints**: `GET /` (OAuth callback), `GET /latest` (latest credentials), `GET /creds?userid=<id>` (user-specific credentials)
+  - **Persistence**: Saves credentials to `$TMP/<user-id>.json` files for later retrieval
+  - **Cleanup**: Automatically cleans up temp files on startup
 
 ### Testing Tools
 - **`api_test.py`** - Human-readable API testing with simple script format and OAuth integration

@@ -7,6 +7,11 @@ import argparse
 import json
 import logging
 import datetime
+import os
+import glob
+import re
+import tempfile
+import base64
 
 # Global flag to control server shutdown
 should_exit = False
@@ -140,6 +145,45 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     "token_type": token_type,
                     "expires_in": expires_in
                 })
+                
+                # If we have valid credentials, try to extract user ID and save to file
+                if flow_type != "unknown" and (access_token or code):
+                    user_id = extract_user_id_from_credentials(latest_oauth_credentials)
+                    if user_id:
+                        # Create the same response format as /latest endpoint
+                        if flow_type == "authorization_code":
+                            credentials_to_save = {
+                                "flow_type": "authorization_code",
+                                "code": code,
+                                "state": state,
+                                "ready_for_token_exchange": code is not None
+                            }
+                        elif flow_type == "implicit":
+                            credentials_to_save = {
+                                "flow_type": "implicit", 
+                                "state": state,
+                                "access_token": access_token,
+                                "refresh_token": refresh_token,
+                                "token_type": token_type,
+                                "expires_in": expires_in,
+                                "tokens_ready": access_token is not None
+                            }
+                        elif flow_type == "mixed":
+                            credentials_to_save = {
+                                "flow_type": "mixed",
+                                "code": code,
+                                "state": state,
+                                "access_token": access_token,
+                                "refresh_token": refresh_token,
+                                "token_type": token_type,
+                                "expires_in": expires_in,
+                                "ready_for_token_exchange": code is not None,
+                                "tokens_ready": access_token is not None
+                            }
+                        else:
+                            credentials_to_save = latest_oauth_credentials.copy()
+                        
+                        save_credentials_to_file(credentials_to_save, user_id)
 
                 # Enhanced logging
                 logger.info(f"OAUTH REDIRECT ANALYSIS:")
@@ -224,6 +268,67 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 logger.info(f"API request: {client_ip} {method} {self.path} {http_version} 200 {json.dumps(summary)}")
                 logger.info(f"Full response: {response_json}")
 
+            # Route 3: API endpoint to retrieve credentials for specific user (/creds)
+            elif path == "/creds":
+                # Extract userid parameter
+                userid_part = query_params.get("userid", [None])[0]
+                
+                # Validate userid parameter
+                if not userid_part:
+                    error_msg = "Missing required parameter: userid"
+                    self.send_response(400)
+                    self.send_header("Content-type", "application/json")
+                    self.end_headers()
+                    error_response = {"error": error_msg}
+                    self.wfile.write(json.dumps(error_response).encode())
+                    logger.info(f"API request: {client_ip} {method} {self.path} {http_version} 400 \"{error_msg}\"")
+                    return
+                
+                if not validate_userid_parameter(userid_part):
+                    error_msg = f"Invalid userid parameter: {userid_part}. Must match pattern ^[a-zA-Z0-9][a-zA-Z0-9-]{{1,18}}[a-zA-Z0-9]$"
+                    self.send_response(400)
+                    self.send_header("Content-type", "application/json")
+                    self.end_headers()
+                    error_response = {"error": error_msg}
+                    self.wfile.write(json.dumps(error_response).encode())
+                    logger.info(f"API request: {client_ip} {method} {self.path} {http_version} 400 \"{error_msg}\"")
+                    return
+                
+                # Form complete user ID
+                complete_user_id = f"{userid_part}@test.tmi"
+                logger.info(f"Looking up credentials for user: {complete_user_id}")
+                
+                # Read credentials file
+                credentials, error = read_credentials_file(complete_user_id)
+                
+                if error:
+                    # File not found or read error
+                    if "not found" in error:
+                        self.send_response(404)
+                        error_response = {"error": f"No credentials found for user: {complete_user_id}"}
+                    else:
+                        self.send_response(500)
+                        error_response = {"error": "Internal server error reading credentials"}
+                    
+                    self.send_header("Content-type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps(error_response).encode())
+                    logger.info(f"API request: {client_ip} {method} {self.path} {http_version} {404 if 'not found' in error else 500} \"{error}\"")
+                    return
+                
+                # Return credentials
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                
+                response_json = json.dumps(credentials, indent=2)
+                self.wfile.write(response_json.encode())
+                
+                # Log successful request
+                summary = {"user_id": complete_user_id, "flow_type": credentials.get("flow_type")}
+                logger.info(f"API request: {client_ip} {method} {self.path} {http_version} 200 {json.dumps(summary)}")
+                logger.info(f"Returned credentials: {response_json}")
+
             # Unknown route
             else:
                 error_msg = f"Not Found: {path}"
@@ -281,10 +386,127 @@ def run_server(port):
         sys.exit(1)
 
 
+def cleanup_temp_files():
+    """Delete all .json files in $TMP directory on startup."""
+    tmp_dir = tempfile.gettempdir()
+    json_files = glob.glob(os.path.join(tmp_dir, "*.json"))
+    
+    if json_files:
+        logger.info(f"Cleaning up {len(json_files)} .json files from {tmp_dir}")
+        for file_path in json_files:
+            try:
+                os.remove(file_path)
+                logger.info(f"Deleted: {file_path}")
+            except OSError as e:
+                logger.warning(f"Failed to delete {file_path}: {e}")
+    else:
+        logger.info(f"No .json files found in {tmp_dir} to clean up")
+
+
+def extract_user_id_from_credentials(credentials):
+    """Extract user ID from OAuth credentials if available."""
+    # For TMI test provider, the user ID would typically be in the access token or state
+    # Since we don't decode JWTs here, we'll look for patterns in the state or other fields
+    
+    # Try to extract from state parameter (common pattern: contains user info)
+    state = credentials.get("state")
+    if state:
+        # Look for email patterns in state - TMI includes user hint in state
+        email_match = re.search(r'([a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9])@test\.tmi', state)
+        if email_match:
+            return email_match.group(0)  # Return full email
+        
+        # Also try to decode JSON state if it contains user_hint
+        try:
+            # State might be base64 encoded JSON
+            decoded_state = base64.b64decode(state).decode('utf-8')
+            state_data = json.loads(decoded_state)
+            user_hint = state_data.get('user_hint')
+            if user_hint and validate_userid_parameter(user_hint):
+                return f"{user_hint}@test.tmi"
+        except:
+            pass  # Not JSON or base64, continue with other methods
+    
+    # Try to decode JWT access token for email claim (simple approach)
+    access_token = credentials.get("access_token")
+    if access_token:
+        try:
+            # JWT tokens have 3 parts separated by dots
+            parts = access_token.split('.')
+            if len(parts) == 3:
+                # Decode payload (middle part) - add padding if needed
+                payload_b64 = parts[1]
+                # Add padding if needed
+                payload_b64 += '=' * (4 - len(payload_b64) % 4)
+                payload_json = base64.b64decode(payload_b64).decode('utf-8')
+                payload = json.loads(payload_json)
+                
+                # Look for email claim
+                email = payload.get('email')
+                if email and email.endswith('@test.tmi'):
+                    return email
+        except:
+            pass  # JWT decoding failed, continue
+    
+    # For now, if we can't extract user ID, we'll use a default pattern
+    # This will result in not saving credentials to file
+    return None
+
+
+def save_credentials_to_file(credentials, user_id):
+    """Save credentials to a file in $TMP directory."""
+    if not user_id:
+        logger.warning("No user ID available, cannot save credentials to file")
+        return
+    
+    tmp_dir = tempfile.gettempdir()
+    file_path = os.path.join(tmp_dir, f"{user_id}.json")
+    
+    try:
+        with open(file_path, 'w') as f:
+            json.dump(credentials, f, indent=2)
+        logger.info(f"Saved credentials to: {file_path}")
+    except Exception as e:
+        logger.error(f"Failed to save credentials to {file_path}: {e}")
+
+
+def validate_userid_parameter(userid_part):
+    """Validate userid parameter against the required regex pattern."""
+    if not userid_part:
+        return False
+    
+    # Pattern: ^[a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9]$
+    pattern = r'^[a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9]$'
+    return re.match(pattern, userid_part) is not None
+
+
+def read_credentials_file(user_id):
+    """Read credentials file for a given user ID."""
+    tmp_dir = tempfile.gettempdir()
+    file_path = os.path.join(tmp_dir, f"{user_id}.json")
+    
+    try:
+        if not os.path.exists(file_path):
+            return None, f"Credentials file not found for user: {user_id}"
+        
+        with open(file_path, 'r') as f:
+            credentials = json.load(f)
+        
+        logger.info(f"Retrieved credentials from: {file_path}")
+        return credentials, None
+    except Exception as e:
+        error_msg = f"Failed to read credentials file {file_path}: {e}"
+        logger.error(error_msg)
+        return None, error_msg
+
+
 def main():
     """Parse command-line arguments and start the server."""
     # Set up logging before doing anything else
     setup_logging()
+    
+    # Clean up temp files on startup
+    cleanup_temp_files()
     
     parser = argparse.ArgumentParser(description="OAuth Redirect URI Receiver")
     parser.add_argument(

@@ -92,9 +92,12 @@ find stepci -name "*.yml" -not -path "*/utils/*" | xargs stepci run
 The OAuth tests require a callback stub to capture authorization codes from the OAuth flow:
 
 **Features:**
-- **Route 1** (`GET /`): Receives OAuth callbacks, stores latest code/state
+- **Route 1** (`GET /`): Receives OAuth callbacks, stores latest code/state, saves to `$TMP/<user-id>.json`
 - **Route 2** (`GET /latest`): Returns stored credentials as JSON for StepCI consumption
-- **Automatic Integration**: StepCI tests fetch real OAuth codes via `/latest` endpoint
+- **Route 3** (`GET /creds?userid=<id>`): Returns credentials for specific user from persistent storage
+- **Credential Persistence**: Saves user credentials to temporary files for later retrieval
+- **User-Specific Testing**: Support for retrieving credentials by user ID for test automation
+- **Automatic Integration**: StepCI tests fetch real OAuth codes via `/latest` or `/creds` endpoints
 - **Structured Logging**: All requests and events logged to `/tmp/oauth-stub.log` with RFC3339 timestamps
 - **Magic Exit Code**: Send `GET /?code=exit` to gracefully shutdown the server via HTTP request
 

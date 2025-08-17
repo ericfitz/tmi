@@ -5,10 +5,13 @@ A lightweight HTTP server that captures OAuth authorization callbacks for develo
 ## Features
 
 - **Universal Flow Support**: Automatically detects and handles both OAuth2 flows
-- **Dual Route Architecture**: Callback handler + credentials API
+- **Triple Route Architecture**: Callback handler + credentials API + user-specific credential retrieval
+- **Credential Persistence**: Saves credentials to temporary files for later retrieval by user ID
+- **User-Specific Access**: Retrieve credentials for specific users via `/creds?userid=<id>` endpoint
+- **Automatic Cleanup**: Cleans up temporary credential files on startup
 - **Comprehensive Logging**: Structured logs with flow analysis
 - **StepCI Integration**: Solves variable substitution limitations in API tests
-- **Development-Focused**: Localhost-only, no persistence, graceful shutdown
+- **Development-Focused**: Localhost-only, graceful shutdown
 - **Flow-Aware Responses**: Returns appropriate JSON for detected flow type
 
 ## Quick Start
@@ -65,7 +68,7 @@ python3 oauth-client-callback-stub.py [OPTIONS]
 
 Options:
   --port PORT    Server port (default: 8079)
-  --host HOST    Server host (default: localhost)  
+  --host HOST    Server host (default: localhost)
   --help         Show help message
 ```
 
@@ -117,49 +120,91 @@ ps aux | grep oauth-client-callback-stub.py
 Receives OAuth redirects from authorization servers and stores credentials.
 
 **Authorization Code Flow Example:**
+
 ```
 GET /?code=auth_code_123&state=abc123
 ```
 
 **Implicit Flow Example:**
+
 ```
 GET /?access_token=token_456&token_type=Bearer&expires_in=3600&state=abc123
 ```
 
 **Special Command:**
+
 ```
 GET /?code=exit  # Graceful server shutdown
 ```
 
-#### `GET /latest` - Credentials API
+#### `GET /latest` - Latest Credentials API
 
 Returns the most recently captured OAuth credentials in flow-specific format.
 
+#### `GET /creds?userid=<userid>` - User-Specific Credentials API
+
+Retrieves saved credentials for a specific user ID from persistent storage.
+
+**Parameters:**
+
+- `userid` (required): User ID part before `@test.tmi` (e.g., `alice` for `alice@test.tmi`)
+- Must match regex: `^[a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9]$`
+
+**Responses:**
+
+```bash
+# Success (200)
+curl "http://localhost:8079/creds?userid=alice"
+{
+  "flow_type": "implicit",
+  "state": "test-state",
+  "access_token": "eyJ...",
+  "token_type": "Bearer",
+  "expires_in": "3600",
+  "tokens_ready": true
+}
+
+# Missing parameter (400)
+curl "http://localhost:8079/creds"
+{"error": "Missing required parameter: userid"}
+
+# Invalid parameter (400)
+curl "http://localhost:8079/creds?userid=a"
+{"error": "Invalid userid parameter: a. Must match pattern ^[a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9]$"}
+
+# User not found (404)
+curl "http://localhost:8079/creds?userid=nonexistent"
+{"error": "No credentials found for user: nonexistent@test.tmi"}
+```
+
 **Authorization Code Flow Response:**
+
 ```json
 {
-    "flow_type": "authorization_code",
-    "code": "auth_code_123",
-    "state": "abc123"
+  "flow_type": "authorization_code",
+  "code": "auth_code_123",
+  "state": "abc123"
 }
 ```
 
 **Implicit Flow Response:**
+
 ```json
 {
-    "flow_type": "implicit", 
-    "access_token": "token_456",
-    "token_type": "Bearer",
-    "expires_in": 3600,
-    "state": "abc123"
+  "flow_type": "implicit",
+  "access_token": "token_456",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "state": "abc123"
 }
 ```
 
 **No Data Response:**
+
 ```json
 {
-    "flow_type": null,
-    "error": "No OAuth credentials captured yet"
+  "flow_type": null,
+  "error": "No OAuth credentials captured yet"
 }
 ```
 
@@ -182,7 +227,7 @@ YYYY-MM-DDTHH:MM:SS.sssZ <message>
 2025-01-15T10:30:15.124Z Server running at http://localhost:8079/
 2025-01-15T10:30:15.124Z Routes:
 2025-01-15T10:30:15.124Z   GET / - OAuth callback handler
-2025-01-15T10:30:15.124Z   GET /latest - Latest credentials API  
+2025-01-15T10:30:15.124Z   GET /latest - Latest credentials API
 2025-01-15T10:30:15.124Z   GET /?code=exit - Graceful shutdown
 2025-01-15T10:30:25.456Z [192.168.1.100] GET /?access_token=eyJhbGc...&token_type=Bearer&expires_in=3600&state=AbCdEf123 HTTP/1.1 200 - {"flow_type": "implicit", "credentials_captured": true}
 2025-01-15T10:30:30.789Z [127.0.0.1] GET /latest HTTP/1.1 200 - {"flow_type": "implicit", "access_token": "eyJhbGc...", "token_type": "Bearer", "expires_in": 3600, "state": "AbCdEf123"}
@@ -218,35 +263,35 @@ env:
 tests:
   oauth_flow:
     steps:
-      # Step 1: Clear any existing credentials  
+      # Step 1: Clear any existing credentials
       - name: clear_credentials
         http:
           url: http://${{env.stub_host}}/latest
           method: GET
-          
+
       # Step 2: Initiate OAuth flow with stub callback
       - name: start_oauth
         http:
           url: http://${{env.host}}/auth/login/test?client_callback=http://${{env.stub_host}}/
           method: GET
           follow_redirects: true
-          
+
       # Step 3: Retrieve captured credentials
-      - name: get_credentials  
+      - name: get_credentials
         http:
           url: http://${{env.stub_host}}/latest
           method: GET
           check:
             status: 200
             json:
-              flow_type: 
+              flow_type:
                 not_eq: null
 ```
 
 ### Flow-Aware StepCI Test
 
 ```yaml
-# advanced-oauth-test.yml  
+# advanced-oauth-test.yml
 version: "1.1"
 name: Universal OAuth Flow Test
 env:
@@ -260,7 +305,7 @@ tests:
           url: http://${{env.host}}/auth/login/test?client_callback=http://${{env.stub_host}}/
           method: GET
           follow_redirects: true
-          
+
       - name: get_oauth_result
         http:
           url: http://${{env.stub_host}}/latest
@@ -269,7 +314,7 @@ tests:
             flow_type: json.flow_type
             auth_code: json.code
             access_token: json.access_token
-            
+
       # Conditional execution based on flow type
       - name: exchange_code
         if: captures.flow_type == 'authorization_code'
@@ -281,9 +326,9 @@ tests:
             redirect_uri: http://${{env.stub_host}}/
           check:
             status: 200
-            
+
       - name: use_implicit_token
-        if: captures.flow_type == 'implicit'  
+        if: captures.flow_type == 'implicit'
         http:
           url: http://${{env.host}}/api/user/me
           method: GET
@@ -330,6 +375,9 @@ curl "http://localhost:8080/auth/login/test?client_callback=http://localhost:807
 
 # Check what was received
 curl http://localhost:8079/latest
+
+# Or retrieve credentials for specific user
+curl "http://localhost:8079/creds?userid=alice"
 ```
 
 **TMI Test Provider User Hints:**
@@ -352,35 +400,53 @@ Capture real OAuth tokens for API testing:
 
 ```javascript
 // test-oauth-api.js
-const fetch = require('node-fetch');
+const fetch = require("node-fetch");
 
-async function testOAuthFlow() {
-    // Get latest credentials from stub
-    const response = await fetch('http://localhost:8079/latest');
-    const creds = await response.json();
-    
-    if (creds.flow_type === 'implicit') {
-        // Use token directly
-        const apiResponse = await fetch('http://localhost:8080/api/data', {
-            headers: { 'Authorization': `Bearer ${creds.access_token}` }
-        });
-        console.log('API Response:', await apiResponse.json());
-    } else if (creds.flow_type === 'authorization_code') {
-        // Exchange code for token first
-        const tokenResponse = await fetch('http://localhost:8080/auth/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                code: creds.code,
-                redirect_uri: 'http://localhost:8079/'
-            })
-        });
-        const tokens = await tokenResponse.json();
-        console.log('Tokens:', tokens);
+async function testOAuthFlow(userId = null) {
+  let creds;
+
+  if (userId) {
+    // Get credentials for specific user
+    const response = await fetch(
+      `http://localhost:8079/creds?userid=${userId}`
+    );
+    if (response.status === 404) {
+      console.log(`No credentials found for user: ${userId}`);
+      return;
     }
+    creds = await response.json();
+  } else {
+    // Get latest credentials from stub
+    const response = await fetch("http://localhost:8079/latest");
+    creds = await response.json();
+  }
+
+  if (creds.flow_type === "implicit") {
+    // Use token directly
+    const apiResponse = await fetch("http://localhost:8080/api/data", {
+      headers: { Authorization: `Bearer ${creds.access_token}` },
+    });
+    console.log("API Response:", await apiResponse.json());
+  } else if (creds.flow_type === "authorization_code") {
+    // Exchange code for token first
+    const tokenResponse = await fetch("http://localhost:8080/auth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: creds.code,
+        redirect_uri: "http://localhost:8079/",
+      }),
+    });
+    const tokens = await tokenResponse.json();
+    console.log("Tokens:", tokens);
+  }
 }
 
+// Test latest credentials
 testOAuthFlow();
+
+// Test specific user's credentials
+testOAuthFlow("alice");
 ```
 
 ### 3. Multi-Provider Testing
@@ -400,15 +466,15 @@ STUB_PID=$!
 
 for provider in "${PROVIDERS[@]}"; do
     echo "Testing provider: $provider"
-    
+
     # Trigger OAuth flow
     curl -s "http://localhost:8080/auth/login/$provider?client_callback=http://localhost:$STUB_PORT/" > /dev/null
-    
+
     # Get results
     result=$(curl -s "http://localhost:$STUB_PORT/latest")
     echo "Result: $result"
     echo "---"
-    
+
     sleep 2
 done
 
@@ -421,6 +487,7 @@ kill $STUB_PID
 ### Common Issues
 
 **Server Won't Start**
+
 ```bash
 # Check if port is in use
 lsof -i :8079
@@ -431,6 +498,7 @@ python3 oauth-client-callback-stub.py --port 8080
 ```
 
 **No Credentials Captured**
+
 ```bash
 # Check logs for errors
 tail -f /tmp/oauth-stub.log
@@ -444,6 +512,7 @@ curl "http://localhost:8079/latest"
 ```
 
 **StepCI Variable Issues**
+
 ```bash
 # Check captures in StepCI verbose mode
 stepci run test.yml --verbose
@@ -467,7 +536,7 @@ logging.basicConfig(level=logging.DEBUG)
 # Count successful captures
 grep -c "credentials_captured.*true" /tmp/oauth-stub.log
 
-# Find flow type distribution  
+# Find flow type distribution
 grep -o "flow_type.*implicit\|flow_type.*authorization_code" /tmp/oauth-stub.log | sort | uniq -c
 
 # Check for errors
@@ -476,11 +545,18 @@ grep -i error /tmp/oauth-stub.log
 
 ## Security Considerations
 
-- **Development Only**: Never use in production environments
+**Development Only**: Never use in production environments
+
+### Risks
+
+- **Log Sensitivity**: Display output and logs will contain auth codes and tokens - secure log files appropriately
+- **Network Exposure**: Intentionally exposes auth codes and tokens via unauthenticated http - ensure firewall blocks external access to stub port
+
+### Compensating Controls
+
 - **Localhost Binding**: Server only accepts local connections
-- **No Persistence**: Credentials stored in memory only
-- **Log Sensitivity**: Logs may contain tokens - secure log files appropriately
-- **Network Exposure**: Ensure firewall blocks external access to stub port
+- **File Permissions**: Credential files readable by the running user only
+- **Temporary Persistence**: Credentials saved to `$TMP/*.json` files, cleaned up on restart
 
 ## Advanced Usage
 
@@ -498,29 +574,30 @@ if custom_param:
 ### Integration with Test Frameworks
 
 **Jest Example:**
+
 ```javascript
 // oauth-stub-helper.js
-const fetch = require('node-fetch');
+const fetch = require("node-fetch");
 
 class OAuthStubHelper {
-    constructor(port = 8079) {
-        this.baseUrl = `http://localhost:${port}`;
+  constructor(port = 8079) {
+    this.baseUrl = `http://localhost:${port}`;
+  }
+
+  async getLatestCredentials() {
+    const response = await fetch(`${this.baseUrl}/latest`);
+    return response.json();
+  }
+
+  async waitForCredentials(timeout = 10000) {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      const creds = await this.getLatestCredentials();
+      if (creds.flow_type) return creds;
+      await new Promise((r) => setTimeout(r, 500));
     }
-    
-    async getLatestCredentials() {
-        const response = await fetch(`${this.baseUrl}/latest`);
-        return response.json();
-    }
-    
-    async waitForCredentials(timeout = 10000) {
-        const start = Date.now();
-        while (Date.now() - start < timeout) {
-            const creds = await this.getLatestCredentials();
-            if (creds.flow_type) return creds;
-            await new Promise(r => setTimeout(r, 500));
-        }
-        throw new Error('Timeout waiting for OAuth credentials');
-    }
+    throw new Error("Timeout waiting for OAuth credentials");
+  }
 }
 
 module.exports = OAuthStubHelper;
@@ -540,7 +617,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.9'
+          python-version: "3.9"
       - name: Start OAuth stub
         run: python3 scripts/oauth-client-callback-stub.py --port 8079 &
       - name: Start test server
@@ -565,4 +642,4 @@ This tool is designed to be simple and focused. When making modifications:
 
 ## License
 
-This tool is provided as-is for development and testing purposes. Use at your own discretion in development environments only.
+Licensed under Apache 2.0 license terms. This tool is provided as-is for development and testing purposes. Use at your own discretion in development environments only.

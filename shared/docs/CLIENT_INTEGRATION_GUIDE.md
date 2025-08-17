@@ -81,6 +81,8 @@ The OAuth callback stub (`scripts/oauth-client-callback-stub.py`) is a developme
 - **Universal Flow Support**: Automatically detects and handles both Authorization Code Flow and Implicit Flow
 - **Flow Detection**: Analyzes incoming parameters to determine OAuth flow type  
 - **Smart Response**: Returns appropriate JSON structure based on detected flow
+- **Credential Persistence**: Saves credentials to temporary files for later retrieval by user ID
+- **User-Specific Access**: Retrieve credentials for specific users via `/creds?userid=<id>` endpoint
 - **Enhanced Logging**: Comprehensive parameter analysis and flow type detection
 - **Make Integration**: Controlled via `make oauth-stub-start/stop/status` commands
 
@@ -149,6 +151,9 @@ curl "http://localhost:8080/auth/login/test?client_callback=http://localhost:807
 # 3. Fetch the captured credentials with flow detection
 curl http://localhost:8079/latest | jq '.'
 
+# 3a. OR fetch credentials for specific user (new feature)
+curl "http://localhost:8079/creds?userid=alice" | jq '.'
+
 # 4. Review detailed logs for debugging
 cat /tmp/oauth-stub.log
 ```
@@ -204,8 +209,44 @@ curl "http://localhost:8080/auth/login/test"
   "error": "No OAuth data received yet"
 }
 
-# 5. Shutdown server gracefully (optional)
+# 5. Retrieve stored credentials for automation/testing
+curl "http://localhost:8079/creds?userid=alice"
+curl "http://localhost:8079/creds?userid=qa-user" 
+
+# 6. Shutdown server gracefully (optional)
 curl "http://localhost:8079/?code=exit"
+```
+
+**New Credential Retrieval API:**
+
+The OAuth stub now supports retrieving credentials for specific users:
+
+```bash
+# Retrieve credentials for 'alice@test.tmi'
+curl "http://localhost:8079/creds?userid=alice"
+
+# Error responses
+curl "http://localhost:8079/creds"                    # Missing parameter
+curl "http://localhost:8079/creds?userid=a"           # Invalid format  
+curl "http://localhost:8079/creds?userid=nonexistent" # User not found
+```
+
+**Response Examples:**
+```json
+// Success - User found
+{
+  "flow_type": "implicit",
+  "state": "test-state",
+  "access_token": "eyJ...",
+  "token_type": "Bearer", 
+  "expires_in": "3600",
+  "tokens_ready": true
+}
+
+// Error responses
+{"error": "Missing required parameter: userid"}
+{"error": "Invalid userid parameter: a. Must match pattern ^[a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9]$"}
+{"error": "No credentials found for user: nonexistent@test.tmi"}
 ```
 
 **Response Format:**

@@ -63,17 +63,20 @@ This repository contains API documentation and Go implementation for a Collabora
     - **Authorization Code Flow**: Receives `code` and `state`, client exchanges code for tokens
     - **Implicit Flow**: Receives tokens directly (`access_token`, `refresh_token`, etc.)
   - **Features**: 
-    - Two-route HTTP server with OAuth callback handler and credentials API
+    - Three-route HTTP server with OAuth callback handler, credentials API, and user-specific credential retrieval
+    - Credential persistence to temporary files for later retrieval by user ID
     - Automatic flow type detection and appropriate response formatting
     - Enhanced debugging with detailed parameter logging
+    - Startup cleanup of temporary credential files
   - **Logging**: Comprehensive structured logging to `/tmp/oauth-stub.log` with RFC3339 timestamps and dual console output
   - **Make Commands**:
     - `make oauth-stub-start` - Start OAuth stub on port 8079
     - `make oauth-stub-stop` - Stop OAuth stub gracefully  
     - `make oauth-stub-status` - Check if OAuth stub is running
   - **API Routes**:
-    - **Route 1 (`GET /`)**: Receives OAuth redirects, analyzes flow type, stores credentials
+    - **Route 1 (`GET /`)**: Receives OAuth redirects, analyzes flow type, stores credentials, saves to `$TMP/<user-id>.json`
     - **Route 2 (`GET /latest`)**: Returns flow-appropriate JSON response for client integration
+    - **Route 3 (`GET /creds?userid=<userid>`)**: Returns saved credentials for specific user from persistent storage
   - **Response Formats**:
     ```json
     // Authorization Code Flow Response
@@ -106,11 +109,14 @@ This repository contains API documentation and Go implementation for a Collabora
     # Start OAuth callback stub
     make oauth-stub-start
     
-    # Initiate OAuth flow with callback stub
-    curl "http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/"
+    # Initiate OAuth flow with callback stub and user hint
+    curl "http://localhost:8080/auth/login/test?user_hint=alice&client_callback=http://localhost:8079/"
     
-    # Check what type of flow was used and get credentials
+    # Check latest credentials (traditional method)
     curl http://localhost:8079/latest | jq '.'
+    
+    # Or retrieve credentials for specific user (new method)
+    curl "http://localhost:8079/creds?userid=alice" | jq '.'
     
     # Monitor detailed logs for debugging flow details
     tail -f /tmp/oauth-stub.log
