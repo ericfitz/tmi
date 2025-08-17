@@ -1,0 +1,546 @@
+version: "1.0"
+name: Threats CRUD Operations Tests
+config:
+  http:
+    baseURL: http://localhost:8080
+  variables:
+    # User Hint for Threat CRUD Testing
+    threat_crud_user_hint: "threat-user"  # Creates threat-user@test.tmi
+tests:
+  threats_crud_success:
+    name: Threats CRUD Operations - Success Cases
+    steps:
+      # Authenticate user using fallback method
+      - id: authenticate_user
+        name: Authenticate user via OAuth with user hint
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_{{ threat_crud_user_hint }}"
+            redirect_uri: "http://localhost:8079/"
+            user_hint: "{{ threat_crud_user_hint }}"
+          check:
+            status: 200
+        captures:
+          access_token:
+            jsonpath: $.access_token
+
+      - id: create_parent_threat_model
+        name: Create parent threat model for threats
+        http:
+          url: /threat_models
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            name: "Web Application Security Assessment"
+            description: "Threat model for web application with user authentication and data processing"
+          check:
+            status: 201
+        captures:
+          threat_model_id:
+            jsonpath: $.id
+
+      # CREATE - Test threat creation
+      - id: create_threat_sql_injection
+        name: Create SQL injection threat
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            title: "SQL Injection in User Authentication"
+            description: "Potential SQL injection vulnerability in user login endpoint allowing unauthorized access and data extraction"
+            category: "injection"
+            severity: "high"
+            status: "identified"
+            mitigation: "Implement parameterized queries and comprehensive input validation"
+          check:
+            status: 201
+            schema:
+              type: object
+              required: ["id", "title", "description", "category", "severity", "status", "created_at", "modified_at"]
+              properties:
+                id:
+                  type: string
+                  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                title:
+                  type: string
+                description:
+                  type: string
+                category:
+                  type: string
+                severity:
+                  type: string
+                status:
+                  type: string
+                mitigation:
+                  type: string
+        captures:
+          threat_sql_id:
+            jsonpath: $.id
+          threat_created_at:
+            jsonpath: $.created_at
+
+      - id: create_threat_xss
+        name: Create XSS threat
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            title: "Cross-Site Scripting (XSS) in User Comments"
+            description: "Stored XSS vulnerability in comment system allowing malicious script execution"
+            category: "injection"
+            severity: "medium"
+            status: "identified"
+            mitigation: "Implement proper output encoding and content security policy"
+          check:
+            status: 201
+        captures:
+          threat_xss_id:
+            jsonpath: $.id
+
+      - id: create_threat_authz
+        name: Create authorization threat
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            title: "Inadequate Authorization Controls"
+            description: "Insufficient access controls allowing users to access unauthorized resources"
+            category: "authorization"
+            severity: "high"
+            status: "identified"
+            mitigation: "Implement role-based access control and resource-level permissions"
+          check:
+            status: 201
+        captures:
+          threat_authz_id:
+            jsonpath: $.id
+
+      # READ - Test listing threats
+      - id: list_threats
+        name: List all threats in threat model
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 200
+            schema:
+              type: array
+              minItems: 3  # Should have our 3 created threats
+            # Verify all threats are present
+            jsonpath:
+              $[?(@.id == "{{ threat_sql_id }}")]:
+                - title: "SQL Injection in User Authentication"
+              $[?(@.id == "{{ threat_xss_id }}")]:
+                - title: "Cross-Site Scripting (XSS) in User Comments"
+              $[?(@.id == "{{ threat_authz_id }}")]:
+                - title: "Inadequate Authorization Controls"
+
+      # READ - Test getting specific threat
+      - id: get_specific_threat
+        name: Get specific threat by ID
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/{{ threat_sql_id }}
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 200
+            jsonpath:
+              $.id: "{{ threat_sql_id }}"
+              $.title: "SQL Injection in User Authentication"
+              $.description: "Potential SQL injection vulnerability in user login endpoint allowing unauthorized access and data extraction"
+              $.category: "injection"
+              $.severity: "high"
+              $.status: "identified"
+              $.mitigation: "Implement parameterized queries and comprehensive input validation"
+              $.created_at: "{{ threat_created_at }}"
+
+      # UPDATE - Test full update (PUT)
+      - id: update_threat_full
+        name: Full update of threat (PUT)
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/{{ threat_sql_id }}
+          method: PUT
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            title: "SQL Injection in Authentication System (Updated)"
+            description: "Updated analysis: Critical SQL injection vulnerability affecting multiple endpoints including login, registration, and password reset functionality"
+            category: "injection"
+            severity: "critical"
+            status: "in_progress"
+            mitigation: "Phase 1: Implement prepared statements. Phase 2: Add input validation. Phase 3: Security testing"
+          check:
+            status: 200
+            jsonpath:
+              $.id: "{{ threat_sql_id }}"
+              $.title: "SQL Injection in Authentication System (Updated)"
+              $.severity: "critical"
+              $.status: "in_progress"
+              $.created_at: "{{ threat_created_at }}"
+
+      # UPDATE - Test partial update (PATCH) with JSON Patch
+      - id: update_threat_patch
+        name: Partial update of threat (PATCH with JSON Patch)
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/{{ threat_xss_id }}
+          method: PATCH
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json-patch+json
+          json:
+            - op: "replace"
+              path: "/status"
+              value: "mitigated"
+            - op: "replace"
+              path: "/mitigation"
+              value: "Implemented output encoding and CSP. Completed security testing."
+          check:
+            status: 200
+            jsonpath:
+              $.id: "{{ threat_xss_id }}"
+              $.status: "mitigated"
+              $.mitigation: "Implemented output encoding and CSP. Completed security testing."
+
+      # Verify patch update
+      - id: verify_patch_update
+        name: Verify JSON Patch update was applied
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/{{ threat_xss_id }}
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 200
+            jsonpath:
+              $.status: "mitigated"
+              $.mitigation: "Implemented output encoding and CSP. Completed security testing."
+
+      # DELETE - Test threat deletion
+      - id: delete_threat
+        name: Delete threat
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/{{ threat_authz_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204  # No Content
+
+      # Verify deletion
+      - id: verify_threat_deletion
+        name: Verify threat was deleted
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/{{ threat_authz_id }}
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 404
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+
+      # Verify remaining threats
+      - id: list_remaining_threats
+        name: List remaining threats after deletion
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 200
+            schema:
+              type: array
+              minItems: 2
+              maxItems: 2  # Should have exactly 2 remaining threats
+
+      # Cleanup remaining threats
+      - id: cleanup_sql_threat
+        name: Cleanup SQL injection threat
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/{{ threat_sql_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+      - id: cleanup_xss_threat
+        name: Cleanup XSS threat
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/{{ threat_xss_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+      # Cleanup parent threat model
+      - id: cleanup_threat_model
+        name: Cleanup parent threat model
+        http:
+          url: /threat_models/{{ threat_model_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+  threat_edge_cases:
+    name: Threat Edge Cases and Boundary Testing
+    steps:
+      # Authenticate and create parent threat model
+      - id: authenticate_for_edge_cases
+        name: Authenticate for threat edge cases
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_stepci"
+            redirect_uri: "http://localhost:8079/"
+          check:
+            status: 200
+        captures:
+          access_token:
+            jsonpath: $.access_token
+
+      - id: create_tm_for_edge_cases
+        name: Create threat model for edge case testing
+        http:
+          url: /threat_models
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            name: "Edge Case Testing TM"
+            description: "Created for threat edge case testing"
+          check:
+            status: 201
+        captures:
+          edge_tm_id:
+            jsonpath: $.id
+
+      # Test minimal valid threat
+      - id: create_minimal_threat
+        name: Create threat with minimal required fields
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            title: "Min Threat"
+            description: "Minimal threat description"
+            category: "other"
+            severity: "low"
+            status: "identified"
+          check:
+            status: 201
+        captures:
+          minimal_threat_id:
+            jsonpath: $.id
+
+      # Test with maximum length fields
+      - id: create_max_length_threat
+        name: Create threat with maximum length fields
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            title: "{{ 'Very Long Threat Title That Tests Maximum Field Length ' | repeat(5) | truncate(200) }}"
+            description: "{{ 'This is an extremely detailed threat description that explores the boundaries of field length validation. It includes comprehensive details about attack vectors, potential impact, and mitigation strategies. ' | repeat(10) | truncate(2000) }}"
+            category: "injection"
+            severity: "high"
+            status: "identified"
+            mitigation: "{{ 'Comprehensive mitigation strategy with multiple phases including immediate fixes, long-term improvements, and ongoing monitoring. ' | repeat(5) | truncate(1000) }}"
+          check:
+            status: 201
+        captures:
+          max_length_threat_id:
+            jsonpath: $.id
+
+      # Test Unicode and special characters
+      - id: create_unicode_threat
+        name: Create threat with Unicode characters
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            title: "国际化安全威胁 🚨 Security Alert"
+            description: "Threat analysis with émojis 🔐, açcénts, and 中文字符 for international security testing"
+            category: "tampering"
+            severity: "medium"
+            status: "identified"
+            mitigation: "International mitigation: Ånalize 中文 security côntröls"
+          check:
+            status: 201
+            jsonpath:
+              $.title: "国际化安全威胁 🚨 Security Alert"
+        captures:
+          unicode_threat_id:
+            jsonpath: $.id
+
+      # Test all valid enum values
+      - id: test_all_categories
+        name: Test all valid threat categories
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            title: "Authorization Category Test"
+            description: "Testing authorization category"
+            category: "authorization"
+            severity: "medium"
+            status: "identified"
+          check:
+            status: 201
+        captures:
+          authz_category_threat_id:
+            jsonpath: $.id
+
+      - id: test_all_severities
+        name: Test all valid threat severities
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            title: "Critical Severity Test"
+            description: "Testing critical severity level"
+            category: "tampering"
+            severity: "critical"
+            status: "identified"
+          check:
+            status: 201
+        captures:
+          critical_severity_threat_id:
+            jsonpath: $.id
+
+      - id: test_all_statuses
+        name: Test all valid threat statuses
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            title: "Mitigated Status Test"
+            description: "Testing mitigated status"
+            category: "information_disclosure"
+            severity: "low"
+            status: "mitigated"
+          check:
+            status: 201
+        captures:
+          mitigated_status_threat_id:
+            jsonpath: $.id
+
+      # Cleanup all edge case threats
+      - id: cleanup_minimal_threat
+        name: Cleanup minimal threat
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats/{{ minimal_threat_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+      - id: cleanup_max_length_threat
+        name: Cleanup max length threat
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats/{{ max_length_threat_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+      - id: cleanup_unicode_threat
+        name: Cleanup Unicode threat
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats/{{ unicode_threat_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+      - id: cleanup_authz_category_threat
+        name: Cleanup authorization category threat
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats/{{ authz_category_threat_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+      - id: cleanup_critical_severity_threat
+        name: Cleanup critical severity threat
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats/{{ critical_severity_threat_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+      - id: cleanup_mitigated_status_threat
+        name: Cleanup mitigated status threat
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats/{{ mitigated_status_threat_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+      # Cleanup parent threat model
+      - id: cleanup_edge_case_tm
+        name: Cleanup edge case threat model
+        http:
+          url: /threat_models/{{ edge_tm_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204

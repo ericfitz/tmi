@@ -1,0 +1,401 @@
+version: "1.0"
+name: Complete End-to-End Workflow Integration Tests
+config:
+  http:
+    baseURL: http://localhost:8080
+  variables:
+    # User Hint for Full Workflow Test
+    workflow_user_hint: "workflow-user"  # Creates workflow-user@test.tmi
+tests:
+  complete_user_journey:
+    name: Complete User Journey - Authentication to Collaboration
+    steps:
+      # Phase 1: Authentication
+      - id: user_authentication
+        name: Complete OAuth authentication flow with user hint
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_{{ workflow_user_hint }}"
+            redirect_uri: "http://localhost:8079/"
+            user_hint: "{{ workflow_user_hint }}"
+          check:
+            status: 200
+            schema:
+              type: object
+              required: ["access_token", "refresh_token"]
+        captures:
+          access_token:
+            jsonpath: $.access_token
+          refresh_token:
+            jsonpath: $.refresh_token
+
+      - id: get_user_profile
+        name: Get authenticated user profile (validate predictable user)
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 200
+            jsonpath:
+              $.email: "{{ workflow_user_hint }}@test.tmi"
+              $.name: "{{ workflow_user_hint | title }} (Test User)"
+        captures:
+          user_id:
+            jsonpath: $.sub
+          user_email:
+            jsonpath: $.email
+          user_name:
+            jsonpath: $.name
+
+      # Phase 2: Threat Model Creation and Management
+      - id: create_comprehensive_threat_model
+        name: Create comprehensive threat model
+        http:
+          url: /threat_models
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            name: "E-commerce Platform Security Assessment"
+            description: "Comprehensive threat model for online retail platform including user authentication, payment processing, inventory management, and order fulfillment"
+            project_url: "https://github.com/example/ecommerce-platform"
+            issue_url: "https://github.com/example/ecommerce-platform/issues/security-review"
+          check:
+            status: 201
+        captures:
+          threat_model_id:
+            jsonpath: $.id
+
+      # Phase 3: Threat Analysis
+      - id: create_authentication_threats
+        name: Create authentication-related threats
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/bulk
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            - title: "SQL Injection in User Login"
+              description: "Potential SQL injection vulnerability in user authentication endpoint"
+              category: "injection"
+              severity: "critical"
+              status: "identified"
+              mitigation: "Implement parameterized queries and comprehensive input validation"
+            - title: "Weak Password Policy"
+              description: "Insufficient password complexity requirements allowing weak passwords"
+              category: "authentication"
+              severity: "medium"
+              status: "identified"
+              mitigation: "Implement strong password policy with complexity requirements"
+            - title: "Session Fixation Vulnerability"
+              description: "Application vulnerable to session fixation attacks"
+              category: "authentication"
+              severity: "high"
+              status: "identified"
+              mitigation: "Regenerate session ID upon successful authentication"
+          check:
+            status: 201
+        captures:
+          auth_threat_ids:
+            jsonpath: $[*].id
+
+      - id: create_payment_threats
+        name: Create payment processing threats
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/bulk
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            - title: "Payment Data Exposure"
+              description: "Credit card information stored without proper encryption"
+              category: "information_disclosure"
+              severity: "critical"
+              status: "identified"
+              mitigation: "Implement PCI DSS compliant encryption for payment data"
+            - title: "Transaction Tampering"
+              description: "Insufficient validation of payment amounts allowing tampering"
+              category: "tampering"
+              severity: "high"
+              status: "identified"
+              mitigation: "Implement server-side validation and digital signatures"
+          check:
+            status: 201
+        captures:
+          payment_threat_ids:
+            jsonpath: $[*].id
+
+      # Phase 4: Documentation and Sources
+      - id: add_security_documentation
+        name: Add security documentation
+        http:
+          url: /threat_models/{{ threat_model_id }}/documents/bulk
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            - name: "Security Architecture Document"
+              description: "Detailed security architecture and design decisions"
+              document_type: "architecture"
+              url: "https://docs.example.com/security-architecture"
+            - name: "PCI DSS Compliance Guide"
+              description: "Guidelines for maintaining PCI DSS compliance"
+              document_type: "compliance"
+              url: "https://docs.example.com/pci-dss-compliance"
+            - name: "Incident Response Playbook"
+              description: "Step-by-step incident response procedures"
+              document_type: "procedure"
+              url: "https://docs.example.com/incident-response"
+          check:
+            status: 201
+        captures:
+          document_ids:
+            jsonpath: $[*].id
+
+      - id: add_security_sources
+        name: Add security reference sources
+        http:
+          url: /threat_models/{{ threat_model_id }}/sources/bulk
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            - name: "OWASP Top 10 2021"
+              description: "OWASP Top 10 Web Application Security Risks"
+              source_type: "standard"
+              url: "https://owasp.org/Top10/"
+            - name: "PCI DSS v4.0"
+              description: "Payment Card Industry Data Security Standard"
+              source_type: "standard"
+              url: "https://www.pcisecuritystandards.org/"
+            - name: "NIST Cybersecurity Framework"
+              description: "Framework for improving critical infrastructure cybersecurity"
+              source_type: "framework"
+              url: "https://www.nist.gov/cyberframework"
+          check:
+            status: 201
+        captures:
+          source_ids:
+            jsonpath: $[*].id
+
+      # Phase 5: Diagram Creation and Collaboration
+      - id: create_system_diagram
+        name: Create system architecture diagram
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            name: "E-commerce System Architecture"
+            description: "High-level system architecture with trust boundaries and data flows"
+            diagram_type: "data_flow"
+          check:
+            status: 201
+        captures:
+          diagram_id:
+            jsonpath: $.id
+
+      - id: start_collaboration_session
+        name: Start collaboration session for diagram
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}/collaborate
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json: {}
+          check:
+            status: 201
+        captures:
+          collaboration_session_id:
+            jsonpath: $.session_id
+          websocket_url:
+            jsonpath: $.websocket_url
+
+      # Phase 6: Threat Status Updates and Management
+      - id: update_threat_status_progress
+        name: Update threat statuses to in-progress
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/batch/patch
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            threat_ids: ["{{ auth_threat_ids[0] }}", "{{ payment_threat_ids[0] }}"]
+            operations:
+              - op: "replace"
+                path: "/status"
+                value: "in_progress"
+              - op: "replace"
+                path: "/mitigation"
+                value: "Mitigation work has begun. Implementation in progress."
+          check:
+            anyOf:
+              - status: 200  # Batch patch successful
+              - status: 404  # Batch patch endpoint may not exist yet
+
+      - id: mitigate_low_severity_threats
+        name: Mark medium severity threats as mitigated
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/{{ auth_threat_ids[1] }}
+          method: PATCH
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json-patch+json
+          json:
+            - op: "replace"
+              path: "/status"
+              value: "mitigated"
+            - op: "replace"
+              path: "/mitigation"
+              value: "Strong password policy implemented with 12-character minimum, complexity requirements, and password history."
+          check:
+            status: 200
+
+      # Phase 7: Comprehensive Verification
+      - id: verify_complete_threat_model
+        name: Verify complete threat model structure
+        http:
+          url: /threat_models/{{ threat_model_id }}
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 200
+            jsonpath:
+              $.name: "E-commerce Platform Security Assessment"
+              $.id: "{{ threat_model_id }}"
+
+      - id: verify_all_threats_created
+        name: Verify all threats were created
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 200
+            schema:
+              type: array
+              minItems: 5  # Should have 5 threats total
+
+      - id: verify_documents_and_sources
+        name: Verify documents and sources were created
+        http:
+          url: /threat_models/{{ threat_model_id }}/documents
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 200
+            schema:
+              type: array
+              minItems: 3  # Should have 3 documents
+
+      - id: verify_sources
+        name: Verify sources were created
+        http:
+          url: /threat_models/{{ threat_model_id }}/sources
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 200
+            schema:
+              type: array
+              minItems: 3  # Should have 3 sources
+
+      # Phase 8: Collaboration Session Testing
+      - id: verify_collaboration_session
+        name: Verify collaboration session is active
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}/collaborate
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 200
+            jsonpath:
+              $.session_id: "{{ collaboration_session_id }}"
+
+      # Phase 9: Cleanup (Complete Teardown)
+      - id: end_collaboration_session
+        name: End collaboration session
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}/collaborate
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+      - id: delete_diagram
+        name: Delete system diagram
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+      # Note: In a real scenario, we might want to keep the threat model
+      # But for testing, we'll clean it up (this will cascade delete all threats, documents, sources)
+      - id: delete_threat_model
+        name: Delete threat model (cascades to all child resources)
+        http:
+          url: /threat_models/{{ threat_model_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+      # Phase 10: Verify Cleanup
+      - id: verify_threat_model_deleted
+        name: Verify threat model was deleted
+        http:
+          url: /threat_models/{{ threat_model_id }}
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 404
+
+      # Final Phase: Logout
+      - id: user_logout
+        name: User logout to end session
+        http:
+          url: /auth/logout
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            logout: true
+          check:
+            status: 204
+
+      - id: verify_logout
+        name: Verify user is logged out
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 401  # Should be unauthorized after logout

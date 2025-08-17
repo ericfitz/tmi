@@ -20,7 +20,7 @@
 !.dockerignore
 !config-example.yml
 !tmi-asyncapi.yml
-!stepci/**.yml
+!stepci/**
 
 # Include subdirectories (but avoid overriding specific ignores)
 !*/

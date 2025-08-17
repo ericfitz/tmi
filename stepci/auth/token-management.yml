@@ -1,0 +1,236 @@
+version: "1.0"
+name: JWT Token Management Tests
+config:
+  http:
+    baseURL: http://localhost:8080
+  variables:
+    # User Hint for Predictable Test User
+    test_user_hint: "token-test-user"
+tests:
+  token_refresh_success:
+    name: JWT Token Refresh - Success Cases
+    steps:
+      # Get initial tokens using OAuth stub flow
+      - id: initiate_oauth_flow
+        name: Initiate OAuth flow with callback stub and user hint
+        http:
+          url: /auth/login/test?client_callback=http://localhost:8079/&user_hint={{ test_user_hint }}
+          method: GET
+          followRedirects: true
+          check:
+            status: 200
+
+      - id: wait_for_callback
+        name: Wait for OAuth callback processing
+        http:
+          url: http://httpbin.org/delay/0.5
+          method: GET
+          check:
+            status: 200
+
+      - id: fetch_oauth_credentials
+        name: Fetch OAuth credentials from callback stub
+        http:
+          url: http://localhost:8079/latest
+          method: GET
+          check:
+            status: 200
+        captures:
+          flow_type:
+            jsonpath: $.flow_type
+          oauth_code:
+            jsonpath: $.code
+          stub_access_token:
+            jsonpath: $.access_token
+          stub_refresh_token:
+            jsonpath: $.refresh_token
+
+      - id: get_fresh_token_fallback
+        name: Get fresh token as fallback for StepCI with user hint
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_{{ test_user_hint }}"
+            redirect_uri: "http://localhost:8079/"
+            user_hint: "{{ test_user_hint }}"
+          check:
+            status: 200
+        captures:
+          initial_access_token:
+            jsonpath: $.access_token
+          initial_refresh_token:
+            jsonpath: $.refresh_token
+
+      - id: verify_initial_token
+        name: Verify initial access token works
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer {{ initial_access_token }}"
+          check:
+            status: 200
+        captures:
+          user_id:
+            jsonpath: $.sub
+
+      - id: refresh_token_success
+        name: Refresh JWT token with valid refresh token
+        http:
+          url: /auth/refresh
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            refresh_token: "{{ initial_refresh_token }}"
+          check:
+            status: 200
+            schema:
+              type: object
+              properties:
+                access_token:
+                  type: string
+                refresh_token:
+                  type: string
+                expires_in:
+                  type: number
+                token_type:
+                  type: string
+        captures:
+          new_access_token:
+            jsonpath: $.access_token
+          new_refresh_token:
+            jsonpath: $.refresh_token
+
+      - id: verify_new_token
+        name: Verify new access token works
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer {{ new_access_token }}"
+          check:
+            status: 200
+            jsonpath:
+              # Should be same user
+              $.sub: "{{ user_id }}"
+
+  token_refresh_failures:
+    name: JWT Token Refresh - Failure Cases
+    steps:
+      - id: refresh_without_token
+        name: Refresh request without refresh token
+        http:
+          url: /auth/refresh
+          method: POST
+          headers:
+            Content-Type: application/json
+          json: {}
+          check:
+            status: 400
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+
+      - id: refresh_invalid_token
+        name: Refresh with invalid refresh token
+        http:
+          url: /auth/refresh
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            refresh_token: "invalid_refresh_token_123"
+          check:
+            status: 400
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+
+      - id: refresh_malformed_request
+        name: Refresh with malformed JSON
+        http:
+          url: /auth/refresh
+          method: POST
+          headers:
+            Content-Type: application/json
+          body: '{"refresh_token": "valid_token", invalid_json}'
+          check:
+            status: 400
+
+      - id: refresh_wrong_content_type
+        name: Refresh without proper Content-Type header
+        http:
+          url: /auth/refresh
+          method: POST
+          body: 'refresh_token=test_token'
+          check:
+            status: 400
+
+  token_expiration_handling:
+    name: Token Expiration and Security Tests
+    steps:
+      # Get fresh tokens using fallback method
+      - id: get_fresh_tokens
+        name: Get fresh JWT tokens with user hint
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_{{ test_user_hint }}"
+            redirect_uri: "http://localhost:8079/"
+            user_hint: "{{ test_user_hint }}"
+          check:
+            status: 200
+        captures:
+          access_token:
+            jsonpath: $.access_token
+
+      - id: test_expired_token_format
+        name: Test with obviously expired/invalid token format
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.expired_token"
+          check:
+            status: 401
+
+      - id: test_malformed_jwt
+        name: Test with malformed JWT structure
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer not.a.valid.jwt.structure"
+          check:
+            status: 401
+
+      - id: test_empty_bearer_token
+        name: Test with empty Bearer token
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer "
+          check:
+            status: 401
+
+      - id: test_jwt_without_bearer
+        name: Test JWT token without Bearer prefix
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "{{ access_token }}"
+          check:
+            status: 401

@@ -223,9 +223,15 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	c.Redirect(http.StatusFound, authURL)
 }
 
+// callbackStateData holds parsed OAuth state information
+type callbackStateData struct {
+	ProviderID     string
+	ClientCallback string
+	UserHint       string
+}
+
 // Callback handles the OAuth callback
 func (h *Handlers) Callback(c *gin.Context) {
-	// Get the authorization code and state
 	code := c.Query("code")
 	state := c.Query("state")
 
@@ -236,10 +242,8 @@ func (h *Handlers) Callback(c *gin.Context) {
 		return
 	}
 
-	// Verify the state parameter and retrieve stored data
-	stateKey := fmt.Sprintf("oauth_state:%s", state)
-	ctx := c.Request.Context()
-	stateDataJSON, err := h.service.dbManager.Redis().Get(ctx, stateKey)
+	// Parse and validate state
+	stateData, err := h.parseCallbackState(c, state)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid state parameter",
@@ -247,107 +251,148 @@ func (h *Handlers) Callback(c *gin.Context) {
 		return
 	}
 
+	// Handle the OAuth flow
+	err = h.processOAuthCallback(c, code, stateData)
+	if err != nil {
+		// Error already handled in processOAuthCallback
+		return
+	}
+}
+
+// parseCallbackState retrieves and parses OAuth state data
+func (h *Handlers) parseCallbackState(c *gin.Context, state string) (*callbackStateData, error) {
+	stateKey := fmt.Sprintf("oauth_state:%s", state)
+	ctx := c.Request.Context()
+	stateDataJSON, err := h.service.dbManager.Redis().Get(ctx, stateKey)
+	if err != nil {
+		return nil, err
+	}
+
 	// Delete the state from Redis
 	_ = h.service.dbManager.Redis().Del(ctx, stateKey)
 
 	// Parse the state data (handle both old and new formats)
-	var stateData map[string]string
-	var providerID, clientCallback, userHint string
+	var stateMap map[string]string
+	result := &callbackStateData{}
 
-	if err := json.Unmarshal([]byte(stateDataJSON), &stateData); err != nil {
+	if err := json.Unmarshal([]byte(stateDataJSON), &stateMap); err != nil {
 		// Handle legacy format where stateData is just the provider ID
-		providerID = stateDataJSON
+		result.ProviderID = stateDataJSON
 	} else {
 		// Handle new format with structured data
-		providerID = stateData["provider"]
-		clientCallback = stateData["client_callback"]
-		userHint = stateData["user_hint"]
+		result.ProviderID = stateMap["provider"]
+		result.ClientCallback = stateMap["client_callback"]
+		result.UserHint = stateMap["user_hint"]
 
-		// Debug logging
 		logging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, client_callback=%s, user_hint=%s",
-			providerID, clientCallback, userHint)
+			result.ProviderID, result.ClientCallback, result.UserHint)
 	}
+
+	return result, nil
+}
+
+// processOAuthCallback handles the core OAuth callback flow
+func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *callbackStateData) error {
+	ctx := c.Request.Context()
 
 	// Get the provider
-	provider, err := h.getProvider(providerID)
+	provider, err := h.getProvider(stateData.ProviderID)
 	if err != nil {
-		// Return 404 for unavailable providers (like test provider in production)
 		if strings.Contains(err.Error(), "not available in production") {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "Provider not available",
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Provider not available"})
 		} else {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": err.Error(),
-			})
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		}
-		return
+		return err
 	}
 
-	// For test provider, set user hint in context if available
-	if userHint != "" && providerID == "test" {
-		logging.Get().WithContext(c).Debug("Setting user hint in context for test provider: %s", userHint)
-		ctx = context.WithValue(ctx, userHintContextKey, userHint)
-	} else if providerID == "test" {
+	// Set user hint context for test provider
+	ctx = h.setUserHintContext(c, ctx, stateData)
+
+	// Exchange code for tokens and get user info
+	_, userInfo, claims, err := h.exchangeCodeAndGetUser(c, ctx, provider, code)
+	if err != nil {
+		return err
+	}
+
+	// Create or get user
+	user, err := h.createOrGetUser(c, ctx, userInfo, claims)
+	if err != nil {
+		return err
+	}
+
+	// Link provider to user
+	h.linkProviderToUser(ctx, user.ID, stateData.ProviderID, userInfo, claims)
+
+	// Generate and return tokens
+	return h.generateAndReturnTokens(c, ctx, user, stateData)
+}
+
+// setUserHintContext adds user hint to context for test provider
+func (h *Handlers) setUserHintContext(c *gin.Context, ctx context.Context, stateData *callbackStateData) context.Context {
+	if stateData.UserHint != "" && stateData.ProviderID == "test" {
+		logging.Get().WithContext(c).Debug("Setting user hint in context for test provider: %s", stateData.UserHint)
+		return context.WithValue(ctx, userHintContextKey, stateData.UserHint)
+	} else if stateData.ProviderID == "test" {
 		logging.Get().WithContext(c).Debug("No user hint provided for test provider: provider=%s userHint=%s",
-			providerID, userHint)
+			stateData.ProviderID, stateData.UserHint)
 	}
+	return ctx
+}
 
-	logging.Get().WithContext(c).Debug("About to call ExchangeCode: provider=%s code=%s has_user_hint_in_context=%v",
-		providerID, code, ctx.Value(userHintContextKey) != nil)
+// exchangeCodeAndGetUser exchanges OAuth code for tokens and gets user info
+func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, provider Provider, code string) (*TokenResponse, *UserInfo, *IDTokenClaims, error) {
+	logging.Get().WithContext(c).Debug("About to call ExchangeCode: code=%s has_user_hint_in_context=%v",
+		code, ctx.Value(userHintContextKey) != nil)
 
-	// Exchange the authorization code for tokens
 	tokenResponse, err := provider.ExchangeCode(ctx, code)
 	if err != nil {
-		// Check if it's an invalid code error (client error) vs server error
 		if strings.Contains(err.Error(), "invalid authorization code") ||
 			strings.Contains(err.Error(), "authorization code is required") {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": err.Error(),
-			})
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to exchange code for tokens: %v", err),
 			})
 		}
-		return
+		return nil, nil, nil, err
 	}
 
-	// Validate the ID token if present
+	// Validate ID token if present
 	var claims *IDTokenClaims
 	if tokenResponse.IDToken != "" {
 		claims, err = provider.ValidateIDToken(ctx, tokenResponse.IDToken)
 		if err != nil {
-			// Log the error but continue, as we can still get user info from the userinfo endpoint
 			fmt.Printf("Failed to validate ID token: %v\n", err)
 		}
 	}
 
-	// Get the user info from the provider
-	logging.Get().WithContext(c).Debug("About to call GetUserInfo: provider=%s access_token=%s",
-		providerID, tokenResponse.AccessToken)
+	// Get user info
+	logging.Get().WithContext(c).Debug("About to call GetUserInfo: access_token=%s", tokenResponse.AccessToken)
 	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to get user info: %v", err),
 		})
-		return
+		return nil, nil, nil, err
 	}
 
-	logging.Get().WithContext(c).Debug("GetUserInfo returned: provider=%s user_id=%s email=%s name=%s",
-		providerID, userInfo.ID, userInfo.Email, userInfo.Name)
+	logging.Get().WithContext(c).Debug("GetUserInfo returned: user_id=%s email=%s name=%s",
+		userInfo.ID, userInfo.Email, userInfo.Name)
 
-	// Get or create the user
+	return tokenResponse, userInfo, claims, nil
+}
+
+// createOrGetUser creates a new user or gets existing user
+func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, userInfo *UserInfo, claims *IDTokenClaims) (User, error) {
 	email := userInfo.Email
 	if email == "" && claims != nil {
 		email = claims.Email
 	}
 
 	if email == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get user email",
-		})
-		return
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user email"})
+		return User{}, fmt.Errorf("no email found")
 	}
 
 	name := userInfo.Name
@@ -358,7 +403,6 @@ func (h *Handlers) Callback(c *gin.Context) {
 		name = email
 	}
 
-	// Check if the user exists
 	user, err := h.service.GetUserByEmail(ctx, email)
 	if err != nil {
 		// Create a new user
@@ -375,48 +419,54 @@ func (h *Handlers) Callback(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to create user: %v", err),
 			})
-			return
+			return User{}, err
 		}
 	}
 
-	// Link the provider to the user if not already linked
+	return user, nil
+}
+
+// linkProviderToUser links the OAuth provider to the user
+func (h *Handlers) linkProviderToUser(ctx context.Context, userID, providerID string, userInfo *UserInfo, claims *IDTokenClaims) {
 	providerUserID := userInfo.ID
 	if providerUserID == "" && claims != nil {
 		providerUserID = claims.Subject
 	}
 
 	if providerUserID != "" {
-		err = h.service.LinkUserProvider(ctx, user.ID, providerID, providerUserID, email)
+		err := h.service.LinkUserProvider(ctx, userID, providerID, providerUserID, userInfo.Email)
 		if err != nil {
-			// Log the error but continue
 			fmt.Printf("Failed to link provider: %v\n", err)
 		}
 	}
+}
 
-	// Generate JWT tokens
+// generateAndReturnTokens generates JWT tokens and returns them
+func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, user User, stateData *callbackStateData) error {
 	tokenPair, err := h.service.GenerateTokens(ctx, user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
 		})
-		return
+		return err
 	}
 
 	// If client callback URL is provided, redirect there with tokens
-	if clientCallback != "" {
-		redirectURL, err := buildClientRedirectURL(clientCallback, tokenPair, state)
+	if stateData.ClientCallback != "" {
+		redirectURL, err := buildClientRedirectURL(stateData.ClientCallback, tokenPair, c.Query("state"))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to build redirect URL: %v", err),
 			})
-			return
+			return err
 		}
 		c.Redirect(http.StatusFound, redirectURL)
-		return
+		return nil
 	}
 
 	// Fallback: Return tokens as JSON (legacy behavior)
 	c.JSON(http.StatusOK, tokenPair)
+	return nil
 }
 
 // Exchange handles authorization code exchange for any provider

@@ -656,20 +656,21 @@ coverage-reports:
 stepci-execute:
 	$(call log_info,"Executing StepCI tests...")
 	@if [ -n "$(TEST_PATTERN)" ] && [ "$(TEST_PATTERN)" != "" ]; then \
-		$(call log_info,"Running specific StepCI test: $(TEST_PATTERN)"); \
+		echo -e "\033[0;34m[INFO]\033[0m Running specific StepCI test: $(TEST_PATTERN)"; \
 		if [ ! -f "$(STEPCI_TEST_DIRECTORY)/$(TEST_PATTERN)" ]; then \
-			$(call log_error,"Test file not found: $(STEPCI_TEST_DIRECTORY)/$(TEST_PATTERN)"); \
-			$(call log_info,"Available tests:"); \
+			echo -e "\033[0;31m[ERROR]\033[0m Test file not found: $(STEPCI_TEST_DIRECTORY)/$(TEST_PATTERN)"; \
+			echo -e "\033[0;34m[INFO]\033[0m Available tests:"; \
 			find $(STEPCI_TEST_DIRECTORY) -name "*.yml" -not -path "$(STEPCI_EXCLUDE_PATHS)" | sed 's|$(STEPCI_TEST_DIRECTORY)/||' | sort; \
 			exit 1; \
 		fi; \
 		stepci run "$(STEPCI_TEST_DIRECTORY)/$(TEST_PATTERN)"; \
 	else \
-		$(call log_info,"Running all StepCI integration tests..."); \
+		echo -e "\033[0;34m[INFO]\033[0m Running all StepCI integration tests in series (OAuth stub requires serial execution)..."; \
 		for test_file in $$(find $(STEPCI_TEST_DIRECTORY) -name "*.yml" -not -path "$(STEPCI_EXCLUDE_PATHS)" | sort); do \
-			$(call log_info,"Running: $$test_file"); \
+			echo -e "\033[0;34m[INFO]\033[0m Running: $$test_file"; \
 			stepci run "$$test_file" || echo "❌ Test failed: $$test_file"; \
 			echo ""; \
+			sleep 1; \
 		done; \
 	fi
 	$(call log_success,"StepCI tests completed")

@@ -1,0 +1,24 @@
+version: "1.1"
+name: OAuth Test with Environment Variable
+config:
+  http:
+    baseURL: http://localhost:8080
+env:
+  # We'll get the token manually before running this test
+  ACCESS_TOKEN: ""
+tests:
+  oauth_with_env:
+    name: OAuth test using environment variable
+    steps:
+      - id: test_with_env_token
+        name: Test with environment token
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer ${{env.ACCESS_TOKEN}}"
+          check:
+            status: 200
+            jsonpath:
+              $.authenticated: true
+              $.email: "testuser@test.tmi"

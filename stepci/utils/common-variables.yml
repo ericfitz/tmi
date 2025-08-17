@@ -1,0 +1,259 @@
+version: "1.0"
+name: Common Variables and Configuration
+config:
+  http:
+    baseURL: http://localhost:8080
+  variables:
+    # OAuth Provider Configuration
+    oauth_provider: "test"
+    oauth_stub_url: "http://localhost:8079"
+    oauth_callback_url: "http://localhost:8079/"
+    
+    # User Hint Configuration for Predictable Test Users
+    # Format: 3-20 characters, alphanumeric + hyphens, case-insensitive
+    # Generates: {hint}@test.tmi email addresses for consistent testing
+    test_user_owner: "alice"          # Creates alice@test.tmi
+    test_user_writer: "bob"           # Creates bob@test.tmi  
+    test_user_reader: "charlie"       # Creates charlie@test.tmi
+    test_user_default: "qa-automation" # Creates qa-automation@test.tmi
+    test_user_admin: "admin-user"     # Creates admin-user@test.tmi
+    
+    # API Endpoints
+    api_info_endpoint: "/"
+    auth_providers_endpoint: "/auth/providers"
+    auth_login_endpoint: "/auth/login"
+    auth_token_endpoint: "/auth/token"
+    auth_refresh_endpoint: "/auth/refresh"
+    auth_me_endpoint: "/auth/me"
+    auth_logout_endpoint: "/auth/logout"
+    
+    # Common Headers
+    content_type_json: "application/json"
+    accept_json: "application/json"
+    
+    # UUID Patterns for Validation
+    uuid_pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    
+    # Date Pattern for ISO8601
+    iso8601_pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$"
+    
+    # Common Error Messages
+    unauthorized_message: "Unauthorized"
+    forbidden_message: "Forbidden"
+    not_found_message: "Not Found"
+    bad_request_message: "Bad Request"
+    
+# Reusable components for common operations
+components:
+  # OAuth Authentication Flow with Stub Integration
+  oauth_flow:
+    - id: get_providers
+      name: Get OAuth providers
+      http:
+        url: /auth/providers
+        method: GET
+        check:
+          status: 200
+          schema:
+            type: object
+            properties:
+              providers:
+                type: array
+    
+    - id: initiate_oauth_with_stub
+      name: Initiate OAuth flow with callback stub
+      http:
+        url: /auth/login/{{ oauth_provider }}?client_callback={{ oauth_callback_url }}&user_hint={{ user_hint || test_user_default }}
+        method: GET
+        followRedirects: true
+        check:
+          status: 200
+    
+    - id: wait_for_callback
+      name: Wait for OAuth callback processing
+      http:
+        url: http://httpbin.org/delay/0.1
+        method: GET
+        check:
+          status: 200
+    
+    - id: fetch_oauth_credentials
+      name: Fetch OAuth credentials from callback stub
+      http:
+        url: "{{ oauth_stub_url }}/latest"
+        method: GET
+        check:
+          status: 200
+          schema:
+            type: object
+            properties:
+              flow_type:
+                type: string
+              state:
+                type: string
+        captures:
+          flow_type:
+            jsonpath: $.flow_type
+          oauth_code:
+            jsonpath: $.code
+          oauth_state:
+            jsonpath: $.state
+          stub_access_token:
+            jsonpath: $.access_token
+          stub_refresh_token:
+            jsonpath: $.refresh_token
+    
+    - id: exchange_oauth_code
+      name: Exchange OAuth code for JWT tokens (Authorization Code Flow)
+      if: flow_type == "authorization_code"
+      http:
+        url: /auth/token/{{ oauth_provider }}
+        method: POST
+        headers:
+          Content-Type: "{{ content_type_json }}"
+        json:
+          code: "{{ oauth_code }}"
+          redirect_uri: "{{ oauth_callback_url }}"
+        check:
+          status: 200
+          schema:
+            type: object
+            properties:
+              access_token:
+                type: string
+              refresh_token:
+                type: string
+              expires_in:
+                type: number
+              token_type:
+                type: string
+        captures:
+          access_token:
+            jsonpath: $.access_token
+          refresh_token:
+            jsonpath: $.refresh_token
+    
+    - id: use_implicit_tokens
+      name: Use tokens from implicit flow
+      if: flow_type == "implicit"
+      http:
+        url: http://httpbin.org/get
+        method: GET
+        check:
+          status: 200
+        captures:
+          access_token:
+            value: "{{ stub_access_token }}"
+          refresh_token:
+            value: "{{ stub_refresh_token }}"
+    
+    - id: get_fresh_token
+      name: Get fresh token as fallback (StepCI workaround)
+      http:
+        url: /auth/token/{{ oauth_provider }}
+        method: POST
+        headers:
+          Content-Type: "{{ content_type_json }}"
+        json:
+          code: "test_auth_code_stepci"
+          redirect_uri: "{{ oauth_callback_url }}"
+        check:
+          status: 200
+        captures:
+          fresh_access_token:
+            jsonpath: $.access_token
+
+  # User-specific OAuth Authentication Flows
+  oauth_flow_with_user:
+    - id: initiate_oauth_with_user_hint
+      name: Initiate OAuth flow with specific user hint
+      http:
+        url: /auth/login/{{ oauth_provider }}?client_callback={{ oauth_callback_url }}&user_hint={{ user_hint }}
+        method: GET
+        followRedirects: true
+        check:
+          status: 200
+    
+    - id: wait_for_callback
+      name: Wait for OAuth callback processing
+      http:
+        url: http://httpbin.org/delay/0.1
+        method: GET
+        check:
+          status: 200
+    
+    - id: fetch_oauth_credentials
+      name: Fetch OAuth credentials from callback stub
+      http:
+        url: "{{ oauth_stub_url }}/latest"
+        method: GET
+        check:
+          status: 200
+        captures:
+          flow_type:
+            jsonpath: $.flow_type
+          oauth_code:
+            jsonpath: $.code
+          stub_access_token:
+            jsonpath: $.access_token
+    
+    - id: get_fresh_token_with_hint
+      name: Get fresh token for specific user
+      http:
+        url: /auth/token/{{ oauth_provider }}
+        method: POST
+        headers:
+          Content-Type: "{{ content_type_json }}"
+        json:
+          code: "test_auth_code_{{ user_hint }}"
+          redirect_uri: "{{ oauth_callback_url }}"
+          user_hint: "{{ user_hint }}"
+        check:
+          status: 200
+        captures:
+          user_access_token:
+            jsonpath: $.access_token
+          user_refresh_token:
+            jsonpath: $.refresh_token
+    
+    - id: get_user_info
+      name: Get user information with JWT
+      http:
+        url: /auth/me
+        method: GET
+        headers:
+          Authorization: "Bearer {{ user_access_token }}"
+        check:
+          status: 200
+          jsonpath:
+            $.email: "{{ user_hint }}@test.tmi"
+        captures:
+          user_id:
+            jsonpath: $.sub
+          user_email:
+            jsonpath: $.email
+          user_name:
+            jsonpath: $.name
+
+  # Common Error Response Schema
+  error_response_schema:
+    type: object
+    properties:
+      error:
+        type: string
+      message:
+        type: string
+      details:
+        type: object
+
+  # JWT Authorization Header (use fresh_access_token as fallback for StepCI issues)
+  jwt_header:
+    Authorization: "Bearer {{ fresh_access_token }}"
+    Content-Type: "{{ content_type_json }}"
+    Accept: "{{ accept_json }}"
+    
+  # Alternative JWT headers for different token sources
+  jwt_header_oauth:
+    Authorization: "Bearer {{ access_token }}"
+    Content-Type: "{{ content_type_json }}"
+    Accept: "{{ accept_json }}"

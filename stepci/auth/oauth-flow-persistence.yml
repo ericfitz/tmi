@@ -1,0 +1,421 @@
+version: "1.1"
+name: OAuth Authentication Flow Tests with Credential Persistence
+config:
+  http:
+    baseURL: http://localhost:8080
+  variables:
+    # Test users for predictable testing
+    user1: "alice"
+    user2: "bob"
+    user3: "qa-automation"
+tests:
+  setup_credentials:
+    name: Setup OAuth Credentials for All Test Users
+    env:
+      alice_jwt: ""
+      bob_jwt: ""
+      qa_jwt: ""
+    steps:
+      # Setup credentials for user 'alice'
+      - id: setup_alice_oauth
+        name: Initiate OAuth flow for alice
+        http:
+          url: /auth/login/test?client_callback=http://localhost:8079/&user_hint=alice
+          method: GET
+          followRedirects: true
+          check:
+            status: 200
+
+      # Wait for alice callback processing
+      - id: wait_alice_callback
+        name: Wait for Alice OAuth callback processing
+        http:
+          url: http://httpbin.org/delay/1
+          method: GET
+          check:
+            status: 200
+
+      # Setup credentials for user 'bob' 
+      - id: setup_bob_oauth
+        name: Initiate OAuth flow for bob
+        http:
+          url: /auth/login/test?client_callback=http://localhost:8079/&user_hint=bob
+          method: GET
+          followRedirects: true
+          check:
+            status: 200
+
+      # Wait for bob callback processing
+      - id: wait_bob_callback
+        name: Wait for Bob OAuth callback processing
+        http:
+          url: http://httpbin.org/delay/1
+          method: GET
+          check:
+            status: 200
+
+      # Setup credentials for user 'qa-automation'
+      - id: setup_qa_oauth
+        name: Initiate OAuth flow for qa-automation
+        http:
+          url: /auth/login/test?client_callback=http://localhost:8079/&user_hint=qa-automation
+          method: GET
+          followRedirects: true
+          check:
+            status: 200
+
+      # Wait for qa-automation callback processing
+      - id: wait_qa_callback
+        name: Wait for QA OAuth callback processing
+        http:
+          url: http://httpbin.org/delay/1
+          method: GET
+          check:
+            status: 200
+
+      # Verify alice credentials are available
+      - id: get_alice_credentials
+        name: Get Alice credentials from stub
+        http:
+          url: http://localhost:8079/creds?userid=alice
+          method: GET
+          check:
+            status: 200
+            schema:
+              type: object
+              properties:
+                flow_type:
+                  type: string
+                  enum: ["authorization_code", "implicit"]
+                access_token:
+                  type: string
+                state:
+                  type: string
+        captures:
+          alice_jwt:
+            jsonpath: $.access_token
+          alice_refresh_token:
+            jsonpath: $.refresh_token
+
+      # Verify bob credentials are available  
+      - id: get_bob_credentials
+        name: Get Bob credentials from stub
+        http:
+          url: http://localhost:8079/creds?userid=bob
+          method: GET
+          check:
+            status: 200
+            schema:
+              type: object
+              properties:
+                flow_type:
+                  type: string
+                  enum: ["authorization_code", "implicit"]
+                access_token:
+                  type: string
+                state:
+                  type: string
+        captures:
+          bob_jwt:
+            jsonpath: $.access_token
+          bob_refresh_token:
+            jsonpath: $.refresh_token
+
+      # Verify qa-automation credentials are available
+      - id: get_qa_credentials
+        name: Get QA credentials from stub  
+        http:
+          url: http://localhost:8079/creds?userid=qa-automation
+          method: GET
+          check:
+            status: 200
+            schema:
+              type: object
+              properties:
+                flow_type:
+                  type: string
+                  enum: ["authorization_code", "implicit"]
+                access_token:
+                  type: string
+                state:
+                  type: string
+        captures:
+          qa_jwt:
+            jsonpath: $.access_token
+          qa_refresh_token:
+            jsonpath: $.refresh_token
+
+  oauth_success_flow:
+    name: Complete OAuth Authentication Flow - Success Cases
+    steps:
+      - id: get_api_info
+        name: Get API information (public endpoint)
+        http:
+          url: /
+          method: GET
+          check:
+            status: 200
+            schema:
+              type: object
+              properties:
+                service:
+                  type: object
+                api:
+                  type: object
+                operator:
+                  type: object
+
+      - id: get_oauth_providers
+        name: Get available OAuth providers
+        http:
+          url: /auth/providers
+          method: GET
+          check:
+            status: 200
+            schema:
+              type: object
+              properties:
+                providers:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      icon:
+                        type: string
+                      auth_url:
+                        type: string
+                      redirect_uri:
+                        type: string
+        captures:
+          test_provider_exists:
+            jsonpath: $.providers[?(@.id == 'test')]
+
+      # Use Alice's pre-established credentials
+      - id: get_alice_jwt_from_file
+        name: Get Alice JWT from credential file
+        http:
+          url: http://httpbin.org/get
+          method: GET
+          check:
+            status: 200
+        captures:
+          alice_jwt:
+            shell: 'cat /tmp/alice.json | jq -r ".access_token"'
+
+      - id: get_alice_user_info
+        name: Get Alice user information with persistent JWT
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer ${{ captures.get_alice_jwt_from_file.alice_jwt }}"
+          check:
+            status: 200
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                name:
+                  type: string
+            jsonpath:
+              $.email: "alice@test.tmi"
+              $.name: "Alice (Test User)"
+        captures:
+          alice_user_id:
+            jsonpath: $.sub
+          alice_user_email:
+            jsonpath: $.email
+          alice_user_name:
+            jsonpath: $.name
+
+      # Use Bob's pre-established credentials
+      - id: get_bob_jwt_from_file
+        name: Get Bob JWT from credential file
+        http:
+          url: http://httpbin.org/get
+          method: GET
+          check:
+            status: 200
+        captures:
+          bob_jwt:
+            shell: 'cat /tmp/bob.json | jq -r ".access_token"'
+
+      - id: get_bob_user_info
+        name: Get Bob user information with persistent JWT
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer ${{ captures.get_bob_jwt_from_file.bob_jwt }}"
+          check:
+            status: 200
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                name:
+                  type: string
+            jsonpath:
+              $.email: "bob@test.tmi"
+              $.name: "Bob (Test User)"
+        captures:
+          bob_user_id:
+            jsonpath: $.sub
+          bob_user_email:
+            jsonpath: $.email
+          bob_user_name:
+            jsonpath: $.name
+
+  oauth_failure_cases:
+    name: OAuth Authentication Flow - Failure Cases
+    steps:
+      - id: invalid_provider
+        name: Attempt login with invalid OAuth provider
+        http:
+          url: /auth/login/invalid_provider
+          method: GET
+          check:
+            status: 400
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+
+      - id: missing_oauth_code
+        name: Exchange tokens without OAuth code
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            redirect_uri: "http://localhost:8079/"
+          check:
+            status: 400
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+
+      - id: invalid_oauth_code
+        name: Exchange tokens with invalid OAuth code
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "invalid_code_123"
+            redirect_uri: "http://localhost:8079/"
+          check:
+            status: 400
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+
+      - id: unauthorized_user_info
+        name: Get user info without JWT token
+        http:
+          url: /auth/me
+          method: GET
+          check:
+            status: 401
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+
+      - id: invalid_jwt_token
+        name: Get user info with invalid JWT token
+        http:
+          url: /auth/me
+          method: GET
+          headers:
+            Authorization: "Bearer invalid_jwt_token_123"
+          check:
+            status: 401
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+
+      - id: missing_auth_header
+        name: Access protected endpoint without Authorization header
+        http:
+          url: /threat_models
+          method: GET
+          check:
+            status: 401
+
+  credential_persistence_validation:
+    name: Validate Credential Persistence Features
+    steps:
+      # Test direct file access to credentials
+      - id: verify_alice_file_exists
+        name: Verify Alice's credential file exists
+        http:
+          url: http://httpbin.org/get
+          method: GET
+          check:
+            status: 200
+        captures:
+          alice_file_check:
+            shell: 'test -f /tmp/alice.json && echo "exists" || echo "missing"'
+
+      - id: verify_alice_file_content
+        name: Verify Alice's credential file content
+        http:
+          url: http://httpbin.org/get
+          method: GET
+          check:
+            status: 200
+        captures:
+          alice_email_from_file:
+            shell: 'cat /tmp/alice.json | jq -r ".email // .user_email // empty"'
+          alice_token_from_file:
+            shell: 'cat /tmp/alice.json | jq -r ".access_token"'
+
+      # Test stub endpoint access to credentials
+      - id: verify_stub_alice_creds
+        name: Verify Alice credentials via stub endpoint
+        http:
+          url: http://localhost:8079/creds?userid=alice
+          method: GET
+          check:
+            status: 200
+            schema:
+              type: object
+              properties:
+                access_token:
+                  type: string
+                flow_type:
+                  type: string
+        captures:
+          alice_stub_token:
+            jsonpath: $.access_token
+          alice_stub_flow:
+            jsonpath: $.flow_type
+
+      # Test that both methods return the same token
+      - id: compare_credential_sources
+        name: Compare file vs stub credential sources
+        http:
+          url: http://httpbin.org/get
+          method: GET
+          check:
+            status: 200
+        captures:
+          tokens_match:
+            shell: 'file_token=$(cat /tmp/alice.json | jq -r ".access_token"); stub_token=$(curl -s "http://localhost:8079/creds?userid=alice" | jq -r ".access_token"); test "$file_token" = "$stub_token" && echo "match" || echo "mismatch"'

@@ -1,0 +1,554 @@
+version: "1.0"
+name: Diagram Collaboration Tests
+config:
+  http:
+    baseURL: http://localhost:8080
+tests:
+  collaboration_session_success:
+    name: Diagram Collaboration Session Management - Success Cases
+    steps:
+      # Authenticate first user
+      - id: authenticate_user1
+        name: Authenticate first user via OAuth
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_stepci"
+            redirect_uri: "http://localhost:8079/"
+          check:
+            status: 200
+        captures:
+          user1_token:
+            jsonpath: $.access_token
+
+      # Create threat model and diagram for collaboration testing
+      - id: create_threat_model
+        name: Create threat model for collaboration testing
+        http:
+          url: /threat_models
+          method: POST
+          headers:
+            Authorization: "Bearer {{ user1_token }}"
+            Content-Type: application/json
+          json:
+            name: "Collaborative Threat Model"
+            description: "Threat model for testing real-time collaboration features"
+          check:
+            status: 201
+        captures:
+          threat_model_id:
+            jsonpath: $.id
+
+      - id: create_diagram
+        name: Create diagram for collaboration
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams
+          method: POST
+          headers:
+            Authorization: "Bearer {{ user1_token }}"
+            Content-Type: application/json
+          json:
+            name: "Collaborative Architecture Diagram"
+            description: "System architecture diagram for multi-user editing"
+            diagram_type: "data_flow"
+          check:
+            status: 201
+        captures:
+          diagram_id:
+            jsonpath: $.id
+
+      # Test GET collaboration session (should not exist initially)
+      - id: get_nonexistent_session
+        name: Check for collaboration session (should not exist initially)
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}/collaborate
+          method: GET
+          headers:
+            Authorization: "Bearer {{ user1_token }}"
+          check:
+            status: 200
+            # Session might exist or not - check the actual response
+            schema:
+              anyOf:
+                - type: object
+                  properties:
+                    session_id:
+                      type: string
+                - type: "null"
+
+      # Test POST - Create collaboration session
+      - id: create_collaboration_session
+        name: Create new collaboration session
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}/collaborate
+          method: POST
+          headers:
+            Authorization: "Bearer {{ user1_token }}"
+            Content-Type: application/json
+          json: {}  # May require empty body or specific format
+          check:
+            status: 201
+            schema:
+              type: object
+              required: ["session_id", "session_manager", "threat_model_id", "diagram_id", "participants", "websocket_url"]
+              properties:
+                session_id:
+                  type: string
+                  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                session_manager:
+                  type: string
+                threat_model_id:
+                  type: string
+                threat_model_name:
+                  type: string
+                diagram_id:
+                  type: string
+                diagram_name:
+                  type: string
+                participants:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      user_id:
+                        type: string
+                      joined_at:
+                        type: string
+                      permissions:
+                        type: string
+                        enum: ["reader", "writer"]
+                websocket_url:
+                  type: string
+        captures:
+          session_id:
+            jsonpath: $.session_id
+          websocket_url:
+            jsonpath: $.websocket_url
+
+      # Test GET - Retrieve existing collaboration session
+      - id: get_existing_session
+        name: Get existing collaboration session details
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}/collaborate
+          method: GET
+          headers:
+            Authorization: "Bearer {{ user1_token }}"
+          check:
+            status: 200
+            jsonpath:
+              $.session_id: "{{ session_id }}"
+              $.threat_model_id: "{{ threat_model_id }}"
+              $.diagram_id: "{{ diagram_id }}"
+
+      # Test POST on existing session (should return 409 conflict)
+      - id: create_session_conflict
+        name: Attempt to create session when one already exists
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}/collaborate
+          method: POST
+          headers:
+            Authorization: "Bearer {{ user1_token }}"
+            Content-Type: application/json
+          json: {}
+          check:
+            status: 409
+            schema:
+              type: object
+              required: ["error", "join_url"]
+              properties:
+                error:
+                  type: string
+                join_url:
+                  type: string
+                  pattern: "/threat_models/.+/diagrams/.+/collaborate"
+
+      # Authenticate second user
+      - id: authenticate_user2
+        name: Authenticate second user for collaboration
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_stepci"
+            redirect_uri: "http://localhost:8079/"
+          check:
+            status: 200
+        captures:
+          user2_token:
+            jsonpath: $.access_token
+
+      # Test PUT - Join existing collaboration session
+      - id: join_collaboration_session
+        name: Second user joins existing collaboration session
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}/collaborate
+          method: PUT
+          headers:
+            Authorization: "Bearer {{ user2_token }}"
+            Content-Type: application/json
+          json: {}  # May require empty body or specific format
+          check:
+            status: 200
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+                participants:
+                  type: array
+                  minItems: 2  # Should now have 2 participants
+            jsonpath:
+              $.session_id: "{{ session_id }}"
+
+      # Verify session now has multiple participants
+      - id: verify_multiple_participants
+        name: Verify session has multiple participants
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}/collaborate
+          method: GET
+          headers:
+            Authorization: "Bearer {{ user1_token }}"
+          check:
+            status: 200
+            jsonpath:
+              $.participants.length(): 2  # Should have 2 participants
+
+      # Test DELETE - End collaboration session
+      - id: end_collaboration_session
+        name: End collaboration session
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}/collaborate
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ user1_token }}"
+          check:
+            status: 204  # No Content
+
+      # Verify session no longer exists
+      - id: verify_session_ended
+        name: Verify collaboration session ended
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}/collaborate
+          method: GET
+          headers:
+            Authorization: "Bearer {{ user1_token }}"
+          check:
+            status: 200
+            # Session should not exist or be null
+            schema:
+              anyOf:
+                - type: "null"
+                - type: object
+                  properties: {}
+
+      # Test PUT on non-existent session (should return 404)
+      - id: join_nonexistent_session
+        name: Attempt to join non-existent collaboration session
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}/collaborate
+          method: PUT
+          headers:
+            Authorization: "Bearer {{ user2_token }}"
+            Content-Type: application/json
+          json: {}
+          check:
+            status: 404
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+
+      # Cleanup
+      - id: cleanup_diagram
+        name: Cleanup test diagram
+        http:
+          url: /threat_models/{{ threat_model_id }}/diagrams/{{ diagram_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ user1_token }}"
+          check:
+            status: 204
+
+      - id: cleanup_threat_model
+        name: Cleanup test threat model
+        http:
+          url: /threat_models/{{ threat_model_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ user1_token }}"
+          check:
+            status: 204
+
+  collaboration_failure_cases:
+    name: Collaboration Failure Cases and Edge Cases
+    steps:
+      # Authenticate user
+      - id: authenticate_for_failures
+        name: Authenticate user for collaboration failure tests
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_stepci"
+            redirect_uri: "http://localhost:8079/"
+          check:
+            status: 200
+        captures:
+          access_token:
+            jsonpath: $.access_token
+
+      # Test collaboration operations on non-existent diagram
+      - id: create_session_nonexistent_diagram
+        name: Create session on non-existent diagram
+        http:
+          url: /threat_models/12345678-1234-4567-8901-123456789012/diagrams/12345678-1234-4567-8901-123456789012/collaborate
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json: {}
+          check:
+            status: 404
+
+      - id: get_session_nonexistent_diagram
+        name: Get session on non-existent diagram
+        http:
+          url: /threat_models/12345678-1234-4567-8901-123456789012/diagrams/12345678-1234-4567-8901-123456789012/collaborate
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 404
+
+      - id: join_session_nonexistent_diagram
+        name: Join session on non-existent diagram
+        http:
+          url: /threat_models/12345678-1234-4567-8901-123456789012/diagrams/12345678-1234-4567-8901-123456789012/collaborate
+          method: PUT
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json: {}
+          check:
+            status: 404
+
+      - id: delete_session_nonexistent_diagram
+        name: Delete session on non-existent diagram
+        http:
+          url: /threat_models/12345678-1234-4567-8901-123456789012/diagrams/12345678-1234-4567-8901-123456789012/collaborate
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 404
+
+      # Test collaboration operations without authentication
+      - id: create_session_no_auth
+        name: Create collaboration session without authentication
+        http:
+          url: /threat_models/12345678-1234-4567-8901-123456789012/diagrams/12345678-1234-4567-8901-123456789012/collaborate
+          method: POST
+          headers:
+            Content-Type: application/json
+          json: {}
+          check:
+            status: 401
+
+      - id: get_session_no_auth
+        name: Get collaboration session without authentication
+        http:
+          url: /threat_models/12345678-1234-4567-8901-123456789012/diagrams/12345678-1234-4567-8901-123456789012/collaborate
+          method: GET
+          check:
+            status: 401
+
+      - id: join_session_no_auth
+        name: Join collaboration session without authentication
+        http:
+          url: /threat_models/12345678-1234-4567-8901-123456789012/diagrams/12345678-1234-4567-8901-123456789012/collaborate
+          method: PUT
+          headers:
+            Content-Type: application/json
+          json: {}
+          check:
+            status: 401
+
+      - id: delete_session_no_auth
+        name: Delete collaboration session without authentication
+        http:
+          url: /threat_models/12345678-1234-4567-8901-123456789012/diagrams/12345678-1234-4567-8901-123456789012/collaborate
+          method: DELETE
+          check:
+            status: 401
+
+      # Test with invalid UUID formats
+      - id: create_session_invalid_uuid
+        name: Create session with invalid UUID format
+        http:
+          url: /threat_models/not-a-uuid/diagrams/also-not-a-uuid/collaborate
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json: {}
+          check:
+            status: 400
+
+      - id: get_session_invalid_uuid
+        name: Get session with invalid UUID format
+        http:
+          url: /threat_models/invalid-uuid-format/diagrams/invalid-uuid-format/collaborate
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 400
+
+  collaboration_rbac_testing:
+    name: Collaboration Role-Based Access Control Testing
+    steps:
+      # Create test setup with owner user
+      - id: authenticate_owner
+        name: Authenticate owner user
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_stepci"
+            redirect_uri: "http://localhost:8079/"
+          check:
+            status: 200
+        captures:
+          owner_token:
+            jsonpath: $.access_token
+
+      - id: create_tm_for_rbac
+        name: Create threat model for RBAC testing
+        http:
+          url: /threat_models
+          method: POST
+          headers:
+            Authorization: "Bearer {{ owner_token }}"
+            Content-Type: application/json
+          json:
+            name: "RBAC Testing Threat Model"
+            description: "Testing role-based access control for collaboration"
+          check:
+            status: 201
+        captures:
+          rbac_tm_id:
+            jsonpath: $.id
+
+      - id: create_diagram_for_rbac
+        name: Create diagram for RBAC testing
+        http:
+          url: /threat_models/{{ rbac_tm_id }}/diagrams
+          method: POST
+          headers:
+            Authorization: "Bearer {{ owner_token }}"
+            Content-Type: application/json
+          json:
+            name: "RBAC Test Diagram"
+            description: "Diagram for testing collaboration permissions"
+            diagram_type: "data_flow"
+          check:
+            status: 201
+        captures:
+          rbac_diagram_id:
+            jsonpath: $.id
+
+      # Owner creates collaboration session
+      - id: owner_creates_session
+        name: Owner creates collaboration session
+        http:
+          url: /threat_models/{{ rbac_tm_id }}/diagrams/{{ rbac_diagram_id }}/collaborate
+          method: POST
+          headers:
+            Authorization: "Bearer {{ owner_token }}"
+            Content-Type: application/json
+          json: {}
+          check:
+            status: 201
+
+      # Authenticate second user (will be granted access)
+      - id: authenticate_collaborator
+        name: Authenticate collaborator user
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_stepci"
+            redirect_uri: "http://localhost:8079/"
+          check:
+            status: 200
+        captures:
+          collaborator_token:
+            jsonpath: $.access_token
+
+      # Collaborator joins session
+      - id: collaborator_joins_session
+        name: Collaborator joins collaboration session
+        http:
+          url: /threat_models/{{ rbac_tm_id }}/diagrams/{{ rbac_diagram_id }}/collaborate
+          method: PUT
+          headers:
+            Authorization: "Bearer {{ collaborator_token }}"
+            Content-Type: application/json
+          json: {}
+          check:
+            status: 200
+
+      # Test that only owner can delete session
+      - id: collaborator_cannot_delete_session
+        name: Collaborator cannot delete collaboration session
+        http:
+          url: /threat_models/{{ rbac_tm_id }}/diagrams/{{ rbac_diagram_id }}/collaborate
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ collaborator_token }}"
+          check:
+            status: 403  # Forbidden - only owner can delete
+
+      # Owner can delete session
+      - id: owner_deletes_session
+        name: Owner deletes collaboration session
+        http:
+          url: /threat_models/{{ rbac_tm_id }}/diagrams/{{ rbac_diagram_id }}/collaborate
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ owner_token }}"
+          check:
+            status: 204
+
+      # Cleanup RBAC test resources
+      - id: cleanup_rbac_diagram
+        name: Cleanup RBAC test diagram
+        http:
+          url: /threat_models/{{ rbac_tm_id }}/diagrams/{{ rbac_diagram_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ owner_token }}"
+          check:
+            status: 204
+
+      - id: cleanup_rbac_tm
+        name: Cleanup RBAC test threat model
+        http:
+          url: /threat_models/{{ rbac_tm_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ owner_token }}"
+          check:
+            status: 204

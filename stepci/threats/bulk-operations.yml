@@ -1,0 +1,513 @@
+version: "1.0"
+name: Threats Bulk Operations Tests
+config:
+  http:
+    baseURL: http://localhost:8080
+tests:
+  bulk_create_threats_success:
+    name: Bulk Create Threats - Success Cases
+    steps:
+      # Authenticate user using fallback method
+      - id: authenticate_user
+        name: Authenticate user via OAuth
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_stepci"
+            redirect_uri: "http://localhost:8079/"
+          check:
+            status: 200
+        captures:
+          access_token:
+            jsonpath: $.access_token
+
+      - id: create_parent_threat_model
+        name: Create parent threat model for bulk threats
+        http:
+          url: /threat_models
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            name: "Bulk Operations Test Application"
+            description: "Threat model for testing bulk threat creation and management"
+          check:
+            status: 201
+        captures:
+          threat_model_id:
+            jsonpath: $.id
+
+      # Test bulk create with multiple threats
+      - id: bulk_create_threats
+        name: Bulk create multiple threats
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/bulk
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            - title: "SQL Injection in Login Form"
+              description: "Potential SQL injection vulnerability in user authentication form"
+              category: "injection"
+              severity: "high"
+              status: "identified"
+              mitigation: "Implement parameterized queries and input validation"
+            - title: "Cross-Site Scripting in User Profile"
+              description: "Stored XSS vulnerability in user profile update functionality"
+              category: "injection"
+              severity: "medium"
+              status: "identified"
+              mitigation: "Implement output encoding and content security policy"
+            - title: "Insecure Direct Object References"
+              description: "Users can access unauthorized resources by manipulating URL parameters"
+              category: "authorization"
+              severity: "high"
+              status: "identified"
+              mitigation: "Implement proper access control checks for all resources"
+            - title: "Session Management Weakness"
+              description: "Weak session timeout and session fixation vulnerabilities"
+              category: "authentication"
+              severity: "medium"
+              status: "identified"
+              mitigation: "Implement secure session management practices"
+            - title: "Information Disclosure in Error Messages"
+              description: "Detailed error messages revealing sensitive system information"
+              category: "information_disclosure"
+              severity: "low"
+              status: "identified"
+              mitigation: "Implement generic error messages for user-facing interfaces"
+          check:
+            status: 201
+            schema:
+              type: array
+              minItems: 5
+              maxItems: 5
+              items:
+                type: object
+                required: ["id", "title", "description", "category", "severity", "status"]
+                properties:
+                  id:
+                    type: string
+                    pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  title:
+                    type: string
+                  description:
+                    type: string
+                  category:
+                    type: string
+                  severity:
+                    type: string
+                  status:
+                    type: string
+        captures:
+          bulk_threat_ids:
+            jsonpath: $[*].id
+
+      # Verify all threats were created
+      - id: verify_bulk_creation
+        name: Verify all bulk-created threats exist
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 200
+            schema:
+              type: array
+              minItems: 5  # Should have all 5 bulk-created threats
+            # Check for specific threat titles
+            jsonpath:
+              $[?(@.title == "SQL Injection in Login Form")]:
+                - category: "injection"
+                - severity: "high"
+              $[?(@.title == "Cross-Site Scripting in User Profile")]:
+                - category: "injection"
+                - severity: "medium"
+              $[?(@.title == "Insecure Direct Object References")]:
+                - category: "authorization"
+                - severity: "high"
+
+      # Test bulk update of threats
+      - id: bulk_update_threats
+        name: Bulk update multiple threats
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats/bulk
+          method: PUT
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            - id: "{{ bulk_threat_ids[0] }}"
+              title: "SQL Injection in Login Form (Updated)"
+              description: "Critical SQL injection vulnerability requiring immediate attention"
+              category: "injection"
+              severity: "critical"
+              status: "in_progress"
+              mitigation: "Phase 1: Parameterized queries implemented. Phase 2: Additional validation needed."
+            - id: "{{ bulk_threat_ids[1] }}"
+              title: "Cross-Site Scripting in User Profile (Updated)"
+              description: "XSS vulnerability has been mitigated with proper output encoding"
+              category: "injection"
+              severity: "medium"
+              status: "mitigated"
+              mitigation: "Implemented comprehensive output encoding and CSP headers"
+            - id: "{{ bulk_threat_ids[2] }}"
+              title: "Insecure Direct Object References (Updated)"
+              description: "Authorization bypass vulnerability partially mitigated"
+              category: "authorization"
+              severity: "medium"
+              status: "in_progress"
+              mitigation: "Implemented resource-level access controls. Testing in progress."
+          check:
+            status: 200
+            schema:
+              type: array
+              minItems: 3
+              maxItems: 3
+            # Verify updates were applied
+            jsonpath:
+              $[?(@.title == "SQL Injection in Login Form (Updated)")]:
+                - severity: "critical"
+                - status: "in_progress"
+              $[?(@.title == "Cross-Site Scripting in User Profile (Updated)")]:
+                - status: "mitigated"
+
+      # Verify bulk updates were applied
+      - id: verify_bulk_updates
+        name: Verify bulk updates were applied
+        http:
+          url: /threat_models/{{ threat_model_id }}/threats
+          method: GET
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 200
+            jsonpath:
+              $[?(@.id == "{{ bulk_threat_ids[0] }}")]:
+                - title: "SQL Injection in Login Form (Updated)"
+                - severity: "critical"
+              $[?(@.id == "{{ bulk_threat_ids[1] }}")]:
+                - status: "mitigated"
+
+  bulk_operations_edge_cases:
+    name: Bulk Operations Edge Cases and Limits
+    steps:
+      # Authenticate and create threat model
+      - id: authenticate_for_edge_cases
+        name: Authenticate for bulk edge cases
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_stepci"
+            redirect_uri: "http://localhost:8079/"
+          check:
+            status: 200
+        captures:
+          access_token:
+            jsonpath: $.access_token
+
+      - id: create_tm_for_edge_cases
+        name: Create threat model for bulk edge cases
+        http:
+          url: /threat_models
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            name: "Bulk Edge Cases TM"
+            description: "Testing bulk operation edge cases and limits"
+          check:
+            status: 201
+        captures:
+          edge_tm_id:
+            jsonpath: $.id
+
+      # Test empty bulk create
+      - id: bulk_create_empty_array
+        name: Bulk create with empty array
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats/bulk
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json: []
+          check:
+            status: 400  # Should reject empty array
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+
+      # Test single item bulk create
+      - id: bulk_create_single_item
+        name: Bulk create with single item
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats/bulk
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            - title: "Single Bulk Threat"
+              description: "Testing single-item bulk creation"
+              category: "other"
+              severity: "low"
+              status: "identified"
+          check:
+            status: 201
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 1
+        captures:
+          single_bulk_threat_id:
+            jsonpath: $[0].id
+
+      # Test bulk create with mixed valid/invalid items
+      - id: bulk_create_mixed_validity
+        name: Bulk create with mixed valid and invalid items
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats/bulk
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            - title: "Valid Threat 1"
+              description: "This threat is valid"
+              category: "injection"
+              severity: "medium"
+              status: "identified"
+            - title: ""  # Invalid - empty title
+              description: "This threat has empty title"
+              category: "injection"
+              severity: "medium"
+              status: "identified"
+            - title: "Valid Threat 2"
+              description: "This threat is also valid"
+              category: "tampering"
+              severity: "low"
+              status: "identified"
+          check:
+            status: 400  # Should fail due to invalid item
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+
+      # Test large bulk operation (testing limits)
+      - id: bulk_create_large_batch
+        name: Bulk create with large batch (testing limits)
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats/bulk
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json: |
+            {{
+              range(1, 51) | map(lambda i: {
+                "title": "Bulk Threat " + i|string,
+                "description": "Generated threat number " + i|string + " for bulk operation testing",
+                "category": "other",
+                "severity": "low",
+                "status": "identified"
+              }) | list
+            }}
+          check:
+            # This might succeed or fail depending on bulk operation limits
+            anyOf:
+              - status: 201
+                schema:
+                  type: array
+                  minItems: 50
+                  maxItems: 50
+              - status: 400  # If bulk limit exceeded
+                schema:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+
+      # Cleanup edge case threats
+      - id: cleanup_single_bulk_threat
+        name: Cleanup single bulk threat
+        http:
+          url: /threat_models/{{ edge_tm_id }}/threats/{{ single_bulk_threat_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+      # Cleanup edge case threat model
+      - id: cleanup_edge_tm
+        name: Cleanup edge case threat model
+        http:
+          url: /threat_models/{{ edge_tm_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
+
+  bulk_operations_failures:
+    name: Bulk Operations Failure Cases
+    steps:
+      # Authenticate user
+      - id: authenticate_for_failures
+        name: Authenticate for bulk failure tests
+        http:
+          url: /auth/token/test
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            code: "test_auth_code_stepci"
+            redirect_uri: "http://localhost:8079/"
+          check:
+            status: 200
+        captures:
+          access_token:
+            jsonpath: $.access_token
+
+      - id: create_tm_for_failures
+        name: Create threat model for bulk failure tests
+        http:
+          url: /threat_models
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            name: "Bulk Failures TM"
+            description: "Testing bulk operation failures"
+          check:
+            status: 201
+        captures:
+          failures_tm_id:
+            jsonpath: $.id
+
+      # Test bulk operations on non-existent threat model
+      - id: bulk_create_nonexistent_tm
+        name: Bulk create threats on non-existent threat model
+        http:
+          url: /threat_models/12345678-1234-4567-8901-123456789012/threats/bulk
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            - title: "Test Threat"
+              description: "Should fail due to non-existent parent"
+              category: "other"
+              severity: "low"
+              status: "identified"
+          check:
+            status: 404
+
+      # Test bulk update with non-existent threat IDs
+      - id: bulk_update_nonexistent_threats
+        name: Bulk update with non-existent threat IDs
+        http:
+          url: /threat_models/{{ failures_tm_id }}/threats/bulk
+          method: PUT
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            - id: "12345678-1234-4567-8901-123456789012"
+              title: "Non-existent Threat"
+              description: "This threat ID does not exist"
+              category: "other"
+              severity: "low"
+              status: "identified"
+          check:
+            status: 404  # Or 400, depending on implementation
+
+      # Test bulk operations with malformed JSON
+      - id: bulk_create_malformed_json
+        name: Bulk create with malformed JSON
+        http:
+          url: /threat_models/{{ failures_tm_id }}/threats/bulk
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          body: '[{"title": "Valid Threat", "description": "Valid"}, invalid_json]'
+          check:
+            status: 400
+
+      # Test bulk operations without authentication
+      - id: bulk_create_no_auth
+        name: Bulk create without authentication
+        http:
+          url: /threat_models/{{ failures_tm_id }}/threats/bulk
+          method: POST
+          headers:
+            Content-Type: application/json
+          json:
+            - title: "Unauthorized Threat"
+              description: "Should fail due to no authentication"
+              category: "other"
+              severity: "low"
+              status: "identified"
+          check:
+            status: 401
+
+      # Test bulk operations with invalid threat data
+      - id: bulk_create_invalid_data
+        name: Bulk create with invalid threat data
+        http:
+          url: /threat_models/{{ failures_tm_id }}/threats/bulk
+          method: POST
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+            Content-Type: application/json
+          json:
+            - title: ""  # Invalid empty title
+              description: "Valid description"
+              category: "injection"
+              severity: "high"
+              status: "identified"
+            - title: "Valid Title"
+              description: ""  # Invalid empty description
+              category: "injection"
+              severity: "high"
+              status: "identified"
+            - title: "Another Valid Title"
+              description: "Valid description"
+              category: "invalid_category"  # Invalid category
+              severity: "high"
+              status: "identified"
+          check:
+            status: 400
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+
+      # Cleanup failures test threat model
+      - id: cleanup_failures_tm
+        name: Cleanup failures test threat model
+        http:
+          url: /threat_models/{{ failures_tm_id }}
+          method: DELETE
+          headers:
+            Authorization: "Bearer {{ access_token }}"
+          check:
+            status: 204
