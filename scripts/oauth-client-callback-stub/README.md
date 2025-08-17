@@ -22,6 +22,9 @@ python3 oauth-client-callback-stub.py --port 8079
 # In another terminal, trigger OAuth flow
 curl "http://your-oauth-server/auth/login/provider?client_callback=http://localhost:8079/"
 
+# For TMI test provider with user hints (predictable test users)
+curl "http://localhost:8080/auth/login/test?user_hint=alice&client_callback=http://localhost:8079/"
+
 # Retrieve captured credentials
 curl http://localhost:8079/latest
 ```
@@ -319,8 +322,28 @@ python3 oauth-client-callback-stub.py --port 8079
 # Test your OAuth provider
 curl "http://localhost:8080/auth/login/google?client_callback=http://localhost:8079/"
 
+# Test TMI test provider with specific user (automation-friendly)
+curl "http://localhost:8080/auth/login/test?user_hint=alice&client_callback=http://localhost:8079/"
+
+# Test TMI test provider with random user (backwards compatible)
+curl "http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/"
+
 # Check what was received
 curl http://localhost:8079/latest
+```
+
+**TMI Test Provider User Hints:**
+
+For predictable test users in automated testing:
+
+```bash
+# Create specific users for testing
+curl "http://localhost:8080/auth/login/test?user_hint=alice&client_callback=http://localhost:8079/"
+curl "http://localhost:8080/auth/login/test?user_hint=bob&client_callback=http://localhost:8079/"
+curl "http://localhost:8080/auth/login/test?user_hint=qa-automation&client_callback=http://localhost:8079/"
+
+# Results in users: alice@test.tmi, bob@test.tmi, qa-automation@test.tmi
+# User hint format: 3-20 characters, alphanumeric + hyphens, case-insensitive
 ```
 
 ### 2. API Integration Testing

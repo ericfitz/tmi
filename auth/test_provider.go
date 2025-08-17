@@ -5,11 +5,14 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -102,7 +105,26 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 	}
 	
 	// Generate a fake access token for valid codes only
-	accessToken := fmt.Sprintf("test_access_token_%d", time.Now().Unix())
+	// Include user hint in the access token if provided
+	timestamp := time.Now().Unix()
+	accessToken := fmt.Sprintf("test_access_token_%d", timestamp)
+	
+	// Check if user hint is provided in context
+	if userHint, ok := ctx.Value(userHintContextKey).(string); ok && userHint != "" {
+		fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: Found user hint: %s\n", userHint)
+		// Validate and sanitize user hint
+		if validatedHint := p.validateUserHint(userHint); validatedHint != "" {
+			// Encode user hint into access token
+			encodedHint := base64.URLEncoding.EncodeToString([]byte(validatedHint))
+			accessToken = fmt.Sprintf("test_access_token_%d_hint_%s", timestamp, encodedHint)
+			fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: Generated token with hint: %s\n", accessToken)
+		} else {
+			fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: User hint validation failed: %s\n", userHint)
+		}
+	} else {
+		fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: No user hint in context\n")
+	}
+	
 	idToken := p.generateTestIDToken()
 
 	return &TokenResponse{
@@ -115,7 +137,32 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 
 // GetUserInfo returns fake user information
 func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
-	// Generate random 8-digit number for username
+	fmt.Printf("[TEST_PROVIDER] DEBUG GetUserInfo: Called with access token: %s\n", accessToken)
+	
+	// Check if access token contains a user hint
+	userHint := p.extractUserHintFromToken(accessToken)
+	fmt.Printf("[TEST_PROVIDER] DEBUG GetUserInfo: Extracted user hint: '%s'\n", userHint)
+	fmt.Printf("[TEST_PROVIDER] DEBUG GetUserInfo: Access token contains _hint_: %t\n", strings.Contains(accessToken, "_hint_"))
+	
+	if strings.Contains(accessToken, "_hint_") {
+		parts := strings.Split(accessToken, "_hint_")
+		fmt.Printf("[TEST_PROVIDER] DEBUG GetUserInfo: Split parts: %v\n", parts)
+	}
+	
+	if userHint != "" {
+		// Use the provided user hint
+		username := userHint
+		email := fmt.Sprintf("%s@test.tmi", username)
+		displayName := p.generateDisplayName(username)
+		
+		return &UserInfo{
+			ID:    username,
+			Email: email,
+			Name:  displayName,
+		}, nil
+	}
+	
+	// Fall back to random user generation
 	randomNum, err := rand.Int(rand.Reader, big.NewInt(100000000))
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate random number: %w", err)
@@ -133,7 +180,26 @@ func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 
 // ValidateIDToken validates the test ID token (always succeeds)
 func (p *TestProvider) ValidateIDToken(ctx context.Context, idToken string) (*IDTokenClaims, error) {
-	// Generate the same user info for consistency
+	// Check if user hint is available in context (for consistency with other methods)
+	if userHint, ok := ctx.Value(userHintContextKey).(string); ok && userHint != "" {
+		if validatedHint := p.validateUserHint(userHint); validatedHint != "" {
+			username := validatedHint
+			email := fmt.Sprintf("%s@test.tmi", username)
+			displayName := p.generateDisplayName(username)
+			
+			return &IDTokenClaims{
+				Subject:   username,
+				Email:     email,
+				Name:      displayName,
+				ExpiresAt: time.Now().Add(time.Hour).Unix(),
+				IssuedAt:  time.Now().Unix(),
+				Issuer:    "test-oauth-provider",
+				Audience:  p.config.ClientID,
+			}, nil
+		}
+	}
+	
+	// Fall back to random user generation
 	randomNum, err := rand.Int(rand.Reader, big.NewInt(100000000))
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate random number: %w", err)
@@ -173,5 +239,70 @@ func (p *TestProvider) generateTestIDToken() string {
 
 	// Simple base64-like encoding for test purposes
 	return fmt.Sprintf("%x.%x.test-signature", headerBytes, payloadBytes)
+}
+
+// validateUserHint validates and sanitizes a user hint
+func (p *TestProvider) validateUserHint(hint string) string {
+	if hint == "" {
+		return ""
+	}
+	
+	// Convert to lowercase and trim spaces
+	hint = strings.ToLower(strings.TrimSpace(hint))
+	
+	// Validate length (3-20 characters)
+	if len(hint) < 3 || len(hint) > 20 {
+		return ""
+	}
+	
+	// Validate format: alphanumeric characters and hyphens only
+	validFormat := regexp.MustCompile(`^[a-z0-9-]+$`)
+	if !validFormat.MatchString(hint) {
+		return ""
+	}
+	
+	// Don't allow hints that start or end with hyphens
+	if strings.HasPrefix(hint, "-") || strings.HasSuffix(hint, "-") {
+		return ""
+	}
+	
+	return hint
+}
+
+// extractUserHintFromToken extracts user hint from access token if present
+func (p *TestProvider) extractUserHintFromToken(accessToken string) string {
+	// Check if token contains hint pattern: test_access_token_{timestamp}_hint_{encoded_hint}
+	if !strings.Contains(accessToken, "_hint_") {
+		return ""
+	}
+	
+	// Extract the encoded hint part
+	parts := strings.Split(accessToken, "_hint_")
+	if len(parts) != 2 {
+		return ""
+	}
+	
+	encodedHint := parts[1]
+	decodedBytes, err := base64.URLEncoding.DecodeString(encodedHint)
+	if err != nil {
+		return ""
+	}
+	
+	return string(decodedBytes)
+}
+
+// generateDisplayName creates a human-readable display name from username
+func (p *TestProvider) generateDisplayName(username string) string {
+	// Convert username to title case for display
+	words := strings.Split(username, "-")
+	for i, word := range words {
+		if len(word) > 0 {
+			words[i] = strings.ToUpper(string(word[0])) + word[1:]
+		}
+	}
+	displayName := strings.Join(words, " ")
+	
+	// Add "(Test User)" suffix to indicate it's from test provider
+	return fmt.Sprintf("%s (Test User)", displayName)
 }
 

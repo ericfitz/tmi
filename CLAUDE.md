@@ -345,6 +345,44 @@ JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
 - OAuth test provider generates JWT tokens with user claims (email, name, sub)
 - For API testing, use `make test-api` (requires `make dev-start` first)
 
+### Test OAuth Provider User Hints
+
+The test OAuth provider supports **user hints** for automation-friendly testing with predictable user identities:
+
+- **Parameter**: `user_hint` - Query parameter for `/auth/login/test`
+- **Purpose**: Generate predictable test users instead of random usernames
+- **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive
+- **Validation**: Pattern: `^[a-zA-Z0-9-]{3,20}$`
+- **Scope**: Test provider only, not available in production builds
+
+**Examples**:
+```bash
+# Create user 'alice@test.tmi' with name 'Alice (Test User)'
+curl "http://localhost:8080/auth/login/test?user_hint=alice"
+
+# Create user 'qa-automation@test.tmi' with name 'Qa Automation (Test User)'  
+curl "http://localhost:8080/auth/login/test?user_hint=qa-automation"
+
+# Without user hint - generates random user like 'testuser-12345678@test.tmi'
+curl "http://localhost:8080/auth/login/test"
+```
+
+**Automation Integration**:
+```bash
+# OAuth callback stub with user hint
+curl "http://localhost:8080/auth/login/test?user_hint=alice&client_callback=http://localhost:8079/"
+
+# API testing script with user hint
+echo "auth alice hint=alice" >> test_script.txt
+make test-api-script script=test_script.txt
+```
+
+**Use Cases**:
+- **StepCI Tests**: Consistent user identities across test runs
+- **API Integration Tests**: Predictable user data for validation  
+- **Development Testing**: Named test users for debugging
+- **Automation Pipelines**: Reproducible test scenarios
+
 ## Python Development Memories
 
 - Run python scripts with uv. When creating python scripts, add uv toml to the script for automatic package management.

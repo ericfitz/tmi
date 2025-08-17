@@ -17,6 +17,11 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// Context key type for user hint
+type contextKey string
+
+const userHintContextKey contextKey = "user_hint"
+
 // Handlers provides HTTP handlers for authentication
 type Handlers struct {
 	service *Service
@@ -160,6 +165,11 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	// Get optional client callback URL from query parameter
 	clientCallback := c.Query("client_callback")
 
+	// Get optional user hint for test provider automation
+	userHint := c.Query("user_hint")
+	logging.Get().WithContext(c).Debug("OAuth Authorize handler - extracted query parameters: provider=%s, client_callback=%s, user_hint=%s",
+		providerID, clientCallback, userHint)
+
 	// Get state parameter from client or generate one if not provided
 	state := c.Query("state")
 	if state == "" {
@@ -184,6 +194,10 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	}
 	if clientCallback != "" {
 		stateData["client_callback"] = clientCallback
+	}
+	if userHint != "" {
+		stateData["user_hint"] = userHint
+		logging.Get().WithContext(c).Debug("Storing user hint in state: %s", userHint)
 	}
 
 	stateJSON, err := json.Marshal(stateData)
@@ -238,7 +252,7 @@ func (h *Handlers) Callback(c *gin.Context) {
 
 	// Parse the state data (handle both old and new formats)
 	var stateData map[string]string
-	var providerID, clientCallback string
+	var providerID, clientCallback, userHint string
 
 	if err := json.Unmarshal([]byte(stateDataJSON), &stateData); err != nil {
 		// Handle legacy format where stateData is just the provider ID
@@ -247,6 +261,11 @@ func (h *Handlers) Callback(c *gin.Context) {
 		// Handle new format with structured data
 		providerID = stateData["provider"]
 		clientCallback = stateData["client_callback"]
+		userHint = stateData["user_hint"]
+
+		// Debug logging
+		logging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, client_callback=%s, user_hint=%s",
+			providerID, clientCallback, userHint)
 	}
 
 	// Get the provider
@@ -264,6 +283,18 @@ func (h *Handlers) Callback(c *gin.Context) {
 		}
 		return
 	}
+
+	// For test provider, set user hint in context if available
+	if userHint != "" && providerID == "test" {
+		logging.Get().WithContext(c).Debug("Setting user hint in context for test provider: %s", userHint)
+		ctx = context.WithValue(ctx, userHintContextKey, userHint)
+	} else if providerID == "test" {
+		logging.Get().WithContext(c).Debug("No user hint provided for test provider: provider=%s userHint=%s",
+			providerID, userHint)
+	}
+
+	logging.Get().WithContext(c).Debug("About to call ExchangeCode: provider=%s code=%s has_user_hint_in_context=%v",
+		providerID, code, ctx.Value(userHintContextKey) != nil)
 
 	// Exchange the authorization code for tokens
 	tokenResponse, err := provider.ExchangeCode(ctx, code)
@@ -293,6 +324,8 @@ func (h *Handlers) Callback(c *gin.Context) {
 	}
 
 	// Get the user info from the provider
+	logging.Get().WithContext(c).Debug("About to call GetUserInfo: provider=%s access_token=%s",
+		providerID, tokenResponse.AccessToken)
 	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -300,6 +333,9 @@ func (h *Handlers) Callback(c *gin.Context) {
 		})
 		return
 	}
+
+	logging.Get().WithContext(c).Debug("GetUserInfo returned: provider=%s user_id=%s email=%s name=%s",
+		providerID, userInfo.ID, userInfo.Email, userInfo.Name)
 
 	// Get or create the user
 	email := userInfo.Email

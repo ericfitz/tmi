@@ -143,12 +143,39 @@ make oauth-stub-start
 # 2. Initiate OAuth flow (TMI uses Implicit Flow)
 curl "http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/"
 
+# 2a. OR with user hint for predictable test users (test provider only)
+curl "http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=alice"
+
 # 3. Fetch the captured credentials with flow detection
 curl http://localhost:8079/latest | jq '.'
 
 # 4. Review detailed logs for debugging
 cat /tmp/oauth-stub.log
 ```
+
+**Test Provider User Hints (Development/Testing Only):**
+
+The test OAuth provider supports user hints for automation-friendly testing with predictable user identities:
+
+```bash
+# Create specific test user 'alice@test.tmi'
+curl "http://localhost:8080/auth/login/test?user_hint=alice"
+
+# Create user 'qa-automation@test.tmi' for automated testing
+curl "http://localhost:8080/auth/login/test?user_hint=qa-automation"
+
+# User hint with OAuth callback stub for client testing
+curl "http://localhost:8080/auth/login/test?user_hint=alice&client_callback=http://localhost:8079/"
+
+# Without user hint (backwards compatible) - creates random 'testuser-12345678@test.tmi'
+curl "http://localhost:8080/auth/login/test"
+```
+
+**User Hint Specifications:**
+- **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive
+- **Validation**: Pattern `^[a-zA-Z0-9-]{3,20}$`
+- **Scope**: Test provider only (not available in production builds)
+- **Usage**: Perfect for automated testing, StepCI workflows, and predictable user scenarios
 
 **Response Formats by Flow Type:**
 ```json

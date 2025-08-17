@@ -29,14 +29,16 @@ class OAuthHandler:
         return response.json()
     
     def start_oauth_flow(self, provider: str, redirect_uri: Optional[str] = None, 
-                        state: Optional[str] = None, open_browser: bool = True) -> str:
+                        state: Optional[str] = None, user_hint: Optional[str] = None,
+                        open_browser: bool = True) -> str:
         """
         Start OAuth flow by getting the authorization URL.
         
         Args:
-            provider: OAuth provider name (e.g., 'google', 'github')
+            provider: OAuth provider name (e.g., 'google', 'github', 'test')
             redirect_uri: Optional redirect URI
             state: Optional state parameter for security
+            user_hint: Optional user hint for test provider (creates predictable users)
             open_browser: Whether to automatically open browser
             
         Returns:
@@ -47,6 +49,8 @@ class OAuthHandler:
             params['redirect_uri'] = redirect_uri
         if state:
             params['state'] = state
+        if user_hint and provider == 'test':
+            params['user_hint'] = user_hint
             
         auth_url = f'{self.client.base_url}/auth/login/{provider}'
         if params:
@@ -88,6 +92,31 @@ class OAuthHandler:
             self.client.set_token(token_data['access_token'])
         
         return token_data
+    
+    def login_test_user(self, user_hint: str = None, redirect_uri: Optional[str] = None) -> str:
+        """
+        Convenience method for starting OAuth flow with test provider.
+        
+        Args:
+            user_hint: Create specific test user (e.g., 'alice' creates 'alice@test.tmi')
+            redirect_uri: Optional redirect URI for OAuth callback
+            
+        Returns:
+            OAuth authorization URL to visit
+            
+        Example:
+            # Create specific test user 'alice@test.tmi'
+            auth_url = auth.login_test_user('alice')
+            
+            # Create random test user 'testuser-12345678@test.tmi'  
+            auth_url = auth.login_test_user()
+            
+        Note:
+            - User hint format: 3-20 characters, alphanumeric + hyphens, case-insensitive
+            - Only works with test provider (development/testing only)
+            - Generated email: {hint}@test.tmi, name: {Hint} (Test User)
+        """
+        return self.start_oauth_flow('test', redirect_uri=redirect_uri, user_hint=user_hint)
     
     def handle_callback(self, callback_url: str) -> Dict[str, Any]:
         """

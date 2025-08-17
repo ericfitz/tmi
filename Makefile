@@ -157,7 +157,7 @@ infra-observability-clean:
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-clean
+.PHONY: build-server build-migrate build-clean generate-api gen-api
 
 build-server:
 	$(call log_info,"Building server binary...")
@@ -174,6 +174,14 @@ build-clean:
 	@rm -rf ./bin/*
 	@rm -f check-db migrate
 	$(call log_success,"Build artifacts cleaned")
+
+generate-api:
+	$(call log_info,"Generating API code from OpenAPI specification...")
+	@oapi-codegen -config oapi-codegen-config.yml shared/api-specs/tmi-openapi.json
+	$(call log_success,"API code generated: api/api.go")
+
+# Legacy alias for generate-api
+gen-api: generate-api
 
 # ============================================================================
 # ATOMIC COMPONENTS - Database Operations

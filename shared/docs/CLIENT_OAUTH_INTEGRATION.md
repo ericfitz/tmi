@@ -160,6 +160,42 @@ function loginWithGoogle() {
 }
 ```
 
+**For Testing with Predictable Users (Test Provider Only):**
+```javascript
+function loginWithTestProvider(userHint = null) {
+  // Get test provider info from discovery
+  const provider = providers.find(p => p.id === 'test');
+  if (!provider) {
+    console.error('Test provider not available (development/test builds only)');
+    return;
+  }
+  
+  // Generate state for CSRF protection
+  const state = generateRandomState();
+  localStorage.setItem('oauth_state', state);
+  
+  // Define client callback URL
+  const clientCallbackUrl = `${window.location.origin}/auth/callback`;
+  
+  // Build OAuth URL with optional user hint for predictable testing
+  const separator = provider.auth_url.includes('?') ? '&' : '?';
+  let authUrl = `${provider.auth_url}${separator}state=${state}&client_callback=${encodeURIComponent(clientCallbackUrl)}`;
+  
+  // Add user hint for test automation (test provider only)
+  if (userHint) {
+    authUrl += `&user_hint=${encodeURIComponent(userHint)}`;
+  }
+  
+  // Redirect to TMI OAuth endpoint
+  window.location.href = authUrl;
+}
+
+// Examples:
+// loginWithTestProvider('alice');     // Creates alice@test.tmi
+// loginWithTestProvider('qa-user');   // Creates qa-user@test.tmi  
+// loginWithTestProvider();           // Creates random testuser-12345678@test.tmi
+```
+
 **Legacy: Simple Redirect (Still Supported):**
 ```javascript
 function loginWithGoogle() {
@@ -590,6 +626,21 @@ Solution: Verify:
 1. Access token is being sent in Authorization header
 2. Token hasn't expired
 3. Token refresh mechanism is working
+```
+
+**Issue: Test provider user hints not working**
+```
+Solution: Check:
+1. Test provider is enabled in development/test builds only
+2. User hint parameter format: 3-20 characters, alphanumeric + hyphens
+3. User hint is properly URL encoded in the request
+4. Using correct endpoint: /auth/login/test?user_hint=alice
+
+Examples:
+✓ Correct: user_hint=alice
+✓ Correct: user_hint=qa-automation
+✗ Wrong: user_hint=a (too short)
+✗ Wrong: user_hint=user@domain.com (invalid characters)
 ```
 
 ### Debug Tools

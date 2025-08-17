@@ -401,8 +401,44 @@ GET /auth/providers
 #### Initiate Login
 
 ```http
-GET /auth/login/test?redirect_uri=https://client.example.com/callback
+GET /auth/login/{provider}?redirect_uri=https://client.example.com/callback
 ```
+
+**Parameters:**
+- `provider` (path): OAuth provider ID (e.g., "test", "google", "github")
+- `redirect_uri` (query, optional): Client callback URL for tokens
+- `state` (query, optional): CSRF protection parameter
+- **`user_hint` (query, optional)**: For test provider only - creates predictable test users
+
+**Test Provider User Hints (Development/Testing Only):**
+
+For automation-friendly testing, the test OAuth provider supports user hints:
+
+```http
+# Create specific test user 'alice@test.tmi'
+GET /auth/login/test?user_hint=alice
+
+# Create user 'qa-automation@test.tmi' for automated testing
+GET /auth/login/test?user_hint=qa-automation
+
+# Combined with client callback
+GET /auth/login/test?user_hint=alice&client_callback=https://client.example.com/callback
+
+# Without user hint - creates random 'testuser-12345678@test.tmi' (backwards compatible)
+GET /auth/login/test
+```
+
+**User Hint Specifications:**
+- **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive
+- **Pattern**: `^[a-zA-Z0-9-]{3,20}$`
+- **Scope**: Test provider only (not available in production builds)
+- **Generated Email**: `{hint}@test.tmi` (e.g., `alice@test.tmi`)
+- **Generated Name**: `{Hint} (Test User)` (e.g., `Alice (Test User)`)
+
+**Use Cases:**
+- Automated testing with predictable user identities
+- StepCI integration tests with named users
+- Multi-user collaboration testing scenarios
 
 **Response**: 302 Redirect, `Location: https://oauth-provider.com/auth?...`
 

@@ -20,6 +20,13 @@ This directory contains scripts that are actively used by the refactored build s
 - **`patch-json.py`** - Precise JSON modification utility for OpenAPI specs
 - **`oauth-client-callback-stub.py`** - Universal OAuth callback handler supporting both Authorization Code and Implicit flows for development testing. Use `make oauth-stub-start` to run.
 
+### Testing Tools
+- **`api_test.py`** - Human-readable API testing with simple script format and OAuth integration
+  - **Features**: OAuth authentication, variable substitution, JSON expectations, response validation
+  - **User Hint Support**: Works with TMI test provider user hints for predictable test users
+  - **Usage**: `make test-api-script script=<script.txt>`
+  - **Examples**: `test_examples/` directory contains sample test scripts
+
 ## Container Management
 
 ### Deployment Containers
@@ -54,6 +61,23 @@ make observability-stop       # Replaces stop-observability.sh (alias: obs-stop)
 python3 scripts/analyze_endpoints.py
 python3 scripts/validate_openapi.py shared/api-specs/tmi-openapi.json
 python3 scripts/patch-json.py -s shared/api-specs/tmi-openapi.json -p "$.components.schemas"
+```
+
+### For API Testing
+```bash
+# Run API tests with script format
+make test-api-script script=test_examples/basic_api_test.txt
+
+# OAuth integration with user hints for predictable test users
+echo "auth alice hint=alice" > test_script.txt
+echo "request getuser get /auth/me \$alice.jwt\$" >> test_script.txt  
+echo "expect \$getuser.body.email\$ == alice@test.tmi" >> test_script.txt
+make test-api-script script=test_script.txt
+
+# OAuth callback stub for development
+make oauth-stub-start                    # Start OAuth callback handler
+make oauth-stub-status                   # Check if running  
+make oauth-stub-stop                     # Stop gracefully
 ```
 
 ### For Container Management
