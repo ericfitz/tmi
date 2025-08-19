@@ -2,7 +2,6 @@ version: "1.1"
 name: Threat Models Validation and Failure Tests
 config:
   http:
-    baseURL: http://localhost:8080
 tests:
   threat_model_validation_failures:
     name: Threat Model Input Validation Failures
@@ -22,10 +21,10 @@ tests:
       - id: create_tm_missing_name
         name: Create threat model without required name field
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             description: "Threat model without name field"
@@ -41,10 +40,10 @@ tests:
       - id: create_tm_missing_description
         name: Create threat model without required description field
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Valid Name"
@@ -61,10 +60,10 @@ tests:
       - id: create_tm_empty_name
         name: Create threat model with empty name
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: ""
@@ -80,10 +79,10 @@ tests:
       - id: create_tm_empty_description
         name: Create threat model with empty description
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Valid Name"
@@ -95,10 +94,10 @@ tests:
       - id: create_tm_null_name
         name: Create threat model with null name
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: null
@@ -109,10 +108,10 @@ tests:
       - id: create_tm_null_description
         name: Create threat model with null description
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Valid Name"
@@ -124,10 +123,10 @@ tests:
       - id: create_tm_invalid_name_type
         name: Create threat model with number as name
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: 12345
@@ -138,10 +137,10 @@ tests:
       - id: create_tm_invalid_description_type
         name: Create threat model with array as description
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Valid Name"
@@ -152,10 +151,10 @@ tests:
       - id: create_tm_invalid_url_type
         name: Create threat model with number as URL
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Valid Name"
@@ -168,10 +167,10 @@ tests:
       - id: create_tm_malformed_project_url
         name: Create threat model with malformed project URL
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Valid Name"
@@ -183,10 +182,10 @@ tests:
       - id: create_tm_malformed_issue_url
         name: Create threat model with malformed issue URL
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Valid Name"
@@ -199,10 +198,10 @@ tests:
       - id: create_tm_unknown_fields
         name: Create threat model with unknown fields
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Valid Name"
@@ -217,10 +216,10 @@ tests:
       - id: create_tm_with_readonly_id
         name: Create threat model with read-only ID field
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Valid Name"
@@ -232,10 +231,10 @@ tests:
       - id: create_tm_with_readonly_timestamps
         name: Create threat model with read-only timestamp fields
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Valid Name"
@@ -249,10 +248,10 @@ tests:
       - id: create_tm_oversized_name
         name: Create threat model with oversized name field
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "{{ 'Very long name that exceeds reasonable length limits ' | repeat(50) }}"
@@ -263,10 +262,10 @@ tests:
       - id: create_tm_oversized_description
         name: Create threat model with oversized description field
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Valid Name"
@@ -281,7 +280,7 @@ tests:
       - id: authenticate_for_operations
         name: Authenticate for operation failure tests
         http:
-          url: /auth/token/test
+          url: http://localhost:8080/auth/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -298,10 +297,10 @@ tests:
       - id: get_nonexistent_threat_model
         name: Get non-existent threat model
         http:
-          url: /threat_models/12345678-1234-4567-8901-123456789012
+          url: http://localhost:8080/threat_models/12345678-1234-4567-8901-123456789012
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 404
             schema:
@@ -313,10 +312,10 @@ tests:
       - id: update_nonexistent_threat_model
         name: Update non-existent threat model
         http:
-          url: /threat_models/12345678-1234-4567-8901-123456789012
+          url: http://localhost:8080/threat_models/12345678-1234-4567-8901-123456789012
           method: PUT
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Updated Name"
@@ -327,10 +326,10 @@ tests:
       - id: patch_nonexistent_threat_model
         name: Patch non-existent threat model
         http:
-          url: /threat_models/12345678-1234-4567-8901-123456789012
+          url: http://localhost:8080/threat_models/12345678-1234-4567-8901-123456789012
           method: PATCH
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json-patch+json
           json:
             - op: "replace"
@@ -342,10 +341,10 @@ tests:
       - id: delete_nonexistent_threat_model
         name: Delete non-existent threat model
         http:
-          url: /threat_models/12345678-1234-4567-8901-123456789012
+          url: http://localhost:8080/threat_models/12345678-1234-4567-8901-123456789012
           method: DELETE
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 404
 
@@ -353,20 +352,20 @@ tests:
       - id: get_threat_model_invalid_uuid
         name: Get threat model with invalid UUID format
         http:
-          url: /threat_models/not-a-valid-uuid-format
+          url: http://localhost:8080/threat_models/not-a-valid-uuid-format
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 400
 
       - id: update_threat_model_invalid_uuid
         name: Update threat model with invalid UUID format
         http:
-          url: /threat_models/invalid-uuid-123
+          url: http://localhost:8080/threat_models/invalid-uuid-123
           method: PUT
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Valid Name"
@@ -381,7 +380,7 @@ tests:
       - id: authenticate_for_patch_tests
         name: Authenticate for JSON Patch tests
         http:
-          url: /auth/token/test
+          url: http://localhost:8080/auth/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -397,10 +396,10 @@ tests:
       - id: create_tm_for_patch_tests
         name: Create threat model for patch testing
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Patch Test TM"
@@ -415,10 +414,10 @@ tests:
       - id: patch_invalid_operation
         name: JSON Patch with invalid operation
         http:
-          url: /threat_models/{{ patch_test_tm_id }}
+          url: http://localhost:8080/threat_models/{{ patch_test_tm_id }}
           method: PATCH
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json-patch+json
           json:
             - op: "invalid_operation"
@@ -430,10 +429,10 @@ tests:
       - id: patch_nonexistent_field
         name: JSON Patch targeting non-existent field
         http:
-          url: /threat_models/{{ patch_test_tm_id }}
+          url: http://localhost:8080/threat_models/{{ patch_test_tm_id }}
           method: PATCH
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json-patch+json
           json:
             - op: "replace"
@@ -445,10 +444,10 @@ tests:
       - id: patch_readonly_field
         name: JSON Patch targeting read-only field
         http:
-          url: /threat_models/{{ patch_test_tm_id }}
+          url: http://localhost:8080/threat_models/{{ patch_test_tm_id }}
           method: PATCH
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json-patch+json
           json:
             - op: "replace"
@@ -460,10 +459,10 @@ tests:
       - id: patch_invalid_value_type
         name: JSON Patch with invalid value type
         http:
-          url: /threat_models/{{ patch_test_tm_id }}
+          url: http://localhost:8080/threat_models/{{ patch_test_tm_id }}
           method: PATCH
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json-patch+json
           json:
             - op: "replace"
@@ -475,10 +474,10 @@ tests:
       - id: patch_malformed_json
         name: JSON Patch with malformed JSON
         http:
-          url: /threat_models/{{ patch_test_tm_id }}
+          url: http://localhost:8080/threat_models/{{ patch_test_tm_id }}
           method: PATCH
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json-patch+json
           body: '[{"op": "replace", "path": "/name", "value": "Valid"}, invalid_json]'
           check:
@@ -488,9 +487,9 @@ tests:
       - id: cleanup_patch_test_tm
         name: Cleanup patch test threat model
         http:
-          url: /threat_models/{{ patch_test_tm_id }}
+          url: http://localhost:8080/threat_models/{{ patch_test_tm_id }}
           method: DELETE
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 204

@@ -2,7 +2,6 @@ version: "1.1"
 name: Common Variables and Configuration
 config:
   http:
-    baseURL: http://localhost:8080
   variables:
     # OAuth Provider Configuration
     oauth_provider: "test"
@@ -54,13 +53,13 @@ components:
   credentials:
     alice_auth:
       bearer:
-        token: "{{ env.ALICE_TOKEN }}"
+        token: "${{ env.ALICE_TOKEN }}"
     bob_auth:
       bearer:
-        token: "{{ env.BOB_TOKEN }}"
+        token: "${{ env.BOB_TOKEN }}"
     chuck_auth:
       bearer:
-        token: "{{ env.CHUCK_TOKEN }}"
+        token: "${{ env.CHUCK_TOKEN }}"
   
   # Common Error Response Schema
   schemas:

@@ -2,7 +2,6 @@ version: "1.1"
 name: TMI (Threat Modeling Improved) API
 config:
   http:
-    baseURL: http://localhost:8080
 tests:
   default:
     name: Default
@@ -10,7 +9,7 @@ tests:
       - id: getApiInfo
         name: Get API information
         http:
-          url: /
+          url: http://localhost:8080/
           method: GET
           check:
             status: 200
@@ -19,7 +18,7 @@ tests:
       - id: getAuthProviders
         name: List available OAuth providers
         http:
-          url: /auth/providers
+          url: http://localhost:8080/auth/providers
           method: GET
           check:
             status: 200
@@ -65,7 +64,7 @@ tests:
       - id: getCurrentUser
         name: Get current user information
         http:
-          url: /auth/me
+          url: http://localhost:8080/auth/me
           method: GET
           auth:
             $ref: '#/components/credentials/alice_auth'
@@ -111,7 +110,7 @@ tests:
       - id: handleOAuthCallback
         name: Handle OAuth callback
         http:
-          url: /auth/callback
+          url: http://localhost:8080/auth/callback
           method: GET
           params:
             code: Duis officia cillum
@@ -123,7 +122,7 @@ tests:
       - id: logoutUser
         name: Logout user
         http:
-          url: /auth/logout
+          url: http://localhost:8080/auth/logout
           method: POST
           headers:
             Content-Type: application/json
@@ -135,7 +134,7 @@ tests:
       - id: getCollaborationSessions
         name: List active collaboration sessions
         http:
-          url: /collaboration/sessions
+          url: http://localhost:8080/collaboration/sessions
           method: GET
           check:
             status: 200
@@ -151,7 +150,7 @@ tests:
       - id: listThreatModels
         name: List threat models
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: GET
           params:
             limit: 20
@@ -198,7 +197,7 @@ tests:
       - id: createThreatModel
         name: Create a threat model
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
             Content-Type: application/json
@@ -246,7 +245,7 @@ tests:
       - id: getThreatModel
         name: Retrieve a threat model
         http:
-          url: /threat_models/a833e402-93b9-b55d-5b2e-5d8306422fc8
+          url: http://localhost:8080/threat_models/a833e402-93b9-b55d-5b2e-5d8306422fc8
           method: GET
           check:
             status: 200
@@ -255,7 +254,7 @@ tests:
       - id: updateThreatModel
         name: Update a threat model
         http:
-          url: /threat_models/9710b5b3-9a5e-068a-a4a7-d377faee30bb
+          url: http://localhost:8080/threat_models/9710b5b3-9a5e-068a-a4a7-d377faee30bb
           method: PUT
           headers:
             Content-Type: application/json
@@ -287,7 +286,7 @@ tests:
       - id: patchThreatModel
         name: Partially update a threat model
         http:
-          url: /threat_models/b4a31277-4c78-3b64-f3fa-8b195f46458f
+          url: http://localhost:8080/threat_models/b4a31277-4c78-3b64-f3fa-8b195f46458f
           method: PATCH
           headers:
             Content-Type: application/json-patch+json
@@ -302,14 +301,14 @@ tests:
       - id: deleteThreatModel
         name: Delete a threat model
         http:
-          url: /threat_models/7925b294-7ac6-81ca-bcaa-18770e21f02a
+          url: http://localhost:8080/threat_models/7925b294-7ac6-81ca-bcaa-18770e21f02a
           method: DELETE
           check:
             status: 204
       - id: getThreatModelThreats
         name: List threats in a threat model
         http:
-          url: /threat_models/bdbd22b2-95c8-65c4-51f1-901c6f8ced89/threats
+          url: http://localhost:8080/threat_models/bdbd22b2-95c8-65c4-51f1-901c6f8ced89/threats
           method: GET
           params:
             limit: 20
@@ -367,7 +366,7 @@ tests:
       - id: createThreatModelThreat
         name: Create a new threat
         http:
-          url: /threat_models/33e0ae77-c099-8d50-b3bd-fc961f565be4/threats
+          url: http://localhost:8080/threat_models/33e0ae77-c099-8d50-b3bd-fc961f565be4/threats
           method: POST
           headers:
             Content-Type: application/json
@@ -588,7 +587,7 @@ tests:
       - id: bulkCreateThreatModelThreats
         name: Bulk create threats
         http:
-          url: /threat_models/a42b0d1e-2e55-d1b5-7aab-b78e0dc77a38/threats/bulk
+          url: http://localhost:8080/threat_models/a42b0d1e-2e55-d1b5-7aab-b78e0dc77a38/threats/bulk
           method: POST
           headers:
             Content-Type: application/json
@@ -623,7 +622,7 @@ tests:
       - id: bulkUpdateThreatModelThreats
         name: Bulk update threats
         http:
-          url: /threat_models/9e0f3a25-4346-2af6-9725-1a6db31dabf7/threats/bulk
+          url: http://localhost:8080/threat_models/9e0f3a25-4346-2af6-9725-1a6db31dabf7/threats/bulk
           method: PUT
           headers:
             Content-Type: application/json
@@ -681,7 +680,7 @@ tests:
       - id: batchDeleteThreatModelThreats
         name: Batch delete threats
         http:
-          url: /threat_models/d918df16-b8ff-c43b-b9c9-3b36986c06ee/threats/batch
+          url: http://localhost:8080/threat_models/d918df16-b8ff-c43b-b9c9-3b36986c06ee/threats/batch
           method: DELETE
           params:
             threat_ids:
@@ -706,7 +705,7 @@ tests:
       - id: getThreatModelDocuments
         name: List documents in a threat model
         http:
-          url: /threat_models/72cacd64-41bb-ef24-b498-5a3d70f87f31/documents
+          url: http://localhost:8080/threat_models/72cacd64-41bb-ef24-b498-5a3d70f87f31/documents
           method: GET
           params:
             limit: 20
@@ -750,7 +749,7 @@ tests:
       - id: createThreatModelDocument
         name: Create a new document
         http:
-          url: /threat_models/f6fc13a2-2018-59b2-4c29-baae862e3ccc/documents
+          url: http://localhost:8080/threat_models/f6fc13a2-2018-59b2-4c29-baae862e3ccc/documents
           method: POST
           headers:
             Content-Type: application/json
@@ -946,7 +945,7 @@ tests:
       - id: bulkCreateThreatModelDocuments
         name: Bulk create documents
         http:
-          url: /threat_models/67c24a2d-a1c3-852e-056c-68eae669cd2e/documents/bulk
+          url: http://localhost:8080/threat_models/67c24a2d-a1c3-852e-056c-68eae669cd2e/documents/bulk
           method: POST
           headers:
             Content-Type: application/json
@@ -1000,7 +999,7 @@ tests:
       - id: getThreatModelSources
         name: List sources in a threat model
         http:
-          url: /threat_models/964c4c99-63cb-85a2-c783-157869616f4c/sources
+          url: http://localhost:8080/threat_models/964c4c99-63cb-85a2-c783-157869616f4c/sources
           method: GET
           params:
             limit: 20
@@ -1054,7 +1053,7 @@ tests:
       - id: createThreatModelSource
         name: Create a new source reference
         http:
-          url: /threat_models/e8a6127e-49b0-fef6-dc95-b183437da537/sources
+          url: http://localhost:8080/threat_models/e8a6127e-49b0-fef6-dc95-b183437da537/sources
           method: POST
           headers:
             Content-Type: application/json
@@ -1199,7 +1198,7 @@ tests:
       - id: bulkCreateThreatModelSources
         name: Bulk create sources
         http:
-          url: /threat_models/30a2eeae-559f-adb5-33cd-60cc424c92c3/sources/bulk
+          url: http://localhost:8080/threat_models/30a2eeae-559f-adb5-33cd-60cc424c92c3/sources/bulk
           method: POST
           headers:
             Content-Type: application/json
@@ -1253,7 +1252,7 @@ tests:
       - id: getThreatModelMetadata
         name: Get threat model metadata
         http:
-          url: /threat_models/f0819b50-4f9e-7c0a-d743-4b1e9e02819d/metadata
+          url: http://localhost:8080/threat_models/f0819b50-4f9e-7c0a-d743-4b1e9e02819d/metadata
           method: GET
           check:
             status: 200
@@ -1264,7 +1263,7 @@ tests:
       - id: createThreatModelMetadata
         name: Create threat model metadata
         http:
-          url: /threat_models/3e6d8489-3fbd-cffc-3112-254e219f5d74/metadata
+          url: http://localhost:8080/threat_models/3e6d8489-3fbd-cffc-3112-254e219f5d74/metadata
           method: POST
           headers:
             Content-Type: application/json
@@ -1290,7 +1289,7 @@ tests:
       - id: updateThreatModelMetadataByKey
         name: Update threat model metadata by key
         http:
-          url: /threat_models/42ba6ed4-51fb-b1ee-1c1b-f81e45664d9e/metadata/velit
+          url: http://localhost:8080/threat_models/42ba6ed4-51fb-b1ee-1c1b-f81e45664d9e/metadata/velit
           method: PUT
           headers:
             Content-Type: application/json
@@ -1313,7 +1312,7 @@ tests:
       - id: bulkCreateThreatModelMetadata
         name: Bulk create threat model metadata
         http:
-          url: /threat_models/bd87710d-d15f-0ba7-c28f-f400057d966a/metadata/bulk
+          url: http://localhost:8080/threat_models/bd87710d-d15f-0ba7-c28f-f400057d966a/metadata/bulk
           method: POST
           headers:
             Content-Type: application/json
@@ -1348,7 +1347,7 @@ tests:
       - id: getThreatModelDiagrams
         name: List threat model diagrams
         http:
-          url: /threat_models/5bc068ca-81d7-9116-bea8-4eab70e5a274/diagrams
+          url: http://localhost:8080/threat_models/5bc068ca-81d7-9116-bea8-4eab70e5a274/diagrams
           method: GET
           params:
             limit: 20
@@ -1369,7 +1368,7 @@ tests:
       - id: createThreatModelDiagram
         name: Create a new diagram
         http:
-          url: /threat_models/c8660a64-85c3-d1ca-d0cf-3f13b9a9dac3/diagrams
+          url: http://localhost:8080/threat_models/c8660a64-85c3-d1ca-d0cf-3f13b9a9dac3/diagrams
           method: POST
           headers:
             Content-Type: application/json
@@ -1701,7 +1700,7 @@ components:
   credentials:
     alice_auth:
       bearer:
-        token: "{{ env.ALICE_TOKEN }}"
+        token: "${{ env.ALICE_TOKEN }}"
   schemas:
     ApiInfo:
       type: object

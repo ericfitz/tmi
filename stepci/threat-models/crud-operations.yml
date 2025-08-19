@@ -2,7 +2,6 @@ version: "1.1"
 name: Threat Models CRUD Operations Tests
 config:
   http:
-    baseURL: http://localhost:8080
   variables:
     # Pre-generated user credentials (loaded via environment variables)
     alice_email: "alice@test.tmi"       # Owner user for CRUD testing
@@ -26,10 +25,10 @@ tests:
       - id: create_threat_model
         name: Create new threat model
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Sample E-commerce Application"
@@ -71,10 +70,10 @@ tests:
       - id: list_threat_models
         name: List all threat models
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -94,10 +93,10 @@ tests:
       - id: get_threat_model
         name: Get specific threat model by ID
         http:
-          url: /threat_models/{{ threat_model_id }}
+          url: http://localhost:8080/threat_models/{{ threat_model_id }}
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             jsonpath:
@@ -112,10 +111,10 @@ tests:
       - id: update_threat_model_full
         name: Full update of threat model (PUT)
         http:
-          url: /threat_models/{{ threat_model_id }}
+          url: http://localhost:8080/threat_models/{{ threat_model_id }}
           method: PUT
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Updated E-commerce Application"
@@ -139,10 +138,10 @@ tests:
       - id: update_threat_model_patch
         name: Partial update of threat model (PATCH with JSON Patch)
         http:
-          url: /threat_models/{{ threat_model_id }}
+          url: http://localhost:8080/threat_models/{{ threat_model_id }}
           method: PATCH
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json-patch+json
           json:
             - op: "replace"
@@ -165,10 +164,10 @@ tests:
       - id: verify_patch_update
         name: Verify JSON Patch update was applied
         http:
-          url: /threat_models/{{ threat_model_id }}
+          url: http://localhost:8080/threat_models/{{ threat_model_id }}
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             jsonpath:
@@ -179,10 +178,10 @@ tests:
       - id: delete_threat_model
         name: Delete threat model
         http:
-          url: /threat_models/{{ threat_model_id }}
+          url: http://localhost:8080/threat_models/{{ threat_model_id }}
           method: DELETE
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 204  # No Content
 
@@ -190,10 +189,10 @@ tests:
       - id: verify_deletion
         name: Verify threat model was deleted
         http:
-          url: /threat_models/{{ threat_model_id }}
+          url: http://localhost:8080/threat_models/{{ threat_model_id }}
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 404
             schema:
@@ -210,7 +209,7 @@ tests:
         name: Load Bob's credentials for edge case testing
         captures:
           access_token:
-            value: "{{ env.BOB_TOKEN }}"
+            value: "${{ env.BOB_TOKEN }}"
           user_id:
             value: "{{ bob_email }}"
           user_email:
@@ -220,10 +219,10 @@ tests:
       - id: create_minimal_threat_model
         name: Create threat model with minimal required fields
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Minimal TM"
@@ -241,10 +240,10 @@ tests:
       - id: create_max_length_threat_model
         name: Create threat model with maximum length fields
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "{{ 'Maximum Length Name Test ' | repeat(10) | truncate(200) }}"
@@ -261,10 +260,10 @@ tests:
       - id: create_unicode_threat_model
         name: Create threat model with Unicode characters
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "测试应用程序 🔒 Security Model"
@@ -282,29 +281,29 @@ tests:
       - id: cleanup_minimal_tm
         name: Cleanup minimal threat model
         http:
-          url: /threat_models/{{ minimal_tm_id }}
+          url: http://localhost:8080/threat_models/{{ minimal_tm_id }}
           method: DELETE
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 204
 
       - id: cleanup_max_length_tm
         name: Cleanup max length threat model
         http:
-          url: /threat_models/{{ max_length_tm_id }}
+          url: http://localhost:8080/threat_models/{{ max_length_tm_id }}
           method: DELETE
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 204
 
       - id: cleanup_unicode_tm
         name: Cleanup Unicode threat model
         http:
-          url: /threat_models/{{ unicode_tm_id }}
+          url: http://localhost:8080/threat_models/{{ unicode_tm_id }}
           method: DELETE
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 204

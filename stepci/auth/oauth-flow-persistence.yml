@@ -2,7 +2,6 @@ version: "1.1"
 name: OAuth Authentication Flow Tests with Credential Persistence
 config:
   http:
-    baseURL: http://localhost:8080
   variables:
     # Test users for predictable testing
     user1: "alice"
@@ -20,7 +19,7 @@ tests:
       - id: setup_alice_oauth
         name: Initiate OAuth flow for alice
         http:
-          url: /auth/login/test?client_callback=http://localhost:8079/&user_hint=alice
+          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=alice
           method: GET
           followRedirects: true
           check:
@@ -35,7 +34,7 @@ tests:
       - id: setup_bob_oauth
         name: Initiate OAuth flow for bob
         http:
-          url: /auth/login/test?client_callback=http://localhost:8079/&user_hint=bob
+          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=bob
           method: GET
           followRedirects: true
           check:
@@ -50,7 +49,7 @@ tests:
       - id: setup_qa_oauth
         name: Initiate OAuth flow for qa-automation
         http:
-          url: /auth/login/test?client_callback=http://localhost:8079/&user_hint=qa-automation
+          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=qa-automation
           method: GET
           followRedirects: true
           check:
@@ -139,7 +138,7 @@ tests:
       - id: get_api_info
         name: Get API information (public endpoint)
         http:
-          url: /
+          url: http://localhost:8080/
           method: GET
           check:
             status: 200
@@ -156,7 +155,7 @@ tests:
       - id: get_oauth_providers
         name: Get available OAuth providers
         http:
-          url: /auth/providers
+          url: http://localhost:8080/auth/providers
           method: GET
           check:
             status: 200
@@ -192,7 +191,7 @@ tests:
       - id: get_alice_user_info
         name: Get Alice user information with persistent JWT
         http:
-          url: /auth/me
+          url: http://localhost:8080/auth/me
           method: GET
           headers:
             Authorization: "Bearer ${{ captures.get_alice_jwt_from_file.alice_jwt }}"
@@ -226,7 +225,7 @@ tests:
       - id: get_bob_user_info
         name: Get Bob user information with persistent JWT
         http:
-          url: /auth/me
+          url: http://localhost:8080/auth/me
           method: GET
           headers:
             Authorization: "Bearer ${{ captures.get_bob_jwt_from_file.bob_jwt }}"
@@ -256,7 +255,7 @@ tests:
       - id: invalid_provider
         name: Attempt login with invalid OAuth provider
         http:
-          url: /auth/login/invalid_provider
+          url: http://localhost:8080/auth/login/invalid_provider
           method: GET
           check:
             status: 400
@@ -269,7 +268,7 @@ tests:
       - id: missing_oauth_code
         name: Exchange tokens without OAuth code
         http:
-          url: /auth/token/test
+          url: http://localhost:8080/auth/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -286,7 +285,7 @@ tests:
       - id: invalid_oauth_code
         name: Exchange tokens with invalid OAuth code
         http:
-          url: /auth/token/test
+          url: http://localhost:8080/auth/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -304,7 +303,7 @@ tests:
       - id: unauthorized_user_info
         name: Get user info without JWT token
         http:
-          url: /auth/me
+          url: http://localhost:8080/auth/me
           method: GET
           check:
             status: 401
@@ -317,7 +316,7 @@ tests:
       - id: invalid_jwt_token
         name: Get user info with invalid JWT token
         http:
-          url: /auth/me
+          url: http://localhost:8080/auth/me
           method: GET
           headers:
             Authorization: "Bearer invalid_jwt_token_123"
@@ -332,7 +331,7 @@ tests:
       - id: missing_auth_header
         name: Access protected endpoint without Authorization header
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: GET
           check:
             status: 401

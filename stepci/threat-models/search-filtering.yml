@@ -2,7 +2,6 @@ version: "1.1"
 name: Threat Models Search and Filtering Tests
 config:
   http:
-    baseURL: http://localhost:8080
 tests:
   threat_model_search_and_pagination:
     name: Threat Model Search, Filtering and Pagination
@@ -22,10 +21,10 @@ tests:
       - id: create_tm_ecommerce
         name: Create e-commerce threat model
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "E-commerce Platform Security"
@@ -41,10 +40,10 @@ tests:
       - id: create_tm_banking
         name: Create banking threat model
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Banking API Security Assessment"
@@ -60,10 +59,10 @@ tests:
       - id: create_tm_healthcare
         name: Create healthcare threat model
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Healthcare Data Platform"
@@ -80,10 +79,10 @@ tests:
       - id: list_all_threat_models
         name: List all threat models without filters
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -102,10 +101,10 @@ tests:
       - id: filter_by_name_ecommerce
         name: Filter threat models by name containing 'e-commerce'
         http:
-          url: /threat_models?name=e-commerce
+          url: http://localhost:8080/threat_models?name=e-commerce
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -119,10 +118,10 @@ tests:
       - id: filter_by_name_api
         name: Filter threat models by name containing 'API'
         http:
-          url: /threat_models?name=API
+          url: http://localhost:8080/threat_models?name=API
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -136,10 +135,10 @@ tests:
       - id: filter_by_description_hipaa
         name: Filter threat models by description containing 'HIPAA'
         http:
-          url: /threat_models?description=HIPAA
+          url: http://localhost:8080/threat_models?description=HIPAA
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -152,10 +151,10 @@ tests:
       - id: filter_by_description_payment
         name: Filter threat models by description containing 'payment'
         http:
-          url: /threat_models?description=payment
+          url: http://localhost:8080/threat_models?description=payment
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -168,10 +167,10 @@ tests:
       - id: filter_case_insensitive
         name: Test case-insensitive filtering
         http:
-          url: /threat_models?name=BANKING
+          url: http://localhost:8080/threat_models?name=BANKING
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -185,10 +184,10 @@ tests:
       - id: pagination_limit_2
         name: Test pagination with limit of 2
         http:
-          url: /threat_models?limit=2
+          url: http://localhost:8080/threat_models?limit=2
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -199,10 +198,10 @@ tests:
       - id: pagination_offset_1
         name: Test pagination with offset of 1
         http:
-          url: /threat_models?limit=2&offset=1
+          url: http://localhost:8080/threat_models?limit=2&offset=1
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -213,10 +212,10 @@ tests:
       - id: combined_filters
         name: Test combined name and description filters
         http:
-          url: /threat_models?name=Platform&description=security
+          url: http://localhost:8080/threat_models?name=Platform&description=security
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -227,10 +226,10 @@ tests:
       - id: filter_no_results
         name: Filter that should return no results
         http:
-          url: /threat_models?name=NonExistentThreatModel
+          url: http://localhost:8080/threat_models?name=NonExistentThreatModel
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -241,10 +240,10 @@ tests:
       - id: sort_by_name_asc
         name: Sort threat models by name ascending
         http:
-          url: /threat_models?sort=name&order=asc
+          url: http://localhost:8080/threat_models?sort=name&order=asc
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -254,10 +253,10 @@ tests:
       - id: sort_by_created_at_desc
         name: Sort threat models by creation date descending
         http:
-          url: /threat_models?sort=created_at&order=desc
+          url: http://localhost:8080/threat_models?sort=created_at&order=desc
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -267,30 +266,30 @@ tests:
       - id: cleanup_ecommerce_tm
         name: Cleanup e-commerce threat model
         http:
-          url: /threat_models/{{ ecommerce_tm_id }}
+          url: http://localhost:8080/threat_models/{{ ecommerce_tm_id }}
           method: DELETE
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 204
 
       - id: cleanup_banking_tm
         name: Cleanup banking threat model
         http:
-          url: /threat_models/{{ banking_tm_id }}
+          url: http://localhost:8080/threat_models/{{ banking_tm_id }}
           method: DELETE
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 204
 
       - id: cleanup_healthcare_tm
         name: Cleanup healthcare threat model
         http:
-          url: /threat_models/{{ healthcare_tm_id }}
+          url: http://localhost:8080/threat_models/{{ healthcare_tm_id }}
           method: DELETE
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 204
 
@@ -301,7 +300,7 @@ tests:
       - id: authenticate_for_search_failures
         name: Authenticate for search failure tests
         http:
-          url: /auth/token/test
+          url: http://localhost:8080/auth/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -318,10 +317,10 @@ tests:
       - id: invalid_limit_negative
         name: Test invalid negative limit parameter
         http:
-          url: /threat_models?limit=-1
+          url: http://localhost:8080/threat_models?limit=-1
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 400
             schema:
@@ -333,40 +332,40 @@ tests:
       - id: invalid_limit_oversized
         name: Test oversized limit parameter
         http:
-          url: /threat_models?limit=10000
+          url: http://localhost:8080/threat_models?limit=10000
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 400
 
       - id: invalid_offset_negative
         name: Test invalid negative offset parameter
         http:
-          url: /threat_models?offset=-1
+          url: http://localhost:8080/threat_models?offset=-1
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 400
 
       - id: invalid_limit_string
         name: Test invalid string limit parameter
         http:
-          url: /threat_models?limit=not_a_number
+          url: http://localhost:8080/threat_models?limit=not_a_number
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 400
 
       - id: invalid_offset_string
         name: Test invalid string offset parameter
         http:
-          url: /threat_models?offset=not_a_number
+          url: http://localhost:8080/threat_models?offset=not_a_number
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 400
 
@@ -374,20 +373,20 @@ tests:
       - id: invalid_sort_field
         name: Test invalid sort field
         http:
-          url: /threat_models?sort=invalid_field
+          url: http://localhost:8080/threat_models?sort=invalid_field
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 400
 
       - id: invalid_sort_order
         name: Test invalid sort order
         http:
-          url: /threat_models?sort=name&order=invalid_order
+          url: http://localhost:8080/threat_models?sort=name&order=invalid_order
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 400
 
@@ -395,20 +394,20 @@ tests:
       - id: oversized_name_filter
         name: Test oversized name filter
         http:
-          url: "/threat_models?name={{ 'very_long_search_term_' | repeat(100) }}"
+          url: http://localhost:8080/"threat_models?name={{ 'very_long_search_term_' | repeat(100) }}"
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 400
 
       - id: oversized_description_filter
         name: Test oversized description filter
         http:
-          url: "/threat_models?description={{ 'very_long_description_search_' | repeat(100) }}"
+          url: http://localhost:8080/"threat_models?description={{ 'very_long_description_search_' | repeat(100) }}"
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 400
 
@@ -416,10 +415,10 @@ tests:
       - id: special_chars_in_filter
         name: Test special characters in search filters
         http:
-          url: "/threat_models?name=%3Cscript%3Ealert('xss')%3C/script%3E"
+          url: http://localhost:8080/"threat_models?name=%3Cscript%3Ealert('xss')%3C/script%3E"
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200  # Should handle safely, return empty results
             schema:
@@ -429,10 +428,10 @@ tests:
       - id: sql_injection_attempt
         name: Test SQL injection patterns in filters
         http:
-          url: "/threat_models?name=' OR '1'='1"
+          url: http://localhost:8080/"threat_models?name=' OR '1'='1"
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200  # Should handle safely, not return all records
             schema:

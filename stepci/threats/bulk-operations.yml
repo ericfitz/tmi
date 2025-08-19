@@ -2,7 +2,6 @@ version: "1.1"
 name: Threats Bulk Operations Tests
 config:
   http:
-    baseURL: http://localhost:8080
 tests:
   bulk_create_threats_success:
     name: Bulk Create Threats - Success Cases
@@ -21,10 +20,10 @@ tests:
       - id: create_parent_threat_model
         name: Create parent threat model for bulk threats
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Bulk Operations Test Application"
@@ -39,10 +38,10 @@ tests:
       - id: bulk_create_threats
         name: Bulk create multiple threats
         http:
-          url: /threat_models/{{ threat_model_id }}/threats/bulk
+          url: http://localhost:8080/threat_models/{{ threat_model_id }}/threats/bulk
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             - title: "SQL Injection in Login Form"
@@ -106,10 +105,10 @@ tests:
       - id: verify_bulk_creation
         name: Verify all bulk-created threats exist
         http:
-          url: /threat_models/{{ threat_model_id }}/threats
+          url: http://localhost:8080/threat_models/{{ threat_model_id }}/threats
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             schema:
@@ -131,10 +130,10 @@ tests:
       - id: bulk_update_threats
         name: Bulk update multiple threats
         http:
-          url: /threat_models/{{ threat_model_id }}/threats/bulk
+          url: http://localhost:8080/threat_models/{{ threat_model_id }}/threats/bulk
           method: PUT
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             - id: "{{ bulk_threat_ids[0] }}"
@@ -176,10 +175,10 @@ tests:
       - id: verify_bulk_updates
         name: Verify bulk updates were applied
         http:
-          url: /threat_models/{{ threat_model_id }}/threats
+          url: http://localhost:8080/threat_models/{{ threat_model_id }}/threats
           method: GET
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 200
             jsonpath:
@@ -196,7 +195,7 @@ tests:
       - id: authenticate_for_edge_cases
         name: Authenticate for bulk edge cases
         http:
-          url: /auth/token/test
+          url: http://localhost:8080/auth/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -212,10 +211,10 @@ tests:
       - id: create_tm_for_edge_cases
         name: Create threat model for bulk edge cases
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Bulk Edge Cases TM"
@@ -230,10 +229,10 @@ tests:
       - id: bulk_create_empty_array
         name: Bulk create with empty array
         http:
-          url: /threat_models/{{ edge_tm_id }}/threats/bulk
+          url: http://localhost:8080/threat_models/{{ edge_tm_id }}/threats/bulk
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json: []
           check:
@@ -248,10 +247,10 @@ tests:
       - id: bulk_create_single_item
         name: Bulk create with single item
         http:
-          url: /threat_models/{{ edge_tm_id }}/threats/bulk
+          url: http://localhost:8080/threat_models/{{ edge_tm_id }}/threats/bulk
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             - title: "Single Bulk Threat"
@@ -273,10 +272,10 @@ tests:
       - id: bulk_create_mixed_validity
         name: Bulk create with mixed valid and invalid items
         http:
-          url: /threat_models/{{ edge_tm_id }}/threats/bulk
+          url: http://localhost:8080/threat_models/{{ edge_tm_id }}/threats/bulk
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             - title: "Valid Threat 1"
@@ -306,10 +305,10 @@ tests:
       - id: bulk_create_large_batch
         name: Bulk create with large batch (testing limits)
         http:
-          url: /threat_models/{{ edge_tm_id }}/threats/bulk
+          url: http://localhost:8080/threat_models/{{ edge_tm_id }}/threats/bulk
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json: |
             {{
@@ -340,10 +339,10 @@ tests:
       - id: cleanup_single_bulk_threat
         name: Cleanup single bulk threat
         http:
-          url: /threat_models/{{ edge_tm_id }}/threats/{{ single_bulk_threat_id }}
+          url: http://localhost:8080/threat_models/{{ edge_tm_id }}/threats/{{ single_bulk_threat_id }}
           method: DELETE
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 204
 
@@ -351,10 +350,10 @@ tests:
       - id: cleanup_edge_tm
         name: Cleanup edge case threat model
         http:
-          url: /threat_models/{{ edge_tm_id }}
+          url: http://localhost:8080/threat_models/{{ edge_tm_id }}
           method: DELETE
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 204
 
@@ -365,7 +364,7 @@ tests:
       - id: authenticate_for_failures
         name: Authenticate for bulk failure tests
         http:
-          url: /auth/token/test
+          url: http://localhost:8080/auth/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -381,10 +380,10 @@ tests:
       - id: create_tm_for_failures
         name: Create threat model for bulk failure tests
         http:
-          url: /threat_models
+          url: http://localhost:8080/threat_models
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             name: "Bulk Failures TM"
@@ -399,10 +398,10 @@ tests:
       - id: bulk_create_nonexistent_tm
         name: Bulk create threats on non-existent threat model
         http:
-          url: /threat_models/12345678-1234-4567-8901-123456789012/threats/bulk
+          url: http://localhost:8080/threat_models/12345678-1234-4567-8901-123456789012/threats/bulk
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             - title: "Test Threat"
@@ -417,10 +416,10 @@ tests:
       - id: bulk_update_nonexistent_threats
         name: Bulk update with non-existent threat IDs
         http:
-          url: /threat_models/{{ failures_tm_id }}/threats/bulk
+          url: http://localhost:8080/threat_models/{{ failures_tm_id }}/threats/bulk
           method: PUT
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             - id: "12345678-1234-4567-8901-123456789012"
@@ -436,10 +435,10 @@ tests:
       - id: bulk_create_malformed_json
         name: Bulk create with malformed JSON
         http:
-          url: /threat_models/{{ failures_tm_id }}/threats/bulk
+          url: http://localhost:8080/threat_models/{{ failures_tm_id }}/threats/bulk
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           body: '[{"title": "Valid Threat", "description": "Valid"}, invalid_json]'
           check:
@@ -449,7 +448,7 @@ tests:
       - id: bulk_create_no_auth
         name: Bulk create without authentication
         http:
-          url: /threat_models/{{ failures_tm_id }}/threats/bulk
+          url: http://localhost:8080/threat_models/{{ failures_tm_id }}/threats/bulk
           method: POST
           headers:
             Content-Type: application/json
@@ -466,10 +465,10 @@ tests:
       - id: bulk_create_invalid_data
         name: Bulk create with invalid threat data
         http:
-          url: /threat_models/{{ failures_tm_id }}/threats/bulk
+          url: http://localhost:8080/threat_models/{{ failures_tm_id }}/threats/bulk
           method: POST
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
             Content-Type: application/json
           json:
             - title: ""  # Invalid empty title
@@ -499,9 +498,9 @@ tests:
       - id: cleanup_failures_tm
         name: Cleanup failures test threat model
         http:
-          url: /threat_models/{{ failures_tm_id }}
+          url: http://localhost:8080/threat_models/{{ failures_tm_id }}
           method: DELETE
           headers:
-            Authorization: "Bearer {{ access_token }}"
+            Authorization: "Bearer ${{ access_token }}"
           check:
             status: 204
