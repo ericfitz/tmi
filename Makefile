@@ -567,17 +567,18 @@ stepci-full:
 	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
 	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
 	echo -e "$(BLUE)[INFO]$(NC) Running StepCI full integration tests: StepCI Full Integration Testing"; \
-	trap 'CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all; $(MAKE) -f $(MAKEFILE_LIST) oauth-stub-stop' EXIT; \
-	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) clean-processes && \
-	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
-	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start && \
-	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
-	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) build-server && \
-	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate && \
-	$(MAKE) -f $(MAKEFILE_LIST) oauth-stub-start && \
-	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) server-start && \
-	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) process-wait && \
-	CONFIG_FILE=config/stepci-full.yml $(MAKE) -f $(MAKEFILE_LIST) stepci-execute
+	trap 'eval $$(cat .config.tmp.mk) && $(MAKE) clean-all; $(MAKE) oauth-stub-stop; rm -f .config.tmp.mk' EXIT; \
+	$(MAKE) oauth-stub-stop && \
+	eval $$(cat .config.tmp.mk) && $(MAKE) clean-processes && \
+	eval $$(cat .config.tmp.mk) && $(MAKE) infra-db-start && \
+	eval $$(cat .config.tmp.mk) && $(MAKE) infra-redis-start && \
+	eval $$(cat .config.tmp.mk) && $(MAKE) db-wait && \
+	eval $$(cat .config.tmp.mk) && $(MAKE) build-server && \
+	eval $$(cat .config.tmp.mk) && $(MAKE) db-migrate && \
+	$(MAKE) oauth-stub-start && \
+	eval $$(cat .config.tmp.mk) && $(MAKE) server-start && \
+	eval $$(cat .config.tmp.mk) && $(MAKE) process-wait && \
+	eval $$(cat .config.tmp.mk) && $(MAKE) stepci-execute
 
 # ============================================================================
 # SPECIALIZED ATOMIC COMPONENTS - Coverage and StepCI
@@ -655,18 +656,20 @@ coverage-reports:
 
 stepci-execute:
 	$(call log_info,Executing StepCI tests...)
-	@if [ -n "$(TEST_PATTERN)" ] && [ "$(TEST_PATTERN)" != "" ]; then \
+	@TEST_DIR="$(STEPCI_TEST_DIRECTORY)"; \
+	if [ -z "$$TEST_DIR" ]; then TEST_DIR="stepci"; fi; \
+	if [ -n "$(TEST_PATTERN)" ] && [ "$(TEST_PATTERN)" != "" ]; then \
 		echo -e "\033[0;34m[INFO]\033[0m Running specific StepCI test: $(TEST_PATTERN)"; \
-		if [ ! -f "$(STEPCI_TEST_DIRECTORY)/$(TEST_PATTERN)" ]; then \
-			echo -e "\033[0;31m[ERROR]\033[0m Test file not found: $(STEPCI_TEST_DIRECTORY)/$(TEST_PATTERN)"; \
+		if [ ! -f "$$TEST_DIR/$(TEST_PATTERN)" ]; then \
+			echo -e "\033[0;31m[ERROR]\033[0m Test file not found: $$TEST_DIR/$(TEST_PATTERN)"; \
 			echo -e "\033[0;34m[INFO]\033[0m Available tests:"; \
-			find $(STEPCI_TEST_DIRECTORY) -name "*.yml" -not -path "$(STEPCI_EXCLUDE_PATHS)" | sed 's|$(STEPCI_TEST_DIRECTORY)/||' | sort; \
+			find "$$TEST_DIR" -name "*.yml" | grep -v "/utils/" | sed "s|$$TEST_DIR/||" | sort; \
 			exit 1; \
 		fi; \
-		stepci run "$(STEPCI_TEST_DIRECTORY)/$(TEST_PATTERN)"; \
+		stepci run "$$TEST_DIR/$(TEST_PATTERN)"; \
 	else \
 		echo -e "\033[0;34m[INFO]\033[0m Running all StepCI integration tests in series (OAuth stub requires serial execution)..."; \
-		for test_file in $$(find $(STEPCI_TEST_DIRECTORY) -name "*.yml" -not -path "$(STEPCI_EXCLUDE_PATHS)" | sort); do \
+		for test_file in $$(find "$$TEST_DIR" -name "*.yml" | grep -v "/utils/" | sort); do \
 			echo -e "\033[0;34m[INFO]\033[0m Running: $$test_file"; \
 			stepci run "$$test_file" || echo "❌ Test failed: $$test_file"; \
 			echo ""; \
@@ -699,23 +702,38 @@ oauth-stub-start:
 
 oauth-stub-stop:
 	$(call log_info,"Stopping OAuth callback stub...")
-	@if [ -f .oauth-stub.pid ]; then \
-		PID=$$(cat .oauth-stub.pid); \
-		if kill $$PID 2>/dev/null; then \
-			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub stopped (PID: $$PID)"; \
-		else \
-			echo -e "$(YELLOW)[WARNING]$(NC) Process $$PID not found, cleaning up PID file"; \
-		fi; \
-		rm -f .oauth-stub.pid; \
+	@# Step 1: Send magic exit URL
+	@echo -e "$(BLUE)[INFO]$(NC) Sending graceful shutdown request..."
+	@curl -s "http://localhost:8079/?code=exit" >/dev/null 2>&1 || true
+	@sleep 1
+	@# Step 2: Check if anything is still listening on 8079, kill with SIGTERM
+	@PIDS=$$(lsof -ti :8079 2>/dev/null || true); \
+	if [ -n "$$PIDS" ]; then \
+		echo -e "$(BLUE)[INFO]$(NC) Found processes still listening on port 8079: $$PIDS"; \
+		for PID in $$PIDS; do \
+			echo -e "$(BLUE)[INFO]$(NC) Sending SIGTERM to process $$PID..."; \
+			kill $$PID 2>/dev/null || true; \
+		done; \
+		sleep 2; \
+	fi
+	@# Step 3: Check again and force kill with SIGKILL if still running
+	@PIDS=$$(lsof -ti :8079 2>/dev/null || true); \
+	if [ -n "$$PIDS" ]; then \
+		echo -e "$(YELLOW)[WARNING]$(NC) Processes still running on port 8079: $$PIDS"; \
+		for PID in $$PIDS; do \
+			echo -e "$(BLUE)[INFO]$(NC) Force killing process $$PID with SIGKILL..."; \
+			kill -9 $$PID 2>/dev/null || true; \
+		done; \
+		sleep 1; \
+	fi
+	@# Clean up PID file
+	@rm -f .oauth-stub.pid
+	@# Final verification
+	@PIDS=$$(lsof -ti :8079 2>/dev/null || true); \
+	if [ -z "$$PIDS" ]; then \
+		echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub stopped successfully"; \
 	else \
-		PIDS=$$(pgrep -f "oauth-client-callback-stub.py" || true); \
-		if [ -n "$$PIDS" ]; then \
-			echo -e "$(BLUE)[INFO]$(NC) Found OAuth stub processes: $$PIDS"; \
-			kill $$PIDS 2>/dev/null || true; \
-			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub processes terminated"; \
-		else \
-			echo -e "$(YELLOW)[WARNING]$(NC) OAuth stub is not running"; \
-		fi; \
+		echo -e "$(RED)[ERROR]$(NC) Failed to stop all processes on port 8079: $$PIDS"; \
 	fi
 
 oauth-stub-status:
@@ -999,6 +1017,9 @@ obs-stop: observability-stop
 obs-clean: observability-clean
 obs-health: observability-health
 obs-wait: observability-wait
+
+# StepCI alias
+test-stepci: stepci-full
 
 # Legacy test-api target (simplified)
 test-api:
