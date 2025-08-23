@@ -74,7 +74,7 @@ class TMIClient:
 
     def get_current_user(self) -> Dict[str, Any]:
         """Get current authenticated user information."""
-        response = self._get("/oauth2/me")
+        response = self._get("/oauth2/userinfo")
         return response.json()
 
     def refresh_token(self) -> Dict[str, Any]:
@@ -87,7 +87,7 @@ class TMIClient:
 
     def logout(self) -> None:
         """Logout and invalidate the current session."""
-        self._post("/oauth2/logout")
+        self._post("/oauth2/revoke")
         self.token = None
         if "Authorization" in self.session.headers:
             del self.session.headers["Authorization"]

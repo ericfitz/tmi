@@ -2804,7 +2804,7 @@
         }
       }
     },
-    "/oauth2/me": {
+    "/oauth2/userinfo": {
       "get": {
         "tags": [
           "Authentication"
@@ -2950,7 +2950,7 @@
         }
       }
     },
-    "/oauth2/logout": {
+    "/oauth2/revoke": {
       "post": {
         "tags": [
           "Authentication"

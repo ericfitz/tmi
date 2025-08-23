@@ -29,8 +29,8 @@ config:
     auth_login_endpoint: "/oauth2/authorize"
     auth_token_endpoint: "/oauth2/token"
     auth_refresh_endpoint: "/oauth2/refresh"
-    auth_me_endpoint: "/oauth2/me"
-    auth_logout_endpoint: "/oauth2/logout"
+    auth_me_endpoint: "/oauth2/userinfo"
+    auth_logout_endpoint: "/oauth2/revoke"
     
     # Common Headers
     content_type_json: "application/json"

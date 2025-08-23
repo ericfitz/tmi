@@ -677,7 +677,7 @@ curl http://localhost:8080/oauth2/providers | jq
 **Test Token Validation:**
 
 ```bash
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/oauth2/me
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/oauth2/userinfo
 ```
 
 **Monitor Network Traffic:**
@@ -849,7 +849,7 @@ Here's a complete working example of OAuth integration:
 
           // Load user info
           try {
-            const response = await this.makeAuthenticatedRequest("/oauth2/me");
+            const response = await this.makeAuthenticatedRequest("/oauth2/userinfo");
             const user = await response.json();
             document.getElementById("user-info").innerHTML = `
                         <p>Email: ${user.email}</p>

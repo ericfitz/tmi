@@ -1053,6 +1053,22 @@ test-api:
 	rm -f .config.tmp.mk
 
 # ============================================================================
+# VALIDATION TARGETS
+# ============================================================================
+
+.PHONY: validate-openapi validate-asyncapi
+
+validate-openapi:
+	$(call log_info,Validating OpenAPI specification...)
+	@uv run scripts/validate_openapi.py shared/api-specs/tmi-openapi.json
+	$(call log_success,OpenAPI specification is valid)
+
+validate-asyncapi:
+	$(call log_info,Validating AsyncAPI specification...)
+	@uv run scripts/validate_asyncapi.py shared/api-specs/tmi-asyncapi.yml
+	$(call log_success,AsyncAPI specification is valid)
+
+# ============================================================================
 # HELP AND UTILITIES
 # ============================================================================
 
@@ -1078,6 +1094,10 @@ help:
 	@echo "  db-migrate             - Run database migrations"
 	@echo "  server-start           - Start server"
 	@echo "  clean-all              - Clean up everything"
+	@echo ""
+	@echo "Validation Targets:"
+	@echo "  validate-openapi       - Validate OpenAPI specification"
+	@echo "  validate-asyncapi      - Validate AsyncAPI specification"
 	@echo ""
 	@echo "Configuration Files:"
 	@echo "  config/test-unit.yml           - Unit testing configuration"

@@ -334,7 +334,7 @@ func TestWithSpecificUser(t *testing.T) {
     accessToken := tokenResponse["access_token"].(string)
 
     // Use in authenticated requests
-    req := suite.makeRequestWithToken("GET", "/oauth2/me", nil, accessToken)
+    req := suite.makeRequestWithToken("GET", "/oauth2/userinfo", nil, accessToken)
     w := suite.executeRequest(req)
     response := suite.assertJSONResponse(t, w, http.StatusOK)
 

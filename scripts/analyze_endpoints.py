@@ -275,8 +275,8 @@ class EndpointAnalyzer:
             "HandleOAuthCallback": [("/oauth2/callback", "GET")],
             "ExchangeOAuthCode": [("/oauth2/token/{provider}", "POST")],
             "RefreshToken": [("/oauth2/refresh", "POST")],
-            "GetCurrentUser": [("/oauth2/me", "GET")],
-            "LogoutUser": [("/oauth2/logout", "POST")],
+            "GetCurrentUser": [("/oauth2/userinfo", "GET")],
+            "LogoutUser": [("/oauth2/revoke", "POST")],
             # Core endpoints
             "GetApiInfo": [("/", "GET")],
             "HandleServerInfo": [("/api/server-info", "GET")],
