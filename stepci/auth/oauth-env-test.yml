@@ -18,9 +18,9 @@ tests:
             value: "alice@test.tmi"
 
       - id: test_auth_me
-        name: Test /auth/me endpoint with Alice's token
+        name: Test /oauth2/me endpoint with Alice's token
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ access_token }}"
@@ -45,9 +45,9 @@ tests:
             value: "bob@test.tmi"
 
       - id: test_bob_auth_me
-        name: Test /auth/me endpoint with Bob's token
+        name: Test /oauth2/me endpoint with Bob's token
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ bob_token }}"
@@ -72,9 +72,9 @@ tests:
             value: "chuck@test.tmi"
 
       - id: test_chuck_auth_me
-        name: Test /auth/me endpoint with Chuck's token
+        name: Test /oauth2/me endpoint with Chuck's token
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ chuck_token }}"

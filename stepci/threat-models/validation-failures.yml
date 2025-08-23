@@ -280,13 +280,13 @@ tests:
       - id: authenticate_for_operations
         name: Authenticate for operation failure tests
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
           json:
             code: "test_code_ops"
-            redirect_uri: "http://localhost:8080/auth/callback"
+            redirect_uri: "http://localhost:8080/oauth2/callback"
           check:
             status: 200
         captures:
@@ -380,13 +380,13 @@ tests:
       - id: authenticate_for_patch_tests
         name: Authenticate for JSON Patch tests
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
           json:
             code: "test_code_patch"
-            redirect_uri: "http://localhost:8080/auth/callback"
+            redirect_uri: "http://localhost:8080/oauth2/callback"
           check:
             status: 200
         captures:

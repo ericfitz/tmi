@@ -41,21 +41,21 @@ func (h *Handlers) RegisterRoutes(router *gin.Engine) {
 	logger := logging.Get()
 	logger.Info("[AUTH_MODULE] Starting route registration")
 
-	auth := router.Group("/auth")
+	auth := router.Group("/oauth2")
 	{
-		logger.Info("[AUTH_MODULE] Registering route: GET /auth/providers")
+		logger.Info("[AUTH_MODULE] Registering route: GET /oauth2/providers")
 		auth.GET("/providers", h.GetProviders)
-		logger.Info("[AUTH_MODULE] Registering route: GET /auth/login/:provider")
+		logger.Info("[AUTH_MODULE] Registering route: GET /oauth2/authorize/:provider")
 		auth.GET("/login/:provider", h.Authorize)
-		logger.Info("[AUTH_MODULE] Registering route: GET /auth/callback")
+		logger.Info("[AUTH_MODULE] Registering route: GET /oauth2/callback")
 		auth.GET("/callback", h.Callback)
-		logger.Info("[AUTH_MODULE] Registering route: POST /auth/token/:provider")
+		logger.Info("[AUTH_MODULE] Registering route: POST /oauth2/token/:provider")
 		auth.POST("/token/:provider", h.Exchange)
-		logger.Info("[AUTH_MODULE] Registering route: POST /auth/refresh")
+		logger.Info("[AUTH_MODULE] Registering route: POST /oauth2/refresh")
 		auth.POST("/refresh", h.Refresh)
-		logger.Info("[AUTH_MODULE] Registering route: POST /auth/logout")
+		logger.Info("[AUTH_MODULE] Registering route: POST /oauth2/logout")
 		auth.POST("/logout", h.Logout)
-		logger.Info("[AUTH_MODULE] Registering route: GET /auth/me (with auth middleware)")
+		logger.Info("[AUTH_MODULE] Registering route: GET /oauth2/me (with auth middleware)")
 		auth.GET("/me", h.AuthMiddleware().AuthRequired(), h.Me)
 	}
 
@@ -115,7 +115,7 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 		}
 
 		// Build the authorization URL for this provider
-		authURL := fmt.Sprintf("%s/auth/login/%s", getBaseURL(c), id)
+		authURL := fmt.Sprintf("%s/oauth2/authorize/%s", getBaseURL(c), id)
 
 		providers = append(providers, ProviderInfo{
 			ID:          id,
@@ -659,7 +659,7 @@ func (h *Handlers) Token(c *gin.Context) {
 
 		// This is handled by the Callback handler
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Use the /auth/callback endpoint for authorization code grant",
+			"error": "Use the /oauth2/callback endpoint for authorization code grant",
 		})
 
 	case "refresh_token":

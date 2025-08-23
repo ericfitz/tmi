@@ -13,7 +13,7 @@ tests:
       - id: initiate_oauth_flow
         name: Initiate OAuth flow with callback stub and user hint
         http:
-          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint={{ test_user_hint }}
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint={{ test_user_hint }}
           method: GET
           followRedirects: true
           check:
@@ -43,7 +43,7 @@ tests:
       - id: get_fresh_token_fallback
         name: Get fresh token as fallback for StepCI with user hint
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -62,7 +62,7 @@ tests:
       - id: verify_initial_token
         name: Verify initial access token works
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ initial_access_token }}"
@@ -75,7 +75,7 @@ tests:
       - id: refresh_token_success
         name: Refresh JWT token with valid refresh token
         http:
-          url: http://localhost:8080/auth/refresh
+          url: http://localhost:8080/oauth2/refresh
           method: POST
           headers:
             Content-Type: application/json
@@ -103,7 +103,7 @@ tests:
       - id: verify_new_token
         name: Verify new access token works
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ new_access_token }}"
@@ -119,7 +119,7 @@ tests:
       - id: refresh_without_token
         name: Refresh request without refresh token
         http:
-          url: http://localhost:8080/auth/refresh
+          url: http://localhost:8080/oauth2/refresh
           method: POST
           headers:
             Content-Type: application/json
@@ -135,7 +135,7 @@ tests:
       - id: refresh_invalid_token
         name: Refresh with invalid refresh token
         http:
-          url: http://localhost:8080/auth/refresh
+          url: http://localhost:8080/oauth2/refresh
           method: POST
           headers:
             Content-Type: application/json
@@ -152,7 +152,7 @@ tests:
       - id: refresh_malformed_request
         name: Refresh with malformed JSON
         http:
-          url: http://localhost:8080/auth/refresh
+          url: http://localhost:8080/oauth2/refresh
           method: POST
           headers:
             Content-Type: application/json
@@ -163,7 +163,7 @@ tests:
       - id: refresh_wrong_content_type
         name: Refresh without proper Content-Type header
         http:
-          url: http://localhost:8080/auth/refresh
+          url: http://localhost:8080/oauth2/refresh
           method: POST
           body: 'refresh_token=test_token'
           check:
@@ -176,7 +176,7 @@ tests:
       - id: get_fresh_tokens
         name: Get fresh JWT tokens with user hint
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -193,7 +193,7 @@ tests:
       - id: test_expired_token_format
         name: Test with obviously expired/invalid token format
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.expired_token"
@@ -203,7 +203,7 @@ tests:
       - id: test_malformed_jwt
         name: Test with malformed JWT structure
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer not.a.valid.jwt.structure"
@@ -213,7 +213,7 @@ tests:
       - id: test_empty_bearer_token
         name: Test with empty Bearer token
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer "
@@ -223,7 +223,7 @@ tests:
       - id: test_jwt_without_bearer
         name: Test JWT token without Bearer prefix
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "{{ access_token }}"

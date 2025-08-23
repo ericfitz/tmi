@@ -163,7 +163,7 @@ func (bct *BackwardCompatibilityTest) testAuthEndpoints(t *testing.T) {
 		{
 			name:           "GetAuthProviders",
 			method:         "GET",
-			path:           "/auth/providers",
+			path:           "/oauth2/providers",
 			body:           nil,
 			expectedStatus: http.StatusOK,
 			description:    "Get auth providers should work",

@@ -101,7 +101,7 @@ func LoadConfig() (Config, error) {
 			SigningMethod:     getEnv("JWT_SIGNING_METHOD", "HS256"),
 		},
 		OAuth: OAuthConfig{
-			CallbackURL: getEnv("OAUTH_CALLBACK_URL", "http://localhost:8080/auth/callback"),
+			CallbackURL: getEnv("OAUTH_CALLBACK_URL", "http://localhost:8080/oauth2/callback"),
 			Providers:   loadOAuthProviders(),
 		},
 	}, nil

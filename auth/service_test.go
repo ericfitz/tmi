@@ -135,7 +135,7 @@ func TestConfigValidation(t *testing.T) {
 					ExpirationSeconds: 3600,
 				},
 				OAuth: OAuthConfig{
-					CallbackURL: "http://localhost:8080/auth/callback",
+					CallbackURL: "http://localhost:8080/oauth2/callback",
 					Providers: map[string]OAuthProviderConfig{
 						"google": {
 							ID:      "google",
@@ -164,7 +164,7 @@ func TestConfigValidation(t *testing.T) {
 					ExpirationSeconds: 3600,
 				},
 				OAuth: OAuthConfig{
-					CallbackURL: "http://localhost:8080/auth/callback",
+					CallbackURL: "http://localhost:8080/oauth2/callback",
 					Providers: map[string]OAuthProviderConfig{
 						"google": {
 							ID:      "google",
@@ -194,7 +194,7 @@ func TestConfigValidation(t *testing.T) {
 					ExpirationSeconds: 0, // Invalid expiration
 				},
 				OAuth: OAuthConfig{
-					CallbackURL: "http://localhost:8080/auth/callback",
+					CallbackURL: "http://localhost:8080/oauth2/callback",
 					Providers: map[string]OAuthProviderConfig{
 						"google": {
 							ID:      "google",
@@ -227,7 +227,7 @@ func TestConfigValidation(t *testing.T) {
 func TestProviderConfiguration(t *testing.T) {
 	config := Config{
 		OAuth: OAuthConfig{
-			CallbackURL: "http://localhost:8080/auth/callback",
+			CallbackURL: "http://localhost:8080/oauth2/callback",
 			Providers: map[string]OAuthProviderConfig{
 				"google": {
 					ID:               "google",

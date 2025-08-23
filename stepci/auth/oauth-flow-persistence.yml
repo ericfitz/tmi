@@ -19,7 +19,7 @@ tests:
       - id: setup_alice_oauth
         name: Initiate OAuth flow for alice
         http:
-          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=alice
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=alice
           method: GET
           followRedirects: true
           check:
@@ -34,7 +34,7 @@ tests:
       - id: setup_bob_oauth
         name: Initiate OAuth flow for bob
         http:
-          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=bob
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=bob
           method: GET
           followRedirects: true
           check:
@@ -49,7 +49,7 @@ tests:
       - id: setup_qa_oauth
         name: Initiate OAuth flow for qa-automation
         http:
-          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=qa-automation
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=qa-automation
           method: GET
           followRedirects: true
           check:
@@ -155,7 +155,7 @@ tests:
       - id: get_oauth_providers
         name: Get available OAuth providers
         http:
-          url: http://localhost:8080/auth/providers
+          url: http://localhost:8080/oauth2/providers
           method: GET
           check:
             status: 200
@@ -191,7 +191,7 @@ tests:
       - id: get_alice_user_info
         name: Get Alice user information with persistent JWT
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ captures.get_alice_jwt_from_file.alice_jwt }}"
@@ -225,7 +225,7 @@ tests:
       - id: get_bob_user_info
         name: Get Bob user information with persistent JWT
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ captures.get_bob_jwt_from_file.bob_jwt }}"
@@ -255,7 +255,7 @@ tests:
       - id: invalid_provider
         name: Attempt login with invalid OAuth provider
         http:
-          url: http://localhost:8080/auth/login/invalid_provider
+          url: http://localhost:8080/oauth2/authorize/invalid_provider
           method: GET
           check:
             status: 400
@@ -268,7 +268,7 @@ tests:
       - id: missing_oauth_code
         name: Exchange tokens without OAuth code
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -285,7 +285,7 @@ tests:
       - id: invalid_oauth_code
         name: Exchange tokens with invalid OAuth code
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -303,7 +303,7 @@ tests:
       - id: unauthorized_user_info
         name: Get user info without JWT token
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           check:
             status: 401
@@ -316,7 +316,7 @@ tests:
       - id: invalid_jwt_token
         name: Get user info with invalid JWT token
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer invalid_jwt_token_123"

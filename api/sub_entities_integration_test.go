@@ -86,7 +86,7 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 			SigningMethod:     "HS256",
 		},
 		OAuth: auth.OAuthConfig{
-			CallbackURL: "http://localhost:8080/auth/callback",
+			CallbackURL: "http://localhost:8080/oauth2/callback",
 			Providers: map[string]auth.OAuthProviderConfig{
 				"test": {
 					ClientID:     "test-client-id",

@@ -16,13 +16,13 @@ func TestTestProviderURLs(t *testing.T) {
 			ID:               "test",
 			ClientID:         "test-client-id",
 			ClientSecret:     "test-oauth-secret-12345",
-			AuthorizationURL: "http://localhost:8080/auth/login/test",
-			TokenURL:         "http://localhost:8080/auth/token/test",
+			AuthorizationURL: "http://localhost:8080/oauth2/authorize/test",
+			TokenURL:         "http://localhost:8080/oauth2/token/test",
 			UserInfoURL:      "",
 			Scopes:           []string{"profile", "email"},
 		}
 
-		callbackURL := "http://localhost:8080/auth/callback"
+		callbackURL := "http://localhost:8080/oauth2/callback"
 
 		provider := NewTestProvider(config, callbackURL)
 		require.NotNil(t, provider)
@@ -40,23 +40,23 @@ func TestTestProviderURLs(t *testing.T) {
 		config := OAuthProviderConfig{
 			ID:               "test",
 			ClientID:         "test-client-id",
-			AuthorizationURL: "http://localhost:8080/auth/login/test",
-			TokenURL:         "http://localhost:8080/auth/token/test",
+			AuthorizationURL: "http://localhost:8080/oauth2/authorize/test",
+			TokenURL:         "http://localhost:8080/oauth2/token/test",
 			Scopes:           []string{"profile", "email"},
 		}
 
-		provider := NewTestProvider(config, "http://localhost:8080/auth/callback")
+		provider := NewTestProvider(config, "http://localhost:8080/oauth2/callback")
 		state := "test-state-123"
 		authURL := provider.GetAuthorizationURL(state)
 
 		// For test provider, it should return a direct callback URL with auth code
-		assert.Contains(t, authURL, "http://localhost:8080/auth/callback")
+		assert.Contains(t, authURL, "http://localhost:8080/oauth2/callback")
 		assert.Contains(t, authURL, "state=test-state-123")
 		assert.Contains(t, authURL, "code=test_auth_code_")
 		// Verify it's a valid URL
 		parsedURL, err := url.Parse(authURL)
 		assert.NoError(t, err)
-		assert.Equal(t, "/auth/callback", parsedURL.Path)
+		assert.Equal(t, "/oauth2/callback", parsedURL.Path)
 		assert.Equal(t, "test-state-123", parsedURL.Query().Get("state"))
 		assert.NotEmpty(t, parsedURL.Query().Get("code"))
 	})

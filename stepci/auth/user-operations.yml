@@ -25,7 +25,7 @@ tests:
       - id: get_user_info_detailed
         name: Get detailed user information (validate predictable user)
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ access_token }}"
@@ -63,7 +63,7 @@ tests:
       - id: verify_user_consistency
         name: Verify user info consistency across multiple calls
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ access_token }}"
@@ -92,7 +92,7 @@ tests:
       - id: verify_authenticated
         name: Verify user is authenticated before logout
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ access_token }}"
@@ -102,7 +102,7 @@ tests:
       - id: logout_user_success
         name: Logout user successfully
         http:
-          url: http://localhost:8080/auth/logout
+          url: http://localhost:8080/oauth2/logout
           method: POST
           headers:
             Authorization: "Bearer ${{ access_token }}"
@@ -116,7 +116,7 @@ tests:
       - id: verify_token_invalidated
         name: Verify token is invalidated after logout
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ access_token }}"
@@ -135,7 +135,7 @@ tests:
       - id: user_info_no_auth
         name: Get user info without authentication
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           check:
             status: 401
@@ -148,7 +148,7 @@ tests:
       - id: user_info_invalid_token
         name: Get user info with invalid token
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer invalid_token_123"
@@ -163,7 +163,7 @@ tests:
       - id: logout_no_auth
         name: Attempt logout without authentication
         http:
-          url: http://localhost:8080/auth/logout
+          url: http://localhost:8080/oauth2/logout
           method: POST
           headers:
             Content-Type: application/json
@@ -180,7 +180,7 @@ tests:
       - id: logout_invalid_token
         name: Attempt logout with invalid token
         http:
-          url: http://localhost:8080/auth/logout
+          url: http://localhost:8080/oauth2/logout
           method: POST
           headers:
             Authorization: "Bearer invalid_token_123"
@@ -193,7 +193,7 @@ tests:
       - id: logout_malformed_request
         name: Logout with malformed request body
         http:
-          url: http://localhost:8080/auth/logout
+          url: http://localhost:8080/oauth2/logout
           method: POST
           headers:
             Authorization: "Bearer ${{ access_token }}"
@@ -229,7 +229,7 @@ tests:
       - id: verify_session_1
         name: Verify first session works (Bob)
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ token_1 }}"
@@ -242,7 +242,7 @@ tests:
       - id: verify_session_2
         name: Verify second session works (Chuck)
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ token_2 }}"
@@ -256,7 +256,7 @@ tests:
       - id: verify_different_users
         name: Verify sessions represent different users (Bob vs Chuck)
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ token_1 }}"

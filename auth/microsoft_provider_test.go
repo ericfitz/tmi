@@ -19,7 +19,7 @@ func TestMicrosoftProvider(t *testing.T) {
 			Scopes:           []string{"openid", "profile", "email"},
 		}
 
-		callbackURL := "http://localhost:8080/auth/callback"
+		callbackURL := "http://localhost:8080/oauth2/callback"
 
 		// This should not fail with issuer mismatch error
 		provider, err := NewMicrosoftProvider(config, callbackURL)
@@ -50,7 +50,7 @@ func TestMicrosoftProvider(t *testing.T) {
 			Scopes:           []string{"openid", "profile", "email"},
 		}
 
-		provider, err := NewMicrosoftProvider(config, "http://localhost:8080/auth/callback")
+		provider, err := NewMicrosoftProvider(config, "http://localhost:8080/oauth2/callback")
 		require.NoError(t, err)
 
 		state := "test-state-123"

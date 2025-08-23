@@ -43,7 +43,7 @@ auth:
         expiration_seconds: 3600    # JWT token expiration (1 hour)
         signing_method: "HS256"     # JWT signing method
     oauth:
-        callback_url: "http://localhost:8080/auth/callback"  # OAuth callback URL
+        callback_url: "http://localhost:8080/oauth2/callback"  # OAuth callback URL
         providers:
             github:
                 id: "github"
@@ -111,8 +111,8 @@ auth:
                 icon: "flask-vial"
                 client_id: "test-client-id"
                 client_secret: "test-oauth-secret-12345"
-                authorization_url: "http://localhost:8080/auth/test/authorize"
-                token_url: "http://localhost:8080/auth/test/token"
+                authorization_url: "http://localhost:8080/oauth2/test/authorize"
+                token_url: "http://localhost:8080/oauth2/test/token"
                 userinfo_url: ""
                 issuer: "test-oauth-provider"
                 jwks_url: ""

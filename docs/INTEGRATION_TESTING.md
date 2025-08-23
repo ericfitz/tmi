@@ -293,18 +293,20 @@ assert.Equal(t, diagramData["name"], getResponse["name"])
 For automation-friendly testing with predictable user identities, the test OAuth provider supports **user hints**:
 
 **Basic Usage:**
+
 ```bash
 # Create specific test user 'alice@test.tmi' instead of random
-curl "http://localhost:8080/auth/login/test?user_hint=alice"
+curl "http://localhost:8080/oauth2/authorize/test?user_hint=alice"
 
 # Create user 'qa-automation@test.tmi' for automated testing
-curl "http://localhost:8080/auth/login/test?user_hint=qa-automation"
+curl "http://localhost:8080/oauth2/authorize/test?user_hint=qa-automation"
 
 # Without user hint - creates random 'testuser-12345678@test.tmi' (backwards compatible)
-curl "http://localhost:8080/auth/login/test"
+curl "http://localhost:8080/oauth2/authorize/test"
 ```
 
 **Integration Test Example:**
+
 ```go
 func TestWithSpecificUser(t *testing.T) {
     suite := SetupSubEntityIntegrationTest(t)
@@ -314,28 +316,28 @@ func TestWithSpecificUser(t *testing.T) {
     client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
         return http.ErrUseLastResponse
     }}
-    
+
     // Step 1: Initiate OAuth with user hint
-    resp, err := client.Get("http://localhost:8080/auth/login/test?user_hint=alice")
+    resp, err := client.Get("http://localhost:8080/oauth2/authorize/test?user_hint=alice")
     require.NoError(t, err)
-    
+
     // Step 2: Follow redirect to get tokens
     location := resp.Header.Get("Location")
     resp2, err := client.Get(location)
     require.NoError(t, err)
-    
+
     // Step 3: Parse tokens from response
     var tokenResponse map[string]interface{}
     json.NewDecoder(resp2.Body).Decode(&tokenResponse)
-    
+
     // Now you have tokens for user 'alice@test.tmi'
     accessToken := tokenResponse["access_token"].(string)
-    
+
     // Use in authenticated requests
-    req := suite.makeRequestWithToken("GET", "/auth/me", nil, accessToken)
+    req := suite.makeRequestWithToken("GET", "/oauth2/me", nil, accessToken)
     w := suite.executeRequest(req)
     response := suite.assertJSONResponse(t, w, http.StatusOK)
-    
+
     // Verify predictable user identity
     assert.Equal(t, "alice@test.tmi", response["email"])
     assert.Equal(t, "Alice (Test User)", response["name"])
@@ -343,13 +345,15 @@ func TestWithSpecificUser(t *testing.T) {
 ```
 
 **User Hint Specifications:**
-- **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive  
+
+- **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive
 - **Validation**: Pattern `^[a-zA-Z0-9-]{3,20}$`
 - **Scope**: Test provider only (not available in production builds)
 - **Generated Email**: `{hint}@test.tmi` (e.g., `alice@test.tmi`)
 - **Generated Name**: `{Hint} (Test User)` (e.g., `Alice (Test User)`)
 
 **Use Cases:**
+
 - **Predictable Test Data**: Create users with known identities for test assertions
 - **Multi-User Scenarios**: Create multiple named users for collaboration testing
 - **Automated Testing**: Consistent user identities across test runs

@@ -29,6 +29,7 @@ import subprocess
 @dataclass
 class EndpointInfo:
     """Information about a single API endpoint"""
+
     path: str
     method: str
     operation_id: Optional[str] = None
@@ -39,291 +40,361 @@ class EndpointInfo:
     handler_type: str = "not_found"  # implemented/stubbed/placeholder/not_found
     middleware: List[str] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
-    
+
 
 class EndpointAnalyzer:
     """Analyzes TMI API endpoints"""
-    
+
     def __init__(self, project_root: str):
         self.project_root = Path(project_root)
         self.api_dir = self.project_root / "api"
-        self.openapi_spec_path = self.project_root / "shared" / "api-specs" / "tmi-openapi.json"
+        self.openapi_spec_path = (
+            self.project_root / "shared" / "api-specs" / "tmi-openapi.json"
+        )
         self.endpoints: Dict[Tuple[str, str], EndpointInfo] = {}
-        
+
         # Patterns for detecting handler types
         self.stub_patterns = [
             r'c\.JSON\(.*500.*"not yet implemented"',
             r'c\.JSON\(.*501.*"Not Implemented"',
-            r'HandleRequestError.*NotImplementedError',
-            r'return.*NotImplementedError',
+            r"HandleRequestError.*NotImplementedError",
+            r"return.*NotImplementedError",
         ]
-        
+
         self.placeholder_patterns = [
-            r'// TODO:',
-            r'// FIXME:',
-            r'panic\(',
-            r'log\.Fatal',
+            r"// TODO:",
+            r"// FIXME:",
+            r"panic\(",
+            r"log\.Fatal",
             r'fmt\.Errorf\("not implemented"',
         ]
-        
+
     def load_openapi_spec(self) -> Dict:
         """Load OpenAPI specification"""
         try:
-            with open(self.openapi_spec_path, 'r') as f:
+            with open(self.openapi_spec_path, "r") as f:
                 return json.load(f)
         except Exception as e:
             print(f"Warning: Could not load OpenAPI spec: {e}")
             return {}
-    
+
     def analyze_openapi_endpoints(self, spec: Dict):
         """Extract endpoints from OpenAPI specification"""
-        paths = spec.get('paths', {})
-        
+        paths = spec.get("paths", {})
+
         for path_template, methods in paths.items():
             for method, operation in methods.items():
-                if method.lower() in ['get', 'post', 'put', 'delete', 'patch', 'head', 'options']:
+                if method.lower() in [
+                    "get",
+                    "post",
+                    "put",
+                    "delete",
+                    "patch",
+                    "head",
+                    "options",
+                ]:
                     key = (path_template, method.upper())
                     endpoint = EndpointInfo(
                         path=path_template,
                         method=method.upper(),
-                        operation_id=operation.get('operationId'),
-                        summary=operation.get('summary'),
-                        openapi_defined=True
+                        operation_id=operation.get("operationId"),
+                        summary=operation.get("summary"),
+                        openapi_defined=True,
                     )
                     self.endpoints[key] = endpoint
-    
+
     def find_handler_implementations(self):
         """Find all handler implementations in Go files"""
         handler_files = list(self.api_dir.glob("*_handlers.go"))
         server_file = self.api_dir / "server.go"
         if server_file.exists():
             handler_files.append(server_file)
-            
+
         for file_path in handler_files:
             self._analyze_handler_file(file_path)
-    
+
     def _analyze_handler_file(self, file_path: Path):
         """Analyze a single handler file for endpoint implementations"""
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 content = f.read()
         except Exception as e:
             print(f"Warning: Could not read {file_path}: {e}")
             return
-            
+
         # Find function definitions
-        func_pattern = r'func\s+(?:\([^)]+\)\s+)?(\w+)\s*\([^)]*\*gin\.Context[^)]*\)'
+        func_pattern = r"func\s+(?:\([^)]+\)\s+)?(\w+)\s*\([^)]*\*gin\.Context[^)]*\)"
         functions = re.findall(func_pattern, content)
-        
+
         for func_name in functions:
             # Try to match this function to endpoints
             self._match_function_to_endpoints(func_name, file_path, content)
-    
-    def _match_function_to_endpoints(self, func_name: str, file_path: Path, content: str):
+
+    def _match_function_to_endpoints(
+        self, func_name: str, file_path: Path, content: str
+    ):
         """Match a function name to potential endpoints"""
         # Extract function body - improved pattern to handle nested braces
-        func_start_pattern = f'func\\s+(?:\\([^)]+\\)\\s+)?{re.escape(func_name)}\\s*\\([^)]*\\*gin\\.Context[^)]*\\)\\s*\\{{'
+        func_start_pattern = f"func\\s+(?:\\([^)]+\\)\\s+)?{re.escape(func_name)}\\s*\\([^)]*\\*gin\\.Context[^)]*\\)\\s*\\{{"
         func_start_match = re.search(func_start_pattern, content)
-        
+
         if not func_start_match:
             return
-            
+
         # Find the complete function body by counting braces
         start_pos = func_start_match.end() - 1  # Position of opening brace
         brace_count = 0
         pos = start_pos
-        
+
         while pos < len(content):
-            if content[pos] == '{':
+            if content[pos] == "{":
                 brace_count += 1
-            elif content[pos] == '}':
+            elif content[pos] == "}":
                 brace_count -= 1
                 if brace_count == 0:
                     break
             pos += 1
-        
+
         if brace_count != 0:
             # Could not find matching closing brace
             return
-            
-        func_body = content[start_pos + 1:pos]
-        
+
+        func_body = content[start_pos + 1 : pos]
+
         # Determine handler type based on function body
         handler_type = self._determine_handler_type(func_body)
-        
+
         # Try to match function name to endpoints using multiple strategies
         matched_endpoints = self._find_matching_endpoints_improved(func_name, func_body)
-        
+
         for endpoint_key in matched_endpoints:
             if endpoint_key in self.endpoints:
                 self.endpoints[endpoint_key].handler_function = func_name
                 self.endpoints[endpoint_key].handler_file = file_path.name
                 self.endpoints[endpoint_key].handler_type = handler_type
-                
+
                 # Add specific notes based on analysis
                 if handler_type == "stubbed":
-                    self.endpoints[endpoint_key].notes.append("Returns 500/501 'not implemented'")
+                    self.endpoints[endpoint_key].notes.append(
+                        "Returns 500/501 'not implemented'"
+                    )
                 elif handler_type == "placeholder":
-                    self.endpoints[endpoint_key].notes.append("Contains TODO/FIXME or panics")
+                    self.endpoints[endpoint_key].notes.append(
+                        "Contains TODO/FIXME or panics"
+                    )
                 elif handler_type == "implemented":
                     # Check for specific implementation details
                     if "database" in func_body.lower() or ".db." in func_body:
-                        self.endpoints[endpoint_key].notes.append("Database-backed implementation")
+                        self.endpoints[endpoint_key].notes.append(
+                            "Database-backed implementation"
+                        )
                     if "cache" in func_body.lower():
                         self.endpoints[endpoint_key].notes.append("Includes caching")
                     if "websocket" in func_body.lower() or "ws" in func_body:
                         self.endpoints[endpoint_key].notes.append("WebSocket support")
-    
+
     def _determine_handler_type(self, func_body: str) -> str:
         """Determine if a function is implemented, stubbed, or placeholder"""
         # Check for stub patterns
         for pattern in self.stub_patterns:
             if re.search(pattern, func_body, re.IGNORECASE):
                 return "stubbed"
-        
-        # Check for placeholder patterns  
+
+        # Check for placeholder patterns
         for pattern in self.placeholder_patterns:
             if re.search(pattern, func_body, re.IGNORECASE):
                 return "placeholder"
-        
+
         # Check for delegation patterns (these are implemented, not stubs)
         delegation_patterns = [
-            r's\.\w+Handler\.\w+\(c\)',  # e.g., s.documentHandler.GetDocuments(c)
-            r'\w+Handler\.\w+\(',        # e.g., handler.SomeMethod(
-            r's\.Handle\w+\(',           # e.g., s.HandleCollaborationSessions(
-            r'\.GetDocuments\(',         # Specific method calls
-            r'\.GetSources\(',
-            r'\.GetThreats\(',
-            r'\.GetDiagrams\(',
-            r'\.CreateDocument\(',
-            r'\.CreateSource\(',
-            r'\.CreateThreat\(',
-            r'\.GetActiveSessionsForUser\(',
-            r'wsHub\.',                  # WebSocket hub operations
+            r"s\.\w+Handler\.\w+\(c\)",  # e.g., s.documentHandler.GetDocuments(c)
+            r"\w+Handler\.\w+\(",  # e.g., handler.SomeMethod(
+            r"s\.Handle\w+\(",  # e.g., s.HandleCollaborationSessions(
+            r"\.GetDocuments\(",  # Specific method calls
+            r"\.GetSources\(",
+            r"\.GetThreats\(",
+            r"\.GetDiagrams\(",
+            r"\.CreateDocument\(",
+            r"\.CreateSource\(",
+            r"\.CreateThreat\(",
+            r"\.GetActiveSessionsForUser\(",
+            r"wsHub\.",  # WebSocket hub operations
         ]
-        
+
         for pattern in delegation_patterns:
             if re.search(pattern, func_body):
                 return "implemented"
-        
+
         # Check for JWT/auth logic patterns (implemented)
         auth_patterns = [
-            r'jwt\.Parse',
-            r'auth\.Verify',
-            r'ValidateAuthenticatedUser',
+            r"jwt\.Parse",
+            r"auth\.Verify",
+            r"ValidateAuthenticatedUser",
             r'c\.Set\("user"',
-            r'Authorization.*Bearer',
+            r"Authorization.*Bearer",
         ]
-        
+
         for pattern in auth_patterns:
             if re.search(pattern, func_body):
                 return "implemented"
-        
+
         # If it has substantial logic, consider it implemented
-        lines = [line.strip() for line in func_body.split('\n') if line.strip()]
-        non_comment_lines = [line for line in lines if not line.startswith('//') and line != '{' and line != '}']
-        
+        lines = [line.strip() for line in func_body.split("\n") if line.strip()]
+        non_comment_lines = [
+            line
+            for line in lines
+            if not line.startswith("//") and line != "{" and line != "}"
+        ]
+
         if len(non_comment_lines) > 3:  # Lowered threshold
             return "implemented"
         elif len(non_comment_lines) > 0:
             # Check if the few lines indicate implementation
-            body_text = ' '.join(non_comment_lines)
-            if any(keyword in body_text.lower() for keyword in ['json', 'status', 'context', 'param', 'handler']):
+            body_text = " ".join(non_comment_lines)
+            if any(
+                keyword in body_text.lower()
+                for keyword in ["json", "status", "context", "param", "handler"]
+            ):
                 return "implemented"
             else:
                 return "stubbed"
         else:
             return "placeholder"
-    
-    def _find_matching_endpoints_improved(self, func_name: str, func_body: str) -> List[Tuple[str, str]]:
+
+    def _find_matching_endpoints_improved(
+        self, func_name: str, func_body: str
+    ) -> List[Tuple[str, str]]:
         """Find endpoints that might match this function name using improved matching"""
         matches = []
-        
-        # Direct OpenAPI mapping from server.go 
+
+        # Direct OpenAPI mapping from server.go
         openapi_mappings = {
             # Authentication
-            'GetAuthProviders': [('/auth/providers', 'GET')],
-            'AuthorizeOAuthProvider': [('/auth/login/{provider}', 'GET')],
-            'HandleOAuthCallback': [('/auth/callback', 'GET')],
-            'ExchangeOAuthCode': [('/auth/token/{provider}', 'POST')],
-            'RefreshToken': [('/auth/refresh', 'POST')],
-            'GetCurrentUser': [('/auth/me', 'GET')],
-            'LogoutUser': [('/auth/logout', 'POST')],
-            
+            "GetAuthProviders": [("/oauth2/providers", "GET")],
+            "AuthorizeOAuthProvider": [("/oauth2/authorize/{provider}", "GET")],
+            "HandleOAuthCallback": [("/oauth2/callback", "GET")],
+            "ExchangeOAuthCode": [("/oauth2/token/{provider}", "POST")],
+            "RefreshToken": [("/oauth2/refresh", "POST")],
+            "GetCurrentUser": [("/oauth2/me", "GET")],
+            "LogoutUser": [("/oauth2/logout", "POST")],
             # Core endpoints
-            'GetApiInfo': [('/', 'GET')],
-            'HandleServerInfo': [('/api/server-info', 'GET')],
-            
+            "GetApiInfo": [("/", "GET")],
+            "HandleServerInfo": [("/api/server-info", "GET")],
             # Threat Models
-            'GetThreatModels': [('/threat_models', 'GET')],
-            'CreateThreatModel': [('/threat_models', 'POST')],
-            'GetThreatModel': [('/threat_models/{threat_model_id}', 'GET')],
-            'UpdateThreatModel': [('/threat_models/{threat_model_id}', 'PUT')],
-            'PatchThreatModel': [('/threat_models/{threat_model_id}', 'PATCH')],
-            'DeleteThreatModel': [('/threat_models/{threat_model_id}', 'DELETE')],
-            
+            "GetThreatModels": [("/threat_models", "GET")],
+            "CreateThreatModel": [("/threat_models", "POST")],
+            "GetThreatModel": [("/threat_models/{threat_model_id}", "GET")],
+            "UpdateThreatModel": [("/threat_models/{threat_model_id}", "PUT")],
+            "PatchThreatModel": [("/threat_models/{threat_model_id}", "PATCH")],
+            "DeleteThreatModel": [("/threat_models/{threat_model_id}", "DELETE")],
             # Diagrams
-            'GetThreatModelDiagrams': [('/threat_models/{threat_model_id}/diagrams', 'GET')],
-            'CreateThreatModelDiagram': [('/threat_models/{threat_model_id}/diagrams', 'POST')],
-            'GetThreatModelDiagram': [('/threat_models/{threat_model_id}/diagrams/{diagram_id}', 'GET')],
-            'UpdateThreatModelDiagram': [('/threat_models/{threat_model_id}/diagrams/{diagram_id}', 'PUT')],
-            'DeleteThreatModelDiagram': [('/threat_models/{threat_model_id}/diagrams/{diagram_id}', 'DELETE')],
-            
+            "GetThreatModelDiagrams": [
+                ("/threat_models/{threat_model_id}/diagrams", "GET")
+            ],
+            "CreateThreatModelDiagram": [
+                ("/threat_models/{threat_model_id}/diagrams", "POST")
+            ],
+            "GetThreatModelDiagram": [
+                ("/threat_models/{threat_model_id}/diagrams/{diagram_id}", "GET")
+            ],
+            "UpdateThreatModelDiagram": [
+                ("/threat_models/{threat_model_id}/diagrams/{diagram_id}", "PUT")
+            ],
+            "DeleteThreatModelDiagram": [
+                ("/threat_models/{threat_model_id}/diagrams/{diagram_id}", "DELETE")
+            ],
             # Documents
-            'GetThreatModelDocuments': [('/threat_models/{threat_model_id}/documents', 'GET')],
-            'CreateThreatModelDocument': [('/threat_models/{threat_model_id}/documents', 'POST')],
-            'GetThreatModelDocument': [('/threat_models/{threat_model_id}/documents/{document_id}', 'GET')],
-            'UpdateThreatModelDocument': [('/threat_models/{threat_model_id}/documents/{document_id}', 'PUT')],
-            'DeleteThreatModelDocument': [('/threat_models/{threat_model_id}/documents/{document_id}', 'DELETE')],
-            'BulkCreateThreatModelDocuments': [('/threat_models/{threat_model_id}/documents/bulk', 'POST')],
-            
+            "GetThreatModelDocuments": [
+                ("/threat_models/{threat_model_id}/documents", "GET")
+            ],
+            "CreateThreatModelDocument": [
+                ("/threat_models/{threat_model_id}/documents", "POST")
+            ],
+            "GetThreatModelDocument": [
+                ("/threat_models/{threat_model_id}/documents/{document_id}", "GET")
+            ],
+            "UpdateThreatModelDocument": [
+                ("/threat_models/{threat_model_id}/documents/{document_id}", "PUT")
+            ],
+            "DeleteThreatModelDocument": [
+                ("/threat_models/{threat_model_id}/documents/{document_id}", "DELETE")
+            ],
+            "BulkCreateThreatModelDocuments": [
+                ("/threat_models/{threat_model_id}/documents/bulk", "POST")
+            ],
             # Sources
-            'GetThreatModelSources': [('/threat_models/{threat_model_id}/sources', 'GET')],
-            'CreateThreatModelSource': [('/threat_models/{threat_model_id}/sources', 'POST')],
-            'GetThreatModelSource': [('/threat_models/{threat_model_id}/sources/{source_id}', 'GET')],
-            'UpdateThreatModelSource': [('/threat_models/{threat_model_id}/sources/{source_id}', 'PUT')],
-            'DeleteThreatModelSource': [('/threat_models/{threat_model_id}/sources/{source_id}', 'DELETE')],
-            'BulkCreateThreatModelSources': [('/threat_models/{threat_model_id}/sources/bulk', 'POST')],
-            
+            "GetThreatModelSources": [
+                ("/threat_models/{threat_model_id}/sources", "GET")
+            ],
+            "CreateThreatModelSource": [
+                ("/threat_models/{threat_model_id}/sources", "POST")
+            ],
+            "GetThreatModelSource": [
+                ("/threat_models/{threat_model_id}/sources/{source_id}", "GET")
+            ],
+            "UpdateThreatModelSource": [
+                ("/threat_models/{threat_model_id}/sources/{source_id}", "PUT")
+            ],
+            "DeleteThreatModelSource": [
+                ("/threat_models/{threat_model_id}/sources/{source_id}", "DELETE")
+            ],
+            "BulkCreateThreatModelSources": [
+                ("/threat_models/{threat_model_id}/sources/bulk", "POST")
+            ],
             # Threats
-            'GetThreatModelThreats': [('/threat_models/{threat_model_id}/threats', 'GET')],
-            'CreateThreatModelThreat': [('/threat_models/{threat_model_id}/threats', 'POST')],
-            'GetThreatModelThreat': [('/threat_models/{threat_model_id}/threats/{threat_id}', 'GET')],
-            'UpdateThreatModelThreat': [('/threat_models/{threat_model_id}/threats/{threat_id}', 'PUT')],
-            'PatchThreatModelThreat': [('/threat_models/{threat_model_id}/threats/{threat_id}', 'PATCH')],
-            'DeleteThreatModelThreat': [('/threat_models/{threat_model_id}/threats/{threat_id}', 'DELETE')],
-            'BulkCreateThreatModelThreats': [('/threat_models/{threat_model_id}/threats/bulk', 'POST')],
-            'BulkUpdateThreatModelThreats': [('/threat_models/{threat_model_id}/threats/bulk', 'PUT')],
-            
+            "GetThreatModelThreats": [
+                ("/threat_models/{threat_model_id}/threats", "GET")
+            ],
+            "CreateThreatModelThreat": [
+                ("/threat_models/{threat_model_id}/threats", "POST")
+            ],
+            "GetThreatModelThreat": [
+                ("/threat_models/{threat_model_id}/threats/{threat_id}", "GET")
+            ],
+            "UpdateThreatModelThreat": [
+                ("/threat_models/{threat_model_id}/threats/{threat_id}", "PUT")
+            ],
+            "PatchThreatModelThreat": [
+                ("/threat_models/{threat_model_id}/threats/{threat_id}", "PATCH")
+            ],
+            "DeleteThreatModelThreat": [
+                ("/threat_models/{threat_model_id}/threats/{threat_id}", "DELETE")
+            ],
+            "BulkCreateThreatModelThreats": [
+                ("/threat_models/{threat_model_id}/threats/bulk", "POST")
+            ],
+            "BulkUpdateThreatModelThreats": [
+                ("/threat_models/{threat_model_id}/threats/bulk", "PUT")
+            ],
             # Collaboration
-            'GetCollaborationSessions': [('/collaboration/sessions', 'GET')],
+            "GetCollaborationSessions": [("/collaboration/sessions", "GET")],
         }
-        
+
         # Direct mapping first
         if func_name in openapi_mappings:
             for path_template, method in openapi_mappings[func_name]:
                 matches.append((path_template, method))
-        
+
         # Fallback to pattern matching for any missed functions
         if not matches:
             matches = self._find_matching_endpoints_legacy(func_name)
-        
+
         return matches
-    
+
     def _find_matching_endpoints_legacy(self, func_name: str) -> List[Tuple[str, str]]:
         """Legacy pattern-based endpoint matching"""
         matches = []
-        
+
         # Common naming patterns
         naming_patterns = [
             # Direct matches
-            (r'^Get(.+)$', lambda m: [('GET', m.group(1).lower())]),
-            (r'^Create(.+)$', lambda m: [('POST', m.group(1).lower())]),
-            (r'^Update(.+)$', lambda m: [('PUT', m.group(1).lower())]),
-            (r'^Delete(.+)$', lambda m: [('DELETE', m.group(1).lower())]),
-            (r'^Patch(.+)$', lambda m: [('PATCH', m.group(1).lower())]),
+            (r"^Get(.+)$", lambda m: [("GET", m.group(1).lower())]),
+            (r"^Create(.+)$", lambda m: [("POST", m.group(1).lower())]),
+            (r"^Update(.+)$", lambda m: [("PUT", m.group(1).lower())]),
+            (r"^Delete(.+)$", lambda m: [("DELETE", m.group(1).lower())]),
+            (r"^Patch(.+)$", lambda m: [("PATCH", m.group(1).lower())]),
         ]
-        
+
         for pattern, handler in naming_patterns:
             match = re.match(pattern, func_name)
             if match:
@@ -331,89 +402,114 @@ class EndpointAnalyzer:
                 for method, resource in potential_endpoints:
                     # Find matching endpoints in our list
                     for (path, endpoint_method), _ in self.endpoints.items():
-                        if endpoint_method == method and resource.lower() in path.lower():
+                        if (
+                            endpoint_method == method
+                            and resource.lower() in path.lower()
+                        ):
                             matches.append((path, endpoint_method))
-        
+
         return matches
-    
-    def _find_threat_model_endpoints(self, method: str, resource: str) -> List[Tuple[str, str]]:
+
+    def _find_threat_model_endpoints(
+        self, method: str, resource: str
+    ) -> List[Tuple[str, str]]:
         """Find threat model related endpoints"""
         resource_lower = resource.lower()
         potential_methods = []
-        
-        if 'diagram' in resource_lower:
-            potential_methods.append((method, 'diagrams'))
-        elif 'document' in resource_lower:
-            potential_methods.append((method, 'documents'))
-        elif 'source' in resource_lower:
-            potential_methods.append((method, 'sources'))
-        elif 'threat' in resource_lower and 'model' not in resource_lower:
-            potential_methods.append((method, 'threats'))
-        elif 'metadata' in resource_lower:
-            potential_methods.append((method, 'metadata'))
+
+        if "diagram" in resource_lower:
+            potential_methods.append((method, "diagrams"))
+        elif "document" in resource_lower:
+            potential_methods.append((method, "documents"))
+        elif "source" in resource_lower:
+            potential_methods.append((method, "sources"))
+        elif "threat" in resource_lower and "model" not in resource_lower:
+            potential_methods.append((method, "threats"))
+        elif "metadata" in resource_lower:
+            potential_methods.append((method, "metadata"))
         else:
             potential_methods.append((method, resource_lower))
-            
+
         return potential_methods
-    
+
     def analyze_middleware_stack(self):
         """Analyze middleware applied to endpoints"""
         # Global middleware (applied to all endpoints)
         global_middleware = [
             "RequestTracing",
-            "CORS", 
+            "CORS",
             "OpenAPIValidation",
-            "JWTAuthentication"
+            "JWTAuthentication",
         ]
-        
+
         # Resource-specific middleware patterns
         middleware_patterns = {
             r"/threat_models/\{[^}]+\}(?!/diagrams)": ["ThreatModelMiddleware"],
-            r"/threat_models/\{[^}]+\}/diagrams": ["ThreatModelMiddleware", "DiagramMiddleware"],
+            r"/threat_models/\{[^}]+\}/diagrams": [
+                "ThreatModelMiddleware",
+                "DiagramMiddleware",
+            ],
             r"/threat_models/\{[^}]+\}/threats": ["ThreatModelMiddleware"],
             r"/threat_models/\{[^}]+\}/documents": ["ThreatModelMiddleware"],
             r"/threat_models/\{[^}]+\}/sources": ["ThreatModelMiddleware"],
         }
-        
+
         # Apply middleware to endpoints
         for (path, method), endpoint in self.endpoints.items():
             # Start with global middleware
             endpoint.middleware = global_middleware.copy()
-            
+
             # Add resource-specific middleware
             for pattern, middleware_list in middleware_patterns.items():
                 if re.search(pattern, path):
                     endpoint.middleware.extend(middleware_list)
                     break
-                    
+
             # Special cases
-            if path.startswith('/auth/'):
-                endpoint.middleware = ["RequestTracing", "CORS"]  # No JWT required for auth endpoints
-            elif path.startswith('/api/server-info') or path == '/':
+            if path.startswith("/oauth2/"):
+                endpoint.middleware = [
+                    "RequestTracing",
+                    "CORS",
+                ]  # No JWT required for auth endpoints
+            elif path.startswith("/api/server-info") or path == "/":
                 endpoint.middleware = ["RequestTracing", "CORS"]  # Public endpoints
-    
+
     def generate_report(self) -> str:
         """Generate comprehensive endpoint analysis report"""
         report = []
         report.append("# TMI API Endpoint Analysis Report")
         report.append("=" * 50)
         report.append("")
-        
+
         # Summary statistics
         total_endpoints = len(self.endpoints)
-        implemented = len([ep for ep in self.endpoints.values() if ep.handler_type == "implemented"])
-        stubbed = len([ep for ep in self.endpoints.values() if ep.handler_type == "stubbed"])
-        placeholder = len([ep for ep in self.endpoints.values() if ep.handler_type == "placeholder"])
-        not_found = len([ep for ep in self.endpoints.values() if ep.handler_type == "not_found"])
-        
+        implemented = len(
+            [ep for ep in self.endpoints.values() if ep.handler_type == "implemented"]
+        )
+        stubbed = len(
+            [ep for ep in self.endpoints.values() if ep.handler_type == "stubbed"]
+        )
+        placeholder = len(
+            [ep for ep in self.endpoints.values() if ep.handler_type == "placeholder"]
+        )
+        not_found = len(
+            [ep for ep in self.endpoints.values() if ep.handler_type == "not_found"]
+        )
+
         report.append("## Summary Statistics")
         report.append(f"- Total Endpoints: {total_endpoints}")
-        report.append(f"- Implemented: {implemented} ({implemented/total_endpoints*100:.1f}%)")
-        report.append(f"- Stubbed: {stubbed} ({stubbed/total_endpoints*100:.1f}%)")
-        report.append(f"- Placeholder: {placeholder} ({placeholder/total_endpoints*100:.1f}%)")
-        report.append(f"- Not Found: {not_found} ({not_found/total_endpoints*100:.1f}%)")
+        report.append(
+            f"- Implemented: {implemented} ({implemented / total_endpoints * 100:.1f}%)"
+        )
+        report.append(f"- Stubbed: {stubbed} ({stubbed / total_endpoints * 100:.1f}%)")
+        report.append(
+            f"- Placeholder: {placeholder} ({placeholder / total_endpoints * 100:.1f}%)"
+        )
+        report.append(
+            f"- Not Found: {not_found} ({not_found / total_endpoints * 100:.1f}%)"
+        )
         report.append("")
-        
+
         # Group endpoints by category
         categories = {
             "Authentication": [],
@@ -421,14 +517,14 @@ class EndpointAnalyzer:
             "Diagrams": [],
             "Threats": [],
             "Documents": [],
-            "Sources": [], 
+            "Sources": [],
             "Metadata": [],
             "Collaboration": [],
-            "System": []
+            "System": [],
         }
-        
+
         for (path, method), endpoint in self.endpoints.items():
-            if "/auth/" in path:
+            if "/oauth2/" in path:
                 categories["Authentication"].append(endpoint)
             elif "/diagrams" in path:
                 categories["Diagrams"].append(endpoint)
@@ -446,65 +542,67 @@ class EndpointAnalyzer:
                 categories["Threat Models"].append(endpoint)
             else:
                 categories["System"].append(endpoint)
-        
+
         # Generate detailed report for each category
         for category, endpoints in categories.items():
             if not endpoints:
                 continue
-                
+
             report.append(f"## {category} Endpoints")
             report.append("")
-            
+
             for endpoint in sorted(endpoints, key=lambda e: (e.path, e.method)):
                 status_emoji = {
                     "implemented": "✅",
-                    "stubbed": "⚠️", 
+                    "stubbed": "⚠️",
                     "placeholder": "🚧",
-                    "not_found": "❌"
+                    "not_found": "❌",
                 }.get(endpoint.handler_type, "❓")
-                
+
                 report.append(f"### {status_emoji} {endpoint.method} {endpoint.path}")
-                
+
                 if endpoint.summary:
                     report.append(f"**Summary**: {endpoint.summary}")
-                    
+
                 if endpoint.operation_id:
                     report.append(f"**Operation ID**: {endpoint.operation_id}")
-                
+
                 report.append(f"**Status**: {endpoint.handler_type.title()}")
-                
+
                 if endpoint.handler_function:
-                    report.append(f"**Handler**: `{endpoint.handler_function}()` in `{endpoint.handler_file}`")
+                    report.append(
+                        f"**Handler**: `{endpoint.handler_function}()` in `{endpoint.handler_file}`"
+                    )
                 else:
                     report.append("**Handler**: Not found")
-                
+
                 if endpoint.middleware:
                     middleware_list = " → ".join(endpoint.middleware)
                     report.append(f"**Middleware Stack**: {middleware_list}")
-                
+
                 if endpoint.notes:
                     report.append("**Notes**:")
                     for note in endpoint.notes:
                         report.append(f"- {note}")
-                
+
                 report.append("")
-        
+
         return "\n".join(report)
-    
+
     def run_analysis(self) -> str:
         """Run complete endpoint analysis"""
         print("🔍 Loading OpenAPI specification...")
         spec = self.load_openapi_spec()
-        
+
         print("📋 Analyzing OpenAPI endpoints...")
         self.analyze_openapi_endpoints(spec)
-        
+
         print("🔎 Finding handler implementations...")
         self.find_handler_implementations()
-        
+
         print("🛡️ Analyzing middleware stack...")
         self.analyze_middleware_stack()
-        
+
         print("📊 Generating report...")
         return self.generate_report()
 
@@ -517,30 +615,34 @@ def main():
         current_dir = Path.cwd()
         if (current_dir / "shared" / "api-specs" / "tmi-openapi.json").exists():
             project_root = str(current_dir)
-        elif (current_dir.parent / "shared" / "api-specs" / "tmi-openapi.json").exists():
+        elif (
+            current_dir.parent / "shared" / "api-specs" / "tmi-openapi.json"
+        ).exists():
             project_root = str(current_dir.parent)
         else:
-            print("Error: Could not find TMI project root. Please run from project root or specify path.")
+            print(
+                "Error: Could not find TMI project root. Please run from project root or specify path."
+            )
             print("Usage: python3 scripts/analyze_endpoints.py [project_root]")
             sys.exit(1)
-    
+
     print(f"🚀 Starting TMI API endpoint analysis...")
     print(f"📁 Project root: {project_root}")
-    
+
     analyzer = EndpointAnalyzer(project_root)
     report = analyzer.run_analysis()
-    
+
     # Write report to file
     report_path = Path(project_root) / "endpoint_analysis_report.md"
-    with open(report_path, 'w') as f:
+    with open(report_path, "w") as f:
         f.write(report)
-    
+
     print(f"✅ Analysis complete! Report written to: {report_path}")
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("SUMMARY:")
-    
+
     # Print summary to console
-    lines = report.split('\n')
+    lines = report.split("\n")
     in_summary = False
     for line in lines:
         if line.startswith("## Summary Statistics"):

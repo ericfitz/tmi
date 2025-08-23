@@ -11,7 +11,7 @@ stepci/
 ├── workflow.yml                   # Existing - basic setup
 ├── auth/
 │   ├── oauth-flow.yml            # Complete OAuth authentication flow
-│   ├── token-management.yml      # JWT token lifecycle management  
+│   ├── token-management.yml      # JWT token lifecycle management
 │   ├── user-operations.yml       # User info and logout operations
 │   └── auth-failures.yml         # Authentication failure scenarios
 ├── threat-models/
@@ -23,7 +23,7 @@ stepci/
 ├── threats/
 │   ├── crud-operations.yml       # Threat CRUD within threat models
 │   ├── bulk-operations.yml       # Bulk threat operations
-│   ├── batch-operations.yml      # Batch patch/delete operations  
+│   ├── batch-operations.yml      # Batch patch/delete operations
 │   └── validation-failures.yml   # Threat-specific validation errors
 ├── diagrams/
 │   ├── crud-operations.yml       # Diagram lifecycle management
@@ -35,7 +35,7 @@ stepci/
 │   ├── bulk-operations.yml       # Bulk document operations
 │   └── validation-failures.yml   # Document validation errors
 ├── sources/
-│   ├── crud-operations.yml       # Source CRUD within threat models  
+│   ├── crud-operations.yml       # Source CRUD within threat models
 │   ├── bulk-operations.yml       # Bulk source operations
 │   └── validation-failures.yml   # Source validation errors
 ├── integration/
@@ -54,29 +54,33 @@ stepci/
 ### 1. Authentication Tests (`auth/`)
 
 #### Success Cases (`oauth-flow.yml`, `token-management.yml`, `user-operations.yml`):
-- **OAuth Flow**: `GET /auth/providers` → `GET /auth/login/{provider}` → `GET /auth/callback` → `POST /auth/token/{provider}`
-- **Token Management**: `POST /auth/refresh` with valid refresh tokens
-- **User Operations**: `GET /auth/me`, `POST /auth/logout` with valid JWT
+
+- **OAuth Flow**: `GET /oauth2/providers` → `GET /oauth2/authorize/{provider}` → `GET /oauth2/callback` → `POST /oauth2/token/{provider}`
+- **Token Management**: `POST /oauth2/refresh` with valid refresh tokens
+- **User Operations**: `GET /oauth2/me`, `POST /oauth2/logout` with valid JWT
 - **State Parameter**: OAuth state parameter validation and security
 
 #### Failure Cases (`auth-failures.yml`):
+
 - **Invalid Providers**: Non-existent OAuth provider IDs
 - **Malformed Tokens**: Invalid JWT formats, expired tokens, wrong signatures
-- **Missing Headers**: Missing Authorization header, malformed Bearer tokens  
+- **Missing Headers**: Missing Authorization header, malformed Bearer tokens
 - **Invalid Refresh**: Expired/invalid refresh tokens, reused refresh tokens
 - **CSRF Protection**: Invalid/missing state parameters in OAuth flow
 
 ### 2. Threat Models Tests (`threat-models/`)
 
 #### Success Cases:
+
 - **CRUD Operations**: Complete lifecycle (create → read → update → delete)
-- **Bulk Operations**: Bulk create/update where supported  
+- **Bulk Operations**: Bulk create/update where supported
 - **Metadata**: Key-value metadata extensibility
 - **Search & Filter**: Owner, name, description, date range filtering
 - **Pagination**: Limit/offset with large datasets
 - **JSON Patch**: Partial updates using RFC 6902 JSON Patch format
 
 #### Failure Cases (`validation-failures.yml`):
+
 - **Schema Violations**:
   - Invalid field types (string where UUID expected, etc.)
   - Missing required fields (`name`, `description`)
@@ -97,12 +101,14 @@ stepci/
 ### 3. Threats Tests (`threats/`)
 
 #### Success Cases:
+
 - **CRUD Operations**: Full threat lifecycle within threat models
 - **Bulk Operations**: `POST/PUT /threat_models/{id}/threats/bulk`
 - **Batch Operations**: `POST .../threats/batch/patch`, `DELETE .../threats/batch`
 - **Metadata Management**: Threat-specific metadata CRUD
 
 #### Failure Cases:
+
 - **Invalid Parent**: Creating threats in non-existent threat models
 - **Schema Violations**: Invalid threat properties, missing required fields
 - **Bulk Operation Limits**: Exceeding batch size limits
@@ -112,17 +118,19 @@ stepci/
 ### 4. Diagrams Tests (`diagrams/`)
 
 #### Success Cases (`crud-operations.yml`, `collaboration.yml`):
+
 - **CRUD Operations**: Diagram lifecycle within threat models
 - **Collaboration Session Management**:
   - `GET .../collaborate` - Check current session status
   - `POST .../collaborate` - Create new collaboration session
-  - `PUT .../collaborate` - Join existing collaboration session  
+  - `PUT .../collaborate` - Join existing collaboration session
   - `DELETE .../collaborate` - End collaboration session
 - **Node/Edge Management**: Complex diagram structure validation
 - **WebSocket Integration**: Real-time collaboration testing
 
 #### Failure Cases:
-- **Collaboration Conflicts**: 
+
+- **Collaboration Conflicts**:
   - `POST .../collaborate` when session already exists (expect 409)
   - `PUT .../collaborate` when no session exists (expect 404)
 - **Invalid Diagram Structure**: Malformed nodes, edges, or cells
@@ -132,11 +140,13 @@ stepci/
 ### 5. Documents & Sources Tests
 
 #### Success Cases:
+
 - **CRUD Operations**: Document/source lifecycle within threat models
 - **Bulk Operations**: Bulk create/update operations
 - **Metadata Management**: Document/source-specific metadata
 
 #### Failure Cases:
+
 - **File Validation**: Invalid file formats, sizes, or content types
 - **URL Validation**: Malformed URIs, unreachable URLs
 - **Duplicate Prevention**: Creating duplicate documents/sources
@@ -145,16 +155,19 @@ stepci/
 ### 6. Integration Tests (`integration/`)
 
 #### Full Workflow Testing (`full-workflow.yml`):
+
 - **Complete User Journey**: Login → Create TM → Add Threats → Create Diagram → Collaborate → Cleanup
 - **Multi-User Scenarios**: Multiple users collaborating on same resources
 - **Resource Cascading**: Proper cleanup when deleting parent resources
 
 #### Cross-Entity Testing (`cross-entity-tests.yml`):
+
 - **Relationship Integrity**: Threats ↔ Threat Models ↔ Diagrams relationships
 - **Metadata Consistency**: Metadata inheritance and scoping
 - **Bulk Operations**: Cross-entity bulk operations and transaction integrity
 
 #### RBAC Testing (`rbac-permissions.yml`):
+
 - **Role-Based Access**: Reader/Writer/Owner permission validation
 - **Resource Ownership**: Owner-only operations (delete, permission changes)
 - **Inheritance Testing**: Permission inheritance in nested resources
@@ -164,8 +177,10 @@ stepci/
 ### Input Validation Categories
 
 #### 1. Schema Violation Tests
+
 For every request schema, test:
-- **Type Mismatches**: 
+
+- **Type Mismatches**:
   - String where UUID expected: `"id": "not-a-uuid"`
   - Number where string expected: `"name": 12345`
   - Array where object expected: `"metadata": []`
@@ -181,6 +196,7 @@ For every request schema, test:
   - Invalid URIs: `"url": "not://valid"`
 
 #### 2. Constraint Violation Tests
+
 - **String Length Limits**:
   - Empty strings where content required: `"name": ""`
   - Exceeding maximum length: 1000+ character names
@@ -194,12 +210,15 @@ For every request schema, test:
   - Case sensitivity: `"role": "READER"` vs `"reader"`
 
 #### 3. Read-Only Field Tests
+
 Test attempting to set these fields in input:
+
 - **System Fields**: `id`, `created_at`, `modified_at`
 - **Computed Fields**: `participant_count`, `threat_count`
 - **Relationship Fields**: Auto-generated relationship IDs
 
 #### 4. Business Logic Validation
+
 - **Resource State Conflicts**:
   - Creating collaboration session when one exists
   - Deleting resources with dependent entities
@@ -211,6 +230,7 @@ Test attempting to set these fields in input:
   - Invalid foreign key references
 
 #### 5. Edge Case Testing
+
 - **Boundary Conditions**:
   - Maximum allowed entities (threats per model, etc.)
   - Minimum required data for operations
@@ -226,8 +246,9 @@ Test attempting to set these fields in input:
 ### Error Response Validation
 
 #### Expected Error Codes and Responses:
+
 - **400 Bad Request**: Schema validation errors, malformed input
-- **401 Unauthorized**: Missing/invalid authentication tokens  
+- **401 Unauthorized**: Missing/invalid authentication tokens
 - **403 Forbidden**: Insufficient permissions for operation
 - **404 Not Found**: Resource doesn't exist
 - **409 Conflict**: Resource state conflicts (collaboration sessions)
@@ -235,6 +256,7 @@ Test attempting to set these fields in input:
 - **500 Internal Server Error**: Unexpected server failures
 
 #### Error Response Schema Validation:
+
 - Consistent error message format
 - Helpful error descriptions for developers
 - Proper HTTP status codes
@@ -243,38 +265,44 @@ Test attempting to set these fields in input:
 ## Test Execution Strategy
 
 ### Sequential Test Phases:
+
 1. **Setup Phase**: Authentication, test data creation
 2. **Core Functionality**: Individual endpoint success cases
-3. **Integration Phase**: Cross-entity and workflow testing  
+3. **Integration Phase**: Cross-entity and workflow testing
 4. **Hardening Phase**: Comprehensive failure case testing
 5. **Cleanup Phase**: Resource cleanup and teardown
 
 ### Parallel Execution:
+
 - Independent CRUD operations can run in parallel
 - Use test isolation to prevent interference
 - Separate test data sets for concurrent tests
 
 ### Test Data Management:
+
 - **Fixtures**: Predefined test data for common scenarios
-- **Dynamic Data**: Generated data for scale testing  
+- **Dynamic Data**: Generated data for scale testing
 - **Cleanup**: Automated cleanup after test completion
 - **Isolation**: Each test uses unique resource identifiers
 
 ## Expected Benefits
 
 ### API Robustness:
+
 - **Input Validation**: Comprehensive validation of all input scenarios
 - **Error Handling**: Consistent and helpful error responses
 - **Security**: Protection against malformed/malicious input
 - **Reliability**: Predictable behavior under error conditions
 
 ### Development Quality:
+
 - **Regression Prevention**: Catch API changes that break clients
 - **Documentation**: Live examples of API behavior
 - **Confidence**: High confidence in API stability and correctness
 - **Maintenance**: Easy to add tests for new endpoints or scenarios
 
 ### Client Development:
+
 - **Error Handling**: Clear understanding of expected error scenarios
 - **Integration**: Proven patterns for successful API integration
 - **Troubleshooting**: Better error messages and debugging information
@@ -282,18 +310,21 @@ Test attempting to set these fields in input:
 ## Implementation Priority
 
 ### Phase 1 (High Priority):
+
 1. Authentication flow testing
 2. Core CRUD operations for all entities
 3. Basic error handling (401, 403, 404)
 4. Collaboration session management
 
 ### Phase 2 (Medium Priority):
+
 1. Comprehensive input validation testing
 2. Bulk and batch operations
 3. Complex integration workflows
 4. RBAC permission testing
 
 ### Phase 3 (Nice to Have):
+
 1. Performance testing with large datasets
 2. WebSocket integration testing
 3. Advanced error scenarios

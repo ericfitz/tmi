@@ -23,7 +23,7 @@ This repository contains API documentation and Go implementation for a Collabora
 - Lint: `make lint` (runs golangci-lint)
 - Generate API: `make generate-api` (uses oapi-codegen with config from oapi-codegen-config.yml)
 - Development: `make dev-start` (starts full dev environment with DB and Redis)
-- Dev DB only: `make infra-db-start` (starts PostgreSQL container)  
+- Dev DB only: `make infra-db-start` (starts PostgreSQL container)
 - Dev Redis only: `make infra-redis-start` (starts Redis container)
 - Clean all: `make clean-all` (comprehensive cleanup of processes, containers, and files)
 - Observability: `make observability-start` (starts OpenTelemetry monitoring stack), `make obs-start` (alias)
@@ -47,7 +47,7 @@ This repository contains API documentation and Go implementation for a Collabora
   - **Script Format**:
     ```
     server localhost    # Configure server (optional)
-    port 8080          # Configure port (optional) 
+    port 8080          # Configure port (optional)
     auth user1         # Authenticate user via OAuth
     request createtm post /threat_models $user1.jwt$ body={"name":"Test"}
     expect $createtm.status$ == 201
@@ -57,12 +57,13 @@ This repository contains API documentation and Go implementation for a Collabora
 ### OAuth Callback Stub
 
 - **OAuth Development Tool**: `make oauth-stub-start` or `uv run scripts/oauth-client-callback-stub.py --port 8079` - Universal OAuth callback handler supporting both Authorization Code and Implicit flows
+
   - **Location**: `scripts/oauth-client-callback-stub.py` (standalone Python script)
   - **Purpose**: Captures OAuth credentials from TMI server supporting both OAuth2 Authorization Code Flow and Implicit Flow
   - **Flow Detection**: Automatically detects and handles both OAuth flows:
     - **Authorization Code Flow**: Receives `code` and `state`, client exchanges code for tokens
     - **Implicit Flow**: Receives tokens directly (`access_token`, `refresh_token`, etc.)
-  - **Features**: 
+  - **Features**:
     - Three-route HTTP server with OAuth callback handler, credentials API, and user-specific credential retrieval
     - Credential persistence to temporary files for later retrieval by user ID
     - Automatic flow type detection and appropriate response formatting
@@ -71,13 +72,14 @@ This repository contains API documentation and Go implementation for a Collabora
   - **Logging**: Comprehensive structured logging to `/tmp/oauth-stub.log` with RFC3339 timestamps and dual console output
   - **Make Commands**:
     - `make oauth-stub-start` - Start OAuth stub on port 8079
-    - `make oauth-stub-stop` - Stop OAuth stub gracefully  
+    - `make oauth-stub-stop` - Stop OAuth stub gracefully
     - `make oauth-stub-status` - Check if OAuth stub is running
   - **API Routes**:
     - **Route 1 (`GET /`)**: Receives OAuth redirects, analyzes flow type, stores credentials, saves to `$TMP/<user-id>.json`
     - **Route 2 (`GET /latest`)**: Returns flow-appropriate JSON response for client integration
     - **Route 3 (`GET /creds?userid=<userid>`)**: Returns saved credentials for specific user from persistent storage
   - **Response Formats**:
+
     ```json
     // Authorization Code Flow Response
     {
@@ -86,7 +88,7 @@ This repository contains API documentation and Go implementation for a Collabora
       "state": "AbCdEf...",
       "ready_for_token_exchange": true
     }
-    
+
     // Implicit Flow Response (TMI's current implementation)
     {
       "flow_type": "implicit",
@@ -97,42 +99,45 @@ This repository contains API documentation and Go implementation for a Collabora
       "expires_in": "3600",
       "tokens_ready": true
     }
-    
+
     // No data yet
     {
       "flow_type": "none",
       "error": "No OAuth data received yet"
     }
     ```
+
   - **Example Integration**:
+
     ```bash
     # Start OAuth callback stub
     make oauth-stub-start
-    
+
     # Initiate OAuth flow with callback stub and user hint
-    curl "http://localhost:8080/auth/login/test?user_hint=alice&client_callback=http://localhost:8079/"
-    
+    curl "http://localhost:8080/oauth2/authorize/test?user_hint=alice&client_callback=http://localhost:8079/"
+
     # Check latest credentials (traditional method)
     curl http://localhost:8079/latest | jq '.'
-    
+
     # Or retrieve credentials for specific user (new method)
     curl "http://localhost:8079/creds?userid=alice" | jq '.'
-    
+
     # Monitor detailed logs for debugging flow details
     tail -f /tmp/oauth-stub.log
-    
+
     # Stop OAuth stub
     make oauth-stub-stop
-    
+
     # Alternative: Gracefully shutdown via HTTP (for automation)
     curl "http://localhost:8079/?code=exit"
     ```
-  - **Enhanced Logging**: 
+
+  - **Enhanced Logging**:
     - `YYYY-MM-DDTHH:MM:SS.sssZ <message>` format with detailed flow analysis
     - Logs all query parameters received from server
     - Flow type detection and analysis (`Authorization Code Flow`, `Implicit Flow`, etc.)
     - Complete request/response logging for debugging
-  - **Client Integration**: 
+  - **Client Integration**:
     - **Implicit Flow Clients**: Use `access_token` directly from `/latest` response
     - **Authorization Code Clients**: Use `code` from `/latest` response for token exchange
     - **Test Frameworks**: Works with StepCI for automated OAuth flow testing
@@ -148,6 +153,7 @@ This repository contains API documentation and Go implementation for a Collabora
 - **Reason**: Make targets provide consistent, repeatable configurations with proper environment setup
 
 **Examples of FORBIDDEN practices:**
+
 ```bash
 # ❌ DON'T DO THESE:
 go run cmd/server/main.go --config=config-development.yml
@@ -170,14 +176,16 @@ make infra-db-start
 **IMPORTANT: Always use make targets for testing. Never run `go test` commands directly.**
 
 #### Core Testing
+
 - Unit tests: `make test-unit` (fast tests, no external dependencies)
   - Specific test: `make test-unit name=TestName`
   - Options: `make test-unit count1=true passfail=true`
 - Integration tests: `make test-integration` (requires database, runs with automatic setup/cleanup)
-  - Specific test: `make test-integration name=TestName` 
+  - Specific test: `make test-integration name=TestName`
   - Cleanup only: `make clean-all`
 
-#### Specialized Testing  
+#### Specialized Testing
+
 - Telemetry tests: `make test-telemetry` (unit tests for telemetry components)
   - Integration mode: `make test-telemetry integration=true`
 - API testing: `make test-api` (requires running server via `make dev-start`)
@@ -188,6 +196,7 @@ make infra-db-start
 - Full dev test: `make test-dev-full` (alias for `make test-api-full`)
 
 #### Testing Examples
+
 ```bash
 # Standard development workflow
 make test-unit                    # Fast unit tests
@@ -288,7 +297,7 @@ make test-api-full               # Full automated API testing (setup + test + cl
 **CRITICAL: Never run `go test` commands directly. Always use make targets.**
 
 - Unit tests: Use `make test-unit` or `make test-unit name=TestName`
-- Integration tests: Use `make test-integration` or `make test-integration name=TestName` 
+- Integration tests: Use `make test-integration` or `make test-integration name=TestName`
 - Never create ad hoc `go test` commands - they will miss configuration settings and dependencies
 - Never create ad hoc commands to run the server - use `make dev-start` or other make targets
 - All testing must go through make targets to ensure proper environment setup
@@ -326,19 +335,21 @@ The system now uses a clean, single-router architecture with OpenAPI-driven rout
 
 1. **Single Router Architecture**: All HTTP requests flow through the OpenAPI specification
 2. **Request Tracing**: Comprehensive module-tagged debug logging for all requests
-3. **Authentication Flow**: 
+3. **Authentication Flow**:
    - JWT middleware validates tokens and sets user context
    - ThreatModelMiddleware and DiagramMiddleware handle resource-specific authorization
    - Auth handlers integrate cleanly with OpenAPI endpoints
 4. **No Route Conflicts**: Single source of truth for all routing eliminates duplicate route registration panics
 
 **Request Flow**:
+
 ```
-HTTP Request → OpenAPI Route Registration → ServerInterface Implementation → 
+HTTP Request → OpenAPI Route Registration → ServerInterface Implementation →
 JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
 ```
 
 **Key Components**:
+
 - `api/server.go`: Main OpenAPI server with single router
 - `api/*_middleware.go`: Resource-specific authorization middleware
 - `auth/handlers.go`: Authentication endpoints integrated via auth service adapter
@@ -346,7 +357,7 @@ JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
 
 ## Authentication Memories
 
-- Always use a normal oauth login flow with the "test" provider when performing any development or testing task that requires authentication  
+- Always use a normal oauth login flow with the "test" provider when performing any development or testing task that requires authentication
 - Use `make test-api auth=only` to get JWT tokens for testing
 - OAuth test provider generates JWT tokens with user claims (email, name, sub)
 - For API testing, use `make test-api` (requires `make dev-start` first)
@@ -355,28 +366,30 @@ JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
 
 The test OAuth provider supports **user hints** for automation-friendly testing with predictable user identities:
 
-- **Parameter**: `user_hint` - Query parameter for `/auth/login/test`
+- **Parameter**: `user_hint` - Query parameter for `/oauth2/authorize/test`
 - **Purpose**: Generate predictable test users instead of random usernames
 - **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive
 - **Validation**: Pattern: `^[a-zA-Z0-9-]{3,20}$`
 - **Scope**: Test provider only, not available in production builds
 
 **Examples**:
+
 ```bash
 # Create user 'alice@test.tmi' with name 'Alice (Test User)'
-curl "http://localhost:8080/auth/login/test?user_hint=alice"
+curl "http://localhost:8080/oauth2/authorize/test?user_hint=alice"
 
-# Create user 'qa-automation@test.tmi' with name 'Qa Automation (Test User)'  
-curl "http://localhost:8080/auth/login/test?user_hint=qa-automation"
+# Create user 'qa-automation@test.tmi' with name 'Qa Automation (Test User)'
+curl "http://localhost:8080/oauth2/authorize/test?user_hint=qa-automation"
 
 # Without user hint - generates random user like 'testuser-12345678@test.tmi'
-curl "http://localhost:8080/auth/login/test"
+curl "http://localhost:8080/oauth2/authorize/test"
 ```
 
 **Automation Integration**:
+
 ```bash
 # OAuth callback stub with user hint
-curl "http://localhost:8080/auth/login/test?user_hint=alice&client_callback=http://localhost:8079/"
+curl "http://localhost:8080/oauth2/authorize/test?user_hint=alice&client_callback=http://localhost:8079/"
 
 # API testing script with user hint
 echo "auth alice hint=alice" >> test_script.txt
@@ -384,8 +397,9 @@ make test-api-script script=test_script.txt
 ```
 
 **Use Cases**:
+
 - **StepCI Tests**: Consistent user identities across test runs
-- **API Integration Tests**: Predictable user data for validation  
+- **API Integration Tests**: Predictable user data for validation
 - **Development Testing**: Named test users for debugging
 - **Automation Pipelines**: Reproducible test scenarios
 

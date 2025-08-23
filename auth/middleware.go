@@ -189,14 +189,14 @@ func (m *Middleware) RequireAdminAuth(cfg *config.Config) gin.HandlerFunc {
 		// First, require standard authentication
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.Redirect(http.StatusFound, "/auth/login")
+			c.Redirect(http.StatusFound, "/oauth2/authorize")
 			return
 		}
 
 		// Check if the Authorization header has the correct format
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			c.Redirect(http.StatusFound, "/auth/login")
+			c.Redirect(http.StatusFound, "/oauth2/authorize")
 			return
 		}
 
@@ -204,7 +204,7 @@ func (m *Middleware) RequireAdminAuth(cfg *config.Config) gin.HandlerFunc {
 		tokenString := parts[1]
 		claims, err := m.service.ValidateToken(tokenString)
 		if err != nil {
-			c.Redirect(http.StatusFound, "/auth/login")
+			c.Redirect(http.StatusFound, "/oauth2/authorize")
 			return
 		}
 

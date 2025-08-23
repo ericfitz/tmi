@@ -2,19 +2,24 @@ auth todo list
 
 base url
 /auth --> rename to /oauth2
+(DONE)
 
 login
 GET /auth/login/{provider} --> GET /oauth2/authorize?idp={provider}&login_hint={login_hint}
 and maybe (form encoding) --> POST /oauth2/authorize?idp={provider}&login_hint={login_hint}
+(PARTIALLY DONE; need to move provider to query parameter)
 
 token
 (implicit) --> GET /oauth2/token
+(PARTIALLY DONE, need to break implicit)
 
 logout
 POST /auth/logout --> POST /oauth2/revoke
+(DONE)
 
 me
 GET /auth/me --> GET /oauth2/userinfo
+(DONE)
 
 introspect
 (new) --> GET /oauth2/introspect
@@ -25,6 +30,7 @@ jwks
 provider configuration
 GET /auth/providers --> GET /.well-known/openid-configuration
 and --> GET /.well-known/oauth-authorization-server
+(PARTIALLY DONE, /auth/providers moved to /oauth2/providers)
 
 scopes
 openid profile email

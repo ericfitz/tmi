@@ -68,7 +68,7 @@ JWT_EXPIRATION_SECONDS=3600
 JWT_SIGNING_METHOD=HS256
 
 # OAuth Configuration
-OAUTH_CALLBACK_URL=http://localhost:8080/auth/callback
+OAUTH_CALLBACK_URL=http://localhost:8080/oauth2/callback
 
 # OAuth Provider Configuration
 ...
@@ -113,19 +113,19 @@ func main() {
 
 ### OAuth Flow
 
-- `GET /auth/providers` - List available OAuth providers
-- `GET /auth/login/:provider` - Redirect to OAuth provider for authentication
-- `GET /auth/callback` - Handle OAuth callback and issue JWT tokens
+- `GET /oauth2/providers` - List available OAuth providers
+- `GET /oauth2/authorize/:provider` - Redirect to OAuth provider for authentication
+- `GET /oauth2/callback` - Handle OAuth callback and issue JWT tokens
 
 ### Token Management
 
-- `POST /auth/token/:provider` - Exchange authorization code for JWT tokens
-- `POST /auth/refresh` - Refresh an expired JWT token
-- `POST /auth/logout` - Revoke a refresh token
+- `POST /oauth2/token/:provider` - Exchange authorization code for JWT tokens
+- `POST /oauth2/refresh` - Refresh an expired JWT token
+- `POST /oauth2/logout` - Revoke a refresh token
 
 ### User Information
 
-- `GET /auth/me` - Get current user information (requires authentication)
+- `GET /oauth2/me` - Get current user information (requires authentication)
 
 ## Authorization
 

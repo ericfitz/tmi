@@ -279,7 +279,7 @@ tests:
       - id: authenticate_for_failures
         name: Authenticate user for collaboration failure tests
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -406,7 +406,7 @@ tests:
       - id: authenticate_owner
         name: Authenticate owner user
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -471,7 +471,7 @@ tests:
       - id: authenticate_collaborator
         name: Authenticate collaborator user
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json

@@ -16,7 +16,7 @@ func TestTestProviderNotAvailableInProduction(t *testing.T) {
 	}
 
 	// This should return an error in production builds (not panic)
-	provider, err := NewProvider(config, "http://localhost:8080/auth/callback")
+	provider, err := NewProvider(config, "http://localhost:8080/oauth2/callback")
 
 	if err == nil {
 		t.Error("Expected error when using test provider in production, but no error occurred")

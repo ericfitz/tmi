@@ -31,7 +31,7 @@ tests:
       - id: get_oauth_providers
         name: Get available OAuth providers
         http:
-          url: http://localhost:8080/auth/providers
+          url: http://localhost:8080/oauth2/providers
           method: GET
           check:
             status: 200
@@ -60,7 +60,7 @@ tests:
       - id: initiate_oauth_flow
         name: Initiate OAuth flow with callback stub and user hint
         http:
-          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=qa-automation
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=qa-automation
           method: GET
           followRedirects: true
           check:
@@ -126,7 +126,7 @@ tests:
         name: Exchange real OAuth code for JWT tokens (Authorization Code Flow only)
         if: flow_type == "authorization_code"
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -171,7 +171,7 @@ tests:
       - id: get_user_info_fresh_token
         name: Get current user info with fresh token for specific user (user hint)
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -188,7 +188,7 @@ tests:
       - id: get_user_info
         name: Get current user information with JWT (predictable user via hint)
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ captures.fetch_oauth_credentials.access_token_from_stub }}"
@@ -218,7 +218,7 @@ tests:
       - id: invalid_provider
         name: Attempt login with invalid OAuth provider
         http:
-          url: http://localhost:8080/auth/login/invalid_provider
+          url: http://localhost:8080/oauth2/authorize/invalid_provider
           method: GET
           check:
             status: 400  # API returns 400 for invalid provider
@@ -231,7 +231,7 @@ tests:
       - id: missing_oauth_code
         name: Exchange tokens without OAuth code
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -248,7 +248,7 @@ tests:
       - id: invalid_oauth_code
         name: Exchange tokens with invalid OAuth code
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -266,7 +266,7 @@ tests:
       - id: malformed_token_request
         name: Token request with malformed JSON
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -277,7 +277,7 @@ tests:
       - id: unauthorized_user_info
         name: Get user info without JWT token
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           check:
             status: 401
@@ -290,7 +290,7 @@ tests:
       - id: invalid_jwt_token
         name: Get user info with invalid JWT token
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer invalid_jwt_token_123"
@@ -305,7 +305,7 @@ tests:
       - id: malformed_auth_header
         name: Get user info with malformed Authorization header
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "InvalidFormat jwt_token_123"
@@ -326,7 +326,7 @@ tests:
       - id: valid_user_hint_alice
         name: Test OAuth with valid user hint 'alice'
         http:
-          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=alice
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=alice
           method: GET
           followRedirects: true
           check:
@@ -339,7 +339,7 @@ tests:
       - id: get_alice_token
         name: Get Alice's token with user hint
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -356,7 +356,7 @@ tests:
       - id: verify_alice_identity
         name: Verify Alice's predictable identity
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ captures.get_alice_token.alice_token }}"
@@ -372,7 +372,7 @@ tests:
       - id: valid_user_hint_hyphen
         name: Test OAuth with user hint containing hyphens
         http:
-          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=test-user
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=test-user
           method: GET
           followRedirects: true
           check:
@@ -381,7 +381,7 @@ tests:
       - id: invalid_user_hint_too_short
         name: Test OAuth with invalid user hint (too short)
         http:
-          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=ab
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=ab
           method: GET
           followRedirects: true
           check:
@@ -390,7 +390,7 @@ tests:
       - id: invalid_user_hint_too_long
         name: Test OAuth with invalid user hint (too long)
         http:
-          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=this_user_hint_is_way_too_long_for_validation
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=this_user_hint_is_way_too_long_for_validation
           method: GET
           followRedirects: true
           check:
@@ -399,7 +399,7 @@ tests:
       - id: invalid_user_hint_special_chars
         name: Test OAuth with invalid user hint (special characters)
         http:
-          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=user@test.com
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=user@test.com
           method: GET
           followRedirects: true
           check:

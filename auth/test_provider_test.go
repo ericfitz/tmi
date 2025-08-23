@@ -15,15 +15,15 @@ func TestTestProvider(t *testing.T) {
 		Icon:             "flask-vial",
 		ClientID:         "test-client-id",
 		ClientSecret:     "test-oauth-secret-12345",
-		AuthorizationURL: "http://localhost:8080/auth/test/authorize",
-		TokenURL:         "http://localhost:8080/auth/test/token",
+		AuthorizationURL: "http://localhost:8080/oauth2/test/authorize",
+		TokenURL:         "http://localhost:8080/oauth2/test/token",
 		Scopes:           []string{"profile", "email"},
 		EmailClaim:       "email",
 		NameClaim:        "name",
 		SubjectClaim:     "sub",
 	}
 
-	callbackURL := "http://localhost:8080/auth/callback"
+	callbackURL := "http://localhost:8080/oauth2/callback"
 	provider := NewTestProvider(config, callbackURL)
 
 	// Test GetAuthorizationURL
@@ -76,7 +76,7 @@ func TestNewProvider_Test(t *testing.T) {
 		ClientID: "test-client-id",
 	}
 
-	provider, err := NewProvider(config, "http://localhost:8080/auth/callback")
+	provider, err := NewProvider(config, "http://localhost:8080/oauth2/callback")
 	if err != nil {
 		t.Errorf("NewProvider failed: %v", err)
 	}

@@ -27,18 +27,21 @@ TMI is a Go-based web application that provides collaborative threat modeling ca
 ## Prerequisites
 
 ### Development/Build Environment
+
 - Go 1.21 or later
 - Git
 - Make (optional, for using Makefile targets)
 
 ### Runtime Environment
+
 - Linux/Windows/macOS (supports all Go target platforms)
-- PostgreSQL 12+ 
+- PostgreSQL 12+
 - Redis 6+
 - TLS certificates (for production HTTPS)
 - OAuth application credentials from your chosen providers
 
 ### Network & Security
+
 - Inbound access on configured port (default 8080)
 - Outbound HTTPS access to OAuth providers
 - Database and Redis connectivity
@@ -111,6 +114,7 @@ TMI supports two configuration methods that can be combined:
 ```
 
 This creates:
+
 - `config-development.yml` - Development configuration
 - `config-production.yml` - Production configuration template
 - `docker-compose.env` - Environment variables for containers
@@ -136,30 +140,30 @@ database:
     host: "postgres"
     port: "5432"
     user: "tmi_user"
-    password: ""  # Set via TMI_DATABASE_POSTGRES_PASSWORD
+    password: "" # Set via TMI_DATABASE_POSTGRES_PASSWORD
     database: "tmi"
     sslmode: "require"
   redis:
     host: "redis"
     port: "6379"
-    password: ""  # Set via TMI_DATABASE_REDIS_PASSWORD
+    password: "" # Set via TMI_DATABASE_REDIS_PASSWORD
     db: 0
 
 auth:
   jwt:
-    secret: ""  # REQUIRED: Set via TMI_AUTH_JWT_SECRET
+    secret: "" # REQUIRED: Set via TMI_AUTH_JWT_SECRET
     expiration_seconds: 3600
     signing_method: "HS256"
   oauth:
-    callback_url: "https://tmi.example.com/auth/callback"
+    callback_url: "https://tmi.example.com/oauth2/callback"
     providers:
       google:
         enabled: true
-        client_id: ""     # Set via TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID
+        client_id: "" # Set via TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID
         client_secret: "" # Set via TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET
       github:
         enabled: true
-        client_id: ""     # Set via TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID
+        client_id: "" # Set via TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID
         client_secret: "" # Set via TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET
       microsoft:
         enabled: false
@@ -178,34 +182,34 @@ logging:
 
 All configuration values can be overridden with environment variables using the `TMI_` prefix:
 
-| Environment Variable | Description | Default |
-|---------------------|-------------|---------|
-| `TMI_SERVER_PORT` | HTTP server port | `8080` |
-| `TMI_SERVER_INTERFACE` | Interface to bind to | `0.0.0.0` |
-| `TMI_TLS_ENABLED` | Enable HTTPS | `false` |
-| `TMI_TLS_CERT_FILE` | TLS certificate file path | `` |
-| `TMI_TLS_KEY_FILE` | TLS private key file path | `` |
-| `TMI_DATABASE_POSTGRES_HOST` | PostgreSQL host | `localhost` |
-| `TMI_DATABASE_POSTGRES_PORT` | PostgreSQL port | `5432` |
-| `TMI_DATABASE_POSTGRES_USER` | PostgreSQL username | `postgres` |
-| `TMI_DATABASE_POSTGRES_PASSWORD` | PostgreSQL password | `` |
-| `TMI_DATABASE_POSTGRES_DATABASE` | PostgreSQL database name | `tmi` |
-| `TMI_DATABASE_POSTGRES_SSLMODE` | PostgreSQL SSL mode | `disable` |
-| `TMI_DATABASE_REDIS_HOST` | Redis host | `localhost` |
-| `TMI_DATABASE_REDIS_PORT` | Redis port | `6379` |
-| `TMI_DATABASE_REDIS_PASSWORD` | Redis password | `` |
-| `TMI_DATABASE_REDIS_DB` | Redis database number | `0` |
-| `TMI_AUTH_JWT_SECRET` | **REQUIRED** JWT signing secret | `` |
-| `TMI_AUTH_JWT_EXPIRATION_SECONDS` | JWT token lifetime | `3600` |
-| `TMI_AUTH_OAUTH_CALLBACK_URL` | OAuth callback URL | `http://localhost:8080/auth/callback` |
-| `TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_ENABLED` | Enable Google OAuth | `true` |
-| `TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID` | Google OAuth client ID | `` |
-| `TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET` | Google OAuth client secret | `` |
-| `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_ENABLED` | Enable GitHub OAuth | `true` |
-| `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID` | GitHub OAuth client ID | `` |
-| `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | `` |
-| `TMI_LOGGING_LEVEL` | Log level (debug, info, warn, error) | `info` |
-| `TMI_LOGGING_IS_DEV` | Development mode | `false` |
+| Environment Variable                            | Description                          | Default                                 |
+| ----------------------------------------------- | ------------------------------------ | --------------------------------------- |
+| `TMI_SERVER_PORT`                               | HTTP server port                     | `8080`                                  |
+| `TMI_SERVER_INTERFACE`                          | Interface to bind to                 | `0.0.0.0`                               |
+| `TMI_TLS_ENABLED`                               | Enable HTTPS                         | `false`                                 |
+| `TMI_TLS_CERT_FILE`                             | TLS certificate file path            | ``                                      |
+| `TMI_TLS_KEY_FILE`                              | TLS private key file path            | ``                                      |
+| `TMI_DATABASE_POSTGRES_HOST`                    | PostgreSQL host                      | `localhost`                             |
+| `TMI_DATABASE_POSTGRES_PORT`                    | PostgreSQL port                      | `5432`                                  |
+| `TMI_DATABASE_POSTGRES_USER`                    | PostgreSQL username                  | `postgres`                              |
+| `TMI_DATABASE_POSTGRES_PASSWORD`                | PostgreSQL password                  | ``                                      |
+| `TMI_DATABASE_POSTGRES_DATABASE`                | PostgreSQL database name             | `tmi`                                   |
+| `TMI_DATABASE_POSTGRES_SSLMODE`                 | PostgreSQL SSL mode                  | `disable`                               |
+| `TMI_DATABASE_REDIS_HOST`                       | Redis host                           | `localhost`                             |
+| `TMI_DATABASE_REDIS_PORT`                       | Redis port                           | `6379`                                  |
+| `TMI_DATABASE_REDIS_PASSWORD`                   | Redis password                       | ``                                      |
+| `TMI_DATABASE_REDIS_DB`                         | Redis database number                | `0`                                     |
+| `TMI_AUTH_JWT_SECRET`                           | **REQUIRED** JWT signing secret      | ``                                      |
+| `TMI_AUTH_JWT_EXPIRATION_SECONDS`               | JWT token lifetime                   | `3600`                                  |
+| `TMI_AUTH_OAUTH_CALLBACK_URL`                   | OAuth callback URL                   | `http://localhost:8080/oauth2/callback` |
+| `TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_ENABLED`       | Enable Google OAuth                  | `true`                                  |
+| `TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID`     | Google OAuth client ID               | ``                                      |
+| `TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET` | Google OAuth client secret           | ``                                      |
+| `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_ENABLED`       | Enable GitHub OAuth                  | `true`                                  |
+| `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID`     | GitHub OAuth client ID               | ``                                      |
+| `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET` | GitHub OAuth client secret           | ``                                      |
+| `TMI_LOGGING_LEVEL`                             | Log level (debug, info, warn, error) | `info`                                  |
+| `TMI_LOGGING_IS_DEV`                            | Development mode                     | `false`                                 |
 
 ### Required Configuration
 
@@ -221,6 +225,7 @@ All configuration values can be overridden with environment variables using the 
 ### PostgreSQL Installation
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt update
 sudo apt install postgresql postgresql-contrib
@@ -229,6 +234,7 @@ sudo systemctl enable postgresql
 ```
 
 **CentOS/RHEL:**
+
 ```bash
 sudo yum install postgresql-server postgresql-contrib
 sudo postgresql-setup initdb
@@ -237,6 +243,7 @@ sudo systemctl enable postgresql
 ```
 
 **Docker:**
+
 ```bash
 docker run -d \
   --name postgres \
@@ -251,6 +258,7 @@ docker run -d \
 ### Database Configuration
 
 1. **Create Database and User:**
+
 ```sql
 -- Connect as postgres superuser
 sudo -u postgres psql
@@ -265,6 +273,7 @@ GRANT ALL PRIVILEGES ON DATABASE tmi TO tmi_user;
 ```
 
 2. **Configure PostgreSQL for Remote Access** (if needed):
+
 ```bash
 # Edit postgresql.conf
 sudo nano /etc/postgresql/15/main/postgresql.conf
@@ -283,7 +292,8 @@ sudo systemctl restart postgresql
 ```
 
 3. **Database Migrations:**
-TMI automatically runs database migrations on startup. The migrations are located in `auth/migrations/` and include:
+   TMI automatically runs database migrations on startup. The migrations are located in `auth/migrations/` and include:
+
 - User management tables
 - Threat model and diagram schemas
 - OAuth and session tables
@@ -292,6 +302,7 @@ TMI automatically runs database migrations on startup. The migrations are locate
 ### Database Backup & Recovery
 
 **Backup:**
+
 ```bash
 # Full database backup
 pg_dump -h localhost -U tmi_user -d tmi > tmi_backup_$(date +%Y%m%d_%H%M%S).sql
@@ -301,6 +312,7 @@ echo "0 2 * * * pg_dump -h localhost -U tmi_user -d tmi > /backups/tmi_$(date +\
 ```
 
 **Restore:**
+
 ```bash
 # Restore from backup
 psql -h localhost -U tmi_user -d tmi < tmi_backup_20231201_020000.sql
@@ -311,6 +323,7 @@ psql -h localhost -U tmi_user -d tmi < tmi_backup_20231201_020000.sql
 ### Redis Installation
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt update
 sudo apt install redis-server
@@ -319,6 +332,7 @@ sudo systemctl enable redis-server
 ```
 
 **CentOS/RHEL:**
+
 ```bash
 sudo yum install epel-release
 sudo yum install redis
@@ -327,6 +341,7 @@ sudo systemctl enable redis
 ```
 
 **Docker:**
+
 ```bash
 docker run -d \
   --name redis \
@@ -338,6 +353,7 @@ docker run -d \
 ### Redis Configuration
 
 1. **Secure Redis** (edit `/etc/redis/redis.conf`):
+
 ```bash
 # Bind to specific interfaces
 bind 127.0.0.1 10.0.0.5
@@ -355,6 +371,7 @@ sudo systemctl restart redis-server
 ```
 
 2. **Redis Memory Management:**
+
 ```bash
 # Set memory limit
 maxmemory 1gb
@@ -373,6 +390,7 @@ save 60 10000
 **System Service (systemd):**
 
 Create `/etc/systemd/system/tmi.service`:
+
 ```ini
 [Unit]
 Description=TMI Threat Modeling Server
@@ -403,6 +421,7 @@ WantedBy=multi-user.target
 ```
 
 **Deployment Steps:**
+
 ```bash
 # Create user
 sudo useradd -r -s /bin/false tmi
@@ -435,8 +454,9 @@ sudo systemctl status tmi
 **Docker Compose Example:**
 
 `docker-compose.yml`:
+
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   tmi:
@@ -450,7 +470,7 @@ services:
       - TMI_AUTH_JWT_SECRET=${JWT_SECRET}
       - TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - TMI_AUTH_OAUTH_CALLBACK_URL=https://tmi.example.com/auth/callback
+      - TMI_AUTH_OAUTH_CALLBACK_URL=https://tmi.example.com/oauth2/callback
     depends_on:
       - postgres
       - redis
@@ -481,6 +501,7 @@ volumes:
 ```
 
 `.env` file:
+
 ```bash
 POSTGRES_PASSWORD=secure_db_password
 REDIS_PASSWORD=secure_redis_password
@@ -490,6 +511,7 @@ GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
 ```
 
 **Deployment:**
+
 ```bash
 # Deploy with Docker Compose
 docker-compose up -d
@@ -506,6 +528,7 @@ docker-compose up -d --scale tmi=3
 **Kubernetes Manifests:**
 
 `namespace.yml`:
+
 ```yaml
 apiVersion: v1
 kind: Namespace
@@ -514,6 +537,7 @@ metadata:
 ```
 
 `configmap.yml`:
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -523,11 +547,12 @@ metadata:
 data:
   TMI_DATABASE_POSTGRES_HOST: "postgres"
   TMI_DATABASE_REDIS_HOST: "redis"
-  TMI_AUTH_OAUTH_CALLBACK_URL: "https://tmi.example.com/auth/callback"
+  TMI_AUTH_OAUTH_CALLBACK_URL: "https://tmi.example.com/oauth2/callback"
   TMI_LOGGING_LEVEL: "info"
 ```
 
 `secrets.yml`:
+
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -543,6 +568,7 @@ data:
 ```
 
 `deployment.yml`:
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -560,37 +586,38 @@ spec:
         app: tmi-server
     spec:
       containers:
-      - name: tmi-server
-        image: tmi-server:latest
-        ports:
-        - containerPort: 8080
-        envFrom:
-        - configMapRef:
-            name: tmi-config
-        - secretRef:
-            name: tmi-secrets
-        livenessProbe:
-          httpGet:
-            path: /version
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /version
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 5
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
+        - name: tmi-server
+          image: tmi-server:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: tmi-config
+            - secretRef:
+                name: tmi-secrets
+          livenessProbe:
+            httpGet:
+              path: /version
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /version
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
 ```
 
 `service.yml`:
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -601,12 +628,13 @@ spec:
   selector:
     app: tmi-server
   ports:
-  - port: 80
-    targetPort: 8080
+    - port: 80
+      targetPort: 8080
   type: ClusterIP
 ```
 
 **Deploy to Kubernetes:**
+
 ```bash
 kubectl apply -f namespace.yml
 kubectl apply -f configmap.yml
@@ -635,25 +663,26 @@ kubectl logs -f deployment/tmi-server -n tmi
 - **Reverse Proxy**: Consider using nginx/Apache as a reverse proxy with rate limiting
 
 **Nginx Example:**
+
 ```nginx
 server {
     listen 443 ssl http2;
     server_name tmi.example.com;
-    
+
     ssl_certificate /etc/ssl/certs/tmi.crt;
     ssl_private_key /etc/ssl/private/tmi.key;
-    
+
     # Rate limiting
     limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
     limit_req zone=api burst=20 nodelay;
-    
+
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
+
         # WebSocket support
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -681,6 +710,7 @@ server {
 ### Application Logs
 
 TMI logs are structured and include:
+
 - HTTP request/response logging
 - Authentication events
 - Database operations
@@ -688,13 +718,14 @@ TMI logs are structured and include:
 - Error conditions
 
 **Log Configuration:**
+
 ```yaml
 logging:
-  level: "info"          # debug, info, warn, error
+  level: "info" # debug, info, warn, error
   log_dir: "/var/log/tmi"
-  max_age_days: 30       # Log retention
-  max_size_mb: 100       # Log file size limit
-  max_backups: 10        # Number of log files to keep
+  max_age_days: 30 # Log retention
+  max_size_mb: 100 # Log file size limit
+  max_backups: 10 # Number of log files to keep
   also_log_to_console: true
 ```
 
@@ -703,9 +734,10 @@ logging:
 TMI provides health check endpoints:
 
 - `GET /version` - API version information
-- `GET /auth/providers` - OAuth provider availability
+- `GET /oauth2/providers` - OAuth provider availability
 
 **Example Health Check Script:**
+
 ```bash
 #!/bin/bash
 # health-check.sh
@@ -723,37 +755,39 @@ fi
 ### Monitoring Integration
 
 **Prometheus Metrics** (if implemented):
+
 ```yaml
 # Add to prometheus.yml
-- job_name: 'tmi'
+- job_name: "tmi"
   static_configs:
-  - targets: ['tmi.example.com:8080']
+    - targets: ["tmi.example.com:8080"]
   metrics_path: /metrics
 ```
 
 **Log Aggregation with ELK Stack:**
+
 ```yaml
 # logstash.conf
 input {
-  file {
-    path => "/var/log/tmi/*.log"
-    start_position => "beginning"
-  }
+file {
+path => "/var/log/tmi/*.log"
+start_position => "beginning"
+}
 }
 
 filter {
-  if [message] =~ /^\{/ {
-    json {
-      source => "message"
-    }
-  }
+if [message] =~ /^\{/ {
+json {
+source => "message"
+}
+}
 }
 
 output {
-  elasticsearch {
-    hosts => ["elasticsearch:9200"]
-    index => "tmi-logs-%{+YYYY.MM.dd}"
-  }
+elasticsearch {
+hosts => ["elasticsearch:9200"]
+index => "tmi-logs-%{+YYYY.MM.dd}"
+}
 }
 ```
 
@@ -762,18 +796,20 @@ output {
 ### Common Issues
 
 **1. Authentication Failures**
+
 ```bash
 # Check OAuth configuration
-curl -s http://localhost:8080/auth/providers | jq
+curl -s http://localhost:8080/oauth2/providers | jq
 
 # Verify JWT secret is set
 grep JWT /var/log/tmi/tmi.log
 
 # Test token validation
-curl -H "Authorization: Bearer <token>" http://localhost:8080/auth/me
+curl -H "Authorization: Bearer <token>" http://localhost:8080/oauth2/me
 ```
 
 **2. Database Connection Issues**
+
 ```bash
 # Test PostgreSQL connection
 psql -h localhost -U tmi_user -d tmi -c "SELECT version();"
@@ -786,6 +822,7 @@ psql -h localhost -U tmi_user -d tmi -c "\dt"
 ```
 
 **3. Redis Connection Issues**
+
 ```bash
 # Test Redis connection
 redis-cli -h localhost -p 6379 ping
@@ -798,6 +835,7 @@ redis-cli -h localhost -p 6379 monitor
 ```
 
 **4. TLS/Certificate Issues**
+
 ```bash
 # Verify certificate validity
 openssl x509 -in /etc/tls/server.crt -text -noout
@@ -812,10 +850,11 @@ openssl x509 -in /etc/tls/server.crt -noout -dates
 ### Performance Tuning
 
 **Database Optimization:**
+
 ```sql
 -- Check slow queries
-SELECT query, mean_time, calls 
-FROM pg_stat_statements 
+SELECT query, mean_time, calls
+FROM pg_stat_statements
 ORDER BY mean_time DESC LIMIT 10;
 
 -- Update statistics
@@ -826,6 +865,7 @@ VACUUM ANALYZE;
 ```
 
 **Redis Optimization:**
+
 ```bash
 # Monitor Redis memory usage
 redis-cli info memory
@@ -838,6 +878,7 @@ redis-cli --scan --pattern "session:*" | head -10
 ```
 
 **Application Tuning:**
+
 - Adjust server timeouts based on load
 - Monitor WebSocket connection limits
 - Scale horizontally with load balancer
@@ -846,6 +887,7 @@ redis-cli --scan --pattern "session:*" | head -10
 ### Support & Maintenance
 
 **Regular Maintenance Tasks:**
+
 - Database backups (daily)
 - Log rotation and cleanup
 - Security updates
@@ -854,6 +896,7 @@ redis-cli --scan --pattern "session:*" | head -10
 - Capacity planning
 
 **Upgrade Procedure:**
+
 1. Backup database and configuration
 2. Test new version in staging
 3. Deploy during maintenance window

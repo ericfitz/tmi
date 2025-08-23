@@ -61,7 +61,7 @@ func (p *TestProvider) GetAuthorizationURL(state string) string {
 	callbackURL := p.oauth2Config.RedirectURL
 	if callbackURL == "" {
 		// Fallback to default callback
-		callbackURL = "http://localhost:8080/auth/callback"
+		callbackURL = "http://localhost:8080/oauth2/callback"
 	}
 	
 	// Parse the callback URL and add query parameters

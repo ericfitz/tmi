@@ -12,7 +12,7 @@ tests:
       - id: start_oauth
         name: Start OAuth flow with user hint
         http:
-          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=testuser
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=testuser
           method: GET
           followRedirects: true
           check:
@@ -49,7 +49,7 @@ tests:
       - id: test_token
         name: Test JWT token authentication  
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{captures.access_token}}"

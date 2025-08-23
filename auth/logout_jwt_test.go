@@ -38,10 +38,10 @@ func TestLogoutWithJWT(t *testing.T) {
 	t.Run("JWT_Based_Logout_Success", func(t *testing.T) {
 		// Create Gin router
 		r := gin.New()
-		r.POST("/auth/logout", handlers.Logout)
+		r.POST("/oauth2/logout", handlers.Logout)
 
 		// Create request with JWT token in Authorization header
-		req := httptest.NewRequest("POST", "/auth/logout", bytes.NewBuffer([]byte("{}")))
+		req := httptest.NewRequest("POST", "/oauth2/logout", bytes.NewBuffer([]byte("{}")))
 		req.Header.Set("Authorization", "Bearer "+tokenString)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -61,10 +61,10 @@ func TestLogoutWithJWT(t *testing.T) {
 	t.Run("Invalid_JWT_Falls_Back_To_Refresh_Token", func(t *testing.T) {
 		// Create Gin router
 		r := gin.New()
-		r.POST("/auth/logout", handlers.Logout)
+		r.POST("/oauth2/logout", handlers.Logout)
 
 		// Create request with invalid JWT token and no refresh token
-		req := httptest.NewRequest("POST", "/auth/logout", bytes.NewBuffer([]byte("{}")))
+		req := httptest.NewRequest("POST", "/oauth2/logout", bytes.NewBuffer([]byte("{}")))
 		req.Header.Set("Authorization", "Bearer invalid-token")
 		req.Header.Set("Content-Type", "application/json")
 
@@ -84,10 +84,10 @@ func TestLogoutWithJWT(t *testing.T) {
 	t.Run("No_Auth_Header_Requires_Refresh_Token", func(t *testing.T) {
 		// Create Gin router
 		r := gin.New()
-		r.POST("/auth/logout", handlers.Logout)
+		r.POST("/oauth2/logout", handlers.Logout)
 
 		// Create request with no Authorization header and no refresh token
-		req := httptest.NewRequest("POST", "/auth/logout", bytes.NewBuffer([]byte("{}")))
+		req := httptest.NewRequest("POST", "/oauth2/logout", bytes.NewBuffer([]byte("{}")))
 		req.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()

@@ -25,12 +25,12 @@ config:
     
     # API Endpoints
     api_info_endpoint: "/"
-    auth_providers_endpoint: "/auth/providers"
-    auth_login_endpoint: "/auth/login"
-    auth_token_endpoint: "/auth/token"
-    auth_refresh_endpoint: "/auth/refresh"
-    auth_me_endpoint: "/auth/me"
-    auth_logout_endpoint: "/auth/logout"
+    auth_providers_endpoint: "/oauth2/providers"
+    auth_login_endpoint: "/oauth2/authorize"
+    auth_token_endpoint: "/oauth2/token"
+    auth_refresh_endpoint: "/oauth2/refresh"
+    auth_me_endpoint: "/oauth2/me"
+    auth_logout_endpoint: "/oauth2/logout"
     
     # Common Headers
     content_type_json: "application/json"

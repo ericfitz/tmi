@@ -23,7 +23,7 @@ tests:
       - id: get_user_profile
         name: Get authenticated user profile (validate predictable user)
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ access_token }}"
@@ -367,7 +367,7 @@ tests:
       - id: user_logout
         name: User logout to end session
         http:
-          url: http://localhost:8080/auth/logout
+          url: http://localhost:8080/oauth2/logout
           method: POST
           headers:
             Authorization: "Bearer ${{ access_token }}"
@@ -380,7 +380,7 @@ tests:
       - id: verify_logout
         name: Verify user is logged out
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           headers:
             Authorization: "Bearer ${{ access_token }}"

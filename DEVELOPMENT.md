@@ -8,6 +8,7 @@ make dev-start
 ```
 
 This will:
+
 1. Start PostgreSQL & Redis containers via Docker
 2. Generate `config-development.yml` if it doesn't exist
 3. Start the TMI server with development configuration
@@ -17,11 +18,13 @@ This will:
 TMI uses YAML configuration files with environment variable overrides.
 
 **Generated files:**
+
 - `config-development.yml` - Development configuration
-- `config-production.yml` - Production template  
+- `config-production.yml` - Production template
 - `docker-compose.env` - Container environment variables
 
 **Environment variables for secrets:**
+
 ```bash
 TMI_DATABASE_POSTGRES_PASSWORD         # Database password (automatically set to 'postgres' for dev)
 ```
@@ -33,14 +36,16 @@ TMI_DATABASE_POSTGRES_PASSWORD         # Database password (automatically set to
 For authentication, configure OAuth applications:
 
 ### Google OAuth
+
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create OAuth 2.0 credentials
-3. Add redirect URI: `http://localhost:8080/auth/callback`
+3. Add redirect URI: `http://localhost:8080/oauth2/callback`
 4. Update the OAuth credentials in `config-development.yml`
 
 ### GitHub OAuth (Optional)
+
 1. Go to GitHub Settings → Developer settings → OAuth Apps
-2. Create new OAuth App with callback: `http://localhost:8080/auth/callback`
+2. Create new OAuth App with callback: `http://localhost:8080/oauth2/callback`
 3. Set `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID` and `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET`
 
 ## Database Containers
@@ -53,6 +58,7 @@ make infra-redis-start # Start Redis only
 ```
 
 **Connection details:**
+
 - PostgreSQL: `localhost:5432`, user: `postgres`, password: `postgres`, database: `tmi`
 - Redis: `localhost:6379`, no password
 
@@ -79,8 +85,9 @@ make build-server
 ```
 
 Set production environment variables:
+
 - `TMI_AUTH_JWT_SECRET` - Secure random key
-- `TMI_DATABASE_POSTGRES_PASSWORD` - Database password  
+- `TMI_DATABASE_POSTGRES_PASSWORD` - Database password
 - OAuth client credentials for your production domain
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for complete production setup instructions.

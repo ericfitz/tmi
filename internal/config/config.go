@@ -253,7 +253,7 @@ func getDefaultConfig() *Config {
 				SigningMethod:     "HS256",
 			},
 			OAuth: OAuthConfig{
-				CallbackURL: "http://localhost:8080/auth/callback",
+				CallbackURL: "http://localhost:8080/oauth2/callback",
 				Providers:   getDefaultOAuthProviders(),
 			},
 		},

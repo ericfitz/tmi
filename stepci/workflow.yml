@@ -18,7 +18,7 @@ tests:
       - id: getAuthProviders
         name: List available OAuth providers
         http:
-          url: http://localhost:8080/auth/providers
+          url: http://localhost:8080/oauth2/providers
           method: GET
           check:
             status: 200
@@ -64,7 +64,7 @@ tests:
       - id: getCurrentUser
         name: Get current user information
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           auth:
             $ref: '#/components/credentials/alice_auth'
@@ -110,7 +110,7 @@ tests:
       - id: handleOAuthCallback
         name: Handle OAuth callback
         http:
-          url: http://localhost:8080/auth/callback
+          url: http://localhost:8080/oauth2/callback
           method: GET
           params:
             code: Duis officia cillum
@@ -122,7 +122,7 @@ tests:
       - id: logoutUser
         name: Logout user
         http:
-          url: http://localhost:8080/auth/logout
+          url: http://localhost:8080/oauth2/logout
           method: POST
           headers:
             Content-Type: application/json

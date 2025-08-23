@@ -22,7 +22,7 @@ func IntegrationExample() {
 	fmt.Println(`
 import (
 	// ... existing imports
-	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/oauth2"
 )`)
 
 	fmt.Println("\n2. Replace the existing JWT middleware with the new auth middleware:")
@@ -89,7 +89,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api"
-	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/oauth2"
 	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
 )

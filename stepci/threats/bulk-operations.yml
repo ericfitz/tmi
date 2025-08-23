@@ -195,7 +195,7 @@ tests:
       - id: authenticate_for_edge_cases
         name: Authenticate for bulk edge cases
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
@@ -364,7 +364,7 @@ tests:
       - id: authenticate_for_failures
         name: Authenticate for bulk failure tests
         http:
-          url: http://localhost:8080/auth/token/test
+          url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json

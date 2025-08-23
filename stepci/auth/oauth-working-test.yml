@@ -10,7 +10,7 @@ tests:
       - id: oauth_start
         name: Start OAuth flow
         http:
-          url: http://localhost:8080/auth/login/test?client_callback=http://localhost:8079/&user_hint=testuser
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=testuser
           method: GET
           followRedirects: true
           check:
@@ -39,7 +39,7 @@ tests:
       - id: test_auth
         name: Test authentication
         http:
-          url: http://localhost:8080/auth/me
+          url: http://localhost:8080/oauth2/me
           method: GET
           auth:
             bearer:
