@@ -30,8 +30,8 @@ tests:
           check:
             status: 200
             jsonpath:
-              $.email: "{{ workflow_user_hint }}@test.tmi"
-              $.name: "{{ workflow_user_hint | title }} (Test User)"
+              $.email: "{{ workflow_login_hint }}@test.tmi"
+              $.name: "{{ workflow_login_hint | title }} (Test User)"
         captures:
           user_id:
             jsonpath: $.sub

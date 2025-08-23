@@ -34,7 +34,7 @@ class OAuthHandler:
         provider: str,
         redirect_uri: Optional[str] = None,
         state: Optional[str] = None,
-        user_hint: Optional[str] = None,
+        login_hint: Optional[str] = None,
         open_browser: bool = True,
     ) -> str:
         """
@@ -44,7 +44,7 @@ class OAuthHandler:
             provider: OAuth provider name (e.g., 'google', 'github', 'test')
             redirect_uri: Optional redirect URI
             state: Optional state parameter for security
-            user_hint: Optional user hint for test provider (creates predictable users)
+            login_hint: Optional login_hint for test provider (creates predictable users)
             open_browser: Whether to automatically open browser
 
         Returns:
@@ -55,8 +55,8 @@ class OAuthHandler:
             params["redirect_uri"] = redirect_uri
         if state:
             params["state"] = state
-        if user_hint and provider == "test":
-            params["user_hint"] = user_hint
+        if login_hint and provider == "test":
+            params["login_hint"] = login_hint
 
         auth_url = f"{self.client.base_url}/oauth2/authorize/{provider}"
         if params:
@@ -106,13 +106,13 @@ class OAuthHandler:
         return token_data
 
     def login_test_user(
-        self, user_hint: str = None, redirect_uri: Optional[str] = None
+        self, login_hint: str = None, redirect_uri: Optional[str] = None
     ) -> str:
         """
         Convenience method for starting OAuth flow with test provider.
 
         Args:
-            user_hint: Create specific test user (e.g., 'alice' creates 'alice@test.tmi')
+            login_hint: Create specific test user (e.g., 'alice' creates 'alice@test.tmi')
             redirect_uri: Optional redirect URI for OAuth callback
 
         Returns:
@@ -126,12 +126,12 @@ class OAuthHandler:
             auth_url = auth.login_test_user()
 
         Note:
-            - User hint format: 3-20 characters, alphanumeric + hyphens, case-insensitive
+            - login_hint format: 3-20 characters, alphanumeric + hyphens, case-insensitive
             - Only works with test provider (development/testing only)
             - Generated email: {hint}@test.tmi, name: {Hint} (Test User)
         """
         return self.start_oauth_flow(
-            "test", redirect_uri=redirect_uri, user_hint=user_hint
+            "test", redirect_uri=redirect_uri, login_hint=login_hint
         )
 
     def handle_callback(self, callback_url: str) -> Dict[str, Any]:

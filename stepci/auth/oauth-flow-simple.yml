@@ -10,9 +10,9 @@ tests:
     steps:
       # 1. Initiate OAuth flow 
       - id: start_oauth
-        name: Start OAuth flow with user hint
+        name: Start OAuth flow with login_hint
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=testuser
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint=testuser
           method: GET
           followRedirects: true
           check:

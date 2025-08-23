@@ -14,7 +14,7 @@ config:
     bob_email: "bob@test.tmi"         # Writer user with write permissions
     chuck_email: "chuck@test.tmi"     # Reader user with read permissions
     
-    # Legacy User Hint Configuration (for OAuth-specific tests only)
+    # Legacy login_hint Configuration (for OAuth-specific tests only)
     # Format: 3-20 characters, alphanumeric + hyphens, case-insensitive
     # Generates: {hint}@test.tmi email addresses for consistent testing
     test_user_owner: "alice"          # Creates alice@test.tmi

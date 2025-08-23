@@ -105,24 +105,24 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 	}
 	
 	// Generate a fake access token for valid codes only
-	// Include user hint in the access token if provided
+	// Include login_hint in the access token if provided
 	timestamp := time.Now().Unix()
 	accessToken := fmt.Sprintf("test_access_token_%d", timestamp)
 	
-	// Check if user hint is provided in context
+	// Check if login_hint is provided in context
 	if userHint, ok := ctx.Value(userHintContextKey).(string); ok && userHint != "" {
-		fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: Found user hint: %s\n", userHint)
-		// Validate and sanitize user hint
+		fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: Found login_hint: %s\n", userHint)
+		// Validate and sanitize login_hint
 		if validatedHint := p.validateUserHint(userHint); validatedHint != "" {
-			// Encode user hint into access token
+			// Encode login_hint into access token
 			encodedHint := base64.URLEncoding.EncodeToString([]byte(validatedHint))
 			accessToken = fmt.Sprintf("test_access_token_%d_hint_%s", timestamp, encodedHint)
 			fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: Generated token with hint: %s\n", accessToken)
 		} else {
-			fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: User hint validation failed: %s\n", userHint)
+			fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: login_hint validation failed: %s\n", userHint)
 		}
 	} else {
-		fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: No user hint in context\n")
+		fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: No login_hint in context\n")
 	}
 	
 	idToken := p.generateTestIDToken()
@@ -139,9 +139,9 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
 	fmt.Printf("[TEST_PROVIDER] DEBUG GetUserInfo: Called with access token: %s\n", accessToken)
 	
-	// Check if access token contains a user hint
+	// Check if access token contains a login_hint
 	userHint := p.extractUserHintFromToken(accessToken)
-	fmt.Printf("[TEST_PROVIDER] DEBUG GetUserInfo: Extracted user hint: '%s'\n", userHint)
+	fmt.Printf("[TEST_PROVIDER] DEBUG GetUserInfo: Extracted login_hint: '%s'\n", userHint)
 	fmt.Printf("[TEST_PROVIDER] DEBUG GetUserInfo: Access token contains _hint_: %t\n", strings.Contains(accessToken, "_hint_"))
 	
 	if strings.Contains(accessToken, "_hint_") {
@@ -150,7 +150,7 @@ func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 	}
 	
 	if userHint != "" {
-		// Use the provided user hint
+		// Use the provided login_hint
 		username := userHint
 		email := fmt.Sprintf("%s@test.tmi", username)
 		displayName := p.generateDisplayName(username)
@@ -180,7 +180,7 @@ func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 
 // ValidateIDToken validates the test ID token (always succeeds)
 func (p *TestProvider) ValidateIDToken(ctx context.Context, idToken string) (*IDTokenClaims, error) {
-	// Check if user hint is available in context (for consistency with other methods)
+	// Check if login_hint is available in context (for consistency with other methods)
 	if userHint, ok := ctx.Value(userHintContextKey).(string); ok && userHint != "" {
 		if validatedHint := p.validateUserHint(userHint); validatedHint != "" {
 			username := validatedHint
@@ -241,7 +241,7 @@ func (p *TestProvider) generateTestIDToken() string {
 	return fmt.Sprintf("%x.%x.test-signature", headerBytes, payloadBytes)
 }
 
-// validateUserHint validates and sanitizes a user hint
+// validateUserHint validates and sanitizes a login_hint
 func (p *TestProvider) validateUserHint(hint string) string {
 	if hint == "" {
 		return ""
@@ -269,7 +269,7 @@ func (p *TestProvider) validateUserHint(hint string) string {
 	return hint
 }
 
-// extractUserHintFromToken extracts user hint from access token if present
+// extractUserHintFromToken extracts login_hint from access token if present
 func (p *TestProvider) extractUserHintFromToken(accessToken string) string {
 	// Check if token contains hint pattern: test_access_token_{timestamp}_hint_{encoded_hint}
 	if !strings.Contains(accessToken, "_hint_") {

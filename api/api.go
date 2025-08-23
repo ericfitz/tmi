@@ -1215,7 +1215,7 @@ type AuthorizeOAuthProviderParams struct {
 	State *string `form:"state,omitempty" json:"state,omitempty"`
 
 	// UserHint User identity hint for test OAuth provider. Allows specifying a desired user identity for testing and automation. Only supported by the test provider (ignored by production providers like Google, GitHub, etc.). Must be 3-20 characters, alphanumeric and hyphens only.
-	UserHint *string `form:"user_hint,omitempty" json:"user_hint,omitempty"`
+	UserHint *string `form:"login_hint,omitempty" json:"login_hint,omitempty"`
 }
 
 // HandleOAuthCallbackParams defines parameters for HandleOAuthCallback.
@@ -2515,11 +2515,11 @@ func (siw *ServerInterfaceWrapper) AuthorizeOAuthProvider(c *gin.Context) {
 		return
 	}
 
-	// ------------- Optional query parameter "user_hint" -------------
+	// ------------- Optional query parameter "login_hint" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "user_hint", c.Request.URL.Query(), &params.UserHint)
+	err = runtime.BindQueryParameter("form", true, false, "login_hint", c.Request.URL.Query(), &params.UserHint)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter user_hint: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter login_hint: %w", err), http.StatusBadRequest)
 		return
 	}
 

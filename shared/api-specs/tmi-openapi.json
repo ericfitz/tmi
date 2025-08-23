@@ -2518,7 +2518,7 @@
             }
           },
           {
-            "name": "user_hint",
+            "name": "login_hint",
             "in": "query",
             "required": false,
             "description": "User identity hint for test OAuth provider. Allows specifying a desired user identity for testing and automation. Only supported by the test provider (ignored by production providers like Google, GitHub, etc.). Must be 3-20 characters, alphanumeric and hyphens only.",

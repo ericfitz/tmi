@@ -407,27 +407,27 @@ GET /oauth2/authorize/{provider}?redirect_uri=https://client.example.com/callbac
 - `provider` (path): OAuth provider ID (e.g., "test", "google", "github")
 - `redirect_uri` (query, optional): Client callback URL for tokens
 - `state` (query, optional): CSRF protection parameter
-- **`user_hint` (query, optional)**: For test provider only - creates predictable test users
+- **`login_hint` (query, optional)**: For test provider only - creates predictable test users
 
-**Test Provider User Hints (Development/Testing Only):**
+**Test Provider login_hints (Development/Testing Only):**
 
-For automation-friendly testing, the test OAuth provider supports user hints:
+For automation-friendly testing, the test OAuth provider supports login_hints:
 
 ```http
 # Create specific test user 'alice@test.tmi'
-GET /oauth2/authorize/test?user_hint=alice
+GET /oauth2/authorize/test?login_hint=alice
 
 # Create user 'qa-automation@test.tmi' for automated testing
-GET /oauth2/authorize/test?user_hint=qa-automation
+GET /oauth2/authorize/test?login_hint=qa-automation
 
 # Combined with client callback
-GET /oauth2/authorize/test?user_hint=alice&client_callback=https://client.example.com/callback
+GET /oauth2/authorize/test?login_hint=alice&client_callback=https://client.example.com/callback
 
-# Without user hint - creates random 'testuser-12345678@test.tmi' (backwards compatible)
+# Without login_hint - creates random 'testuser-12345678@test.tmi' (backwards compatible)
 GET /oauth2/authorize/test
 ```
 
-**User Hint Specifications:**
+**login_hint Specifications:**
 
 - **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive
 - **Pattern**: `^[a-zA-Z0-9-]{3,20}$`

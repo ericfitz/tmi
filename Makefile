@@ -912,7 +912,7 @@ stepci-auth-user:
 		exit 1; \
 	fi
 	@echo -e "$(BLUE)[INFO]$(NC) Initiating OAuth flow for user: $(user)..."
-	@curl -sL "http://localhost:8080/oauth2/authorize/test?user_hint=$(user)&client_callback=http://localhost:8079/" > /dev/null || { \
+	@curl -sL "http://localhost:8080/oauth2/authorize/test?login_hint=$(user)&client_callback=http://localhost:8079/" > /dev/null || { \
 		echo -e "$(RED)[ERROR]$(NC) Failed to initiate OAuth flow for $(user)"; \
 		exit 1; \
 	}

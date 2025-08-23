@@ -3,8 +3,8 @@ name: OAuth Authentication Flow Tests
 config:
   http:
   variables:
-    # User Hint for Predictable Test User
-    test_user_hint: "qa-automation"
+    # login_hint for Predictable Test User
+    test_login_hint: "qa-automation"
 tests:
   oauth_success_flow:
     name: Complete OAuth Authentication Flow - Success Cases
@@ -58,9 +58,9 @@ tests:
             jsonpath: $.providers[?(@.id == 'test')]
 
       - id: initiate_oauth_flow
-        name: Initiate OAuth flow with callback stub and user hint
+        name: Initiate OAuth flow with callback stub and login_hint
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=qa-automation
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint=qa-automation
           method: GET
           followRedirects: true
           check:
@@ -169,7 +169,7 @@ tests:
       # framework limitation, not an API issue.
       
       - id: get_user_info_fresh_token
-        name: Get current user info with fresh token for specific user (user hint)
+        name: Get current user info with fresh token for specific user (login_hint)
         http:
           url: http://localhost:8080/oauth2/token/test
           method: POST
@@ -178,7 +178,7 @@ tests:
           json:
             code: "test_auth_code_qa-automation"
             redirect_uri: "http://localhost:8079/"
-            user_hint: "qa-automation"
+            login_hint: "qa-automation"
           check:
             status: 200
         captures:
@@ -202,7 +202,7 @@ tests:
                 name:
                   type: string
             jsonpath:
-              # Validate predictable user email from user hint  
+              # Validate predictable user email from login_hint  
               $.email: "qa-automation@test.tmi"
         captures:
           user_id:
@@ -320,13 +320,13 @@ tests:
           check:
             status: 401
 
-  user_hint_validation:
-    name: User Hint Validation Tests
+  login_hint_validation:
+    name: login_hint Validation Tests
     steps:
-      - id: valid_user_hint_alice
-        name: Test OAuth with valid user hint 'alice'
+      - id: valid_login_hint_alice
+        name: Test OAuth with valid login_hint 'alice'
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=alice
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint=alice
           method: GET
           followRedirects: true
           check:
@@ -337,7 +337,7 @@ tests:
         wait: 500ms
 
       - id: get_alice_token
-        name: Get Alice's token with user hint
+        name: Get Alice's token with login_hint
         http:
           url: http://localhost:8080/oauth2/token/test
           method: POST
@@ -346,7 +346,7 @@ tests:
           json:
             code: "test_auth_code_alice"
             redirect_uri: "http://localhost:8079/"
-            user_hint: "alice"
+            login_hint: "alice"
           check:
             status: 200
         captures:
@@ -369,38 +369,38 @@ tests:
           alice_user_id:
             jsonpath: $.sub
 
-      - id: valid_user_hint_hyphen
-        name: Test OAuth with user hint containing hyphens
+      - id: valid_login_hint_hyphen
+        name: Test OAuth with login_hint containing hyphens
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=test-user
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint=test-user
           method: GET
           followRedirects: true
           check:
             status: 200
 
-      - id: invalid_user_hint_too_short
-        name: Test OAuth with invalid user hint (too short)
+      - id: invalid_login_hint_too_short
+        name: Test OAuth with invalid login_hint (too short)
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=ab
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint=ab
           method: GET
           followRedirects: true
           check:
-            status: 400  # Should reject invalid user hint
+            status: 400  # Should reject invalid login_hint
 
-      - id: invalid_user_hint_too_long
-        name: Test OAuth with invalid user hint (too long)
+      - id: invalid_login_hint_too_long
+        name: Test OAuth with invalid login_hint (too long)
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=this_user_hint_is_way_too_long_for_validation
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint=this_login_hint_is_way_too_long_for_validation
           method: GET
           followRedirects: true
           check:
-            status: 400  # Should reject invalid user hint
+            status: 400  # Should reject invalid login_hint
 
-      - id: invalid_user_hint_special_chars
-        name: Test OAuth with invalid user hint (special characters)
+      - id: invalid_login_hint_special_chars
+        name: Test OAuth with invalid login_hint (special characters)
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=user@test.com
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint=user@test.com
           method: GET
           followRedirects: true
           check:
-            status: 400  # Should reject invalid user hint
+            status: 400  # Should reject invalid login_hint

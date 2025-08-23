@@ -279,7 +279,7 @@ assert.Equal(t, diagramData["name"], getResponse["name"])
 - Generate tokens through `GenerateTokens()`
 - Use the same authenticated user throughout related test operations
 - Pass the Bearer token in the Authorization header
-- **Use user hints for predictable test users** (see below)
+- **Use login_hints for predictable test users** (see below)
 
 **DON'T:**
 
@@ -288,20 +288,20 @@ assert.Equal(t, diagramData["name"], getResponse["name"])
 - Mix different user contexts within a single test flow
 - Assume authentication state carries between different API calls
 
-### Test OAuth Provider User Hints
+### Test OAuth Provider login_hints
 
-For automation-friendly testing with predictable user identities, the test OAuth provider supports **user hints**:
+For automation-friendly testing with predictable user identities, the test OAuth provider supports **login_hints**:
 
 **Basic Usage:**
 
 ```bash
 # Create specific test user 'alice@test.tmi' instead of random
-curl "http://localhost:8080/oauth2/authorize/test?user_hint=alice"
+curl "http://localhost:8080/oauth2/authorize/test?login_hint=alice"
 
 # Create user 'qa-automation@test.tmi' for automated testing
-curl "http://localhost:8080/oauth2/authorize/test?user_hint=qa-automation"
+curl "http://localhost:8080/oauth2/authorize/test?login_hint=qa-automation"
 
-# Without user hint - creates random 'testuser-12345678@test.tmi' (backwards compatible)
+# Without login_hint - creates random 'testuser-12345678@test.tmi' (backwards compatible)
 curl "http://localhost:8080/oauth2/authorize/test"
 ```
 
@@ -312,13 +312,13 @@ func TestWithSpecificUser(t *testing.T) {
     suite := SetupSubEntityIntegrationTest(t)
     defer suite.TeardownSubEntityIntegrationTest(t)
 
-    // Create predictable test user using user hint
+    // Create predictable test user using login_hint
     client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
         return http.ErrUseLastResponse
     }}
 
-    // Step 1: Initiate OAuth with user hint
-    resp, err := client.Get("http://localhost:8080/oauth2/authorize/test?user_hint=alice")
+    // Step 1: Initiate OAuth with login_hint
+    resp, err := client.Get("http://localhost:8080/oauth2/authorize/test?login_hint=alice")
     require.NoError(t, err)
 
     // Step 2: Follow redirect to get tokens
@@ -344,7 +344,7 @@ func TestWithSpecificUser(t *testing.T) {
 }
 ```
 
-**User Hint Specifications:**
+**login_hint Specifications:**
 
 - **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive
 - **Validation**: Pattern `^[a-zA-Z0-9-]{3,20}$`

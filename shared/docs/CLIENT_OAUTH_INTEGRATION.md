@@ -186,7 +186,7 @@ function loginWithTestProvider(userHint = null) {
   // Define client callback URL
   const clientCallbackUrl = `${window.location.origin}/oauth2/callback`;
 
-  // Build OAuth URL with optional user hint for predictable testing
+  // Build OAuth URL with optional login_hint for predictable testing
   const separator = provider.auth_url.includes("?") ? "&" : "?";
   let authUrl = `${
     provider.auth_url
@@ -194,9 +194,9 @@ function loginWithTestProvider(userHint = null) {
     clientCallbackUrl
   )}`;
 
-  // Add user hint for test automation (test provider only)
+  // Add login_hint for test automation (test provider only)
   if (userHint) {
-    authUrl += `&user_hint=${encodeURIComponent(userHint)}`;
+    authUrl += `&login_hint=${encodeURIComponent(userHint)}`;
   }
 
   // Redirect to TMI OAuth endpoint
@@ -650,20 +650,20 @@ Solution: Verify:
 3. Token refresh mechanism is working
 ```
 
-**Issue: Test provider user hints not working**
+**Issue: Test provider login_hints not working**
 
 ```
 Solution: Check:
 1. Test provider is enabled in development/test builds only
-2. User hint parameter format: 3-20 characters, alphanumeric + hyphens
-3. User hint is properly URL encoded in the request
-4. Using correct endpoint: /oauth2/authorize/test?user_hint=alice
+2. login_hint parameter format: 3-20 characters, alphanumeric + hyphens
+3. login_hint is properly URL encoded in the request
+4. Using correct endpoint: /oauth2/authorize/test?login_hint=alice
 
 Examples:
-✓ Correct: user_hint=alice
-✓ Correct: user_hint=qa-automation
-✗ Wrong: user_hint=a (too short)
-✗ Wrong: user_hint=user@domain.com (invalid characters)
+✓ Correct: login_hint=alice
+✓ Correct: login_hint=qa-automation
+✗ Wrong: login_hint=a (too short)
+✗ Wrong: login_hint=user@domain.com (invalid characters)
 ```
 
 ### Debug Tools
@@ -849,7 +849,9 @@ Here's a complete working example of OAuth integration:
 
           // Load user info
           try {
-            const response = await this.makeAuthenticatedRequest("/oauth2/userinfo");
+            const response = await this.makeAuthenticatedRequest(
+              "/oauth2/userinfo"
+            );
             const user = await response.json();
             document.getElementById("user-info").innerHTML = `
                         <p>Email: ${user.email}</p>

@@ -155,8 +155,8 @@ make oauth-stub-start
 # 2. Initiate OAuth flow (TMI uses Implicit Flow)
 curl "http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/"
 
-# 2a. OR with user hint for predictable test users (test provider only)
-curl "http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint=alice"
+# 2a. OR with login_hint for predictable test users (test provider only)
+curl "http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint=alice"
 
 # 3. Fetch the captured credentials with flow detection
 curl http://localhost:8079/latest | jq '.'
@@ -168,25 +168,25 @@ curl "http://localhost:8079/creds?userid=alice" | jq '.'
 cat /tmp/oauth-stub.log
 ```
 
-**Test Provider User Hints (Development/Testing Only):**
+**Test Provider login_hints (Development/Testing Only):**
 
-The test OAuth provider supports user hints for automation-friendly testing with predictable user identities:
+The test OAuth provider supports login_hints for automation-friendly testing with predictable user identities:
 
 ```bash
 # Create specific test user 'alice@test.tmi'
-curl "http://localhost:8080/oauth2/authorize/test?user_hint=alice"
+curl "http://localhost:8080/oauth2/authorize/test?login_hint=alice"
 
 # Create user 'qa-automation@test.tmi' for automated testing
-curl "http://localhost:8080/oauth2/authorize/test?user_hint=qa-automation"
+curl "http://localhost:8080/oauth2/authorize/test?login_hint=qa-automation"
 
-# User hint with OAuth callback stub for client testing
-curl "http://localhost:8080/oauth2/authorize/test?user_hint=alice&client_callback=http://localhost:8079/"
+# login_hint with OAuth callback stub for client testing
+curl "http://localhost:8080/oauth2/authorize/test?login_hint=alice&client_callback=http://localhost:8079/"
 
-# Without user hint (backwards compatible) - creates random 'testuser-12345678@test.tmi'
+# Without login_hint (backwards compatible) - creates random 'testuser-12345678@test.tmi'
 curl "http://localhost:8080/oauth2/authorize/test"
 ```
 
-**User Hint Specifications:**
+**login_hint Specifications:**
 
 - **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive
 - **Validation**: Pattern `^[a-zA-Z0-9-]{3,20}$`

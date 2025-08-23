@@ -31,7 +31,7 @@ This directory contains scripts that are actively used by the refactored build s
 
 - **`api_test.py`** - Human-readable API testing with simple script format and OAuth integration
   - **Features**: OAuth authentication, variable substitution, JSON expectations, response validation
-  - **User Hint Support**: Works with TMI test provider user hints for predictable test users
+  - **login_hint Support**: Works with TMI test provider login_hints for predictable test users
   - **Usage**: `make test-api-script script=<script.txt>`
   - **Examples**: `test_examples/` directory contains sample test scripts
 
@@ -81,7 +81,7 @@ python3 scripts/patch-json.py -s shared/api-specs/tmi-openapi.json -p "$.compone
 # Run API tests with script format
 make test-api-script script=test_examples/basic_api_test.txt
 
-# OAuth integration with user hints for predictable test users
+# OAuth integration with login_hints for predictable test users
 echo "auth alice hint=alice" > test_script.txt
 echo "request getuser get /oauth2/me \$alice.jwt\$" >> test_script.txt
 echo "expect \$getuser.body.email\$ == alice@test.tmi" >> test_script.txt

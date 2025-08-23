@@ -3,17 +3,17 @@ name: JWT Token Management Tests
 config:
   http:
   variables:
-    # User Hint for Predictable Test User
-    test_user_hint: "token-test-user"
+    # login_hint for Predictable Test User
+    test_login_hint: "token-test-user"
 tests:
   token_refresh_success:
     name: JWT Token Refresh - Success Cases
     steps:
       # Get initial tokens using OAuth stub flow
       - id: initiate_oauth_flow
-        name: Initiate OAuth flow with callback stub and user hint
+        name: Initiate OAuth flow with callback stub and login_hint
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&user_hint={{ test_user_hint }}
+          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint={{ test_login_hint }}
           method: GET
           followRedirects: true
           check:
@@ -41,16 +41,16 @@ tests:
             jsonpath: $.refresh_token
 
       - id: get_fresh_token_fallback
-        name: Get fresh token as fallback for StepCI with user hint
+        name: Get fresh token as fallback for StepCI with login_hint
         http:
           url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
           json:
-            code: "test_auth_code_{{ test_user_hint }}"
+            code: "test_auth_code_{{ test_login_hint }}"
             redirect_uri: "http://localhost:8079/"
-            user_hint: "{{ test_user_hint }}"
+            login_hint: "{{ test_login_hint }}"
           check:
             status: 200
         captures:
@@ -174,16 +174,16 @@ tests:
     steps:
       # Get fresh tokens using fallback method
       - id: get_fresh_tokens
-        name: Get fresh JWT tokens with user hint
+        name: Get fresh JWT tokens with login_hint
         http:
           url: http://localhost:8080/oauth2/token/test
           method: POST
           headers:
             Content-Type: application/json
           json:
-            code: "test_auth_code_{{ test_user_hint }}"
+            code: "test_auth_code_{{ test_login_hint }}"
             redirect_uri: "http://localhost:8079/"
-            user_hint: "{{ test_user_hint }}"
+            login_hint: "{{ test_login_hint }}"
           check:
             status: 200
         captures:

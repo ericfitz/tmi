@@ -17,10 +17,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// Context key type for user hint
+// Context key type for login_hint
 type contextKey string
 
-const userHintContextKey contextKey = "user_hint"
+const userHintContextKey contextKey = "login_hint"
 
 // Handlers provides HTTP handlers for authentication
 type Handlers struct {
@@ -165,9 +165,9 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	// Get optional client callback URL from query parameter
 	clientCallback := c.Query("client_callback")
 
-	// Get optional user hint for test provider automation
-	userHint := c.Query("user_hint")
-	logging.Get().WithContext(c).Debug("OAuth Authorize handler - extracted query parameters: provider=%s, client_callback=%s, user_hint=%s",
+	// Get optional login_hint for test provider automation
+	userHint := c.Query("login_hint")
+	logging.Get().WithContext(c).Debug("OAuth Authorize handler - extracted query parameters: provider=%s, client_callback=%s, login_hint=%s",
 		providerID, clientCallback, userHint)
 
 	// Get state parameter from client or generate one if not provided
@@ -196,8 +196,8 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		stateData["client_callback"] = clientCallback
 	}
 	if userHint != "" {
-		stateData["user_hint"] = userHint
-		logging.Get().WithContext(c).Debug("Storing user hint in state: %s", userHint)
+		stateData["login_hint"] = userHint
+		logging.Get().WithContext(c).Debug("Storing login_hint in state: %s", userHint)
 	}
 
 	stateJSON, err := json.Marshal(stateData)
@@ -282,9 +282,9 @@ func (h *Handlers) parseCallbackState(c *gin.Context, state string) (*callbackSt
 		// Handle new format with structured data
 		result.ProviderID = stateMap["provider"]
 		result.ClientCallback = stateMap["client_callback"]
-		result.UserHint = stateMap["user_hint"]
+		result.UserHint = stateMap["login_hint"]
 
-		logging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, client_callback=%s, user_hint=%s",
+		logging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, client_callback=%s, login_hint=%s",
 			result.ProviderID, result.ClientCallback, result.UserHint)
 	}
 
@@ -306,7 +306,7 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 		return err
 	}
 
-	// Set user hint context for test provider
+	// Set login_hint context for test provider
 	ctx = h.setUserHintContext(c, ctx, stateData)
 
 	// Exchange code for tokens and get user info
@@ -328,13 +328,13 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 	return h.generateAndReturnTokens(c, ctx, user, stateData)
 }
 
-// setUserHintContext adds user hint to context for test provider
+// setUserHintContext adds login_hint to context for test provider
 func (h *Handlers) setUserHintContext(c *gin.Context, ctx context.Context, stateData *callbackStateData) context.Context {
 	if stateData.UserHint != "" && stateData.ProviderID == "test" {
-		logging.Get().WithContext(c).Debug("Setting user hint in context for test provider: %s", stateData.UserHint)
+		logging.Get().WithContext(c).Debug("Setting login_hint in context for test provider: %s", stateData.UserHint)
 		return context.WithValue(ctx, userHintContextKey, stateData.UserHint)
 	} else if stateData.ProviderID == "test" {
-		logging.Get().WithContext(c).Debug("No user hint provided for test provider: provider=%s userHint=%s",
+		logging.Get().WithContext(c).Debug("No login_hint provided for test provider: provider=%s userHint=%s",
 			stateData.ProviderID, stateData.UserHint)
 	}
 	return ctx
@@ -342,7 +342,7 @@ func (h *Handlers) setUserHintContext(c *gin.Context, ctx context.Context, state
 
 // exchangeCodeAndGetUser exchanges OAuth code for tokens and gets user info
 func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, provider Provider, code string) (*TokenResponse, *UserInfo, *IDTokenClaims, error) {
-	logging.Get().WithContext(c).Debug("About to call ExchangeCode: code=%s has_user_hint_in_context=%v",
+	logging.Get().WithContext(c).Debug("About to call ExchangeCode: code=%s has_login_hint_in_context=%v",
 		code, ctx.Value(userHintContextKey) != nil)
 
 	tokenResponse, err := provider.ExchangeCode(ctx, code)

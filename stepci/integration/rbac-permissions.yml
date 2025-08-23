@@ -4,9 +4,9 @@ config:
   http:
   variables:
     # Pre-generated user credentials for RBAC testing
-    owner_user_hint: "alice"      # Owner user - alice@test.tmi
-    writer_user_hint: "bob"       # Writer user - bob@test.tmi  
-    reader_user_hint: "chuck"     # Reader user - chuck@test.tmi
+    owner_login_hint: "alice"      # Owner user - alice@test.tmi
+    writer_login_hint: "bob"       # Writer user - bob@test.tmi  
+    reader_login_hint: "chuck"     # Reader user - chuck@test.tmi
 tests:
   rbac_threat_model_permissions:
     name: RBAC Testing for Threat Models
