@@ -1015,14 +1015,8 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		OnlyDebugLevel: true,
 	}
 
-	// Create API server with handlers
-	apiServer := api.NewServer(wsLoggingConfig)
-
-	// Setup server with handlers
-	server := &Server{
-		config:    config,
-		apiServer: apiServer,
-	}
+	// Note: API server creation moved to after store initialization
+	// to ensure global stores are properly initialized first
 
 	// Initialize auth package with database connections
 	// This must be done before registering API routes to avoid conflicts
@@ -1032,6 +1026,49 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	if err != nil {
 		logger.Error("Failed to initialize authentication system: %v", err)
 		// Continue anyway for development purposes
+	}
+
+	// Note: Auth service adapter setup moved to after server creation
+
+	// Note: Middleware setup and route registration moved to after server creation
+
+	// Initialize database stores for API data persistence
+	logger.Info("Initializing database stores for threat models and diagrams")
+	dbManager := auth.GetDatabaseManager()
+
+	// Check if we're in test mode
+	if config.IsTestMode() {
+		logger.Info("Running in test mode - using in-memory stores")
+		api.InitializeInMemoryStores()
+	} else {
+		// In development or production, require database
+		if dbManager == nil || dbManager.Postgres() == nil {
+			logger.Error("Database not available - database is required in non-test mode")
+			os.Exit(1)
+		}
+
+		logger.Info("Using database-backed stores for data persistence")
+		api.InitializeDatabaseStores(dbManager.Postgres().GetDB())
+
+		// Test database connection
+		if err := dbManager.Postgres().GetDB().Ping(); err != nil {
+			logger.Error("Database connection failed: %v", err)
+			os.Exit(1)
+		}
+		logger.Info("Database connection verified successfully")
+	}
+
+	// Initialize performance monitoring
+	logger.Info("Initializing performance monitoring for collaborative editing")
+	api.InitializePerformanceMonitoring()
+
+	// Create API server with handlers (after stores are initialized)
+	apiServer := api.NewServer(wsLoggingConfig)
+
+	// Setup server with handlers
+	server := &Server{
+		config:    config,
+		apiServer: apiServer,
 	}
 
 	// Set up auth service adapter for OpenAPI integration
@@ -1044,7 +1081,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	}
 
 	// Initialize token blacklist service
-	dbManager := auth.GetDatabaseManager()
+	// Note: dbManager was already retrieved during store initialization
 	if dbManager != nil && dbManager.Redis() != nil {
 		logger.Info("Initializing token blacklist service")
 		server.tokenBlacklist = auth.NewTokenBlacklist(dbManager.Redis().GetClient())
@@ -1080,36 +1117,6 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Register WebSocket and custom non-REST routes
 	logger.Info("Registering WebSocket and custom routes")
 	apiServer.RegisterHandlers(r)
-
-	// Initialize database stores for API data persistence
-	logger.Info("Initializing database stores for threat models and diagrams")
-	dbManager = auth.GetDatabaseManager()
-
-	// Check if we're in test mode
-	if config.IsTestMode() {
-		logger.Info("Running in test mode - using in-memory stores")
-		api.InitializeInMemoryStores()
-	} else {
-		// In development or production, require database
-		if dbManager == nil || dbManager.Postgres() == nil {
-			logger.Error("Database not available - database is required in non-test mode")
-			os.Exit(1)
-		}
-
-		logger.Info("Using database-backed stores for data persistence")
-		api.InitializeDatabaseStores(dbManager.Postgres().GetDB())
-
-		// Test database connection
-		if err := dbManager.Postgres().GetDB().Ping(); err != nil {
-			logger.Error("Database connection failed: %v", err)
-			os.Exit(1)
-		}
-		logger.Info("Database connection verified successfully")
-	}
-
-	// Initialize performance monitoring
-	logger.Info("Initializing performance monitoring for collaborative editing")
-	api.InitializePerformanceMonitoring()
 
 	// Validate database schema after auth initialization
 	logger.Info("Validating database schema...")

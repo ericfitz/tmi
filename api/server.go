@@ -395,36 +395,47 @@ func (s *Server) GetThreatModelDiagrams(c *gin.Context, threatModelId openapi_ty
 
 // CreateThreatModelDiagram creates a new diagram
 func (s *Server) CreateThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID) {
-	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
-	HandleRequestError(c, ServerError("CreateThreatModelDiagram not yet implemented"))
+	// Create handler with websocket hub
+	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
+
+	// Delegate to existing implementation
+	handler.CreateDiagram(c, threatModelId.String())
 }
 
 // GetThreatModelDiagram gets a specific diagram
 func (s *Server) GetThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
-	c.Params = append(c.Params, gin.Param{Key: "diagram_id", Value: diagramId.String()})
-	HandleRequestError(c, ServerError("GetThreatModelDiagram not yet implemented"))
+	// Create handler with websocket hub
+	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
+
+	// Delegate to existing implementation
+	handler.GetDiagramByID(c, threatModelId.String(), diagramId.String())
 }
 
 // UpdateThreatModelDiagram updates a diagram
 func (s *Server) UpdateThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
-	c.Params = append(c.Params, gin.Param{Key: "diagram_id", Value: diagramId.String()})
-	HandleRequestError(c, ServerError("UpdateThreatModelDiagram not yet implemented"))
+	// Create handler with websocket hub
+	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
+
+	// Delegate to existing implementation
+	handler.UpdateDiagram(c, threatModelId.String(), diagramId.String())
 }
 
 // PatchThreatModelDiagram partially updates a diagram
 func (s *Server) PatchThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
-	c.Params = append(c.Params, gin.Param{Key: "diagram_id", Value: diagramId.String()})
-	HandleRequestError(c, ServerError("PatchThreatModelDiagram not yet implemented"))
+	// Create handler with websocket hub
+	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
+
+	// Delegate to existing implementation
+	handler.PatchDiagram(c, threatModelId.String(), diagramId.String())
 }
 
 // DeleteThreatModelDiagram deletes a diagram
 func (s *Server) DeleteThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
-	c.Params = append(c.Params, gin.Param{Key: "diagram_id", Value: diagramId.String()})
-	HandleRequestError(c, ServerError("DeleteThreatModelDiagram not yet implemented"))
+	// Create handler with websocket hub
+	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
+
+	// Delegate to existing implementation
+	handler.DeleteDiagram(c, threatModelId.String(), diagramId.String())
 }
 
 // Diagram Collaboration Methods (already partially implemented above)
@@ -433,32 +444,56 @@ func (s *Server) DeleteThreatModelDiagram(c *gin.Context, threatModelId openapi_
 
 // GetDiagramMetadata gets diagram metadata
 func (s *Server) GetDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Diagram metadata not yet implemented"))
+	// Create diagram metadata handler
+	handler := NewDiagramMetadataHandlerSimple()
+
+	// Delegate to existing implementation
+	handler.GetThreatModelDiagramMetadata(c)
 }
 
 // CreateDiagramMetadata creates diagram metadata
 func (s *Server) CreateDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Diagram metadata not yet implemented"))
+	// Create diagram metadata handler
+	handler := NewDiagramMetadataHandlerSimple()
+
+	// Delegate to existing implementation
+	handler.CreateThreatModelDiagramMetadata(c)
 }
 
 // BulkCreateDiagramMetadata bulk creates diagram metadata
 func (s *Server) BulkCreateDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	HandleRequestError(c, ServerError("Diagram metadata not yet implemented"))
+	// Create diagram metadata handler
+	handler := NewDiagramMetadataHandlerSimple()
+
+	// Delegate to existing implementation
+	handler.BulkCreateThreatModelDiagramMetadata(c)
 }
 
 // DeleteDiagramMetadataByKey deletes diagram metadata by key
 func (s *Server) DeleteDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Diagram metadata not yet implemented"))
+	// Create diagram metadata handler
+	handler := NewDiagramMetadataHandlerSimple()
+
+	// Delegate to existing implementation
+	handler.DeleteThreatModelDiagramMetadata(c)
 }
 
 // GetDiagramMetadataByKey gets diagram metadata by key
 func (s *Server) GetDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Diagram metadata not yet implemented"))
+	// Create diagram metadata handler
+	handler := NewDiagramMetadataHandlerSimple()
+
+	// Delegate to existing implementation
+	handler.GetThreatModelDiagramMetadataByKey(c)
 }
 
 // UpdateDiagramMetadataByKey updates diagram metadata by key
 func (s *Server) UpdateDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) {
-	HandleRequestError(c, ServerError("Diagram metadata not yet implemented"))
+	// Create diagram metadata handler
+	handler := NewDiagramMetadataHandlerSimple()
+
+	// Delegate to existing implementation
+	handler.UpdateThreatModelDiagramMetadata(c)
 }
 
 // Document Methods - Placeholder implementations (not yet implemented)
