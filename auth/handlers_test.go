@@ -590,3 +590,153 @@ func findProviderByID(providers []map[string]interface{}, id string) map[string]
 	}
 	return nil
 }
+
+func TestValidateOAuthScope(t *testing.T) {
+	handlers := &Handlers{}
+
+	tests := []struct {
+		name        string
+		scope       string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "Valid scope with openid, profile, email",
+			scope:       "openid profile email",
+			expectError: false,
+		},
+		{
+			name:        "Valid scope with only openid",
+			scope:       "openid",
+			expectError: false,
+		},
+		{
+			name:        "Valid scope with openid and profile",
+			scope:       "openid profile",
+			expectError: false,
+		},
+		{
+			name:        "Valid scope with openid and email",
+			scope:       "openid email",
+			expectError: false,
+		},
+		{
+			name:        "Valid scope with openid and unsupported scopes (should ignore unsupported)",
+			scope:       "openid profile email write read admin",
+			expectError: false,
+		},
+		{
+			name:        "Missing openid scope",
+			scope:       "profile email",
+			expectError: true,
+			errorMsg:    "OpenID Connect requires 'openid' scope",
+		},
+		{
+			name:        "Empty scope parameter",
+			scope:       "",
+			expectError: true,
+			errorMsg:    "scope parameter is required",
+		},
+		{
+			name:        "Whitespace only scope",
+			scope:       "   ",
+			expectError: true,
+			errorMsg:    "scope parameter cannot be empty",
+		},
+		{
+			name:        "Valid scope with extra whitespace",
+			scope:       "  openid   profile   email  ",
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := handlers.validateOAuthScope(tt.scope)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAuthorizeWithScopeValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	config := Config{
+		OAuth: OAuthConfig{
+			CallbackURL: "http://localhost:8080/oauth2/callback",
+			Providers: map[string]OAuthProviderConfig{
+				"google": {
+					ID:               "google",
+					Name:             "Google",
+					Enabled:          true,
+					ClientID:         "test-client-id",
+					AuthorizationURL: "https://accounts.google.com/o/oauth2/auth",
+				},
+			},
+		},
+	}
+
+	handlers := &Handlers{
+		config: config,
+		// Note: service is nil - this will test validation before service calls
+	}
+
+	router.GET("/oauth2/authorize", handlers.Authorize)
+
+	tests := []struct {
+		name           string
+		url            string
+		expectedStatus int
+		expectedError  string
+	}{
+		{
+			name:           "Missing scope parameter",
+			url:            "/oauth2/authorize?idp=google",
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "invalid_scope",
+		},
+		{
+			name:           "Invalid scope - missing openid",
+			url:            "/oauth2/authorize?idp=google&scope=profile%20email",
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "invalid_scope",
+		},
+		{
+			name:           "Valid scope - openid profile email",
+			url:            "/oauth2/authorize?idp=google&scope=openid%20profile%20email",
+			expectedStatus: http.StatusInternalServerError, // Will fail later due to missing service, but scope validation passes
+		},
+		{
+			name:           "Valid scope - only openid",
+			url:            "/oauth2/authorize?idp=google&scope=openid",
+			expectedStatus: http.StatusInternalServerError, // Will fail later due to missing service, but scope validation passes
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tt.url, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			if tt.expectedError != "" && w.Code == http.StatusBadRequest {
+				var errorResponse map[string]interface{}
+				err := json.Unmarshal(w.Body.Bytes(), &errorResponse)
+				require.NoError(t, err)
+				assert.Contains(t, errorResponse["error"], tt.expectedError)
+			}
+		})
+	}
+}

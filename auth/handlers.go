@@ -146,10 +146,16 @@ func (h *Handlers) getProvider(providerID string) (Provider, error) {
 func (h *Handlers) Authorize(c *gin.Context) {
 	providerID := c.Query("idp")
 	if providerID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Missing required parameter: idp",
-		})
-		return
+		// In non-production builds, default to "test" provider for convenience
+		if defaultProviderID := getDefaultProviderID(); defaultProviderID != "" {
+			logging.Get().WithContext(c).Debug("No idp parameter provided, defaulting to provider: %s", defaultProviderID)
+			providerID = defaultProviderID
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Missing required parameter: idp",
+			})
+			return
+		}
 	}
 
 	// Get the provider
@@ -168,13 +174,23 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		return
 	}
 
+	// Validate scope parameter according to OpenID Connect specification
+	scope := c.Query("scope")
+	if err := h.validateOAuthScope(scope); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_scope",
+			"error_description": err.Error(),
+		})
+		return
+	}
+
 	// Get optional client callback URL from query parameter
 	clientCallback := c.Query("client_callback")
 
 	// Get optional login_hint for test provider automation
 	userHint := c.Query("login_hint")
-	logging.Get().WithContext(c).Debug("OAuth Authorize handler - extracted query parameters: provider=%s, client_callback=%s, login_hint=%s",
-		providerID, clientCallback, userHint)
+	logging.Get().WithContext(c).Debug("OAuth Authorize handler - extracted query parameters: provider=%s, client_callback=%s, login_hint=%s, scope=%s",
+		providerID, clientCallback, userHint, scope)
 
 	// Get state parameter from client or generate one if not provided
 	state := c.Query("state")
@@ -479,10 +495,16 @@ func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, 
 func (h *Handlers) Exchange(c *gin.Context) {
 	providerID := c.Query("idp")
 	if providerID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Missing required parameter: idp",
-		})
-		return
+		// In non-production builds, default to "test" provider for convenience
+		if defaultProviderID := getDefaultProviderID(); defaultProviderID != "" {
+			logging.Get().WithContext(c).Debug("No idp parameter provided, defaulting to provider: %s", defaultProviderID)
+			providerID = defaultProviderID
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Missing required parameter: idp",
+			})
+			return
+		}
 	}
 
 	var req struct {
@@ -966,4 +988,54 @@ func getUserInfo(ctx context.Context, provider OAuthProviderConfig, accessToken 
 	}
 
 	return result, nil
+}
+
+// validateOAuthScope validates the scope parameter according to OpenID Connect specification
+// Requires at least "openid" scope, supports "profile" and "email", ignores other scopes
+func (h *Handlers) validateOAuthScope(scope string) error {
+	if scope == "" {
+		return fmt.Errorf("scope parameter is required")
+	}
+
+	// Split scope parameter by spaces (OAuth 2.0 spec uses space-separated values)
+	scopes := strings.Fields(scope)
+	if len(scopes) == 0 {
+		return fmt.Errorf("scope parameter cannot be empty")
+	}
+
+	// Check for required "openid" scope according to OpenID Connect specification
+	hasOpenID := false
+	for _, s := range scopes {
+		if s == "openid" {
+			hasOpenID = true
+			break
+		}
+	}
+
+	if !hasOpenID {
+		return fmt.Errorf("OpenID Connect requires 'openid' scope")
+	}
+
+	// Validate each scope - we support openid, profile, email and silently ignore others
+	supportedScopes := map[string]bool{
+		"openid":  true,
+		"profile": true,
+		"email":   true,
+	}
+
+	validScopes := make([]string, 0)
+	for _, s := range scopes {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue // Skip empty scopes
+		}
+		// We only validate that openid is present; other scopes are ignored (per spec)
+		if supportedScopes[s] {
+			validScopes = append(validScopes, s)
+		}
+		// Silently ignore unsupported scopes as per OAuth 2.0/OIDC spec
+	}
+
+	logging.Get().Debug("OAuth scope validation: requested=%s, validated=%v", scope, validScopes)
+	return nil
 }
