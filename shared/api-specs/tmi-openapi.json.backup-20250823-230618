@@ -1291,33 +1291,6 @@
             "type": "string",
             "format": "uri",
             "description": "URI to documentation about the error"
-          },
-          "details": {
-            "type": "object",
-            "description": "Additional context-specific error information",
-            "properties": {
-              "code": {
-                "type": "string",
-                "description": "Machine-readable error code for programmatic handling",
-                "example": "COLLABORATION_SESSION_NOT_FOUND"
-              },
-              "context": {
-                "type": "object",
-                "description": "Contextual information about the error",
-                "additionalProperties": true,
-                "example": {
-                  "diagram_id": "550e8400-e29b-41d4-a716-446655440000",
-                  "requested_operation": "end_session"
-                }
-              },
-              "suggestion": {
-                "type": "string",
-                "description": "Human-readable suggestion for resolving the error",
-                "example": "Start a collaboration session first using POST /diagrams/{id}/collaborate"
-              }
-            },
-            "additionalProperties": false,
-            "nullable": true
           }
         },
         "required": [

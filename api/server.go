@@ -330,6 +330,70 @@ func (s *Server) GetAuthProviders(c *gin.Context) {
 	}
 }
 
+// GetJWKS returns the JSON Web Key Set for JWT signature verification
+func (s *Server) GetJWKS(c *gin.Context) {
+	logger := logging.Get()
+	logger.Info("[SERVER_INTERFACE] GetJWKS called")
+	if s.authService != nil {
+		// Delegate to auth service (assuming it has a GetJWKS method)
+		if jwksHandler, ok := s.authService.(interface{ GetJWKS(c *gin.Context) }); ok {
+			jwksHandler.GetJWKS(c)
+		} else {
+			HandleRequestError(c, ServerError("JWKS endpoint not supported"))
+		}
+	} else {
+		HandleRequestError(c, ServerError("Auth service not configured"))
+	}
+}
+
+// GetOAuthAuthorizationServerMetadata returns OAuth 2.0 Authorization Server Metadata
+func (s *Server) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
+	logger := logging.Get()
+	logger.Info("[SERVER_INTERFACE] GetOAuthAuthorizationServerMetadata called")
+	if s.authService != nil {
+		// Delegate to auth service (assuming it has this method)
+		if metaHandler, ok := s.authService.(interface{ GetOAuthAuthorizationServerMetadata(c *gin.Context) }); ok {
+			metaHandler.GetOAuthAuthorizationServerMetadata(c)
+		} else {
+			HandleRequestError(c, ServerError("OAuth metadata endpoint not supported"))
+		}
+	} else {
+		HandleRequestError(c, ServerError("Auth service not configured"))
+	}
+}
+
+// GetOpenIDConfiguration returns OpenID Connect configuration
+func (s *Server) GetOpenIDConfiguration(c *gin.Context) {
+	logger := logging.Get()
+	logger.Info("[SERVER_INTERFACE] GetOpenIDConfiguration called")
+	if s.authService != nil {
+		// Delegate to auth service (assuming it has this method)
+		if oidcHandler, ok := s.authService.(interface{ GetOpenIDConfiguration(c *gin.Context) }); ok {
+			oidcHandler.GetOpenIDConfiguration(c)
+		} else {
+			HandleRequestError(c, ServerError("OpenID configuration endpoint not supported"))
+		}
+	} else {
+		HandleRequestError(c, ServerError("Auth service not configured"))
+	}
+}
+
+// IntrospectToken handles token introspection requests per RFC 7662
+func (s *Server) IntrospectToken(c *gin.Context) {
+	logger := logging.Get()
+	logger.Info("[SERVER_INTERFACE] IntrospectToken called")
+	if s.authService != nil {
+		// Delegate to auth service (assuming it has an IntrospectToken method)
+		if introspectHandler, ok := s.authService.(interface{ IntrospectToken(c *gin.Context) }); ok {
+			introspectHandler.IntrospectToken(c)
+		} else {
+			HandleRequestError(c, ServerError("Token introspection endpoint not supported"))
+		}
+	} else {
+		HandleRequestError(c, ServerError("Auth service not configured"))
+	}
+}
+
 // RefreshToken refreshes JWT token
 func (s *Server) RefreshToken(c *gin.Context) {
 	logger := logging.Get()

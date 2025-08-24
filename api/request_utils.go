@@ -183,6 +183,14 @@ type RequestError struct {
 	Status  int
 	Code    string
 	Message string
+	Details *ErrorDetails
+}
+
+// ErrorDetails provides structured context for errors
+type ErrorDetails struct {
+	Code       *string                `json:"code,omitempty"`
+	Context    map[string]interface{} `json:"context,omitempty"`
+	Suggestion *string                `json:"suggestion,omitempty"`
 }
 
 func (e *RequestError) Error() string {
@@ -192,10 +200,30 @@ func (e *RequestError) Error() string {
 // HandleRequestError sends an appropriate HTTP error response
 func HandleRequestError(c *gin.Context, err error) {
 	if reqErr, ok := err.(*RequestError); ok {
-		c.JSON(reqErr.Status, Error{
+		response := Error{
 			Error:            reqErr.Code,
 			ErrorDescription: reqErr.Message,
-		})
+		}
+
+		// Add details if provided
+		if reqErr.Details != nil {
+			response.Details = &struct {
+				Code       *string                 `json:"code,omitempty"`
+				Context    *map[string]interface{} `json:"context,omitempty"`
+				Suggestion *string                 `json:"suggestion,omitempty"`
+			}{
+				Code: reqErr.Details.Code,
+				Context: func() *map[string]interface{} {
+					if len(reqErr.Details.Context) > 0 {
+						return &reqErr.Details.Context
+					}
+					return nil
+				}(),
+				Suggestion: reqErr.Details.Suggestion,
+			}
+		}
+
+		c.JSON(reqErr.Status, response)
 	} else {
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
@@ -254,6 +282,48 @@ func UnauthorizedError(message string) *RequestError {
 		Status:  http.StatusUnauthorized,
 		Code:    "unauthorized",
 		Message: message,
+	}
+}
+
+// NotFoundErrorWithDetails creates a RequestError for resource not found with additional context
+func NotFoundErrorWithDetails(message string, code string, context map[string]interface{}, suggestion string) *RequestError {
+	return &RequestError{
+		Status:  http.StatusNotFound,
+		Code:    "not_found",
+		Message: message,
+		Details: &ErrorDetails{
+			Code:       &code,
+			Context:    context,
+			Suggestion: &suggestion,
+		},
+	}
+}
+
+// ServerErrorWithDetails creates a RequestError for internal server errors with additional context
+func ServerErrorWithDetails(message string, code string, context map[string]interface{}, suggestion string) *RequestError {
+	return &RequestError{
+		Status:  http.StatusInternalServerError,
+		Code:    "server_error",
+		Message: message,
+		Details: &ErrorDetails{
+			Code:       &code,
+			Context:    context,
+			Suggestion: &suggestion,
+		},
+	}
+}
+
+// InvalidInputErrorWithDetails creates a RequestError for validation failures with additional context
+func InvalidInputErrorWithDetails(message string, code string, context map[string]interface{}, suggestion string) *RequestError {
+	return &RequestError{
+		Status:  http.StatusBadRequest,
+		Code:    "invalid_input",
+		Message: message,
+		Details: &ErrorDetails{
+			Code:       &code,
+			Context:    context,
+			Suggestion: &suggestion,
+		},
 	}
 }
 
