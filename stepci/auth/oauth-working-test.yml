@@ -10,7 +10,7 @@ tests:
       - id: oauth_start
         name: Start OAuth flow
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint=testuser
+          url: http://localhost:8080/oauth2/authorize?idp=test&client_callback=http://localhost:8079/&login_hint=testuser
           method: GET
           followRedirects: true
           check:

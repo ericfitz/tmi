@@ -43,14 +43,14 @@ func (h *Handlers) RegisterRoutes(router *gin.Engine) {
 
 	auth := router.Group("/oauth2")
 	{
+		// Note: OAuth2 authorize and token endpoints are now handled by OpenAPI-generated routes
+		// with query parameters instead of path parameters. These routes are registered by the
+		// api.RegisterHandlers() call in the main server setup.
+
 		logger.Info("[AUTH_MODULE] Registering route: GET /oauth2/providers")
 		auth.GET("/providers", h.GetProviders)
-		logger.Info("[AUTH_MODULE] Registering route: GET /oauth2/authorize/:provider")
-		auth.GET("/authorize/:provider", h.Authorize)
 		logger.Info("[AUTH_MODULE] Registering route: GET /oauth2/callback")
 		auth.GET("/callback", h.Callback)
-		logger.Info("[AUTH_MODULE] Registering route: POST /oauth2/token/:provider")
-		auth.POST("/token/:provider", h.Exchange)
 		logger.Info("[AUTH_MODULE] Registering route: POST /oauth2/refresh")
 		auth.POST("/refresh", h.Refresh)
 		logger.Info("[AUTH_MODULE] Registering route: POST /oauth2/revoke")
@@ -114,8 +114,8 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 			}
 		}
 
-		// Build the authorization URL for this provider
-		authURL := fmt.Sprintf("%s/oauth2/authorize/%s", getBaseURL(c), id)
+		// Build the authorization URL for this provider (using query parameter format)
+		authURL := fmt.Sprintf("%s/oauth2/authorize?idp=%s", getBaseURL(c), id)
 
 		providers = append(providers, ProviderInfo{
 			ID:          id,
@@ -144,7 +144,13 @@ func (h *Handlers) getProvider(providerID string) (Provider, error) {
 
 // Authorize redirects to the OAuth provider's authorization page
 func (h *Handlers) Authorize(c *gin.Context) {
-	providerID := c.Param("provider")
+	providerID := c.Query("idp")
+	if providerID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Missing required parameter: idp",
+		})
+		return
+	}
 
 	// Get the provider
 	provider, err := h.getProvider(providerID)
@@ -471,7 +477,13 @@ func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, 
 
 // Exchange handles authorization code exchange for any provider
 func (h *Handlers) Exchange(c *gin.Context) {
-	providerID := c.Param("provider")
+	providerID := c.Query("idp")
+	if providerID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Missing required parameter: idp",
+		})
+		return
+	}
 
 	var req struct {
 		Code        string `json:"code" binding:"required"`

@@ -2447,7 +2447,7 @@
                       "id": "google",
                       "name": "Google",
                       "icon": "fa-brands fa-google",
-                      "auth_url": "http://localhost:8080/oauth2/authorize/google",
+                      "auth_url": "http://localhost:8080/oauth2/authorize?idp=google",
                       "redirect_uri": "http://localhost:8080/oauth2/callback",
                       "client_id": "675196260523-e8ppeu62pv222jhnpebe929b2tgl2jm0.apps.googleusercontent.com"
                     },
@@ -2455,7 +2455,7 @@
                       "id": "github",
                       "name": "GitHub",
                       "icon": "fa-brands fa-github",
-                      "auth_url": "http://localhost:8080/oauth2/authorize/github",
+                      "auth_url": "http://localhost:8080/oauth2/authorize?idp=github",
                       "redirect_uri": "http://localhost:8080/oauth2/callback",
                       "client_id": "your-github-client-id"
                     },
@@ -2463,7 +2463,7 @@
                       "id": "microsoft",
                       "name": "Microsoft",
                       "icon": "fa-brands fa-microsoft",
-                      "auth_url": "http://localhost:8080/oauth2/authorize/microsoft",
+                      "auth_url": "http://localhost:8080/oauth2/authorize?idp=microsoft",
                       "redirect_uri": "http://localhost:8080/oauth2/callback",
                       "client_id": "your-microsoft-client-id"
                     }
@@ -2478,7 +2478,7 @@
         }
       }
     },
-    "/oauth2/authorize/{provider}": {
+    "/oauth2/authorize": {
       "get": {
         "tags": [
           "Authentication"
@@ -2488,8 +2488,8 @@
         "operationId": "authorizeOAuthProvider",
         "parameters": [
           {
-            "name": "provider",
-            "in": "path",
+            "name": "idp",
+            "in": "query",
             "required": true,
             "description": "OAuth provider identifier",
             "schema": {
@@ -2504,7 +2504,7 @@
             "schema": {
               "type": "string",
               "format": "uri",
-              "example": "http://localhost:4200/auth/callback"
+              "example": "http://localhost:4200/oauth2/callback"
             }
           },
           {
@@ -2565,7 +2565,7 @@
         }
       }
     },
-    "/oauth2/token/{provider}": {
+    "/oauth2/token": {
       "post": {
         "tags": [
           "Authentication"
@@ -2575,8 +2575,8 @@
         "operationId": "exchangeOAuthCode",
         "parameters": [
           {
-            "name": "provider",
-            "in": "path",
+            "name": "idp",
+            "in": "query",
             "required": true,
             "description": "OAuth provider identifier",
             "schema": {

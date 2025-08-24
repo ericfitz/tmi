@@ -912,7 +912,7 @@ stepci-auth-user:
 		exit 1; \
 	fi
 	@echo -e "$(BLUE)[INFO]$(NC) Initiating OAuth flow for user: $(user)..."
-	@curl -sL "http://localhost:8080/oauth2/authorize/test?login_hint=$(user)&client_callback=http://localhost:8079/" > /dev/null || { \
+	@curl -sL "http://localhost:8080/oauth2/authorize?idp=test&login_hint=$(user)&client_callback=http://localhost:8079/" > /dev/null || { \
 		echo -e "$(RED)[ERROR]$(NC) Failed to initiate OAuth flow for $(user)"; \
 		exit 1; \
 	}
@@ -1031,7 +1031,7 @@ test-api:
 	if [ -z "$$SERVER_PORT" ]; then SERVER_PORT="8080"; fi; \
 	if [ "$(auth)" = "only" ]; then \
 		echo -e "$(BLUE)[INFO]$(NC) Getting JWT token via OAuth test provider..."; \
-		AUTH_REDIRECT=$$(curl -s "http://localhost:$$SERVER_PORT/oauth2/authorize/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
+		AUTH_REDIRECT=$$(curl -s "http://localhost:$$SERVER_PORT/oauth2/authorize?idp=test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
 		if [ -n "$$AUTH_REDIRECT" ]; then \
 			echo -e "$(GREEN)[SUCCESS]$(NC) Token:"; \
 			curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null || curl -s "$$AUTH_REDIRECT"; \
@@ -1040,7 +1040,7 @@ test-api:
 		fi; \
 	else \
 		echo -e "$(BLUE)[INFO]$(NC) Testing authenticated access..."; \
-		AUTH_REDIRECT=$$(curl -s "http://localhost:$$SERVER_PORT/oauth2/authorize/test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
+		AUTH_REDIRECT=$$(curl -s "http://localhost:$$SERVER_PORT/oauth2/authorize?idp=test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
 		if [ -n "$$AUTH_REDIRECT" ]; then \
 			TOKEN=$$(curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null); \
 			if [ "$$TOKEN" != "null" ] && [ -n "$$TOKEN" ]; then \

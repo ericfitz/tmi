@@ -276,12 +276,17 @@ func (s *Server) HandleOAuthCallback(c *gin.Context, params HandleOAuthCallbackP
 }
 
 // AuthorizeOAuthProvider initiates OAuth flow
-func (s *Server) AuthorizeOAuthProvider(c *gin.Context, provider string, params AuthorizeOAuthProviderParams) {
+func (s *Server) AuthorizeOAuthProvider(c *gin.Context, params AuthorizeOAuthProviderParams) {
 	logger := logging.Get()
-	logger.Info("[SERVER_INTERFACE] AuthorizeOAuthProvider called for provider: %s", provider)
+	logger.Debug("[SERVER_INTERFACE] AuthorizeOAuthProvider called for provider: %s", params.Idp)
+	logger.Debug("[SERVER_INTERFACE] Request URL: %s", c.Request.URL.String())
+	logger.Debug("[SERVER_INTERFACE] Auth service configured: %t", s.authService != nil)
+
 	if s.authService != nil {
+		logger.Debug("[SERVER_INTERFACE] Delegating to auth service")
 		s.authService.Authorize(c)
 	} else {
+		logger.Debug("[SERVER_INTERFACE] Auth service not configured, returning error")
 		HandleRequestError(c, ServerError("Auth service not configured"))
 	}
 }
@@ -331,9 +336,9 @@ func (s *Server) RefreshToken(c *gin.Context) {
 }
 
 // ExchangeOAuthCode exchanges auth code for tokens
-func (s *Server) ExchangeOAuthCode(c *gin.Context, provider string) {
+func (s *Server) ExchangeOAuthCode(c *gin.Context, params ExchangeOAuthCodeParams) {
 	logger := logging.Get()
-	logger.Info("[SERVER_INTERFACE] ExchangeOAuthCode called for provider: %s", provider)
+	logger.Info("[SERVER_INTERFACE] ExchangeOAuthCode called for provider: %s", params.Idp)
 	if s.authService != nil {
 		s.authService.Exchange(c)
 	} else {

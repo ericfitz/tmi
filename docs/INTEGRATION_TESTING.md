@@ -296,13 +296,13 @@ For automation-friendly testing with predictable user identities, the test OAuth
 
 ```bash
 # Create specific test user 'alice@test.tmi' instead of random
-curl "http://localhost:8080/oauth2/authorize/test?login_hint=alice"
+curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice"
 
 # Create user 'qa-automation@test.tmi' for automated testing
-curl "http://localhost:8080/oauth2/authorize/test?login_hint=qa-automation"
+curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=qa-automation"
 
 # Without login_hint - creates random 'testuser-12345678@test.tmi' (backwards compatible)
-curl "http://localhost:8080/oauth2/authorize/test"
+curl "http://localhost:8080/oauth2/authorize?idp=test"
 ```
 
 **Integration Test Example:**
@@ -318,7 +318,7 @@ func TestWithSpecificUser(t *testing.T) {
     }}
 
     // Step 1: Initiate OAuth with login_hint
-    resp, err := client.Get("http://localhost:8080/oauth2/authorize/test?login_hint=alice")
+    resp, err := client.Get("http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice")
     require.NoError(t, err)
 
     // Step 2: Follow redirect to get tokens

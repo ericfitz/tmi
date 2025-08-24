@@ -6,8 +6,10 @@ base url
 
 login
 GET /auth/login/{provider} --> GET /oauth2/authorize?idp={provider}&login_hint={login_hint}
-and maybe (form encoding) --> POST /oauth2/authorize?idp={provider}&login_hint={login_hint}
-(PARTIALLY DONE; need to move provider to query parameter)
+(DONE)
+
+add --> POST /oauth2/authorize?idp={provider}&login_hint={login_hint}
+(SKIPPED)
 
 token
 (implicit) --> GET /oauth2/token

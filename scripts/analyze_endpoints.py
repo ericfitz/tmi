@@ -271,9 +271,9 @@ class EndpointAnalyzer:
         openapi_mappings = {
             # Authentication
             "GetAuthProviders": [("/oauth2/providers", "GET")],
-            "AuthorizeOAuthProvider": [("/oauth2/authorize/{provider}", "GET")],
+            "AuthorizeOAuthProvider": [("/oauth2/authorize?idp={provider}", "GET")],
             "HandleOAuthCallback": [("/oauth2/callback", "GET")],
-            "ExchangeOAuthCode": [("/oauth2/token/{provider}", "POST")],
+            "ExchangeOAuthCode": [("/oauth2/token?idp={provider}", "POST")],
             "RefreshToken": [("/oauth2/refresh", "POST")],
             "GetCurrentUser": [("/oauth2/userinfo", "GET")],
             "LogoutUser": [("/oauth2/revoke", "POST")],

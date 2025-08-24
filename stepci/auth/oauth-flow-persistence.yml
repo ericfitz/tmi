@@ -19,7 +19,7 @@ tests:
       - id: setup_alice_oauth
         name: Initiate OAuth flow for alice
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint=alice
+          url: http://localhost:8080/oauth2/authorize?idp=test&client_callback=http://localhost:8079/&login_hint=alice
           method: GET
           followRedirects: true
           check:
@@ -34,7 +34,7 @@ tests:
       - id: setup_bob_oauth
         name: Initiate OAuth flow for bob
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint=bob
+          url: http://localhost:8080/oauth2/authorize?idp=test&client_callback=http://localhost:8079/&login_hint=bob
           method: GET
           followRedirects: true
           check:
@@ -49,7 +49,7 @@ tests:
       - id: setup_qa_oauth
         name: Initiate OAuth flow for qa-automation
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint=qa-automation
+          url: http://localhost:8080/oauth2/authorize?idp=test&client_callback=http://localhost:8079/&login_hint=qa-automation
           method: GET
           followRedirects: true
           check:
@@ -255,7 +255,7 @@ tests:
       - id: invalid_provider
         name: Attempt login with invalid OAuth provider
         http:
-          url: http://localhost:8080/oauth2/authorize/invalid_provider
+          url: http://localhost:8080/oauth2/authorize?idp=invalid_provider
           method: GET
           check:
             status: 400
@@ -268,7 +268,7 @@ tests:
       - id: missing_oauth_code
         name: Exchange tokens without OAuth code
         http:
-          url: http://localhost:8080/oauth2/token/test
+          url: http://localhost:8080/oauth2/token?idp=test
           method: POST
           headers:
             Content-Type: application/json
@@ -285,7 +285,7 @@ tests:
       - id: invalid_oauth_code
         name: Exchange tokens with invalid OAuth code
         http:
-          url: http://localhost:8080/oauth2/token/test
+          url: http://localhost:8080/oauth2/token?idp=test
           method: POST
           headers:
             Content-Type: application/json

@@ -23,10 +23,10 @@ A lightweight HTTP server that captures OAuth authorization callbacks for develo
 python3 oauth-client-callback-stub.py --port 8079
 
 # In another terminal, trigger OAuth flow
-curl "http://your-oauth-server/oauth2/authorize/provider?client_callback=http://localhost:8079/"
+curl "http://your-oauth-server/oauth2/authorize?idp=provider&client_callback=http://localhost:8079/"
 
 # For TMI test provider with login_hints (predictable test users)
-curl "http://localhost:8080/oauth2/authorize/test?login_hint=alice&client_callback=http://localhost:8079/"
+curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_callback=http://localhost:8079/"
 
 # Retrieve captured credentials
 curl http://localhost:8079/latest
@@ -272,7 +272,7 @@ tests:
       # Step 2: Initiate OAuth flow with stub callback
       - name: start_oauth
         http:
-          url: http://${{env.host}}/oauth2/authorize/test?client_callback=http://${{env.stub_host}}/
+          url: http://${{env.host}}/oauth2/authorize?idp=test&client_callback=http://${{env.stub_host}}/
           method: GET
           follow_redirects: true
 
@@ -302,7 +302,7 @@ tests:
     steps:
       - name: initiate_oauth
         http:
-          url: http://${{env.host}}/oauth2/authorize/test?client_callback=http://${{env.stub_host}}/
+          url: http://${{env.host}}/oauth2/authorize?idp=test&client_callback=http://${{env.stub_host}}/
           method: GET
           follow_redirects: true
 
@@ -319,7 +319,7 @@ tests:
       - name: exchange_code
         if: captures.flow_type == 'authorization_code'
         http:
-          url: http://${{env.host}}/oauth2/token/test
+          url: http://${{env.host}}/oauth2/token?idp=test
           method: POST
           json:
             code: ${{captures.auth_code}}
@@ -365,13 +365,13 @@ Test OAuth providers without implementing callback handlers:
 python3 oauth-client-callback-stub.py --port 8079
 
 # Test your OAuth provider
-curl "http://localhost:8080/oauth2/authorize/google?client_callback=http://localhost:8079/"
+curl "http://localhost:8080/oauth2/authorize?idp=google&client_callback=http://localhost:8079/"
 
 # Test TMI test provider with specific user (automation-friendly)
-curl "http://localhost:8080/oauth2/authorize/test?login_hint=alice&client_callback=http://localhost:8079/"
+curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_callback=http://localhost:8079/"
 
 # Test TMI test provider with random user (backwards compatible)
-curl "http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/"
+curl "http://localhost:8080/oauth2/authorize?idp=test&client_callback=http://localhost:8079/"
 
 # Check what was received
 curl http://localhost:8079/latest
@@ -386,9 +386,9 @@ For predictable test users in automated testing:
 
 ```bash
 # Create specific users for testing
-curl "http://localhost:8080/oauth2/authorize/test?login_hint=alice&client_callback=http://localhost:8079/"
-curl "http://localhost:8080/oauth2/authorize/test?login_hint=bob&client_callback=http://localhost:8079/"
-curl "http://localhost:8080/oauth2/authorize/test?login_hint=qa-automation&client_callback=http://localhost:8079/"
+curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_callback=http://localhost:8079/"
+curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=bob&client_callback=http://localhost:8079/"
+curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=qa-automation&client_callback=http://localhost:8079/"
 
 # Results in users: alice@test.tmi, bob@test.tmi, qa-automation@test.tmi
 # login_hint format: 3-20 characters, alphanumeric + hyphens, case-insensitive
@@ -468,7 +468,7 @@ for provider in "${PROVIDERS[@]}"; do
     echo "Testing provider: $provider"
 
     # Trigger OAuth flow
-    curl -s "http://localhost:8080/oauth2/authorize/$provider?client_callback=http://localhost:$STUB_PORT/" > /dev/null
+    curl -s "http://localhost:8080/oauth2/authorize?idp=$provider&client_callback=http://localhost:$STUB_PORT/" > /dev/null
 
     # Get results
     result=$(curl -s "http://localhost:$STUB_PORT/latest")

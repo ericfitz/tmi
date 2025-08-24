@@ -114,12 +114,12 @@ func main() {
 ### OAuth Flow
 
 - `GET /oauth2/providers` - List available OAuth providers
-- `GET /oauth2/authorize/:provider` - Redirect to OAuth provider for authentication
+- `GET /oauth2/authorize?idp={provider}` - Redirect to OAuth provider for authentication
 - `GET /oauth2/callback` - Handle OAuth callback and issue JWT tokens
 
 ### Token Management
 
-- `POST /oauth2/token/:provider` - Exchange authorization code for JWT tokens
+- `POST /oauth2/token?idp={provider}` - Exchange authorization code for JWT tokens
 - `POST /oauth2/refresh` - Refresh an expired JWT token
 - `POST /oauth2/logout` - Revoke a refresh token
 

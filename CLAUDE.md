@@ -114,7 +114,7 @@ This repository contains API documentation and Go implementation for a Collabora
     make oauth-stub-start
 
     # Initiate OAuth flow with callback stub and login_hint
-    curl "http://localhost:8080/oauth2/authorize/test?login_hint=alice&client_callback=http://localhost:8079/"
+    curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_callback=http://localhost:8079/"
 
     # Check latest credentials (traditional method)
     curl http://localhost:8079/latest | jq '.'
@@ -366,7 +366,7 @@ JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
 
 The test OAuth provider supports **login_hints** for automation-friendly testing with predictable user identities:
 
-- **Parameter**: `login_hint` - Query parameter for `/oauth2/authorize/test`
+- **Parameter**: `login_hint` - Query parameter for `/oauth2/authorize?idp=test`
 - **Purpose**: Generate predictable test users instead of random usernames
 - **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive
 - **Validation**: Pattern: `^[a-zA-Z0-9-]{3,20}$`
@@ -376,20 +376,20 @@ The test OAuth provider supports **login_hints** for automation-friendly testing
 
 ```bash
 # Create user 'alice@test.tmi' with name 'Alice (Test User)'
-curl "http://localhost:8080/oauth2/authorize/test?login_hint=alice"
+curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice"
 
 # Create user 'qa-automation@test.tmi' with name 'Qa Automation (Test User)'
-curl "http://localhost:8080/oauth2/authorize/test?login_hint=qa-automation"
+curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=qa-automation"
 
 # Without login_hint - generates random user like 'testuser-12345678@test.tmi'
-curl "http://localhost:8080/oauth2/authorize/test"
+curl "http://localhost:8080/oauth2/authorize?idp=test"
 ```
 
 **Automation Integration**:
 
 ```bash
 # OAuth callback stub with login_hint
-curl "http://localhost:8080/oauth2/authorize/test?login_hint=alice&client_callback=http://localhost:8079/"
+curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_callback=http://localhost:8079/"
 
 # API testing script with login_hint
 echo "auth alice hint=alice" >> test_script.txt

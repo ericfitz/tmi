@@ -16,7 +16,7 @@ sequenceDiagram
     Test->>+Stub: 1. Start OAuth stub server
     Stub-->>Test: Server ready on localhost:8079
 
-    Test->>+App: 2. Initiate OAuth flow<br/>GET /oauth2/authorize/provider?client_callback=http://localhost:8079/
+    Test->>+App: 2. Initiate OAuth flow<br/>GET /oauth2/authorize?idp=provider&client_callback=http://localhost:8079/
     App->>App: 3. Generate state parameter
     App->>+Auth: 4. Redirect to authorization URL<br/>GET /authorize?client_id=...&redirect_uri=http://localhost:8079/&state=...&response_type=code
 
@@ -28,7 +28,7 @@ sequenceDiagram
     Test->>+Stub: 8. Retrieve captured credentials<br/>GET /latest
     Stub-->>-Test: {"flow_type": "authorization_code", "code": "auth_code_123", "state": "abc123"}
 
-    Test->>+App: 9. Exchange code for tokens<br/>POST /oauth2/token/provider<br/>{"code": "auth_code_123", "redirect_uri": "http://localhost:8079/"}
+    Test->>+App: 9. Exchange code for tokens<br/>POST /oauth2/token?idp=provider<br/>{"code": "auth_code_123", "redirect_uri": "http://localhost:8079/"}
     App->>+Auth: 10. Token exchange<br/>POST /token<br/>grant_type=authorization_code&code=auth_code_123
     Auth-->>-App: {"access_token": "token_456", "refresh_token": "refresh_789", "expires_in": 3600}
     App-->>-Test: {"access_token": "token_456", "refresh_token": "refresh_789", "expires_in": 3600}
@@ -54,7 +54,7 @@ sequenceDiagram
     Test->>+Stub: 1. Start OAuth stub server
     Stub-->>Test: Server ready on localhost:8079
 
-    Test->>+App: 2. Initiate OAuth flow<br/>GET /oauth2/authorize/provider?client_callback=http://localhost:8079/
+    Test->>+App: 2. Initiate OAuth flow<br/>GET /oauth2/authorize?idp=provider&client_callback=http://localhost:8079/
     App->>App: 3. Generate state parameter
     App->>+Auth: 4. Redirect to authorization URL<br/>GET /authorize?client_id=...&redirect_uri=http://localhost:8079/&state=...&response_type=token
 

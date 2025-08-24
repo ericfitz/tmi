@@ -13,7 +13,7 @@ tests:
       - id: initiate_oauth_flow
         name: Initiate OAuth flow with callback stub and login_hint
         http:
-          url: http://localhost:8080/oauth2/authorize/test?client_callback=http://localhost:8079/&login_hint={{ test_login_hint }}
+          url: http://localhost:8080/oauth2/authorize?idp=test&client_callback=http://localhost:8079/&login_hint={{ test_login_hint }}
           method: GET
           followRedirects: true
           check:
@@ -43,7 +43,7 @@ tests:
       - id: get_fresh_token_fallback
         name: Get fresh token as fallback for StepCI with login_hint
         http:
-          url: http://localhost:8080/oauth2/token/test
+          url: http://localhost:8080/oauth2/token?idp=test
           method: POST
           headers:
             Content-Type: application/json
@@ -176,7 +176,7 @@ tests:
       - id: get_fresh_tokens
         name: Get fresh JWT tokens with login_hint
         http:
-          url: http://localhost:8080/oauth2/token/test
+          url: http://localhost:8080/oauth2/token?idp=test
           method: POST
           headers:
             Content-Type: application/json

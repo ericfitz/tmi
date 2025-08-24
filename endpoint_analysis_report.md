@@ -20,7 +20,7 @@
 **Handler**: `HandleOAuthCallback()` in `server.go`
 **Middleware Stack**: RequestTracing → CORS
 
-### ✅ GET /oauth2/authorize/{provider}
+### ✅ GET /oauth2/authorize?idp={provider}
 
 **Summary**: Initiate OAuth authorization flow
 **Operation ID**: authorizeOAuthProvider
@@ -60,7 +60,7 @@
 **Handler**: `RefreshToken()` in `server.go`
 **Middleware Stack**: RequestTracing → CORS
 
-### ✅ POST /oauth2/token/{provider}
+### ✅ POST /oauth2/token?idp={provider}
 
 **Summary**: Exchange OAuth authorization code for JWT tokens
 **Operation ID**: exchangeOAuthCode

@@ -96,28 +96,46 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 		// Get a context-aware logger
 		logger := logging.GetContextLogger(c)
 
+		// Log entry to middleware
+		logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] Processing request: %s %s", c.Request.Method, c.Request.URL.Path)
+		logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] Full URL: %s", c.Request.URL.String())
+		logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] Query params: %s", c.Request.URL.RawQuery)
+
 		// Public paths that don't require authentication
-		if c.Request.URL.Path == "/" ||
+		isPublic := c.Request.URL.Path == "/" ||
 			c.Request.URL.Path == "/version" ||
 			c.Request.URL.Path == "/metrics" ||
 			c.Request.URL.Path == "/api/server-info" ||
-			c.Request.URL.Path == "/auth/callback" ||
-			c.Request.URL.Path == "/auth/providers" ||
-			c.Request.URL.Path == "/auth/refresh" ||
-			strings.HasPrefix(c.Request.URL.Path, "/auth/login/") ||
-			strings.HasPrefix(c.Request.URL.Path, "/auth/token/") ||
+			c.Request.URL.Path == "/oauth2/callback" ||
+			c.Request.URL.Path == "/oauth2/providers" ||
+			c.Request.URL.Path == "/oauth2/refresh" ||
+			c.Request.URL.Path == "/oauth2/authorize" ||
+			strings.HasPrefix(c.Request.URL.Path, "/oauth2/token") ||
+			c.Request.URL.Path == "/oauth2/revoke" ||
 			c.Request.URL.Path == "/site.webmanifest" ||
 			c.Request.URL.Path == "/favicon.ico" ||
 			c.Request.URL.Path == "/favicon.svg" ||
 			c.Request.URL.Path == "/web-app-manifest-192x192.png" ||
-			c.Request.URL.Path == "/web-app-manifest-512x512.png" {
-			logger.Debug("Public path identified: %s", c.Request.URL.Path)
+			c.Request.URL.Path == "/web-app-manifest-512x512.png"
+
+		if isPublic {
+			logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] ✅ Public path identified: %s", c.Request.URL.Path)
 			// Mark this request as public in the context for downstream middleware
 			c.Set("isPublicPath", true)
+			logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] Set isPublicPath=true in context")
+		} else {
+			logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] ❌ Private path identified: %s", c.Request.URL.Path)
+			logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] isPublicPath not set (defaults to false)")
 		}
+
+		// Log exit from middleware
+		logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] Continuing to next middleware")
 
 		// Always continue to next middleware
 		c.Next()
+
+		// Log completion
+		logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] Middleware chain completed for: %s", c.Request.URL.Path)
 	}
 }
 
@@ -127,17 +145,30 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 		// Get a context-aware logger
 		logger := logging.GetContextLogger(c)
 
+		// SIMPLE TEST: Just log that we entered the middleware
+		logger.Debug("[JWT_MIDDLEWARE] *** ENTERED MIDDLEWARE FOR: %s", c.Request.URL.Path)
+
+		// Log entry to middleware
+		logger.Debug("[JWT_MIDDLEWARE] Processing request: %s %s", c.Request.Method, c.Request.URL.Path)
+
+		// Check if isPublicPath is set in context
+		isPublic, exists := c.Get("isPublicPath")
+		logger.Debug("[JWT_MIDDLEWARE] Context check - isPublicPath exists: %t, value: %v", exists, isPublic)
+
 		// Skip authentication for public paths
-		if isPublic, exists := c.Get("isPublicPath"); exists && isPublic.(bool) {
-			logger.Debug("Skipping authentication for public path: %s", c.Request.URL.Path)
+		if exists && isPublic.(bool) {
+			logger.Debug("[JWT_MIDDLEWARE] ✅ Skipping authentication for public path: %s", c.Request.URL.Path)
 			// Set a dummy user for context consistency if needed
 			c.Set("userName", "anonymous")
+			logger.Debug("[JWT_MIDDLEWARE] Set userName=anonymous for public path")
+			logger.Debug("[JWT_MIDDLEWARE] Continuing to next middleware (public path)")
 			c.Next()
+			logger.Debug("[JWT_MIDDLEWARE] Returned from middleware chain (public path)")
 			return
 		}
 
 		// Log attempt for debugging
-		logger.Debug("Checking authentication for path: %s", c.Request.URL.Path)
+		logger.Debug("[JWT_MIDDLEWARE] ❌ Authentication required for private path: %s", c.Request.URL.Path)
 
 		var tokenStr string
 
@@ -155,9 +186,13 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 			}
 		} else {
 			// For regular API calls, use Authorization header
+			logger.Debug("[JWT_MIDDLEWARE] Checking for Authorization header")
 			authHeader := c.GetHeader("Authorization")
+			logger.Debug("[JWT_MIDDLEWARE] Authorization header value: '%s' (empty: %t)", authHeader, authHeader == "")
+
 			if authHeader == "" {
-				logger.Warn("Authentication failed: Missing Authorization header for path: %s", c.Request.URL.Path)
+				logger.Warn("[JWT_MIDDLEWARE] 🚫 Authentication failed: Missing Authorization header for path: %s", c.Request.URL.Path)
+				logger.Debug("[JWT_MIDDLEWARE] Returning 401 Unauthorized and aborting request")
 				c.JSON(http.StatusUnauthorized, api.Error{
 					Error:            "unauthorized",
 					ErrorDescription: "Missing Authorization header",
@@ -1092,6 +1127,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Add comprehensive request tracing middleware first
 	r.Use(api.DetailedRequestLoggingMiddleware())
 	r.Use(api.RouteMatchingMiddleware())
+
+	// Test debug logging is working
+	logger.Debug("[MAIN] Testing debug logging - this should appear in logs!")
 
 	// Now add JWT middleware with token blacklist support and auth handlers for user lookup
 	r.Use(JWTMiddleware(config, server.tokenBlacklist, authHandlers)) // JWT auth with public path skipping

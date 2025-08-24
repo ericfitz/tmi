@@ -307,7 +307,7 @@ tests:
       - id: authenticate_for_edge_cases
         name: Authenticate for threat edge cases
         http:
-          url: http://localhost:8080/oauth2/token/test
+          url: http://localhost:8080/oauth2/token?idp=test
           method: POST
           headers:
             Content-Type: application/json

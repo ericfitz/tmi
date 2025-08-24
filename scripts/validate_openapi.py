@@ -252,7 +252,7 @@ def check_required_endpoints(spec: Dict[str, Any]) -> List[str]:
     required_endpoints = [
         "/",
         "/oauth2/providers",
-        "/oauth2/authorize/{provider}",
+        "/oauth2/authorize",
         "/oauth2/callback",
         "/threat_models",
         "/threat_models/{threat_model_id}",

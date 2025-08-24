@@ -71,7 +71,7 @@ func TestGetProvidersHandler(t *testing.T) {
 	assert.Equal(t, "fa-brands fa-google", googleProvider["icon"])
 	assert.Equal(t, "test-google-client-id", googleProvider["client_id"])
 	assert.Equal(t, "http://localhost:8080/oauth2/callback", googleProvider["redirect_uri"])
-	assert.Contains(t, googleProvider["auth_url"], "/oauth2/authorize/google")
+	assert.Contains(t, googleProvider["auth_url"], "/oauth2/authorize?idp=google")
 
 	githubProvider := findProviderByID(providers, "github")
 	require.NotNil(t, githubProvider)
@@ -79,7 +79,7 @@ func TestGetProvidersHandler(t *testing.T) {
 	assert.Equal(t, "fa-brands fa-github", githubProvider["icon"])
 	assert.Equal(t, "test-github-client-id", githubProvider["client_id"])
 	assert.Equal(t, "http://localhost:8080/oauth2/callback", githubProvider["redirect_uri"])
-	assert.Contains(t, githubProvider["auth_url"], "/oauth2/authorize/github")
+	assert.Contains(t, githubProvider["auth_url"], "/oauth2/authorize?idp=github")
 }
 
 func TestGetProvidersEmptyConfig(t *testing.T) {
@@ -197,7 +197,8 @@ func TestExchangeHandlerValidation(t *testing.T) {
 		config: config,
 	}
 
-	router.POST("/oauth2/token/:provider", handlers.Exchange)
+	// OAuth token endpoint uses query parameters: /oauth2/token?idp=provider
+	router.POST("/oauth2/token", handlers.Exchange)
 
 	tests := []struct {
 		name           string
@@ -239,7 +240,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body, _ := json.Marshal(tt.requestBody)
-			req := httptest.NewRequest("POST", "/oauth2/token/"+tt.provider, bytes.NewBuffer(body))
+			req := httptest.NewRequest("POST", "/oauth2/token?idp="+tt.provider, bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
@@ -347,7 +348,8 @@ func TestGetAuthorizeURL(t *testing.T) {
 		config: config,
 	}
 
-	router.GET("/oauth2/authorize/:provider", handlers.Authorize)
+	// OAuth endpoints use query parameters: /oauth2/authorize?idp=provider
+	router.GET("/oauth2/authorize", handlers.Authorize)
 
 	tests := []struct {
 		name           string
@@ -370,7 +372,7 @@ func TestGetAuthorizeURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/oauth2/authorize/"+tt.provider, nil)
+			req := httptest.NewRequest("GET", "/oauth2/authorize?idp="+tt.provider, nil)
 			w := httptest.NewRecorder()
 
 			router.ServeHTTP(w, req)
@@ -505,7 +507,8 @@ func TestAuthorizeWithClientCallback(t *testing.T) {
 		// Note: service would be required for Redis operations
 	}
 
-	router.GET("/oauth2/authorize/:provider", handlers.Authorize)
+	// OAuth endpoints use query parameters: /oauth2/authorize?idp=provider
+	router.GET("/oauth2/authorize", handlers.Authorize)
 
 	tests := []struct {
 		name           string
@@ -537,7 +540,7 @@ func TestAuthorizeWithClientCallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reqURL := "/oauth2/authorize/" + tt.provider
+			reqURL := "/oauth2/authorize?idp=" + tt.provider
 			if tt.clientCallback != "" {
 				reqURL += "?client_callback=" + url.QueryEscape(tt.clientCallback)
 			}

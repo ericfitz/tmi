@@ -101,7 +101,7 @@ class TMIOAuth {
 
     // Exchange code with TMI server
     const response = await fetch(
-      `${this.tmiServerUrl}/oauth2/token/${provider}`,
+      `${this.tmiServerUrl}/oauth2/token?idp=${provider}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -277,13 +277,13 @@ Get list of configured OAuth providers.
 }
 ```
 
-#### `POST /oauth2/token/{provider}`
+#### `POST /oauth2/token?idp={provider}`
 
 Exchange OAuth authorization code for TMI JWT tokens.
 
 **Parameters:**
 
-- `{provider}`: `google`, `github`, or `microsoft`
+- `idp` (query): `google`, `github`, or `microsoft`
 
 **Request Body:**
 
@@ -318,7 +318,7 @@ Refresh an expired access token.
 }
 ```
 
-**Response:** Same as `/oauth2/token/{provider}`
+**Response:** Same as `/oauth2/token?idp={provider}`
 
 #### `POST /oauth2/logout`
 

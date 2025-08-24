@@ -300,7 +300,7 @@ tests:
       - id: authenticate_for_search_failures
         name: Authenticate for search failure tests
         http:
-          url: http://localhost:8080/oauth2/token/test
+          url: http://localhost:8080/oauth2/token?idp=test
           method: POST
           headers:
             Content-Type: application/json
