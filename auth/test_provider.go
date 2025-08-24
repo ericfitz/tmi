@@ -156,9 +156,11 @@ func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 		displayName := p.generateDisplayName(username)
 		
 		return &UserInfo{
-			ID:    username,
-			Email: email,
-			Name:  displayName,
+			ID:            username,
+			Email:         email,
+			EmailVerified: false, // Test provider emails are not verified
+			Name:          displayName,
+			Locale:        "en-US", // Default to US English for test provider
 		}, nil
 	}
 	
@@ -172,9 +174,11 @@ func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 	email := fmt.Sprintf("%s@test.tmi", username)
 
 	return &UserInfo{
-		ID:    username,
-		Email: email,
-		Name:  fmt.Sprintf("Test User %08d", randomNum),
+		ID:            username,
+		Email:         email,
+		EmailVerified: false, // Test provider emails are not verified
+		Name:          fmt.Sprintf("Test User %08d", randomNum),
+		Locale:        "en-US", // Default to US English for test provider
 	}, nil
 }
 

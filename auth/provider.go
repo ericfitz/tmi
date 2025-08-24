@@ -45,7 +45,7 @@ type TokenResponse struct {
 type UserInfo struct {
 	ID            string `json:"id,omitempty"`
 	Email         string `json:"email,omitempty"`
-	VerifiedEmail bool   `json:"verified_email,omitempty"`
+	EmailVerified bool   `json:"email_verified,omitempty"`
 	Name          string `json:"name,omitempty"`
 	GivenName     string `json:"given_name,omitempty"`
 	FamilyName    string `json:"family_name,omitempty"`
@@ -376,7 +376,7 @@ func (p *GithubProvider) GetUserInfo(ctx context.Context, accessToken string) (*
 	return &UserInfo{
 		ID:            fmt.Sprintf("%d", githubUser.ID),
 		Email:         primaryEmail,
-		VerifiedEmail: verified,
+		EmailVerified: verified,
 		Name:          githubUser.Name,
 		Picture:       githubUser.AvatarURL,
 	}, nil

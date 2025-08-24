@@ -41,6 +41,17 @@ func (h *Handlers) RegisterRoutes(router *gin.Engine) {
 	logger := logging.Get()
 	logger.Info("[AUTH_MODULE] Starting route registration")
 
+	// Register OpenID Connect Discovery endpoints
+	wellKnown := router.Group("/.well-known")
+	{
+		logger.Info("[AUTH_MODULE] Registering route: GET /.well-known/openid-configuration")
+		wellKnown.GET("/openid-configuration", h.GetOpenIDConfiguration)
+		logger.Info("[AUTH_MODULE] Registering route: GET /.well-known/oauth-authorization-server")
+		wellKnown.GET("/oauth-authorization-server", h.GetOAuthAuthorizationServerMetadata)
+		logger.Info("[AUTH_MODULE] Registering route: GET /.well-known/jwks.json")
+		wellKnown.GET("/jwks.json", h.GetJWKS)
+	}
+
 	auth := router.Group("/oauth2")
 	{
 		// Note: OAuth2 authorize and token endpoints are now handled by OpenAPI-generated routes
@@ -57,6 +68,8 @@ func (h *Handlers) RegisterRoutes(router *gin.Engine) {
 		auth.POST("/revoke", h.Logout)
 		logger.Info("[AUTH_MODULE] Registering route: GET /oauth2/userinfo (with auth middleware)")
 		auth.GET("/userinfo", h.AuthMiddleware().AuthRequired(), h.Me)
+		logger.Info("[AUTH_MODULE] Registering route: POST /oauth2/introspect")
+		auth.POST("/introspect", h.IntrospectToken)
 	}
 
 	logger.Info("[AUTH_MODULE] Registering test provider routes")
@@ -184,6 +197,19 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		return
 	}
 
+	// Validate response_type parameter according to OAuth 2.0/OIDC specification
+	responseType := c.Query("response_type")
+	if responseType == "" {
+		responseType = "code" // Default to authorization code flow
+	}
+	if err := h.validateResponseType(responseType); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "unsupported_response_type",
+			"error_description": err.Error(),
+		})
+		return
+	}
+
 	// Get optional client callback URL from query parameter
 	clientCallback := c.Query("client_callback")
 
@@ -210,9 +236,10 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	stateKey := fmt.Sprintf("oauth_state:%s", state)
 	ctx := c.Request.Context()
 
-	// Store both provider ID and client callback URL (if provided)
+	// Store provider ID, response type, and optional client callback URL/login_hint
 	stateData := map[string]string{
-		"provider": providerID,
+		"provider":      providerID,
+		"response_type": responseType,
 	}
 	if clientCallback != "" {
 		stateData["client_callback"] = clientCallback
@@ -238,16 +265,26 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		return
 	}
 
-	// Get the authorization URL
-	authURL := provider.GetAuthorizationURL(state)
+	// Handle implicit and hybrid flows for test provider
+	if responseType != "code" && providerID == "test" {
+		err := h.handleImplicitOrHybridFlow(c, provider, responseType, state, stateData)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("Failed to handle implicit/hybrid flow: %v", err),
+			})
+		}
+		return
+	}
 
-	// Redirect to the authorization URL
+	// For authorization code flow, get the authorization URL and redirect
+	authURL := provider.GetAuthorizationURL(state)
 	c.Redirect(http.StatusFound, authURL)
 }
 
 // callbackStateData holds parsed OAuth state information
 type callbackStateData struct {
 	ProviderID     string
+	ResponseType   string
 	ClientCallback string
 	UserHint       string
 }
@@ -303,11 +340,15 @@ func (h *Handlers) parseCallbackState(c *gin.Context, state string) (*callbackSt
 	} else {
 		// Handle new format with structured data
 		result.ProviderID = stateMap["provider"]
+		result.ResponseType = stateMap["response_type"]
+		if result.ResponseType == "" {
+			result.ResponseType = "code" // Default for backward compatibility
+		}
 		result.ClientCallback = stateMap["client_callback"]
 		result.UserHint = stateMap["login_hint"]
 
-		logging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, client_callback=%s, login_hint=%s",
-			result.ProviderID, result.ClientCallback, result.UserHint)
+		logging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, response_type=%s, client_callback=%s, login_hint=%s",
+			result.ProviderID, result.ResponseType, result.ClientCallback, result.UserHint)
 	}
 
 	return result, nil
@@ -347,7 +388,7 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 	h.linkProviderToUser(ctx, user.ID, stateData.ProviderID, userInfo, claims)
 
 	// Generate and return tokens
-	return h.generateAndReturnTokens(c, ctx, user, stateData)
+	return h.generateAndReturnTokens(c, ctx, user, userInfo, stateData)
 }
 
 // setUserHintContext adds login_hint to context for test provider
@@ -427,13 +468,23 @@ func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, userInfo
 
 	user, err := h.service.GetUserByEmail(ctx, email)
 	if err != nil {
-		// Create a new user
+		// Create a new user with provider data
 		user = User{
-			Email:      email,
-			Name:       name,
-			CreatedAt:  time.Now(),
-			ModifiedAt: time.Now(),
-			LastLogin:  time.Now(),
+			Email:         email,
+			Name:          name,
+			EmailVerified: userInfo.EmailVerified,
+			GivenName:     userInfo.GivenName,
+			FamilyName:    userInfo.FamilyName,
+			Picture:       userInfo.Picture,
+			Locale:        userInfo.Locale,
+			CreatedAt:     time.Now(),
+			ModifiedAt:    time.Now(),
+			LastLogin:     time.Now(),
+		}
+
+		// Set default locale if not provided
+		if user.Locale == "" {
+			user.Locale = "en-US"
 		}
 
 		user, err = h.service.CreateUser(ctx, user)
@@ -464,8 +515,8 @@ func (h *Handlers) linkProviderToUser(ctx context.Context, userID, providerID st
 }
 
 // generateAndReturnTokens generates JWT tokens and returns them
-func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, user User, stateData *callbackStateData) error {
-	tokenPair, err := h.service.GenerateTokens(ctx, user)
+func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, user User, userInfo *UserInfo, stateData *callbackStateData) error {
+	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
@@ -652,7 +703,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	}
 
 	// Generate TMI JWT tokens
-	tokenPair, err := h.service.GenerateTokens(ctx, user)
+	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
@@ -1038,4 +1089,395 @@ func (h *Handlers) validateOAuthScope(scope string) error {
 
 	logging.Get().Debug("OAuth scope validation: requested=%s, validated=%v", scope, validScopes)
 	return nil
+}
+
+// OpenIDConfiguration represents the OpenID Connect Discovery metadata
+type OpenIDConfiguration struct {
+	Issuer                            string   `json:"issuer"`
+	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
+	TokenEndpoint                     string   `json:"token_endpoint"`
+	UserInfoEndpoint                  string   `json:"userinfo_endpoint"`
+	JWKSURI                           string   `json:"jwks_uri"`
+	ScopesSupported                   []string `json:"scopes_supported"`
+	ResponseTypesSupported            []string `json:"response_types_supported"`
+	ResponseModesSupported            []string `json:"response_modes_supported,omitempty"`
+	GrantTypesSupported               []string `json:"grant_types_supported,omitempty"`
+	SubjectTypesSupported             []string `json:"subject_types_supported"`
+	IDTokenSigningAlgValuesSupported  []string `json:"id_token_signing_alg_values_supported"`
+	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+	ClaimsSupported                   []string `json:"claims_supported,omitempty"`
+	CodeChallengeMethodsSupported     []string `json:"code_challenge_methods_supported,omitempty"`
+	IntrospectionEndpoint             string   `json:"introspection_endpoint,omitempty"`
+	RevocationEndpoint                string   `json:"revocation_endpoint,omitempty"`
+}
+
+// OAuthAuthorizationServerMetadata represents OAuth 2.0 Authorization Server Metadata
+type OAuthAuthorizationServerMetadata struct {
+	Issuer                            string   `json:"issuer"`
+	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
+	TokenEndpoint                     string   `json:"token_endpoint"`
+	JWKSURI                           string   `json:"jwks_uri,omitempty"`
+	ScopesSupported                   []string `json:"scopes_supported,omitempty"`
+	ResponseTypesSupported            []string `json:"response_types_supported"`
+	ResponseModesSupported            []string `json:"response_modes_supported,omitempty"`
+	GrantTypesSupported               []string `json:"grant_types_supported,omitempty"`
+	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+	CodeChallengeMethodsSupported     []string `json:"code_challenge_methods_supported,omitempty"`
+	IntrospectionEndpoint             string   `json:"introspection_endpoint,omitempty"`
+	RevocationEndpoint                string   `json:"revocation_endpoint,omitempty"`
+}
+
+// GetOpenIDConfiguration returns OpenID Connect Discovery metadata
+func (h *Handlers) GetOpenIDConfiguration(c *gin.Context) {
+	baseURL := getBaseURL(c)
+
+	config := OpenIDConfiguration{
+		Issuer:                            baseURL,
+		AuthorizationEndpoint:             fmt.Sprintf("%s/oauth2/authorize", baseURL),
+		TokenEndpoint:                     fmt.Sprintf("%s/oauth2/token", baseURL),
+		UserInfoEndpoint:                  fmt.Sprintf("%s/oauth2/userinfo", baseURL),
+		JWKSURI:                           fmt.Sprintf("%s/.well-known/jwks.json", baseURL),
+		ScopesSupported:                   []string{"openid", "profile", "email"},
+		ResponseTypesSupported:            []string{"code", "token", "id_token", "code token", "code id_token", "code id_token token"},
+		SubjectTypesSupported:             []string{"public"},
+		IDTokenSigningAlgValuesSupported:  []string{"HS256"},
+		TokenEndpointAuthMethodsSupported: []string{"client_secret_post", "client_secret_basic"},
+		ClaimsSupported: []string{
+			"sub", "iss", "aud", "exp", "iat", "email", "email_verified",
+			"name", "given_name", "family_name", "picture", "locale",
+		},
+		GrantTypesSupported:   []string{"authorization_code", "refresh_token"},
+		RevocationEndpoint:    fmt.Sprintf("%s/oauth2/revoke", baseURL),
+		IntrospectionEndpoint: fmt.Sprintf("%s/oauth2/introspect", baseURL),
+	}
+
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.JSON(http.StatusOK, config)
+}
+
+// GetOAuthAuthorizationServerMetadata returns OAuth 2.0 Authorization Server metadata
+func (h *Handlers) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
+	baseURL := getBaseURL(c)
+
+	metadata := OAuthAuthorizationServerMetadata{
+		Issuer:                            baseURL,
+		AuthorizationEndpoint:             fmt.Sprintf("%s/oauth2/authorize", baseURL),
+		TokenEndpoint:                     fmt.Sprintf("%s/oauth2/token", baseURL),
+		JWKSURI:                           fmt.Sprintf("%s/.well-known/jwks.json", baseURL),
+		ScopesSupported:                   []string{"openid", "profile", "email"},
+		ResponseTypesSupported:            []string{"code", "token", "id_token", "code token", "code id_token", "code id_token token"},
+		GrantTypesSupported:               []string{"authorization_code", "refresh_token"},
+		TokenEndpointAuthMethodsSupported: []string{"client_secret_post", "client_secret_basic"},
+		RevocationEndpoint:                fmt.Sprintf("%s/oauth2/revoke", baseURL),
+		IntrospectionEndpoint:             fmt.Sprintf("%s/oauth2/introspect", baseURL),
+	}
+
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.JSON(http.StatusOK, metadata)
+}
+
+// JWKSResponse represents a JSON Web Key Set response
+type JWKSResponse struct {
+	Keys []JWK `json:"keys"`
+}
+
+// JWK represents a JSON Web Key
+type JWK struct {
+	KeyType   string `json:"kty"`
+	Use       string `json:"use"`
+	KeyID     string `json:"kid"`
+	Algorithm string `json:"alg"`
+	N         string `json:"n,omitempty"` // RSA modulus
+	E         string `json:"e,omitempty"` // RSA exponent
+}
+
+// GetJWKS returns the JSON Web Key Set for JWT signature verification
+func (h *Handlers) GetJWKS(c *gin.Context) {
+	// For now, return empty key set since we're using HMAC (symmetric) keys
+	// In a production environment, you would expose RSA public keys here
+	jwks := JWKSResponse{
+		Keys: []JWK{},
+	}
+
+	// TODO: When implementing RSA signatures, add public keys here
+	// Example for RSA keys:
+	// jwks.Keys = append(jwks.Keys, JWK{
+	//     KeyType:   "RSA",
+	//     Use:       "sig",
+	//     KeyID:     "key-id-1",
+	//     Algorithm: "RS256",
+	//     N:         base64URLEncode(publicKey.N.Bytes()),
+	//     E:         base64URLEncode(big.NewInt(int64(publicKey.E)).Bytes()),
+	// })
+
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.JSON(http.StatusOK, jwks)
+}
+
+// validateResponseType validates the response_type parameter according to OAuth 2.0/OIDC specification
+func (h *Handlers) validateResponseType(responseType string) error {
+	supportedResponseTypes := map[string]bool{
+		"code":                true, // Authorization Code Flow
+		"token":               true, // Implicit Flow (Access Token only)
+		"id_token":            true, // Implicit Flow (ID Token only)
+		"code token":          true, // Hybrid Flow
+		"code id_token":       true, // Hybrid Flow
+		"code id_token token": true, // Hybrid Flow
+	}
+
+	if !supportedResponseTypes[responseType] {
+		return fmt.Errorf("unsupported response_type: %s. Supported types are: code, token, id_token, and hybrid combinations", responseType)
+	}
+
+	return nil
+}
+
+// handleImplicitOrHybridFlow handles implicit and hybrid flows for test provider
+func (h *Handlers) handleImplicitOrHybridFlow(c *gin.Context, provider Provider, responseType, state string, stateData map[string]string) error {
+	ctx := c.Request.Context()
+
+	// Set login_hint context for test provider if provided
+	if userHint, exists := stateData["login_hint"]; exists && userHint != "" {
+		ctx = context.WithValue(ctx, userHintContextKey, userHint)
+	}
+
+	// For implicit flow with test provider, directly get user info without code exchange
+	// We'll generate a mock access token for the test provider
+	mockTokenResponse := &TokenResponse{
+		AccessToken: "test_implicit_access_token",
+		TokenType:   "Bearer",
+		ExpiresIn:   3600,
+	}
+
+	// Get user info using the mock token
+	userInfo, err := provider.GetUserInfo(ctx, mockTokenResponse.AccessToken)
+	if err != nil {
+		return fmt.Errorf("failed to get user info: %v", err)
+	}
+
+	// Create or get user
+	email := userInfo.Email
+	if email == "" {
+		return fmt.Errorf("no email found for user")
+	}
+
+	name := userInfo.Name
+	if name == "" {
+		name = email
+	}
+
+	user, err := h.service.GetUserByEmail(ctx, email)
+	if err != nil {
+		// Create a new user
+		user = User{
+			Email:      email,
+			Name:       name,
+			CreatedAt:  time.Now(),
+			ModifiedAt: time.Now(),
+			LastLogin:  time.Now(),
+		}
+
+		user, err = h.service.CreateUser(ctx, user)
+		if err != nil {
+			return fmt.Errorf("failed to create user: %v", err)
+		}
+	}
+
+	// Generate TMI JWT tokens
+	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
+	if err != nil {
+		return fmt.Errorf("failed to generate tokens: %v", err)
+	}
+
+	// For implicit and hybrid flows, return tokens and/or code in the redirect
+	redirectURI := stateData["client_callback"]
+	if redirectURI == "" {
+		// If no client callback, return JSON (fallback)
+		c.JSON(http.StatusOK, tokenPair)
+		return nil
+	}
+
+	var authCode string
+	// For hybrid flows containing "code", generate an authorization code
+	if strings.Contains(responseType, "code") {
+		// Generate a mock authorization code for test provider
+		authCode = fmt.Sprintf("test_hybrid_code_%d", time.Now().UnixNano())
+
+		// Store the code in Redis for later exchange (similar to regular auth code flow)
+		codeKey := fmt.Sprintf("oauth_code:%s", authCode)
+		codeData := map[string]string{
+			"provider":   stateData["provider"],
+			"email":      user.Email,
+			"name":       user.Name,
+			"user_id":    user.ID,
+			"expires_at": fmt.Sprintf("%d", time.Now().Add(10*time.Minute).Unix()),
+		}
+
+		codeJSON, err := json.Marshal(codeData)
+		if err == nil {
+			_ = h.service.dbManager.Redis().Set(ctx, codeKey, string(codeJSON), 10*time.Minute)
+		}
+	}
+
+	// Build the redirect URL for implicit/hybrid flow
+	redirectURL, err := h.buildImplicitOrHybridFlowRedirect(redirectURI, tokenPair, responseType, state, authCode)
+	if err != nil {
+		return fmt.Errorf("failed to build redirect URL: %v", err)
+	}
+
+	c.Redirect(http.StatusFound, redirectURL)
+	return nil
+}
+
+// buildImplicitOrHybridFlowRedirect builds the redirect URL for implicit/hybrid flows
+func (h *Handlers) buildImplicitOrHybridFlowRedirect(redirectURI string, tokenPair TokenPair, responseType, state, authCode string) (string, error) {
+	parsedURL, err := url.Parse(redirectURI)
+	if err != nil {
+		return "", fmt.Errorf("invalid redirect URI: %v", err)
+	}
+
+	// Handle query parameters for hybrid flows (authorization code)
+	query := parsedURL.Query()
+	if authCode != "" && strings.Contains(responseType, "code") {
+		query.Set("code", authCode)
+		if state != "" {
+			query.Set("state", state)
+		}
+	}
+	parsedURL.RawQuery = query.Encode()
+
+	// Build fragment parameters for tokens (implicit/hybrid flows)
+	fragment := url.Values{}
+
+	if strings.Contains(responseType, "token") {
+		fragment.Set("access_token", tokenPair.AccessToken)
+		fragment.Set("token_type", tokenPair.TokenType)
+		fragment.Set("expires_in", fmt.Sprintf("%d", tokenPair.ExpiresIn))
+	}
+
+	if strings.Contains(responseType, "id_token") {
+		// For this implementation, we'll use the access token as a mock ID token
+		// In a full implementation, you'd generate a proper ID token with different claims
+		fragment.Set("id_token", tokenPair.AccessToken)
+	}
+
+	// For pure implicit flows (no code), include state in fragment
+	if authCode == "" && state != "" {
+		fragment.Set("state", state)
+	}
+
+	// Set the fragment if there are any fragment parameters
+	if len(fragment) > 0 {
+		parsedURL.Fragment = fragment.Encode()
+	}
+
+	return parsedURL.String(), nil
+}
+
+// TokenIntrospectionResponse represents the response from token introspection
+type TokenIntrospectionResponse struct {
+	Active    bool   `json:"active"`
+	Sub       string `json:"sub,omitempty"`
+	Email     string `json:"email,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Iat       int64  `json:"iat,omitempty"`
+	Exp       int64  `json:"exp,omitempty"`
+	Aud       string `json:"aud,omitempty"`
+	Iss       string `json:"iss,omitempty"`
+	TokenType string `json:"token_type,omitempty"`
+	Scope     string `json:"scope,omitempty"`
+}
+
+// IntrospectToken handles token introspection requests per RFC 7662
+func (h *Handlers) IntrospectToken(c *gin.Context) {
+	var req struct {
+		Token string `json:"token" form:"token" binding:"required"`
+	}
+
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request: token parameter is required",
+		})
+		return
+	}
+
+	// Parse and validate the JWT token
+	token, err := jwt.Parse(req.Token, func(token *jwt.Token) (interface{}, error) {
+		// Validate the signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		// Return the secret key used to sign the token
+		return []byte(h.service.config.JWT.Secret), nil
+	})
+
+	// If token parsing failed or token is invalid, return inactive
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusOK, TokenIntrospectionResponse{
+			Active: false,
+		})
+		return
+	}
+
+	// Extract claims from the token
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		c.JSON(http.StatusOK, TokenIntrospectionResponse{
+			Active: false,
+		})
+		return
+	}
+
+	// Check if token is blacklisted (if blacklist service is available)
+	if h.service.dbManager != nil && h.service.dbManager.Redis() != nil {
+		blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient())
+		isBlacklisted, err := blacklist.IsTokenBlacklisted(c.Request.Context(), req.Token)
+		if err == nil && isBlacklisted {
+			c.JSON(http.StatusOK, TokenIntrospectionResponse{
+				Active: false,
+			})
+			return
+		}
+	}
+
+	// Extract standard claims
+	baseURL := getBaseURL(c)
+	response := TokenIntrospectionResponse{
+		Active:    true,
+		TokenType: "Bearer",
+		Iss:       baseURL,
+		Scope:     "openid profile email",
+	}
+
+	// Extract subject (user identifier)
+	if sub, ok := claims["sub"].(string); ok {
+		response.Sub = sub
+	}
+
+	// Extract email
+	if email, ok := claims["email"].(string); ok {
+		response.Email = email
+	}
+
+	// Extract name
+	if name, ok := claims["name"].(string); ok {
+		response.Name = name
+	}
+
+	// Extract issued at time
+	if iat, ok := claims["iat"].(float64); ok {
+		response.Iat = int64(iat)
+	}
+
+	// Extract expiration time
+	if exp, ok := claims["exp"].(float64); ok {
+		response.Exp = int64(exp)
+	}
+
+	// Extract audience
+	if aud, ok := claims["aud"].(string); ok {
+		response.Aud = aud
+	}
+
+	c.JSON(http.StatusOK, response)
 }

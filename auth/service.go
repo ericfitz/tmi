@@ -38,12 +38,17 @@ func NewService(dbManager *db.Manager, config Config) (*Service, error) {
 
 // User represents a user in the system
 type User struct {
-	ID         string    `json:"id"`
-	Email      string    `json:"email"`
-	Name       string    `json:"name"`
-	CreatedAt  time.Time `json:"created_at"`
-	ModifiedAt time.Time `json:"modified_at"`
-	LastLogin  time.Time `json:"last_login,omitempty"`
+	ID            string    `json:"id"`
+	Email         string    `json:"email"`
+	Name          string    `json:"name"`
+	EmailVerified bool      `json:"email_verified"`
+	GivenName     string    `json:"given_name,omitempty"`
+	FamilyName    string    `json:"family_name,omitempty"`
+	Picture       string    `json:"picture,omitempty"`
+	Locale        string    `json:"locale,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	ModifiedAt    time.Time `json:"modified_at"`
+	LastLogin     time.Time `json:"last_login,omitempty"`
 }
 
 // TokenPair contains an access token and a refresh token
@@ -56,18 +61,50 @@ type TokenPair struct {
 
 // Claims represents the JWT claims
 type Claims struct {
-	Email string `json:"email"`
-	Name  string `json:"name"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified,omitempty"`
+	Name          string `json:"name"`
+	GivenName     string `json:"given_name,omitempty"`
+	FamilyName    string `json:"family_name,omitempty"`
+	Picture       string `json:"picture,omitempty"`
+	Locale        string `json:"locale,omitempty"`
 	jwt.RegisteredClaims
 }
 
 // GenerateTokens generates a new JWT token pair for a user
 func (s *Service) GenerateTokens(ctx context.Context, user User) (TokenPair, error) {
-	// Create the JWT claims
+	return s.GenerateTokensWithUserInfo(ctx, user, nil)
+}
+
+// GenerateTokensWithUserInfo generates a new JWT token pair for a user with optional provider UserInfo
+func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, userInfo *UserInfo) (TokenPair, error) {
+	// If UserInfo is provided, update the user with fresh provider data
+	if userInfo != nil {
+		user.EmailVerified = userInfo.EmailVerified
+		user.GivenName = userInfo.GivenName
+		user.FamilyName = userInfo.FamilyName
+		user.Picture = userInfo.Picture
+		if userInfo.Locale != "" {
+			user.Locale = userInfo.Locale
+		}
+
+		// Update the user in the database with fresh provider data
+		if err := s.UpdateUser(ctx, user); err != nil {
+			// Log error but continue - token generation shouldn't fail due to update issues
+			logging.Get().Error("Failed to update user provider data: %v", err)
+		}
+	}
+
+	// Create the JWT claims using the user's stored data
 	expirationTime := time.Now().Add(s.config.GetJWTDuration())
 	claims := &Claims{
-		Email: user.Email,
-		Name:  user.Name,
+		Email:         user.Email,
+		EmailVerified: user.EmailVerified,
+		Name:          user.Name,
+		GivenName:     user.GivenName,
+		FamilyName:    user.FamilyName,
+		Picture:       user.Picture,
+		Locale:        user.Locale,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   user.Email,
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
@@ -157,7 +194,7 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 	user.LastLogin = time.Now()
 	if err := s.UpdateUser(ctx, user); err != nil {
 		// Log the error but continue
-		fmt.Printf("Failed to update user last login: %v\n", err)
+		logging.Get().Error("Failed to update user last login: %v", err)
 	}
 
 	// Generate new tokens
@@ -175,11 +212,16 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 	db := s.dbManager.Postgres().GetDB()
 
 	var user User
-	query := `SELECT id, email, name, created_at, modified_at, last_login FROM users WHERE email = $1`
+	query := `SELECT id, email, name, email_verified, given_name, family_name, picture, locale, created_at, modified_at, last_login FROM users WHERE email = $1`
 	err := db.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Name,
+		&user.EmailVerified,
+		&user.GivenName,
+		&user.FamilyName,
+		&user.Picture,
+		&user.Locale,
 		&user.CreatedAt,
 		&user.ModifiedAt,
 		&user.LastLogin,
@@ -215,8 +257,8 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 	}
 
 	query := `
-		INSERT INTO users (id, email, name, created_at, modified_at, last_login)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO users (id, email, name, email_verified, given_name, family_name, picture, locale, created_at, modified_at, last_login)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id
 	`
 
@@ -224,6 +266,11 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 		user.ID,
 		user.Email,
 		user.Name,
+		user.EmailVerified,
+		user.GivenName,
+		user.FamilyName,
+		user.Picture,
+		user.Locale,
 		user.CreatedAt,
 		user.ModifiedAt,
 		user.LastLogin,
@@ -245,7 +292,7 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 
 	query := `
 		UPDATE users
-		SET email = $2, name = $3, modified_at = $4, last_login = $5
+		SET email = $2, name = $3, email_verified = $4, given_name = $5, family_name = $6, picture = $7, locale = $8, modified_at = $9, last_login = $10
 		WHERE id = $1
 	`
 
@@ -253,6 +300,11 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 		user.ID,
 		user.Email,
 		user.Name,
+		user.EmailVerified,
+		user.GivenName,
+		user.FamilyName,
+		user.Picture,
+		user.Locale,
 		user.ModifiedAt,
 		user.LastLogin,
 	)
@@ -457,13 +509,18 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 	// Get the user
 	var user User
 	err = db.QueryRowContext(ctx, `
-		SELECT id, email, name, created_at, modified_at, last_login
+		SELECT id, email, name, email_verified, given_name, family_name, picture, locale, created_at, modified_at, last_login
 		FROM users
 		WHERE id = $1
 	`, userID).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Name,
+		&user.EmailVerified,
+		&user.GivenName,
+		&user.FamilyName,
+		&user.Picture,
+		&user.Locale,
 		&user.CreatedAt,
 		&user.ModifiedAt,
 		&user.LastLogin,
