@@ -8559,8 +8559,12 @@
             "$ref": "#/components/responses/Error"
           },
           "404": {
-            "description": "No collaboration session exists for this diagram",
-            "$ref": "#/components/responses/Error"
+            "allOf": [
+              {
+                "$ref": "#/components/responses/Error"
+              }
+            ],
+            "description": "No collaboration session exists for this diagram"
           },
           "500": {
             "$ref": "#/components/responses/Error"
