@@ -36,6 +36,7 @@ and --> GET /.well-known/oauth-authorization-server
 
 scopes
 openid profile email
+(DONE)
 
 claims:
 name --> name
