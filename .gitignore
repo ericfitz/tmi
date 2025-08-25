@@ -5,12 +5,10 @@
 !.gitignore
 !*.md
 !*.go
-!*.sql
 !go.sum
 !go.mod
 !license.txt
 !Makefile
-!generate-api
 !oapi-codegen-config.yml
 !.golangci.yml
 !make-containers-dev*.sh
@@ -20,12 +18,17 @@
 !auth/migrations/*.sql
 
 # Include subdirectories (but avoid overriding specific ignores)
+!auth/
 !auth/**
-!auth/migrations/*
+!docs/
 !docs/**
+!postman/
 !postman/**
+!scripts/
 !scripts/**
+!shared/
 !shared/**
+!static/
 !static/**
 
 # Explicitly ignore unwanted files and directories
@@ -44,3 +47,7 @@ server
 check-db
 .config.*.mk
 test.mk
+.claude/
+.venv/
+.vscode/
+

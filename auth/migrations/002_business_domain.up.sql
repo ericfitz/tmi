@@ -1,0 +1,203 @@
+-- Create threat_models table with all final fields
+CREATE TABLE IF NOT EXISTS threat_models (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    owner_email VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_by VARCHAR(256) NOT NULL,
+    threat_model_framework VARCHAR(50) NOT NULL DEFAULT 'STRIDE' 
+        CHECK (threat_model_framework IN ('CIA', 'STRIDE', 'LINDDUN', 'DIE', 'PLOT4ai')),
+    issue_url VARCHAR(1024),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (owner_email) REFERENCES users(email) ON DELETE RESTRICT
+);
+
+-- Create diagrams table with all final fields
+CREATE TABLE IF NOT EXISTS diagrams (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    threat_model_id UUID NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50) CHECK (type IN ('DFD-1.0.0')),
+    content TEXT,
+    cells JSONB,
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (threat_model_id) REFERENCES threat_models(id) ON DELETE CASCADE
+);
+
+-- Create threats table with all final fields
+CREATE TABLE IF NOT EXISTS threats (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    threat_model_id UUID NOT NULL,
+    diagram_id UUID,
+    cell_id UUID,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    severity VARCHAR(50) CHECK (severity IN ('Unknown', 'None', 'Low', 'Medium', 'High', 'Critical')),
+    likelihood VARCHAR(50),
+    risk_level VARCHAR(50),
+    score DECIMAL(3,1) CHECK (score >= 0.0 AND score <= 10.0),
+    priority VARCHAR(16) NOT NULL DEFAULT 'Medium',
+    mitigated BOOLEAN NOT NULL DEFAULT FALSE,
+    status VARCHAR(256) NOT NULL DEFAULT 'Active',
+    threat_type VARCHAR(256) NOT NULL DEFAULT 'Unspecified',
+    mitigation TEXT,
+    issue_url VARCHAR(1024),
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (threat_model_id) REFERENCES threat_models(id) ON DELETE CASCADE,
+    FOREIGN KEY (diagram_id) REFERENCES diagrams(id) ON DELETE SET NULL
+);
+
+-- Create threat_model_access table for authorization
+CREATE TABLE IF NOT EXISTS threat_model_access (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    threat_model_id UUID NOT NULL,
+    user_email VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL CHECK (role IN ('owner', 'writer', 'reader')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (threat_model_id) REFERENCES threat_models(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE,
+    UNIQUE(threat_model_id, user_email)
+);
+
+-- Create documents table
+CREATE TABLE documents (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    threat_model_id UUID NOT NULL REFERENCES threat_models(id) ON DELETE CASCADE,
+    name VARCHAR(256) NOT NULL,
+    url VARCHAR(1024) NOT NULL,
+    description VARCHAR(1024),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create sources table
+CREATE TABLE sources (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    threat_model_id UUID NOT NULL REFERENCES threat_models(id) ON DELETE CASCADE,
+    name VARCHAR(256),
+    url VARCHAR(1024) NOT NULL,
+    description VARCHAR(1024),
+    type VARCHAR(50) CHECK (type IN ('git', 'svn', 'mercurial', 'other')),
+    parameters JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create metadata table with all enhancements
+CREATE TABLE metadata (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    entity_type VARCHAR(50) NOT NULL CHECK (entity_type IN ('threat_model', 'threat', 'diagram', 'document', 'source', 'cell')),
+    entity_id UUID NOT NULL,
+    key VARCHAR(128) NOT NULL,
+    value TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add foreign key constraints for collaboration_sessions (deferred from file 1)
+ALTER TABLE collaboration_sessions ADD FOREIGN KEY (threat_model_id) REFERENCES threat_models(id) ON DELETE CASCADE;
+ALTER TABLE collaboration_sessions ADD FOREIGN KEY (diagram_id) REFERENCES diagrams(id) ON DELETE CASCADE;
+
+-- Create indexes for threat_models
+CREATE INDEX IF NOT EXISTS idx_threat_models_owner_email ON threat_models(owner_email);
+CREATE INDEX idx_threat_models_framework ON threat_models(threat_model_framework);
+CREATE INDEX idx_threat_models_created_by ON threat_models(created_by);
+CREATE INDEX IF NOT EXISTS idx_threat_models_owner_created_at ON threat_models(owner_email, created_at DESC);
+
+-- Create indexes for diagrams
+CREATE INDEX IF NOT EXISTS idx_diagrams_threat_model_id ON diagrams(threat_model_id);
+CREATE INDEX IF NOT EXISTS idx_diagrams_type ON diagrams(type);
+CREATE INDEX idx_diagrams_cells ON diagrams USING GIN (cells);
+CREATE INDEX idx_diagrams_threat_model_id_type ON diagrams(threat_model_id, type);
+
+-- Create indexes for threats
+CREATE INDEX IF NOT EXISTS idx_threats_threat_model_id ON threats(threat_model_id);
+CREATE INDEX IF NOT EXISTS idx_threats_severity ON threats(severity);
+CREATE INDEX IF NOT EXISTS idx_threats_risk_level ON threats(risk_level);
+CREATE INDEX idx_threats_diagram_id ON threats(diagram_id);
+CREATE INDEX idx_threats_cell_id ON threats(cell_id);
+CREATE INDEX idx_threats_priority ON threats(priority);
+CREATE INDEX idx_threats_mitigated ON threats(mitigated);
+CREATE INDEX idx_threats_status ON threats(status);
+CREATE INDEX idx_threats_threat_type ON threats(threat_type);
+CREATE INDEX idx_threats_score ON threats(score);
+CREATE INDEX IF NOT EXISTS idx_threats_metadata_gin ON threats USING GIN (metadata);
+CREATE INDEX IF NOT EXISTS idx_threats_name ON threats(name);
+CREATE INDEX IF NOT EXISTS idx_threats_modified_at ON threats(modified_at);
+CREATE INDEX IF NOT EXISTS idx_threats_threat_model_created_at ON threats(threat_model_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_threats_threat_model_modified_at ON threats(threat_model_id, modified_at DESC);
+
+-- Create indexes for threat_model_access
+CREATE INDEX IF NOT EXISTS idx_threat_model_access_threat_model_id ON threat_model_access(threat_model_id);
+CREATE INDEX IF NOT EXISTS idx_threat_model_access_user_email ON threat_model_access(user_email);
+CREATE INDEX IF NOT EXISTS idx_threat_model_access_role ON threat_model_access(role);
+CREATE INDEX IF NOT EXISTS idx_threat_model_access_performance ON threat_model_access(threat_model_id, role, user_email);
+
+-- Create indexes for documents
+CREATE INDEX idx_documents_threat_model_id ON documents(threat_model_id);
+CREATE INDEX idx_documents_name ON documents(name);
+CREATE INDEX idx_documents_created_at ON documents(created_at);
+CREATE INDEX IF NOT EXISTS idx_documents_modified_at ON documents(modified_at);
+CREATE INDEX IF NOT EXISTS idx_documents_threat_model_created_at ON documents(threat_model_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_documents_threat_model_modified_at ON documents(threat_model_id, modified_at DESC);
+
+-- Create indexes for sources
+CREATE INDEX idx_sources_threat_model_id ON sources(threat_model_id);
+CREATE INDEX idx_sources_name ON sources(name);
+CREATE INDEX idx_sources_type ON sources(type);
+CREATE INDEX idx_sources_created_at ON sources(created_at);
+CREATE INDEX IF NOT EXISTS idx_sources_modified_at ON sources(modified_at);
+CREATE INDEX IF NOT EXISTS idx_sources_threat_model_created_at ON sources(threat_model_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sources_threat_model_modified_at ON sources(threat_model_id, modified_at DESC);
+
+-- Create indexes for metadata
+CREATE INDEX idx_metadata_entity_type_id ON metadata(entity_type, entity_id);
+CREATE INDEX idx_metadata_key ON metadata(key);
+CREATE INDEX idx_metadata_entity_id ON metadata(entity_id);
+CREATE UNIQUE INDEX idx_metadata_unique_key_per_entity ON metadata(entity_type, entity_id, key);
+CREATE INDEX IF NOT EXISTS idx_metadata_key_value ON metadata(key, value);
+CREATE INDEX IF NOT EXISTS idx_metadata_key_only ON metadata(key);
+CREATE INDEX IF NOT EXISTS idx_metadata_entity_key_exists ON metadata(entity_type, entity_id, key) WHERE value IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_metadata_created_at ON metadata(created_at);
+CREATE INDEX IF NOT EXISTS idx_metadata_modified_at ON metadata(modified_at);
+CREATE INDEX IF NOT EXISTS idx_metadata_entity_type_created_at ON metadata(entity_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_metadata_entity_type_modified_at ON metadata(entity_type, modified_at DESC);
+
+-- Partial indexes for specific entity types in metadata
+CREATE INDEX IF NOT EXISTS idx_metadata_threats ON metadata(entity_id, key, value) WHERE entity_type = 'threat';
+CREATE INDEX IF NOT EXISTS idx_metadata_documents ON metadata(entity_id, key, value) WHERE entity_type = 'document';
+CREATE INDEX IF NOT EXISTS idx_metadata_sources ON metadata(entity_id, key, value) WHERE entity_type = 'source';
+CREATE INDEX IF NOT EXISTS idx_metadata_diagrams ON metadata(entity_id, key, value) WHERE entity_type = 'diagram';
+CREATE INDEX IF NOT EXISTS idx_metadata_threat_models ON metadata(entity_id, key, value) WHERE entity_type = 'threat_model';
+
+-- Performance indexes for authorization inheritance
+CREATE INDEX IF NOT EXISTS idx_threats_owner_via_threat_model ON threats(threat_model_id) 
+    INCLUDE (id, name, created_at, modified_at);
+CREATE INDEX IF NOT EXISTS idx_documents_owner_via_threat_model ON documents(threat_model_id) 
+    INCLUDE (id, name, url, created_at, modified_at);
+CREATE INDEX IF NOT EXISTS idx_sources_owner_via_threat_model ON sources(threat_model_id) 
+    INCLUDE (id, name, url, type, created_at, modified_at);
+
+-- Add constraints for documents
+ALTER TABLE documents ADD CONSTRAINT documents_name_not_empty 
+    CHECK (LENGTH(TRIM(name)) > 0);
+ALTER TABLE documents ADD CONSTRAINT documents_url_not_empty 
+    CHECK (LENGTH(TRIM(url)) > 0);
+
+-- Add constraints for sources
+ALTER TABLE sources ADD CONSTRAINT sources_url_not_empty 
+    CHECK (LENGTH(TRIM(url)) > 0);
+
+-- Add constraints for metadata
+ALTER TABLE metadata ADD CONSTRAINT metadata_key_not_empty 
+    CHECK (LENGTH(TRIM(key)) > 0 AND LENGTH(key) <= 128);
+ALTER TABLE metadata ADD CONSTRAINT metadata_value_not_empty 
+    CHECK (LENGTH(TRIM(value)) > 0 AND LENGTH(value) <= 65535);
+ALTER TABLE metadata ADD CONSTRAINT metadata_key_format 
+    CHECK (key ~ '^[a-zA-Z0-9_-]+$');
