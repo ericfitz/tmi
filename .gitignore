@@ -5,42 +5,42 @@
 !.gitignore
 !*.md
 !*.go
+!*.sql
 !go.sum
 !go.mod
 !license.txt
-!shared/api-specs/tmi-openapi.json
-!static/*
 !Makefile
 !generate-api
 !oapi-codegen-config.yml
 !.golangci.yml
-!docs/*
 !make-containers-dev*.sh
 !Dockerfile*
 !.dockerignore
 !config-example.yml
-!tmi-asyncapi.yml
-!stepci/**
+!auth/migrations/*.sql
 
 # Include subdirectories (but avoid overriding specific ignores)
-!*/
+!auth/**
+!auth/migrations/*
+!docs/**
+!postman/**
 !scripts/**
 !shared/**
+!static/**
 
 # Explicitly ignore unwanted files and directories
 *.log
 **/logs/**
 .DS_Store
 config-development.yml
-scripts/unused
-scripts/unused/**
+config-production.yml
 coverage/
 coverage_html/
 .venv/
 .venv/**
 **/bin/**
+migrate
 server
 check-db
-migrate
 .config.*.mk
 test.mk
