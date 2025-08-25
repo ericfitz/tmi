@@ -862,7 +862,31 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 		return
 	}
 
-	// For now, just return success
-	// In a real implementation, you would remove the user from the collaboration session
+	// Get the session to check if it exists and if user is part of it
+	session := h.wsHub.GetSession(diagramId)
+	if session == nil {
+		// No active session - this is fine, just return success
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	// Check if the requesting user is the session manager
+	session.mu.RLock()
+	isManager := (session.Manager == userName)
+	session.mu.RUnlock()
+
+	if isManager {
+		// If the user is the session manager, close the entire session
+		h.wsHub.CloseSession(diagramId)
+		logging.Get().WithContext(c).Info("Collaboration session %s closed by session manager %s", session.ID, userName)
+	} else {
+		// If user is not the session manager, just remove their intended participation
+		// The WebSocket disconnection will be handled by the client
+		session.mu.Lock()
+		delete(session.IntendedParticipants, userName)
+		session.mu.Unlock()
+		logging.Get().WithContext(c).Info("User %s removed from intended participants of session %s", userName, session.ID)
+	}
+
 	c.Status(http.StatusNoContent)
 }

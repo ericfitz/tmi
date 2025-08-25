@@ -97,6 +97,10 @@ func (s *Server) HandleWebSocket(c *gin.Context) {
 
 // StartWebSocketHub starts the WebSocket hub cleanup timer
 func (s *Server) StartWebSocketHub(ctx context.Context) {
+	// Clean up any existing sessions from previous server runs
+	s.wsHub.CleanupAllSessions()
+
+	// Start the periodic cleanup timer
 	go s.wsHub.StartCleanupTimer(ctx)
 }
 
