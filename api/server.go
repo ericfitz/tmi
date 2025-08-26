@@ -75,6 +75,10 @@ func (s *Server) RegisterHandlers(r *gin.Engine) {
 	logger.Info("[API_SERVER] Registering WebSocket route: GET /threat_models/:threat_model_id/diagrams/:diagram_id/ws")
 	r.GET("/threat_models/:threat_model_id/diagrams/:diagram_id/ws", s.HandleWebSocket)
 
+	// Register notification WebSocket handler
+	logger.Info("[API_SERVER] Registering notification WebSocket route: GET /ws/notifications")
+	r.GET("/ws/notifications", s.HandleNotificationWebSocket)
+
 	// Register server info endpoint
 	logger.Info("[API_SERVER] Registering custom route: GET /api/server-info")
 	r.GET("/api/server-info", s.HandleServerInfo)
@@ -102,6 +106,9 @@ func (s *Server) StartWebSocketHub(ctx context.Context) {
 
 	// Start the periodic cleanup timer
 	go s.wsHub.StartCleanupTimer(ctx)
+
+	// Initialize the notification hub
+	InitNotificationHub()
 }
 
 // GetWebSocketHub returns the WebSocket hub instance

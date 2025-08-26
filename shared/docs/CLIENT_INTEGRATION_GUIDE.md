@@ -2268,9 +2268,669 @@ test("should request resync after multiple sync warnings", () => {
 });
 ```
 
+## Real-time Notifications System
+
+### Overview
+
+In addition to diagram collaboration, TMI provides a global WebSocket-based notification system at `/ws/notifications`. This system delivers real-time updates about threat model changes, collaboration sessions, system announcements, and user activity across the entire application.
+
+### Connection Setup
+
+```javascript
+class NotificationClient {
+  constructor(jwtToken, serverUrl = 'ws://localhost:8080') {
+    this.jwtToken = jwtToken;
+    this.serverUrl = serverUrl;
+    this.ws = null;
+    this.subscription = null;
+  }
+
+  async connect() {
+    const url = `${this.serverUrl}/ws/notifications?token=${this.jwtToken}`;
+    
+    this.ws = new WebSocket(url);
+    
+    this.ws.onopen = () => {
+      console.log('Connected to notification service');
+      this.emit('connected');
+    };
+    
+    this.ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      this.handleNotification(message);
+    };
+    
+    this.ws.onclose = () => {
+      console.log('Disconnected from notification service');
+      this.emit('disconnected');
+      // Implement reconnection logic if needed
+    };
+  }
+  
+  handleNotification(message) {
+    // Emit specific events based on message type
+    this.emit(message.message_type, message);
+    
+    // Also emit a general notification event
+    this.emit('notification', message);
+  }
+}
+```
+
+### Notification Message Types
+
+#### Threat Model Notifications
+
+```javascript
+// Threat model created
+{
+  "message_type": "threat_model_created",
+  "user_id": "creator@example.com",
+  "timestamp": "2025-08-26T10:30:00Z",
+  "data": {
+    "threat_model_id": "123e4567-e89b-12d3-a456-426614174000",
+    "threat_model_name": "New Application Threat Model",
+    "action": "created"
+  }
+}
+
+// Threat model updated
+{
+  "message_type": "threat_model_updated",
+  "user_id": "editor@example.com",
+  "timestamp": "2025-08-26T10:35:00Z",
+  "data": {
+    "threat_model_id": "123e4567-e89b-12d3-a456-426614174000",
+    "threat_model_name": "Updated Application Threat Model",
+    "action": "updated"
+  }
+}
+
+// Threat model deleted
+{
+  "message_type": "threat_model_deleted",
+  "user_id": "owner@example.com",
+  "timestamp": "2025-08-26T10:40:00Z",
+  "data": {
+    "threat_model_id": "123e4567-e89b-12d3-a456-426614174000",
+    "threat_model_name": "Old Application Threat Model",
+    "action": "deleted"
+  }
+}
+
+// Threat model shared
+{
+  "message_type": "threat_model_shared",
+  "user_id": "owner@example.com",
+  "timestamp": "2025-08-26T10:45:00Z",
+  "data": {
+    "threat_model_id": "123e4567-e89b-12d3-a456-426614174000",
+    "threat_model_name": "Shared Threat Model",
+    "shared_with_email": "newuser@example.com",
+    "role": "writer"
+  }
+}
+```
+
+#### Collaboration Notifications
+
+```javascript
+// Collaboration session started
+{
+  "message_type": "collaboration_started",
+  "user_id": "initiator@example.com",
+  "timestamp": "2025-08-26T11:00:00Z",
+  "data": {
+    "diagram_id": "456e7890-e89b-12d3-a456-426614174111",
+    "diagram_name": "System Architecture",
+    "threat_model_id": "123e4567-e89b-12d3-a456-426614174000",
+    "threat_model_name": "Application Threat Model",
+    "session_id": "789abcde-e89b-12d3-a456-426614174222"
+  }
+}
+
+// Collaboration invitation
+{
+  "message_type": "collaboration_invite",
+  "user_id": "inviter@example.com",
+  "timestamp": "2025-08-26T11:05:00Z",
+  "data": {
+    "diagram_id": "456e7890-e89b-12d3-a456-426614174111",
+    "diagram_name": "System Architecture",
+    "threat_model_id": "123e4567-e89b-12d3-a456-426614174000",
+    "threat_model_name": "Application Threat Model",
+    "inviter_email": "inviter@example.com",
+    "role": "viewer"
+  }
+}
+```
+
+#### System Notifications
+
+```javascript
+// System announcement
+{
+  "message_type": "system_announcement",
+  "user_id": "system",
+  "timestamp": "2025-08-26T12:00:00Z",
+  "data": {
+    "severity": "info", // info, warning, error, critical
+    "message": "System maintenance scheduled for tomorrow at 2 AM UTC",
+    "action_required": false,
+    "action_url": ""
+  }
+}
+
+// System update notification
+{
+  "message_type": "system_update",
+  "user_id": "system",
+  "timestamp": "2025-08-26T12:30:00Z",
+  "data": {
+    "severity": "warning",
+    "message": "New version available - please refresh your browser",
+    "action_required": true,
+    "action_url": "/update"
+  }
+}
+```
+
+#### User Activity Notifications
+
+```javascript
+// User joined
+{
+  "message_type": "user_joined",
+  "user_id": "newuser@example.com",
+  "timestamp": "2025-08-26T13:00:00Z",
+  "data": {
+    "user_email": "newuser@example.com",
+    "user_name": "New User"
+  }
+}
+
+// User left
+{
+  "message_type": "user_left",
+  "user_id": "departinguser@example.com",
+  "timestamp": "2025-08-26T13:15:00Z",
+  "data": {
+    "user_email": "departinguser@example.com",
+    "user_name": "Departing User"
+  }
+}
+```
+
+#### Heartbeat
+
+```javascript
+// Keep-alive heartbeat (sent every 30 seconds)
+{
+  "message_type": "heartbeat",
+  "user_id": "system",
+  "timestamp": "2025-08-26T13:30:00Z"
+}
+```
+
+### Subscription Management
+
+By default, all connected clients receive all notifications. You can customize this by sending subscription preferences:
+
+```javascript
+class NotificationSubscriptionManager {
+  constructor(notificationClient) {
+    this.client = notificationClient;
+  }
+  
+  updateSubscription(preferences) {
+    const subscriptionMessage = {
+      message_type: "update_subscription",
+      data: {
+        subscribed_types: [
+          "threat_model_created",
+          "threat_model_updated",
+          "threat_model_deleted",
+          "collaboration_started",
+          "system_announcement"
+        ],
+        threat_model_filters: [
+          "123e4567-e89b-12d3-a456-426614174000",
+          "234e5678-e89b-12d3-a456-426614174001"
+        ],
+        diagram_filters: [
+          "456e7890-e89b-12d3-a456-426614174111"
+        ]
+      }
+    };
+    
+    this.client.send(JSON.stringify(subscriptionMessage));
+  }
+  
+  // Subscribe to all notifications (default behavior)
+  subscribeToAll() {
+    this.updateSubscription({
+      subscribed_types: [], // Empty means receive all types
+      threat_model_filters: [],
+      diagram_filters: []
+    });
+  }
+  
+  // Subscribe only to specific threat models
+  subscribeToThreatModels(threatModelIds) {
+    this.updateSubscription({
+      subscribed_types: [
+        "threat_model_created",
+        "threat_model_updated",
+        "threat_model_deleted",
+        "threat_model_shared"
+      ],
+      threat_model_filters: threatModelIds,
+      diagram_filters: []
+    });
+  }
+  
+  // Subscribe only to collaboration events
+  subscribeToCollaboration() {
+    this.updateSubscription({
+      subscribed_types: [
+        "collaboration_started",
+        "collaboration_ended",
+        "collaboration_invite"
+      ],
+      threat_model_filters: [],
+      diagram_filters: []
+    });
+  }
+}
+```
+
+### Complete Implementation Example
+
+```javascript
+class TMINotificationManager extends EventEmitter {
+  constructor(jwtToken, options = {}) {
+    super();
+    this.jwtToken = jwtToken;
+    this.serverUrl = options.serverUrl || 'ws://localhost:8080';
+    this.autoReconnect = options.autoReconnect !== false;
+    this.reconnectDelay = options.reconnectDelay || 1000;
+    this.maxReconnectAttempts = options.maxReconnectAttempts || 5;
+    
+    this.ws = null;
+    this.reconnectAttempts = 0;
+    this.reconnectTimeout = null;
+  }
+  
+  async connect() {
+    return new Promise((resolve, reject) => {
+      const url = `${this.serverUrl}/ws/notifications?token=${this.jwtToken}`;
+      
+      try {
+        this.ws = new WebSocket(url);
+        
+        this.ws.onopen = () => {
+          console.log('✅ Connected to TMI notification service');
+          this.reconnectAttempts = 0;
+          this.emit('connected');
+          resolve();
+        };
+        
+        this.ws.onmessage = (event) => {
+          const message = JSON.parse(event.data);
+          this.handleNotification(message);
+        };
+        
+        this.ws.onclose = (event) => {
+          console.log(`WebSocket closed: ${event.code} - ${event.reason}`);
+          this.emit('disconnected', event);
+          
+          if (this.autoReconnect && event.code !== 1000) {
+            this.scheduleReconnection();
+          }
+        };
+        
+        this.ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          this.emit('error', error);
+          reject(error);
+        };
+        
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+  
+  handleNotification(message) {
+    // Special handling for subscription confirmations
+    if (message.message_type === 'subscription_updated') {
+      console.log('✅ Subscription updated:', message.data.message);
+      this.emit('subscription_updated', message);
+      return;
+    }
+    
+    // Emit specific event for the message type
+    this.emit(message.message_type, message);
+    
+    // Emit general notification event
+    this.emit('notification', message);
+    
+    // Log important notifications
+    switch (message.message_type) {
+      case 'threat_model_created':
+      case 'threat_model_deleted':
+        console.log(`🔔 Threat model ${message.data.action}: ${message.data.threat_model_name}`);
+        break;
+        
+      case 'collaboration_started':
+        console.log(`👥 Collaboration started on ${message.data.diagram_name}`);
+        break;
+        
+      case 'system_announcement':
+        console.log(`📢 System: ${message.data.message}`);
+        break;
+        
+      case 'heartbeat':
+        // Silent - just for connection keep-alive
+        break;
+    }
+  }
+  
+  send(data) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(typeof data === 'string' ? data : JSON.stringify(data));
+    } else {
+      console.warn('WebSocket not connected, message not sent');
+    }
+  }
+  
+  updateSubscription(subscriptionData) {
+    this.send({
+      message_type: 'update_subscription',
+      data: subscriptionData
+    });
+  }
+  
+  scheduleReconnection() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('Max reconnection attempts reached');
+      this.emit('reconnect_failed');
+      return;
+    }
+    
+    const delay = Math.min(
+      this.reconnectDelay * Math.pow(2, this.reconnectAttempts),
+      30000 // Max 30 seconds
+    );
+    
+    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+    
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectAttempts++;
+      this.connect().catch(() => {
+        // Error handled in connect method
+      });
+    }, delay);
+  }
+  
+  disconnect() {
+    this.autoReconnect = false;
+    
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+    
+    if (this.ws) {
+      this.ws.close(1000, 'Client disconnect');
+      this.ws = null;
+    }
+  }
+}
+
+// Usage example
+async function setupNotifications() {
+  const notificationManager = new TMINotificationManager(jwtToken, {
+    serverUrl: 'wss://api.tmi.example.com',
+    autoReconnect: true,
+    maxReconnectAttempts: 10
+  });
+  
+  // Set up event handlers
+  notificationManager.on('threat_model_created', (msg) => {
+    showToast(`New threat model: ${msg.data.threat_model_name}`, 'info');
+    refreshThreatModelList();
+  });
+  
+  notificationManager.on('threat_model_updated', (msg) => {
+    if (isViewingThreatModel(msg.data.threat_model_id)) {
+      showToast(`This threat model was updated by ${msg.user_id}`, 'warning');
+      // Optionally refresh the view
+    }
+  });
+  
+  notificationManager.on('collaboration_invite', (msg) => {
+    showNotification({
+      title: 'Collaboration Invitation',
+      body: `${msg.data.inviter_email} invited you to collaborate on ${msg.data.diagram_name}`,
+      actions: [
+        { label: 'Join', action: () => joinCollaboration(msg.data) },
+        { label: 'Decline', action: () => declineInvite(msg.data) }
+      ]
+    });
+  });
+  
+  notificationManager.on('system_announcement', (msg) => {
+    if (msg.data.severity === 'critical' || msg.data.action_required) {
+      showModal({
+        title: 'System Notification',
+        message: msg.data.message,
+        severity: msg.data.severity,
+        actionUrl: msg.data.action_url
+      });
+    } else {
+      showToast(msg.data.message, msg.data.severity);
+    }
+  });
+  
+  // Connect to notification service
+  try {
+    await notificationManager.connect();
+    
+    // Optional: Customize subscription
+    notificationManager.updateSubscription({
+      subscribed_types: [
+        'threat_model_created',
+        'threat_model_updated',
+        'threat_model_deleted',
+        'threat_model_shared',
+        'collaboration_invite',
+        'system_announcement'
+      ],
+      threat_model_filters: [], // Empty = all threat models
+      diagram_filters: []       // Empty = all diagrams
+    });
+    
+  } catch (error) {
+    console.error('Failed to connect to notification service:', error);
+  }
+  
+  return notificationManager;
+}
+```
+
+### Integration with UI Components
+
+```javascript
+class NotificationUIManager {
+  constructor(notificationManager) {
+    this.notificationManager = notificationManager;
+    this.notificationQueue = [];
+    this.setupUIHandlers();
+  }
+  
+  setupUIHandlers() {
+    // Show notification badges
+    this.notificationManager.on('notification', (msg) => {
+      if (msg.message_type !== 'heartbeat') {
+        this.incrementNotificationBadge();
+        this.addToNotificationCenter(msg);
+      }
+    });
+    
+    // Update UI based on threat model changes
+    this.notificationManager.on('threat_model_updated', (msg) => {
+      const currentThreatModelId = this.getCurrentThreatModelId();
+      
+      if (msg.data.threat_model_id === currentThreatModelId) {
+        this.showRefreshPrompt({
+          message: `This threat model was updated by ${msg.user_id}`,
+          onRefresh: () => this.reloadThreatModel()
+        });
+      }
+    });
+    
+    // Handle collaboration invitations prominently
+    this.notificationManager.on('collaboration_invite', (msg) => {
+      this.showCollaborationInviteModal(msg.data);
+    });
+    
+    // Connection status indicator
+    this.notificationManager.on('connected', () => {
+      this.updateConnectionStatus('connected');
+    });
+    
+    this.notificationManager.on('disconnected', () => {
+      this.updateConnectionStatus('disconnected');
+    });
+    
+    this.notificationManager.on('reconnect_failed', () => {
+      this.updateConnectionStatus('failed');
+      this.showReconnectPrompt();
+    });
+  }
+  
+  showRefreshPrompt({ message, onRefresh }) {
+    const prompt = document.createElement('div');
+    prompt.className = 'refresh-prompt';
+    prompt.innerHTML = `
+      <span>${message}</span>
+      <button onclick="location.reload()">Refresh Page</button>
+      <button onclick="this.parentElement.remove()">Dismiss</button>
+    `;
+    document.body.appendChild(prompt);
+  }
+  
+  showCollaborationInviteModal(inviteData) {
+    const modal = new CollaborationInviteModal({
+      title: 'Collaboration Invitation',
+      inviterEmail: inviteData.inviter_email,
+      diagramName: inviteData.diagram_name,
+      threatModelName: inviteData.threat_model_name,
+      role: inviteData.role,
+      onAccept: () => {
+        window.location.href = `/threat-models/${inviteData.threat_model_id}/diagrams/${inviteData.diagram_id}`;
+      },
+      onDecline: () => {
+        modal.close();
+      }
+    });
+    modal.show();
+  }
+  
+  updateConnectionStatus(status) {
+    const indicator = document.getElementById('notification-status');
+    if (indicator) {
+      indicator.className = `status-indicator status-${status}`;
+      indicator.title = `Notification service: ${status}`;
+    }
+  }
+}
+```
+
+### Best Practices
+
+1. **Connection Management**
+   - Connect to the notification service once when the application loads
+   - Implement automatic reconnection with exponential backoff
+   - Show connection status to users
+
+2. **Subscription Filtering**
+   - Subscribe only to relevant notifications to reduce network traffic
+   - Use threat_model_filters for users working on specific projects
+   - Update subscriptions when user context changes
+
+3. **UI Integration**
+   - Don't overwhelm users with notifications - batch or throttle if needed
+   - Provide clear actions for notifications that require user response
+   - Distinguish between informational and actionable notifications
+
+4. **Performance**
+   - Heartbeats are sent automatically - no need to implement ping/pong
+   - The service handles connection keep-alive
+   - Messages are lightweight JSON - minimal bandwidth usage
+
+5. **Security**
+   - Notifications respect the same authorization rules as REST API
+   - Users only receive notifications for resources they can access
+   - JWT token is validated on connection
+
+### TypeScript Definitions
+
+```typescript
+// Notification Message Types
+interface NotificationMessage {
+  message_type: NotificationMessageType;
+  user_id: string;
+  timestamp: string; // ISO 8601
+  data?: any;
+}
+
+type NotificationMessageType =
+  | 'threat_model_created'
+  | 'threat_model_updated' 
+  | 'threat_model_deleted'
+  | 'threat_model_shared'
+  | 'collaboration_started'
+  | 'collaboration_ended'
+  | 'collaboration_invite'
+  | 'system_announcement'
+  | 'system_maintenance'
+  | 'system_update'
+  | 'user_joined'
+  | 'user_left'
+  | 'heartbeat';
+
+interface ThreatModelNotificationData {
+  threat_model_id: string;
+  threat_model_name: string;
+  action: 'created' | 'updated' | 'deleted';
+}
+
+interface CollaborationNotificationData {
+  diagram_id: string;
+  diagram_name?: string;
+  threat_model_id: string;
+  threat_model_name?: string;
+  session_id?: string;
+}
+
+interface SystemNotificationData {
+  severity: 'info' | 'warning' | 'error' | 'critical';
+  message: string;
+  action_required: boolean;
+  action_url?: string;
+}
+
+interface NotificationSubscription {
+  subscribed_types: NotificationMessageType[];
+  threat_model_filters?: string[];
+  diagram_filters?: string[];
+}
+```
+
 ## Summary
 
-This client integration guide provides everything needed to implement robust collaborative editing:
+This client integration guide provides everything needed to implement robust collaborative editing and real-time notifications:
 
 - ✅ **Complete WebSocket protocol implementation** with all message types
 - ✅ **Echo prevention** to avoid infinite loops
@@ -2278,7 +2938,9 @@ This client integration guide provides everything needed to implement robust col
 - ✅ **State synchronization** with automatic conflict resolution
 - ✅ **Error handling** with graceful recovery mechanisms
 - ✅ **Performance optimization** with throttling and debouncing
+- ✅ **Global notification system** for threat model updates and system events
+- ✅ **Subscription management** for filtering relevant notifications
 - ✅ **TypeScript support** with complete type definitions
 - ✅ **Testing strategies** for both unit and integration scenarios
 
-Follow the patterns in this guide to build a production-ready collaborative diagram editor that integrates seamlessly with the TMI server.
+Follow the patterns in this guide to build a production-ready collaborative diagram editor with real-time notifications that integrates seamlessly with the TMI server.

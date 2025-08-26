@@ -234,6 +234,9 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 
 	// Counts are now calculated dynamically - no need to initialize
 
+	// Broadcast notification about new threat model
+	BroadcastThreatModelCreated(userName, createdTM.Id.String(), createdTM.Name)
+
 	// Set the Location header
 	c.Header("Location", "/threat_models/"+createdTM.Id.String())
 	c.JSON(http.StatusCreated, createdTM)
@@ -376,6 +379,9 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 
 	// Counts are now calculated dynamically - no need to update
 
+	// Broadcast notification about updated threat model
+	BroadcastThreatModelUpdated(userName, updatedTM.Id.String(), updatedTM.Name)
+
 	c.JSON(http.StatusOK, updatedTM)
 }
 
@@ -489,6 +495,9 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 
 	// Counts are now calculated dynamically - no need to update
 
+	// Broadcast notification about updated threat model
+	BroadcastThreatModelUpdated(userName, modifiedTM.Id.String(), modifiedTM.Name)
+
 	c.JSON(http.StatusOK, modifiedTM)
 }
 
@@ -534,6 +543,9 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 		HandleRequestError(c, ServerError("Failed to delete threat model"))
 		return
 	}
+
+	// Broadcast notification about deleted threat model
+	BroadcastThreatModelDeleted(userName, tm.Id.String(), tm.Name)
 
 	c.Status(http.StatusNoContent)
 }
