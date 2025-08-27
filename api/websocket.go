@@ -412,6 +412,10 @@ func (h *WebSocketHub) AddIntendedParticipant(diagramID string, userName string)
 		session.mu.Lock()
 		session.IntendedParticipants[userName] = time.Now().UTC()
 		session.mu.Unlock()
+
+		// Broadcast updated participant list to all connected clients
+		// This ensures clients are notified when someone joins via REST API
+		go session.broadcastParticipantsUpdate()
 	}
 }
 
@@ -1154,6 +1158,29 @@ func (s *DiagramSession) Run() {
 			s.LastActivity = time.Now().UTC()
 			s.mu.Unlock()
 
+			// Send initial state to the new client
+			// First, send current presenter info
+			s.mu.RLock()
+			currentPresenter := s.CurrentPresenter
+			s.mu.RUnlock()
+
+			if currentPresenter != "" {
+				presenterMsg := CurrentPresenterMessage{
+					MessageType:      MessageTypeCurrentPresenter,
+					CurrentPresenter: currentPresenter,
+				}
+				if msgBytes, err := json.Marshal(presenterMsg); err == nil {
+					select {
+					case client.Send <- msgBytes:
+					default:
+						logging.Get().Error("Failed to send current presenter to new client")
+					}
+				}
+			}
+
+			// Send participant list to the new client
+			s.sendParticipantsUpdateToClient(client)
+
 			// Notify other clients that someone joined
 			msg := WebSocketMessage{
 				Event:     "join",
@@ -1163,6 +1190,9 @@ func (s *DiagramSession) Run() {
 			if msgBytes, err := json.Marshal(msg); err == nil {
 				s.Broadcast <- msgBytes
 			}
+
+			// Broadcast updated participant list to all clients
+			s.broadcastParticipantsUpdate()
 
 		case client := <-s.Unregister:
 			s.mu.Lock()
@@ -1202,6 +1232,9 @@ func (s *DiagramSession) Run() {
 			if msgBytes, err := json.Marshal(msg); err == nil {
 				s.Broadcast <- msgBytes
 			}
+
+			// Broadcast updated participant list to all remaining clients
+			s.broadcastParticipantsUpdate()
 
 			// Trigger cleanup of empty sessions after user departure
 			if s.Hub != nil {
@@ -1606,6 +1639,9 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 		}
 		s.broadcastMessage(broadcastMsg)
 		logging.Get().Info("Session manager %s became presenter in session %s", msg.UserID, s.ID)
+
+		// Also broadcast updated participant list since presenter has changed
+		s.broadcastParticipantsUpdate()
 		return
 	}
 
@@ -1659,6 +1695,9 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 	}
 	s.broadcastMessage(broadcastMsg)
 	logging.Get().Info("Session manager %s changed presenter to %s in session %s", client.UserName, msg.NewPresenter, s.ID)
+
+	// Also broadcast updated participant list since presenter has changed
+	s.broadcastParticipantsUpdate()
 }
 
 // processPresenterDenied handles session manager denying presenter requests
@@ -2195,6 +2234,176 @@ func (s *DiagramSession) getUserRole(userID string) Role {
 	// Check user permissions using existing utility
 	role := GetUserRole(userID, tm)
 	return role
+}
+
+// broadcastParticipantsUpdate sends complete participant list to all clients
+func (s *DiagramSession) broadcastParticipantsUpdate() {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Build participant list
+	participants := make([]Participant, 0)
+
+	// Get threat model for permissions checking
+	var tm *ThreatModel
+	if s.ThreatModelID != "" {
+		if threatModel, err := ThreatModelStore.Get(s.ThreatModelID); err == nil {
+			tm = &threatModel
+		}
+	}
+
+	// Track processed users to avoid duplicates
+	processedUsers := make(map[string]bool)
+
+	// Add active WebSocket clients
+	for client := range s.Clients {
+		if processedUsers[client.UserName] {
+			continue
+		}
+
+		permissions := "writer" // Default
+		if tm != nil {
+			if perms := getSessionPermissionsForUser(client.UserName, tm); perms != nil {
+				permissions = string(*perms)
+			}
+		}
+
+		participants = append(participants, Participant{
+			UserID:           client.UserName,
+			Permissions:      permissions,
+			JoinedAt:         s.LastActivity, // Using session activity as join time for active clients
+			IsSessionManager: client.UserName == s.Manager,
+			IsPresenter:      client.UserName == s.CurrentPresenter,
+		})
+		processedUsers[client.UserName] = true
+	}
+
+	// Add intended participants who aren't connected
+	for userName, joinTime := range s.IntendedParticipants {
+		if processedUsers[userName] {
+			continue
+		}
+
+		permissions := "writer" // Default
+		if tm != nil {
+			if perms := getSessionPermissionsForUser(userName, tm); perms != nil {
+				permissions = string(*perms)
+			}
+		}
+
+		participants = append(participants, Participant{
+			UserID:           userName,
+			Permissions:      permissions,
+			JoinedAt:         joinTime,
+			IsSessionManager: userName == s.Manager,
+			IsPresenter:      userName == s.CurrentPresenter,
+		})
+		processedUsers[userName] = true
+	}
+
+	// Create and send the message
+	msg := ParticipantsUpdateMessage{
+		MessageType:      MessageTypeParticipantsUpdate,
+		Participants:     participants,
+		SessionManager:   s.Manager,
+		CurrentPresenter: s.CurrentPresenter,
+	}
+
+	if msgBytes, err := json.Marshal(msg); err == nil {
+		// Send to all clients (using broadcast channel)
+		select {
+		case s.Broadcast <- msgBytes:
+		default:
+			logging.Get().Error("Failed to broadcast participants update: broadcast channel full")
+		}
+	} else {
+		logging.Get().Error("Failed to marshal participants update: %v", err)
+	}
+}
+
+// sendParticipantsUpdateToClient sends participant list to a specific client
+func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Build participant list
+	participants := make([]Participant, 0)
+
+	// Get threat model for permissions checking
+	var tm *ThreatModel
+	if s.ThreatModelID != "" {
+		if threatModel, err := ThreatModelStore.Get(s.ThreatModelID); err == nil {
+			tm = &threatModel
+		}
+	}
+
+	// Track processed users to avoid duplicates
+	processedUsers := make(map[string]bool)
+
+	// Add active WebSocket clients
+	for c := range s.Clients {
+		if processedUsers[c.UserName] {
+			continue
+		}
+
+		permissions := "writer" // Default
+		if tm != nil {
+			if perms := getSessionPermissionsForUser(c.UserName, tm); perms != nil {
+				permissions = string(*perms)
+			}
+		}
+
+		participants = append(participants, Participant{
+			UserID:           c.UserName,
+			Permissions:      permissions,
+			JoinedAt:         s.LastActivity, // Using session activity as join time for active clients
+			IsSessionManager: c.UserName == s.Manager,
+			IsPresenter:      c.UserName == s.CurrentPresenter,
+		})
+		processedUsers[c.UserName] = true
+	}
+
+	// Add intended participants who aren't connected
+	for userName, joinTime := range s.IntendedParticipants {
+		if processedUsers[userName] {
+			continue
+		}
+
+		permissions := "writer" // Default
+		if tm != nil {
+			if perms := getSessionPermissionsForUser(userName, tm); perms != nil {
+				permissions = string(*perms)
+			}
+		}
+
+		participants = append(participants, Participant{
+			UserID:           userName,
+			Permissions:      permissions,
+			JoinedAt:         joinTime,
+			IsSessionManager: userName == s.Manager,
+			IsPresenter:      userName == s.CurrentPresenter,
+		})
+		processedUsers[userName] = true
+	}
+
+	// Create and send the message
+	msg := ParticipantsUpdateMessage{
+		MessageType:      MessageTypeParticipantsUpdate,
+		Participants:     participants,
+		SessionManager:   s.Manager,
+		CurrentPresenter: s.CurrentPresenter,
+	}
+
+	if msgBytes, err := json.Marshal(msg); err == nil {
+		// Send to specific client
+		select {
+		case client.Send <- msgBytes:
+		default:
+			logging.Get().Error("Failed to send participants update to client %s: send channel full", client.UserName)
+		}
+	} else {
+		logging.Get().Error("Failed to marshal participants update for client: %v", err)
+	}
 }
 
 // checkMutationPermission checks if user can perform mutations

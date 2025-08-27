@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -35,6 +36,7 @@ const (
 	MessageTypeHistoryOperation    MessageType = "history_operation"
 	MessageTypeUndoRequest         MessageType = "undo_request"
 	MessageTypeRedoRequest         MessageType = "redo_request"
+	MessageTypeParticipantsUpdate  MessageType = "participants_update"
 )
 
 // AsyncMessage is the base interface for all WebSocket messages
@@ -395,6 +397,48 @@ func (m RedoRequestMessage) Validate() error {
 	return nil
 }
 
+// Participant represents a session participant with their roles
+type Participant struct {
+	UserID           string    `json:"user_id"`
+	Permissions      string    `json:"permissions"`
+	JoinedAt         time.Time `json:"joined_at"`
+	IsSessionManager bool      `json:"is_session_manager"`
+	IsPresenter      bool      `json:"is_presenter"`
+}
+
+// ParticipantsUpdateMessage provides complete participant list with roles
+type ParticipantsUpdateMessage struct {
+	MessageType      MessageType   `json:"message_type"`
+	Participants     []Participant `json:"participants"`
+	SessionManager   string        `json:"session_manager"`
+	CurrentPresenter string        `json:"current_presenter"`
+}
+
+func (m ParticipantsUpdateMessage) GetMessageType() MessageType { return m.MessageType }
+
+func (m ParticipantsUpdateMessage) Validate() error {
+	if m.MessageType != MessageTypeParticipantsUpdate {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantsUpdate, m.MessageType)
+	}
+	if m.SessionManager == "" {
+		return fmt.Errorf("session_manager is required")
+	}
+	// Current presenter can be empty
+	// Validate participants
+	for i, p := range m.Participants {
+		if p.UserID == "" {
+			return fmt.Errorf("participant[%d].user_id is required", i)
+		}
+		if p.Permissions != "reader" && p.Permissions != "writer" {
+			return fmt.Errorf("participant[%d].permissions must be 'reader' or 'writer', got '%s'", i, p.Permissions)
+		}
+		if p.JoinedAt.IsZero() {
+			return fmt.Errorf("participant[%d].joined_at is required", i)
+		}
+	}
+	return nil
+}
+
 // Message Parser utility to parse incoming WebSocket messages
 func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 	// First, parse to determine message type
@@ -468,6 +512,13 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 		var msg RedoRequestMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
 			return nil, fmt.Errorf("failed to parse redo request message: %w", err)
+		}
+		return msg, msg.Validate()
+
+	case MessageTypeParticipantsUpdate:
+		var msg ParticipantsUpdateMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, fmt.Errorf("failed to parse participants update message: %w", err)
 		}
 		return msg, msg.Validate()
 
