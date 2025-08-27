@@ -620,36 +620,14 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 		return
 	}
 
-	// Get current participants with permissions
-	participants := make([]gin.H, 0)
-	session.mu.RLock()
-	for client := range session.Clients {
-		// Get user's session permissions using existing auth system
-		permissions := getSessionPermissionsForUser(client.UserName, &tm)
-
-		if permissions == nil {
-			// User is unauthorized, skip them but log for debugging with structured logging
-			logger := logging.Get().WithContext(c)
-			logger.Warn("Collaboration session %s: Skipping unauthorized participant '%s' for threat model %s (diagram %s). User lacks read access to threat model.",
-				session.ID, client.UserName, threatModelId, diagramId)
-			continue
-		}
-
-		participants = append(participants, gin.H{
-			"user_id":     client.UserName,
-			"joined_at":   session.LastActivity.Format(time.RFC3339),
-			"permissions": permissions,
-		})
+	// Build proper CollaborationSession response using the same method as PUT
+	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, userName)
+	if err != nil {
+		HandleRequestError(c, ServerError("Failed to build collaboration session response: "+err.Error()))
+		return
 	}
-	session.mu.RUnlock()
 
-	c.JSON(http.StatusOK, gin.H{
-		"session_id":      session.ID,
-		"threat_model_id": threatModelId,
-		"diagram_id":      diagramId,
-		"participants":    participants,
-		"websocket_url":   h.buildWebSocketURL(c, threatModelId, diagramId),
-	})
+	c.JSON(http.StatusOK, collaborationSession)
 }
 
 // CreateDiagramCollaborate creates a new collaboration session for a diagram within a threat model
