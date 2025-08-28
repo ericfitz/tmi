@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/logging"
 	"golang.org/x/oauth2"
 )
 
@@ -111,18 +112,20 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 	
 	// Check if login_hint is provided in context
 	if userHint, ok := ctx.Value(userHintContextKey).(string); ok && userHint != "" {
-		fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: Found login_hint: %s\n", userHint)
+		logger := logging.Get()
+		logger.Debug("[TEST_PROVIDER] ExchangeCode: Found login_hint: %s", userHint)
 		// Validate and sanitize login_hint
 		if validatedHint := p.validateUserHint(userHint); validatedHint != "" {
 			// Encode login_hint into access token
 			encodedHint := base64.URLEncoding.EncodeToString([]byte(validatedHint))
 			accessToken = fmt.Sprintf("test_access_token_%d_hint_%s", timestamp, encodedHint)
-			fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: Generated token with hint: %s\n", accessToken)
+			logger.Debug("[TEST_PROVIDER] ExchangeCode: Generated token with hint: %s", accessToken)
 		} else {
-			fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: login_hint validation failed: %s\n", userHint)
+			logger.Debug("[TEST_PROVIDER] ExchangeCode: login_hint validation failed: %s", userHint)
 		}
 	} else {
-		fmt.Printf("[TEST_PROVIDER] DEBUG ExchangeCode: No login_hint in context\n")
+		logger := logging.Get()
+		logger.Debug("[TEST_PROVIDER] ExchangeCode: No login_hint in context")
 	}
 	
 	idToken := p.generateTestIDToken()
@@ -137,16 +140,17 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 
 // GetUserInfo returns fake user information
 func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
-	fmt.Printf("[TEST_PROVIDER] DEBUG GetUserInfo: Called with access token: %s\n", accessToken)
+	logger := logging.Get()
+	logger.Debug("[TEST_PROVIDER] GetUserInfo: Called with access token: %s", accessToken)
 	
 	// Check if access token contains a login_hint
 	userHint := p.extractUserHintFromToken(accessToken)
-	fmt.Printf("[TEST_PROVIDER] DEBUG GetUserInfo: Extracted login_hint: '%s'\n", userHint)
-	fmt.Printf("[TEST_PROVIDER] DEBUG GetUserInfo: Access token contains _hint_: %t\n", strings.Contains(accessToken, "_hint_"))
+	logger.Debug("[TEST_PROVIDER] GetUserInfo: Extracted login_hint: %s", userHint)
+	logger.Debug("[TEST_PROVIDER] GetUserInfo: Access token contains _hint_: %t", strings.Contains(accessToken, "_hint_"))
 	
 	if strings.Contains(accessToken, "_hint_") {
 		parts := strings.Split(accessToken, "_hint_")
-		fmt.Printf("[TEST_PROVIDER] DEBUG GetUserInfo: Split parts: %v\n", parts)
+		logger.Debug("[TEST_PROVIDER] GetUserInfo: Split parts: %v", parts)
 	}
 	
 	if userHint != "" {

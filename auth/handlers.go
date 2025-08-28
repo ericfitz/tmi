@@ -426,7 +426,8 @@ func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, p
 	if tokenResponse.IDToken != "" {
 		claims, err = provider.ValidateIDToken(ctx, tokenResponse.IDToken)
 		if err != nil {
-			fmt.Printf("Failed to validate ID token: %v\n", err)
+			logger := logging.Get().WithContext(c)
+			logger.Error("Failed to validate ID token: %v", err)
 		}
 	}
 
@@ -509,7 +510,8 @@ func (h *Handlers) linkProviderToUser(ctx context.Context, userID, providerID st
 	if providerUserID != "" {
 		err := h.service.LinkUserProvider(ctx, userID, providerID, providerUserID, userInfo.Email)
 		if err != nil {
-			fmt.Printf("Failed to link provider: %v\n", err)
+			logger := logging.Get()
+			logger.Error("Failed to link provider: %v (provider: %s, user_id: %s)", err, providerID, userID)
 		}
 	}
 }
@@ -626,7 +628,8 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		claims, err = provider.ValidateIDToken(ctx, tokenResponse.IDToken)
 		if err != nil {
 			// Log error but continue - we can get user info from userinfo endpoint
-			fmt.Printf("Failed to validate ID token: %v\n", err)
+			logger := logging.Get().WithContext(c)
+			logger.Error("Failed to validate ID token: %v", err)
 		}
 	}
 
@@ -685,7 +688,8 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		err = h.service.UpdateUser(ctx, user)
 		if err != nil {
 			// Log error but continue
-			fmt.Printf("Failed to update user last login: %v\n", err)
+			logger := logging.Get().WithContext(c)
+			logger.Error("Failed to update user last login: %v (user_id: %s)", err, user.ID)
 		}
 	}
 
@@ -698,7 +702,8 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		err = h.service.LinkUserProvider(ctx, user.ID, providerID, providerUserID, email)
 		if err != nil {
 			// Log error but continue
-			fmt.Printf("Failed to link user provider: %v\n", err)
+			logger := logging.Get().WithContext(c)
+			logger.Error("Failed to link user provider: %v (user_id: %s, provider: %s)", err, user.ID, providerID)
 		}
 	}
 
