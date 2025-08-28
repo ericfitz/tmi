@@ -50,7 +50,7 @@ load-config-file:
 # ATOMIC COMPONENTS - Infrastructure Management
 # ============================================================================
 
-.PHONY: infra-db-start infra-db-stop infra-db-clean infra-redis-start infra-redis-stop infra-redis-clean infra-observability-start infra-observability-stop infra-observability-clean
+.PHONY: infra-db-start infra-db-stop infra-db-clean infra-redis-start infra-redis-stop infra-redis-clean
 
 infra-db-start:
 	$(call log_info,Starting PostgreSQL container...)
@@ -121,37 +121,6 @@ infra-redis-clean:
 	@docker rm -f $(INFRASTRUCTURE_REDIS_CONTAINER) 2>/dev/null || true
 	$(call log_success,"Redis container and data removed")
 
-infra-observability-start:
-	$(call log_info,"Starting observability stack...")
-	@if [ -z "$(OBSERVABILITY_COMPOSE_FILE)" ]; then \
-		echo "Error: Observability configuration not loaded. Set OBSERVABILITY_COMPOSE_FILE variable."; \
-		exit 1; \
-	fi
-	@if ! docker info >/dev/null 2>&1; then \
-		$(call log_error,"Docker is not running. Please start Docker first."); \
-		exit 1; \
-	fi
-	$(call log_info,"Starting services with $(OBSERVABILITY_COMPOSE_FILE)...")
-	@docker-compose -f $(OBSERVABILITY_COMPOSE_FILE) up -d
-	$(call log_success,"Observability stack started")
-
-infra-observability-stop:
-	$(call log_info,"Stopping observability stack...")
-	@if [ -z "$(OBSERVABILITY_COMPOSE_FILE)" ]; then \
-		echo "Error: Observability configuration not loaded. Set OBSERVABILITY_COMPOSE_FILE variable."; \
-		exit 1; \
-	fi
-	@docker-compose -f $(OBSERVABILITY_COMPOSE_FILE) down
-	$(call log_success,"Observability stack stopped")
-
-infra-observability-clean:
-	$(call log_warning,"Removing observability stack and data...")
-	@if [ -z "$(OBSERVABILITY_COMPOSE_FILE)" ]; then \
-		echo "Error: Observability configuration not loaded. Set OBSERVABILITY_COMPOSE_FILE variable."; \
-		exit 1; \
-	fi
-	@docker-compose -f $(OBSERVABILITY_COMPOSE_FILE) down -v --remove-orphans
-	$(call log_success,"Observability stack and data removed")
 
 # ============================================================================
 # ATOMIC COMPONENTS - Build Management
@@ -235,7 +204,7 @@ db-wait:
 # ATOMIC COMPONENTS - Process Management
 # ============================================================================
 
-.PHONY: process-stop process-wait server-start server-stop observability-wait observability-health
+.PHONY: process-stop process-wait server-start server-stop
 
 process-stop:
 	$(call log_info,"Killing processes on port $(SERVER_PORT)")
@@ -313,55 +282,6 @@ process-wait:
 		exit 1; \
 	fi
 
-observability-wait:
-	$(call log_info,"Waiting for observability services to be ready...")
-	@timeout=$${TIMEOUTS_STACK_READY:-60}; \
-	echo "⏳ Waiting for services to start..."; \
-	sleep 10; \
-	while [ $$timeout -gt 0 ]; do \
-		if $(MAKE) observability-health >/dev/null 2>&1; then \
-			$(call log_success,"Observability services are ready!"); \
-			break; \
-		fi; \
-		echo "⏳ Services starting... ($$timeout seconds remaining)"; \
-		sleep 5; \
-		timeout=$$((timeout - 5)); \
-	done; \
-	if [ $$timeout -le 0 ]; then \
-		$(call log_error,"Observability services failed to start within $${TIMEOUTS_STACK_READY:-60} seconds"); \
-		exit 1; \
-	fi
-
-observability-health:
-	$(call log_info,"Checking observability service health...")
-	@HEALTH_OK=true; \
-	if curl -f http://localhost:$(JAEGER_PORT)/api/services >/dev/null 2>&1; then \
-		echo "✅ Jaeger UI available at http://localhost:$(JAEGER_PORT)"; \
-	else \
-		echo "⚠️  Jaeger not ready at port $(JAEGER_PORT)"; \
-		HEALTH_OK=false; \
-	fi; \
-	if curl -f http://localhost:$(PROMETHEUS_PORT)/-/ready >/dev/null 2>&1; then \
-		echo "✅ Prometheus available at http://localhost:$(PROMETHEUS_PORT)"; \
-	else \
-		echo "⚠️  Prometheus not ready at port $(PROMETHEUS_PORT)"; \
-		HEALTH_OK=false; \
-	fi; \
-	if curl -f http://localhost:$(GRAFANA_PORT)/api/health >/dev/null 2>&1; then \
-		echo "✅ Grafana available at http://localhost:$(GRAFANA_PORT)"; \
-	else \
-		echo "⚠️  Grafana not ready at port $(GRAFANA_PORT)"; \
-		HEALTH_OK=false; \
-	fi; \
-	if curl -f http://localhost:$(OTEL_COLLECTOR_PORT)/v1/traces >/dev/null 2>&1; then \
-		echo "✅ OpenTelemetry Collector ready at http://localhost:$(OTEL_COLLECTOR_PORT)"; \
-	else \
-		echo "⚠️  OpenTelemetry Collector not ready at port $(OTEL_COLLECTOR_PORT)"; \
-		HEALTH_OK=false; \
-	fi; \
-	if [ "$$HEALTH_OK" = "false" ]; then \
-		exit 1; \
-	fi
 
 # ============================================================================
 # ATOMIC COMPONENTS - Test Execution
@@ -485,7 +405,7 @@ clean-all: clean-processes clean-containers clean-files
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration dev-start dev-clean test-coverage observability-start observability-stop observability-clean test-telemetry
+.PHONY: test-unit test-integration dev-start dev-clean test-coverage
 
 # Unit Testing - Fast tests with no external dependencies
 test-unit:
@@ -716,101 +636,14 @@ oauth-stub-status:
 		fi; \
 	fi
 
-# Observability Stack - Start monitoring and telemetry services
-observability-start:
-	@CONFIG_FILE=config/observability.yml; \
-	$(call log_info,"Loading configuration from $$CONFIG_FILE"); \
-	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
-	$(call log_info,"Starting observability stack..."); \
-	if ! docker info >/dev/null 2>&1; then \
-		echo "Error: Docker is not running. Please start Docker first."; \
-		exit 1; \
-	fi; \
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^OBSERVABILITY_COMPOSE_FILE := ' | sed 's/:=/=/');
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^GRAFANA_PORT := ' | sed 's/:=/=/');
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^PROMETHEUS_PORT := ' | sed 's/:=/=/');
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^JAEGER_PORT := ' | sed 's/:=/=/');
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^OTEL_COLLECTOR_PORT := ' | sed 's/:=/=/');
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^GRAFANA_URL := ' | sed 's/:=/=/');
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^PROMETHEUS_URL := ' | sed 's/:=/=/');
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^JAEGER_URL := ' | sed 's/:=/=/');
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^LOKI_URL := ' | sed 's/:=/=/');
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^OTEL_COLLECTOR_GRPC_PORT := ' | sed 's/:=/=/');
-	echo "Starting services with $$OBSERVABILITY_COMPOSE_FILE..."; \
-	docker compose -f $$OBSERVABILITY_COMPOSE_FILE up -d; \
-	echo "⏳ Waiting for services to start..."; \
-	sleep 10; \
-	timeout=60; \
-	while [ $$timeout -gt 0 ]; do \
-		HEALTH_OK=true; \
-		if ! curl -f http://localhost:$$JAEGER_PORT/api/services >/dev/null 2>&1; then HEALTH_OK=false; fi; \
-		if ! curl -f http://localhost:$$PROMETHEUS_PORT/-/ready >/dev/null 2>&1; then HEALTH_OK=false; fi; \
-		if ! curl -f http://localhost:$$GRAFANA_PORT/api/health >/dev/null 2>&1; then HEALTH_OK=false; fi; \
-		if ! curl -f http://localhost:$$OTEL_COLLECTOR_PORT/v1/traces >/dev/null 2>&1; then HEALTH_OK=false; fi; \
-		if [ "$$HEALTH_OK" = "true" ]; then \
-			echo "✅ All services are ready!"; \
-			break; \
-		fi; \
-		echo "⏳ Services starting... ($$timeout seconds remaining)"; \
-		sleep 5; \
-		timeout=$$((timeout - 5)); \
-	done; \
-	if [ $$timeout -le 0 ]; then \
-		echo "Services failed to start within 60 seconds"; \
-		exit 1; \
-	fi; \
-	echo ""; \
-	echo "🎉 Observability stack started!"; \
-	echo ""; \
-	echo "Services:"; \
-	echo "  📊 Grafana:     $$GRAFANA_URL (admin/admin)"; \
-	echo "  🔍 Jaeger:      $$JAEGER_URL"; \
-	echo "  📈 Prometheus:  $$PROMETHEUS_URL"; \
-	echo "  📋 Loki:       $$LOKI_URL"; \
-	echo "  📡 OTel:       http://localhost:$$OTEL_COLLECTOR_PORT (HTTP) / :$$OTEL_COLLECTOR_GRPC_PORT (gRPC)"; \
-	echo ""; \
-	echo "To stop: make observability-stop"; \
-	echo "To view logs: docker compose -f $$OBSERVABILITY_COMPOSE_FILE logs -f [service]"; \
-	rm -f .config.tmp.mk
-
-# Observability Stack - Stop monitoring services
-observability-stop:
-	@CONFIG_FILE=config/observability.yml; \
-	echo "🛑 Stopping observability stack..."; \
-	COMPOSE_FILE=$$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^OBSERVABILITY_COMPOSE_FILE := ' | sed 's/^OBSERVABILITY_COMPOSE_FILE := //'); \
-	docker compose -f $$COMPOSE_FILE down; \
-	echo "✅ Observability stack stopped!"
-
-# Observability Stack - Clean up with data removal
-observability-clean:
-	@CONFIG_FILE=config/observability.yml; \
-	echo "🧹 Cleaning observability stack - this will delete all observability data"; \
-	COMPOSE_FILE=$$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^OBSERVABILITY_COMPOSE_FILE := ' | sed 's/^OBSERVABILITY_COMPOSE_FILE := //'); \
-	docker compose -f $$COMPOSE_FILE down -v --remove-orphans; \
-	echo "✅ Observability stack and data removed!"
-
-# Telemetry Testing - Test telemetry components with observability stack
-test-telemetry:
-	@CONFIG_FILE=config/observability.yml; \
-	echo "🧪 Testing telemetry components..."; \
-	trap 'make observability-clean' EXIT; \
-	make observability-start; \
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^TELEMETRY_TEST_PACKAGES := ' | sed 's/:=/=/'); \
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^TELEMETRY_INTEGRATION_TAGS := ' | sed 's/:=/=/'); \
-	echo "Running telemetry tests..."; \
-	TMI_LOGGING_IS_TEST=true go test \
-		$$TELEMETRY_TEST_PACKAGES \
-		-tags="$$TELEMETRY_INTEGRATION_TAGS" \
-		-timeout=5m \
-		-v; \
-	echo "✅ Telemetry tests completed"
+ \
 
 
 # ============================================================================
 # BACKWARD COMPATIBILITY ALIASES
 # ============================================================================
 
-.PHONY: build build-all test lint clean dev prod test-api obs-start obs-stop obs-clean obs-health obs-wait
+.PHONY: build build-all test lint clean dev prod test-api
 
 # Keep backward compatibility with existing commands
 build: build-server
@@ -822,12 +655,6 @@ clean: build-clean
 dev: dev-start
 prod: dev-start  # For now, prod is same as dev
 
-# Observability aliases (obs-* shortcuts)
-obs-start: observability-start
-obs-stop: observability-stop
-obs-clean: observability-clean
-obs-health: observability-health
-obs-wait: observability-wait
 
 
 # Legacy test-api target (simplified)
@@ -891,10 +718,6 @@ help:
 	@echo "  test-integration       - Run integration tests with full setup"
 	@echo "  dev-start              - Start development environment"
 	@echo "  dev-clean              - Clean development environment"
-	@echo "  observability-start    - Start OpenTelemetry monitoring stack (alias: obs-start)"
-	@echo "  observability-stop     - Stop monitoring services (alias: obs-stop)"
-	@echo "  observability-clean    - Clean monitoring stack with data removal (alias: obs-clean)"
-	@echo "  test-telemetry         - Test telemetry components with monitoring stack"
 	@echo ""
 	@echo "Atomic Components (building blocks):"
 	@echo "  infra-db-start         - Start PostgreSQL container"
@@ -913,7 +736,6 @@ help:
 	@echo "  config/test-integration.yml    - Integration testing configuration"
 	@echo "  config/dev-environment.yml     - Development environment configuration"
 	@echo "  config/coverage-report.yml     - Coverage reporting configuration"
-	@echo "  config/observability.yml       - OpenTelemetry observability stack configuration"
 	@echo ""
 
 list-targets:

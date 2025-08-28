@@ -1252,10 +1252,12 @@ func (s *DiagramSession) Run() {
 				s.ID, len(message), string(message), len(s.Clients))
 			s.mu.Lock()
 			s.LastActivity = time.Now().UTC()
+			clientCount := 0
 			// Send to all clients
 			for client := range s.Clients {
 				select {
 				case client.Send <- message:
+					clientCount++
 				default:
 					close(client.Send)
 					delete(s.Clients, client)
@@ -3735,33 +3737,8 @@ func (c *WebSocketClient) WritePump() {
 				return
 			}
 
-			// Add queued messages
-			n := len(c.Send)
-			for i := 0; i < n; i++ {
-				if _, err := w.Write([]byte{'\n'}); err != nil {
-					logging.Get().Info("Error writing newline: %v", err)
-					return
-				}
-
-				queuedMessage := <-c.Send
-
-				// Log queued outbound WebSocket message
-				if c.Session != nil && c.Hub != nil {
-					logging.LogWebSocketMessage(
-						logging.WSMessageOutbound,
-						c.Session.ID,
-						c.UserName,
-						"text",
-						queuedMessage,
-						c.Hub.LoggingConfig,
-					)
-				}
-
-				if _, err := w.Write(queuedMessage); err != nil {
-					logging.Get().Info("Error writing queued message: %v", err)
-					return
-				}
-			}
+			// Don't try to batch messages - it causes issues with JSON parsing
+			// Each WebSocket message should be sent separately
 
 			if err := w.Close(); err != nil {
 				return
