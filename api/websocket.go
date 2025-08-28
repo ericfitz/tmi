@@ -1156,6 +1156,8 @@ func (s *DiagramSession) Run() {
 			s.mu.Lock()
 			s.Clients[client] = true
 			s.LastActivity = time.Now().UTC()
+			// Add to intended participants when connecting
+			s.IntendedParticipants[client.UserName] = time.Now().UTC()
 			s.mu.Unlock()
 
 			// Send initial state to the new client
@@ -1201,6 +1203,9 @@ func (s *DiagramSession) Run() {
 				close(client.Send)
 				s.LastActivity = time.Now().UTC()
 
+				// Also remove from IntendedParticipants when disconnecting
+				delete(s.IntendedParticipants, client.UserName)
+
 				// Check if the leaving client was the current presenter
 				wasPresenter := client.UserName == s.CurrentPresenter
 
@@ -1242,6 +1247,9 @@ func (s *DiagramSession) Run() {
 			}
 
 		case message := <-s.Broadcast:
+			// Log outgoing broadcast message
+			logging.Get().Debug("[wsmsg] Broadcasting message - session_id=%s message_size=%d raw_message=%s client_count=%d",
+				s.ID, len(message), string(message), len(s.Clients))
 			s.mu.Lock()
 			s.LastActivity = time.Now().UTC()
 			// Send to all clients
@@ -1301,19 +1309,30 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		return
 	}
 
-	// CRITICAL: Validate user has access to the diagram before allowing WebSocket connection
-	if !h.validateWebSocketDiagramAccessDirect(userNameStr, threatModelID, diagramID) {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You don't have sufficient permissions to collaborate on this diagram",
-		})
-		return
-	}
-
-	// Upgrade to WebSocket
+	// Upgrade to WebSocket first
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		logging.Get().Info("Failed to upgrade connection: %v", err)
+		return
+	}
+
+	// CRITICAL: Validate user has access to the diagram after upgrading
+	if !h.validateWebSocketDiagramAccessDirect(userNameStr, threatModelID, diagramID) {
+		// Send error message before closing
+		errorMsg := map[string]string{
+			"error":   "unauthorized",
+			"message": "You don't have sufficient permissions to collaborate on this diagram",
+		}
+		if msgBytes, err := json.Marshal(errorMsg); err == nil {
+			if err := conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
+				logging.Get().Debug("Failed to send error message: %v", err)
+			}
+		}
+		// Close the connection
+		if err := conn.Close(); err != nil {
+			logging.Get().Debug("Failed to close connection: %v", err)
+		}
+		logging.Get().Info("Disconnected user %s - no permissions for diagram %s", userNameStr, diagramID)
 		return
 	}
 
@@ -1432,6 +1451,9 @@ func validateCell(cell *Cell) error {
 
 // ProcessMessage handles enhanced message types for collaborative editing
 func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte) {
+	// Log raw incoming message with wsmsg component
+	logging.Get().Debug("[wsmsg] Received WebSocket message - session_id=%s user_id=%s message_size=%d raw_message=%s",
+		s.ID, client.UserName, len(message), string(message))
 	// First try to parse as enhanced message format
 	var baseMsg struct {
 		MessageType string          `json:"message_type"`
@@ -1443,6 +1465,10 @@ func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte)
 		logging.Get().Info("Error parsing message: %v", err)
 		return
 	}
+
+	// Log parsed message details
+	logging.Get().Debug("[wsmsg] Parsed message - session_id=%s message_type=%s user_id=%s",
+		s.ID, baseMsg.MessageType, baseMsg.UserID)
 
 	// Handle different message types
 	switch baseMsg.MessageType {
@@ -2261,11 +2287,17 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 			continue
 		}
 
-		permissions := "writer" // Default
+		var permissions string
 		if tm != nil {
-			if perms := getSessionPermissionsForUser(client.UserName, tm); perms != nil {
-				permissions = string(*perms)
+			perms := getSessionPermissionsForUser(client.UserName, tm)
+			if perms == nil {
+				// User is unauthorized, skip them
+				continue
 			}
+			permissions = string(*perms)
+		} else {
+			// No threat model, default to writer
+			permissions = "writer"
 		}
 
 		participants = append(participants, Participant{
@@ -2284,11 +2316,17 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 			continue
 		}
 
-		permissions := "writer" // Default
+		var permissions string
 		if tm != nil {
-			if perms := getSessionPermissionsForUser(userName, tm); perms != nil {
-				permissions = string(*perms)
+			perms := getSessionPermissionsForUser(userName, tm)
+			if perms == nil {
+				// User is unauthorized, skip them
+				continue
 			}
+			permissions = string(*perms)
+		} else {
+			// No threat model, default to writer
+			permissions = "writer"
 		}
 
 		participants = append(participants, Participant{
@@ -2346,11 +2384,17 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 			continue
 		}
 
-		permissions := "writer" // Default
+		var permissions string
 		if tm != nil {
-			if perms := getSessionPermissionsForUser(c.UserName, tm); perms != nil {
-				permissions = string(*perms)
+			perms := getSessionPermissionsForUser(c.UserName, tm)
+			if perms == nil {
+				// User is unauthorized, skip them
+				continue
 			}
+			permissions = string(*perms)
+		} else {
+			// No threat model, default to writer
+			permissions = "writer"
 		}
 
 		participants = append(participants, Participant{
@@ -2369,11 +2413,17 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 			continue
 		}
 
-		permissions := "writer" // Default
+		var permissions string
 		if tm != nil {
-			if perms := getSessionPermissionsForUser(userName, tm); perms != nil {
-				permissions = string(*perms)
+			perms := getSessionPermissionsForUser(userName, tm)
+			if perms == nil {
+				// User is unauthorized, skip them
+				continue
 			}
+			permissions = string(*perms)
+		} else {
+			// No threat model, default to writer
+			permissions = "writer"
 		}
 
 		participants = append(participants, Participant{

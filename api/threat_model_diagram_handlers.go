@@ -577,7 +577,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 		return
 	}
 	if !hasReadAccess {
-		HandleRequestError(c, ForbiddenError("You don't have sufficient permissions to access this threat model"))
+		HandleRequestError(c, UnauthorizedError("You don't have sufficient permissions to access this threat model"))
 		return
 	}
 
@@ -656,7 +656,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 		return
 	}
 	if !hasReadAccess {
-		HandleRequestError(c, ForbiddenError("You don't have sufficient permissions to access this threat model"))
+		HandleRequestError(c, UnauthorizedError("You don't have sufficient permissions to access this threat model"))
 		return
 	}
 
@@ -684,21 +684,20 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 		return
 	}
 
-	// Create new collaboration session (fails if one already exists)
-	session, err := h.wsHub.CreateSession(diagramId, threatModelId, userName)
-	if err != nil {
-		// Session already exists, return 409 with join URL
-		c.JSON(http.StatusConflict, gin.H{
-			"error":    "Collaboration session already exists for this diagram",
-			"join_url": fmt.Sprintf("/threat_models/%s/diagrams/%s/collaborate", threatModelId, diagramId),
-		})
-		return
+	// Try to get or create collaboration session
+	session := h.wsHub.GetSession(diagramId)
+	statusCode := http.StatusOK // Default for existing session
+	if session == nil {
+		// Create new collaboration session
+		session, err = h.wsHub.CreateSession(diagramId, threatModelId, userName)
+		if err != nil {
+			HandleRequestError(c, ServerError("Failed to create collaboration session"))
+			return
+		}
+		statusCode = http.StatusCreated // New session created
 	}
 
-	// Pre-register the creating user as an intended participant
-	if userName != "" {
-		h.wsHub.AddIntendedParticipant(diagramId, userName)
-	}
+	// Don't add participants here - only when they connect via WebSocket
 
 	// Build proper CollaborationSession response
 	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, userName)
@@ -708,7 +707,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 		return
 	}
 
-	c.JSON(http.StatusCreated, collaborationSession)
+	c.JSON(statusCode, collaborationSession)
 }
 
 // JoinDiagramCollaborate joins an existing collaboration session for a diagram within a threat model
@@ -734,7 +733,7 @@ func (h *ThreatModelDiagramHandler) JoinDiagramCollaborate(c *gin.Context, threa
 		return
 	}
 	if !hasReadAccess {
-		HandleRequestError(c, ForbiddenError("You don't have sufficient permissions to access this threat model"))
+		HandleRequestError(c, UnauthorizedError("You don't have sufficient permissions to access this threat model"))
 		return
 	}
 
@@ -772,10 +771,7 @@ func (h *ThreatModelDiagramHandler) JoinDiagramCollaborate(c *gin.Context, threa
 		statusCode = http.StatusCreated // New session created
 	}
 
-	// Pre-register the joining user as an intended participant
-	if userName != "" {
-		h.wsHub.AddIntendedParticipant(diagramId, userName)
-	}
+	// Don't add participants here - only when they connect via WebSocket
 
 	// Build proper CollaborationSession response
 	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, userName)
@@ -819,7 +815,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 		return
 	}
 	if !hasReadAccess {
-		HandleRequestError(c, ForbiddenError("You don't have sufficient permissions to access this threat model"))
+		HandleRequestError(c, UnauthorizedError("You don't have sufficient permissions to access this threat model"))
 		return
 	}
 
@@ -864,6 +860,9 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 		delete(session.IntendedParticipants, userName)
 		session.mu.Unlock()
 		logging.Get().WithContext(c).Info("User %s removed from intended participants of session %s", userName, session.ID)
+
+		// Broadcast updated participant list to all connected clients
+		go session.broadcastParticipantsUpdate()
 	}
 
 	c.Status(http.StatusNoContent)
