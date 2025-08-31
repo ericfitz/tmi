@@ -1108,7 +1108,15 @@ func (h *WebSocketHub) StartCleanupTimer(ctx context.Context) {
 // Run processes messages for a diagram session
 func (s *DiagramSession) Run() {
 	// Defer cleanup when session terminates
-	defer s.cleanupSession()
+	defer func() {
+		// Remove session from hub when Run exits
+		if s.Hub != nil {
+			s.Hub.mu.Lock()
+			delete(s.Hub.Diagrams, s.DiagramID)
+			s.Hub.mu.Unlock()
+			logging.Get().Info("Session %s removed from hub after termination", s.ID)
+		}
+	}()
 
 	for {
 		select {
