@@ -18,6 +18,8 @@
 !auth/migrations/*.sql
 
 # Include subdirectories (but avoid overriding specific ignores)
+!api/
+!api/**
 !auth/
 !auth/**
 !docs/
@@ -51,3 +53,4 @@ test.mk
 .venv/
 .vscode/
 
+api/api.test
