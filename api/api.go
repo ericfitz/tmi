@@ -386,8 +386,8 @@ type CollaborationSession struct {
 	// SessionId Unique identifier for the session (UUID)
 	SessionId *openapi_types.UUID `json:"session_id,omitempty"`
 
-	// SessionManager Username or identifier of the session manager (may be email address or other format)
-	SessionManager *string `json:"session_manager,omitempty"`
+	// Host Username or identifier of the host (may be email address or other format)
+	Host *string `json:"host,omitempty"`
 
 	// ThreatModelId Unique identifier of the associated threat model (UUID)
 	ThreatModelId openapi_types.UUID `json:"threat_model_id"`

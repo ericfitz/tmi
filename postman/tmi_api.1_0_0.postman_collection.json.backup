@@ -1837,7 +1837,7 @@
 										}
 									],
 									"cookie": [],
-									"body": "[\n  {\n    \"session_id\": \"<uuid>\",\n    \"session_manager\": \"<string>\",\n    \"threat_model_id\": \"<uuid>\",\n    \"threat_model_name\": \"<string>\",\n    \"diagram_id\": \"<uuid>\",\n    \"diagram_name\": \"<string>\",\n    \"participants\": [\n      {\n        \"user_id\": \"<string>\",\n        \"joined_at\": \"<dateTime>\",\n        \"permissions\": \"writer\"\n      },\n      {\n        \"user_id\": \"<string>\",\n        \"joined_at\": \"<dateTime>\",\n        \"permissions\": \"reader\"\n      }\n    ],\n    \"websocket_url\": \"<string>\"\n  },\n  {\n    \"session_id\": \"<uuid>\",\n    \"session_manager\": \"<string>\",\n    \"threat_model_id\": \"<uuid>\",\n    \"threat_model_name\": \"<string>\",\n    \"diagram_id\": \"<uuid>\",\n    \"diagram_name\": \"<string>\",\n    \"participants\": [\n      {\n        \"user_id\": \"<string>\",\n        \"joined_at\": \"<dateTime>\",\n        \"permissions\": \"writer\"\n      },\n      {\n        \"user_id\": \"<string>\",\n        \"joined_at\": \"<dateTime>\",\n        \"permissions\": \"reader\"\n      }\n    ],\n    \"websocket_url\": \"<string>\"\n  }\n]"
+									"body": "[\n  {\n    \"session_id\": \"<uuid>\",\n    \"host\": \"<string>\",\n    \"threat_model_id\": \"<uuid>\",\n    \"threat_model_name\": \"<string>\",\n    \"diagram_id\": \"<uuid>\",\n    \"diagram_name\": \"<string>\",\n    \"participants\": [\n      {\n        \"user_id\": \"<string>\",\n        \"joined_at\": \"<dateTime>\",\n        \"permissions\": \"writer\"\n      },\n      {\n        \"user_id\": \"<string>\",\n        \"joined_at\": \"<dateTime>\",\n        \"permissions\": \"reader\"\n      }\n    ],\n    \"websocket_url\": \"<string>\"\n  },\n  {\n    \"session_id\": \"<uuid>\",\n    \"host\": \"<string>\",\n    \"threat_model_id\": \"<uuid>\",\n    \"threat_model_name\": \"<string>\",\n    \"diagram_id\": \"<uuid>\",\n    \"diagram_name\": \"<string>\",\n    \"participants\": [\n      {\n        \"user_id\": \"<string>\",\n        \"joined_at\": \"<dateTime>\",\n        \"permissions\": \"writer\"\n      },\n      {\n        \"user_id\": \"<string>\",\n        \"joined_at\": \"<dateTime>\",\n        \"permissions\": \"reader\"\n      }\n    ],\n    \"websocket_url\": \"<string>\"\n  }\n]"
 								},
 								{
 									"name": "Authentication failed - invalid, missing, or malformed token",
@@ -17433,7 +17433,7 @@
 																}
 															],
 															"cookie": [],
-															"body": "{\n  \"session_id\": \"<uuid>\",\n  \"session_manager\": \"<string>\",\n  \"threat_model_id\": \"<uuid>\",\n  \"threat_model_name\": \"<string>\",\n  \"diagram_id\": \"<uuid>\",\n  \"diagram_name\": \"<string>\",\n  \"participants\": [\n    {\n      \"user_id\": \"<string>\",\n      \"joined_at\": \"<dateTime>\",\n      \"permissions\": \"writer\"\n    },\n    {\n      \"user_id\": \"<string>\",\n      \"joined_at\": \"<dateTime>\",\n      \"permissions\": \"writer\"\n    }\n  ],\n  \"websocket_url\": \"<string>\"\n}"
+															"body": "{\n  \"session_id\": \"<uuid>\",\n  \"host\": \"<string>\",\n  \"threat_model_id\": \"<uuid>\",\n  \"threat_model_name\": \"<string>\",\n  \"diagram_id\": \"<uuid>\",\n  \"diagram_name\": \"<string>\",\n  \"participants\": [\n    {\n      \"user_id\": \"<string>\",\n      \"joined_at\": \"<dateTime>\",\n      \"permissions\": \"writer\"\n    },\n    {\n      \"user_id\": \"<string>\",\n      \"joined_at\": \"<dateTime>\",\n      \"permissions\": \"writer\"\n    }\n  ],\n  \"websocket_url\": \"<string>\"\n}"
 														},
 														{
 															"name": "Error response",
@@ -17693,7 +17693,7 @@
 																}
 															],
 															"cookie": [],
-															"body": "{\n  \"session_id\": \"<uuid>\",\n  \"session_manager\": \"<string>\",\n  \"threat_model_id\": \"<uuid>\",\n  \"threat_model_name\": \"<string>\",\n  \"diagram_id\": \"<uuid>\",\n  \"diagram_name\": \"<string>\",\n  \"participants\": [\n    {\n      \"user_id\": \"<string>\",\n      \"joined_at\": \"<dateTime>\",\n      \"permissions\": \"writer\"\n    },\n    {\n      \"user_id\": \"<string>\",\n      \"joined_at\": \"<dateTime>\",\n      \"permissions\": \"writer\"\n    }\n  ],\n  \"websocket_url\": \"<string>\"\n}"
+															"body": "{\n  \"session_id\": \"<uuid>\",\n  \"host\": \"<string>\",\n  \"threat_model_id\": \"<uuid>\",\n  \"threat_model_name\": \"<string>\",\n  \"diagram_id\": \"<uuid>\",\n  \"diagram_name\": \"<string>\",\n  \"participants\": [\n    {\n      \"user_id\": \"<string>\",\n      \"joined_at\": \"<dateTime>\",\n      \"permissions\": \"writer\"\n    },\n    {\n      \"user_id\": \"<string>\",\n      \"joined_at\": \"<dateTime>\",\n      \"permissions\": \"writer\"\n    }\n  ],\n  \"websocket_url\": \"<string>\"\n}"
 														},
 														{
 															"name": "Error response",
@@ -18041,7 +18041,7 @@
 																}
 															],
 															"cookie": [],
-															"body": "{\n  \"session_id\": \"<uuid>\",\n  \"session_manager\": \"<string>\",\n  \"threat_model_id\": \"<uuid>\",\n  \"threat_model_name\": \"<string>\",\n  \"diagram_id\": \"<uuid>\",\n  \"diagram_name\": \"<string>\",\n  \"participants\": [\n    {\n      \"user_id\": \"<string>\",\n      \"joined_at\": \"<dateTime>\",\n      \"permissions\": \"writer\"\n    },\n    {\n      \"user_id\": \"<string>\",\n      \"joined_at\": \"<dateTime>\",\n      \"permissions\": \"writer\"\n    }\n  ],\n  \"websocket_url\": \"<string>\"\n}"
+															"body": "{\n  \"session_id\": \"<uuid>\",\n  \"host\": \"<string>\",\n  \"threat_model_id\": \"<uuid>\",\n  \"threat_model_name\": \"<string>\",\n  \"diagram_id\": \"<uuid>\",\n  \"diagram_name\": \"<string>\",\n  \"participants\": [\n    {\n      \"user_id\": \"<string>\",\n      \"joined_at\": \"<dateTime>\",\n      \"permissions\": \"writer\"\n    },\n    {\n      \"user_id\": \"<string>\",\n      \"joined_at\": \"<dateTime>\",\n      \"permissions\": \"writer\"\n    }\n  ],\n  \"websocket_url\": \"<string>\"\n}"
 														},
 														{
 															"name": "Error response",

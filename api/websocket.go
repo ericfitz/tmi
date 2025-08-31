@@ -51,8 +51,8 @@ type DiagramSession struct {
 	Hub *WebSocketHub
 
 	// Enhanced collaboration state
-	// Session manager (user who created the session)
-	Manager string
+	// Host (user who created the session)
+	Host string
 	// Current presenter (user whose cursor/selection is broadcast)
 	CurrentPresenter string
 	// Operation history for conflict resolution
@@ -274,7 +274,7 @@ func (h *WebSocketHub) GetSession(diagramID string) *DiagramSession {
 }
 
 // CreateSession creates a new collaboration session if none exists, returns error if one already exists
-func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, managerUserID string) (*DiagramSession, error) {
+func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hostUserID string) (*DiagramSession, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -295,8 +295,8 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, man
 		Hub:           h, // Reference to the hub for cleanup
 
 		// Enhanced collaboration state
-		Manager:              managerUserID,
-		CurrentPresenter:     managerUserID, // Session manager starts as presenter
+		Host:                 hostUserID,
+		CurrentPresenter:     hostUserID, // Host starts as presenter
 		NextSequenceNumber:   1,
 		OperationHistory:     NewOperationHistory(),
 		recentCorrections:    make(map[string]int),
@@ -306,9 +306,9 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, man
 
 	h.Diagrams[diagramID] = session
 
-	// Add session manager as initial intended participant
-	if managerUserID != "" {
-		session.IntendedParticipants[managerUserID] = time.Now().UTC()
+	// Add host as initial intended participant
+	if hostUserID != "" {
+		session.IntendedParticipants[hostUserID] = time.Now().UTC()
 	}
 
 	// Record session start
@@ -336,7 +336,7 @@ func (h *WebSocketHub) JoinSession(diagramID string, userID string) (*DiagramSes
 }
 
 // GetOrCreateSession returns an existing session or creates a new one
-func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string, managerUserID string) *DiagramSession {
+func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string, hostUserID string) *DiagramSession {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -346,10 +346,10 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 		if session.ThreatModelID == "" && threatModelID != "" {
 			session.ThreatModelID = threatModelID
 		}
-		// Set manager if not already set
-		if session.Manager == "" && managerUserID != "" {
-			session.Manager = managerUserID
-			session.CurrentPresenter = managerUserID // Session manager starts as presenter
+		// Set host if not already set
+		if session.Host == "" && hostUserID != "" {
+			session.Host = hostUserID
+			session.CurrentPresenter = hostUserID // Host starts as presenter
 		}
 		return session
 	}
@@ -367,8 +367,8 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 		Hub:           h, // Reference to the hub for cleanup
 
 		// Enhanced collaboration state
-		Manager:              managerUserID,
-		CurrentPresenter:     managerUserID, // Session manager starts as presenter
+		Host:                 hostUserID,
+		CurrentPresenter:     hostUserID, // Host starts as presenter
 		NextSequenceNumber:   1,
 		OperationHistory:     NewOperationHistory(),
 		recentCorrections:    make(map[string]int),
@@ -378,9 +378,9 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 
 	h.Diagrams[diagramID] = session
 
-	// Add session manager as initial intended participant
-	if managerUserID != "" {
-		session.IntendedParticipants[managerUserID] = time.Now().UTC()
+	// Add host as initial intended participant
+	if hostUserID != "" {
+		session.IntendedParticipants[hostUserID] = time.Now().UTC()
 	}
 
 	// Record session start
@@ -589,12 +589,12 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 		}
 
 		sessions = append(sessions, CollaborationSession{
-			SessionId:      &sessionUUID,
-			SessionManager: &session.Manager,
-			DiagramId:      diagramUUID,
-			ThreatModelId:  threatModelId,
-			Participants:   participants,
-			WebsocketUrl:   fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId.String(), diagramID),
+			SessionId:     &sessionUUID,
+			Host:          &session.Host,
+			DiagramId:     diagramUUID,
+			ThreatModelId: threatModelId,
+			Participants:  participants,
+			WebsocketUrl:  fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId.String(), diagramID),
 		})
 		session.mu.RUnlock()
 	}
@@ -752,7 +752,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 
 	collaborationSession := &CollaborationSession{
 		SessionId:       &sessionUUID,
-		SessionManager:  &session.Manager,
+		Host:            &session.Host,
 		DiagramId:       diagramUUID,
 		DiagramName:     diagramName,
 		ThreatModelId:   threatModelId,
@@ -855,7 +855,7 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 
 		sessions = append(sessions, CollaborationSession{
 			SessionId:       &sessionUUID,
-			SessionManager:  &session.Manager,
+			Host:            &session.Host,
 			DiagramId:       diagramUUID,
 			DiagramName:     diagramName,
 			ThreatModelId:   threatModelId,
@@ -1209,8 +1209,8 @@ func (s *DiagramSession) Run() {
 				// Check if the leaving client was the current presenter
 				wasPresenter := client.UserName == s.CurrentPresenter
 
-				// Check if the leaving client was the session manager
-				wasManager := client.UserName == s.Manager
+				// Check if the leaving client was the host
+				wasHost := client.UserName == s.Host
 
 				s.mu.Unlock()
 
@@ -1219,9 +1219,9 @@ func (s *DiagramSession) Run() {
 					s.handlePresenterDisconnection(client.UserName)
 				}
 
-				// Handle session manager leaving session
-				if wasManager {
-					s.handleManagerDisconnection(client.UserName)
+				// Handle host leaving session
+				if wasHost {
+					s.handleHostDisconnection(client.UserName)
 					return // Exit the session run loop to terminate the session
 				}
 			} else {
@@ -1645,7 +1645,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 
 	s.mu.RLock()
 	currentPresenter := s.CurrentPresenter
-	manager := s.Manager
+	host := s.Host
 	s.mu.RUnlock()
 
 	// If user is already the presenter, ignore
@@ -1654,8 +1654,8 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 		return
 	}
 
-	// If user is the session manager, automatically grant presenter mode
-	if msg.UserID == manager {
+	// If user is the host, automatically grant presenter mode
+	if msg.UserID == host {
 		s.mu.Lock()
 		s.CurrentPresenter = msg.UserID
 		s.mu.Unlock()
@@ -1666,24 +1666,24 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 			CurrentPresenter: msg.UserID,
 		}
 		s.broadcastMessage(broadcastMsg)
-		logging.Get().Info("Session manager %s became presenter in session %s", msg.UserID, s.ID)
+		logging.Get().Info("Host %s became presenter in session %s", msg.UserID, s.ID)
 
 		// Also broadcast updated participant list since presenter has changed
 		s.broadcastParticipantsUpdate()
 		return
 	}
 
-	// For non-managers, notify the session manager of the presenter request
-	// The session manager can then use change_presenter to grant or send presenter_denied to deny
-	managerClient := s.findClientByUserID(manager)
-	if managerClient != nil {
-		// Forward the request to the session manager for approval
-		s.sendToClient(managerClient, msg)
-		logging.Get().Info("Forwarded presenter request from %s to session manager %s in session %s", msg.UserID, manager, s.ID)
+	// For non-hosts, notify the host of the presenter request
+	// The host can then use change_presenter to grant or send presenter_denied to deny
+	hostClient := s.findClientByUserID(host)
+	if hostClient != nil {
+		// Forward the request to the host for approval
+		s.sendToClient(hostClient, msg)
+		logging.Get().Info("Forwarded presenter request from %s to host %s in session %s", msg.UserID, host, s.ID)
 	} else {
-		logging.Get().Info("Session manager %s not connected, cannot process presenter request from %s", manager, msg.UserID)
+		logging.Get().Info("Host %s not connected, cannot process presenter request from %s", host, msg.UserID)
 
-		// Send denial to requester since session manager is not available
+		// Send denial to requester since host is not available
 		deniedMsg := PresenterDeniedMessage{
 			MessageType: "presenter_denied",
 			UserID:      "system",
@@ -1693,7 +1693,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	}
 }
 
-// processChangePresenter handles session manager changing presenter
+// processChangePresenter handles host changing presenter
 func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message []byte) {
 	var msg ChangePresenterMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
@@ -1701,13 +1701,13 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 		return
 	}
 
-	// Only session manager can change presenter
+	// Only host can change presenter
 	s.mu.RLock()
-	manager := s.Manager
+	host := s.Host
 	s.mu.RUnlock()
 
-	if client.UserName != manager {
-		logging.Get().Info("Non-manager attempted to change presenter: %s", client.UserName)
+	if client.UserName != host {
+		logging.Get().Info("Non-host attempted to change presenter: %s", client.UserName)
 		return
 	}
 
@@ -1722,13 +1722,13 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 		CurrentPresenter: msg.NewPresenter,
 	}
 	s.broadcastMessage(broadcastMsg)
-	logging.Get().Info("Session manager %s changed presenter to %s in session %s", client.UserName, msg.NewPresenter, s.ID)
+	logging.Get().Info("Host %s changed presenter to %s in session %s", client.UserName, msg.NewPresenter, s.ID)
 
 	// Also broadcast updated participant list since presenter has changed
 	s.broadcastParticipantsUpdate()
 }
 
-// processPresenterDenied handles session manager denying presenter requests
+// processPresenterDenied handles host denying presenter requests
 func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message []byte) {
 	var msg PresenterDeniedMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
@@ -1736,17 +1736,17 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 		return
 	}
 
-	// Only session manager can deny presenter requests
+	// Only host can deny presenter requests
 	s.mu.RLock()
-	manager := s.Manager
+	host := s.Host
 	s.mu.RUnlock()
 
-	if client.UserName != manager {
-		logging.Get().Info("Non-manager attempted to deny presenter request: %s", client.UserName)
+	if client.UserName != host {
+		logging.Get().Info("Non-host attempted to deny presenter request: %s", client.UserName)
 		return
 	}
 
-	// Validate user ID matches client (sender should be session manager)
+	// Validate user ID matches client (sender should be host)
 	if msg.UserID != client.UserName {
 		logging.Get().Info("User ID mismatch in presenter denied: %s != %s", msg.UserID, client.UserName)
 		return
@@ -1756,7 +1756,7 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	targetClient := s.findClientByUserID(msg.TargetUser)
 	if targetClient != nil {
 		s.sendToClient(targetClient, msg)
-		logging.Get().Info("Session manager %s denied presenter request from %s in session %s", msg.UserID, msg.TargetUser, s.ID)
+		logging.Get().Info("Host %s denied presenter request from %s in session %s", msg.UserID, msg.TargetUser, s.ID)
 	} else {
 		logging.Get().Info("Target user %s not found for presenter denial in session %s", msg.TargetUser, s.ID)
 	}
@@ -2067,22 +2067,22 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 	logging.Get().Info("Presenter %s disconnected from session %s, reassigning presenter", disconnectedUserID, s.ID)
 
 	// Reset presenter according to the plan:
-	// 1. First try to set presenter back to session manager
-	// 2. If manager has also left, set presenter to first remaining user with write permissions
+	// 1. First try to set presenter back to host
+	// 2. If host has also left, set presenter to first remaining user with write permissions
 
 	var newPresenter string
 
-	// Check if session manager is still connected
+	// Check if host is still connected
 	managerConnected := false
 	for client := range s.Clients {
-		if client.UserName == s.Manager {
+		if client.UserName == s.Host {
 			managerConnected = true
-			newPresenter = s.Manager
+			newPresenter = s.Host
 			break
 		}
 	}
 
-	// If session manager is not connected, find first user with write permissions
+	// If host is not connected, find first user with write permissions
 	if !managerConnected && s.ThreatModelID != "" {
 		// Get the threat model to check user permissions
 		tm, err := ThreatModelStore.Get(s.ThreatModelID)
@@ -2123,13 +2123,13 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 	}
 }
 
-// handleManagerDisconnection handles when the session manager leaves
+// handleHostDisconnection handles when the host leaves
 // This method broadcasts session termination messages and prepares for session cleanup
-func (s *DiagramSession) handleManagerDisconnection(disconnectedManagerID string) {
-	logging.Get().Info("Session manager %s disconnected from session %s, initiating session termination", disconnectedManagerID, s.ID)
+func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
+	logging.Get().Info("Host %s disconnected from session %s, initiating session termination", disconnectedHostID, s.ID)
 
 	// Broadcast session termination notification to all remaining participants
-	s.broadcastSessionTermination(disconnectedManagerID)
+	s.broadcastSessionTermination(disconnectedHostID)
 
 	// Give clients a brief moment to process the termination message
 	time.Sleep(100 * time.Millisecond)
@@ -2137,7 +2137,7 @@ func (s *DiagramSession) handleManagerDisconnection(disconnectedManagerID string
 	// Close all remaining client connections gracefully
 	s.mu.Lock()
 	for client := range s.Clients {
-		if client.UserName != disconnectedManagerID { // Manager already disconnected
+		if client.UserName != disconnectedHostID { // Host already disconnected
 			close(client.Send)
 			logging.Get().Debug("Closed connection for participant %s due to session termination", client.UserName)
 		}
@@ -2147,26 +2147,26 @@ func (s *DiagramSession) handleManagerDisconnection(disconnectedManagerID string
 	s.Clients = make(map[*WebSocketClient]bool)
 	s.mu.Unlock()
 
-	logging.Get().Info("Session %s terminated due to session manager departure", s.ID)
+	logging.Get().Info("Session %s terminated due to host departure", s.ID)
 
 	// The session will be removed from the hub when the Run() method returns
 }
 
 // broadcastSessionTermination sends termination messages to all participants
-func (s *DiagramSession) broadcastSessionTermination(managerID string) {
+func (s *DiagramSession) broadcastSessionTermination(hostID string) {
 	// Create session termination message
 	terminationMsg := WebSocketMessage{
 		Event:     "session_ended",
-		UserID:    managerID,
+		UserID:    hostID,
 		Timestamp: time.Now().UTC(),
-		Message:   "Session ended: session manager has left",
+		Message:   "Session ended: host has left",
 	}
 
 	// Broadcast to all clients
 	if msgBytes, err := json.Marshal(terminationMsg); err == nil {
 		s.mu.RLock()
 		for client := range s.Clients {
-			if client.UserName != managerID { // Don't send to the disconnected manager
+			if client.UserName != hostID { // Don't send to the disconnected host
 				select {
 				case client.Send <- msgBytes:
 					logging.Get().Debug("Sent session termination message to %s", client.UserName)
@@ -2180,17 +2180,17 @@ func (s *DiagramSession) broadcastSessionTermination(managerID string) {
 		logging.Get().Error("Failed to marshal session termination message: %v", err)
 	}
 
-	// Also send a final leave message for the session manager
+	// Also send a final leave message for the host
 	leaveMsg := WebSocketMessage{
 		Event:     "leave",
-		UserID:    managerID,
+		UserID:    hostID,
 		Timestamp: time.Now().UTC(),
 	}
 
 	if msgBytes, err := json.Marshal(leaveMsg); err == nil {
 		s.mu.RLock()
 		for client := range s.Clients {
-			if client.UserName != managerID {
+			if client.UserName != hostID {
 				select {
 				case client.Send <- msgBytes:
 				default:
@@ -2303,11 +2303,11 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 		}
 
 		participants = append(participants, Participant{
-			UserID:           client.UserName,
-			Permissions:      permissions,
-			JoinedAt:         s.LastActivity, // Using session activity as join time for active clients
-			IsSessionManager: client.UserName == s.Manager,
-			IsPresenter:      client.UserName == s.CurrentPresenter,
+			UserID:      client.UserName,
+			Permissions: permissions,
+			JoinedAt:    s.LastActivity, // Using session activity as join time for active clients
+			IsHost:      client.UserName == s.Host,
+			IsPresenter: client.UserName == s.CurrentPresenter,
 		})
 		processedUsers[client.UserName] = true
 	}
@@ -2332,11 +2332,11 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 		}
 
 		participants = append(participants, Participant{
-			UserID:           userName,
-			Permissions:      permissions,
-			JoinedAt:         joinTime,
-			IsSessionManager: userName == s.Manager,
-			IsPresenter:      userName == s.CurrentPresenter,
+			UserID:      userName,
+			Permissions: permissions,
+			JoinedAt:    joinTime,
+			IsHost:      userName == s.Host,
+			IsPresenter: userName == s.CurrentPresenter,
 		})
 		processedUsers[userName] = true
 	}
@@ -2345,7 +2345,7 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 	msg := ParticipantsUpdateMessage{
 		MessageType:      MessageTypeParticipantsUpdate,
 		Participants:     participants,
-		SessionManager:   s.Manager,
+		Host:             s.Host,
 		CurrentPresenter: s.CurrentPresenter,
 	}
 
@@ -2400,11 +2400,11 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 		}
 
 		participants = append(participants, Participant{
-			UserID:           c.UserName,
-			Permissions:      permissions,
-			JoinedAt:         s.LastActivity, // Using session activity as join time for active clients
-			IsSessionManager: c.UserName == s.Manager,
-			IsPresenter:      c.UserName == s.CurrentPresenter,
+			UserID:      c.UserName,
+			Permissions: permissions,
+			JoinedAt:    s.LastActivity, // Using session activity as join time for active clients
+			IsHost:      c.UserName == s.Host,
+			IsPresenter: c.UserName == s.CurrentPresenter,
 		})
 		processedUsers[c.UserName] = true
 	}
@@ -2429,11 +2429,11 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 		}
 
 		participants = append(participants, Participant{
-			UserID:           userName,
-			Permissions:      permissions,
-			JoinedAt:         joinTime,
-			IsSessionManager: userName == s.Manager,
-			IsPresenter:      userName == s.CurrentPresenter,
+			UserID:      userName,
+			Permissions: permissions,
+			JoinedAt:    joinTime,
+			IsHost:      userName == s.Host,
+			IsPresenter: userName == s.CurrentPresenter,
 		})
 		processedUsers[userName] = true
 	}
@@ -2442,7 +2442,7 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 	msg := ParticipantsUpdateMessage{
 		MessageType:      MessageTypeParticipantsUpdate,
 		Participants:     participants,
-		SessionManager:   s.Manager,
+		Host:             s.Host,
 		CurrentPresenter: s.CurrentPresenter,
 	}
 

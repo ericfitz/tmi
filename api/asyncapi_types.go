@@ -399,18 +399,18 @@ func (m RedoRequestMessage) Validate() error {
 
 // Participant represents a session participant with their roles
 type Participant struct {
-	UserID           string    `json:"user_id"`
-	Permissions      string    `json:"permissions"`
-	JoinedAt         time.Time `json:"joined_at"`
-	IsSessionManager bool      `json:"is_session_manager"`
-	IsPresenter      bool      `json:"is_presenter"`
+	UserID      string    `json:"user_id"`
+	Permissions string    `json:"permissions"`
+	JoinedAt    time.Time `json:"joined_at"`
+	IsHost      bool      `json:"is_host"`
+	IsPresenter bool      `json:"is_presenter"`
 }
 
 // ParticipantsUpdateMessage provides complete participant list with roles
 type ParticipantsUpdateMessage struct {
 	MessageType      MessageType   `json:"message_type"`
 	Participants     []Participant `json:"participants"`
-	SessionManager   string        `json:"session_manager"`
+	Host             string        `json:"host"`
 	CurrentPresenter string        `json:"current_presenter"`
 }
 
@@ -420,8 +420,8 @@ func (m ParticipantsUpdateMessage) Validate() error {
 	if m.MessageType != MessageTypeParticipantsUpdate {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantsUpdate, m.MessageType)
 	}
-	if m.SessionManager == "" {
-		return fmt.Errorf("session_manager is required")
+	if m.Host == "" {
+		return fmt.Errorf("host is required")
 	}
 	// Current presenter can be empty
 	// Validate participants

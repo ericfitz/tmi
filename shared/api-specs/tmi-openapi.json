@@ -38,10 +38,7 @@
             "properties": {
               "code": {
                 "type": "string",
-                "enum": [
-                  "OK",
-                  "ERROR"
-                ],
+                "enum": ["OK", "ERROR"],
                 "description": "Status code indicating if the API is functioning correctly"
               },
               "time": {
@@ -50,10 +47,7 @@
                 "description": "Current server time in UTC, formatted as RFC 3339"
               }
             },
-            "required": [
-              "code",
-              "time"
-            ]
+            "required": ["code", "time"]
           },
           "service": {
             "type": "object",
@@ -68,10 +62,7 @@
                 "maxLength": 256
               }
             },
-            "required": [
-              "name",
-              "build"
-            ]
+            "required": ["name", "build"]
           },
           "api": {
             "type": "object",
@@ -87,10 +78,7 @@
                 "maxLength": 1024
               }
             },
-            "required": [
-              "version",
-              "specification"
-            ]
+            "required": ["version", "specification"]
           },
           "operator": {
             "type": "object",
@@ -106,18 +94,10 @@
                 "maxLength": 1024
               }
             },
-            "required": [
-              "name",
-              "contact"
-            ]
+            "required": ["name", "contact"]
           }
         },
-        "required": [
-          "status",
-          "service",
-          "api",
-          "operator"
-        ],
+        "required": ["status", "service", "api", "operator"],
         "example": {
           "status": {
             "code": "OK",
@@ -129,7 +109,7 @@
           },
           "api": {
             "version": "1.0",
-            "specification": "https://github.com/ericfitz/tmi/blob/main/shared/api-specs/tmi-openapi.json"
+            "specification": "https://github.com/ericfitz/tmi/blob/main/tmi-openapi.json"
           },
           "operator": {
             "name": "Example Organization",
@@ -181,10 +161,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "name",
-          "url"
-        ],
+        "required": ["name", "url"],
         "example": {
           "id": "6ba7b810-9dad-11d1-beef-00c04fd430c8",
           "name": "Example Application Design",
@@ -226,12 +203,7 @@
           "type": {
             "type": "string",
             "description": "Source code repository type",
-            "enum": [
-              "git",
-              "svn",
-              "mercurial",
-              "other"
-            ],
+            "enum": ["git", "svn", "mercurial", "other"],
             "maxLength": 16
           },
           "url": {
@@ -246,11 +218,7 @@
             "properties": {
               "refType": {
                 "type": "string",
-                "enum": [
-                  "branch",
-                  "tag",
-                  "commit"
-                ],
+                "enum": ["branch", "tag", "commit"],
                 "description": "Reference type (branch, tag, or commit)",
                 "maxLength": 6
               },
@@ -265,10 +233,7 @@
                 "maxLength": 256
               }
             },
-            "required": [
-              "refType",
-              "refValue"
-            ]
+            "required": ["refType", "refValue"]
           },
           "metadata": {
             "type": "array",
@@ -279,9 +244,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "url"
-        ],
+        "required": ["url"],
         "example": {
           "id": "6ba7b810-1dad-11d1-8080-00c04fd430c8",
           "name": "GitHub Repo",
@@ -314,9 +277,7 @@
           "type": {
             "type": "string",
             "description": "Type of diagram with version",
-            "enum": [
-              "DFD-1.0.0"
-            ],
+            "enum": ["DFD-1.0.0"],
             "maxLength": 64
           },
           "created_at": {
@@ -340,13 +301,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "id",
-          "name",
-          "type",
-          "created_at",
-          "modified_at"
-        ],
+        "required": ["id", "name", "type", "created_at", "modified_at"],
         "discriminator": {
           "propertyName": "type",
           "mapping": {
@@ -365,9 +320,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "DFD-1.0.0"
-                ],
+                "enum": ["DFD-1.0.0"],
                 "description": "DFD diagram type with version"
               },
               "cells": {
@@ -385,9 +338,7 @@
                 "description": "List of diagram cells (nodes and edges) following X6 structure"
               }
             },
-            "required": [
-              "cells"
-            ]
+            "required": ["cells"]
           }
         ]
       },
@@ -403,16 +354,11 @@
           "type": {
             "type": "string",
             "description": "Type of diagram with version",
-            "enum": [
-              "DFD-1.0.0"
-            ],
+            "enum": ["DFD-1.0.0"],
             "maxLength": 64
           }
         },
-        "required": [
-          "name",
-          "type"
-        ],
+        "required": ["name", "type"],
         "additionalProperties": false
       },
       "Diagram": {
@@ -525,10 +471,7 @@
         "discriminator": {
           "propertyName": "shape"
         },
-        "required": [
-          "id",
-          "shape"
-        ],
+        "required": ["id", "shape"],
         "properties": {
           "id": {
             "type": "string",
@@ -594,22 +537,11 @@
           {
             "type": "object",
             "description": "A diagram node representing an entity, process, store, or boundary. Fully compatible with X6 Node objects and supports both X6 native properties (markup, tools) and convenience properties (label, position, size, style) for easier integration.",
-            "required": [
-              "x",
-              "y",
-              "width",
-              "height"
-            ],
+            "required": ["x", "y", "width", "height"],
             "properties": {
               "shape": {
                 "type": "string",
-                "enum": [
-                  "actor",
-                  "process",
-                  "store",
-                  "security-boundary",
-                  "text-box"
-                ],
+                "enum": ["actor", "process", "store", "security-boundary", "text-box"],
                 "description": "Node type determining its visual representation and behavior"
               },
               "x": {
@@ -676,10 +608,7 @@
                     "description": "Y coordinate"
                   }
                 },
-                "required": [
-                  "x",
-                  "y"
-                ]
+                "required": ["x", "y"]
               },
               "size": {
                 "type": "object",
@@ -696,10 +625,7 @@
                     "minimum": 30
                   }
                 },
-                "required": [
-                  "width",
-                  "height"
-                ]
+                "required": ["width", "height"]
               },
               "style": {
                 "type": "object",
@@ -786,10 +712,7 @@
                   }
                 ],
                 "customValidation": {
-                  "rules": [
-                    "required-input",
-                    "sanitize-output"
-                  ],
+                  "rules": ["required-input", "sanitize-output"],
                   "level": "strict"
                 }
               },
@@ -827,16 +750,11 @@
           {
             "type": "object",
             "description": "A diagram edge representing a connection or data flow between nodes. Fully compatible with X6 Edge objects and supports X6 routing algorithms (manhattan, orth, oneSide, metro, er), connector styles (normal, rounded, smooth, jumpover), custom markup, tools, and convenience properties (label, style) for easier integration.",
-            "required": [
-              "source",
-              "target"
-            ],
+            "required": ["source", "target"],
             "properties": {
               "shape": {
                 "type": "string",
-                "enum": [
-                  "edge"
-                ],
+                "enum": ["edge"],
                 "description": "Edge type identifier"
               },
               "source": {
@@ -1228,11 +1146,7 @@
           },
           "role": {
             "type": "string",
-            "enum": [
-              "reader",
-              "writer",
-              "owner"
-            ],
+            "enum": ["reader", "writer", "owner"],
             "description": "Role: reader (view), writer (edit), owner (full control)",
             "maxLength": 6,
             "x-oapi-codegen-extra-tags": {
@@ -1240,10 +1154,7 @@
             }
           }
         },
-        "required": [
-          "subject",
-          "role"
-        ]
+        "required": ["subject", "role"]
       },
       "Metadata": {
         "type": "object",
@@ -1270,10 +1181,7 @@
             }
           }
         },
-        "required": [
-          "key",
-          "value"
-        ]
+        "required": ["key", "value"]
       },
       "Error": {
         "type": "object",
@@ -1291,43 +1199,13 @@
             "type": "string",
             "format": "uri",
             "description": "URI to documentation about the error"
-          },
-          "details": {
-            "type": "object",
-            "description": "Additional context-specific error information",
-            "properties": {
-              "code": {
-                "type": "string",
-                "description": "Machine-readable error code for programmatic handling",
-                "example": "COLLABORATION_SESSION_NOT_FOUND"
-              },
-              "context": {
-                "type": "object",
-                "description": "Contextual information about the error",
-                "additionalProperties": true,
-                "example": {
-                  "diagram_id": "550e8400-e29b-41d4-a716-446655440000",
-                  "requested_operation": "end_session"
-                }
-              },
-              "suggestion": {
-                "type": "string",
-                "description": "Human-readable suggestion for resolving the error",
-                "example": "Start a collaboration session first using POST /diagrams/{id}/collaborate"
-              }
-            },
-            "additionalProperties": false,
-            "nullable": true
           }
         },
-        "required": [
-          "error",
-          "error_description"
-        ],
+        "required": ["error", "error_description"],
         "example": {
           "error": "invalid_request",
           "error_description": "The request is missing a required parameter",
-          "error_uri": "https://docs.example.com/oauth2/errors/invalid_request"
+          "error_uri": "https://docs.example.com/auth/errors/invalid_request"
         }
       },
       "AuthTokenResponse": {
@@ -1344,9 +1222,7 @@
           },
           "token_type": {
             "type": "string",
-            "enum": [
-              "Bearer"
-            ],
+            "enum": ["Bearer"],
             "description": "Token type"
           },
           "expires_in": {
@@ -1354,12 +1230,7 @@
             "description": "Access token expiration time in seconds"
           }
         },
-        "required": [
-          "access_token",
-          "refresh_token",
-          "token_type",
-          "expires_in"
-        ],
+        "required": ["access_token", "refresh_token", "token_type", "expires_in"],
         "example": {
           "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
           "refresh_token": "def456...",
@@ -1378,9 +1249,9 @@
             "maxLength": 36,
             "readOnly": true
           },
-          "session_manager": {
+          "host": {
             "type": "string",
-            "description": "Username or identifier of the session manager (may be email address or other format)",
+            "description": "Username or identifier of the host (may be email address or other format)",
             "maxLength": 256,
             "readOnly": true
           },
@@ -1425,10 +1296,7 @@
                 },
                 "permissions": {
                   "type": "string",
-                  "enum": [
-                    "reader",
-                    "writer"
-                  ],
+                  "enum": ["reader", "writer"],
                   "description": "User's permissions for the current diagram in the current session (reader|writer)",
                   "maxLength": 6
                 }
@@ -1444,7 +1312,7 @@
         },
         "required": [
           "session_id",
-          "session_manager",
+          "host",
           "threat_model_id",
           "threat_model_name",
           "diagram_id",
@@ -1454,7 +1322,7 @@
         ],
         "example": {
           "session_id": "D7744D3A-ED22-40AF-862B-29786CAD0007",
-          "session_manager": "admin@example.com",
+          "host": "admin@example.com",
           "threat_model_id": "5311D207-AFD5-4A1A-BA83-14C1445DC257",
           "threat_model_name": "E-commerce Platform Security Analysis",
           "diagram_id": "DFF7F4A9-CBCE-4001-9198-2706C86F7EF3",
@@ -1487,17 +1355,11 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "DFD-1.0.0"
-            ],
+            "enum": ["DFD-1.0.0"],
             "description": "Type of the diagram"
           }
         },
-        "required": [
-          "id",
-          "name",
-          "type"
-        ]
+        "required": ["id", "name", "type"]
       },
       "TMListItem": {
         "type": "object",
@@ -1589,10 +1451,7 @@
       "Point": {
         "type": "object",
         "description": "A 2D point with x and y coordinates",
-        "required": [
-          "x",
-          "y"
-        ],
+        "required": ["x", "y"],
         "properties": {
           "x": {
             "type": "number",
@@ -1611,9 +1470,7 @@
       "EdgeTerminal": {
         "type": "object",
         "description": "Connection point for an edge (source or target)",
-        "required": [
-          "cell"
-        ],
+        "required": ["cell"],
         "properties": {
           "cell": {
             "type": "string",
@@ -1723,12 +1580,7 @@
                   "name": {
                     "type": "string",
                     "description": "Marker type",
-                    "enum": [
-                      "classic",
-                      "block",
-                      "diamond",
-                      "circle"
-                    ],
+                    "enum": ["classic", "block", "diamond", "circle"],
                     "maxLength": 32
                   },
                   "size": {
@@ -1745,12 +1597,7 @@
                   "name": {
                     "type": "string",
                     "description": "Marker type",
-                    "enum": [
-                      "classic",
-                      "block",
-                      "diamond",
-                      "circle"
-                    ],
+                    "enum": ["classic", "block", "diamond", "circle"],
                     "maxLength": 32
                   },
                   "size": {
@@ -1830,12 +1677,7 @@
               "properties": {
                 "position": {
                   "type": "string",
-                  "enum": [
-                    "top",
-                    "right",
-                    "bottom",
-                    "left"
-                  ],
+                  "enum": ["top", "right", "bottom", "left"],
                   "description": "Port position on the node"
                 }
               }
@@ -1846,10 +1688,7 @@
             "description": "Individual port instances",
             "items": {
               "type": "object",
-              "required": [
-                "id",
-                "group"
-              ],
+              "required": ["id", "group"],
               "properties": {
                 "id": {
                   "type": "string",
@@ -1901,25 +1740,15 @@
                 "description": "Whether there are more items available beyond this page"
               }
             },
-            "required": [
-              "total",
-              "limit",
-              "offset",
-              "has_more"
-            ]
+            "required": ["total", "limit", "offset", "has_more"]
           }
         },
-        "required": [
-          "data",
-          "pagination"
-        ]
+        "required": ["data", "pagination"]
       },
       "MarkupElement": {
         "type": "object",
         "description": "SVG/HTML markup element for custom shape definitions in X6",
-        "required": [
-          "tagName"
-        ],
+        "required": ["tagName"],
         "properties": {
           "tagName": {
             "type": "string",
@@ -1953,9 +1782,7 @@
       "CellTool": {
         "type": "object",
         "description": "Interactive tool configuration for X6 cells",
-        "required": [
-          "name"
-        ],
+        "required": ["name"],
         "properties": {
           "name": {
             "type": "string",
@@ -1978,33 +1805,17 @@
         "oneOf": [
           {
             "type": "string",
-            "enum": [
-              "normal",
-              "orth",
-              "oneSide",
-              "manhattan",
-              "metro",
-              "er"
-            ],
+            "enum": ["normal", "orth", "oneSide", "manhattan", "metro", "er"],
             "description": "Built-in router name"
           },
           {
             "type": "object",
             "description": "Router with custom configuration",
-            "required": [
-              "name"
-            ],
+            "required": ["name"],
             "properties": {
               "name": {
                 "type": "string",
-                "enum": [
-                  "normal",
-                  "orth",
-                  "oneSide",
-                  "manhattan",
-                  "metro",
-                  "er"
-                ],
+                "enum": ["normal", "orth", "oneSide", "manhattan", "metro", "er"],
                 "description": "Router algorithm name"
               },
               "args": {
@@ -2024,12 +1835,7 @@
                     "type": "array",
                     "items": {
                       "type": "string",
-                      "enum": [
-                        "top",
-                        "right",
-                        "bottom",
-                        "left"
-                      ]
+                      "enum": ["top", "right", "bottom", "left"]
                     },
                     "description": "Allowed routing directions"
                   }
@@ -2051,29 +1857,17 @@
         "oneOf": [
           {
             "type": "string",
-            "enum": [
-              "normal",
-              "rounded",
-              "smooth",
-              "jumpover"
-            ],
+            "enum": ["normal", "rounded", "smooth", "jumpover"],
             "description": "Built-in connector name"
           },
           {
             "type": "object",
             "description": "Connector with custom configuration",
-            "required": [
-              "name"
-            ],
+            "required": ["name"],
             "properties": {
               "name": {
                 "type": "string",
-                "enum": [
-                  "normal",
-                  "rounded",
-                  "smooth",
-                  "jumpover"
-                ],
+                "enum": ["normal", "rounded", "smooth", "jumpover"],
                 "description": "Connector style name"
               },
               "args": {
@@ -2095,11 +1889,7 @@
                   },
                   "jump": {
                     "type": "string",
-                    "enum": [
-                      "arc",
-                      "gap",
-                      "cubic"
-                    ],
+                    "enum": ["arc", "gap", "cubic"],
                     "description": "Jump style for jumpover connectors"
                   }
                 }
@@ -2167,12 +1957,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "name",
-          "owner",
-          "authorization",
-          "threat_model_framework"
-        ]
+        "required": ["name", "owner", "authorization", "threat_model_framework"]
       },
       "ThreatModelInput": {
         "type": "object",
@@ -2216,9 +2001,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
       },
       "ThreatBase": {
         "type": "object",
@@ -2255,14 +2038,7 @@
           },
           "severity": {
             "type": "string",
-            "enum": [
-              "Unknown",
-              "None",
-              "Low",
-              "Medium",
-              "High",
-              "Critical"
-            ],
+            "enum": ["Unknown", "None", "Low", "Medium", "High", "Critical"],
             "description": "Severity level of the threat"
           },
           "score": {
@@ -2305,14 +2081,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "name",
-          "severity",
-          "priority",
-          "mitigated",
-          "status",
-          "threat_type"
-        ]
+        "required": ["name", "severity", "priority", "mitigated", "status", "threat_type"]
       },
       "ThreatInput": {
         "allOf": [
@@ -2385,9 +2154,7 @@
   "paths": {
     "/": {
       "get": {
-        "tags": [
-          "General"
-        ],
+        "tags": ["General"],
         "summary": "Get API information",
         "description": "Returns service, API, and operator information without authentication",
         "operationId": "getApiInfo",
@@ -2401,403 +2168,13 @@
                 }
               }
             }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error"
           }
         }
       }
     },
-    "/.well-known/openid-configuration": {
+    "/auth/providers": {
       "get": {
-        "tags": [
-          "OIDC Discovery"
-        ],
-        "summary": "OpenID Connect Discovery Configuration",
-        "description": "Returns OpenID Connect provider configuration metadata as per RFC 8414",
-        "operationId": "getOpenIDConfiguration",
-        "responses": {
-          "200": {
-            "description": "OpenID Connect configuration metadata",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "issuer": {
-                      "type": "string",
-                      "format": "uri",
-                      "example": "http://localhost:8080"
-                    },
-                    "authorization_endpoint": {
-                      "type": "string",
-                      "format": "uri",
-                      "example": "http://localhost:8080/oauth2/authorize"
-                    },
-                    "token_endpoint": {
-                      "type": "string",
-                      "format": "uri",
-                      "example": "http://localhost:8080/oauth2/token"
-                    },
-                    "userinfo_endpoint": {
-                      "type": "string",
-                      "format": "uri",
-                      "example": "http://localhost:8080/oauth2/userinfo"
-                    },
-                    "jwks_uri": {
-                      "type": "string",
-                      "format": "uri",
-                      "example": "http://localhost:8080/.well-known/jwks.json"
-                    },
-                    "response_types_supported": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "example": [
-                        "code",
-                        "token",
-                        "id_token",
-                        "code token",
-                        "code id_token",
-                        "token id_token",
-                        "code token id_token"
-                      ]
-                    },
-                    "subject_types_supported": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "example": [
-                        "public"
-                      ]
-                    },
-                    "id_token_signing_alg_values_supported": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "example": [
-                        "HS256"
-                      ]
-                    },
-                    "scopes_supported": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "example": [
-                        "openid",
-                        "email",
-                        "profile"
-                      ]
-                    },
-                    "claims_supported": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "example": [
-                        "sub",
-                        "email",
-                        "email_verified",
-                        "name",
-                        "given_name",
-                        "family_name",
-                        "picture",
-                        "locale"
-                      ]
-                    },
-                    "introspection_endpoint": {
-                      "type": "string",
-                      "format": "uri",
-                      "example": "http://localhost:8080/oauth2/introspect"
-                    }
-                  },
-                  "required": [
-                    "issuer",
-                    "authorization_endpoint",
-                    "token_endpoint",
-                    "jwks_uri",
-                    "response_types_supported",
-                    "subject_types_supported",
-                    "id_token_signing_alg_values_supported"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/.well-known/oauth-authorization-server": {
-      "get": {
-        "tags": [
-          "OIDC Discovery"
-        ],
-        "summary": "OAuth 2.0 Authorization Server Metadata",
-        "description": "Returns OAuth 2.0 authorization server metadata as per RFC 8414",
-        "operationId": "getOAuthAuthorizationServerMetadata",
-        "responses": {
-          "200": {
-            "description": "OAuth 2.0 authorization server metadata",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "issuer": {
-                      "type": "string",
-                      "format": "uri",
-                      "example": "http://localhost:8080"
-                    },
-                    "authorization_endpoint": {
-                      "type": "string",
-                      "format": "uri",
-                      "example": "http://localhost:8080/oauth2/authorize"
-                    },
-                    "token_endpoint": {
-                      "type": "string",
-                      "format": "uri",
-                      "example": "http://localhost:8080/oauth2/token"
-                    },
-                    "introspection_endpoint": {
-                      "type": "string",
-                      "format": "uri",
-                      "example": "http://localhost:8080/oauth2/introspect"
-                    },
-                    "response_types_supported": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "example": [
-                        "code",
-                        "token",
-                        "id_token"
-                      ]
-                    },
-                    "grant_types_supported": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "example": [
-                        "authorization_code",
-                        "implicit",
-                        "refresh_token"
-                      ]
-                    },
-                    "token_endpoint_auth_methods_supported": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "example": [
-                        "client_secret_post",
-                        "none"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "issuer",
-                    "authorization_endpoint",
-                    "token_endpoint",
-                    "response_types_supported"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/.well-known/jwks.json": {
-      "get": {
-        "tags": [
-          "OIDC Discovery"
-        ],
-        "summary": "JSON Web Key Set",
-        "description": "Returns the JSON Web Key Set (JWKS) for JWT signature verification",
-        "operationId": "getJWKS",
-        "responses": {
-          "200": {
-            "description": "JSON Web Key Set",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "keys": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "kty": {
-                            "type": "string",
-                            "example": "oct"
-                          },
-                          "use": {
-                            "type": "string",
-                            "example": "sig"
-                          },
-                          "alg": {
-                            "type": "string",
-                            "example": "HS256"
-                          },
-                          "kid": {
-                            "type": "string",
-                            "example": "tmi-signing-key"
-                          }
-                        },
-                        "required": [
-                          "kty",
-                          "use",
-                          "alg",
-                          "kid"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "keys"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/oauth2/introspect": {
-      "post": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "Token Introspection",
-        "description": "Introspects a JWT token to determine its validity and metadata as per RFC 7662",
-        "operationId": "introspectToken",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "token": {
-                    "type": "string",
-                    "description": "The JWT token to introspect",
-                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  },
-                  "token_type_hint": {
-                    "type": "string",
-                    "description": "Optional hint about the type of token being introspected",
-                    "example": "access_token"
-                  }
-                },
-                "required": [
-                  "token"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Token introspection result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "active": {
-                      "type": "boolean",
-                      "description": "Whether the token is active/valid",
-                      "example": true
-                    },
-                    "sub": {
-                      "type": "string",
-                      "description": "Subject (user identifier)",
-                      "example": "user@example.com"
-                    },
-                    "email": {
-                      "type": "string",
-                      "description": "User email address",
-                      "example": "user@example.com"
-                    },
-                    "email_verified": {
-                      "type": "boolean",
-                      "description": "Whether the email is verified",
-                      "example": true
-                    },
-                    "name": {
-                      "type": "string",
-                      "description": "User's full name",
-                      "example": "John Doe"
-                    },
-                    "exp": {
-                      "type": "integer",
-                      "description": "Token expiration time (Unix timestamp)",
-                      "example": 1640995200
-                    },
-                    "iat": {
-                      "type": "integer",
-                      "description": "Token issued at time (Unix timestamp)",
-                      "example": 1640991600
-                    },
-                    "iss": {
-                      "type": "string",
-                      "description": "Token issuer",
-                      "example": "http://localhost:8080"
-                    }
-                  },
-                  "required": [
-                    "active"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/oauth2/providers": {
-      "get": {
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "summary": "List available OAuth providers",
         "description": "Returns a list of configured OAuth providers available for authentication",
         "operationId": "getAuthProviders",
@@ -2841,20 +2218,11 @@
                             "description": "OAuth client ID for this provider"
                           }
                         },
-                        "required": [
-                          "id",
-                          "name",
-                          "icon",
-                          "auth_url",
-                          "redirect_uri",
-                          "client_id"
-                        ]
+                        "required": ["id", "name", "icon", "auth_url", "redirect_uri", "client_id"]
                       }
                     }
                   },
-                  "required": [
-                    "providers"
-                  ]
+                  "required": ["providers"]
                 },
                 "example": {
                   "providers": [
@@ -2862,24 +2230,24 @@
                       "id": "google",
                       "name": "Google",
                       "icon": "fa-brands fa-google",
-                      "auth_url": "http://localhost:8080/oauth2/authorize?idp=google",
-                      "redirect_uri": "http://localhost:8080/oauth2/callback",
+                      "auth_url": "http://localhost:8080/auth/login/google",
+                      "redirect_uri": "http://localhost:8080/auth/callback",
                       "client_id": "675196260523-e8ppeu62pv222jhnpebe929b2tgl2jm0.apps.googleusercontent.com"
                     },
                     {
                       "id": "github",
                       "name": "GitHub",
                       "icon": "fa-brands fa-github",
-                      "auth_url": "http://localhost:8080/oauth2/authorize?idp=github",
-                      "redirect_uri": "http://localhost:8080/oauth2/callback",
+                      "auth_url": "http://localhost:8080/auth/login/github",
+                      "redirect_uri": "http://localhost:8080/auth/callback",
                       "client_id": "your-github-client-id"
                     },
                     {
                       "id": "microsoft",
                       "name": "Microsoft",
                       "icon": "fa-brands fa-microsoft",
-                      "auth_url": "http://localhost:8080/oauth2/authorize?idp=microsoft",
-                      "redirect_uri": "http://localhost:8080/oauth2/callback",
+                      "auth_url": "http://localhost:8080/auth/login/microsoft",
+                      "redirect_uri": "http://localhost:8080/auth/callback",
                       "client_id": "your-microsoft-client-id"
                     }
                   ]
@@ -2893,22 +2261,21 @@
         }
       }
     },
-    "/oauth2/authorize": {
+    "/auth/login/{provider}": {
       "get": {
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "summary": "Initiate OAuth authorization flow",
         "description": "Redirects user to OAuth provider's authorization page. Supports client callback URL for seamless client integration. Generates state parameter for CSRF protection.",
         "operationId": "authorizeOAuthProvider",
         "parameters": [
           {
-            "name": "idp",
-            "in": "query",
-            "required": false,
-            "description": "OAuth provider identifier. Defaults to 'test' provider in non-production builds if not specified.",
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "description": "OAuth provider identifier",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": ["github", "google", "microsoft", "test"]
             }
           },
           {
@@ -2919,7 +2286,7 @@
             "schema": {
               "type": "string",
               "format": "uri",
-              "example": "http://localhost:4200/oauth2/callback"
+              "example": "http://localhost:4200/auth/callback"
             }
           },
           {
@@ -2930,27 +2297,6 @@
             "schema": {
               "type": "string",
               "example": "random_state_abc123"
-            }
-          },
-          {
-            "name": "login_hint",
-            "in": "query",
-            "required": false,
-            "description": "User identity hint for test OAuth provider. Allows specifying a desired user identity for testing and automation. Only supported by the test provider (ignored by production providers like Google, GitHub, etc.). Must be 3-20 characters, alphanumeric and hyphens only.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[a-zA-Z0-9-]{3,20}$",
-              "example": "alice"
-            }
-          },
-          {
-            "name": "scope",
-            "in": "query",
-            "required": true,
-            "description": "OAuth 2.0 scope parameter. For OpenID Connect, must include \"openid\". Supports \"profile\" and \"email\" scopes. Other scopes are silently ignored. Space-separated values.",
-            "schema": {
-              "type": "string",
-              "example": "openid profile email"
             }
           }
         ],
@@ -2990,22 +2336,21 @@
         }
       }
     },
-    "/oauth2/token": {
+    "/auth/token/{provider}": {
       "post": {
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "summary": "Exchange OAuth authorization code for JWT tokens",
         "description": "Provider-neutral endpoint to exchange OAuth authorization codes for TMI JWT tokens. Supports Google, GitHub, and Microsoft OAuth providers.",
         "operationId": "exchangeOAuthCode",
         "parameters": [
           {
-            "name": "idp",
-            "in": "query",
-            "required": false,
-            "description": "OAuth provider identifier. Defaults to 'test' provider in non-production builds if not specified.",
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "description": "OAuth provider identifier",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": ["google", "github", "microsoft"]
             }
           }
         ],
@@ -3030,13 +2375,10 @@
                     "type": "string",
                     "format": "uri",
                     "description": "Redirect URI used in the authorization request (must match exactly)",
-                    "example": "https://your-web-app.com/oauth2/callback"
+                    "example": "https://your-web-app.com/auth/callback"
                   }
                 },
-                "required": [
-                  "code",
-                  "redirect_uri"
-                ]
+                "required": ["code", "redirect_uri"]
               }
             }
           }
@@ -3070,7 +2412,7 @@
                     "summary": "Invalid provider",
                     "value": {
                       "error": "Invalid provider: invalid_provider",
-                      "error_description": "Provider 'invalid_provider' is not configured or supported"
+                      "error_description": "Provider 'invalid_provider' is not supported. Supported providers: google, github, microsoft"
                     }
                   },
                   "missing_code": {
@@ -3120,11 +2462,9 @@
         }
       }
     },
-    "/oauth2/refresh": {
+    "/auth/refresh": {
       "post": {
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "summary": "Refresh JWT token",
         "description": "Exchanges a refresh token for a new JWT access token",
         "operationId": "refreshToken",
@@ -3140,9 +2480,7 @@
                     "example": "8xLOxBtZp8_example_refresh_token"
                   }
                 },
-                "required": [
-                  "refresh_token"
-                ]
+                "required": ["refresh_token"]
               }
             }
           }
@@ -3229,11 +2567,9 @@
         }
       }
     },
-    "/oauth2/userinfo": {
+    "/auth/me": {
       "get": {
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "summary": "Get current user information",
         "description": "Returns information about the currently authenticated user",
         "operationId": "getCurrentUser",
@@ -3283,11 +2619,7 @@
                       "description": "Linked OAuth providers"
                     }
                   },
-                  "required": [
-                    "id",
-                    "email",
-                    "name"
-                  ]
+                  "required": ["id", "email", "name"]
                 },
                 "example": {
                   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -3312,11 +2644,9 @@
         }
       }
     },
-    "/oauth2/callback": {
+    "/auth/callback": {
       "get": {
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "summary": "Handle OAuth callback",
         "description": "Exchanges OAuth authorization code for JWT tokens. If client_callback was provided during authorization, redirects to client with tokens. Otherwise returns tokens as JSON response.",
         "operationId": "handleOAuthCallback",
@@ -3357,7 +2687,7 @@
                 "schema": {
                   "type": "string",
                   "format": "uri",
-                  "example": "http://localhost:4200/oauth2/callback?access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&expires_in=3600&token_type=Bearer&state=random_state_abc123"
+                  "example": "http://localhost:4200/auth/callback?access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&expires_in=3600&token_type=Bearer&state=random_state_abc123"
                 },
                 "description": "Client callback URL with access_token, refresh_token, expires_in, token_type, and state as query parameters"
               }
@@ -3375,11 +2705,9 @@
         }
       }
     },
-    "/oauth2/revoke": {
+    "/auth/logout": {
       "post": {
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "summary": "Logout user",
         "description": "Invalidates the user's JWT token by adding it to a blacklist, effectively ending the session. Once logged out, the token cannot be used for further authenticated requests until it naturally expires. The token blacklist is maintained in Redis with automatic cleanup based on token expiration times.",
         "operationId": "logoutUser",
@@ -3469,9 +2797,7 @@
     },
     "/collaboration/sessions": {
       "get": {
-        "tags": [
-          "Collaboration"
-        ],
+        "tags": ["Collaboration"],
         "summary": "List active collaboration sessions",
         "description": "Returns all currently active collaboration sessions for diagrams. Clients can use this endpoint to discover existing sessions before connecting via WebSocket.",
         "operationId": "getCollaborationSessions",
@@ -3541,9 +2867,7 @@
     },
     "/threat_models": {
       "get": {
-        "tags": [
-          "Threat Models"
-        ],
+        "tags": ["Threat Models"],
         "summary": "List threat models",
         "description": "Returns a list of threat models accessible to the authenticated user with enhanced metadata and entity counts",
         "operationId": "listThreatModels",
@@ -3708,9 +3032,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threat Models"
-        ],
+        "tags": ["Threat Models"],
         "summary": "Create a threat model",
         "description": "Creates a new threat model with the authenticated user as owner",
         "operationId": "createThreatModel",
@@ -3783,9 +3105,7 @@
     },
     "/threat_models/{threat_model_id}": {
       "get": {
-        "tags": [
-          "Threat Models"
-        ],
+        "tags": ["Threat Models"],
         "summary": "Retrieve a threat model",
         "description": "Retrieves the full details of a specific threat model if the user has access",
         "operationId": "getThreatModel",
@@ -3833,9 +3153,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Threat Models"
-        ],
+        "tags": ["Threat Models"],
         "summary": "Update a threat model",
         "description": "Fully updates a threat model; restricted to writer/owner roles",
         "operationId": "updateThreatModel",
@@ -3896,9 +3214,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Threat Models"
-        ],
+        "tags": ["Threat Models"],
         "summary": "Partially update a threat model",
         "description": "Applies JSON Patch operations to a threat model; restricted to writer/owner roles",
         "operationId": "patchThreatModel",
@@ -3930,14 +3246,7 @@
                   "properties": {
                     "op": {
                       "type": "string",
-                      "enum": [
-                        "add",
-                        "replace",
-                        "remove",
-                        "move",
-                        "copy",
-                        "test"
-                      ],
+                      "enum": ["add", "replace", "remove", "move", "copy", "test"],
                       "description": "Patch operation type"
                     },
                     "path": {
@@ -3948,10 +3257,7 @@
                       "description": "Value to apply"
                     }
                   },
-                  "required": [
-                    "op",
-                    "path"
-                  ]
+                  "required": ["op", "path"]
                 }
               }
             }
@@ -3986,9 +3292,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threat Models"
-        ],
+        "tags": ["Threat Models"],
         "summary": "Delete a threat model",
         "description": "Deletes a threat model; restricted to owner role",
         "operationId": "deleteThreatModel",
@@ -4031,9 +3335,7 @@
     },
     "/threat_models/{threat_model_id}/threats": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "List threats in a threat model",
         "description": "Returns a paginated list of threats within the specified threat model",
         "operationId": "getThreatModelThreats",
@@ -4095,10 +3397,7 @@
                       "description": "Total number of threats in the threat model"
                     }
                   },
-                  "required": [
-                    "threats",
-                    "total_count"
-                  ]
+                  "required": ["threats", "total_count"]
                 },
                 "examples": {
                   "threatList": {
@@ -4176,9 +3475,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Create a new threat",
         "description": "Creates a new threat within the specified threat model",
         "operationId": "createThreatModelThreat",
@@ -4241,9 +3538,7 @@
     },
     "/threat_models/{threat_model_id}/threats/{threat_id}": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get a specific threat",
         "description": "Returns details of a specific threat within the threat model",
         "operationId": "getThreatModelThreat",
@@ -4302,9 +3597,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Update a threat",
         "description": "Updates a specific threat within the threat model",
         "operationId": "updateThreatModelThreat",
@@ -4376,9 +3669,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Partially update a threat",
         "description": "Applies JSON patch operations to a specific threat within the threat model",
         "operationId": "patchThreatModelThreat",
@@ -4422,14 +3713,7 @@
                   "properties": {
                     "op": {
                       "type": "string",
-                      "enum": [
-                        "add",
-                        "remove",
-                        "replace",
-                        "move",
-                        "copy",
-                        "test"
-                      ]
+                      "enum": ["add", "remove", "replace", "move", "copy", "test"]
                     },
                     "path": {
                       "type": "string"
@@ -4439,10 +3723,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "op",
-                    "path"
-                  ]
+                  "required": ["op", "path"]
                 }
               },
               "examples": {
@@ -4571,9 +3852,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Delete a threat",
         "description": "Deletes a specific threat from the threat model",
         "operationId": "deleteThreatModelThreat",
@@ -4627,9 +3906,7 @@
     },
     "/threat_models/{threat_model_id}/threats/{threat_id}/metadata": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get threat metadata",
         "description": "Returns all metadata key-value pairs for the specified threat",
         "operationId": "getThreatMetadata",
@@ -4691,9 +3968,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Create threat metadata",
         "description": "Creates new metadata entry for the specified threat",
         "operationId": "createThreatMetadata",
@@ -4767,9 +4042,7 @@
     },
     "/threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key}": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get threat metadata by key",
         "description": "Returns a specific metadata entry by key for the specified threat",
         "operationId": "getThreatMetadataByKey",
@@ -4838,9 +4111,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Update threat metadata by key",
         "description": "Updates a specific metadata entry by key for the specified threat",
         "operationId": "updateThreatMetadataByKey",
@@ -4895,9 +4166,7 @@
                     "description": "New value for the metadata entry"
                   }
                 },
-                "required": [
-                  "value"
-                ]
+                "required": ["value"]
               }
             }
           }
@@ -4931,9 +4200,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Delete threat metadata by key",
         "description": "Deletes a specific metadata entry by key for the specified threat",
         "operationId": "deleteThreatMetadataByKey",
@@ -4997,9 +4264,7 @@
     },
     "/threat_models/{threat_model_id}/threats/{threat_id}/metadata/bulk": {
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Bulk create threat metadata",
         "description": "Creates multiple metadata entries in a single operation for the specified threat",
         "operationId": "bulkCreateThreatMetadata",
@@ -5080,9 +4345,7 @@
     },
     "/threat_models/{threat_model_id}/threats/bulk": {
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Bulk create threats",
         "description": "Creates multiple threats in a single operation for the specified threat model",
         "operationId": "bulkCreateThreatModelThreats",
@@ -5192,9 +4455,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Bulk update threats",
         "description": "Updates multiple threats in a single operation for the specified threat model",
         "operationId": "bulkUpdateThreatModelThreats",
@@ -5290,9 +4551,7 @@
     },
     "/threat_models/{threat_model_id}/threats/batch/patch": {
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Batch patch threats",
         "description": "Applies JSON Patch operations to multiple threats in a single operation",
         "operationId": "batchPatchThreatModelThreats",
@@ -5338,14 +4597,7 @@
                             "properties": {
                               "op": {
                                 "type": "string",
-                                "enum": [
-                                  "add",
-                                  "replace",
-                                  "remove",
-                                  "move",
-                                  "copy",
-                                  "test"
-                                ],
+                                "enum": ["add", "replace", "remove", "move", "copy", "test"],
                                 "description": "Patch operation type"
                               },
                               "path": {
@@ -5356,24 +4608,16 @@
                                 "description": "Value to apply"
                               }
                             },
-                            "required": [
-                              "op",
-                              "path"
-                            ]
+                            "required": ["op", "path"]
                           }
                         }
                       },
-                      "required": [
-                        "threat_id",
-                        "operations"
-                      ]
+                      "required": ["threat_id", "operations"]
                     },
                     "maxItems": 10
                   }
                 },
-                "required": [
-                  "patches"
-                ]
+                "required": ["patches"]
               },
               "examples": {
                 "batchPatchThreats": {
@@ -5449,9 +4693,7 @@
     },
     "/threat_models/{threat_model_id}/threats/batch": {
       "delete": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Batch delete threats",
         "description": "Deletes multiple threats in a single operation for the specified threat model",
         "operationId": "batchDeleteThreatModelThreats",
@@ -5511,10 +4753,7 @@
                       "description": "Array of successfully deleted threat IDs"
                     }
                   },
-                  "required": [
-                    "deleted_count",
-                    "deleted_ids"
-                  ]
+                  "required": ["deleted_count", "deleted_ids"]
                 }
               }
             }
@@ -5539,9 +4778,7 @@
     },
     "/threat_models/{threat_model_id}/documents": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "List documents in a threat model",
         "description": "Returns a paginated list of documents within the specified threat model",
         "operationId": "getThreatModelDocuments",
@@ -5603,10 +4840,7 @@
                       "description": "Total number of documents in the threat model"
                     }
                   },
-                  "required": [
-                    "documents",
-                    "total_count"
-                  ]
+                  "required": ["documents", "total_count"]
                 },
                 "examples": {
                   "documentList": {
@@ -5675,9 +4909,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Create a new document",
         "description": "Creates a new document within the specified threat model",
         "operationId": "createThreatModelDocument",
@@ -5789,9 +5021,7 @@
     },
     "/threat_models/{threat_model_id}/documents/{document_id}": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get a specific document",
         "description": "Returns details of a specific document within the threat model",
         "operationId": "getThreatModelDocument",
@@ -5850,9 +5080,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Update a document",
         "description": "Updates a specific document within the threat model",
         "operationId": "updateThreatModelDocument",
@@ -5924,9 +5152,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Delete a document",
         "description": "Deletes a specific document from the threat model",
         "operationId": "deleteThreatModelDocument",
@@ -5980,9 +5206,7 @@
     },
     "/threat_models/{threat_model_id}/documents/{document_id}/metadata": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get document metadata",
         "description": "Returns all metadata key-value pairs for the specified document",
         "operationId": "getDocumentMetadata",
@@ -6044,9 +5268,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Create document metadata",
         "description": "Creates new metadata entry for the specified document",
         "operationId": "createDocumentMetadata",
@@ -6120,9 +5342,7 @@
     },
     "/threat_models/{threat_model_id}/documents/{document_id}/metadata/{key}": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get document metadata by key",
         "description": "Returns a specific metadata entry by key for the specified document",
         "operationId": "getDocumentMetadataByKey",
@@ -6191,9 +5411,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Update document metadata by key",
         "description": "Updates a specific metadata entry by key for the specified document",
         "operationId": "updateDocumentMetadataByKey",
@@ -6248,9 +5466,7 @@
                     "description": "New value for the metadata entry"
                   }
                 },
-                "required": [
-                  "value"
-                ]
+                "required": ["value"]
               }
             }
           }
@@ -6284,9 +5500,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Delete document metadata by key",
         "description": "Deletes a specific metadata entry by key for the specified document",
         "operationId": "deleteDocumentMetadataByKey",
@@ -6350,9 +5564,7 @@
     },
     "/threat_models/{threat_model_id}/documents/{document_id}/metadata/bulk": {
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Bulk create document metadata",
         "description": "Creates multiple metadata entries in a single operation for the specified document",
         "operationId": "bulkCreateDocumentMetadata",
@@ -6433,9 +5645,7 @@
     },
     "/threat_models/{threat_model_id}/documents/bulk": {
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Bulk create documents",
         "description": "Creates multiple documents in a single operation for the specified threat model",
         "operationId": "bulkCreateThreatModelDocuments",
@@ -6586,9 +5796,7 @@
     },
     "/threat_models/{threat_model_id}/sources": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "List sources in a threat model",
         "description": "Returns a paginated list of source code references within the specified threat model",
         "operationId": "getThreatModelSources",
@@ -6650,10 +5858,7 @@
                       "description": "Total number of sources in the threat model"
                     }
                   },
-                  "required": [
-                    "sources",
-                    "total_count"
-                  ]
+                  "required": ["sources", "total_count"]
                 },
                 "examples": {
                   "sourceList": {
@@ -6729,9 +5934,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Create a new source reference",
         "description": "Creates a new source code reference within the specified threat model",
         "operationId": "createThreatModelSource",
@@ -6794,9 +5997,7 @@
     },
     "/threat_models/{threat_model_id}/sources/{source_id}": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get a specific source reference",
         "description": "Returns details of a specific source code reference within the threat model",
         "operationId": "getThreatModelSource",
@@ -6855,9 +6056,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Update a source reference",
         "description": "Updates a specific source code reference within the threat model",
         "operationId": "updateThreatModelSource",
@@ -6929,9 +6128,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Delete a source reference",
         "description": "Deletes a specific source code reference from the threat model",
         "operationId": "deleteThreatModelSource",
@@ -6985,9 +6182,7 @@
     },
     "/threat_models/{threat_model_id}/sources/{source_id}/metadata": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get source metadata",
         "description": "Returns all metadata key-value pairs for the specified source reference",
         "operationId": "getSourceMetadata",
@@ -7049,9 +6244,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Create source metadata",
         "description": "Creates new metadata entry for the specified source reference",
         "operationId": "createSourceMetadata",
@@ -7125,9 +6318,7 @@
     },
     "/threat_models/{threat_model_id}/sources/{source_id}/metadata/{key}": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get source metadata by key",
         "description": "Returns a specific metadata entry by key for the specified source reference",
         "operationId": "getSourceMetadataByKey",
@@ -7196,9 +6387,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Update source metadata by key",
         "description": "Updates a specific metadata entry by key for the specified source reference",
         "operationId": "updateSourceMetadataByKey",
@@ -7253,9 +6442,7 @@
                     "description": "New value for the metadata entry"
                   }
                 },
-                "required": [
-                  "value"
-                ]
+                "required": ["value"]
               }
             }
           }
@@ -7289,9 +6476,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Delete source metadata by key",
         "description": "Deletes a specific metadata entry by key for the specified source reference",
         "operationId": "deleteSourceMetadataByKey",
@@ -7355,9 +6540,7 @@
     },
     "/threat_models/{threat_model_id}/sources/{source_id}/metadata/bulk": {
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Bulk create source metadata",
         "description": "Creates multiple metadata entries in a single operation for the specified source reference",
         "operationId": "bulkCreateSourceMetadata",
@@ -7438,9 +6621,7 @@
     },
     "/threat_models/{threat_model_id}/sources/bulk": {
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Bulk create sources",
         "description": "Creates multiple source references in a single operation for the specified threat model",
         "operationId": "bulkCreateThreatModelSources",
@@ -7480,7 +6661,7 @@
                   "value": [
                     {
                       "name": "User Authentication Module",
-                      "url": "https://github.com/company/repo/blob/main/oauth2/user.go",
+                      "url": "https://github.com/company/repo/blob/main/auth/user.go",
                       "description": "Core user authentication logic",
                       "metadata": [
                         {
@@ -7532,7 +6713,7 @@
                       {
                         "id": "650e8400-e29b-41d4-a716-446655440001",
                         "name": "User Authentication Module",
-                        "url": "https://github.com/company/repo/blob/main/oauth2/user.go",
+                        "url": "https://github.com/company/repo/blob/main/auth/user.go",
                         "description": "Core user authentication logic",
                         "metadata": [
                           {
@@ -7591,9 +6772,7 @@
     },
     "/threat_models/{threat_model_id}/metadata": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get threat model metadata",
         "description": "Returns all metadata key-value pairs for the specified threat model",
         "operationId": "getThreatModelMetadata",
@@ -7644,9 +6823,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Create threat model metadata",
         "description": "Creates new metadata entry for the specified threat model",
         "operationId": "createThreatModelMetadata",
@@ -7709,9 +6886,7 @@
     },
     "/threat_models/{threat_model_id}/metadata/{key}": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get threat model metadata by key",
         "description": "Returns a specific metadata entry by key for the specified threat model",
         "operationId": "getThreatModelMetadataByKey",
@@ -7769,9 +6944,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Update threat model metadata by key",
         "description": "Updates a specific metadata entry by key for the specified threat model",
         "operationId": "updateThreatModelMetadataByKey",
@@ -7815,9 +6988,7 @@
                     "description": "New value for the metadata entry"
                   }
                 },
-                "required": [
-                  "value"
-                ]
+                "required": ["value"]
               }
             }
           }
@@ -7851,9 +7022,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Delete threat model metadata by key",
         "description": "Deletes a specific metadata entry by key for the specified threat model",
         "operationId": "deleteThreatModelMetadataByKey",
@@ -7906,9 +7075,7 @@
     },
     "/threat_models/{threat_model_id}/metadata/bulk": {
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Bulk create threat model metadata",
         "description": "Creates multiple metadata entries in a single operation for the specified threat model",
         "operationId": "bulkCreateThreatModelMetadata",
@@ -7978,9 +7145,7 @@
     },
     "/threat_models/{threat_model_id}/diagrams": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "List threat model diagrams",
         "description": "Returns all diagrams associated with a specific threat model",
         "operationId": "getThreatModelDiagrams",
@@ -8064,9 +7229,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Create a new diagram",
         "description": "Creates a new diagram within the specified threat model",
         "operationId": "createThreatModelDiagram",
@@ -8129,9 +7292,7 @@
     },
     "/threat_models/{threat_model_id}/diagrams/{diagram_id}": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get a specific diagram",
         "description": "Retrieves a specific diagram from the threat model",
         "operationId": "getThreatModelDiagram",
@@ -8190,9 +7351,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Update a diagram",
         "description": "Completely replaces a diagram with new data",
         "operationId": "updateThreatModelDiagram",
@@ -8264,9 +7423,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Partially update a diagram",
         "description": "Apply JSON Patch operations to update specific parts of a diagram",
         "operationId": "patchThreatModelDiagram",
@@ -8310,14 +7467,7 @@
                   "properties": {
                     "op": {
                       "type": "string",
-                      "enum": [
-                        "add",
-                        "remove",
-                        "replace",
-                        "move",
-                        "copy",
-                        "test"
-                      ]
+                      "enum": ["add", "remove", "replace", "move", "copy", "test"]
                     },
                     "path": {
                       "type": "string"
@@ -8327,10 +7477,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "op",
-                    "path"
-                  ]
+                  "required": ["op", "path"]
                 }
               },
               "examples": {
@@ -8411,9 +7558,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Delete a diagram",
         "description": "Permanently removes a diagram from the threat model",
         "operationId": "deleteThreatModelDiagram",
@@ -8467,9 +7612,7 @@
     },
     "/threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate": {
       "get": {
-        "tags": [
-          "Collaboration"
-        ],
+        "tags": ["Collaboration"],
         "summary": "Get diagram collaboration session",
         "description": "Retrieves the current collaboration session details for a diagram. The session payload indicates who has been authorized to the session, not who is currently active in the WebSocket session. The 200 status indicates successful retrieval - clients must NOT evaluate the payload to determine session status.",
         "operationId": "getDiagramCollaborationSession",
@@ -8528,9 +7671,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Collaboration"
-        ],
+        "tags": ["Collaboration"],
         "summary": "Create diagram collaboration session",
         "description": "Creates a new collaboration session for real-time diagram editing. Only one collaboration session can exist per diagram at a time. If a session already exists, returns 409 with a link to join the existing session.",
         "operationId": "createDiagramCollaborationSession",
@@ -8592,10 +7733,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "error",
-                    "join_url"
-                  ],
+                  "required": ["error", "join_url"],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -8617,9 +7755,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Collaboration"
-        ],
+        "tags": ["Collaboration"],
         "summary": "Join diagram collaboration session",
         "description": "Joins an existing collaboration session for real-time diagram editing. The session must already exist.",
         "operationId": "joinDiagramCollaborationSession",
@@ -8670,6 +7806,7 @@
             "$ref": "#/components/responses/Error"
           },
           "404": {
+            "description": "No collaboration session exists for this diagram",
             "$ref": "#/components/responses/Error"
           },
           "500": {
@@ -8678,9 +7815,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Collaboration"
-        ],
+        "tags": ["Collaboration"],
         "summary": "End diagram collaboration session",
         "description": "Terminates the active collaboration session for a diagram",
         "operationId": "endDiagramCollaborationSession",
@@ -8734,9 +7869,7 @@
     },
     "/threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get diagram metadata",
         "description": "Retrieves all metadata entries for the specified diagram",
         "operationId": "getDiagramMetadata",
@@ -8798,9 +7931,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Create diagram metadata",
         "description": "Creates a new metadata entry for the specified diagram",
         "operationId": "createDiagramMetadata",
@@ -8874,9 +8005,7 @@
     },
     "/threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key}": {
       "get": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Get diagram metadata by key",
         "description": "Retrieves a specific metadata entry for the diagram by key",
         "operationId": "getDiagramMetadataByKey",
@@ -8945,9 +8074,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Update diagram metadata by key",
         "description": "Updates or creates a metadata entry for the diagram with the specified key",
         "operationId": "updateDiagramMetadataByKey",
@@ -9003,9 +8130,7 @@
                     "description": "Metadata value"
                   }
                 },
-                "required": [
-                  "value"
-                ]
+                "required": ["value"]
               }
             }
           }
@@ -9039,9 +8164,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Delete diagram metadata by key",
         "description": "Removes a specific metadata entry for the diagram by key",
         "operationId": "deleteDiagramMetadataByKey",
@@ -9105,9 +8228,7 @@
     },
     "/threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/bulk": {
       "post": {
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
+        "tags": ["Threat Model Sub-Resources"],
         "summary": "Bulk create diagram metadata",
         "description": "Creates multiple metadata entries in a single operation for the specified diagram",
         "operationId": "bulkCreateDiagramMetadata",

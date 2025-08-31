@@ -11,7 +11,7 @@ Collaboration sessions enable real-time collaborative editing of diagrams within
 When a user requests collaboration session information:
 
 - **Threat model doesn't exist**: Return 404 Not Found
-- **Diagram doesn't exist**: Return 404 Not Found  
+- **Diagram doesn't exist**: Return 404 Not Found
 - **Threat model and diagram exist, but user has NO permissions**: Return 401 Unauthorized
 - **Threat model and diagram exist, and user has ANY role (reader/writer/owner)**: Return session information
 
@@ -26,6 +26,7 @@ When a user attempts to create or join a collaboration session:
 - **Collaboration session doesn't exist**: Create session, return 201 Created with session ID (do NOT modify participants list)
 
 ### Important Notes:
+
 - The POST endpoint should NOT add users to the participants list
 - Participants are only added when they actually connect via WebSocket
 
@@ -36,17 +37,19 @@ When a user connects to the collaboration session WebSocket:
 ### 3.1 Calculate Session Permissions and Roles
 
 1. **Session Permission**:
+
    - `writer`: If user has `writer` or `owner` role on threat model
    - `reader`: If user has `reader` role on threat model
    - `none`: If user has no permissions on threat model → **Disconnect immediately**
 
-2. **Session Manager**: 
+2. **Host**:
+
    - The user who created the collaboration session
    - All other users are participants
 
 3. **Presenter**:
-   - Initially the session manager
-   - Can be changed by the session manager
+   - Initially the host
+   - Can be changed by the host
 
 ### 3.2 Connection Actions
 
@@ -57,7 +60,7 @@ If the user has valid session permissions:
 3. Broadcast a `participants_update` message to all participants including:
    - Complete list of participants
    - Each participant's permissions and roles
-   - Current session manager
+   - Current host
    - Current presenter
 
 ## 4. WebSocket Disconnection
@@ -70,8 +73,8 @@ When a user disconnects from the WebSocket:
 
 ### Special Cases:
 
-- **Presenter disconnects**: Automatically reassign presenter role (usually to session manager)
-- **Session manager disconnects**: Broadcast `session_ended` event and prepare for session cleanup
+- **Presenter disconnects**: Automatically reassign presenter role (usually to host)
+- **Host disconnects**: Broadcast `session_ended` event and prepare for session cleanup
 
 ## 5. Participants List Management
 
@@ -85,19 +88,22 @@ When a user disconnects from the WebSocket:
 ### Participant Information:
 
 Each participant entry includes:
+
 - `user_id`: User identifier (email)
 - `permissions`: Session permissions (reader/writer)
 - `joined_at`: Timestamp when user first connected
-- `is_session_manager`: Boolean flag
+- `is_host`: Boolean flag
 - `is_presenter`: Boolean flag
 
 ## 6. Error Handling
 
 ### REST API:
+
 - Use proper HTTP status codes (404, 401, 200, 201)
 - Include descriptive error messages in response body
 
 ### WebSocket:
+
 - Disconnect users with no permissions immediately
 - Send error messages before disconnecting when appropriate
 - Log all connection/disconnection events for debugging

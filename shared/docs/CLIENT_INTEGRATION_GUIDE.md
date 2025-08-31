@@ -7,7 +7,6 @@ This guide provides frontend developers with everything needed to implement coll
 ## Table of Contents
 
 - [Quick Start](#quick-start)
-- [OAuth Integration & Testing](#oauth-integration--testing)
 - [Collaboration Session Management](#collaboration-session-management)
 - [Authentication & Connection](#authentication--connection)
 - [Message Types & Protocol](#message-types--protocol)
@@ -23,13 +22,13 @@ This guide provides frontend developers with everything needed to implement coll
 ### 1. Basic Connection Setup
 
 ```javascript
-import { TMICollaborativeClient } from "./tmi-client";
+import { TMICollaborativeClient } from './tmi-client';
 
 const client = new TMICollaborativeClient({
-  diagramId: "your-diagram-uuid",
-  threatModelId: "your-threat-model-uuid",
-  jwtToken: "your-jwt-token",
-  serverUrl: "ws://localhost:8080", // or wss://api.tmi.example.com
+  diagramId: 'your-diagram-uuid',
+  threatModelId: 'your-threat-model-uuid',
+  jwtToken: 'your-jwt-token',
+  serverUrl: 'ws://localhost:8080', // or wss://api.tmi.example.com
 });
 
 // Connect and join session
@@ -39,12 +38,12 @@ await client.connect();
 ### 2. Handle Real-time Updates
 
 ```javascript
-client.on("diagramOperation", (operation) => {
+client.on('diagramOperation', operation => {
   // Apply remote operation to your diagram
   applyOperationToDiagram(operation);
 });
 
-client.on("presenterCursor", (cursor) => {
+client.on('presenterCursor', cursor => {
   // Show presenter's cursor position
   showPresenterCursor(cursor.cursor_position);
 });
@@ -56,387 +55,20 @@ client.on("presenterCursor", (cursor) => {
 // Send a cell add operation
 await client.addCell({
   id: uuid(),
-  shape: "process",
+  shape: 'process',
   x: 100,
   y: 150,
   width: 120,
   height: 80,
-  label: "New Process",
+  label: 'New Process',
 });
 
 // Send a batch operation
 await client.sendBatchOperation([
-  { id: "cell-1", operation: "add", data: cellData1 },
-  { id: "cell-2", operation: "update", data: cellData2 },
+  { id: 'cell-1', operation: 'add', data: cellData1 },
+  { id: 'cell-2', operation: 'update', data: cellData2 },
 ]);
 ```
-
-## OAuth Integration & Testing
-
-### OAuth Callback Stub for Client Development
-
-When developing and testing OAuth integration with TMI, you may need to capture OAuth credentials without implementing a full OAuth callback handler. TMI provides a universal OAuth callback stub that automatically detects and handles both OAuth2 Authorization Code Flow and Implicit Flow.
-
-#### Overview
-
-The OAuth callback stub (`scripts/oauth-client-callback-stub.py`) is a development tool that:
-
-- **Universal Flow Support**: Automatically detects and handles both Authorization Code Flow and Implicit Flow
-- **Flow Detection**: Analyzes incoming parameters to determine OAuth flow type
-- **Smart Response**: Returns appropriate JSON structure based on detected flow
-- **Credential Persistence**: Saves credentials to temporary files for later retrieval by user ID
-- **User-Specific Access**: Retrieve credentials for specific users via `/creds?userid=<id>` endpoint
-- **Enhanced Logging**: Comprehensive parameter analysis and flow type detection
-- **Make Integration**: Controlled via `make oauth-stub-start/stop/status` commands
-
-#### OAuth Flow Support
-
-**TMI Currently Uses: Implicit Flow**
-
-- Server sends tokens directly: `access_token`, `refresh_token`, `token_type`, `expires_in`
-- Client receives ready-to-use JWT tokens immediately
-- No code exchange step required
-
-**Also Supports: Authorization Code Flow**
-
-- Server sends authorization code: `code` and `state`
-- Client must exchange code for tokens via `/oauth2/token` endpoint
-- Standard OAuth2 security model
-
-#### Features
-
-**Route 1 - OAuth Callback Handler (`GET /`)**:
-
-- **Automatic Flow Detection**: Analyzes parameters to determine flow type
-- **Parameter Logging**: Logs all received parameters with detailed analysis
-- **Flow-Specific Storage**: Stores appropriate credentials based on detected flow
-- **Magic Exit Code**: Send `GET /?code=exit` to gracefully shutdown the server
-
-**Route 2 - Credentials API (`GET /latest`)**:
-
-- **Flow-Aware Response**: Returns JSON structure appropriate for detected flow type
-- **Ready-to-Use Data**: Provides exactly what clients need for each flow
-- **Status Indicators**: Includes `tokens_ready` or `ready_for_token_exchange` flags
-
-**Enhanced Logging**:
-
-- **Flow Analysis**: Detailed logging of flow type detection (`Authorization Code Flow`, `Implicit Flow`, etc.)
-- **Parameter Breakdown**: Complete analysis of all received query parameters
-- **RFC3339 timestamps** with dual console/file output to `/tmp/oauth-stub.log`
-- **Request/Response tracking** with complete debugging information
-
-#### Usage
-
-**Starting the Callback Stub:**
-
-```bash
-# Recommended: Use make targets for management
-make oauth-stub-start         # Start on port 8079
-make oauth-stub-status        # Check if running
-make oauth-stub-stop          # Stop gracefully
-
-# Alternative: Direct execution with uv
-uv run scripts/oauth-client-callback-stub.py              # Default port 8079
-uv run scripts/oauth-client-callback-stub.py --port 9000  # Custom port
-
-# Monitor logs in real-time
-tail -f /tmp/oauth-stub.log
-
-# Gracefully shutdown via HTTP (for automation)
-curl "http://localhost:8079/?code=exit"
-```
-
-**Integration with TMI OAuth Flow:**
-
-```bash
-# 1. Start the callback stub
-make oauth-stub-start
-
-# 2. Initiate OAuth flow (TMI uses Implicit Flow)
-curl "http://localhost:8080/oauth2/authorize?idp=test&client_callback=http://localhost:8079/"
-
-# 2a. OR with login_hint for predictable test users (test provider only)
-curl "http://localhost:8080/oauth2/authorize?idp=test&client_callback=http://localhost:8079/&login_hint=alice"
-
-# 3. Fetch the captured credentials with flow detection
-curl http://localhost:8079/latest | jq '.'
-
-# 3a. OR fetch credentials for specific user (new feature)
-curl "http://localhost:8079/creds?userid=alice" | jq '.'
-
-# 4. Review detailed logs for debugging
-cat /tmp/oauth-stub.log
-```
-
-**Test Provider login_hints (Development/Testing Only):**
-
-The test OAuth provider supports login_hints for automation-friendly testing with predictable user identities:
-
-```bash
-# Create specific test user 'alice@test.tmi'
-curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice"
-
-# Create user 'qa-automation@test.tmi' for automated testing
-curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=qa-automation"
-
-# login_hint with OAuth callback stub for client testing
-curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_callback=http://localhost:8079/"
-
-# Without login_hint (backwards compatible) - creates random 'testuser-12345678@test.tmi'
-curl "http://localhost:8080/oauth2/authorize?idp=test"
-```
-
-**login_hint Specifications:**
-
-- **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive
-- **Validation**: Pattern `^[a-zA-Z0-9-]{3,20}$`
-- **Scope**: Test provider only (not available in production builds)
-- **Usage**: Perfect for automated testing, StepCI workflows, and predictable user scenarios
-
-**Response Formats by Flow Type:**
-
-```json
-// Implicit Flow Response (TMI's current implementation)
-{
-  "flow_type": "implicit",
-  "state": "AbCdEf123...",
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "550e8400-e29b-41d4-a716-446655440000",
-  "token_type": "Bearer",
-  "expires_in": "3600",
-  "tokens_ready": true
-}
-
-// Authorization Code Flow Response (for completeness)
-{
-  "flow_type": "authorization_code",
-  "code": "test_auth_code_1234567890",
-  "state": "AbCdEf123...",
-  "ready_for_token_exchange": true
-}
-
-// No Data Yet
-{
-  "flow_type": "none",
-  "error": "No OAuth data received yet"
-}
-
-# 5. Retrieve stored credentials for automation/testing
-curl "http://localhost:8079/creds?userid=alice"
-curl "http://localhost:8079/creds?userid=qa-user"
-
-# 6. Shutdown server gracefully (optional)
-curl "http://localhost:8079/?code=exit"
-```
-
-**New Credential Retrieval API:**
-
-The OAuth stub now supports retrieving credentials for specific users:
-
-```bash
-# Retrieve credentials for 'alice@test.tmi'
-curl "http://localhost:8079/creds?userid=alice"
-
-# Error responses
-curl "http://localhost:8079/creds"                    # Missing parameter
-curl "http://localhost:8079/creds?userid=a"           # Invalid format
-curl "http://localhost:8079/creds?userid=nonexistent" # User not found
-```
-
-**Response Examples:**
-
-```json
-// Success - User found
-{
-  "flow_type": "implicit",
-  "state": "test-state",
-  "access_token": "eyJ...",
-  "token_type": "Bearer",
-  "expires_in": "3600",
-  "tokens_ready": true
-}
-
-// Error responses
-{"error": "Missing required parameter: userid"}
-{"error": "Invalid userid parameter: a. Must match pattern ^[a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9]$"}
-{"error": "No credentials found for user: nonexistent@test.tmi"}
-```
-
-**Response Format:**
-
-```json
-{
-  "code": "test_auth_code_1234567890",
-  "state": "AbCdEf123456"
-}
-```
-
-**Log Output Example:**
-
-```
-2025-08-16T16:57:29.8050Z Server listening on http://localhost:8079/...
-2025-08-16T16:58:48.7159Z Received OAuth redirect: Code=test_auth_code_1234567890, State=AbCdEf123456
-2025-08-16T16:58:48.7161Z API request: 127.0.0.1 GET /?code=test_auth_code_1234567890&state=AbCdEf123456 HTTP/1.1 200 "Redirect received. Check server logs for details."
-2025-08-16T16:58:52.2411Z API request: 127.0.0.1 GET /latest HTTP/1.1 200 {"code": "test_auth_code_1234567890", "state": "AbCdEf123456"}
-2025-08-16T16:59:06.9896Z Received 'exit' in code parameter, shutting down gracefully...
-2025-08-16T16:59:06.9897Z Server has shut down.
-```
-
-#### Client Integration Example
-
-**JavaScript OAuth Flow with Callback Stub:**
-
-```javascript
-class OAuthTestingHelper {
-  constructor(callbackStubUrl = "http://localhost:8079") {
-    this.callbackStubUrl = callbackStubUrl;
-  }
-
-  async performOAuthFlow(tmiServerUrl = "http://localhost:8080") {
-    // Step 1: Initiate OAuth flow with callback stub
-    const authUrl = `${tmiServerUrl}/oauth2/authorize?idp=test&client_callback=${this.callbackStubUrl}/`;
-
-    // In browser environment, redirect to auth URL
-    window.location.href = authUrl;
-
-    // In testing environment, make request to trigger OAuth
-    // The OAuth flow will redirect to your callback stub
-  }
-
-  async getOAuthCredentials() {
-    const response = await fetch(`${this.callbackStubUrl}/latest`);
-    if (!response.ok) {
-      throw new Error(`Failed to get OAuth credentials: ${response.status}`);
-    }
-    return await response.json(); // Flow-aware response with flow_type
-  }
-
-  async getAccessTokens(serverUrl = "http://localhost:8080") {
-    const credentials = await this.getOAuthCredentials();
-
-    if (credentials.flow_type === "implicit") {
-      // TMI uses Implicit Flow - tokens are ready immediately
-      return {
-        access_token: credentials.access_token,
-        refresh_token: credentials.refresh_token,
-        token_type: credentials.token_type,
-        expires_in: credentials.expires_in,
-        flow_type: "implicit",
-      };
-    } else if (credentials.flow_type === "authorization_code") {
-      // Authorization Code Flow - exchange code for tokens
-      return await this.exchangeCodeForTokens(
-        credentials.code,
-        `${this.callbackStubUrl}/`,
-        serverUrl
-      );
-    } else {
-      throw new Error(`Unsupported flow type: ${credentials.flow_type}`);
-    }
-  }
-
-  async exchangeCodeForTokens(
-    code,
-    redirectUri,
-    serverUrl = "http://localhost:8080"
-  ) {
-    const response = await fetch(`${serverUrl}/oauth2/token?idp=test`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code: code,
-        redirect_uri: redirectUri,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Token exchange failed: ${response.status}`);
-    }
-
-    const tokens = await response.json();
-    return { ...tokens, flow_type: "authorization_code" };
-  }
-}
-
-// Example usage in tests
-async function testOAuthIntegration() {
-  const oauthHelper = new OAuthTestingHelper();
-
-  // Start OAuth flow (this would normally involve user interaction)
-  await oauthHelper.performOAuthFlow();
-
-  // Wait for callback processing
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  // Retrieve captured credentials
-  const credentials = await oauthHelper.getOAuthCredentials();
-  console.log("OAuth credentials:", credentials);
-
-  // Exchange code for JWT tokens
-  const tokens = await oauthHelper.exchangeCodeForTokens(
-    credentials.code,
-    "http://localhost:8079/"
-  );
-  console.log("JWT tokens:", tokens);
-}
-```
-
-#### Automated Testing Integration
-
-**StepCI Integration:**
-
-```yaml
-steps:
-  - id: initiate_oauth
-    name: Start OAuth flow with callback stub
-    http:
-      url: /oauth2/authorize?idp=test&client_callback=http://localhost:8079/
-      method: GET
-      followRedirects: true
-
-  - id: fetch_credentials
-    name: Get real OAuth credentials from stub
-    http:
-      url: http://localhost:8079/latest
-      method: GET
-      check:
-        status: 200
-        schema:
-          type: object
-          properties:
-            code: { type: string }
-            state: { type: string }
-    captures:
-      auth_code: { jsonpath: $.code }
-      auth_state: { jsonpath: $.state }
-
-  - id: exchange_tokens
-    name: Exchange real code for JWT tokens
-    http:
-      url: /oauth2/token?idp=test
-      method: POST
-      json:
-        code: "{{ auth_code }}"
-        redirect_uri: "http://localhost:8079/"
-```
-
-#### Development Benefits
-
-- **No Complex OAuth Handling**: Eliminates need to implement full OAuth callback logic during development
-- **Real Authorization Codes**: Works with actual OAuth flows rather than mock data
-- **Testing Framework Integration**: Solves variable substitution issues in testing tools
-- **Simple Setup**: Single Python script with no external dependencies
-- **Graceful Shutdown**: Supports clean termination via Ctrl+C, SIGTERM, or magic exit code (`/?code=exit`)
-- **Comprehensive Logging**: Detailed request/response logging to `/tmp/oauth-stub.log` for debugging
-
-#### Security Notes
-
-- **Development Only**: This tool is for development and testing environments only
-- **No Production Use**: Never use the callback stub in production environments
-- **Local Binding**: Binds to localhost only for security
-- **No Persistence**: Credentials are stored in memory and lost on restart
-
-The OAuth callback stub streamlines OAuth development and testing workflows by providing a simple, reliable way to capture and retrieve OAuth authorization codes during client application development.
 
 ## Collaboration Session Management
 
@@ -450,10 +82,10 @@ Before establishing a WebSocket connection for real-time collaboration, clients 
 
 ```javascript
 async function getActiveCollaborationSessions(jwtToken) {
-  const response = await fetch("/collaboration/sessions", {
+  const response = await fetch('/collaboration/sessions', {
     headers: {
       Authorization: `Bearer ${jwtToken}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 
@@ -469,7 +101,7 @@ async function getActiveCollaborationSessions(jwtToken) {
 // [
 //   {
 //     "session_id": "053d62c1-8a5d-48db-8a0a-707cacceb6ab",
-//     "session_manager": "testuser-25542959@test.tmi",
+//     "host": "testuser-25542959@test.tmi",
 //     "threat_model_id": "60fd469a-e3aa-4d04-9ed7-f3203162563d",
 //     "threat_model_name": "My Threat Model",
 //     "diagram_id": "422b993e-a0ff-416a-8a6b-5dff8b4d6eef",
@@ -499,13 +131,13 @@ async function createCollaborationSession(threatModelId, diagramId, jwtToken) {
   const response = await fetch(
     `/threat_models/${threatModelId}/diagrams/${diagramId}/collaborate`,
     {
-      method: "POST",
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${jwtToken}`,
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       // No body required - user identity comes from JWT
-    }
+    },
   );
 
   if (response.status === 201) {
@@ -516,9 +148,7 @@ async function createCollaborationSession(threatModelId, diagramId, jwtToken) {
     const conflict = await response.json();
     throw new SessionExistsError(conflict.join_url);
   } else {
-    throw new Error(
-      `Failed to create session: ${response.status} ${response.statusText}`
-    );
+    throw new Error(`Failed to create session: ${response.status} ${response.statusText}`);
   }
 }
 ```
@@ -532,13 +162,13 @@ async function joinCollaborationSession(threatModelId, diagramId, jwtToken) {
   const response = await fetch(
     `/threat_models/${threatModelId}/diagrams/${diagramId}/collaborate`,
     {
-      method: "PUT",
+      method: 'PUT',
       headers: {
         Authorization: `Bearer ${jwtToken}`,
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       // No body required - user identity comes from JWT
-    }
+    },
   );
 
   if (response.status === 200) {
@@ -546,13 +176,9 @@ async function joinCollaborationSession(threatModelId, diagramId, jwtToken) {
     return await response.json();
   } else if (response.status === 404) {
     // No session exists
-    throw new NoSessionError(
-      "No collaboration session exists for this diagram"
-    );
+    throw new NoSessionError('No collaboration session exists for this diagram');
   } else {
-    throw new Error(
-      `Failed to join session: ${response.status} ${response.statusText}`
-    );
+    throw new Error(`Failed to join session: ${response.status} ${response.statusText}`);
   }
 }
 ```
@@ -560,11 +186,7 @@ async function joinCollaborationSession(threatModelId, diagramId, jwtToken) {
 #### Smart Session Handler
 
 ```javascript
-async function startOrJoinCollaborationSession(
-  threatModelId,
-  diagramId,
-  jwtToken
-) {
+async function startOrJoinCollaborationSession(threatModelId, diagramId, jwtToken) {
   try {
     // Try creating first
     return await createCollaborationSession(threatModelId, diagramId, jwtToken);
@@ -592,7 +214,7 @@ async function startOrJoinCollaborationSession(
 ```javascript
 class SessionExistsError extends Error {
   constructor(joinUrl) {
-    super("Session already exists");
+    super('Session already exists');
     this.joinUrl = joinUrl;
   }
 }
@@ -607,7 +229,7 @@ class NoSessionError extends Error {
 // Success Response (201/200) - CollaborationSession object:
 // {
 // "session_id": "053d62c1-8a5d-48db-8a0a-707cacceb6ab",
-// "session_manager": "testuser-25542959@test.tmi",
+// "host": "testuser-25542959@test.tmi",
 // "threat_model_id": "60fd469a-e3aa-4d04-9ed7-f3203162563d",
 // "threat_model_name": "My Threat Model",
 // "diagram_id": "422b993e-a0ff-416a-8a6b-5dff8b4d6eef",
@@ -760,10 +382,7 @@ class SessionJoinErrorHandler {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        return await this.sessionManager.joinCollaborationSession(
-          threatModelId,
-          diagramId
-        );
+        return await this.sessionManager.joinCollaborationSession(threatModelId, diagramId);
       } catch (error) {
         lastError = error;
         console.warn(`Session join attempt ${attempt} failed:`, error.message);
@@ -771,26 +390,24 @@ class SessionJoinErrorHandler {
         if (attempt < maxRetries) {
           const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
           console.log(`Retrying in ${delay}ms...`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
     }
 
-    throw new Error(
-      `Failed to join session after ${maxRetries} attempts: ${lastError.message}`
-    );
+    throw new Error(`Failed to join session after ${maxRetries} attempts: ${lastError.message}`);
   }
 
   handleSessionJoinError(error, response) {
     switch (response.status) {
       case 401:
-        return "Authentication failed. Please log in again.";
+        return 'Authentication failed. Please log in again.';
       case 403:
-        return "You do not have permission to access this diagram.";
+        return 'You do not have permission to access this diagram.';
       case 404:
-        return "Diagram or threat model not found.";
+        return 'Diagram or threat model not found.';
       case 500:
-        return "Server error. Please try again later.";
+        return 'Server error. Please try again later.';
       default:
         return `Failed to join collaboration session: ${error.message}`;
     }
@@ -809,9 +426,9 @@ async function getSessionStatus(threatModelId, diagramId, jwtToken) {
     {
       headers: {
         Authorization: `Bearer ${jwtToken}`,
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
-    }
+    },
   );
 
   if (response.status === 404) {
@@ -842,12 +459,12 @@ async function leaveCollaborationSession(threatModelId, diagramId, jwtToken) {
   const response = await fetch(
     `/threat_models/${threatModelId}/diagrams/${diagramId}/collaborate`,
     {
-      method: "DELETE",
+      method: 'DELETE',
       headers: {
         Authorization: `Bearer ${jwtToken}`,
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
-    }
+    },
   );
 
   if (!response.ok && response.status !== 404) {
@@ -903,18 +520,18 @@ class ParticipantManager {
 
   setupParticipantEventListeners() {
     // Handle user joining the session
-    this.wsClient.on("message", (message) => {
-      if (message.event === "join") {
+    this.wsClient.on('message', message => {
+      if (message.event === 'join') {
         console.log(`User ${message.user_id} joined the session`);
         this.handleUserJoined(message.user_id, message.timestamp);
       }
 
-      if (message.event === "leave") {
+      if (message.event === 'leave') {
         console.log(`User ${message.user_id} left the session`);
         this.handleUserLeft(message.user_id, message.timestamp);
       }
 
-      if (message.event === "session_ended") {
+      if (message.event === 'session_ended') {
         console.log(`Session ended: ${message.message}`);
         this.handleSessionEnded(message);
       }
@@ -923,10 +540,7 @@ class ParticipantManager {
 
   async handleUserJoined(userId, timestamp) {
     // Show immediate notification
-    this.showNotification(
-      `${this.getDisplayName(userId)} joined the session`,
-      "info"
-    );
+    this.showNotification(`${this.getDisplayName(userId)} joined the session`, 'info');
 
     // Optionally refresh participant list with full details
     if (this.needsParticipantDetails) {
@@ -936,15 +550,10 @@ class ParticipantManager {
 
   async handleUserLeft(userId, timestamp) {
     // Show immediate notification
-    this.showNotification(
-      `${this.getDisplayName(userId)} left the session`,
-      "info"
-    );
+    this.showNotification(`${this.getDisplayName(userId)} left the session`, 'info');
 
     // Remove from local participant list
-    this.currentParticipants = this.currentParticipants.filter(
-      (p) => p.user_id !== userId
-    );
+    this.currentParticipants = this.currentParticipants.filter(p => p.user_id !== userId);
     this.updateParticipantUI();
 
     // Optionally refresh participant list for accurate state
@@ -958,30 +567,28 @@ class ParticipantManager {
       // Get updated session info from REST API
       const session = await this.sessionManager.getSessionStatus(
         this.sessionManager.currentSession.threat_model_id,
-        this.sessionManager.currentSession.diagram_id
+        this.sessionManager.currentSession.diagram_id,
       );
 
       if (session && session.participants) {
         this.currentParticipants = session.participants;
         this.updateParticipantUI();
-        console.log(
-          `Updated participant list: ${session.participants.length} participants`
-        );
+        console.log(`Updated participant list: ${session.participants.length} participants`);
       }
     } catch (error) {
-      console.warn("Failed to refresh participant list:", error);
+      console.warn('Failed to refresh participant list:', error);
     }
   }
 
   handleSessionEnded(message) {
-    // Session manager left - session is being terminated
+    // host left - session is being terminated
     console.log(`Session terminated: ${message.message}`);
 
     // Show prominent notification to user
     this.showNotification(
       `Session ended: ${message.message}`,
-      "warning",
-      { duration: 0, persistent: true } // Persistent notification
+      'warning',
+      { duration: 0, persistent: true }, // Persistent notification
     );
 
     // Clean up local state
@@ -1009,37 +616,36 @@ class ParticipantManager {
     // Show options to user
     const actions = [
       {
-        text: "Return to Dashboard",
-        action: () => (window.location.href = "/dashboard"),
+        text: 'Return to Dashboard',
+        action: () => (window.location.href = '/dashboard'),
       },
       {
-        text: "Start New Session",
+        text: 'Start New Session',
         action: () => this.startNewCollaborationSession(),
       },
     ];
 
-    this.showActionDialog("Session Ended", message.message, actions);
+    this.showActionDialog('Session Ended', message.message, actions);
   }
 
   updateParticipantUI() {
     // Update your UI to show current participants with their permissions
     const participantElements = this.currentParticipants.map(
-      (p) => `
+      p => `
       <div class="participant">
         <span class="user-name">${this.getDisplayName(p.user_id)}</span>
         <span class="permission-badge ${p.permissions}">${p.permissions}</span>
         <span class="join-time">${this.formatTime(p.joined_at)}</span>
       </div>
-    `
+    `,
     );
 
-    document.getElementById("participants-list").innerHTML =
-      participantElements.join("");
+    document.getElementById('participants-list').innerHTML = participantElements.join('');
   }
 
   getDisplayName(userId) {
     // Convert email to display name or use user directory
-    return userId.split("@")[0] || userId;
+    return userId.split('@')[0] || userId;
   }
 
   formatTime(timestamp) {
@@ -1075,8 +681,8 @@ class ParticipantManager {
 ```javascript
 {
   "event": "session_ended",
-  "user_id": "testuser-25542959@test.tmi", // Session manager who left
-  "message": "Session ended: session manager has left",
+  "user_id": "testuser-25542959@test.tmi", // host who left
+  "message": "Session ended: host has left",
   "timestamp": "2025-08-14T02:46:15.789Z"
 }
 ```
@@ -1087,46 +693,36 @@ class ParticipantManager {
 class CollaborationClient {
   async initializeCollaboration(threatModelId, diagramId) {
     // Step 1: Join via REST API
-    const session = await this.sessionManager.joinCollaborationSession(
-      threatModelId,
-      diagramId
-    );
-    console.log(
-      `Joined session with ${session.participants.length} participants`
-    );
+    const session = await this.sessionManager.joinCollaborationSession(threatModelId, diagramId);
+    console.log(`Joined session with ${session.participants.length} participants`);
 
     // Step 2: Set up participant tracking
-    this.participantManager = new ParticipantManager(
-      this.wsClient,
-      this.sessionManager
-    );
+    this.participantManager = new ParticipantManager(this.wsClient, this.sessionManager);
     this.participantManager.currentParticipants = session.participants;
     this.participantManager.updateParticipantUI();
 
     // Step 3: Set up collaboration features
     this.setupDiagramCollaboration();
 
-    console.log("✅ Collaboration fully initialized");
+    console.log('✅ Collaboration fully initialized');
   }
 
   setupDiagramCollaboration() {
     // Handle diagram operations
-    this.wsClient.on("diagram_operation", (operation) => {
+    this.wsClient.on('diagram_operation', operation => {
       if (operation.user_id !== this.currentUser.email) {
         this.applyRemoteOperation(operation);
 
         // Show who made the change
         this.participantManager.showNotification(
-          `${this.participantManager.getDisplayName(
-            operation.user_id
-          )} updated the diagram`,
-          "info"
+          `${this.participantManager.getDisplayName(operation.user_id)} updated the diagram`,
+          'info',
         );
       }
     });
 
     // Handle presenter mode changes
-    this.wsClient.on("current_presenter", (message) => {
+    this.wsClient.on('current_presenter', message => {
       this.handlePresenterChange(message.current_presenter);
     });
   }
@@ -1191,21 +787,21 @@ class TMICollaborativeClient {
     this.ws = new WebSocket(this.buildConnectionURL());
 
     this.ws.onopen = () => {
-      console.log("Connected to collaborative session");
+      console.log('Connected to collaborative session');
       this.heartbeat = setInterval(() => this.ping(), 30000);
     };
 
-    this.ws.onmessage = (event) => {
+    this.ws.onmessage = event => {
       this.handleMessage(JSON.parse(event.data));
     };
 
-    this.ws.onclose = (event) => {
+    this.ws.onclose = event => {
       this.handleDisconnection(event);
       clearInterval(this.heartbeat);
     };
 
-    this.ws.onerror = (error) => {
-      console.error("WebSocket error:", error);
+    this.ws.onerror = error => {
+      console.error('WebSocket error:', error);
     };
   }
 
@@ -1227,15 +823,15 @@ class TMICollaborativeClient {
 
 ```javascript
 const operation = {
-  message_type: "diagram_operation",
+  message_type: 'diagram_operation',
   user_id: this.currentUser.email,
   operation_id: uuid(), // Client-generated UUID
   operation: {
-    type: "patch",
+    type: 'patch',
     cells: [
       {
-        id: "cell-uuid",
-        operation: "add", // 'add', 'update', 'remove'
+        id: 'cell-uuid',
+        operation: 'add', // 'add', 'update', 'remove'
         data: {
           /* cell properties */
         },
@@ -1253,27 +849,27 @@ this.ws.send(JSON.stringify(operation));
 // Request presenter mode
 this.ws.send(
   JSON.stringify({
-    message_type: "presenter_request",
+    message_type: 'presenter_request',
     user_id: this.currentUser.email,
-  })
+  }),
 );
 
 // Send cursor position (only if you're the presenter)
 this.ws.send(
   JSON.stringify({
-    message_type: "presenter_cursor",
+    message_type: 'presenter_cursor',
     user_id: this.currentUser.email,
     cursor_position: { x: 100, y: 200 },
-  })
+  }),
 );
 
 // Send selection (only if you're the presenter)
 this.ws.send(
   JSON.stringify({
-    message_type: "presenter_selection",
+    message_type: 'presenter_selection',
     user_id: this.currentUser.email,
-    selected_cells: ["cell-uuid-1", "cell-uuid-2"],
-  })
+    selected_cells: ['cell-uuid-1', 'cell-uuid-2'],
+  }),
 );
 ```
 
@@ -1283,17 +879,17 @@ this.ws.send(
 // Request undo
 this.ws.send(
   JSON.stringify({
-    message_type: "undo_request",
+    message_type: 'undo_request',
     user_id: this.currentUser.email,
-  })
+  }),
 );
 
 // Request redo
 this.ws.send(
   JSON.stringify({
-    message_type: "redo_request",
+    message_type: 'redo_request',
     user_id: this.currentUser.email,
-  })
+  }),
 );
 ```
 
@@ -1401,7 +997,7 @@ class DiagramCollaborationManager {
     this.isApplyingRemoteChange = false; // Echo prevention flag
 
     // Listen to local diagram changes
-    this.diagramEditor.on("cellChanged", (change) => {
+    this.diagramEditor.on('cellChanged', change => {
       if (this.isApplyingRemoteChange) {
         return; // DON'T send WebSocket message for remote changes
       }
@@ -1434,13 +1030,13 @@ class DiagramCollaborationManager {
   applyOperationToEditor(operation) {
     for (const cellOp of operation.cells) {
       switch (cellOp.operation) {
-        case "add":
+        case 'add':
           this.diagramEditor.addCell(cellOp.data);
           break;
-        case "update":
+        case 'update':
           this.diagramEditor.updateCell(cellOp.id, cellOp.data);
           break;
-        case "remove":
+        case 'remove':
           this.diagramEditor.removeCell(cellOp.id);
           break;
       }
@@ -1462,7 +1058,7 @@ class PresenterModeManager {
 
   requestPresenterMode() {
     this.wsClient.send({
-      message_type: "presenter_request",
+      message_type: 'presenter_request',
       user_id: this.currentUser.email,
     });
   }
@@ -1485,10 +1081,10 @@ class PresenterModeManager {
 
   enablePresenterMode() {
     // Send cursor updates on mouse move
-    this.diagramEditor.on("mousemove", (event) => {
+    this.diagramEditor.on('mousemove', event => {
       if (this.isPresenter) {
         this.wsClient.send({
-          message_type: "presenter_cursor",
+          message_type: 'presenter_cursor',
           user_id: this.currentUser.email,
           cursor_position: { x: event.x, y: event.y },
         });
@@ -1496,12 +1092,12 @@ class PresenterModeManager {
     });
 
     // Send selection updates
-    this.diagramEditor.on("selectionChanged", (selectedCells) => {
+    this.diagramEditor.on('selectionChanged', selectedCells => {
       if (this.isPresenter) {
         this.wsClient.send({
-          message_type: "presenter_selection",
+          message_type: 'presenter_selection',
           user_id: this.currentUser.email,
-          selected_cells: selectedCells.map((cell) => cell.id),
+          selected_cells: selectedCells.map(cell => cell.id),
         });
       }
     });
@@ -1526,7 +1122,7 @@ class PresenterModeManager {
 ```javascript
 class StateManager {
   handleStateCorrection(message) {
-    console.log("Received state correction, updating local state");
+    console.log('Received state correction, updating local state');
 
     this.isApplyingRemoteChange = true;
 
@@ -1534,12 +1130,12 @@ class StateManager {
       // Apply corrected state for each cell
       for (const cell of message.cells) {
         this.diagramEditor.updateCell(cell.id, cell, {
-          source: "server_correction",
+          source: 'server_correction',
         });
       }
 
       // Show user notification
-      this.showNotification("Diagram synchronized with server", "info");
+      this.showNotification('Diagram synchronized with server', 'info');
     } finally {
       this.isApplyingRemoteChange = false;
     }
@@ -1547,7 +1143,7 @@ class StateManager {
 
   handleAuthorizationDenied(message) {
     // Show error to user
-    this.showNotification(`Operation denied: ${message.reason}`, "error");
+    this.showNotification(`Operation denied: ${message.reason}`, 'error');
 
     // The server will send a state_correction message next
   }
@@ -1568,10 +1164,7 @@ class SyncManager {
   handleDiagramOperation(message) {
     // Check for sequence issues (if server provides sequence numbers)
     if (message.sequence_number) {
-      if (
-        this.expectedSequence > 0 &&
-        message.sequence_number !== this.expectedSequence + 1
-      ) {
+      if (this.expectedSequence > 0 && message.sequence_number !== this.expectedSequence + 1) {
         this.handleSequenceGap(message.sequence_number);
       }
       this.expectedSequence = message.sequence_number;
@@ -1583,7 +1176,7 @@ class SyncManager {
 
   handleSequenceGap(actualSequence) {
     this.outOfSyncWarnings++;
-    console.warn("Sequence gap detected:", {
+    console.warn('Sequence gap detected:', {
       expected: this.expectedSequence + 1,
       received: actualSequence,
       warnings: this.outOfSyncWarnings,
@@ -1595,15 +1188,15 @@ class SyncManager {
   }
 
   requestResync() {
-    console.log("Requesting resync due to sync issues");
+    console.log('Requesting resync due to sync issues');
     this.wsClient.send({
-      message_type: "resync_request",
+      message_type: 'resync_request',
       user_id: this.currentUser.email,
     });
   }
 
   handleResyncResponse(message) {
-    if (message.method === "rest_api") {
+    if (message.method === 'rest_api') {
       this.performRESTResync();
     }
   }
@@ -1615,7 +1208,7 @@ class SyncManager {
         `/threat_models/${this.threatModelId}/diagrams/${this.diagramId}`,
         {
           headers: { Authorization: `Bearer ${this.jwtToken}` },
-        }
+        },
       );
 
       const diagram = await response.json();
@@ -1629,10 +1222,10 @@ class SyncManager {
       this.outOfSyncWarnings = 0;
       this.expectedSequence = 0;
 
-      this.showNotification("Diagram synchronized", "success");
+      this.showNotification('Diagram synchronized', 'success');
     } catch (error) {
-      console.error("Resync failed:", error);
-      this.showNotification("Failed to synchronize diagram", "error");
+      console.error('Resync failed:', error);
+      this.showNotification('Failed to synchronize diagram', 'error');
     }
   }
 }
@@ -1650,16 +1243,13 @@ class ConnectionManager {
 
   scheduleReconnection() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.showNotification(
-        "Connection lost. Please refresh the page.",
-        "error"
-      );
+      this.showNotification('Connection lost. Please refresh the page.', 'error');
       return;
     }
 
     const delay = Math.min(
       this.reconnectDelay * Math.pow(2, this.reconnectAttempts),
-      30000 // Max 30 seconds
+      30000, // Max 30 seconds
     );
 
     setTimeout(() => {
@@ -1673,9 +1263,9 @@ class ConnectionManager {
     try {
       await this.connect();
       this.reconnectAttempts = 0; // Reset on success
-      this.showNotification("Connection restored", "success");
+      this.showNotification('Connection restored', 'success');
     } catch (error) {
-      console.error("Reconnection failed:", error);
+      console.error('Reconnection failed:', error);
       this.scheduleReconnection();
     }
   }
@@ -1688,21 +1278,18 @@ class ConnectionManager {
 class HistoryManager {
   handleHistoryOperation(message) {
     switch (message.message) {
-      case "resync_required":
+      case 'resync_required':
         // Server processed undo/redo successfully, need to resync
         this.performRESTResync();
-        this.showNotification(
-          `${message.operation_type} completed, refreshing diagram`,
-          "info"
-        );
+        this.showNotification(`${message.operation_type} completed, refreshing diagram`, 'info');
         break;
 
-      case "no_operations_to_undo":
-        this.showNotification("No operations to undo", "info");
+      case 'no_operations_to_undo':
+        this.showNotification('No operations to undo', 'info');
         break;
 
-      case "no_operations_to_redo":
-        this.showNotification("No operations to redo", "info");
+      case 'no_operations_to_redo':
+        this.showNotification('No operations to redo', 'info');
         break;
     }
   }
@@ -1712,14 +1299,14 @@ class HistoryManager {
     // Replace local undo/redo with server requests
     this.diagramEditor.setUndoHandler(() => {
       this.wsClient.send({
-        message_type: "undo_request",
+        message_type: 'undo_request',
         user_id: this.currentUser.email,
       });
     });
 
     this.diagramEditor.setRedoHandler(() => {
       this.wsClient.send({
-        message_type: "redo_request",
+        message_type: 'redo_request',
         user_id: this.currentUser.email,
       });
     });
@@ -1750,12 +1337,15 @@ class PerformanceOptimizer {
         lastRan = Date.now();
       } else {
         clearTimeout(lastFunc);
-        lastFunc = setTimeout(function () {
-          if (Date.now() - lastRan >= limit) {
-            func.apply(context, args);
-            lastRan = Date.now();
-          }
-        }, limit - (Date.now() - lastRan));
+        lastFunc = setTimeout(
+          function () {
+            if (Date.now() - lastRan >= limit) {
+              func.apply(context, args);
+              lastRan = Date.now();
+            }
+          },
+          limit - (Date.now() - lastRan),
+        );
       }
     };
   }
@@ -1789,7 +1379,7 @@ class UXManager {
       message += ` modified ${cellCount} cells`;
     }
 
-    this.showToast(message, { duration: 2000, type: "info" });
+    this.showToast(message, { duration: 2000, type: 'info' });
   }
 
   showPresenterIndicator(presenterName) {
@@ -1803,10 +1393,9 @@ class UXManager {
   handlePermissionError() {
     // Clear explanation for read-only users
     this.showDialog({
-      title: "Read-only Access",
-      message:
-        "You have read-only access to this diagram. You can view changes but cannot edit.",
-      type: "info",
+      title: 'Read-only Access',
+      message: 'You have read-only access to this diagram. You can view changes but cannot edit.',
+      type: 'info',
     });
   }
 }
@@ -1819,11 +1408,11 @@ class ValidationManager {
   validateOperation(operation) {
     // Validate before sending
     if (!operation.operation_id || !this.isValidUUID(operation.operation_id)) {
-      throw new Error("Invalid operation ID");
+      throw new Error('Invalid operation ID');
     }
 
     if (!operation.operation || !operation.operation.cells) {
-      throw new Error("Invalid operation structure");
+      throw new Error('Invalid operation structure');
     }
 
     for (const cellOp of operation.operation.cells) {
@@ -1833,18 +1422,15 @@ class ValidationManager {
 
   validateCellOperation(cellOp) {
     if (!cellOp.id || !this.isValidUUID(cellOp.id)) {
-      throw new Error("Invalid cell ID");
+      throw new Error('Invalid cell ID');
     }
 
-    if (!["add", "update", "remove"].includes(cellOp.operation)) {
-      throw new Error("Invalid cell operation type");
+    if (!['add', 'update', 'remove'].includes(cellOp.operation)) {
+      throw new Error('Invalid cell operation type');
     }
 
-    if (
-      (cellOp.operation === "add" || cellOp.operation === "update") &&
-      !cellOp.data
-    ) {
-      throw new Error("Cell data required for add/update operations");
+    if ((cellOp.operation === 'add' || cellOp.operation === 'update') && !cellOp.data) {
+      throw new Error('Cell data required for add/update operations');
     }
   }
 }
@@ -1856,7 +1442,7 @@ class ValidationManager {
 // Collaboration Session Types
 interface CollaborationSession {
   session_id: string;
-  session_manager: string;
+  host: string;
   threat_model_id: string;
   threat_model_name: string;
   diagram_id: string;
@@ -1868,7 +1454,7 @@ interface CollaborationSession {
 interface SessionParticipant {
   user_id: string;
   joined_at: string; // ISO 8601 timestamp
-  permissions: "reader" | "writer";
+  permissions: 'reader' | 'writer';
 }
 
 interface SessionManagerConfig {
@@ -1886,7 +1472,7 @@ interface SessionJoinResult {
 
 // Message Types
 interface DiagramOperationMessage {
-  message_type: "diagram_operation";
+  message_type: 'diagram_operation';
   user_id: string;
   operation_id: string;
   sequence_number?: number;
@@ -1894,13 +1480,13 @@ interface DiagramOperationMessage {
 }
 
 interface CellPatchOperation {
-  type: "patch";
+  type: 'patch';
   cells: CellOperation[];
 }
 
 interface CellOperation {
   id: string;
-  operation: "add" | "update" | "remove";
+  operation: 'add' | 'update' | 'remove';
   data?: Cell;
 }
 
@@ -1917,73 +1503,70 @@ interface Cell {
 
 // Presenter Mode
 interface PresenterRequestMessage {
-  message_type: "presenter_request";
+  message_type: 'presenter_request';
   user_id: string;
 }
 
 interface CurrentPresenterMessage {
-  message_type: "current_presenter";
+  message_type: 'current_presenter';
   current_presenter: string;
 }
 
 interface PresenterCursorMessage {
-  message_type: "presenter_cursor";
+  message_type: 'presenter_cursor';
   user_id: string;
   cursor_position: { x: number; y: number };
 }
 
 // Error Handling
 interface AuthorizationDeniedMessage {
-  message_type: "authorization_denied";
+  message_type: 'authorization_denied';
   original_operation_id: string;
   reason: string;
 }
 
 interface StateCorrectionMessage {
-  message_type: "state_correction";
+  message_type: 'state_correction';
   cells: Cell[];
 }
 
 interface ResyncResponseMessage {
-  message_type: "resync_response";
+  message_type: 'resync_response';
   user_id: string;
   target_user: string;
-  method: "rest_api";
+  method: 'rest_api';
   diagram_id: string;
   threat_model_id: string;
 }
 
 // History Operations
 interface UndoRequestMessage {
-  message_type: "undo_request";
+  message_type: 'undo_request';
   user_id: string;
 }
 
 interface HistoryOperationMessage {
-  message_type: "history_operation";
-  operation_type: "undo" | "redo";
-  message:
-    | "resync_required"
-    | "no_operations_to_undo"
-    | "no_operations_to_redo";
+  message_type: 'history_operation';
+  operation_type: 'undo' | 'redo';
+  message: 'resync_required' | 'no_operations_to_undo' | 'no_operations_to_redo';
 }
 
 // Participant Join/Leave Events (Legacy Format)
 interface UserJoinedEvent {
-  event: "join";
+  event: 'join';
   user_id: string;
   timestamp: string; // ISO 8601 timestamp
 }
 
 interface UserLeftEvent {
-  event: "leave";
+  event: 'leave';
   user_id: string;
   timestamp: string; // ISO 8601 timestamp
 }
 
 interface SessionEndedEvent {
-  event: "session_ended";
-  user_id: string; // Session manager who left
+  event: 'session_ended';
+  user_id: string; // host who left
   message: string; // Reason for session termination
   timestamp: string; // ISO 8601 timestamp
 }
@@ -2041,53 +1624,53 @@ class TMICollaborativeClient extends EventEmitter {
 
     this.ws.onopen = () => {
       this.isConnected = true;
-      this.emit("connected");
+      this.emit('connected');
     };
 
-    this.ws.onmessage = (event) => {
+    this.ws.onmessage = event => {
       const message = JSON.parse(event.data);
       this.handleMessage(message);
     };
 
-    this.ws.onclose = (event) => {
+    this.ws.onclose = event => {
       this.isConnected = false;
-      this.emit("disconnected", event);
+      this.emit('disconnected', event);
       if (event.code !== 1000) {
         this.connectionManager.scheduleReconnection();
       }
     };
 
-    this.ws.onerror = (error) => {
-      this.emit("error", error);
+    this.ws.onerror = error => {
+      this.emit('error', error);
     };
   }
 
   handleMessage(message) {
     // Emit specific events for different message types
     this.emit(message.message_type, message);
-    this.emit("message", message);
+    this.emit('message', message);
   }
 
   send(message) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
-      console.warn("WebSocket not connected, message not sent:", message);
+      console.warn('WebSocket not connected, message not sent:', message);
     }
   }
 
   // High-level API methods
   async addCell(cellData) {
     const operation = {
-      message_type: "diagram_operation",
+      message_type: 'diagram_operation',
       user_id: this.currentUser.email,
       operation_id: this.generateUUID(),
       operation: {
-        type: "patch",
+        type: 'patch',
         cells: [
           {
             id: cellData.id,
-            operation: "add",
+            operation: 'add',
             data: cellData,
           },
         ],
@@ -2099,15 +1682,15 @@ class TMICollaborativeClient extends EventEmitter {
 
   async updateCell(cellId, updates) {
     const operation = {
-      message_type: "diagram_operation",
+      message_type: 'diagram_operation',
       user_id: this.currentUser.email,
       operation_id: this.generateUUID(),
       operation: {
-        type: "patch",
+        type: 'patch',
         cells: [
           {
             id: cellId,
-            operation: "update",
+            operation: 'update',
             data: updates,
           },
         ],
@@ -2119,15 +1702,15 @@ class TMICollaborativeClient extends EventEmitter {
 
   async removeCell(cellId) {
     const operation = {
-      message_type: "diagram_operation",
+      message_type: 'diagram_operation',
       user_id: this.currentUser.email,
       operation_id: this.generateUUID(),
       operation: {
-        type: "patch",
+        type: 'patch',
         cells: [
           {
             id: cellId,
-            operation: "remove",
+            operation: 'remove',
           },
         ],
       },
@@ -2138,28 +1721,28 @@ class TMICollaborativeClient extends EventEmitter {
 
   requestPresenterMode() {
     this.send({
-      message_type: "presenter_request",
+      message_type: 'presenter_request',
       user_id: this.currentUser.email,
     });
   }
 
   sendUndo() {
     this.send({
-      message_type: "undo_request",
+      message_type: 'undo_request',
       user_id: this.currentUser.email,
     });
   }
 
   sendRedo() {
     this.send({
-      message_type: "redo_request",
+      message_type: 'redo_request',
       user_id: this.currentUser.email,
     });
   }
 
   disconnect() {
     if (this.ws) {
-      this.ws.close(1000, "Client disconnect");
+      this.ws.close(1000, 'Client disconnect');
     }
   }
 }
@@ -2170,7 +1753,7 @@ class TMICollaborativeClient extends EventEmitter {
 ### Unit Testing Message Handlers
 
 ```javascript
-describe("TMICollaborativeClient", () => {
+describe('TMICollaborativeClient', () => {
   let client;
   let mockWebSocket;
 
@@ -2180,32 +1763,32 @@ describe("TMICollaborativeClient", () => {
     client.ws = mockWebSocket;
   });
 
-  test("should handle diagram operations without echo", () => {
+  test('should handle diagram operations without echo', () => {
     const operation = {
-      message_type: "diagram_operation",
-      user_id: "other@example.com", // Not current user
-      operation_id: "test-uuid",
+      message_type: 'diagram_operation',
+      user_id: 'other@example.com', // Not current user
+      operation_id: 'test-uuid',
       operation: {
-        type: "patch",
-        cells: [{ id: "cell-1", operation: "add", data: mockCellData }],
+        type: 'patch',
+        cells: [{ id: 'cell-1', operation: 'add', data: mockCellData }],
       },
     };
 
-    const applySpy = jest.spyOn(client, "applyOperationToEditor");
+    const applySpy = jest.spyOn(client, 'applyOperationToEditor');
     client.handleMessage(operation);
 
     expect(applySpy).toHaveBeenCalledWith(operation.operation);
   });
 
-  test("should not echo own operations", () => {
+  test('should not echo own operations', () => {
     const operation = {
-      message_type: "diagram_operation",
+      message_type: 'diagram_operation',
       user_id: client.currentUser.email, // Same as current user
-      operation_id: "test-uuid",
-      operation: { type: "patch", cells: [] },
+      operation_id: 'test-uuid',
+      operation: { type: 'patch', cells: [] },
     };
 
-    const applySpy = jest.spyOn(client, "applyOperationToEditor");
+    const applySpy = jest.spyOn(client, 'applyOperationToEditor');
     client.handleMessage(operation);
 
     expect(applySpy).not.toHaveBeenCalled();
@@ -2216,8 +1799,8 @@ describe("TMICollaborativeClient", () => {
 ### Integration Testing
 
 ```javascript
-describe("Collaborative Editing Integration", () => {
-  test("should maintain sync across multiple clients", async () => {
+describe('Collaborative Editing Integration', () => {
+  test('should maintain sync across multiple clients', async () => {
     const client1 = new TMICollaborativeClient(config1);
     const client2 = new TMICollaborativeClient(config2);
 
@@ -2227,8 +1810,8 @@ describe("Collaborative Editing Integration", () => {
     await client1.addCell(testCell);
 
     // Client 2 should receive the operation
-    await new Promise((resolve) => {
-      client2.on("diagram_operation", (op) => {
+    await new Promise(resolve => {
+      client2.on('diagram_operation', op => {
         expect(op.operation.cells[0].data).toEqual(testCell);
         resolve();
       });
@@ -2240,21 +1823,21 @@ describe("Collaborative Editing Integration", () => {
 ### Error Scenario Testing
 
 ```javascript
-test("should handle authorization denied gracefully", () => {
+test('should handle authorization denied gracefully', () => {
   const deniedMessage = {
-    message_type: "authorization_denied",
-    original_operation_id: "test-uuid",
-    reason: "insufficient_permissions",
+    message_type: 'authorization_denied',
+    original_operation_id: 'test-uuid',
+    reason: 'insufficient_permissions',
   };
 
-  const errorSpy = jest.spyOn(client, "emit");
+  const errorSpy = jest.spyOn(client, 'emit');
   client.handleMessage(deniedMessage);
 
-  expect(errorSpy).toHaveBeenCalledWith("authorization_denied", deniedMessage);
+  expect(errorSpy).toHaveBeenCalledWith('authorization_denied', deniedMessage);
 });
 
-test("should request resync after multiple sync warnings", () => {
-  const sendSpy = jest.spyOn(client, "send");
+test('should request resync after multiple sync warnings', () => {
+  const sendSpy = jest.spyOn(client, 'send');
 
   // Simulate multiple sequence gaps
   for (let i = 0; i < 3; i++) {
@@ -2262,675 +1845,15 @@ test("should request resync after multiple sync warnings", () => {
   }
 
   expect(sendSpy).toHaveBeenCalledWith({
-    message_type: "resync_request",
+    message_type: 'resync_request',
     user_id: client.currentUser.email,
   });
 });
 ```
 
-## Real-time Notifications System
-
-### Overview
-
-In addition to diagram collaboration, TMI provides a global WebSocket-based notification system at `/ws/notifications`. This system delivers real-time updates about threat model changes, collaboration sessions, system announcements, and user activity across the entire application.
-
-### Connection Setup
-
-```javascript
-class NotificationClient {
-  constructor(jwtToken, serverUrl = 'ws://localhost:8080') {
-    this.jwtToken = jwtToken;
-    this.serverUrl = serverUrl;
-    this.ws = null;
-    this.subscription = null;
-  }
-
-  async connect() {
-    const url = `${this.serverUrl}/ws/notifications?token=${this.jwtToken}`;
-    
-    this.ws = new WebSocket(url);
-    
-    this.ws.onopen = () => {
-      console.log('Connected to notification service');
-      this.emit('connected');
-    };
-    
-    this.ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      this.handleNotification(message);
-    };
-    
-    this.ws.onclose = () => {
-      console.log('Disconnected from notification service');
-      this.emit('disconnected');
-      // Implement reconnection logic if needed
-    };
-  }
-  
-  handleNotification(message) {
-    // Emit specific events based on message type
-    this.emit(message.message_type, message);
-    
-    // Also emit a general notification event
-    this.emit('notification', message);
-  }
-}
-```
-
-### Notification Message Types
-
-#### Threat Model Notifications
-
-```javascript
-// Threat model created
-{
-  "message_type": "threat_model_created",
-  "user_id": "creator@example.com",
-  "timestamp": "2025-08-26T10:30:00Z",
-  "data": {
-    "threat_model_id": "123e4567-e89b-12d3-a456-426614174000",
-    "threat_model_name": "New Application Threat Model",
-    "action": "created"
-  }
-}
-
-// Threat model updated
-{
-  "message_type": "threat_model_updated",
-  "user_id": "editor@example.com",
-  "timestamp": "2025-08-26T10:35:00Z",
-  "data": {
-    "threat_model_id": "123e4567-e89b-12d3-a456-426614174000",
-    "threat_model_name": "Updated Application Threat Model",
-    "action": "updated"
-  }
-}
-
-// Threat model deleted
-{
-  "message_type": "threat_model_deleted",
-  "user_id": "owner@example.com",
-  "timestamp": "2025-08-26T10:40:00Z",
-  "data": {
-    "threat_model_id": "123e4567-e89b-12d3-a456-426614174000",
-    "threat_model_name": "Old Application Threat Model",
-    "action": "deleted"
-  }
-}
-
-// Threat model shared
-{
-  "message_type": "threat_model_shared",
-  "user_id": "owner@example.com",
-  "timestamp": "2025-08-26T10:45:00Z",
-  "data": {
-    "threat_model_id": "123e4567-e89b-12d3-a456-426614174000",
-    "threat_model_name": "Shared Threat Model",
-    "shared_with_email": "newuser@example.com",
-    "role": "writer"
-  }
-}
-```
-
-#### Collaboration Notifications
-
-```javascript
-// Collaboration session started
-{
-  "message_type": "collaboration_started",
-  "user_id": "initiator@example.com",
-  "timestamp": "2025-08-26T11:00:00Z",
-  "data": {
-    "diagram_id": "456e7890-e89b-12d3-a456-426614174111",
-    "diagram_name": "System Architecture",
-    "threat_model_id": "123e4567-e89b-12d3-a456-426614174000",
-    "threat_model_name": "Application Threat Model",
-    "session_id": "789abcde-e89b-12d3-a456-426614174222"
-  }
-}
-
-// Collaboration invitation
-{
-  "message_type": "collaboration_invite",
-  "user_id": "inviter@example.com",
-  "timestamp": "2025-08-26T11:05:00Z",
-  "data": {
-    "diagram_id": "456e7890-e89b-12d3-a456-426614174111",
-    "diagram_name": "System Architecture",
-    "threat_model_id": "123e4567-e89b-12d3-a456-426614174000",
-    "threat_model_name": "Application Threat Model",
-    "inviter_email": "inviter@example.com",
-    "role": "viewer"
-  }
-}
-```
-
-#### System Notifications
-
-```javascript
-// System announcement
-{
-  "message_type": "system_announcement",
-  "user_id": "system",
-  "timestamp": "2025-08-26T12:00:00Z",
-  "data": {
-    "severity": "info", // info, warning, error, critical
-    "message": "System maintenance scheduled for tomorrow at 2 AM UTC",
-    "action_required": false,
-    "action_url": ""
-  }
-}
-
-// System update notification
-{
-  "message_type": "system_update",
-  "user_id": "system",
-  "timestamp": "2025-08-26T12:30:00Z",
-  "data": {
-    "severity": "warning",
-    "message": "New version available - please refresh your browser",
-    "action_required": true,
-    "action_url": "/update"
-  }
-}
-```
-
-#### User Activity Notifications
-
-```javascript
-// User joined
-{
-  "message_type": "user_joined",
-  "user_id": "newuser@example.com",
-  "timestamp": "2025-08-26T13:00:00Z",
-  "data": {
-    "user_email": "newuser@example.com",
-    "user_name": "New User"
-  }
-}
-
-// User left
-{
-  "message_type": "user_left",
-  "user_id": "departinguser@example.com",
-  "timestamp": "2025-08-26T13:15:00Z",
-  "data": {
-    "user_email": "departinguser@example.com",
-    "user_name": "Departing User"
-  }
-}
-```
-
-#### Heartbeat
-
-```javascript
-// Keep-alive heartbeat (sent every 30 seconds)
-{
-  "message_type": "heartbeat",
-  "user_id": "system",
-  "timestamp": "2025-08-26T13:30:00Z"
-}
-```
-
-### Subscription Management
-
-By default, all connected clients receive all notifications. You can customize this by sending subscription preferences:
-
-```javascript
-class NotificationSubscriptionManager {
-  constructor(notificationClient) {
-    this.client = notificationClient;
-  }
-  
-  updateSubscription(preferences) {
-    const subscriptionMessage = {
-      message_type: "update_subscription",
-      data: {
-        subscribed_types: [
-          "threat_model_created",
-          "threat_model_updated",
-          "threat_model_deleted",
-          "collaboration_started",
-          "system_announcement"
-        ],
-        threat_model_filters: [
-          "123e4567-e89b-12d3-a456-426614174000",
-          "234e5678-e89b-12d3-a456-426614174001"
-        ],
-        diagram_filters: [
-          "456e7890-e89b-12d3-a456-426614174111"
-        ]
-      }
-    };
-    
-    this.client.send(JSON.stringify(subscriptionMessage));
-  }
-  
-  // Subscribe to all notifications (default behavior)
-  subscribeToAll() {
-    this.updateSubscription({
-      subscribed_types: [], // Empty means receive all types
-      threat_model_filters: [],
-      diagram_filters: []
-    });
-  }
-  
-  // Subscribe only to specific threat models
-  subscribeToThreatModels(threatModelIds) {
-    this.updateSubscription({
-      subscribed_types: [
-        "threat_model_created",
-        "threat_model_updated",
-        "threat_model_deleted",
-        "threat_model_shared"
-      ],
-      threat_model_filters: threatModelIds,
-      diagram_filters: []
-    });
-  }
-  
-  // Subscribe only to collaboration events
-  subscribeToCollaboration() {
-    this.updateSubscription({
-      subscribed_types: [
-        "collaboration_started",
-        "collaboration_ended",
-        "collaboration_invite"
-      ],
-      threat_model_filters: [],
-      diagram_filters: []
-    });
-  }
-}
-```
-
-### Complete Implementation Example
-
-```javascript
-class TMINotificationManager extends EventEmitter {
-  constructor(jwtToken, options = {}) {
-    super();
-    this.jwtToken = jwtToken;
-    this.serverUrl = options.serverUrl || 'ws://localhost:8080';
-    this.autoReconnect = options.autoReconnect !== false;
-    this.reconnectDelay = options.reconnectDelay || 1000;
-    this.maxReconnectAttempts = options.maxReconnectAttempts || 5;
-    
-    this.ws = null;
-    this.reconnectAttempts = 0;
-    this.reconnectTimeout = null;
-  }
-  
-  async connect() {
-    return new Promise((resolve, reject) => {
-      const url = `${this.serverUrl}/ws/notifications?token=${this.jwtToken}`;
-      
-      try {
-        this.ws = new WebSocket(url);
-        
-        this.ws.onopen = () => {
-          console.log('✅ Connected to TMI notification service');
-          this.reconnectAttempts = 0;
-          this.emit('connected');
-          resolve();
-        };
-        
-        this.ws.onmessage = (event) => {
-          const message = JSON.parse(event.data);
-          this.handleNotification(message);
-        };
-        
-        this.ws.onclose = (event) => {
-          console.log(`WebSocket closed: ${event.code} - ${event.reason}`);
-          this.emit('disconnected', event);
-          
-          if (this.autoReconnect && event.code !== 1000) {
-            this.scheduleReconnection();
-          }
-        };
-        
-        this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          this.emit('error', error);
-          reject(error);
-        };
-        
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-  
-  handleNotification(message) {
-    // Special handling for subscription confirmations
-    if (message.message_type === 'subscription_updated') {
-      console.log('✅ Subscription updated:', message.data.message);
-      this.emit('subscription_updated', message);
-      return;
-    }
-    
-    // Emit specific event for the message type
-    this.emit(message.message_type, message);
-    
-    // Emit general notification event
-    this.emit('notification', message);
-    
-    // Log important notifications
-    switch (message.message_type) {
-      case 'threat_model_created':
-      case 'threat_model_deleted':
-        console.log(`🔔 Threat model ${message.data.action}: ${message.data.threat_model_name}`);
-        break;
-        
-      case 'collaboration_started':
-        console.log(`👥 Collaboration started on ${message.data.diagram_name}`);
-        break;
-        
-      case 'system_announcement':
-        console.log(`📢 System: ${message.data.message}`);
-        break;
-        
-      case 'heartbeat':
-        // Silent - just for connection keep-alive
-        break;
-    }
-  }
-  
-  send(data) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(typeof data === 'string' ? data : JSON.stringify(data));
-    } else {
-      console.warn('WebSocket not connected, message not sent');
-    }
-  }
-  
-  updateSubscription(subscriptionData) {
-    this.send({
-      message_type: 'update_subscription',
-      data: subscriptionData
-    });
-  }
-  
-  scheduleReconnection() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
-      this.emit('reconnect_failed');
-      return;
-    }
-    
-    const delay = Math.min(
-      this.reconnectDelay * Math.pow(2, this.reconnectAttempts),
-      30000 // Max 30 seconds
-    );
-    
-    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
-    
-    this.reconnectTimeout = setTimeout(() => {
-      this.reconnectAttempts++;
-      this.connect().catch(() => {
-        // Error handled in connect method
-      });
-    }, delay);
-  }
-  
-  disconnect() {
-    this.autoReconnect = false;
-    
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-    }
-    
-    if (this.ws) {
-      this.ws.close(1000, 'Client disconnect');
-      this.ws = null;
-    }
-  }
-}
-
-// Usage example
-async function setupNotifications() {
-  const notificationManager = new TMINotificationManager(jwtToken, {
-    serverUrl: 'wss://api.tmi.example.com',
-    autoReconnect: true,
-    maxReconnectAttempts: 10
-  });
-  
-  // Set up event handlers
-  notificationManager.on('threat_model_created', (msg) => {
-    showToast(`New threat model: ${msg.data.threat_model_name}`, 'info');
-    refreshThreatModelList();
-  });
-  
-  notificationManager.on('threat_model_updated', (msg) => {
-    if (isViewingThreatModel(msg.data.threat_model_id)) {
-      showToast(`This threat model was updated by ${msg.user_id}`, 'warning');
-      // Optionally refresh the view
-    }
-  });
-  
-  notificationManager.on('collaboration_invite', (msg) => {
-    showNotification({
-      title: 'Collaboration Invitation',
-      body: `${msg.data.inviter_email} invited you to collaborate on ${msg.data.diagram_name}`,
-      actions: [
-        { label: 'Join', action: () => joinCollaboration(msg.data) },
-        { label: 'Decline', action: () => declineInvite(msg.data) }
-      ]
-    });
-  });
-  
-  notificationManager.on('system_announcement', (msg) => {
-    if (msg.data.severity === 'critical' || msg.data.action_required) {
-      showModal({
-        title: 'System Notification',
-        message: msg.data.message,
-        severity: msg.data.severity,
-        actionUrl: msg.data.action_url
-      });
-    } else {
-      showToast(msg.data.message, msg.data.severity);
-    }
-  });
-  
-  // Connect to notification service
-  try {
-    await notificationManager.connect();
-    
-    // Optional: Customize subscription
-    notificationManager.updateSubscription({
-      subscribed_types: [
-        'threat_model_created',
-        'threat_model_updated',
-        'threat_model_deleted',
-        'threat_model_shared',
-        'collaboration_invite',
-        'system_announcement'
-      ],
-      threat_model_filters: [], // Empty = all threat models
-      diagram_filters: []       // Empty = all diagrams
-    });
-    
-  } catch (error) {
-    console.error('Failed to connect to notification service:', error);
-  }
-  
-  return notificationManager;
-}
-```
-
-### Integration with UI Components
-
-```javascript
-class NotificationUIManager {
-  constructor(notificationManager) {
-    this.notificationManager = notificationManager;
-    this.notificationQueue = [];
-    this.setupUIHandlers();
-  }
-  
-  setupUIHandlers() {
-    // Show notification badges
-    this.notificationManager.on('notification', (msg) => {
-      if (msg.message_type !== 'heartbeat') {
-        this.incrementNotificationBadge();
-        this.addToNotificationCenter(msg);
-      }
-    });
-    
-    // Update UI based on threat model changes
-    this.notificationManager.on('threat_model_updated', (msg) => {
-      const currentThreatModelId = this.getCurrentThreatModelId();
-      
-      if (msg.data.threat_model_id === currentThreatModelId) {
-        this.showRefreshPrompt({
-          message: `This threat model was updated by ${msg.user_id}`,
-          onRefresh: () => this.reloadThreatModel()
-        });
-      }
-    });
-    
-    // Handle collaboration invitations prominently
-    this.notificationManager.on('collaboration_invite', (msg) => {
-      this.showCollaborationInviteModal(msg.data);
-    });
-    
-    // Connection status indicator
-    this.notificationManager.on('connected', () => {
-      this.updateConnectionStatus('connected');
-    });
-    
-    this.notificationManager.on('disconnected', () => {
-      this.updateConnectionStatus('disconnected');
-    });
-    
-    this.notificationManager.on('reconnect_failed', () => {
-      this.updateConnectionStatus('failed');
-      this.showReconnectPrompt();
-    });
-  }
-  
-  showRefreshPrompt({ message, onRefresh }) {
-    const prompt = document.createElement('div');
-    prompt.className = 'refresh-prompt';
-    prompt.innerHTML = `
-      <span>${message}</span>
-      <button onclick="location.reload()">Refresh Page</button>
-      <button onclick="this.parentElement.remove()">Dismiss</button>
-    `;
-    document.body.appendChild(prompt);
-  }
-  
-  showCollaborationInviteModal(inviteData) {
-    const modal = new CollaborationInviteModal({
-      title: 'Collaboration Invitation',
-      inviterEmail: inviteData.inviter_email,
-      diagramName: inviteData.diagram_name,
-      threatModelName: inviteData.threat_model_name,
-      role: inviteData.role,
-      onAccept: () => {
-        window.location.href = `/threat-models/${inviteData.threat_model_id}/diagrams/${inviteData.diagram_id}`;
-      },
-      onDecline: () => {
-        modal.close();
-      }
-    });
-    modal.show();
-  }
-  
-  updateConnectionStatus(status) {
-    const indicator = document.getElementById('notification-status');
-    if (indicator) {
-      indicator.className = `status-indicator status-${status}`;
-      indicator.title = `Notification service: ${status}`;
-    }
-  }
-}
-```
-
-### Best Practices
-
-1. **Connection Management**
-   - Connect to the notification service once when the application loads
-   - Implement automatic reconnection with exponential backoff
-   - Show connection status to users
-
-2. **Subscription Filtering**
-   - Subscribe only to relevant notifications to reduce network traffic
-   - Use threat_model_filters for users working on specific projects
-   - Update subscriptions when user context changes
-
-3. **UI Integration**
-   - Don't overwhelm users with notifications - batch or throttle if needed
-   - Provide clear actions for notifications that require user response
-   - Distinguish between informational and actionable notifications
-
-4. **Performance**
-   - Heartbeats are sent automatically - no need to implement ping/pong
-   - The service handles connection keep-alive
-   - Messages are lightweight JSON - minimal bandwidth usage
-
-5. **Security**
-   - Notifications respect the same authorization rules as REST API
-   - Users only receive notifications for resources they can access
-   - JWT token is validated on connection
-
-### TypeScript Definitions
-
-```typescript
-// Notification Message Types
-interface NotificationMessage {
-  message_type: NotificationMessageType;
-  user_id: string;
-  timestamp: string; // ISO 8601
-  data?: any;
-}
-
-type NotificationMessageType =
-  | 'threat_model_created'
-  | 'threat_model_updated' 
-  | 'threat_model_deleted'
-  | 'threat_model_shared'
-  | 'collaboration_started'
-  | 'collaboration_ended'
-  | 'collaboration_invite'
-  | 'system_announcement'
-  | 'system_maintenance'
-  | 'system_update'
-  | 'user_joined'
-  | 'user_left'
-  | 'heartbeat';
-
-interface ThreatModelNotificationData {
-  threat_model_id: string;
-  threat_model_name: string;
-  action: 'created' | 'updated' | 'deleted';
-}
-
-interface CollaborationNotificationData {
-  diagram_id: string;
-  diagram_name?: string;
-  threat_model_id: string;
-  threat_model_name?: string;
-  session_id?: string;
-}
-
-interface SystemNotificationData {
-  severity: 'info' | 'warning' | 'error' | 'critical';
-  message: string;
-  action_required: boolean;
-  action_url?: string;
-}
-
-interface NotificationSubscription {
-  subscribed_types: NotificationMessageType[];
-  threat_model_filters?: string[];
-  diagram_filters?: string[];
-}
-```
-
 ## Summary
 
-This client integration guide provides everything needed to implement robust collaborative editing and real-time notifications:
+This client integration guide provides everything needed to implement robust collaborative editing:
 
 - ✅ **Complete WebSocket protocol implementation** with all message types
 - ✅ **Echo prevention** to avoid infinite loops
@@ -2938,9 +1861,7 @@ This client integration guide provides everything needed to implement robust col
 - ✅ **State synchronization** with automatic conflict resolution
 - ✅ **Error handling** with graceful recovery mechanisms
 - ✅ **Performance optimization** with throttling and debouncing
-- ✅ **Global notification system** for threat model updates and system events
-- ✅ **Subscription management** for filtering relevant notifications
 - ✅ **TypeScript support** with complete type definitions
 - ✅ **Testing strategies** for both unit and integration scenarios
 
-Follow the patterns in this guide to build a production-ready collaborative diagram editor with real-time notifications that integrates seamlessly with the TMI server.
+Follow the patterns in this guide to build a production-ready collaborative diagram editor that integrates seamlessly with the TMI server.

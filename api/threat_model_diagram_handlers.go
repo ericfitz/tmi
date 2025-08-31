@@ -844,17 +844,17 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 		return
 	}
 
-	// Check if the requesting user is the session manager
+	// Check if the requesting user is the host
 	session.mu.RLock()
-	isManager := (session.Manager == userName)
+	isHost := (session.Host == userName)
 	session.mu.RUnlock()
 
-	if isManager {
-		// If the user is the session manager, close the entire session
+	if isHost {
+		// If the user is the host, close the entire session
 		h.wsHub.CloseSession(diagramId)
-		logging.Get().WithContext(c).Info("Collaboration session %s closed by session manager %s", session.ID, userName)
+		logging.Get().WithContext(c).Info("Collaboration session %s closed by host %s", session.ID, userName)
 	} else {
-		// If user is not the session manager, just remove their intended participation
+		// If user is not the host, just remove their intended participation
 		// The WebSocket disconnection will be handled by the client
 		session.mu.Lock()
 		delete(session.IntendedParticipants, userName)
