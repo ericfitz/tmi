@@ -854,15 +854,9 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 		h.wsHub.CloseSession(diagramId)
 		logging.Get().WithContext(c).Info("Collaboration session %s closed by host %s", session.ID, userName)
 	} else {
-		// If user is not the host, just remove their intended participation
-		// The WebSocket disconnection will be handled by the client
-		session.mu.Lock()
-		delete(session.IntendedParticipants, userName)
-		session.mu.Unlock()
-		logging.Get().WithContext(c).Info("User %s removed from intended participants of session %s", userName, session.ID)
-
-		// Broadcast updated participant list to all connected clients
-		go session.broadcastParticipantsUpdate()
+		// If user is not the host, they will be removed when their WebSocket disconnects
+		// No need to do anything here since we only track active connections
+		logging.Get().WithContext(c).Info("User %s leaving session %s (will disconnect from WebSocket)", userName, session.ID)
 	}
 
 	c.Status(http.StatusNoContent)

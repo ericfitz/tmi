@@ -64,9 +64,6 @@ type DiagramSession struct {
 	// Client sequence tracking for out-of-order detection
 	clientLastSequence map[string]uint64
 
-	// Intended participants (users who have joined via REST API, regardless of WebSocket status)
-	IntendedParticipants map[string]time.Time
-
 	// Mutex for thread safety
 	mu sync.RWMutex
 }
@@ -104,8 +101,12 @@ type WebSocketClient struct {
 	Session *DiagramSession
 	// The websocket connection
 	Conn *websocket.Conn
-	// User name (can be email, username, etc.)
+	// User ID from JWT 'sub' claim (immutable identifier)
+	UserID string
+	// User display name from JWT 'name' claim
 	UserName string
+	// User email from JWT 'email' claim
+	UserEmail string
 	// Buffered channel of outbound messages
 	Send chan []byte
 }
@@ -295,21 +296,15 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 		Hub:           h, // Reference to the hub for cleanup
 
 		// Enhanced collaboration state
-		Host:                 hostUserID,
-		CurrentPresenter:     hostUserID, // Host starts as presenter
-		NextSequenceNumber:   1,
-		OperationHistory:     NewOperationHistory(),
-		recentCorrections:    make(map[string]int),
-		clientLastSequence:   make(map[string]uint64),
-		IntendedParticipants: make(map[string]time.Time),
+		Host:               hostUserID,
+		CurrentPresenter:   hostUserID, // Host starts as presenter
+		NextSequenceNumber: 1,
+		OperationHistory:   NewOperationHistory(),
+		recentCorrections:  make(map[string]int),
+		clientLastSequence: make(map[string]uint64),
 	}
 
 	h.Diagrams[diagramID] = session
-
-	// Add host as initial intended participant
-	if hostUserID != "" {
-		session.IntendedParticipants[hostUserID] = time.Now().UTC()
-	}
 
 	// Record session start
 	if GlobalPerformanceMonitor != nil {
@@ -367,21 +362,15 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 		Hub:           h, // Reference to the hub for cleanup
 
 		// Enhanced collaboration state
-		Host:                 hostUserID,
-		CurrentPresenter:     hostUserID, // Host starts as presenter
-		NextSequenceNumber:   1,
-		OperationHistory:     NewOperationHistory(),
-		recentCorrections:    make(map[string]int),
-		clientLastSequence:   make(map[string]uint64),
-		IntendedParticipants: make(map[string]time.Time),
+		Host:               hostUserID,
+		CurrentPresenter:   hostUserID, // Host starts as presenter
+		NextSequenceNumber: 1,
+		OperationHistory:   NewOperationHistory(),
+		recentCorrections:  make(map[string]int),
+		clientLastSequence: make(map[string]uint64),
 	}
 
 	h.Diagrams[diagramID] = session
-
-	// Add host as initial intended participant
-	if hostUserID != "" {
-		session.IntendedParticipants[hostUserID] = time.Now().UTC()
-	}
 
 	// Record session start
 	if GlobalPerformanceMonitor != nil {
@@ -400,22 +389,6 @@ func NewOperationHistory() *OperationHistory {
 		CurrentState:    make(map[string]*Cell),
 		MaxEntries:      100, // Keep last 100 operations
 		CurrentPosition: 0,   // No operations applied yet
-	}
-}
-
-// AddIntendedParticipant adds a user to the intended participants list
-func (h *WebSocketHub) AddIntendedParticipant(diagramID string, userName string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	if session, ok := h.Diagrams[diagramID]; ok {
-		session.mu.Lock()
-		session.IntendedParticipants[userName] = time.Now().UTC()
-		session.mu.Unlock()
-
-		// Broadcast updated participant list to all connected clients
-		// This ensures clients are notified when someone joins via REST API
-		go session.broadcastParticipantsUpdate()
 	}
 }
 
@@ -556,7 +529,12 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 			// Get user's session permissions using existing auth system
 			var permissions *CollaborationSessionParticipantsPermissions
 			if tm != nil {
-				permissions = getSessionPermissionsForUser(client.UserName, tm)
+				// Use email for permission check for backwards compatibility
+				permissionCheckID := client.UserEmail
+				if permissionCheckID == "" {
+					permissionCheckID = client.UserID
+				}
+				permissions = getSessionPermissionsForUser(permissionCheckID, tm)
 				if permissions == nil {
 					// User is unauthorized, skip them
 					continue
@@ -574,7 +552,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 			}{
 				JoinedAt:    &session.LastActivity,
 				Permissions: permissions,
-				UserId:      &client.UserName,
+				UserId:      &client.UserID,
 			})
 		}
 
@@ -666,7 +644,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 		JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
 		Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
 		UserId      *string                                      `json:"user_id,omitempty"`
-	}, 0, len(session.Clients)+len(session.IntendedParticipants))
+	}, 0, len(session.Clients))
 
 	// Track users already processed to avoid duplicates
 	processedUsers := make(map[string]bool)
@@ -674,14 +652,19 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 	// First, add users from active WebSocket clients
 	for client := range session.Clients {
 		// Get user's session permissions using existing auth system
-		permissions := getSessionPermissionsForUser(client.UserName, &tm)
+		// Use email for permission check for backwards compatibility
+		permissionCheckID := client.UserEmail
+		if permissionCheckID == "" {
+			permissionCheckID = client.UserID
+		}
+		permissions := getSessionPermissionsForUser(permissionCheckID, &tm)
 
 		if permissions == nil {
 			// User is unauthorized, skip them
 			continue
 		}
 
-		processedUsers[client.UserName] = true
+		processedUsers[client.UserID] = true
 
 		participants = append(participants, struct {
 			JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
@@ -690,35 +673,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 		}{
 			JoinedAt:    &session.LastActivity,
 			Permissions: permissions,
-			UserId:      &client.UserName,
-		})
-	}
-
-	// Then, add intended participants who don't have active WebSocket connections
-	for userName, joinTime := range session.IntendedParticipants {
-		if processedUsers[userName] {
-			// User already added as active client, skip
-			continue
-		}
-
-		// Get user's session permissions using existing auth system
-		permissions := getSessionPermissionsForUser(userName, &tm)
-
-		if permissions == nil {
-			// User is unauthorized, skip them
-			continue
-		}
-
-		processedUsers[userName] = true
-
-		participants = append(participants, struct {
-			JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
-			Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
-			UserId      *string                                      `json:"user_id,omitempty"`
-		}{
-			JoinedAt:    &joinTime,
-			Permissions: permissions,
-			UserId:      &userName,
+			UserId:      &client.UserID,
 		})
 	}
 
@@ -828,7 +783,12 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 
 		for client := range session.Clients {
 			// Get user's session permissions using existing auth system
-			permissions := getSessionPermissionsForUser(client.UserName, &tm)
+			// Use email for permission check for backwards compatibility
+			permissionCheckID := client.UserEmail
+			if permissionCheckID == "" {
+				permissionCheckID = client.UserID
+			}
+			permissions := getSessionPermissionsForUser(permissionCheckID, &tm)
 
 			if permissions == nil {
 				// User is unauthorized, skip them
@@ -842,7 +802,7 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 			}{
 				JoinedAt:    &session.LastActivity,
 				Permissions: permissions,
-				UserId:      &client.UserName,
+				UserId:      &client.UserID,
 			})
 		}
 
@@ -1156,8 +1116,6 @@ func (s *DiagramSession) Run() {
 			s.mu.Lock()
 			s.Clients[client] = true
 			s.LastActivity = time.Now().UTC()
-			// Add to intended participants when connecting
-			s.IntendedParticipants[client.UserName] = time.Now().UTC()
 			s.mu.Unlock()
 
 			// Send initial state to the new client
@@ -1186,7 +1144,7 @@ func (s *DiagramSession) Run() {
 			// Notify other clients that someone joined
 			msg := WebSocketMessage{
 				Event:     "join",
-				UserID:    client.UserName,
+				UserID:    client.UserID,
 				Timestamp: time.Now().UTC(),
 			}
 			if msgBytes, err := json.Marshal(msg); err == nil {
@@ -1203,25 +1161,22 @@ func (s *DiagramSession) Run() {
 				close(client.Send)
 				s.LastActivity = time.Now().UTC()
 
-				// Also remove from IntendedParticipants when disconnecting
-				delete(s.IntendedParticipants, client.UserName)
-
 				// Check if the leaving client was the current presenter
-				wasPresenter := client.UserName == s.CurrentPresenter
+				wasPresenter := client.UserID == s.CurrentPresenter
 
 				// Check if the leaving client was the host
-				wasHost := client.UserName == s.Host
+				wasHost := client.UserID == s.Host
 
 				s.mu.Unlock()
 
 				// Handle presenter leaving session
 				if wasPresenter {
-					s.handlePresenterDisconnection(client.UserName)
+					s.handlePresenterDisconnection(client.UserID)
 				}
 
 				// Handle host leaving session
 				if wasHost {
-					s.handleHostDisconnection(client.UserName)
+					s.handleHostDisconnection(client.UserID)
 					return // Exit the session run loop to terminate the session
 				}
 			} else {
@@ -1231,7 +1186,7 @@ func (s *DiagramSession) Run() {
 			// Notify other clients that someone left
 			msg := WebSocketMessage{
 				Event:     "leave",
-				UserID:    client.UserName,
+				UserID:    client.UserID,
 				Timestamp: time.Now().UTC(),
 			}
 			if msgBytes, err := json.Marshal(msg); err == nil {
@@ -1292,23 +1247,54 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		return
 	}
 
-	// Get user from context
-	userName, exists := c.Get("user_name")
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated",
-		})
-		return
+		// Fallback to legacy userName for backwards compatibility
+		if userNameLegacy, exists := c.Get("user_name_legacy"); exists {
+			userID = userNameLegacy
+		} else {
+			c.JSON(http.StatusUnauthorized, Error{
+				Error:            "unauthorized",
+				ErrorDescription: "User not authenticated",
+			})
+			return
+		}
 	}
 
-	userNameStr, ok := userName.(string)
-	if !ok || userNameStr == "" {
+	userIDStr, ok := userID.(string)
+	if !ok || userIDStr == "" {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:            "unauthorized",
 			ErrorDescription: "Invalid user authentication",
 		})
 		return
+	}
+
+	// Get user display name from context (optional, will use email as fallback)
+	userNameStr := ""
+	if userName, exists := c.Get("user_name"); exists {
+		if name, ok := userName.(string); ok && name != "" {
+			userNameStr = name
+		}
+	}
+
+	// Get user email from context
+	userEmailStr := ""
+	if userEmail, exists := c.Get("user_email"); exists {
+		if email, ok := userEmail.(string); ok && email != "" {
+			userEmailStr = email
+		}
+	}
+
+	// If no display name, use email as fallback
+	if userNameStr == "" && userEmailStr != "" {
+		userNameStr = userEmailStr
+	}
+
+	// If still no display name, use user ID as last resort
+	if userNameStr == "" {
+		userNameStr = userIDStr
 	}
 
 	// Upgrade to WebSocket first
@@ -1319,7 +1305,13 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	}
 
 	// CRITICAL: Validate user has access to the diagram after upgrading
-	if !h.validateWebSocketDiagramAccessDirect(userNameStr, threatModelID, diagramID) {
+	// For backwards compatibility, use email for validation if userID lookup fails
+	validationID := userIDStr
+	if userEmailStr != "" {
+		// TODO: Update validateWebSocketDiagramAccessDirect to use user ID instead of email
+		validationID = userEmailStr
+	}
+	if !h.validateWebSocketDiagramAccessDirect(validationID, threatModelID, diagramID) {
 		// Send error message before closing
 		errorMsg := map[string]string{
 			"error":   "unauthorized",
@@ -1334,20 +1326,22 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		if err := conn.Close(); err != nil {
 			logging.Get().Debug("Failed to close connection: %v", err)
 		}
-		logging.Get().Info("Disconnected user %s - no permissions for diagram %s", userNameStr, diagramID)
+		logging.Get().Info("Disconnected user %s - no permissions for diagram %s", userIDStr, diagramID)
 		return
 	}
 
 	// Get or create session
-	session := h.GetOrCreateSession(diagramID, threatModelID, userNameStr)
+	session := h.GetOrCreateSession(diagramID, threatModelID, userIDStr)
 
 	// Create client
 	client := &WebSocketClient{
-		Hub:      h,
-		Session:  session,
-		Conn:     conn,
-		UserName: userNameStr,
-		Send:     make(chan []byte, 256),
+		Hub:       h,
+		Session:   session,
+		Conn:      conn,
+		UserID:    userIDStr,
+		UserName:  userNameStr,
+		UserEmail: userEmailStr,
+		Send:      make(chan []byte, 256),
 	}
 
 	// Register client
@@ -1455,7 +1449,7 @@ func validateCell(cell *Cell) error {
 func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte) {
 	// Log raw incoming message with wsmsg component
 	logging.Get().Debug("[wsmsg] Received WebSocket message - session_id=%s user_id=%s message_size=%d raw_message=%s",
-		s.ID, client.UserName, len(message), string(message))
+		s.ID, client.UserID, len(message), string(message))
 	// First try to parse as enhanced message format
 	var baseMsg struct {
 		MessageType string          `json:"message_type"`
@@ -1523,13 +1517,18 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 	}
 
 	// Validate message
-	if msg.UserID != client.UserName {
-		logging.Get().Info("User ID mismatch in diagram operation: %s != %s", msg.UserID, client.UserName)
+	if msg.UserID != client.UserID {
+		logging.Get().Info("User ID mismatch in diagram operation: %s != %s", msg.UserID, client.UserID)
 		return
 	}
 
 	// Check authorization (this will be implemented in the authorization filtering task)
-	if !s.checkMutationPermission(client.UserName) {
+	// Use email for permission check for backwards compatibility
+	permissionCheckID := client.UserEmail
+	if permissionCheckID == "" {
+		permissionCheckID = client.UserID
+	}
+	if !s.checkMutationPermission(permissionCheckID) {
 		s.sendAuthorizationDenied(client, msg.OperationID, "insufficient_permissions")
 
 		// Send enhanced state correction for affected cells
@@ -1541,23 +1540,23 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 	// Check for out-of-order message delivery if client has a sequence number
 	if msg.SequenceNumber != nil {
 		s.mu.Lock()
-		lastSeq, exists := s.clientLastSequence[client.UserName]
+		lastSeq, exists := s.clientLastSequence[client.UserID]
 		expectedSeq := lastSeq + 1
 
 		if exists && *msg.SequenceNumber != expectedSeq {
 			if *msg.SequenceNumber < expectedSeq {
 				logging.Get().Info("Duplicate or old message from %s: expected %d, got %d",
-					client.UserName, expectedSeq, *msg.SequenceNumber)
-				s.trackPotentialSyncIssue(client.UserName, "duplicate_message")
+					client.UserID, expectedSeq, *msg.SequenceNumber)
+				s.trackPotentialSyncIssue(client.UserID, "duplicate_message")
 			} else {
 				logging.Get().Info("Message gap detected from %s: expected %d, got %d (gap of %d)",
-					client.UserName, expectedSeq, *msg.SequenceNumber, *msg.SequenceNumber-expectedSeq)
-				s.trackPotentialSyncIssue(client.UserName, "message_gap")
+					client.UserID, expectedSeq, *msg.SequenceNumber, *msg.SequenceNumber-expectedSeq)
+				s.trackPotentialSyncIssue(client.UserID, "message_gap")
 			}
 		}
 
 		// Update client's last sequence number
-		s.clientLastSequence[client.UserName] = *msg.SequenceNumber
+		s.clientLastSequence[client.UserID] = *msg.SequenceNumber
 		s.mu.Unlock()
 	}
 
@@ -1638,8 +1637,8 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	}
 
 	// Validate user ID matches client
-	if msg.UserID != client.UserName {
-		logging.Get().Info("User ID mismatch in presenter request: %s != %s", msg.UserID, client.UserName)
+	if msg.UserID != client.UserID {
+		logging.Get().Info("User ID mismatch in presenter request: %s != %s", msg.UserID, client.UserID)
 		return
 	}
 
@@ -1706,8 +1705,8 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 	host := s.Host
 	s.mu.RUnlock()
 
-	if client.UserName != host {
-		logging.Get().Info("Non-host attempted to change presenter: %s", client.UserName)
+	if client.UserID != host {
+		logging.Get().Info("Non-host attempted to change presenter: %s", client.UserID)
 		return
 	}
 
@@ -1722,7 +1721,7 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 		CurrentPresenter: msg.NewPresenter,
 	}
 	s.broadcastMessage(broadcastMsg)
-	logging.Get().Info("Host %s changed presenter to %s in session %s", client.UserName, msg.NewPresenter, s.ID)
+	logging.Get().Info("Host %s changed presenter to %s in session %s", client.UserID, msg.NewPresenter, s.ID)
 
 	// Also broadcast updated participant list since presenter has changed
 	s.broadcastParticipantsUpdate()
@@ -1741,14 +1740,14 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	host := s.Host
 	s.mu.RUnlock()
 
-	if client.UserName != host {
-		logging.Get().Info("Non-host attempted to deny presenter request: %s", client.UserName)
+	if client.UserID != host {
+		logging.Get().Info("Non-host attempted to deny presenter request: %s", client.UserID)
 		return
 	}
 
 	// Validate user ID matches client (sender should be host)
-	if msg.UserID != client.UserName {
-		logging.Get().Info("User ID mismatch in presenter denied: %s != %s", msg.UserID, client.UserName)
+	if msg.UserID != client.UserID {
+		logging.Get().Info("User ID mismatch in presenter denied: %s != %s", msg.UserID, client.UserID)
 		return
 	}
 
@@ -1771,8 +1770,8 @@ func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message
 	}
 
 	// Validate user ID matches client
-	if msg.UserID != client.UserName {
-		logging.Get().Info("User ID mismatch in presenter cursor: %s != %s", msg.UserID, client.UserName)
+	if msg.UserID != client.UserID {
+		logging.Get().Info("User ID mismatch in presenter cursor: %s != %s", msg.UserID, client.UserID)
 		return
 	}
 
@@ -1781,8 +1780,8 @@ func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message
 	currentPresenter := s.CurrentPresenter
 	s.mu.RUnlock()
 
-	if client.UserName != currentPresenter {
-		logging.Get().Info("Non-presenter attempted to send cursor: %s", client.UserName)
+	if client.UserID != currentPresenter {
+		logging.Get().Info("Non-presenter attempted to send cursor: %s", client.UserID)
 		return
 	}
 
@@ -1799,8 +1798,8 @@ func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, mess
 	}
 
 	// Validate user ID matches client
-	if msg.UserID != client.UserName {
-		logging.Get().Info("User ID mismatch in presenter selection: %s != %s", msg.UserID, client.UserName)
+	if msg.UserID != client.UserID {
+		logging.Get().Info("User ID mismatch in presenter selection: %s != %s", msg.UserID, client.UserID)
 		return
 	}
 
@@ -1809,8 +1808,8 @@ func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, mess
 	currentPresenter := s.CurrentPresenter
 	s.mu.RUnlock()
 
-	if client.UserName != currentPresenter {
-		logging.Get().Info("Non-presenter attempted to send selection: %s", client.UserName)
+	if client.UserID != currentPresenter {
+		logging.Get().Info("Non-presenter attempted to send selection: %s", client.UserID)
 		return
 	}
 
@@ -1827,12 +1826,12 @@ func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message [
 	}
 
 	// Validate user ID matches client
-	if msg.UserID != client.UserName {
-		logging.Get().Info("User ID mismatch in resync request: %s != %s", msg.UserID, client.UserName)
+	if msg.UserID != client.UserID {
+		logging.Get().Info("User ID mismatch in resync request: %s != %s", msg.UserID, client.UserID)
 		return
 	}
 
-	logging.Get().Info("Client %s requested resync for diagram %s", client.UserName, s.DiagramID)
+	logging.Get().Info("Client %s requested resync for diagram %s", client.UserID, s.DiagramID)
 
 	// According to the plan, we use REST API for resync for simplicity
 	// Send a message telling the client to use the REST endpoint for resync
@@ -1863,20 +1862,25 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 	}
 
 	// Validate user ID matches client
-	if msg.UserID != client.UserName {
-		logging.Get().Info("User ID mismatch in undo request: %s != %s", msg.UserID, client.UserName)
+	if msg.UserID != client.UserID {
+		logging.Get().Info("User ID mismatch in undo request: %s != %s", msg.UserID, client.UserID)
 		return
 	}
 
 	// Check permission
-	if !s.checkMutationPermission(client.UserName) {
+	// Use email for permission check for backwards compatibility
+	permissionCheckID := client.UserEmail
+	if permissionCheckID == "" {
+		permissionCheckID = client.UserID
+	}
+	if !s.checkMutationPermission(permissionCheckID) {
 		s.sendAuthorizationDenied(client, "", "insufficient_permissions")
 		return
 	}
 
 	// Check if undo is possible
 	if !s.OperationHistory.CanUndo() {
-		logging.Get().Info("No operations to undo for user %s", client.UserName)
+		logging.Get().Info("No operations to undo for user %s", client.UserID)
 		// Send message indicating no undo available
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -1890,7 +1894,7 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 	// Get the operation to undo
 	entry, previousState, ok := s.OperationHistory.GetUndoOperation()
 	if !ok {
-		logging.Get().Info("Failed to get undo operation for user %s", client.UserName)
+		logging.Get().Info("Failed to get undo operation for user %s", client.UserID)
 		// Send resync required as fallback
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -1925,7 +1929,7 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 		Message:       "resync_required", // For now, tell clients to resync
 	}
 	s.broadcastToAllClients(response)
-	logging.Get().Info("Processed undo request from %s, reverted to sequence %d", client.UserName, entry.SequenceNumber-1)
+	logging.Get().Info("Processed undo request from %s, reverted to sequence %d", client.UserID, entry.SequenceNumber-1)
 }
 
 // processRedoRequest handles redo requests
@@ -1937,20 +1941,25 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 	}
 
 	// Validate user ID matches client
-	if msg.UserID != client.UserName {
-		logging.Get().Info("User ID mismatch in redo request: %s != %s", msg.UserID, client.UserName)
+	if msg.UserID != client.UserID {
+		logging.Get().Info("User ID mismatch in redo request: %s != %s", msg.UserID, client.UserID)
 		return
 	}
 
 	// Check permission
-	if !s.checkMutationPermission(client.UserName) {
+	// Use email for permission check for backwards compatibility
+	permissionCheckID := client.UserEmail
+	if permissionCheckID == "" {
+		permissionCheckID = client.UserID
+	}
+	if !s.checkMutationPermission(permissionCheckID) {
 		s.sendAuthorizationDenied(client, "", "insufficient_permissions")
 		return
 	}
 
 	// Check if redo is possible
 	if !s.OperationHistory.CanRedo() {
-		logging.Get().Info("No operations to redo for user %s", client.UserName)
+		logging.Get().Info("No operations to redo for user %s", client.UserID)
 		// Send message indicating no redo available
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -1964,7 +1973,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 	// Get the operation to redo
 	entry, ok := s.OperationHistory.GetRedoOperation()
 	if !ok {
-		logging.Get().Info("Failed to get redo operation for user %s", client.UserName)
+		logging.Get().Info("Failed to get redo operation for user %s", client.UserID)
 		// Send resync required as fallback
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -1999,7 +2008,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 		Message:       "resync_required", // For now, tell clients to resync
 	}
 	s.broadcastToAllClients(response)
-	logging.Get().Info("Processed redo request from %s, restored to sequence %d", client.UserName, entry.SequenceNumber)
+	logging.Get().Info("Processed redo request from %s, restored to sequence %d", client.UserID, entry.SequenceNumber)
 }
 
 // processLegacyMessage handles backward compatibility with old message format
@@ -2022,7 +2031,7 @@ func (s *DiagramSession) processLegacyMessage(client *WebSocketClient, message [
 	// Create server message
 	msg := WebSocketMessage{
 		Event:     "update",
-		UserID:    client.UserName,
+		UserID:    client.UserID,
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -2075,7 +2084,7 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 	// Check if host is still connected
 	managerConnected := false
 	for client := range s.Clients {
-		if client.UserName == s.Host {
+		if client.UserID == s.Host {
 			managerConnected = true
 			newPresenter = s.Host
 			break
@@ -2091,9 +2100,14 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		} else {
 			// Find first connected user with write permissions
 			for client := range s.Clients {
-				hasWriteAccess, err := CheckResourceAccess(client.UserName, tm, RoleWriter)
+				// Use email for permission check for backwards compatibility
+				permissionCheckID := client.UserEmail
+				if permissionCheckID == "" {
+					permissionCheckID = client.UserID
+				}
+				hasWriteAccess, err := CheckResourceAccess(permissionCheckID, tm, RoleWriter)
 				if err == nil && hasWriteAccess {
-					newPresenter = client.UserName
+					newPresenter = client.UserID
 					break
 				}
 			}
@@ -2137,9 +2151,9 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 	// Close all remaining client connections gracefully
 	s.mu.Lock()
 	for client := range s.Clients {
-		if client.UserName != disconnectedHostID { // Host already disconnected
+		if client.UserID != disconnectedHostID { // Host already disconnected
 			close(client.Send)
-			logging.Get().Debug("Closed connection for participant %s due to session termination", client.UserName)
+			logging.Get().Debug("Closed connection for participant %s due to session termination", client.UserID)
 		}
 	}
 
@@ -2166,12 +2180,12 @@ func (s *DiagramSession) broadcastSessionTermination(hostID string) {
 	if msgBytes, err := json.Marshal(terminationMsg); err == nil {
 		s.mu.RLock()
 		for client := range s.Clients {
-			if client.UserName != hostID { // Don't send to the disconnected host
+			if client.UserID != hostID { // Don't send to the disconnected host
 				select {
 				case client.Send <- msgBytes:
-					logging.Get().Debug("Sent session termination message to %s", client.UserName)
+					logging.Get().Debug("Sent session termination message to %s", client.UserID)
 				default:
-					logging.Get().Warn("Failed to send session termination message to %s (channel full)", client.UserName)
+					logging.Get().Warn("Failed to send session termination message to %s (channel full)", client.UserID)
 				}
 			}
 		}
@@ -2190,7 +2204,7 @@ func (s *DiagramSession) broadcastSessionTermination(hostID string) {
 	if msgBytes, err := json.Marshal(leaveMsg); err == nil {
 		s.mu.RLock()
 		for client := range s.Clients {
-			if client.UserName != hostID {
+			if client.UserID != hostID {
 				select {
 				case client.Send <- msgBytes:
 				default:
@@ -2224,7 +2238,7 @@ func (s *DiagramSession) findClientByUserID(userID string) *WebSocketClient {
 	defer s.mu.RUnlock()
 
 	for client := range s.Clients {
-		if client.UserName == userID {
+		if client.UserID == userID {
 			return client
 		}
 	}
@@ -2285,13 +2299,18 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 
 	// Add active WebSocket clients
 	for client := range s.Clients {
-		if processedUsers[client.UserName] {
+		if processedUsers[client.UserID] {
 			continue
 		}
 
 		var permissions string
 		if tm != nil {
-			perms := getSessionPermissionsForUser(client.UserName, tm)
+			// Use email for permission check for backwards compatibility
+			permissionCheckID := client.UserEmail
+			if permissionCheckID == "" {
+				permissionCheckID = client.UserID
+			}
+			perms := getSessionPermissionsForUser(permissionCheckID, tm)
 			if perms == nil {
 				// User is unauthorized, skip them
 				continue
@@ -2303,42 +2322,15 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 		}
 
 		participants = append(participants, Participant{
-			UserID:      client.UserName,
+			UserID:      client.UserID,
+			UserName:    client.UserName,
+			UserEmail:   client.UserEmail,
 			Permissions: permissions,
 			JoinedAt:    s.LastActivity, // Using session activity as join time for active clients
-			IsHost:      client.UserName == s.Host,
-			IsPresenter: client.UserName == s.CurrentPresenter,
+			IsHost:      client.UserID == s.Host,
+			IsPresenter: client.UserID == s.CurrentPresenter,
 		})
-		processedUsers[client.UserName] = true
-	}
-
-	// Add intended participants who aren't connected
-	for userName, joinTime := range s.IntendedParticipants {
-		if processedUsers[userName] {
-			continue
-		}
-
-		var permissions string
-		if tm != nil {
-			perms := getSessionPermissionsForUser(userName, tm)
-			if perms == nil {
-				// User is unauthorized, skip them
-				continue
-			}
-			permissions = string(*perms)
-		} else {
-			// No threat model, default to writer
-			permissions = "writer"
-		}
-
-		participants = append(participants, Participant{
-			UserID:      userName,
-			Permissions: permissions,
-			JoinedAt:    joinTime,
-			IsHost:      userName == s.Host,
-			IsPresenter: userName == s.CurrentPresenter,
-		})
-		processedUsers[userName] = true
+		processedUsers[client.UserID] = true
 	}
 
 	// Create and send the message
@@ -2388,7 +2380,12 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 
 		var permissions string
 		if tm != nil {
-			perms := getSessionPermissionsForUser(c.UserName, tm)
+			// Use email for permission check for backwards compatibility
+			permissionCheckID := c.UserEmail
+			if permissionCheckID == "" {
+				permissionCheckID = c.UserID
+			}
+			perms := getSessionPermissionsForUser(permissionCheckID, tm)
 			if perms == nil {
 				// User is unauthorized, skip them
 				continue
@@ -2400,42 +2397,15 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 		}
 
 		participants = append(participants, Participant{
-			UserID:      c.UserName,
+			UserID:      c.UserID,
+			UserName:    c.UserName,
+			UserEmail:   c.UserEmail,
 			Permissions: permissions,
 			JoinedAt:    s.LastActivity, // Using session activity as join time for active clients
-			IsHost:      c.UserName == s.Host,
-			IsPresenter: c.UserName == s.CurrentPresenter,
+			IsHost:      c.UserID == s.Host,
+			IsPresenter: c.UserID == s.CurrentPresenter,
 		})
-		processedUsers[c.UserName] = true
-	}
-
-	// Add intended participants who aren't connected
-	for userName, joinTime := range s.IntendedParticipants {
-		if processedUsers[userName] {
-			continue
-		}
-
-		var permissions string
-		if tm != nil {
-			perms := getSessionPermissionsForUser(userName, tm)
-			if perms == nil {
-				// User is unauthorized, skip them
-				continue
-			}
-			permissions = string(*perms)
-		} else {
-			// No threat model, default to writer
-			permissions = "writer"
-		}
-
-		participants = append(participants, Participant{
-			UserID:      userName,
-			Permissions: permissions,
-			JoinedAt:    joinTime,
-			IsHost:      userName == s.Host,
-			IsPresenter: userName == s.CurrentPresenter,
-		})
-		processedUsers[userName] = true
+		processedUsers[c.UserID] = true
 	}
 
 	// Create and send the message
@@ -2451,7 +2421,7 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 		select {
 		case client.Send <- msgBytes:
 		default:
-			logging.Get().Error("Failed to send participants update to client %s: send channel full", client.UserName)
+			logging.Get().Error("Failed to send participants update to client %s: send channel full", client.UserID)
 		}
 	} else {
 		logging.Get().Error("Failed to marshal participants update for client: %v", err)
@@ -2498,7 +2468,7 @@ func (s *DiagramSession) sendAuthorizationDenied(client *WebSocketClient, operat
 
 	// Record performance metrics
 	if GlobalPerformanceMonitor != nil {
-		GlobalPerformanceMonitor.RecordAuthorizationDenied(s.ID, client.UserName, reason)
+		GlobalPerformanceMonitor.RecordAuthorizationDenied(s.ID, client.UserID, reason)
 	}
 }
 
@@ -2513,10 +2483,15 @@ func (s *DiagramSession) sendStateCorrectionWithReason(client *WebSocketClient, 
 		return
 	}
 
-	logging.Get().Info("Sending state correction to %s for cells %v (reason: %s)", client.UserName, affectedCellIDs, reason)
+	logging.Get().Info("Sending state correction to %s for cells %v (reason: %s)", client.UserID, affectedCellIDs, reason)
 
 	// Check user permission level for enhanced messaging
-	userRole := s.getUserRole(client.UserName)
+	// Use email for permission check for backwards compatibility
+	permissionCheckID := client.UserEmail
+	if permissionCheckID == "" {
+		permissionCheckID = client.UserID
+	}
+	userRole := s.getUserRole(permissionCheckID)
 	s.sendEnhancedStateCorrection(client, affectedCellIDs, reason, userRole)
 }
 
@@ -2564,14 +2539,14 @@ func (s *DiagramSession) sendEnhancedStateCorrection(client *WebSocketClient, af
 		s.sendToClient(client, correctionMsg)
 
 		// Enhanced logging based on reason and user role
-		s.logEnhancedStateCorrection(client.UserName, reason, userRole, correctionsSent, len(affectedCellIDs)-correctionsSent, totalCells)
+		s.logEnhancedStateCorrection(client.UserID, reason, userRole, correctionsSent, len(affectedCellIDs)-correctionsSent, totalCells)
 
 		// Track correction frequency for potential sync issues
-		s.trackCorrectionEvent(client.UserName, reason)
+		s.trackCorrectionEvent(client.UserID, reason)
 
 		// Record performance metrics
 		if GlobalPerformanceMonitor != nil {
-			GlobalPerformanceMonitor.RecordStateCorrection(s.ID, client.UserName, reason, len(correctionCells))
+			GlobalPerformanceMonitor.RecordStateCorrection(s.ID, client.UserID, reason, len(correctionCells))
 		}
 	}
 }
@@ -2748,7 +2723,7 @@ func (s *DiagramSession) broadcastToAllClients(message interface{}) {
 		select {
 		case client.Send <- msgBytes:
 		default:
-			logging.Get().Info("Failed to send message to client %s", client.UserName)
+			logging.Get().Info("Failed to send message to client %s", client.UserID)
 		}
 	}
 }

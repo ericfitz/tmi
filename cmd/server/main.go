@@ -263,8 +263,8 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 			// Add user info to context
 			if sub, ok := claims["sub"].(string); ok {
-				logger.Debug("Authenticated user: %s", sub)
-				c.Set("userName", sub)
+				logger.Debug("Authenticated user ID: %s", sub)
+				c.Set("userID", sub)
 
 				// Extract role if present
 				if roleValue, hasRole := claims["role"]; hasRole {
@@ -274,25 +274,46 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 					}
 				}
 
+				// Extract display name if present
+				if nameValue, hasName := claims["name"]; hasName {
+					if name, ok := nameValue.(string); ok {
+						logger.Debug("User display name from token: %s", name)
+						c.Set("userDisplayName", name)
+					}
+				}
+
+				// Extract email if present
+				if emailValue, hasEmail := claims["email"]; hasEmail {
+					if email, ok := emailValue.(string); ok {
+						logger.Debug("User email from token: %s", email)
+						c.Set("userEmail", email)
+						// For backwards compatibility, also set userName to email
+						c.Set("userName", email)
+					}
+				}
+
 				// If auth handlers are available, fetch the full user object and set it in context
 				if authHandlers != nil {
-					// Get the auth service from the handlers to fetch user by email
-					// The 'sub' claim in our JWT is the user's email address
+					// Get the auth service from the handlers to fetch user by ID
+					// The 'sub' claim in our JWT is now the user's ID
 					dbManager := auth.GetDatabaseManager()
 					if dbManager != nil {
 						service, err := auth.NewService(dbManager, auth.ConfigFromUnified(cfg))
 						if err != nil {
 							logger.Debug("Failed to create auth service for user lookup: %v", err)
 						} else {
-							// Fetch the user by email (which is stored in 'sub' claim)
-							user, err := service.GetUserByEmail(c.Request.Context(), sub)
-							if err != nil {
-								logger.Debug("Failed to fetch user by email %s: %v", sub, err)
-							} else {
-								// Set the full user object in context using auth package's expected key
-								c.Set(string(auth.UserContextKey), user)
-								logger.Debug("Full user object set in context for user: %s", user.Email)
+							// If we have email from claims, use it. Otherwise try to get user by ID
+							if email := c.GetString("userEmail"); email != "" {
+								user, err := service.GetUserByEmail(c.Request.Context(), email)
+								if err != nil {
+									logger.Debug("Failed to fetch user by email %s: %v", email, err)
+								} else {
+									// Set the full user object in context using auth package's expected key
+									c.Set(string(auth.UserContextKey), user)
+									logger.Debug("Full user object set in context for user: %s", user.Email)
+								}
 							}
+							// TODO: Add GetUserByID method to service
 						}
 					}
 				}

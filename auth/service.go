@@ -106,7 +106,7 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		Picture:       user.Picture,
 		Locale:        user.Locale,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Subject:   user.Email,
+			Subject:   user.ID,
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
@@ -127,7 +127,7 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 
 	// Store the refresh token in Redis
 	refreshKey := fmt.Sprintf("refresh_token:%s", refreshToken)
-	err = s.dbManager.Redis().Set(ctx, refreshKey, user.Email, refreshDuration)
+	err = s.dbManager.Redis().Set(ctx, refreshKey, user.ID, refreshDuration)
 	if err != nil {
 		return TokenPair{}, fmt.Errorf("failed to store refresh token: %w", err)
 	}
@@ -172,9 +172,9 @@ func (s *Service) ValidateToken(tokenString string) (*Claims, error) {
 
 // RefreshToken refreshes an access token using a refresh token
 func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenPair, error) {
-	// Get the user email from Redis
+	// Get the user ID from Redis
 	refreshKey := fmt.Sprintf("refresh_token:%s", refreshToken)
-	email, err := s.dbManager.Redis().Get(ctx, refreshKey)
+	userID, err := s.dbManager.Redis().Get(ctx, refreshKey)
 	if err != nil {
 		return TokenPair{}, fmt.Errorf("invalid refresh token: %w", err)
 	}
@@ -185,7 +185,7 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 	}
 
 	// Get the user from the database
-	user, err := s.GetUserByEmail(ctx, email)
+	user, err := s.GetUserByID(ctx, userID)
 	if err != nil {
 		return TokenPair{}, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -214,6 +214,37 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 	var user User
 	query := `SELECT id, email, name, email_verified, given_name, family_name, picture, locale, created_at, modified_at, last_login FROM users WHERE email = $1`
 	err := db.QueryRowContext(ctx, query, email).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&user.EmailVerified,
+		&user.GivenName,
+		&user.FamilyName,
+		&user.Picture,
+		&user.Locale,
+		&user.CreatedAt,
+		&user.ModifiedAt,
+		&user.LastLogin,
+	)
+
+	if err == sql.ErrNoRows {
+		return User{}, errors.New("user not found")
+	}
+
+	if err != nil {
+		return User{}, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return user, nil
+}
+
+// GetUserByID gets a user by ID
+func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
+	db := s.dbManager.Postgres().GetDB()
+
+	var user User
+	query := `SELECT id, email, name, email_verified, given_name, family_name, picture, locale, created_at, modified_at, last_login FROM users WHERE id = $1`
+	err := db.QueryRowContext(ctx, query, id).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Name,

@@ -88,10 +88,31 @@ func (s *Server) RegisterHandlers(r *gin.Engine) {
 
 // HandleWebSocket handles WebSocket connections
 func (s *Server) HandleWebSocket(c *gin.Context) {
-	// Pass user name from context to WebSocket handler
-	if userID, exists := c.Get("userName"); exists {
-		if userName, ok := userID.(string); ok {
-			c.Set("user_name", userName)
+	// Pass user ID from context to WebSocket handler
+	if userID, exists := c.Get("userID"); exists {
+		if id, ok := userID.(string); ok {
+			c.Set("user_id", id)
+		}
+	}
+
+	// Pass user display name from context to WebSocket handler
+	if displayName, exists := c.Get("userDisplayName"); exists {
+		if name, ok := displayName.(string); ok {
+			c.Set("user_name", name)
+		}
+	}
+
+	// Pass user email from context to WebSocket handler
+	if userEmail, exists := c.Get("userEmail"); exists {
+		if email, ok := userEmail.(string); ok {
+			c.Set("user_email", email)
+		}
+	}
+
+	// For backwards compatibility, also pass userName (which is email)
+	if userName, exists := c.Get("userName"); exists {
+		if name, ok := userName.(string); ok {
+			c.Set("user_name_legacy", name)
 		}
 	}
 
