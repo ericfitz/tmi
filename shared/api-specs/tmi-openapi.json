@@ -1374,9 +1374,9 @@
                         "maxLength": 36,
                         "readOnly": true
                     },
-                    "session_manager": {
+                    "host": {
                         "type": "string",
-                        "description": "Username or identifier of the session manager (may be email address or other format)",
+                        "description": "Username or identifier of the host (may be email address or other format)",
                         "maxLength": 256,
                         "readOnly": true
                     },
@@ -1440,7 +1440,7 @@
                 },
                 "required": [
                     "session_id",
-                    "session_manager",
+                    "host",
                     "threat_model_id",
                     "threat_model_name",
                     "diagram_id",
@@ -1450,7 +1450,7 @@
                 ],
                 "example": {
                     "session_id": "D7744D3A-ED22-40AF-862B-29786CAD0007",
-                    "session_manager": "admin@example.com",
+                    "host": "admin@example.com",
                     "threat_model_id": "5311D207-AFD5-4A1A-BA83-14C1445DC257",
                     "threat_model_name": "E-commerce Platform Security Analysis",
                     "diagram_id": "DFF7F4A9-CBCE-4001-9198-2706C86F7EF3",
