@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/logging"
@@ -95,6 +96,9 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		}
 	}
 
+	// Derive the issuer from the OAuth callback URL
+	issuer := s.deriveIssuer()
+
 	// Create the JWT claims using the user's stored data
 	expirationTime := time.Now().Add(s.config.GetJWTDuration())
 	claims := &Claims{
@@ -106,7 +110,9 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		Picture:       user.Picture,
 		Locale:        user.Locale,
 		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    issuer,
 			Subject:   user.ID,
+			Audience:  jwt.ClaimStrings{issuer}, // The audience is the issuer itself for self-issued tokens
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
@@ -165,6 +171,24 @@ func (s *Service) ValidateToken(tokenString string) (*Claims, error) {
 	claims, ok := token.Claims.(*Claims)
 	if !ok {
 		return nil, errors.New("invalid token claims")
+	}
+
+	// Validate issuer
+	expectedIssuer := s.deriveIssuer()
+	if claims.Issuer != expectedIssuer {
+		return nil, fmt.Errorf("invalid token issuer: expected %s, got %s", expectedIssuer, claims.Issuer)
+	}
+
+	// Validate audience
+	audienceValid := false
+	for _, aud := range claims.Audience {
+		if aud == expectedIssuer {
+			audienceValid = true
+			break
+		}
+	}
+	if !audienceValid {
+		return nil, fmt.Errorf("invalid token audience: expected %s", expectedIssuer)
 	}
 
 	return claims, nil
@@ -562,4 +586,24 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 	}
 
 	return user, nil
+}
+
+// deriveIssuer derives the issuer URL from the OAuth callback URL
+func (s *Service) deriveIssuer() string {
+	// Parse the OAuth callback URL to extract the base URL
+	callbackURL := s.config.OAuth.CallbackURL
+	if callbackURL == "" {
+		// Fallback to a reasonable default
+		return "http://localhost:8080"
+	}
+
+	// Parse the URL
+	parsedURL, err := url.Parse(callbackURL)
+	if err != nil {
+		// If parsing fails, return the full callback URL
+		return callbackURL
+	}
+
+	// Return just the scheme and host (without path)
+	return fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
 }
