@@ -1440,8 +1440,12 @@
                     "diagram_name": "User Authentication Flow",
                     "participants": [
                         {
-                            "user_id": "user@example.com",
-                            "joined_at": "2025-04-06T12:02:00Z",
+                            "user": {
+                                "user_id": "oauth2|test|user123",
+                                "email": "admin@example.com",
+                                "displayName": "Admin User"
+                            },
+                            "last_activity": "2025-04-06T12:02:00Z",
                             "permissions": "writer"
                         }
                     ],
@@ -2307,7 +2311,7 @@
                 "properties": {
                     "user_id": {
                         "type": "string",
-                        "description": "Unique identifier for the user",
+                        "description": "OAuth provider's unique identifier for the user (from primary provider)",
                         "maxLength": 256
                     },
                     "email": {
@@ -3539,7 +3543,7 @@
                                                 "participants": [
                                                     {
                                                         "user": {
-                                                            "user_id": "alice@example.com",
+                                                            "user_id": "oauth2|google|118354289635789012345",
                                                             "email": "alice@example.com",
                                                             "displayName": "Alice Smith"
                                                         },
@@ -3548,7 +3552,7 @@
                                                     },
                                                     {
                                                         "user": {
-                                                            "user_id": "bob@example.com",
+                                                            "user_id": "oauth2|github|67890",
                                                             "email": "bob@example.com",
                                                             "displayName": "Bob Johnson"
                                                         },

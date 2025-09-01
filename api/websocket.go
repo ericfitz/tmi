@@ -117,7 +117,7 @@ type WebSocketClient struct {
 type WebSocketMessage struct {
 	// Type of message (update, join, leave, session_ended)
 	Event string `json:"event"`
-	// User who sent the message
+	// User who sent the message (legacy format - new messages should use User object)
 	UserID string `json:"user_id"`
 	// Diagram operation
 	Operation DiagramOperation `json:"operation,omitempty"`
@@ -1486,8 +1486,8 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 	}
 
 	// Validate message
-	if msg.UserID != client.UserID {
-		logging.Get().Info("User ID mismatch in diagram operation: %s != %s", msg.UserID, client.UserID)
+	if msg.User.UserId != client.UserID {
+		logging.Get().Info("User ID mismatch in diagram operation: %s != %s", msg.User.UserId, client.UserID)
 		return
 	}
 
@@ -1561,7 +1561,7 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 		if GlobalPerformanceMonitor != nil {
 			perf := &OperationPerformance{
 				OperationID:      msg.OperationID,
-				UserID:           msg.UserID,
+				UserID:           msg.User.UserId,
 				StartTime:        startTime,
 				TotalTime:        time.Since(startTime),
 				CellCount:        len(msg.Operation.Cells),
@@ -1580,7 +1580,7 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 	if GlobalPerformanceMonitor != nil {
 		perf := &OperationPerformance{
 			OperationID:      msg.OperationID,
-			UserID:           msg.UserID,
+			UserID:           msg.User.UserId,
 			StartTime:        startTime,
 			TotalTime:        time.Since(startTime),
 			CellCount:        len(msg.Operation.Cells),
@@ -1591,7 +1591,7 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 	}
 
 	logging.Get().Info("Successfully applied operation %s from %s with sequence %d",
-		msg.OperationID, msg.UserID, *msg.SequenceNumber)
+		msg.OperationID, msg.User.UserId, *msg.SequenceNumber)
 
 	// Broadcast to all other clients (not the sender)
 	s.broadcastToOthers(client, msg)
@@ -1606,8 +1606,8 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	}
 
 	// Validate user ID matches client
-	if msg.UserID != client.UserID {
-		logging.Get().Info("User ID mismatch in presenter request: %s != %s", msg.UserID, client.UserID)
+	if msg.User.UserId != client.UserID {
+		logging.Get().Info("User ID mismatch in presenter request: %s != %s", msg.User.UserId, client.UserID)
 		return
 	}
 
@@ -1617,24 +1617,24 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	s.mu.RUnlock()
 
 	// If user is already the presenter, ignore
-	if msg.UserID == currentPresenter {
-		logging.Get().Info("User %s is already the presenter", msg.UserID)
+	if msg.User.UserId == currentPresenter {
+		logging.Get().Info("User %s is already the presenter", msg.User.UserId)
 		return
 	}
 
 	// If user is the host, automatically grant presenter mode
-	if msg.UserID == host {
+	if msg.User.UserId == host {
 		s.mu.Lock()
-		s.CurrentPresenter = msg.UserID
+		s.CurrentPresenter = msg.User.UserId
 		s.mu.Unlock()
 
 		// Broadcast new presenter to all clients
 		broadcastMsg := CurrentPresenterMessage{
 			MessageType:      "current_presenter",
-			CurrentPresenter: msg.UserID,
+			CurrentPresenter: msg.User.UserId,
 		}
 		s.broadcastMessage(broadcastMsg)
-		logging.Get().Info("Host %s became presenter in session %s", msg.UserID, s.ID)
+		logging.Get().Info("Host %s became presenter in session %s", msg.User.UserId, s.ID)
 
 		// Also broadcast updated participant list since presenter has changed
 		s.broadcastParticipantsUpdate()
@@ -1647,15 +1647,19 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	if hostClient != nil {
 		// Forward the request to the host for approval
 		s.sendToClient(hostClient, msg)
-		logging.Get().Info("Forwarded presenter request from %s to host %s in session %s", msg.UserID, host, s.ID)
+		logging.Get().Info("Forwarded presenter request from %s to host %s in session %s", msg.User.UserId, host, s.ID)
 	} else {
-		logging.Get().Info("Host %s not connected, cannot process presenter request from %s", host, msg.UserID)
+		logging.Get().Info("Host %s not connected, cannot process presenter request from %s", host, msg.User.UserId)
 
 		// Send denial to requester since host is not available
 		deniedMsg := PresenterDeniedMessage{
 			MessageType: "presenter_denied",
-			UserID:      "system",
-			TargetUser:  msg.UserID,
+			User: User{
+				UserId:      "system",
+				Email:       "system@tmi",
+				DisplayName: "System",
+			},
+			TargetUser: msg.User.UserId,
 		}
 		s.sendToClient(client, deniedMsg)
 	}
@@ -1715,8 +1719,8 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	}
 
 	// Validate user ID matches client (sender should be host)
-	if msg.UserID != client.UserID {
-		logging.Get().Info("User ID mismatch in presenter denied: %s != %s", msg.UserID, client.UserID)
+	if msg.User.UserId != client.UserID {
+		logging.Get().Info("User ID mismatch in presenter denied: %s != %s", msg.User.UserId, client.UserID)
 		return
 	}
 
@@ -1724,7 +1728,7 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	targetClient := s.findClientByUserID(msg.TargetUser)
 	if targetClient != nil {
 		s.sendToClient(targetClient, msg)
-		logging.Get().Info("Host %s denied presenter request from %s in session %s", msg.UserID, msg.TargetUser, s.ID)
+		logging.Get().Info("Host %s denied presenter request from %s in session %s", msg.User.UserId, msg.TargetUser, s.ID)
 	} else {
 		logging.Get().Info("Target user %s not found for presenter denial in session %s", msg.TargetUser, s.ID)
 	}
@@ -1739,8 +1743,8 @@ func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message
 	}
 
 	// Validate user ID matches client
-	if msg.UserID != client.UserID {
-		logging.Get().Info("User ID mismatch in presenter cursor: %s != %s", msg.UserID, client.UserID)
+	if msg.User.UserId != client.UserID {
+		logging.Get().Info("User ID mismatch in presenter cursor: %s != %s", msg.User.UserId, client.UserID)
 		return
 	}
 
@@ -1767,8 +1771,8 @@ func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, mess
 	}
 
 	// Validate user ID matches client
-	if msg.UserID != client.UserID {
-		logging.Get().Info("User ID mismatch in presenter selection: %s != %s", msg.UserID, client.UserID)
+	if msg.User.UserId != client.UserID {
+		logging.Get().Info("User ID mismatch in presenter selection: %s != %s", msg.User.UserId, client.UserID)
 		return
 	}
 
@@ -1795,8 +1799,8 @@ func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message [
 	}
 
 	// Validate user ID matches client
-	if msg.UserID != client.UserID {
-		logging.Get().Info("User ID mismatch in resync request: %s != %s", msg.UserID, client.UserID)
+	if msg.User.UserId != client.UserID {
+		logging.Get().Info("User ID mismatch in resync request: %s != %s", msg.User.UserId, client.UserID)
 		return
 	}
 
@@ -1805,20 +1809,24 @@ func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message [
 	// According to the plan, we use REST API for resync for simplicity
 	// Send a message telling the client to use the REST endpoint for resync
 	resyncResponse := ResyncResponseMessage{
-		MessageType:   "resync_response",
-		UserID:        "system",
-		TargetUser:    msg.UserID,
+		MessageType: "resync_response",
+		User: User{
+			UserId:      "system",
+			Email:       "system@tmi",
+			DisplayName: "System",
+		},
+		TargetUser:    msg.User.UserId,
 		Method:        "rest_api",
 		DiagramID:     s.DiagramID,
 		ThreatModelID: s.ThreatModelID,
 	}
 
 	s.sendToClient(client, resyncResponse)
-	logging.Get().Info("Sent resync response to %s for diagram %s", msg.UserID, s.DiagramID)
+	logging.Get().Info("Sent resync response to %s for diagram %s", msg.User.UserId, s.DiagramID)
 
 	// Record performance metrics
 	if GlobalPerformanceMonitor != nil {
-		GlobalPerformanceMonitor.RecordResyncRequest(s.ID, msg.UserID)
+		GlobalPerformanceMonitor.RecordResyncRequest(s.ID, msg.User.UserId)
 	}
 }
 
@@ -1831,8 +1839,8 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 	}
 
 	// Validate user ID matches client
-	if msg.UserID != client.UserID {
-		logging.Get().Info("User ID mismatch in undo request: %s != %s", msg.UserID, client.UserID)
+	if msg.User.UserId != client.UserID {
+		logging.Get().Info("User ID mismatch in undo request: %s != %s", msg.User.UserId, client.UserID)
 		return
 	}
 
@@ -1910,8 +1918,8 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 	}
 
 	// Validate user ID matches client
-	if msg.UserID != client.UserID {
-		logging.Get().Info("User ID mismatch in redo request: %s != %s", msg.UserID, client.UserID)
+	if msg.User.UserId != client.UserID {
+		logging.Get().Info("User ID mismatch in redo request: %s != %s", msg.User.UserId, client.UserID)
 		return
 	}
 
@@ -2611,8 +2619,12 @@ func (s *DiagramSession) sendResyncRecommendation(userID, issueType string) {
 
 	// Send a resync response message to recommend the client resync via REST API
 	resyncResponse := ResyncResponseMessage{
-		MessageType:   "resync_response",
-		UserID:        "system",
+		MessageType: "resync_response",
+		User: User{
+			UserId:      "system",
+			Email:       "system@tmi",
+			DisplayName: "System",
+		},
 		TargetUser:    userID,
 		Method:        "rest_api",
 		DiagramID:     s.DiagramID,
@@ -3095,7 +3107,7 @@ func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOper
 	s.addToHistory(msg, result.PreviousState, currentState)
 
 	logging.Get().Info("Successfully applied operation %s from %s with sequence %d",
-		msg.OperationID, msg.UserID, *msg.SequenceNumber)
+		msg.OperationID, msg.User.UserId, *msg.SequenceNumber)
 
 	return true
 }
@@ -3395,7 +3407,7 @@ func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, previousState
 	entry := &HistoryEntry{
 		SequenceNumber: *msg.SequenceNumber,
 		OperationID:    msg.OperationID,
-		UserID:         msg.UserID,
+		UserID:         msg.User.UserId,
 		Timestamp:      time.Now().UTC(),
 		Operation:      msg.Operation,
 		PreviousState:  previousState,

@@ -16,7 +16,11 @@ func TestDiagramOperationMessage(t *testing.T) {
 	t.Run("Valid Message", func(t *testing.T) {
 		msg := DiagramOperationMessage{
 			MessageType: MessageTypeDiagramOperation,
-			UserID:      "test@example.com",
+			User: User{
+				UserId:      "oauth2|test|user123",
+				Email:       "test@example.com",
+				DisplayName: "Test User",
+			},
 			OperationID: operationID,
 			Operation: CellPatchOperation{
 				Type: "patch",
@@ -41,7 +45,11 @@ func TestDiagramOperationMessage(t *testing.T) {
 	t.Run("Invalid Message Type", func(t *testing.T) {
 		msg := DiagramOperationMessage{
 			MessageType: "invalid",
-			UserID:      "test@example.com",
+			User: User{
+				UserId:      "oauth2|test|user123",
+				Email:       "test@example.com",
+				DisplayName: "Test User",
+			},
 			OperationID: operationID,
 		}
 
@@ -64,7 +72,11 @@ func TestDiagramOperationMessage(t *testing.T) {
 	t.Run("Invalid Operation ID", func(t *testing.T) {
 		msg := DiagramOperationMessage{
 			MessageType: MessageTypeDiagramOperation,
-			UserID:      "test@example.com",
+			User: User{
+				UserId:      "oauth2|test|user123",
+				Email:       "test@example.com",
+				DisplayName: "Test User",
+			},
 			OperationID: "invalid-uuid",
 		}
 
@@ -195,7 +207,11 @@ func TestPresenterMessages(t *testing.T) {
 	t.Run("Presenter Request", func(t *testing.T) {
 		msg := PresenterRequestMessage{
 			MessageType: MessageTypePresenterRequest,
-			UserID:      "test@example.com",
+			User: User{
+				UserId:      "oauth2|test|user123",
+				Email:       "test@example.com",
+				DisplayName: "Test User",
+			},
 		}
 
 		err := msg.Validate()
@@ -206,7 +222,11 @@ func TestPresenterMessages(t *testing.T) {
 	t.Run("Presenter Cursor", func(t *testing.T) {
 		msg := PresenterCursorMessage{
 			MessageType: MessageTypePresenterCursor,
-			UserID:      "presenter@example.com",
+			User: User{
+				UserId:      "oauth2|test|presenter789",
+				Email:       "presenter@example.com",
+				DisplayName: "Presenter User",
+			},
 			CursorPosition: CursorPosition{
 				X: 100.5,
 				Y: 200.5,
@@ -222,8 +242,12 @@ func TestPresenterMessages(t *testing.T) {
 		cellID2 := uuid.New().String()
 
 		msg := PresenterSelectionMessage{
-			MessageType:   MessageTypePresenterSelection,
-			UserID:        "presenter@example.com",
+			MessageType: MessageTypePresenterSelection,
+			User: User{
+				UserId:      "oauth2|test|presenter789",
+				Email:       "presenter@example.com",
+				DisplayName: "Presenter User",
+			},
 			SelectedCells: []string{cellID1, cellID2},
 		}
 
@@ -233,8 +257,12 @@ func TestPresenterMessages(t *testing.T) {
 
 	t.Run("Presenter Selection Invalid UUID", func(t *testing.T) {
 		msg := PresenterSelectionMessage{
-			MessageType:   MessageTypePresenterSelection,
-			UserID:        "presenter@example.com",
+			MessageType: MessageTypePresenterSelection,
+			User: User{
+				UserId:      "oauth2|test|presenter789",
+				Email:       "presenter@example.com",
+				DisplayName: "Presenter User",
+			},
 			SelectedCells: []string{"invalid-uuid"},
 		}
 
@@ -251,7 +279,11 @@ func TestMessageParser(t *testing.T) {
 
 		originalMsg := DiagramOperationMessage{
 			MessageType: MessageTypeDiagramOperation,
-			UserID:      "test@example.com",
+			User: User{
+				UserId:      "oauth2|test|user123",
+				Email:       "test@example.com",
+				DisplayName: "Test User",
+			},
 			OperationID: operationID,
 			Operation: CellPatchOperation{
 				Type: "patch",
@@ -280,7 +312,7 @@ func TestMessageParser(t *testing.T) {
 		require.True(t, ok)
 
 		assert.Equal(t, originalMsg.MessageType, diagMsg.MessageType)
-		assert.Equal(t, originalMsg.UserID, diagMsg.UserID)
+		assert.Equal(t, originalMsg.User.UserId, diagMsg.User.UserId)
 		assert.Equal(t, originalMsg.OperationID, diagMsg.OperationID)
 		assert.Len(t, diagMsg.Operation.Cells, 1)
 	})
@@ -288,7 +320,11 @@ func TestMessageParser(t *testing.T) {
 	t.Run("Parse Presenter Request", func(t *testing.T) {
 		originalMsg := PresenterRequestMessage{
 			MessageType: MessageTypePresenterRequest,
-			UserID:      "test@example.com",
+			User: User{
+				UserId:      "oauth2|test|user123",
+				Email:       "test@example.com",
+				DisplayName: "Test User",
+			},
 		}
 
 		// Marshal to JSON
@@ -303,7 +339,7 @@ func TestMessageParser(t *testing.T) {
 		require.True(t, ok)
 
 		assert.Equal(t, originalMsg.MessageType, presMsg.MessageType)
-		assert.Equal(t, originalMsg.UserID, presMsg.UserID)
+		assert.Equal(t, originalMsg.User.UserId, presMsg.User.UserId)
 	})
 
 	t.Run("Parse Invalid JSON", func(t *testing.T) {
@@ -323,7 +359,7 @@ func TestMessageParser(t *testing.T) {
 	})
 
 	t.Run("Parse Invalid Message Content", func(t *testing.T) {
-		data := []byte(`{"message_type": "diagram_operation", "user_id": ""}`)
+		data := []byte(`{"message_type": "diagram_operation", "user": {"user_id": "", "email": "", "displayName": ""}}`)
 
 		_, err := ParseAsyncMessage(data)
 		assert.Error(t, err)
@@ -335,7 +371,11 @@ func TestMarshalAsyncMessage(t *testing.T) {
 	t.Run("Marshal Valid Message", func(t *testing.T) {
 		msg := PresenterRequestMessage{
 			MessageType: MessageTypePresenterRequest,
-			UserID:      "test@example.com",
+			User: User{
+				UserId:      "oauth2|test|user123",
+				Email:       "test@example.com",
+				DisplayName: "Test User",
+			},
 		}
 
 		data, err := MarshalAsyncMessage(msg)
@@ -346,13 +386,20 @@ func TestMarshalAsyncMessage(t *testing.T) {
 		err = json.Unmarshal(data, &parsed)
 		assert.NoError(t, err)
 		assert.Equal(t, string(MessageTypePresenterRequest), parsed["message_type"])
-		assert.Equal(t, "test@example.com", parsed["user_id"])
+		userObj, ok := parsed["user"].(map[string]interface{})
+		assert.True(t, ok, "user should be an object")
+		assert.Equal(t, "oauth2|test|user123", userObj["user_id"])
+		assert.Equal(t, "test@example.com", userObj["email"])
 	})
 
 	t.Run("Marshal Invalid Message", func(t *testing.T) {
 		msg := PresenterRequestMessage{
 			MessageType: MessageTypePresenterRequest,
-			UserID:      "", // Invalid - missing user_id
+			User: User{
+				UserId:      "", // Invalid - missing user_id
+				Email:       "",
+				DisplayName: "",
+			},
 		}
 
 		_, err := MarshalAsyncMessage(msg)

@@ -68,8 +68,8 @@ func (m *Middleware) AuthRequired() gin.HandlerFunc {
 		// Set the claims in the context
 		c.Set(string(ClaimsContextKey), claims)
 
-		// Get the user from the database
-		user, err := m.service.GetUserByEmail(c.Request.Context(), claims.Email)
+		// Get the user from the database with provider ID
+		user, err := m.service.GetUserWithProviderID(c.Request.Context(), claims.Email)
 		if err != nil {
 			// If the user is not found, we'll still allow the request to proceed
 			// but we won't set the user in the context
@@ -219,8 +219,8 @@ func (m *Middleware) RequireAdminAuth(cfg *config.Config) gin.HandlerFunc {
 		// Set claims and user in context
 		c.Set(string(ClaimsContextKey), claims)
 
-		// Get the user from the database
-		user, err := m.service.GetUserByEmail(c.Request.Context(), claims.Email)
+		// Get the user from the database with provider ID
+		user, err := m.service.GetUserWithProviderID(c.Request.Context(), claims.Email)
 		if err == nil {
 			c.Set(string(UserContextKey), user)
 		}
@@ -279,8 +279,8 @@ func (m *Middleware) RequireAdminAuthAPI(cfg *config.Config) gin.HandlerFunc {
 		// Set claims and user in context
 		c.Set(string(ClaimsContextKey), claims)
 
-		// Get the user from the database
-		user, err := m.service.GetUserByEmail(c.Request.Context(), claims.Email)
+		// Get the user from the database with provider ID
+		user, err := m.service.GetUserWithProviderID(c.Request.Context(), claims.Email)
 		if err == nil {
 			c.Set(string(UserContextKey), user)
 		}

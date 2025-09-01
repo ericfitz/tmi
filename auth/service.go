@@ -293,6 +293,51 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 	return user, nil
 }
 
+// GetUserWithProviderID gets a user by email with their primary provider ID
+func (s *Service) GetUserWithProviderID(ctx context.Context, email string) (User, error) {
+	db := s.dbManager.Postgres().GetDB()
+
+	var user User
+	var providerUserID sql.NullString
+	query := `
+		SELECT u.id, u.email, u.name, u.email_verified, u.given_name, u.family_name, 
+		       u.picture, u.locale, u.created_at, u.modified_at, u.last_login,
+		       up.provider_user_id
+		FROM users u
+		LEFT JOIN user_providers up ON u.id = up.user_id AND up.is_primary = true
+		WHERE u.email = $1
+	`
+	err := db.QueryRowContext(ctx, query, email).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&user.EmailVerified,
+		&user.GivenName,
+		&user.FamilyName,
+		&user.Picture,
+		&user.Locale,
+		&user.CreatedAt,
+		&user.ModifiedAt,
+		&user.LastLogin,
+		&providerUserID,
+	)
+
+	if err == sql.ErrNoRows {
+		return User{}, errors.New("user not found")
+	}
+
+	if err != nil {
+		return User{}, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Use provider ID as the external user ID if available, otherwise use internal ID
+	if providerUserID.Valid {
+		user.ID = providerUserID.String
+	}
+
+	return user, nil
+}
+
 // CreateUser creates a new user
 func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 	db := s.dbManager.Postgres().GetDB()
