@@ -109,6 +109,8 @@ type WebSocketClient struct {
 	UserEmail string
 	// Buffered channel of outbound messages
 	Send chan []byte
+	// Last activity timestamp
+	LastActivity time.Time
 }
 
 // WebSocketMessage represents the legacy message format (kept for backward compatibility)
@@ -511,11 +513,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 		}
 
 		// Convert clients to participants
-		participants := make([]struct {
-			JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
-			Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
-			UserId      *string                                      `json:"user_id,omitempty"`
-		}, 0, len(session.Clients))
+		participants := make([]Participant, 0, len(session.Clients))
 
 		// Get the threat model to check permissions for participants
 		var tm *ThreatModel
@@ -526,34 +524,10 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 		}
 
 		for client := range session.Clients {
-			// Get user's session permissions using existing auth system
-			var permissions *CollaborationSessionParticipantsPermissions
-			if tm != nil {
-				// Use email for permission check for backwards compatibility
-				permissionCheckID := client.UserEmail
-				if permissionCheckID == "" {
-					permissionCheckID = client.UserID
-				}
-				permissions = getSessionPermissionsForUser(permissionCheckID, tm)
-				if permissions == nil {
-					// User is unauthorized, skip them
-					continue
-				}
-			} else {
-				// Fallback to writer permissions if threat model not available
-				writerPerms := CollaborationSessionParticipantsPermissionsWriter
-				permissions = &writerPerms
+			participant := convertClientToParticipant(client, session, tm)
+			if participant != nil {
+				participants = append(participants, *participant)
 			}
-
-			participants = append(participants, struct {
-				JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
-				Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
-				UserId      *string                                      `json:"user_id,omitempty"`
-			}{
-				JoinedAt:    &session.LastActivity,
-				Permissions: permissions,
-				UserId:      &client.UserID,
-			})
 		}
 
 		// Get threat model ID from diagram
@@ -569,6 +543,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 		sessions = append(sessions, CollaborationSession{
 			SessionId:     &sessionUUID,
 			Host:          &session.Host,
+			Presenter:     &session.CurrentPresenter,
 			DiagramId:     diagramUUID,
 			ThreatModelId: threatModelId,
 			Participants:  participants,
@@ -580,20 +555,52 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 	return sessions
 }
 
+// convertClientToParticipant converts a WebSocket client to a Participant
+func convertClientToParticipant(client *WebSocketClient, session *DiagramSession, tm *ThreatModel) *Participant {
+	// Get user's session permissions using existing auth system
+	var permissions ParticipantPermissions
+	if tm != nil {
+		// Use email for permission check for backwards compatibility
+		permissionCheckID := client.UserEmail
+		if permissionCheckID == "" {
+			permissionCheckID = client.UserID
+		}
+		permsPtr := getSessionPermissionsForUser(permissionCheckID, tm)
+		if permsPtr == nil {
+			// User is unauthorized
+			return nil
+		}
+		permissions = *permsPtr
+	} else {
+		// Fallback to writer permissions if threat model not available
+		permissions = ParticipantPermissionsWriter
+	}
+
+	return &Participant{
+		User: User{
+			UserId:      client.UserID,
+			Email:       client.UserEmail,
+			DisplayName: client.UserName,
+		},
+		Permissions:  permissions,
+		LastActivity: client.LastActivity,
+	}
+}
+
 // getSessionPermissionsForUser determines session permissions using the existing auth system
-func getSessionPermissionsForUser(userName string, tm *ThreatModel) *CollaborationSessionParticipantsPermissions {
+func getSessionPermissionsForUser(userName string, tm *ThreatModel) *ParticipantPermissions {
 	// Use the existing AccessCheck system to determine permissions
 	// Check for writer/resource owner access first (highest permission)
 	hasWriterAccess, err := CheckResourceAccess(userName, tm, RoleWriter)
 	if err == nil && hasWriterAccess {
-		permissions := CollaborationSessionParticipantsPermissionsWriter
+		permissions := ParticipantPermissionsWriter
 		return &permissions
 	}
 
 	// Check for reader access (lowest permission that grants session access)
 	hasReaderAccess, err := CheckResourceAccess(userName, tm, RoleReader)
 	if err == nil && hasReaderAccess {
-		permissions := CollaborationSessionParticipantsPermissionsReader
+		permissions := ParticipantPermissionsReader
 		return &permissions
 	}
 
@@ -640,63 +647,36 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 	}
 
 	// Convert clients to participants with proper permissions
-	participants := make([]struct {
-		JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
-		Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
-		UserId      *string                                      `json:"user_id,omitempty"`
-	}, 0, len(session.Clients))
+	participants := make([]Participant, 0, len(session.Clients))
 
 	// Track users already processed to avoid duplicates
 	processedUsers := make(map[string]bool)
 
 	// First, add users from active WebSocket clients
 	for client := range session.Clients {
-		// Get user's session permissions using existing auth system
-		// Use email for permission check for backwards compatibility
-		permissionCheckID := client.UserEmail
-		if permissionCheckID == "" {
-			permissionCheckID = client.UserID
+		participant := convertClientToParticipant(client, session, &tm)
+		if participant != nil {
+			participants = append(participants, *participant)
+			processedUsers[client.UserID] = true
 		}
-		permissions := getSessionPermissionsForUser(permissionCheckID, &tm)
-
-		if permissions == nil {
-			// User is unauthorized, skip them
-			continue
-		}
-
-		processedUsers[client.UserID] = true
-
-		participants = append(participants, struct {
-			JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
-			Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
-			UserId      *string                                      `json:"user_id,omitempty"`
-		}{
-			JoinedAt:    &session.LastActivity,
-			Permissions: permissions,
-			UserId:      &client.UserID,
-		})
 	}
 
 	// Finally, ensure current user is included if not already processed
 	if currentUser != "" && !processedUsers[currentUser] {
-		permissions := getSessionPermissionsForUser(currentUser, &tm)
-
-		if permissions == nil {
+		// Create a temporary client for the current user
+		tempClient := &WebSocketClient{
+			UserID:    currentUser,
+			UserEmail: currentUser, // Using currentUser as email for backwards compatibility
+			UserName:  currentUser, // Default to user ID if name not available
+		}
+		participant := convertClientToParticipant(tempClient, session, &tm)
+		if participant == nil {
 			// Current user is unauthorized
 			return nil, fmt.Errorf("user %s is not authorized to access this threat model", currentUser)
 		}
-
-		joinTime := time.Now().UTC()
-
-		participants = append(participants, struct {
-			JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
-			Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
-			UserId      *string                                      `json:"user_id,omitempty"`
-		}{
-			JoinedAt:    &joinTime,
-			Permissions: permissions,
-			UserId:      &currentUser,
-		})
+		// Set the last activity to now since this is a new participant
+		participant.LastActivity = time.Now().UTC()
+		participants = append(participants, *participant)
 	}
 
 	// Convert session ID to UUID
@@ -708,6 +688,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 	collaborationSession := &CollaborationSession{
 		SessionId:       &sessionUUID,
 		Host:            &session.Host,
+		Presenter:       &session.CurrentPresenter,
 		DiagramId:       diagramUUID,
 		DiagramName:     diagramName,
 		ThreatModelId:   threatModelId,
@@ -775,35 +756,13 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 		}
 
 		// Convert clients to participants - include sessions even with no clients
-		participants := make([]struct {
-			JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
-			Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
-			UserId      *string                                      `json:"user_id,omitempty"`
-		}, 0, len(session.Clients))
+		participants := make([]Participant, 0, len(session.Clients))
 
 		for client := range session.Clients {
-			// Get user's session permissions using existing auth system
-			// Use email for permission check for backwards compatibility
-			permissionCheckID := client.UserEmail
-			if permissionCheckID == "" {
-				permissionCheckID = client.UserID
+			participant := convertClientToParticipant(client, session, &tm)
+			if participant != nil {
+				participants = append(participants, *participant)
 			}
-			permissions := getSessionPermissionsForUser(permissionCheckID, &tm)
-
-			if permissions == nil {
-				// User is unauthorized, skip them
-				continue
-			}
-
-			participants = append(participants, struct {
-				JoinedAt    *time.Time                                   `json:"joined_at,omitempty"`
-				Permissions *CollaborationSessionParticipantsPermissions `json:"permissions,omitempty"`
-				UserId      *string                                      `json:"user_id,omitempty"`
-			}{
-				JoinedAt:    &session.LastActivity,
-				Permissions: permissions,
-				UserId:      &client.UserID,
-			})
 		}
 
 		// Convert session ID to UUID
@@ -816,6 +775,7 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 		sessions = append(sessions, CollaborationSession{
 			SessionId:       &sessionUUID,
 			Host:            &session.Host,
+			Presenter:       &session.CurrentPresenter,
 			DiagramId:       diagramUUID,
 			DiagramName:     diagramName,
 			ThreatModelId:   threatModelId,
@@ -1343,13 +1303,14 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 
 	// Create client
 	client := &WebSocketClient{
-		Hub:       h,
-		Session:   session,
-		Conn:      conn,
-		UserID:    userIDStr,
-		UserName:  userNameStr,
-		UserEmail: userEmailStr,
-		Send:      make(chan []byte, 256),
+		Hub:          h,
+		Session:      session,
+		Conn:         conn,
+		UserID:       userIDStr,
+		UserName:     userNameStr,
+		UserEmail:    userEmailStr,
+		Send:         make(chan []byte, 256),
+		LastActivity: time.Now().UTC(),
 	}
 
 	// Register client
@@ -2292,7 +2253,7 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 	defer s.mu.RUnlock()
 
 	// Build participant list
-	participants := make([]Participant, 0)
+	participants := make([]AsyncParticipant, 0)
 
 	// Get threat model for permissions checking
 	var tm *ThreatModel
@@ -2329,14 +2290,14 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 			permissions = "writer"
 		}
 
-		participants = append(participants, Participant{
-			UserID:      client.UserID,
-			UserName:    client.UserName,
-			UserEmail:   client.UserEmail,
-			Permissions: permissions,
-			JoinedAt:    s.LastActivity, // Using session activity as join time for active clients
-			IsHost:      client.UserID == s.Host,
-			IsPresenter: client.UserID == s.CurrentPresenter,
+		participants = append(participants, AsyncParticipant{
+			User: AsyncUser{
+				UserID:      client.UserID,
+				DisplayName: client.UserName,
+				Email:       client.UserEmail,
+			},
+			Permissions:  permissions,
+			LastActivity: client.LastActivity,
 		})
 		processedUsers[client.UserID] = true
 	}
@@ -2367,7 +2328,7 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 	defer s.mu.RUnlock()
 
 	// Build participant list
-	participants := make([]Participant, 0)
+	participants := make([]AsyncParticipant, 0)
 
 	// Get threat model for permissions checking
 	var tm *ThreatModel
@@ -2404,14 +2365,14 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 			permissions = "writer"
 		}
 
-		participants = append(participants, Participant{
-			UserID:      c.UserID,
-			UserName:    c.UserName,
-			UserEmail:   c.UserEmail,
-			Permissions: permissions,
-			JoinedAt:    s.LastActivity, // Using session activity as join time for active clients
-			IsHost:      c.UserID == s.Host,
-			IsPresenter: c.UserID == s.CurrentPresenter,
+		participants = append(participants, AsyncParticipant{
+			User: AsyncUser{
+				UserID:      c.UserID,
+				DisplayName: c.UserName,
+				Email:       c.UserEmail,
+			},
+			Permissions:  permissions,
+			LastActivity: c.LastActivity,
 		})
 		processedUsers[c.UserID] = true
 	}
@@ -3585,6 +3546,9 @@ func (c *WebSocketClient) ReadPump() {
 			}
 			break
 		}
+
+		// Update last activity timestamp
+		c.LastActivity = time.Now().UTC()
 
 		// Log inbound WebSocket message
 		if c.Session != nil && c.Hub != nil {

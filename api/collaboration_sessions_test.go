@@ -268,8 +268,7 @@ func TestHandleCollaborationSessions(t *testing.T) {
 
 					// Check that participants have user IDs
 					for _, participant := range session.Participants {
-						assert.NotNil(t, participant.UserId, "participant should have user_id")
-						assert.NotEmpty(t, *participant.UserId, "participant user_id should not be empty")
+						assert.NotEmpty(t, participant.User.UserId, "participant should have user_id")
 					}
 				}
 			}
@@ -315,5 +314,5 @@ func TestWebSocketHub_GetActiveSessions(t *testing.T) {
 	session := sessions[0]
 	assert.Equal(t, validDiagramID, session.DiagramId.String())
 	assert.Len(t, session.Participants, 1)
-	assert.Equal(t, "test@example.com", *session.Participants[0].UserId)
+	assert.Equal(t, "test@example.com", session.Participants[0].User.UserId)
 }

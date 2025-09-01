@@ -397,23 +397,26 @@ func (m RedoRequestMessage) Validate() error {
 	return nil
 }
 
-// Participant represents a session participant with their roles
-type Participant struct {
-	UserID      string    `json:"user_id"`
-	UserName    string    `json:"user_name"`
-	UserEmail   string    `json:"user_email"`
-	Permissions string    `json:"permissions"`
-	JoinedAt    time.Time `json:"joined_at"`
-	IsHost      bool      `json:"is_host"`
-	IsPresenter bool      `json:"is_presenter"`
+// AsyncParticipant represents a participant in the AsyncAPI format
+type AsyncParticipant struct {
+	User         AsyncUser `json:"user"`
+	Permissions  string    `json:"permissions"`
+	LastActivity time.Time `json:"last_activity"`
+}
+
+// AsyncUser represents user information in AsyncAPI format
+type AsyncUser struct {
+	UserID      string `json:"user_id"`
+	DisplayName string `json:"displayName"`
+	Email       string `json:"email"`
 }
 
 // ParticipantsUpdateMessage provides complete participant list with roles
 type ParticipantsUpdateMessage struct {
-	MessageType      MessageType   `json:"message_type"`
-	Participants     []Participant `json:"participants"`
-	Host             string        `json:"host"`
-	CurrentPresenter string        `json:"current_presenter"`
+	MessageType      MessageType        `json:"message_type"`
+	Participants     []AsyncParticipant `json:"participants"`
+	Host             string             `json:"host"`
+	CurrentPresenter string             `json:"current_presenter"`
 }
 
 func (m ParticipantsUpdateMessage) GetMessageType() MessageType { return m.MessageType }
@@ -428,20 +431,20 @@ func (m ParticipantsUpdateMessage) Validate() error {
 	// Current presenter can be empty
 	// Validate participants
 	for i, p := range m.Participants {
-		if p.UserID == "" {
-			return fmt.Errorf("participant[%d].user_id is required", i)
+		if p.User.UserID == "" {
+			return fmt.Errorf("participant[%d].user.user_id is required", i)
 		}
-		if p.UserName == "" {
-			return fmt.Errorf("participant[%d].user_name is required", i)
+		if p.User.DisplayName == "" {
+			return fmt.Errorf("participant[%d].user.displayName is required", i)
 		}
-		if p.UserEmail == "" {
-			return fmt.Errorf("participant[%d].user_email is required", i)
+		if p.User.Email == "" {
+			return fmt.Errorf("participant[%d].user.email is required", i)
 		}
 		if p.Permissions != "reader" && p.Permissions != "writer" {
 			return fmt.Errorf("participant[%d].permissions must be 'reader' or 'writer', got '%s'", i, p.Permissions)
 		}
-		if p.JoinedAt.IsZero() {
-			return fmt.Errorf("participant[%d].joined_at is required", i)
+		if p.LastActivity.IsZero() {
+			return fmt.Errorf("participant[%d].last_activity is required", i)
 		}
 	}
 	return nil
