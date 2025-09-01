@@ -61,9 +61,9 @@ func testPhase1BasicOperations(t *testing.T, suite *SubEntityIntegrationTestSuit
 	operation := DiagramOperationMessage{
 		MessageType: "diagram_operation",
 		User: User{
-			UserId:      "oauth2|test|user1",
-			Email:       "user1@example.com",
-			DisplayName: "User One",
+			UserId: "oauth2|test|user1",
+			Email:  "user1@example.com",
+			Name:   "User One",
 		},
 		OperationID: uuid.New().String(),
 		Operation: CellPatchOperation{
@@ -114,9 +114,9 @@ func testPhase1BasicOperations(t *testing.T, suite *SubEntityIntegrationTestSuit
 	updateOperation := DiagramOperationMessage{
 		MessageType: "diagram_operation",
 		User: User{
-			UserId:      "oauth2|test|user2",
-			Email:       "user2@example.com",
-			DisplayName: "User Two",
+			UserId: "oauth2|test|user2",
+			Email:  "user2@example.com",
+			Name:   "User Two",
 		},
 		OperationID: uuid.New().String(),
 		Operation: CellPatchOperation{
@@ -164,9 +164,9 @@ func testPhase1BasicOperations(t *testing.T, suite *SubEntityIntegrationTestSuit
 	removeOperation := DiagramOperationMessage{
 		MessageType: "diagram_operation",
 		User: User{
-			UserId:      "oauth2|test|user1",
-			Email:       "user1@example.com",
-			DisplayName: "User One",
+			UserId: "oauth2|test|user1",
+			Email:  "user1@example.com",
+			Name:   "User One",
 		},
 		OperationID: uuid.New().String(),
 		Operation: CellPatchOperation{
@@ -213,9 +213,9 @@ func testPhase2PresenterMode(t *testing.T, suite *SubEntityIntegrationTestSuite,
 	presenterRequest := PresenterRequestMessage{
 		MessageType: "presenter_request",
 		User: User{
-			UserId:      "oauth2|test|owner",
-			Email:       "owner@example.com",
-			DisplayName: "Owner",
+			UserId: "oauth2|test|owner",
+			Email:  "owner@example.com",
+			Name:   "Owner",
 		},
 	}
 
@@ -226,9 +226,9 @@ func testPhase2PresenterMode(t *testing.T, suite *SubEntityIntegrationTestSuite,
 	cursorMsg := PresenterCursorMessage{
 		MessageType: "presenter_cursor",
 		User: User{
-			UserId:      "oauth2|test|owner",
-			Email:       "owner@example.com",
-			DisplayName: "Owner",
+			UserId: "oauth2|test|owner",
+			Email:  "owner@example.com",
+			Name:   "Owner",
 		},
 		CursorPosition: CursorPosition{
 			X: 150,
@@ -243,9 +243,9 @@ func testPhase2PresenterMode(t *testing.T, suite *SubEntityIntegrationTestSuite,
 	selectionMsg := PresenterSelectionMessage{
 		MessageType: "presenter_selection",
 		User: User{
-			UserId:      "oauth2|test|owner",
-			Email:       "owner@example.com",
-			DisplayName: "Owner",
+			UserId: "oauth2|test|owner",
+			Email:  "owner@example.com",
+			Name:   "Owner",
 		},
 		SelectedCells: []string{uuid.New().String(), uuid.New().String()},
 	}
@@ -266,9 +266,9 @@ func testPhase3SyncDetection(t *testing.T, suite *SubEntityIntegrationTestSuite,
 	resyncRequest := ResyncRequestMessage{
 		MessageType: "resync_request",
 		User: User{
-			UserId:      "oauth2|test|synctest",
-			Email:       "synctest@example.com",
-			DisplayName: "Sync Test",
+			UserId: "oauth2|test|synctest",
+			Email:  "synctest@example.com",
+			Name:   "Sync Test",
 		},
 	}
 
@@ -316,9 +316,9 @@ func testPerformanceMonitoring(t *testing.T, suite *SubEntityIntegrationTestSuit
 		operation := DiagramOperationMessage{
 			MessageType: "diagram_operation",
 			User: User{
-				UserId:      "oauth2|test|perftest",
-				Email:       "perftest@example.com",
-				DisplayName: "Performance Test",
+				UserId: "oauth2|test|perftest",
+				Email:  "perftest@example.com",
+				Name:   "Performance Test",
 			},
 			OperationID: uuid.New().String(),
 			Operation: CellPatchOperation{
@@ -398,9 +398,9 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 		msg := DiagramOperationMessage{
 			MessageType: "diagram_operation",
 			User: User{
-				UserId:      "oauth2|test|testuser",
-				Email:       "test@example.com",
-				DisplayName: "Test User",
+				UserId: "oauth2|test|testuser",
+				Email:  "test@example.com",
+				Name:   "Test User",
 			},
 			OperationID: uuid.New().String(),
 			Operation: CellPatchOperation{
@@ -438,9 +438,9 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 		msg := PresenterRequestMessage{
 			MessageType: "presenter_request",
 			User: User{
-				UserId:      "oauth2|test|presenter",
-				Email:       "presenter@example.com",
-				DisplayName: "Presenter",
+				UserId: "oauth2|test|presenter",
+				Email:  "presenter@example.com",
+				Name:   "Presenter",
 			},
 		}
 
@@ -458,9 +458,9 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 		msg := ResyncRequestMessage{
 			MessageType: "resync_request",
 			User: User{
-				UserId:      "oauth2|test|sync",
-				Email:       "sync@example.com",
-				DisplayName: "Sync User",
+				UserId: "oauth2|test|sync",
+				Email:  "sync@example.com",
+				Name:   "Sync User",
 			},
 		}
 
@@ -478,9 +478,9 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 		msg := UndoRequestMessage{
 			MessageType: "undo_request",
 			User: User{
-				UserId:      "oauth2|test|undo",
-				Email:       "undo@example.com",
-				DisplayName: "Undo User",
+				UserId: "oauth2|test|undo",
+				Email:  "undo@example.com",
+				Name:   "Undo User",
 			},
 		}
 

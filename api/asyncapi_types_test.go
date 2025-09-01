@@ -17,9 +17,9 @@ func TestDiagramOperationMessage(t *testing.T) {
 		msg := DiagramOperationMessage{
 			MessageType: MessageTypeDiagramOperation,
 			User: User{
-				UserId:      "oauth2|test|user123",
-				Email:       "test@example.com",
-				DisplayName: "Test User",
+				UserId: "oauth2|test|user123",
+				Email:  "test@example.com",
+				Name:   "Test User",
 			},
 			OperationID: operationID,
 			Operation: CellPatchOperation{
@@ -46,9 +46,9 @@ func TestDiagramOperationMessage(t *testing.T) {
 		msg := DiagramOperationMessage{
 			MessageType: "invalid",
 			User: User{
-				UserId:      "oauth2|test|user123",
-				Email:       "test@example.com",
-				DisplayName: "Test User",
+				UserId: "oauth2|test|user123",
+				Email:  "test@example.com",
+				Name:   "Test User",
 			},
 			OperationID: operationID,
 		}
@@ -73,9 +73,9 @@ func TestDiagramOperationMessage(t *testing.T) {
 		msg := DiagramOperationMessage{
 			MessageType: MessageTypeDiagramOperation,
 			User: User{
-				UserId:      "oauth2|test|user123",
-				Email:       "test@example.com",
-				DisplayName: "Test User",
+				UserId: "oauth2|test|user123",
+				Email:  "test@example.com",
+				Name:   "Test User",
 			},
 			OperationID: "invalid-uuid",
 		}
@@ -208,9 +208,9 @@ func TestPresenterMessages(t *testing.T) {
 		msg := PresenterRequestMessage{
 			MessageType: MessageTypePresenterRequest,
 			User: User{
-				UserId:      "oauth2|test|user123",
-				Email:       "test@example.com",
-				DisplayName: "Test User",
+				UserId: "oauth2|test|user123",
+				Email:  "test@example.com",
+				Name:   "Test User",
 			},
 		}
 
@@ -223,9 +223,9 @@ func TestPresenterMessages(t *testing.T) {
 		msg := PresenterCursorMessage{
 			MessageType: MessageTypePresenterCursor,
 			User: User{
-				UserId:      "oauth2|test|presenter789",
-				Email:       "presenter@example.com",
-				DisplayName: "Presenter User",
+				UserId: "oauth2|test|presenter789",
+				Email:  "presenter@example.com",
+				Name:   "Presenter User",
 			},
 			CursorPosition: CursorPosition{
 				X: 100.5,
@@ -244,9 +244,9 @@ func TestPresenterMessages(t *testing.T) {
 		msg := PresenterSelectionMessage{
 			MessageType: MessageTypePresenterSelection,
 			User: User{
-				UserId:      "oauth2|test|presenter789",
-				Email:       "presenter@example.com",
-				DisplayName: "Presenter User",
+				UserId: "oauth2|test|presenter789",
+				Email:  "presenter@example.com",
+				Name:   "Presenter User",
 			},
 			SelectedCells: []string{cellID1, cellID2},
 		}
@@ -259,9 +259,9 @@ func TestPresenterMessages(t *testing.T) {
 		msg := PresenterSelectionMessage{
 			MessageType: MessageTypePresenterSelection,
 			User: User{
-				UserId:      "oauth2|test|presenter789",
-				Email:       "presenter@example.com",
-				DisplayName: "Presenter User",
+				UserId: "oauth2|test|presenter789",
+				Email:  "presenter@example.com",
+				Name:   "Presenter User",
 			},
 			SelectedCells: []string{"invalid-uuid"},
 		}
@@ -280,9 +280,9 @@ func TestMessageParser(t *testing.T) {
 		originalMsg := DiagramOperationMessage{
 			MessageType: MessageTypeDiagramOperation,
 			User: User{
-				UserId:      "oauth2|test|user123",
-				Email:       "test@example.com",
-				DisplayName: "Test User",
+				UserId: "oauth2|test|user123",
+				Email:  "test@example.com",
+				Name:   "Test User",
 			},
 			OperationID: operationID,
 			Operation: CellPatchOperation{
@@ -321,9 +321,9 @@ func TestMessageParser(t *testing.T) {
 		originalMsg := PresenterRequestMessage{
 			MessageType: MessageTypePresenterRequest,
 			User: User{
-				UserId:      "oauth2|test|user123",
-				Email:       "test@example.com",
-				DisplayName: "Test User",
+				UserId: "oauth2|test|user123",
+				Email:  "test@example.com",
+				Name:   "Test User",
 			},
 		}
 
@@ -372,9 +372,9 @@ func TestMarshalAsyncMessage(t *testing.T) {
 		msg := PresenterRequestMessage{
 			MessageType: MessageTypePresenterRequest,
 			User: User{
-				UserId:      "oauth2|test|user123",
-				Email:       "test@example.com",
-				DisplayName: "Test User",
+				UserId: "oauth2|test|user123",
+				Email:  "test@example.com",
+				Name:   "Test User",
 			},
 		}
 
@@ -396,9 +396,9 @@ func TestMarshalAsyncMessage(t *testing.T) {
 		msg := PresenterRequestMessage{
 			MessageType: MessageTypePresenterRequest,
 			User: User{
-				UserId:      "", // Invalid - missing user_id
-				Email:       "",
-				DisplayName: "",
+				UserId: "", // Invalid - missing user_id
+				Email:  "",
+				Name:   "",
 			},
 		}
 

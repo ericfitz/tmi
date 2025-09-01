@@ -578,9 +578,9 @@ func convertClientToParticipant(client *WebSocketClient, session *DiagramSession
 
 	return &Participant{
 		User: User{
-			UserId:      client.UserID,
-			Email:       client.UserEmail,
-			DisplayName: client.UserName,
+			UserId: client.UserID,
+			Email:  client.UserEmail,
+			Name:   client.UserName,
 		},
 		Permissions:  permissions,
 		LastActivity: client.LastActivity,
@@ -1655,9 +1655,9 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 		deniedMsg := PresenterDeniedMessage{
 			MessageType: "presenter_denied",
 			User: User{
-				UserId:      "system",
-				Email:       "system@tmi",
-				DisplayName: "System",
+				UserId: "system",
+				Email:  "system@tmi",
+				Name:   "System",
 			},
 			TargetUser: msg.User.UserId,
 		}
@@ -1811,9 +1811,9 @@ func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message [
 	resyncResponse := ResyncResponseMessage{
 		MessageType: "resync_response",
 		User: User{
-			UserId:      "system",
-			Email:       "system@tmi",
-			DisplayName: "System",
+			UserId: "system",
+			Email:  "system@tmi",
+			Name:   "System",
 		},
 		TargetUser:    msg.User.UserId,
 		Method:        "rest_api",
@@ -2300,9 +2300,9 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 
 		participants = append(participants, AsyncParticipant{
 			User: AsyncUser{
-				UserID:      client.UserID,
-				DisplayName: client.UserName,
-				Email:       client.UserEmail,
+				UserID: client.UserID,
+				Name:   client.UserName,
+				Email:  client.UserEmail,
 			},
 			Permissions:  permissions,
 			LastActivity: client.LastActivity,
@@ -2375,9 +2375,9 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 
 		participants = append(participants, AsyncParticipant{
 			User: AsyncUser{
-				UserID:      c.UserID,
-				DisplayName: c.UserName,
-				Email:       c.UserEmail,
+				UserID: c.UserID,
+				Name:   c.UserName,
+				Email:  c.UserEmail,
 			},
 			Permissions:  permissions,
 			LastActivity: c.LastActivity,
@@ -2621,9 +2621,9 @@ func (s *DiagramSession) sendResyncRecommendation(userID, issueType string) {
 	resyncResponse := ResyncResponseMessage{
 		MessageType: "resync_response",
 		User: User{
-			UserId:      "system",
-			Email:       "system@tmi",
-			DisplayName: "System",
+			UserId: "system",
+			Email:  "system@tmi",
+			Name:   "System",
 		},
 		TargetUser:    userID,
 		Method:        "rest_api",
