@@ -138,3 +138,31 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	c.Set(string(auth.UserContextKey), user)
 	a.handlers.Me(c)
 }
+
+// GetJWKS delegates to auth handlers
+func (a *AuthServiceAdapter) GetJWKS(c *gin.Context) {
+	logger := logging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] GetJWKS called - delegating to auth.Handlers")
+	a.handlers.GetJWKS(c)
+}
+
+// GetOpenIDConfiguration delegates to auth handlers
+func (a *AuthServiceAdapter) GetOpenIDConfiguration(c *gin.Context) {
+	logger := logging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] GetOpenIDConfiguration called - delegating to auth.Handlers")
+	a.handlers.GetOpenIDConfiguration(c)
+}
+
+// GetOAuthAuthorizationServerMetadata delegates to auth handlers
+func (a *AuthServiceAdapter) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
+	logger := logging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] GetOAuthAuthorizationServerMetadata called - delegating to auth.Handlers")
+	a.handlers.GetOAuthAuthorizationServerMetadata(c)
+}
+
+// IntrospectToken delegates to auth handlers
+func (a *AuthServiceAdapter) IntrospectToken(c *gin.Context) {
+	logger := logging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] IntrospectToken called - delegating to auth.Handlers")
+	a.handlers.IntrospectToken(c)
+}
