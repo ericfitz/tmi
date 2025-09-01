@@ -589,7 +589,7 @@ components:
       summary: Notification when collaboration session is terminated
       description: |
         Sent to all participants when the collaboration session is ended,
-        typically when the host/owner disconnects. Clients should
+        typically when the host disconnects. Clients should
         gracefully handle session termination and clean up local state.
       payload:
         allOf:
@@ -1187,8 +1187,8 @@ components:
                   - email
               permissions:
                 type: string
-                enum: [reader, writer, owner]
-                description: User's permissions for the diagram
+                enum: [reader, writer]
+                description: User's permissions for the collaboration session
               last_activity:
                 type: string
                 format: date-time
