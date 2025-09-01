@@ -1034,7 +1034,7 @@
                             },
                             "created_by": {
                                 "type": "string",
-                                "description": "Username or identifier of the creator of the threat model",
+                                "description": "User name, email or identifier of the creator of the threat model",
                                 "maxLength": 256,
                                 "pattern": "^[^<>\"'&]*$",
                                 "readOnly": true
@@ -1214,7 +1214,7 @@
                 "properties": {
                     "subject": {
                         "type": "string",
-                        "description": "Username or identifier of the user (may be email address or other format)",
+                        "description": "Email address or identifier of the authorized user (may be email address or other format)",
                         "minLength": 1,
                         "maxLength": 256,
                         "pattern": "^[^<>\"'&]*$",
@@ -1376,13 +1376,13 @@
                     },
                     "host": {
                         "type": "string",
-                        "description": "Username or identifier of the host (may be email address or other format)",
+                        "description": "Email address of the session host",
                         "maxLength": 256,
                         "readOnly": true
                     },
                     "presenter": {
                         "type": "string",
-                        "description": "Username or identifier of the presenter (may be email address or other format)",
+                        "description": "Email address of the current presenter",
                         "maxLength": 256,
                         "readOnly": true
                     },
@@ -1443,7 +1443,7 @@
                             "user": {
                                 "user_id": "oauth2|test|user123",
                                 "email": "admin@example.com",
-                                "displayName": "Admin User"
+                                "name": "Admin User"
                             },
                             "last_activity": "2025-04-06T12:02:00Z",
                             "permissions": "writer"
@@ -1517,11 +1517,11 @@
                     },
                     "owner": {
                         "type": "string",
-                        "description": "Username or identifier of the current owner"
+                        "description": "Email address of the current owner"
                     },
                     "created_by": {
                         "type": "string",
-                        "description": "Username or identifier of the creator",
+                        "description": "Email address, name or identifier of the creator",
                         "maxLength": 256
                     },
                     "threat_model_framework": {
@@ -2120,7 +2120,7 @@
                     },
                     "owner": {
                         "type": "string",
-                        "description": "Username or identifier of the current owner (may be email address or other format)",
+                        "description": "Email address of the current owner",
                         "maxLength": 256,
                         "pattern": "^[^<>\"'&]*$"
                     },
@@ -2319,7 +2319,7 @@
                         "description": "User's email address",
                         "maxLength": 256
                     },
-                    "displayName": {
+                    "name": {
                         "type": "string",
                         "description": "User's display name",
                         "maxLength": 256
@@ -2328,7 +2328,7 @@
                 "required": [
                     "user_id",
                     "email",
-                    "displayName"
+                    "name"
                 ]
             },
             "Participant": {
@@ -3545,7 +3545,7 @@
                                                         "user": {
                                                             "user_id": "oauth2|google|118354289635789012345",
                                                             "email": "alice@example.com",
-                                                            "displayName": "Alice Smith"
+                                                            "name": "Alice Smith"
                                                         },
                                                         "last_activity": "2024-01-20T14:30:00Z",
                                                         "permissions": "writer"
@@ -3554,7 +3554,7 @@
                                                         "user": {
                                                             "user_id": "oauth2|github|67890",
                                                             "email": "bob@example.com",
-                                                            "displayName": "Bob Johnson"
+                                                            "name": "Bob Johnson"
                                                         },
                                                         "last_activity": "2024-01-20T14:35:00Z",
                                                         "permissions": "reader"
@@ -3641,7 +3641,7 @@
                         "schema": {
                             "type": "string"
                         },
-                        "description": "Filter by owner username or email"
+                        "description": "Filter by owner name or email"
                     },
                     {
                         "name": "name",
