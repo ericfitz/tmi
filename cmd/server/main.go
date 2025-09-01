@@ -114,7 +114,16 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 			c.Request.URL.Path == "/favicon.ico" ||
 			c.Request.URL.Path == "/favicon.svg" ||
 			c.Request.URL.Path == "/web-app-manifest-192x192.png" ||
-			c.Request.URL.Path == "/web-app-manifest-512x512.png"
+			c.Request.URL.Path == "/web-app-manifest-512x512.png" ||
+			c.Request.URL.Path == "/TMI-Logo.svg" ||
+			c.Request.URL.Path == "/android-chrome-192x192.png" ||
+			c.Request.URL.Path == "/android-chrome-512x512.png" ||
+			c.Request.URL.Path == "/apple-touch-icon.png" ||
+			c.Request.URL.Path == "/favicon-16x16.png" ||
+			c.Request.URL.Path == "/favicon-32x32.png" ||
+			c.Request.URL.Path == "/.well-known/openid-configuration" ||
+			c.Request.URL.Path == "/.well-known/oauth-authorization-server" ||
+			c.Request.URL.Path == "/.well-known/jwks.json"
 
 		if isPublic {
 			logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] ✅ Public path identified: %s", c.Request.URL.Path)
@@ -1031,6 +1040,12 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.StaticFile("/web-app-manifest-192x192.png", "./static/web-app-manifest-192x192.png")
 	r.StaticFile("/web-app-manifest-512x512.png", "./static/web-app-manifest-512x512.png")
 	r.StaticFile("/favicon.svg", "./static/favicon.svg")
+	r.StaticFile("/TMI-Logo.svg", "./static/TMI-Logo.svg")
+	r.StaticFile("/android-chrome-192x192.png", "./static/android-chrome-192x192.png")
+	r.StaticFile("/android-chrome-512x512.png", "./static/android-chrome-512x512.png")
+	r.StaticFile("/apple-touch-icon.png", "./static/apple-touch-icon.png")
+	r.StaticFile("/favicon-16x16.png", "./static/favicon-16x16.png")
+	r.StaticFile("/favicon-32x32.png", "./static/favicon-32x32.png")
 
 	// Security middleware with public path handling
 	r.Use(PublicPathsMiddleware()) // Identify public paths first
