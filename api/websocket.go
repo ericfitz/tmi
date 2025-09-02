@@ -16,6 +16,18 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// SessionState represents the lifecycle state of a collaboration session
+type SessionState string
+
+const (
+	// SessionStateActive means the session is active and accepting connections
+	SessionStateActive SessionState = "active"
+	// SessionStateTerminating means the session is in the process of terminating
+	SessionStateTerminating SessionState = "terminating"
+	// SessionStateTerminated means the session has been terminated and should be cleaned up
+	SessionStateTerminated SessionState = "terminated"
+)
+
 // WebSocketHub maintains active connections and broadcasts messages
 type WebSocketHub struct {
 	// Registered connections by diagram ID
@@ -34,6 +46,8 @@ type DiagramSession struct {
 	DiagramID string
 	// Threat Model ID (parent of the diagram)
 	ThreatModelID string
+	// Session state
+	State SessionState
 	// Connected clients
 	Clients map[*WebSocketClient]bool
 	// Inbound messages from clients
@@ -46,6 +60,8 @@ type DiagramSession struct {
 	LastActivity time.Time
 	// Session creation timestamp
 	CreatedAt time.Time
+	// Session termination timestamp (when host disconnected)
+	TerminatedAt *time.Time
 
 	// Reference to the hub for cleanup when session terminates
 	Hub *WebSocketHub
@@ -219,7 +235,7 @@ func NewWebSocketHubForTests() *WebSocketHub {
 }
 
 // buildWebSocketURL constructs the absolute WebSocket URL from request context
-func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_types.UUID, diagramID string) string {
+func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_types.UUID, diagramID string, sessionID string) string {
 	// Get config information from the context
 	tlsEnabled := false
 	tlsSubjectName := ""
@@ -262,7 +278,14 @@ func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_t
 	}
 
 	// Build WebSocket URL with the specific path
-	return fmt.Sprintf("%s://%s/threat_models/%s/diagrams/%s/ws", scheme, host, threatModelId.String(), diagramID)
+	url := fmt.Sprintf("%s://%s/threat_models/%s/diagrams/%s/ws", scheme, host, threatModelId.String(), diagramID)
+
+	// Add session ID as query parameter if provided
+	if sessionID != "" {
+		url = fmt.Sprintf("%s?session_id=%s", url, sessionID)
+	}
+
+	return url
 }
 
 // GetSession returns an existing session or nil if none exists
@@ -289,6 +312,7 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 		ID:            uuid.New().String(),
 		DiagramID:     diagramID,
 		ThreatModelID: threatModelID,
+		State:         SessionStateActive,
 		Clients:       make(map[*WebSocketClient]bool),
 		Broadcast:     make(chan []byte),
 		Register:      make(chan *WebSocketClient),
@@ -312,6 +336,9 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 	if GlobalPerformanceMonitor != nil {
 		GlobalPerformanceMonitor.RecordSessionStart(session.ID, diagramID)
 	}
+
+	logging.Get().Info("Created new session %s for diagram %s (host: %s, threat model: %s)",
+		session.ID, diagramID, hostUserID, threatModelID)
 
 	go session.Run()
 
@@ -348,6 +375,8 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 			session.Host = hostUserID
 			session.CurrentPresenter = hostUserID // Host starts as presenter
 		}
+		logging.Get().Info("Retrieved existing session %s for diagram %s (host: %s, state: %s)",
+			session.ID, diagramID, session.Host, session.State)
 		return session
 	}
 
@@ -355,6 +384,7 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 		ID:            uuid.New().String(),
 		DiagramID:     diagramID,
 		ThreatModelID: threatModelID,
+		State:         SessionStateActive,
 		Clients:       make(map[*WebSocketClient]bool),
 		Broadcast:     make(chan []byte),
 		Register:      make(chan *WebSocketClient),
@@ -378,6 +408,9 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 	if GlobalPerformanceMonitor != nil {
 		GlobalPerformanceMonitor.RecordSessionStart(session.ID, diagramID)
 	}
+
+	logging.Get().Info("Created new session %s for diagram %s (host: %s, threat model: %s)",
+		session.ID, diagramID, hostUserID, threatModelID)
 
 	go session.Run()
 
@@ -547,7 +580,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 			DiagramId:     diagramUUID,
 			ThreatModelId: threatModelId,
 			Participants:  participants,
-			WebsocketUrl:  fmt.Sprintf("/threat_models/%s/diagrams/%s/ws", threatModelId.String(), diagramID),
+			WebsocketUrl:  fmt.Sprintf("/threat_models/%s/diagrams/%s/ws?session_id=%s", threatModelId.String(), diagramID, session.ID),
 		})
 		session.mu.RUnlock()
 	}
@@ -694,7 +727,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 		ThreatModelId:   threatModelId,
 		ThreatModelName: tm.Name,
 		Participants:    participants,
-		WebsocketUrl:    h.buildWebSocketURL(c, threatModelId, diagramID),
+		WebsocketUrl:    h.buildWebSocketURL(c, threatModelId, diagramID, session.ID),
 	}
 
 	return collaborationSession, nil
@@ -781,7 +814,7 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 			ThreatModelId:   threatModelId,
 			ThreatModelName: tm.Name,
 			Participants:    participants,
-			WebsocketUrl:    h.buildWebSocketURL(c, threatModelId, diagramID),
+			WebsocketUrl:    h.buildWebSocketURL(c, threatModelId, diagramID, session.ID),
 		})
 		session.mu.RUnlock()
 	}
@@ -954,24 +987,30 @@ func (h *WebSocketHub) CleanupInactiveSessions() {
 	inactivityTimeout := now.Add(-15 * time.Minute)
 	emptySessionTimeout := now.Add(-1 * time.Minute) // 1-minute grace period for empty sessions
 
+	terminatedSessionTimeout := now.Add(-30 * time.Second) // 30-second grace period for terminated sessions
+
 	for diagramID, session := range h.Diagrams {
 		session.mu.RLock()
 		lastActivity := session.LastActivity
 		createdAt := session.CreatedAt
 		clientCount := len(session.Clients)
+		sessionState := session.State
+		terminatedAt := session.TerminatedAt
 		session.mu.RUnlock()
 
 		shouldCleanup := false
 		cleanupReason := ""
 
-		// Check for long-term inactivity (15+ minutes)
-		if lastActivity.Before(inactivityTimeout) {
+		// Check if session is terminated and past grace period
+		if sessionState == SessionStateTerminated && terminatedAt != nil && terminatedAt.Before(terminatedSessionTimeout) {
+			shouldCleanup = true
+			cleanupReason = "terminated session past grace period"
+		} else if lastActivity.Before(inactivityTimeout) {
+			// Check for long-term inactivity (15+ minutes)
 			shouldCleanup = true
 			cleanupReason = "inactive for 15+ minutes"
-		}
-
-		// Check for empty sessions past grace period (1+ minute with no clients)
-		if clientCount == 0 && createdAt.Before(emptySessionTimeout) {
+		} else if clientCount == 0 && createdAt.Before(emptySessionTimeout) {
+			// Check for empty sessions past grace period (1+ minute with no clients)
 			shouldCleanup = true
 			cleanupReason = "empty session past 1-minute grace period"
 		}
@@ -1191,11 +1230,11 @@ func (s *DiagramSession) Run() {
 	}
 }
 
-// HandleWS handles WebSocket connections
-func (h *WebSocketHub) HandleWS(c *gin.Context) {
+// validateWebSocketRequest validates the basic request parameters and returns user info
+func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, diagramID, userIDStr string, err error) {
 	// Get threat model ID and diagram ID from path
-	threatModelID := c.Param("threat_model_id")
-	diagramID := c.Param("diagram_id")
+	threatModelID = c.Param("threat_model_id")
+	diagramID = c.Param("diagram_id")
 
 	// Validate threat model ID format
 	if _, err := uuid.Parse(threatModelID); err != nil {
@@ -1203,7 +1242,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 			Error:            "invalid_id",
 			ErrorDescription: "Invalid threat model ID format, must be a valid UUID",
 		})
-		return
+		return "", "", "", fmt.Errorf("invalid threat model ID")
 	}
 
 	// Validate diagram ID format
@@ -1212,7 +1251,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 			Error:            "invalid_id",
 			ErrorDescription: "Invalid diagram ID format, must be a valid UUID",
 		})
-		return
+		return "", "", "", fmt.Errorf("invalid diagram ID")
 	}
 
 	// Get user ID from context
@@ -1226,7 +1265,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 				Error:            "unauthorized",
 				ErrorDescription: "User not authenticated",
 			})
-			return
+			return "", "", "", fmt.Errorf("user not authenticated")
 		}
 	}
 
@@ -1236,6 +1275,17 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 			Error:            "unauthorized",
 			ErrorDescription: "Invalid user authentication",
 		})
+		return "", "", "", fmt.Errorf("invalid user authentication")
+	}
+
+	return threatModelID, diagramID, userIDStr, nil
+}
+
+// HandleWS handles WebSocket connections
+func (h *WebSocketHub) HandleWS(c *gin.Context) {
+	// Validate request and get parameters
+	threatModelID, diagramID, userIDStr, err := h.validateWebSocketRequest(c)
+	if err != nil {
 		return
 	}
 
@@ -1298,8 +1348,63 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		return
 	}
 
+	// Get optional session_id from query parameters
+	sessionID := c.Query("session_id")
+
 	// Get or create session
 	session := h.GetOrCreateSession(diagramID, threatModelID, userIDStr)
+
+	// Log session state
+	logging.Get().Info("WebSocket connection attempt - User: %s, Diagram: %s, Session: %s, Provided SessionID: %s",
+		userIDStr, diagramID, session.ID, sessionID)
+
+	// Check if the session is still active
+	session.mu.RLock()
+	sessionState := session.State
+	sessionActualID := session.ID
+	session.mu.RUnlock()
+
+	// Validate session state and ID
+	if sessionState != SessionStateActive {
+		// Session has been terminated
+		errorMsg := map[string]interface{}{
+			"error":   "session_terminated",
+			"message": "The collaboration session has been terminated",
+			"reason":  "host_disconnected",
+		}
+		if msgBytes, err := json.Marshal(errorMsg); err == nil {
+			if err := conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
+				logging.Get().Debug("Failed to send error message: %v", err)
+			}
+		}
+		// Close the connection
+		if err := conn.Close(); err != nil {
+			logging.Get().Debug("Failed to close connection: %v", err)
+		}
+		logging.Get().Info("Rejected connection from user %s - session %s is terminated", userIDStr, sessionActualID)
+		return
+	}
+
+	// If a session ID was provided, validate it matches
+	if sessionID != "" && sessionID != sessionActualID {
+		// Session ID mismatch - likely trying to reconnect to an old session
+		errorMsg := map[string]interface{}{
+			"error":          "session_invalid",
+			"message":        "The collaboration session ID is invalid or expired",
+			"new_session_id": sessionActualID,
+		}
+		if msgBytes, err := json.Marshal(errorMsg); err == nil {
+			if err := conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
+				logging.Get().Debug("Failed to send error message: %v", err)
+			}
+		}
+		// Close the connection
+		if err := conn.Close(); err != nil {
+			logging.Get().Debug("Failed to close connection: %v", err)
+		}
+		logging.Get().Info("Rejected connection from user %s - provided session ID %s does not match current session %s", userIDStr, sessionID, sessionActualID)
+		return
+	}
 
 	// Create client
 	client := &WebSocketClient{
@@ -2119,6 +2224,13 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 	logging.Get().Info("Host %s disconnected from session %s, initiating session termination", disconnectedHostID, s.ID)
 
+	// Update session state to terminating
+	s.mu.Lock()
+	s.State = SessionStateTerminating
+	now := time.Now().UTC()
+	s.TerminatedAt = &now
+	s.mu.Unlock()
+
 	// Broadcast session termination notification to all remaining participants
 	s.broadcastSessionTermination(disconnectedHostID)
 
@@ -2136,11 +2248,24 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 
 	// Clear the clients map
 	s.Clients = make(map[*WebSocketClient]bool)
+	s.State = SessionStateTerminated
 	s.mu.Unlock()
 
-	logging.Get().Info("Session %s terminated due to host departure", s.ID)
+	// Remove the session from the hub immediately
+	if s.Hub != nil {
+		s.Hub.mu.Lock()
+		delete(s.Hub.Diagrams, s.DiagramID)
+		s.Hub.mu.Unlock()
 
-	// The session will be removed from the hub when the Run() method returns
+		logging.Get().Info("Session %s removed from hub after host disconnection", s.ID)
+
+		// Record session end
+		if GlobalPerformanceMonitor != nil {
+			GlobalPerformanceMonitor.RecordSessionEnd(s.ID)
+		}
+	}
+
+	logging.Get().Info("Session %s terminated due to host departure", s.ID)
 }
 
 // broadcastSessionTermination sends termination messages to all participants
