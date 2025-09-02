@@ -21,7 +21,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/jackc/pgx/v4/stdlib"
-	"github.com/labstack/echo/v4"
 )
 
 // Server holds dependencies for the API server
@@ -453,24 +452,25 @@ func (s *Server) PostAuthLogout(c *gin.Context) {
 }
 
 // LogoutUser implements the API interface for logout
-func (s *Server) LogoutUser(ctx echo.Context) error {
-	// Convert echo context to gin for compatibility with existing middleware
-	// Since we're using gin middleware, we need to extract the token from echo context
-	authHeader := ctx.Request().Header.Get("Authorization")
+func (s *Server) LogoutUser(c *gin.Context) {
+	// Extract the token from the Authorization header
+	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		return ctx.JSON(http.StatusUnauthorized, api.Error{
+		c.JSON(http.StatusUnauthorized, api.Error{
 			Error:            "unauthorized",
 			ErrorDescription: "Missing Authorization header",
 		})
+		return
 	}
 
 	// Parse the header format
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
-		return ctx.JSON(http.StatusUnauthorized, api.Error{
+		c.JSON(http.StatusUnauthorized, api.Error{
 			Error:            "unauthorized",
 			ErrorDescription: "Invalid Authorization header format",
 		})
+		return
 	}
 
 	tokenStr := parts[1]
@@ -478,23 +478,25 @@ func (s *Server) LogoutUser(ctx echo.Context) error {
 	// Validate token format before attempting to blacklist
 	_, _, err := new(jwt.Parser).ParseUnverified(tokenStr, jwt.MapClaims{})
 	if err != nil {
-		return ctx.JSON(http.StatusUnauthorized, api.Error{
+		c.JSON(http.StatusUnauthorized, api.Error{
 			Error:            "unauthorized",
 			ErrorDescription: "Invalid token format",
 		})
+		return
 	}
 
 	// Blacklist the token if blacklist service is available
 	if s.tokenBlacklist != nil {
-		if err := s.tokenBlacklist.BlacklistToken(ctx.Request().Context(), tokenStr); err != nil {
-			return ctx.JSON(http.StatusInternalServerError, api.Error{
+		if err := s.tokenBlacklist.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
+			c.JSON(http.StatusInternalServerError, api.Error{
 				Error:            "server_error",
 				ErrorDescription: "Failed to logout",
 			})
+			return
 		}
 	}
 
-	return ctx.NoContent(http.StatusNoContent)
+	c.Status(http.StatusNoContent)
 }
 
 // Dev-mode only endpoint to get current user info
