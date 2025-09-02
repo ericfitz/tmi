@@ -1029,8 +1029,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		r.Use(logging.RequestResponseLogger(requestConfig))
 	}
 
-	r.Use(logging.Recoverer()) // Use our recoverer
+	r.Use(logging.Recoverer())   // Use our recoverer
+	r.Use(api.SecurityHeaders()) // Add security headers
 	r.Use(api.CORS())
+	r.Use(api.HSTSMiddleware(config.Server.TLSEnabled)) // Add HSTS when TLS is enabled
 	r.Use(api.ContextTimeout(30 * time.Second))
 
 	// Serve static files

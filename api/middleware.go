@@ -43,6 +43,45 @@ func ParseLogLevel(level string) LogLevel {
 	}
 }
 
+// SecurityHeaders middleware adds security headers to all responses
+func SecurityHeaders() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Prevent MIME type sniffing
+		c.Header("X-Content-Type-Options", "nosniff")
+
+		// Prevent clickjacking attacks
+		c.Header("X-Frame-Options", "DENY")
+
+		// Enable the browser's built-in XSS filter (for older browsers)
+		c.Header("X-XSS-Protection", "1; mode=block")
+
+		// Content Security Policy - relatively permissive to avoid breaking existing functionality
+		// Allows inline scripts and styles (needed for many web frameworks)
+		// Allows WebSocket connections (needed for real-time collaboration)
+		// Allows data: URIs for images
+		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' wss: ws:;")
+
+		// Referrer Policy
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// Permissions Policy (replaces Feature-Policy)
+		c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+
+		c.Next()
+	}
+}
+
+// HSTSMiddleware adds Strict-Transport-Security header when TLS is enabled
+func HSTSMiddleware(tlsEnabled bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if tlsEnabled {
+			// HSTS with 1 year max-age, includeSubDomains
+			c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		c.Next()
+	}
+}
+
 // CORS middleware to handle Cross-Origin Resource Sharing
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
