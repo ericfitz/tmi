@@ -984,10 +984,10 @@ func (h *WebSocketHub) CleanupInactiveSessions() {
 	defer h.mu.Unlock()
 
 	now := time.Now().UTC()
-	inactivityTimeout := now.Add(-15 * time.Minute)
+	inactivityTimeout := now.Add(-5 * time.Minute)
 	emptySessionTimeout := now.Add(-1 * time.Minute) // 1-minute grace period for empty sessions
 
-	terminatedSessionTimeout := now.Add(-30 * time.Second) // 30-second grace period for terminated sessions
+	terminatedSessionTimeout := now.Add(-15 * time.Second) // 15-second grace period for terminated sessions
 
 	for diagramID, session := range h.Diagrams {
 		session.mu.RLock()
@@ -1008,7 +1008,7 @@ func (h *WebSocketHub) CleanupInactiveSessions() {
 		} else if lastActivity.Before(inactivityTimeout) {
 			// Check for long-term inactivity (15+ minutes)
 			shouldCleanup = true
-			cleanupReason = "inactive for 15+ minutes"
+			cleanupReason = "inactive for 5+ minutes"
 		} else if clientCount == 0 && createdAt.Before(emptySessionTimeout) {
 			// Check for empty sessions past grace period (1+ minute with no clients)
 			shouldCleanup = true
@@ -1091,7 +1091,7 @@ func (h *WebSocketHub) CleanupAllSessions() {
 
 // StartCleanupTimer starts a periodic cleanup timer
 func (h *WebSocketHub) StartCleanupTimer(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Minute) // Run every minute to catch empty sessions
+	ticker := time.NewTicker(15 * time.Second) // Run every 15 seconds to catch empty sessions
 	defer ticker.Stop()
 
 	for {
