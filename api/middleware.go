@@ -55,11 +55,18 @@ func SecurityHeaders() gin.HandlerFunc {
 		// Enable the browser's built-in XSS filter (for older browsers)
 		c.Header("X-XSS-Protection", "1; mode=block")
 
-		// Content Security Policy - relatively permissive to avoid breaking existing functionality
-		// Allows inline scripts and styles (needed for many web frameworks)
-		// Allows WebSocket connections (needed for real-time collaboration)
-		// Allows data: URIs for images
-		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' wss: ws:;")
+		// Content Security Policy
+		// Check if we're in development mode (can be set via context from config)
+		isDev, exists := c.Get("isDev")
+		var cspValue string
+		if exists && isDev.(bool) {
+			// Development CSP - more permissive, allows localhost connections
+			cspValue = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http://localhost:*; font-src 'self'; connect-src 'self' http://localhost:* https://localhost:* http://127.0.0.1:* https://127.0.0.1:* wss: ws:;"
+		} else {
+			// Production CSP - more restrictive
+			cspValue = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' wss: ws:;"
+		}
+		c.Header("Content-Security-Policy", cspValue)
 
 		// Referrer Policy
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
