@@ -48,10 +48,11 @@ type SimpleLogger interface {
 
 // Logger is the central logging component
 type Logger struct {
-	level      LogLevel
-	isDev      bool
-	writer     io.Writer
-	fileLogger *lumberjack.Logger
+	level                       LogLevel
+	isDev                       bool
+	writer                      io.Writer
+	fileLogger                  *lumberjack.Logger
+	suppressUnauthenticatedLogs bool
 }
 
 // Config holds configuration options for the logger
@@ -70,6 +71,8 @@ type Config struct {
 	MaxBackups int
 	// AlsoLogToConsole controls if logs also go to stdout/stderr
 	AlsoLogToConsole bool
+	// SuppressUnauthenticatedLogs controls whether to log requests without authenticated users
+	SuppressUnauthenticatedLogs bool
 }
 
 // ParseLogLevel converts a string log level to LogLevel
@@ -143,10 +146,11 @@ func NewLogger(config Config) (*Logger, error) {
 	}
 
 	return &Logger{
-		level:      config.Level,
-		isDev:      config.IsDev,
-		writer:     writer,
-		fileLogger: fileLogger,
+		level:                       config.Level,
+		isDev:                       config.IsDev,
+		writer:                      writer,
+		fileLogger:                  fileLogger,
+		suppressUnauthenticatedLogs: config.SuppressUnauthenticatedLogs,
 	}, nil
 }
 
@@ -173,9 +177,10 @@ func Get() *Logger {
 		if err != nil {
 			// If we failed to initialize, fall back to a simple console logger
 			globalLogger = &Logger{
-				level:  LogLevelInfo,
-				isDev:  false,
-				writer: os.Stdout,
+				level:                       LogLevelInfo,
+				isDev:                       false,
+				writer:                      os.Stdout,
+				suppressUnauthenticatedLogs: false,
 			}
 		}
 	}
@@ -281,58 +286,28 @@ func (l *Logger) WithContext(c GinContextLike) *ContextLogger {
 	// Get user info if available
 	userID, _ := c.Get("userName")
 
-	// Get path and method if available
-	path := "unknown"
-	method := "unknown"
-
-	// Try to extract path and method from Request if available
-	if reqGetter, ok := c.(interface{ Request() interface{} }); ok {
-		if req := reqGetter.Request(); req != nil {
-			// Use reflection to safely check for URL.Path and Method
-			reqVal := fmt.Sprintf("%+v", req)
-			if strings.Contains(reqVal, "Path") {
-				path = getFieldAsString(req, "URL.Path")
-			}
-			if strings.Contains(reqVal, "Method") {
-				method = getFieldAsString(req, "Method")
-			}
-		}
-	}
-
 	return &ContextLogger{
 		logger:    l,
 		requestID: requestID,
-		path:      path,
-		method:    method,
 		clientIP:  c.ClientIP(),
 		userID:    fmt.Sprintf("%v", userID),
 	}
-}
-
-// Helper function to safely extract field values as string
-func getFieldAsString(obj interface{}, fieldPath string) string {
-	// Simple implementation that just returns default values for tests
-	// In a real implementation, you would use reflection to access fields
-	return "test-value"
 }
 
 // ContextLogger adds request context to log messages
 type ContextLogger struct {
 	logger    *Logger
 	requestID string
-	path      string
-	method    string
 	clientIP  string
 	userID    string
 }
 
 // formatContextMessage formats a message with request context
 func (cl *ContextLogger) formatContextMessage(msg string) string {
-	contextInfo := fmt.Sprintf("[%s] %s %s", cl.requestID, cl.method, cl.path)
+	contextInfo := fmt.Sprintf("[%s]", cl.requestID)
 
-	if cl.userID != "<nil>" && cl.userID != "" {
-		contextInfo += fmt.Sprintf(" user=%s", cl.userID)
-	}
+	// Always log user, even if empty
+	contextInfo += fmt.Sprintf(" user=%s", cl.userID)
 
 	if cl.clientIP != "" {
 		contextInfo += fmt.Sprintf(" ip=%s", cl.clientIP)
@@ -413,6 +388,17 @@ func LoggerMiddleware() gin.HandlerFunc {
 
 		// Store logger in context for handlers to use
 		c.Set("logger", logger)
+
+		// Check if request is authenticated
+		userName, hasUser := c.Get("userName")
+		isAuthenticated := hasUser && userName != nil && userName != ""
+
+		// Skip logging if configured to suppress unauthenticated logs
+		if Get().suppressUnauthenticatedLogs && !isAuthenticated {
+			// Still process the request, just don't log
+			c.Next()
+			return
+		}
 
 		// Log request start
 		logger.Debug("Request started")
