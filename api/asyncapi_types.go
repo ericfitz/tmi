@@ -16,12 +16,7 @@ import (
 type MessageType string
 
 const (
-	// Legacy message types (existing)
-	MessageTypeJoin   MessageType = "join"
-	MessageTypeLeave  MessageType = "leave"
-	MessageTypeUpdate MessageType = "update"
-
-	// New collaborative editing message types
+	// Collaborative editing message types
 	MessageTypeDiagramOperation    MessageType = "diagram_operation"
 	MessageTypePresenterRequest    MessageType = "presenter_request"
 	MessageTypePresenterDenied     MessageType = "presenter_denied"
@@ -36,7 +31,12 @@ const (
 	MessageTypeHistoryOperation    MessageType = "history_operation"
 	MessageTypeUndoRequest         MessageType = "undo_request"
 	MessageTypeRedoRequest         MessageType = "redo_request"
-	MessageTypeParticipantsUpdate  MessageType = "participants_update"
+
+	// Session management message types
+	MessageTypeParticipantJoined  MessageType = "participant_joined"
+	MessageTypeParticipantLeft    MessageType = "participant_left"
+	MessageTypeParticipantsUpdate MessageType = "participants_update"
+	MessageTypeSessionTerminated  MessageType = "session_terminated"
 )
 
 // AsyncMessage is the base interface for all WebSocket messages
@@ -533,9 +533,91 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 		}
 		return msg, msg.Validate()
 
+	case MessageTypeParticipantJoined:
+		var msg ParticipantJoinedMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, fmt.Errorf("failed to parse participant joined message: %w", err)
+		}
+		return msg, msg.Validate()
+
+	case MessageTypeParticipantLeft:
+		var msg ParticipantLeftMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, fmt.Errorf("failed to parse participant left message: %w", err)
+		}
+		return msg, msg.Validate()
+
+	case MessageTypeSessionTerminated:
+		var msg SessionTerminatedMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, fmt.Errorf("failed to parse session terminated message: %w", err)
+		}
+		return msg, msg.Validate()
+
 	default:
 		return nil, fmt.Errorf("unsupported message type: %s", base.MessageType)
 	}
+}
+
+// ParticipantJoinedMessage notifies when a participant joins a session
+type ParticipantJoinedMessage struct {
+	MessageType MessageType `json:"message_type"`
+	User        User        `json:"user"`
+	Timestamp   time.Time   `json:"timestamp"`
+}
+
+func (m ParticipantJoinedMessage) GetMessageType() MessageType { return m.MessageType }
+
+func (m ParticipantJoinedMessage) Validate() error {
+	if m.MessageType != MessageTypeParticipantJoined {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantJoined, m.MessageType)
+	}
+	if m.User.UserId == "" {
+		return fmt.Errorf("user.user_id is required")
+	}
+	return nil
+}
+
+// ParticipantLeftMessage notifies when a participant leaves a session
+type ParticipantLeftMessage struct {
+	MessageType MessageType `json:"message_type"`
+	User        User        `json:"user"`
+	Timestamp   time.Time   `json:"timestamp"`
+}
+
+func (m ParticipantLeftMessage) GetMessageType() MessageType { return m.MessageType }
+
+func (m ParticipantLeftMessage) Validate() error {
+	if m.MessageType != MessageTypeParticipantLeft {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantLeft, m.MessageType)
+	}
+	if m.User.UserId == "" {
+		return fmt.Errorf("user.user_id is required")
+	}
+	return nil
+}
+
+// SessionTerminatedMessage notifies when a session is terminated
+type SessionTerminatedMessage struct {
+	MessageType MessageType `json:"message_type"`
+	Reason      string      `json:"reason"`
+	HostID      string      `json:"host_id"`
+	Timestamp   time.Time   `json:"timestamp"`
+}
+
+func (m SessionTerminatedMessage) GetMessageType() MessageType { return m.MessageType }
+
+func (m SessionTerminatedMessage) Validate() error {
+	if m.MessageType != MessageTypeSessionTerminated {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeSessionTerminated, m.MessageType)
+	}
+	if m.Reason == "" {
+		return fmt.Errorf("reason is required")
+	}
+	if m.HostID == "" {
+		return fmt.Errorf("host_id is required")
+	}
+	return nil
 }
 
 // Helper function to marshal AsyncMessage to JSON

@@ -129,20 +129,6 @@ type WebSocketClient struct {
 	LastActivity time.Time
 }
 
-// WebSocketMessage represents the legacy message format (kept for backward compatibility)
-type WebSocketMessage struct {
-	// Type of message (update, join, leave, session_ended)
-	Event string `json:"event"`
-	// User who sent the message (legacy format - new messages should use User object)
-	UserID string `json:"user_id"`
-	// Diagram operation
-	Operation DiagramOperation `json:"operation,omitempty"`
-	// Optional message text for events like session_ended
-	Message string `json:"message,omitempty"`
-	// Timestamp
-	Timestamp time.Time `json:"timestamp"`
-}
-
 // Enhanced message types for collaborative editing - using existing AsyncAPI types
 
 // Upgrader upgrades HTTP connections to WebSocket
@@ -1149,13 +1135,19 @@ func (s *DiagramSession) Run() {
 			s.sendParticipantsUpdateToClient(client)
 
 			// Notify other clients that someone joined
-			msg := WebSocketMessage{
-				Event:     "join",
-				UserID:    client.UserID,
+			msg := ParticipantJoinedMessage{
+				MessageType: MessageTypeParticipantJoined,
+				User: User{
+					UserId: client.UserID,
+					Name:   client.UserName,
+					Email:  client.UserEmail,
+				},
 				Timestamp: time.Now().UTC(),
 			}
-			if msgBytes, err := json.Marshal(msg); err == nil {
+			if msgBytes, err := MarshalAsyncMessage(msg); err == nil {
 				s.Broadcast <- msgBytes
+			} else {
+				logging.Get().Error("Failed to marshal participant joined message: %v", err)
 			}
 
 			// Broadcast updated participant list to all clients
@@ -1191,13 +1183,19 @@ func (s *DiagramSession) Run() {
 			}
 
 			// Notify other clients that someone left
-			msg := WebSocketMessage{
-				Event:     "leave",
-				UserID:    client.UserID,
+			msg := ParticipantLeftMessage{
+				MessageType: MessageTypeParticipantLeft,
+				User: User{
+					UserId: client.UserID,
+					Name:   client.UserName,
+					Email:  client.UserEmail,
+				},
 				Timestamp: time.Now().UTC(),
 			}
-			if msgBytes, err := json.Marshal(msg); err == nil {
+			if msgBytes, err := MarshalAsyncMessage(msg); err == nil {
 				s.Broadcast <- msgBytes
+			} else {
+				logging.Get().Error("Failed to marshal participant left message: %v", err)
 			}
 
 			// Broadcast updated participant list to all remaining clients
@@ -1572,9 +1570,21 @@ func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte)
 	case "redo_request":
 		s.processRedoRequest(client, message)
 
+	case "participant_joined":
+		// Client is notifying they've joined - this is handled automatically on connection
+		logging.Get().Debug("Received participant_joined from %s - ignored (join is automatic)", client.UserID)
+
+	case "participant_left":
+		// Client is notifying they're leaving - this is handled automatically on disconnect
+		logging.Get().Debug("Received participant_left from %s - ignored (leave is automatic)", client.UserID)
+
+	case "participants_update":
+		// Clients shouldn't send this - server sends it
+		logging.Get().Warn("Client %s sent participants_update - this is a server-only message", client.UserID)
+
 	default:
-		// Fall back to legacy message format
-		s.processLegacyMessage(client, message)
+		logging.Get().Warn("Unknown message type '%s' from user %s in session %s", baseMsg.MessageType, client.UserID, s.ID)
+		// Could send an error response to the client here
 	}
 }
 
@@ -2096,61 +2106,6 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 	logging.Get().Info("Processed redo request from %s, restored to sequence %d", client.UserID, entry.SequenceNumber)
 }
 
-// processLegacyMessage handles backward compatibility with old message format
-func (s *DiagramSession) processLegacyMessage(client *WebSocketClient, message []byte) {
-	// Parse legacy message format
-	var clientMsg struct {
-		Operation json.RawMessage `json:"operation"`
-	}
-	if err := json.Unmarshal(message, &clientMsg); err != nil {
-		logging.Get().Info("Error parsing legacy WebSocket message: %v", err)
-		return
-	}
-
-	// Validate message size
-	if len(clientMsg.Operation) > 1024*50 { // 50KB limit
-		logging.Get().Info("Operation too large (%d bytes), ignoring", len(clientMsg.Operation))
-		return
-	}
-
-	// Create server message
-	msg := WebSocketMessage{
-		Event:     "update",
-		UserID:    client.UserID,
-		Timestamp: time.Now().UTC(),
-	}
-
-	// Unmarshal operation
-	var op DiagramOperation
-	if err := json.Unmarshal(clientMsg.Operation, &op); err != nil {
-		logging.Get().Info("Error parsing operation: %v", err)
-		return
-	}
-
-	// Validate operation
-	if err := validateDiagramOperation(op); err != nil {
-		logging.Get().Info("Invalid diagram operation: %v", err)
-		return
-	}
-
-	msg.Operation = op
-
-	// Apply operation to the diagram
-	if err := applyDiagramOperation(s.DiagramID, op); err != nil {
-		logging.Get().Info("Error applying operation to diagram: %v", err)
-		// Still broadcast the operation to maintain consistency
-	}
-
-	// Marshal and broadcast
-	msgBytes, err := json.Marshal(msg)
-	if err != nil {
-		logging.Get().Info("Error marshaling message: %v", err)
-		return
-	}
-
-	s.Broadcast <- msgBytes
-}
-
 // Helper methods
 
 // handlePresenterDisconnection handles when the current presenter leaves the session
@@ -2274,15 +2229,15 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 // broadcastSessionTermination sends termination messages to all participants
 func (s *DiagramSession) broadcastSessionTermination(hostID string) {
 	// Create session termination message
-	terminationMsg := WebSocketMessage{
-		Event:     "session_ended",
-		UserID:    hostID,
-		Timestamp: time.Now().UTC(),
-		Message:   "Session ended: host has left",
+	terminationMsg := SessionTerminatedMessage{
+		MessageType: MessageTypeSessionTerminated,
+		Reason:      "host_disconnected",
+		HostID:      hostID,
+		Timestamp:   time.Now().UTC(),
 	}
 
 	// Broadcast to all clients
-	if msgBytes, err := json.Marshal(terminationMsg); err == nil {
+	if msgBytes, err := MarshalAsyncMessage(terminationMsg); err == nil {
 		s.mu.RLock()
 		for client := range s.Clients {
 			if client.UserID != hostID { // Don't send to the disconnected host
@@ -2300,13 +2255,17 @@ func (s *DiagramSession) broadcastSessionTermination(hostID string) {
 	}
 
 	// Also send a final leave message for the host
-	leaveMsg := WebSocketMessage{
-		Event:     "leave",
-		UserID:    hostID,
+	leaveMsg := ParticipantLeftMessage{
+		MessageType: MessageTypeParticipantLeft,
+		User: User{
+			UserId: hostID,
+			Name:   "", // We don't have the host's name here
+			Email:  "", // We don't have the host's email here
+		},
 		Timestamp: time.Now().UTC(),
 	}
 
-	if msgBytes, err := json.Marshal(leaveMsg); err == nil {
+	if msgBytes, err := MarshalAsyncMessage(leaveMsg); err == nil {
 		s.mu.RLock()
 		for client := range s.Clients {
 			if client.UserID != hostID {
@@ -3686,7 +3645,11 @@ func (c *WebSocketClient) ReadPump() {
 		_, message, err := c.Conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				logging.Get().Info("WebSocket error: %v", err)
+				if c.Session != nil {
+					logging.Get().Info("WebSocket error in session %s for user %s: %v", c.Session.ID, c.UserID, err)
+				} else {
+					logging.Get().Info("WebSocket error (no session) for user %s: %v", c.UserID, err)
+				}
 				// Log WebSocket error
 				if c.Session != nil && c.Hub != nil {
 					logging.LogWebSocketError("UNEXPECTED_CLOSE", err.Error(), c.Session.ID, c.UserID, c.Hub.LoggingConfig)
