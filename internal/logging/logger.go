@@ -207,6 +207,11 @@ func (l *Logger) writeLog(level LogLevel, message string) {
 		return
 	}
 
+	// Skip empty or whitespace-only messages
+	if strings.TrimSpace(message) == "" {
+		return
+	}
+
 	// Get timestamp
 	timestamp := time.Now().Format(time.RFC3339)
 
@@ -378,6 +383,26 @@ func (cl *ContextLogger) Error(format string, args ...interface{}) {
 		message = format
 	}
 	cl.logger.writeLog(LogLevelError, cl.formatContextMessage(message))
+}
+
+// SanitizeLogMessage removes newlines and other control characters from log messages
+func SanitizeLogMessage(message string) string {
+	// Replace newlines with space
+	message = strings.ReplaceAll(message, "\n", " ")
+	message = strings.ReplaceAll(message, "\r", " ")
+
+	// Replace tabs with space
+	message = strings.ReplaceAll(message, "\t", " ")
+
+	// Collapse multiple spaces into one and trim whitespace
+	message = strings.TrimSpace(strings.Join(strings.Fields(message), " "))
+
+	// Return empty string if only whitespace remains
+	if message == "" {
+		return ""
+	}
+
+	return message
 }
 
 // LoggerMiddleware returns a Gin middleware for logging requests

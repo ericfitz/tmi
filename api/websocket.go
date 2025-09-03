@@ -1207,9 +1207,10 @@ func (s *DiagramSession) Run() {
 			}
 
 		case message := <-s.Broadcast:
-			// Log outgoing broadcast message
+			// Log outgoing broadcast message (sanitized to remove newlines)
+			sanitizedBroadcast := logging.SanitizeLogMessage(string(message))
 			logging.Get().Debug("[wsmsg] Broadcasting message - session_id=%s message_size=%d raw_message=%s client_count=%d",
-				s.ID, len(message), string(message), len(s.Clients))
+				s.ID, len(message), sanitizedBroadcast, len(s.Clients))
 			s.mu.Lock()
 			s.LastActivity = time.Now().UTC()
 			clientCount := 0
@@ -1522,9 +1523,10 @@ func validateCell(cell *Cell) error {
 
 // ProcessMessage handles enhanced message types for collaborative editing
 func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte) {
-	// Log raw incoming message with wsmsg component
+	// Log raw incoming message with wsmsg component (sanitized to remove newlines)
+	sanitizedMessage := logging.SanitizeLogMessage(string(message))
 	logging.Get().Debug("[wsmsg] Received WebSocket message - session_id=%s user_id=%s message_size=%d raw_message=%s",
-		s.ID, client.UserID, len(message), string(message))
+		s.ID, client.UserID, len(message), sanitizedMessage)
 	// First try to parse as enhanced message format
 	var baseMsg struct {
 		MessageType string          `json:"message_type"`

@@ -50,9 +50,12 @@ func LogWebSocketMessage(direction WSMessageDirection, sessionID, userID string,
 		messageStr = RedactWebSocketMessage(messageStr)
 	}
 
+	// Sanitize message to remove newlines
+	messageStr = SanitizeLogMessage(messageStr)
+
 	// Format and log the message
 	timestamp := time.Now().Format(time.RFC3339Nano)
-	logger.Debug("WebSocket %s [%s] Session: %s, User: %s, Type: %s\nMessage: %s",
+	logger.Debug("WebSocket %s [%s] Session: %s, User: %s, Type: %s, Message: %s",
 		direction, timestamp, sessionID, userID, messageType, messageStr)
 }
 
@@ -161,6 +164,9 @@ func LogWebSocketError(errorType, errorMessage, sessionID, userID string, config
 	if config.RedactTokens {
 		errorMessage = RedactSensitiveInfo(errorMessage)
 	}
+
+	// Sanitize error message to remove newlines
+	errorMessage = SanitizeLogMessage(errorMessage)
 
 	timestamp := time.Now().Format(time.RFC3339Nano)
 	logger.Error("WebSocket ERROR [%s] Type: %s, Session: %s, User: %s, Message: %s",
