@@ -715,16 +715,8 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		}
 	}
 
-	// Refetch user with provider ID for token generation
-	userWithProviderID, err := h.service.GetUserWithProviderID(ctx, user.Email)
-	if err != nil {
-		// Fallback to original user if fetch fails
-		logging.Get().WithContext(c).Error("Failed to get user with provider ID: %v", err)
-		userWithProviderID = user
-	}
-
-	// Generate TMI JWT tokens
-	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, userWithProviderID, userInfo)
+	// Generate TMI JWT tokens (the provider ID will be used as subject in the JWT)
+	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
@@ -1314,16 +1306,8 @@ func (h *Handlers) handleImplicitOrHybridFlow(c *gin.Context, provider Provider,
 		}
 	}
 
-	// Refetch user with provider ID for token generation
-	userWithProviderID, err := h.service.GetUserWithProviderID(ctx, user.Email)
-	if err != nil {
-		// Fallback to original user if fetch fails
-		logging.Get().Error("Failed to get user with provider ID in implicit flow: %v", err)
-		userWithProviderID = user
-	}
-
-	// Generate TMI JWT tokens
-	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, userWithProviderID, userInfo)
+	// Generate TMI JWT tokens (the provider ID will be used as subject in the JWT)
+	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
 		return fmt.Errorf("failed to generate tokens: %v", err)
 	}

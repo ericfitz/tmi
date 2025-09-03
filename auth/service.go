@@ -96,6 +96,16 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		}
 	}
 
+	// Get the primary provider ID for the user
+	providerID, err := s.GetPrimaryProviderID(ctx, user.ID)
+	if err != nil {
+		return TokenPair{}, fmt.Errorf("failed to get primary provider ID: %w", err)
+	}
+
+	if providerID == "" {
+		return TokenPair{}, fmt.Errorf("no primary provider ID found for user %s", user.ID)
+	}
+
 	// Derive the issuer from the OAuth callback URL
 	issuer := s.deriveIssuer()
 
@@ -111,7 +121,7 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		Locale:        user.Locale,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    issuer,
-			Subject:   user.ID,
+			Subject:   providerID,
 			Audience:  jwt.ClaimStrings{issuer}, // The audience is the issuer itself for self-issued tokens
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -328,11 +338,6 @@ func (s *Service) GetUserWithProviderID(ctx context.Context, email string) (User
 
 	if err != nil {
 		return User{}, fmt.Errorf("failed to get user: %w", err)
-	}
-
-	// Use provider ID as the external user ID if available, otherwise use internal ID
-	if providerUserID.Valid {
-		user.ID = providerUserID.String
 	}
 
 	return user, nil
@@ -586,6 +591,27 @@ func (s *Service) UnlinkUserProvider(ctx context.Context, userID, provider strin
 	}
 
 	return nil
+}
+
+// GetPrimaryProviderID gets the primary provider ID for a user
+func (s *Service) GetPrimaryProviderID(ctx context.Context, userID string) (string, error) {
+	db := s.dbManager.Postgres().GetDB()
+
+	var providerUserID string
+	query := `
+		SELECT provider_user_id 
+		FROM user_providers 
+		WHERE user_id = $1 AND is_primary = true
+		LIMIT 1
+	`
+	err := db.QueryRowContext(ctx, query, userID).Scan(&providerUserID)
+	if err == sql.ErrNoRows {
+		return "", nil // No primary provider
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to get primary provider ID: %w", err)
+	}
+	return providerUserID, nil
 }
 
 // GetUserByProviderID gets a user by provider ID
