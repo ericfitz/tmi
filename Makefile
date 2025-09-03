@@ -229,8 +229,8 @@ process-stop:
 
 server-start:
 	$(call log_info,"Starting server on port $(SERVER_PORT)")
-	@LOG_FILE="$(SERVER_LOG_FILE)"; \
-	if [ -z "$$LOG_FILE" ]; then LOG_FILE="server.log"; fi; \
+	# @LOG_FILE="$(SERVER_LOG_FILE)"; \
+	# if [ -z "$$LOG_FILE" ]; then LOG_FILE="server.log"; fi; \
 	CONFIG_FILE="$(SERVER_CONFIG_FILE)"; \
 	if [ -z "$$CONFIG_FILE" ]; then CONFIG_FILE="config-development.yml"; fi; \
 	BINARY="$(SERVER_BINARY)"; \

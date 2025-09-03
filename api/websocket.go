@@ -1421,6 +1421,9 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Register client
 	session.Register <- client
 
+	// Log WebSocket connection
+	logging.LogWebSocketConnection("CONNECTION_ESTABLISHED", session.ID, userIDStr, diagramID, h.LoggingConfig)
+
 	// Start goroutines
 	go client.ReadPump()
 	go client.WritePump()
@@ -3657,6 +3660,10 @@ func (s *DiagramSession) GetRecentOperations(count int) []*HistoryEntry {
 // ReadPump pumps messages from WebSocket to hub
 func (c *WebSocketClient) ReadPump() {
 	defer func() {
+		// Log WebSocket disconnection
+		if c.Session != nil && c.Hub != nil {
+			logging.LogWebSocketConnection("CONNECTION_CLOSED", c.Session.ID, c.UserID, c.Session.DiagramID, c.Hub.LoggingConfig)
+		}
 		c.Session.Unregister <- c
 		if err := c.Conn.Close(); err != nil {
 			logging.Get().Info("Error closing connection: %v", err)
@@ -3680,6 +3687,10 @@ func (c *WebSocketClient) ReadPump() {
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				logging.Get().Info("WebSocket error: %v", err)
+				// Log WebSocket error
+				if c.Session != nil && c.Hub != nil {
+					logging.LogWebSocketError("UNEXPECTED_CLOSE", err.Error(), c.Session.ID, c.UserID, c.Hub.LoggingConfig)
+				}
 			}
 			break
 		}
