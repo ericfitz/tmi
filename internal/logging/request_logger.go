@@ -108,15 +108,8 @@ func logRequestDetails(c *gin.Context, logger *ContextLogger, config RequestResp
 			headers = RedactHeaders(req.Header)
 		}
 
-		var headerLines []string
-		for key, values := range headers {
-			for _, value := range values {
-				headerLines = append(headerLines, fmt.Sprintf("  %s: %s", key, value))
-			}
-		}
-		if len(headerLines) > 0 {
-			logger.Debug("REQUEST Headers:\n%s", strings.Join(headerLines, "\n"))
-		}
+		// Log headers as a single line map
+		logger.Debug("REQUEST Headers: %v", headers)
 	}
 
 	// Log request body if present and not too large
@@ -131,7 +124,7 @@ func logRequestDetails(c *gin.Context, logger *ContextLogger, config RequestResp
 				bodyStr = RedactSensitiveInfo(bodyStr)
 			}
 
-			logger.Debug("REQUEST Body:\n%s", bodyStr)
+			logger.Debug("REQUEST Body: %s", bodyStr)
 		}
 	}
 }
@@ -149,15 +142,8 @@ func logResponseDetails(c *gin.Context, logger *ContextLogger, config RequestRes
 			headers = RedactHeaders(headers)
 		}
 
-		var headerLines []string
-		for key, values := range headers {
-			for _, value := range values {
-				headerLines = append(headerLines, fmt.Sprintf("  %s: %s", key, value))
-			}
-		}
-		if len(headerLines) > 0 {
-			logger.Debug("RESPONSE Headers:\n%s", strings.Join(headerLines, "\n"))
-		}
+		// Log headers as a single line map
+		logger.Debug("RESPONSE Headers: %v", headers)
 	}
 
 	// Log response body if captured and not too large
@@ -167,7 +153,7 @@ func logResponseDetails(c *gin.Context, logger *ContextLogger, config RequestRes
 			bodyStr = RedactSensitiveInfo(bodyStr)
 		}
 
-		logger.Debug("RESPONSE Body:\n%s", bodyStr)
+		logger.Debug("RESPONSE Body: %s", bodyStr)
 	}
 }
 

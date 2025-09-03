@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -547,12 +546,8 @@ func LogRequest(c *gin.Context, prefix string) {
 
 	logger.Debug("%s - Method: %s, Path: %s", prefix, c.Request.Method, c.Request.URL.Path)
 
-	// Log headers
-	headerLog := fmt.Sprintf("%s - Headers:", prefix)
-	for k, v := range c.Request.Header {
-		headerLog += fmt.Sprintf(" %s=%v", k, v)
-	}
-	logger.Debug(headerLog)
+	// Log headers as structured data on same line
+	logger.Debug("%s - Headers: %v", prefix, c.Request.Header)
 
 	// Try to log body
 	bodyBytes, err := c.GetRawData()
