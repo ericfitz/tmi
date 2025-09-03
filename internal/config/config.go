@@ -116,6 +116,7 @@ type LoggingConfig struct {
 	LogAPIResponses  bool `yaml:"log_api_responses" env:"TMI_LOGGING_LOG_API_RESPONSES"`
 	LogWebSocketMsg  bool `yaml:"log_websocket_messages" env:"TMI_LOGGING_LOG_WEBSOCKET_MESSAGES"`
 	RedactAuthTokens bool `yaml:"redact_auth_tokens" env:"TMI_LOGGING_REDACT_AUTH_TOKENS"`
+	SuppressUnauthenticatedLogs bool `yaml:"suppress_unauthenticated_logs" env:"TMI_LOGGING_SUPPRESS_UNAUTH_LOGS"`
 }
 
 // AdminConfig holds admin interface configuration
@@ -229,6 +230,7 @@ func getDefaultConfig() *Config {
 			MaxSizeMB:        100,
 			MaxBackups:       10,
 			AlsoLogToConsole: true,
+			SuppressUnauthenticatedLogs: true,
 		},
 		Admin: AdminConfig{
 			Enabled:    false,
