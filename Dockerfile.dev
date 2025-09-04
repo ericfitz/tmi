@@ -1,10 +1,11 @@
-# TMI application (development configuration) using Bitnami Golang
-FROM bitnami/golang:latest
+# TMI application (development configuration) using official Golang
+FROM golang:1.25.1-alpine
 
 # Update and patch the base image
-USER root
-RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
-USER 1001
+RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
+
+# Install git and ca-certificates for go mod download
+RUN apk add --no-cache git ca-certificates
 
 # Set working directory
 WORKDIR /app
