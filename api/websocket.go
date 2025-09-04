@@ -301,7 +301,7 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 		ThreatModelID: threatModelID,
 		State:         SessionStateActive,
 		Clients:       make(map[*WebSocketClient]bool),
-		Broadcast:     make(chan []byte),
+		Broadcast:     make(chan []byte, 256),
 		Register:      make(chan *WebSocketClient),
 		Unregister:    make(chan *WebSocketClient),
 		LastActivity:  time.Now().UTC(),
@@ -374,7 +374,7 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 		ThreatModelID: threatModelID,
 		State:         SessionStateActive,
 		Clients:       make(map[*WebSocketClient]bool),
-		Broadcast:     make(chan []byte),
+		Broadcast:     make(chan []byte, 256),
 		Register:      make(chan *WebSocketClient),
 		Unregister:    make(chan *WebSocketClient),
 		LastActivity:  time.Now().UTC(),
@@ -1130,6 +1130,7 @@ func (s *DiagramSession) Run() {
 			s.mu.RUnlock()
 
 			if currentPresenter != "" {
+				logging.Get().Debug("Sending current presenter message to new client %s - presenter: %s", client.UserID, currentPresenter)
 				presenterMsg := CurrentPresenterMessage{
 					MessageType:      MessageTypeCurrentPresenter,
 					CurrentPresenter: currentPresenter,
@@ -1137,13 +1138,17 @@ func (s *DiagramSession) Run() {
 				if msgBytes, err := json.Marshal(presenterMsg); err == nil {
 					select {
 					case client.Send <- msgBytes:
+						logging.Get().Debug("Successfully queued current presenter message for client %s", client.UserID)
 					default:
 						logging.Get().Error("Failed to send current presenter to new client")
 					}
 				}
+			} else {
+				logging.Get().Debug("No current presenter set for session %s", s.ID)
 			}
 
 			// Send participant list to the new client
+			logging.Get().Debug("Sending participants update to new client %s", client.UserID)
 			s.sendParticipantsUpdateToClient(client)
 
 			// Notify other clients that someone joined
@@ -1157,7 +1162,12 @@ func (s *DiagramSession) Run() {
 				Timestamp: time.Now().UTC(),
 			}
 			if msgBytes, err := MarshalAsyncMessage(msg); err == nil {
-				s.Broadcast <- msgBytes
+				select {
+				case s.Broadcast <- msgBytes:
+					// Successfully queued
+				default:
+					logging.Get().Error("Failed to broadcast participant joined message: broadcast channel full")
+				}
 			} else {
 				logging.Get().Error("Failed to marshal participant joined message: %v", err)
 			}
@@ -1205,7 +1215,12 @@ func (s *DiagramSession) Run() {
 				Timestamp: time.Now().UTC(),
 			}
 			if msgBytes, err := MarshalAsyncMessage(msg); err == nil {
-				s.Broadcast <- msgBytes
+				select {
+				case s.Broadcast <- msgBytes:
+					// Successfully queued
+				default:
+					logging.Get().Error("Failed to broadcast participant left message: broadcast channel full")
+				}
 			} else {
 				logging.Get().Error("Failed to marshal participant left message: %v", err)
 			}
@@ -2447,6 +2462,7 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 			perms := getSessionPermissionsForUser(permissionCheckID, tm)
 			if perms == nil {
 				// User is unauthorized, skip them
+				logging.Get().Debug("Skipping user %s (%s) - no permissions found for threat model %s", client.UserID, permissionCheckID, tm.Id)
 				continue
 			}
 			permissions = string(*perms)
@@ -2522,6 +2538,7 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 			perms := getSessionPermissionsForUser(permissionCheckID, tm)
 			if perms == nil {
 				// User is unauthorized, skip them
+				logging.Get().Debug("Skipping user %s (%s) - no permissions found for threat model %s", c.UserID, permissionCheckID, tm.Id)
 				continue
 			}
 			permissions = string(*perms)
@@ -2552,8 +2569,10 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 
 	if msgBytes, err := json.Marshal(msg); err == nil {
 		// Send to specific client
+		logging.Get().Debug("Sending participants update message to client %s with %d participants", client.UserID, len(participants))
 		select {
 		case client.Send <- msgBytes:
+			logging.Get().Debug("Successfully queued participants update for client %s", client.UserID)
 		default:
 			logging.Get().Error("Failed to send participants update to client %s: send channel full", client.UserID)
 		}
@@ -3861,6 +3880,7 @@ func (c *WebSocketClient) WritePump() {
 				}
 				return
 			}
+			logging.Get().Debug("WritePump: Sending message to client %s - length: %d", c.UserID, len(message))
 
 			// Log outbound WebSocket message
 			if c.Session != nil && c.Hub != nil {
