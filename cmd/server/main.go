@@ -1221,13 +1221,14 @@ func main() {
 
 	// Initialize logger
 	if err := logging.Initialize(logging.Config{
-		Level:            cfg.GetLogLevel(),
-		IsDev:            cfg.Logging.IsDev,
-		LogDir:           cfg.Logging.LogDir,
-		MaxAgeDays:       cfg.Logging.MaxAgeDays,
-		MaxSizeMB:        cfg.Logging.MaxSizeMB,
-		MaxBackups:       cfg.Logging.MaxBackups,
-		AlsoLogToConsole: cfg.Logging.AlsoLogToConsole,
+		Level:                       cfg.GetLogLevel(),
+		IsDev:                       cfg.Logging.IsDev,
+		LogDir:                      cfg.Logging.LogDir,
+		MaxAgeDays:                  cfg.Logging.MaxAgeDays,
+		MaxSizeMB:                   cfg.Logging.MaxSizeMB,
+		MaxBackups:                  cfg.Logging.MaxBackups,
+		AlsoLogToConsole:            cfg.Logging.AlsoLogToConsole,
+		SuppressUnauthenticatedLogs: cfg.Logging.SuppressUnauthenticatedLogs,
 	}); err != nil {
 		logging.Get().Error("Failed to initialize logger: %v", err)
 		os.Exit(1)

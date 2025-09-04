@@ -44,6 +44,17 @@ func RequestResponseLogger(config RequestResponseLoggingConfig) gin.HandlerFunc 
 			return
 		}
 
+		// Check if request is authenticated
+		userName, hasUser := c.Get("userName")
+		isAuthenticated := hasUser && userName != nil && userName != ""
+
+		// Skip logging if configured to suppress unauthenticated logs
+		if Get().suppressUnauthenticatedLogs && !isAuthenticated {
+			// Still process the request, just don't log
+			c.Next()
+			return
+		}
+
 		startTime := time.Now()
 
 		// Log request details

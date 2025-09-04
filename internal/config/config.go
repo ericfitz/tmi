@@ -112,10 +112,10 @@ type LoggingConfig struct {
 	MaxBackups       int    `yaml:"max_backups" env:"TMI_LOGGING_MAX_BACKUPS"`
 	AlsoLogToConsole bool   `yaml:"also_log_to_console" env:"TMI_LOGGING_ALSO_LOG_TO_CONSOLE"`
 	// Enhanced debug logging options
-	LogAPIRequests   bool `yaml:"log_api_requests" env:"TMI_LOGGING_LOG_API_REQUESTS"`
-	LogAPIResponses  bool `yaml:"log_api_responses" env:"TMI_LOGGING_LOG_API_RESPONSES"`
-	LogWebSocketMsg  bool `yaml:"log_websocket_messages" env:"TMI_LOGGING_LOG_WEBSOCKET_MESSAGES"`
-	RedactAuthTokens bool `yaml:"redact_auth_tokens" env:"TMI_LOGGING_REDACT_AUTH_TOKENS"`
+	LogAPIRequests              bool `yaml:"log_api_requests" env:"TMI_LOGGING_LOG_API_REQUESTS"`
+	LogAPIResponses             bool `yaml:"log_api_responses" env:"TMI_LOGGING_LOG_API_RESPONSES"`
+	LogWebSocketMsg             bool `yaml:"log_websocket_messages" env:"TMI_LOGGING_LOG_WEBSOCKET_MESSAGES"`
+	RedactAuthTokens            bool `yaml:"redact_auth_tokens" env:"TMI_LOGGING_REDACT_AUTH_TOKENS"`
 	SuppressUnauthenticatedLogs bool `yaml:"suppress_unauthenticated_logs" env:"TMI_LOGGING_SUPPRESS_UNAUTH_LOGS"`
 }
 
@@ -222,14 +222,14 @@ func getDefaultConfig() *Config {
 			},
 		},
 		Logging: LoggingConfig{
-			Level:            "info",
-			IsDev:            true,
-			IsTest:           false,
-			LogDir:           "logs",
-			MaxAgeDays:       7,
-			MaxSizeMB:        100,
-			MaxBackups:       10,
-			AlsoLogToConsole: true,
+			Level:                       "info",
+			IsDev:                       true,
+			IsTest:                      false,
+			LogDir:                      "logs",
+			MaxAgeDays:                  7,
+			MaxSizeMB:                   100,
+			MaxBackups:                  10,
+			AlsoLogToConsole:            true,
 			SuppressUnauthenticatedLogs: true,
 		},
 		Admin: AdminConfig{
