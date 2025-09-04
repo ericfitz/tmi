@@ -708,14 +708,14 @@ wstest: wstest-build
 	fi
 	@# Terminal 1: Host (alice)
 	@if [ "$$TERM_PROGRAM" = "Apple_Terminal" ] || [ "$$TERM_PROGRAM" = "iTerm.app" ]; then \
-		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user alice --host --participants \"bob,charlie\""' > /dev/null; \
+		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user alice --host --participants \"bob,charlie,hobobarbarian@gmail.com\""' > /dev/null; \
 	elif command -v gnome-terminal > /dev/null 2>&1; then \
-		gnome-terminal -- bash -c "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user alice --host --participants 'bob,charlie'; exec bash" & \
+		gnome-terminal -- bash -c "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user alice --host --participants 'bob,charlie,hobobarbarian@gmail.com'; exec bash" & \
 	elif command -v xterm > /dev/null 2>&1; then \
-		xterm -e "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user alice --host --participants 'bob,charlie'" & \
+		xterm -e "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user alice --host --participants 'bob,charlie,hobobarbarian@gmail.com'" & \
 	else \
 		echo -e "$(YELLOW)[WARNING]$(NC) Could not detect terminal emulator. Running in background..."; \
-		cd ws-test-harness && timeout 30 ./ws-test-harness --user alice --host --participants "bob,charlie" > alice.log 2>&1 & \
+		cd ws-test-harness && timeout 30 ./ws-test-harness --user alice --host --participants "bob,charlie,hobobarbarian@gmail.com" > alice.log 2>&1 & \
 		echo "Host (alice) running in background, see ws-test-harness/alice.log"; \
 	fi
 	@# Wait for host to start
