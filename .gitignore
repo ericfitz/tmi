@@ -32,6 +32,8 @@
 !shared/**
 !static/
 !static/**
+!ws-test-harness/
+!ws-test-harness/**
 
 # Explicitly ignore unwanted files and directories
 *.log
@@ -54,3 +56,5 @@ test.mk
 .vscode/
 
 api/api.test
+ws-test-harness/ws-test-harness
+ws-test-harness/*.log

@@ -689,6 +689,75 @@ test-api:
 	rm -f .config.tmp.mk
 
 # ============================================================================
+# WEBSOCKET TEST HARNESS
+# ============================================================================
+
+.PHONY: wstest-build wstest wstest-clean
+
+wstest-build:
+	$(call log_info,Building WebSocket test harness...)
+	@cd ws-test-harness && go mod tidy && go build -o ws-test-harness
+	$(call log_success,WebSocket test harness built successfully)
+
+wstest: wstest-build
+	$(call log_info,Starting WebSocket test with 3 terminals...)
+	@# Check if server is running
+	@if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then \
+		$(call log_error,Server not running. Please run 'make dev-start' first); \
+		exit 1; \
+	fi
+	@# Terminal 1: Host (alice)
+	@if [ "$$TERM_PROGRAM" = "Apple_Terminal" ] || [ "$$TERM_PROGRAM" = "iTerm.app" ]; then \
+		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user alice --host --participants \"bob,charlie\""' > /dev/null; \
+	elif command -v gnome-terminal > /dev/null 2>&1; then \
+		gnome-terminal -- bash -c "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user alice --host --participants 'bob,charlie'; exec bash" & \
+	elif command -v xterm > /dev/null 2>&1; then \
+		xterm -e "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user alice --host --participants 'bob,charlie'" & \
+	else \
+		echo -e "$(YELLOW)[WARNING]$(NC) Could not detect terminal emulator. Running in background..."; \
+		cd ws-test-harness && timeout 30 ./ws-test-harness --user alice --host --participants "bob,charlie" > alice.log 2>&1 & \
+		echo "Host (alice) running in background, see ws-test-harness/alice.log"; \
+	fi
+	@# Wait for host to start
+	@sleep 3
+	@# Terminal 2: Participant (bob)
+	@if [ "$$TERM_PROGRAM" = "Apple_Terminal" ] || [ "$$TERM_PROGRAM" = "iTerm.app" ]; then \
+		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user bob"' > /dev/null; \
+	elif command -v gnome-terminal > /dev/null 2>&1; then \
+		gnome-terminal -- bash -c "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user bob; exec bash" & \
+	elif command -v xterm > /dev/null 2>&1; then \
+		xterm -e "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user bob" & \
+	else \
+		cd ws-test-harness && timeout 30 ./ws-test-harness --user bob > bob.log 2>&1 & \
+		echo "Participant (bob) running in background, see ws-test-harness/bob.log"; \
+	fi
+	@# Terminal 3: Participant (charlie)
+	@if [ "$$TERM_PROGRAM" = "Apple_Terminal" ] || [ "$$TERM_PROGRAM" = "iTerm.app" ]; then \
+		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user charlie"' > /dev/null; \
+	elif command -v gnome-terminal > /dev/null 2>&1; then \
+		gnome-terminal -- bash -c "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user charlie; exec bash" & \
+	elif command -v xterm > /dev/null 2>&1; then \
+		xterm -e "cd $(PWD)/ws-test-harness && timeout 30 ./ws-test-harness --user charlie" & \
+	else \
+		cd ws-test-harness && timeout 30 ./ws-test-harness --user charlie > charlie.log 2>&1 & \
+		echo "Participant (charlie) running in background, see ws-test-harness/charlie.log"; \
+	fi
+	$(call log_success,WebSocket test started with 3 terminals)
+	@echo "Watch the terminals for WebSocket activity. Use 'make wstest-clean' to stop all instances."
+
+wstest-clean:
+	$(call log_info,Stopping all WebSocket test harness instances...)
+	@# Kill all ws-test-harness processes
+	@if pgrep -f "ws-test-harness" > /dev/null 2>&1; then \
+		pkill -f "ws-test-harness" && \
+		echo -e "$(GREEN)[SUCCESS]$(NC) All WebSocket test harness instances stopped"; \
+	else \
+		echo -e "$(YELLOW)[WARNING]$(NC) No WebSocket test harness instances found"; \
+	fi
+	@# Clean up any log files
+	@rm -f ws-test-harness/*.log 2>/dev/null || true
+
+# ============================================================================
 # VALIDATION TARGETS
 # ============================================================================
 
@@ -726,6 +795,11 @@ help:
 	@echo "  db-migrate             - Run database migrations"
 	@echo "  server-start           - Start server"
 	@echo "  clean-all              - Clean up everything"
+	@echo ""
+	@echo "WebSocket Testing:"
+	@echo "  wstest-build           - Build WebSocket test harness"
+	@echo "  wstest                 - Run WebSocket test with 3 terminals (alice, bob, charlie)"
+	@echo "  wstest-clean           - Stop all running WebSocket test instances"
 	@echo ""
 	@echo "Validation Targets:"
 	@echo "  validate-openapi       - Validate OpenAPI specification"
