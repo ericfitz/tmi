@@ -438,6 +438,61 @@ func NewMicrosoftProvider(config OAuthProviderConfig, callbackURL string) (*Micr
 	}, nil
 }
 
+// GetUserInfo gets user information from Microsoft Graph API
+func (p *MicrosoftProvider) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", p.config.UserInfoURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user info: %w", err)
+	}
+	defer closeBody(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to get user info: %s", body)
+	}
+
+	// Microsoft Graph API returns email in "mail" field, not "email"
+	var microsoftUser struct {
+		ID                string `json:"id"`
+		Mail              string `json:"mail"`
+		DisplayName       string `json:"displayName"`
+		GivenName         string `json:"givenName"`
+		Surname           string `json:"surname"`
+		UserPrincipalName string `json:"userPrincipalName"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&microsoftUser); err != nil {
+		return nil, fmt.Errorf("failed to decode user info: %w", err)
+	}
+
+	// Map Microsoft fields to our UserInfo structure
+	userInfo := &UserInfo{
+		ID:         microsoftUser.ID,
+		Email:      microsoftUser.Mail,
+		Name:       microsoftUser.DisplayName,
+		GivenName:  microsoftUser.GivenName,
+		FamilyName: microsoftUser.Surname,
+		// Microsoft Graph API doesn't return email_verified or picture in the basic /me endpoint
+		EmailVerified: true,    // Assume verified for Microsoft accounts
+		Locale:        "en-US", // Default locale, Microsoft Graph requires additional scopes for locale
+	}
+
+	// If mail is empty, fall back to userPrincipalName
+	if userInfo.Email == "" && microsoftUser.UserPrincipalName != "" {
+		userInfo.Email = microsoftUser.UserPrincipalName
+	}
+
+	return userInfo, nil
+}
+
 // ValidateIDToken validates an ID token
 func (p *MicrosoftProvider) ValidateIDToken(ctx context.Context, idToken string) (*IDTokenClaims, error) {
 	if p.verifier == nil {
