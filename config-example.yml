@@ -49,30 +49,40 @@ auth:
                 id: "github"
                 name: "GitHub"
                 enabled: false
-                icon: "github"
+                icon: "fa-brands fa-github"
                 client_id: ""       # Set via env var TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID
                 client_secret: ""   # Set via env var TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET
                 authorization_url: "https://github.com/login/oauth/authorize"
                 token_url: "https://github.com/login/oauth/access_token"
-                userinfo_url: "https://api.github.com/user"
+                auth_header_format: "token %s"  # GitHub uses "token" instead of "Bearer"
+                accept_header: "application/json"
+                userinfo:
+                    - url: "https://api.github.com/user"
+                      claims:
+                          subject_claim: "id"
+                          name_claim: "name"
+                          picture_claim: "avatar_url"
+                    - url: "https://api.github.com/user/emails"
+                      claims:
+                          email_claim: "[0].email"
+                          email_verified_claim: "[0].verified"
                 issuer: ""
                 jwks_url: ""
                 scopes:
                     - "user:email"
                 additional_params: {}
-                email_claim: "email"
-                name_claim: "name"
-                subject_claim: "id"
             google:
                 id: "google"
                 name: "Google"
                 enabled: false
-                icon: "google"
+                icon: "fa-brands fa-google"
                 client_id: ""       # Set via env var TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID
                 client_secret: ""   # Set via env var TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET
                 authorization_url: "https://accounts.google.com/o/oauth2/auth"
                 token_url: "https://oauth2.googleapis.com/token"
-                userinfo_url: "https://www.googleapis.com/oauth2/v3/userinfo"
+                userinfo:
+                    - url: "https://www.googleapis.com/oauth2/v3/userinfo"
+                      claims: {}  # Will use defaults: sub, email, name
                 issuer: "https://accounts.google.com"
                 jwks_url: "https://www.googleapis.com/oauth2/v3/certs"
                 scopes:
@@ -80,14 +90,11 @@ auth:
                     - "profile"
                     - "email"
                 additional_params: {}
-                email_claim: "email"
-                name_claim: "name"
-                subject_claim: "sub"
             microsoft:
                 id: "microsoft"
                 name: "Microsoft"
                 enabled: false      # Disabled by default
-                icon: "microsoft"
+                icon: "fa-brands fa-microsoft"
                 client_id: ""
                 client_secret: ""
                 # Choose endpoints based on your Azure AD app's signInAudience configuration:
@@ -103,7 +110,15 @@ auth:
                 # For "AzureADMyOrg" (specific tenant only):
                 # authorization_url: "https://login.microsoftonline.com/{your-tenant-id}/oauth2/v2.0/authorize"
                 # token_url: "https://login.microsoftonline.com/{your-tenant-id}/oauth2/v2.0/token"
-                userinfo_url: "https://graph.microsoft.com/v1.0/me"
+                userinfo:
+                    - url: "https://graph.microsoft.com/v1.0/me"
+                      claims:
+                          subject_claim: "id"
+                          email_claim: "mail"
+                          name_claim: "displayName"
+                          given_name_claim: "givenName"
+                          family_name_claim: "surname"
+                          email_verified_claim: "true"  # Literal value - Microsoft accounts are always verified
                 issuer: "https://login.microsoftonline.com/common/v2.0"
                 jwks_url: "https://login.microsoftonline.com/common/discovery/v2.0/keys"
                 scopes:
@@ -112,9 +127,6 @@ auth:
                     - "email"
                     - "User.Read"
                 additional_params: {}
-                email_claim: "email"
-                name_claim: "name"
-                subject_claim: "sub"
             test:
                 id: "test"
                 name: "Test Provider" 
@@ -124,7 +136,7 @@ auth:
                 client_secret: "test-oauth-secret-12345"
                 authorization_url: "http://localhost:8080/oauth2/authorize?idp=test"
                 token_url: "http://localhost:8080/oauth2/token?idp=test"
-                userinfo_url: ""
+                userinfo: []  # Test provider handles this internally
                 issuer: "test-oauth-provider"
                 jwks_url: ""
                 scopes:
@@ -132,9 +144,6 @@ auth:
                     - "profile"
                     - "email"
                 additional_params: {}
-                email_claim: "email"
-                name_claim: "name"
-                subject_claim: "sub"
 
 logging:
     level: "info"                   # Log level (debug/info/warn/error)

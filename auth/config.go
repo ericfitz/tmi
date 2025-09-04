@@ -48,24 +48,29 @@ type OAuthConfig struct {
 	Providers   map[string]OAuthProviderConfig
 }
 
+// UserInfoEndpoint represents a single userinfo endpoint and its claim mappings
+type UserInfoEndpoint struct {
+	URL    string            `json:"url"`
+	Claims map[string]string `json:"claims"`
+}
+
 // OAuthProviderConfig holds configuration for an OAuth provider
 type OAuthProviderConfig struct {
-	ID               string            `json:"id"`
-	Name             string            `json:"name"`
-	Enabled          bool              `json:"enabled"`
-	Icon             string            `json:"icon"`
-	ClientID         string            `json:"client_id"`
-	ClientSecret     string            `json:"client_secret"`
-	AuthorizationURL string            `json:"authorization_url"`
-	TokenURL         string            `json:"token_url"`
-	UserInfoURL      string            `json:"userinfo_url"`
-	Issuer           string            `json:"issuer"`
-	JWKSURL          string            `json:"jwks_url"`
-	Scopes           []string          `json:"scopes"`
-	AdditionalParams map[string]string `json:"additional_params"`
-	EmailClaim       string            `json:"email_claim"`
-	NameClaim        string            `json:"name_claim"`
-	SubjectClaim     string            `json:"subject_claim"`
+	ID               string             `json:"id"`
+	Name             string             `json:"name"`
+	Enabled          bool               `json:"enabled"`
+	Icon             string             `json:"icon"`
+	ClientID         string             `json:"client_id"`
+	ClientSecret     string             `json:"client_secret"`
+	AuthorizationURL string             `json:"authorization_url"`
+	TokenURL         string             `json:"token_url"`
+	UserInfo         []UserInfoEndpoint `json:"userinfo"`
+	Issuer           string             `json:"issuer"`
+	JWKSURL          string             `json:"jwks_url"`
+	Scopes           []string           `json:"scopes"`
+	AdditionalParams map[string]string  `json:"additional_params"`
+	AuthHeaderFormat string             `json:"auth_header_format,omitempty"` // Default: "Bearer %s"
+	AcceptHeader     string             `json:"accept_header,omitempty"`      // Default: "application/json"
 }
 
 // LoadConfig loads configuration from environment variables
@@ -139,19 +144,21 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 			ID:               "google",
 			Name:             "Google",
 			Enabled:          true,
-			Icon:             "google",
+			Icon:             "fa-brands fa-google",
 			ClientID:         getEnv("OAUTH_GOOGLE_CLIENT_ID", ""),
 			ClientSecret:     getEnv("OAUTH_GOOGLE_CLIENT_SECRET", ""),
 			AuthorizationURL: getEnv("OAUTH_GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/auth"),
 			TokenURL:         getEnv("OAUTH_GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
-			UserInfoURL:      getEnv("OAUTH_GOOGLE_USERINFO_URL", "https://www.googleapis.com/oauth2/v3/userinfo"),
+			UserInfo: []UserInfoEndpoint{
+				{
+					URL:    getEnv("OAUTH_GOOGLE_USERINFO_URL", "https://www.googleapis.com/oauth2/v3/userinfo"),
+					Claims: map[string]string{}, // Will use defaults
+				},
+			},
 			Issuer:           getEnv("OAUTH_GOOGLE_ISSUER", "https://accounts.google.com"),
 			JWKSURL:          getEnv("OAUTH_GOOGLE_JWKS_URL", "https://www.googleapis.com/oauth2/v3/certs"),
 			Scopes:           []string{"openid", "profile", "email"},
 			AdditionalParams: map[string]string{},
-			EmailClaim:       "email",
-			NameClaim:        "name",
-			SubjectClaim:     "sub",
 		}
 	}
 
@@ -161,17 +168,32 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 			ID:               "github",
 			Name:             "GitHub",
 			Enabled:          true,
-			Icon:             "github",
+			Icon:             "fa-brands fa-github",
 			ClientID:         getEnv("OAUTH_GITHUB_CLIENT_ID", ""),
 			ClientSecret:     getEnv("OAUTH_GITHUB_CLIENT_SECRET", ""),
 			AuthorizationURL: getEnv("OAUTH_GITHUB_AUTH_URL", "https://github.com/login/oauth/authorize"),
 			TokenURL:         getEnv("OAUTH_GITHUB_TOKEN_URL", "https://github.com/login/oauth/access_token"),
-			UserInfoURL:      getEnv("OAUTH_GITHUB_USERINFO_URL", "https://api.github.com/user"),
+			UserInfo: []UserInfoEndpoint{
+				{
+					URL: getEnv("OAUTH_GITHUB_USERINFO_URL", "https://api.github.com/user"),
+					Claims: map[string]string{
+						"subject_claim": "id",
+						"name_claim":    "name",
+						"picture_claim": "avatar_url",
+					},
+				},
+				{
+					URL: "https://api.github.com/user/emails",
+					Claims: map[string]string{
+						"email_claim":          "[0].email",
+						"email_verified_claim": "[0].verified",
+					},
+				},
+			},
 			Scopes:           []string{"user:email"},
 			AdditionalParams: map[string]string{},
-			EmailClaim:       "email",
-			NameClaim:        "name",
-			SubjectClaim:     "id",
+			AuthHeaderFormat: "token %s",
+			AcceptHeader:     "application/json",
 		}
 	}
 
@@ -181,19 +203,28 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 			ID:               "microsoft",
 			Name:             "Microsoft",
 			Enabled:          true,
-			Icon:             "microsoft",
+			Icon:             "fa-brands fa-microsoft",
 			ClientID:         getEnv("OAUTH_MICROSOFT_CLIENT_ID", ""),
 			ClientSecret:     getEnv("OAUTH_MICROSOFT_CLIENT_SECRET", ""),
 			AuthorizationURL: getEnv("OAUTH_MICROSOFT_AUTH_URL", "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"),
 			TokenURL:         getEnv("OAUTH_MICROSOFT_TOKEN_URL", "https://login.microsoftonline.com/common/oauth2/v2.0/token"),
-			UserInfoURL:      getEnv("OAUTH_MICROSOFT_USERINFO_URL", "https://graph.microsoft.com/v1.0/me"),
+			UserInfo: []UserInfoEndpoint{
+				{
+					URL: getEnv("OAUTH_MICROSOFT_USERINFO_URL", "https://graph.microsoft.com/v1.0/me"),
+					Claims: map[string]string{
+						"subject_claim":        "id",
+						"email_claim":          "mail",
+						"name_claim":           "displayName",
+						"given_name_claim":     "givenName",
+						"family_name_claim":    "surname",
+						"email_verified_claim": "true", // Literal value
+					},
+				},
+			},
 			Issuer:           getEnv("OAUTH_MICROSOFT_ISSUER", "https://login.microsoftonline.com/common/v2.0"),
 			JWKSURL:          getEnv("OAUTH_MICROSOFT_JWKS_URL", "https://login.microsoftonline.com/common/discovery/v2.0/keys"),
 			Scopes:           []string{"openid", "profile", "email", "User.Read"},
 			AdditionalParams: map[string]string{},
-			EmailClaim:       "email",
-			NameClaim:        "name",
-			SubjectClaim:     "sub",
 		}
 	}
 

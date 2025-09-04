@@ -81,24 +81,29 @@ type OAuthConfig struct {
 	Providers   map[string]OAuthProviderConfig `yaml:"providers"`
 }
 
+// UserInfoEndpoint represents a single userinfo endpoint and its claim mappings
+type UserInfoEndpoint struct {
+	URL    string            `yaml:"url"`
+	Claims map[string]string `yaml:"claims"`
+}
+
 // OAuthProviderConfig holds configuration for an OAuth provider
 type OAuthProviderConfig struct {
-	ID               string            `yaml:"id"`
-	Name             string            `yaml:"name"`
-	Enabled          bool              `yaml:"enabled"`
-	Icon             string            `yaml:"icon"`
-	ClientID         string            `yaml:"client_id"`
-	ClientSecret     string            `yaml:"client_secret"`
-	AuthorizationURL string            `yaml:"authorization_url"`
-	TokenURL         string            `yaml:"token_url"`
-	UserInfoURL      string            `yaml:"userinfo_url"`
-	Issuer           string            `yaml:"issuer"`
-	JWKSURL          string            `yaml:"jwks_url"`
-	Scopes           []string          `yaml:"scopes"`
-	AdditionalParams map[string]string `yaml:"additional_params"`
-	EmailClaim       string            `yaml:"email_claim"`
-	NameClaim        string            `yaml:"name_claim"`
-	SubjectClaim     string            `yaml:"subject_claim"`
+	ID               string             `yaml:"id"`
+	Name             string             `yaml:"name"`
+	Enabled          bool               `yaml:"enabled"`
+	Icon             string             `yaml:"icon"`
+	ClientID         string             `yaml:"client_id"`
+	ClientSecret     string             `yaml:"client_secret"`
+	AuthorizationURL string             `yaml:"authorization_url"`
+	TokenURL         string             `yaml:"token_url"`
+	UserInfo         []UserInfoEndpoint `yaml:"userinfo"`
+	Issuer           string             `yaml:"issuer"`
+	JWKSURL          string             `yaml:"jwks_url"`
+	Scopes           []string           `yaml:"scopes"`
+	AdditionalParams map[string]string  `yaml:"additional_params"`
+	AuthHeaderFormat string             `yaml:"auth_header_format,omitempty"`
+	AcceptHeader     string             `yaml:"accept_header,omitempty"`
 }
 
 // LoggingConfig holds logging configuration
@@ -262,53 +267,79 @@ func getDefaultOAuthProviders() map[string]OAuthProviderConfig {
 			ID:               "google",
 			Name:             "Google",
 			Enabled:          true,
-			Icon:             "google",
+			Icon:             "fa-brands fa-google",
 			ClientID:         "",
 			ClientSecret:     "",
 			AuthorizationURL: "https://accounts.google.com/o/oauth2/auth",
 			TokenURL:         "https://oauth2.googleapis.com/token",
-			UserInfoURL:      "https://www.googleapis.com/oauth2/v3/userinfo",
+			UserInfo: []UserInfoEndpoint{
+				{
+					URL:    "https://www.googleapis.com/oauth2/v3/userinfo",
+					Claims: map[string]string{}, // Will use defaults
+				},
+			},
 			Issuer:           "https://accounts.google.com",
 			JWKSURL:          "https://www.googleapis.com/oauth2/v3/certs",
 			Scopes:           []string{"openid", "profile", "email"},
 			AdditionalParams: map[string]string{},
-			EmailClaim:       "email",
-			NameClaim:        "name",
-			SubjectClaim:     "sub",
 		},
 		"github": {
 			ID:               "github",
 			Name:             "GitHub",
 			Enabled:          true,
-			Icon:             "github",
+			Icon:             "fa-brands fa-github",
 			ClientID:         "",
 			ClientSecret:     "",
 			AuthorizationURL: "https://github.com/login/oauth/authorize",
 			TokenURL:         "https://github.com/login/oauth/access_token",
-			UserInfoURL:      "https://api.github.com/user",
+			UserInfo: []UserInfoEndpoint{
+				{
+					URL: "https://api.github.com/user",
+					Claims: map[string]string{
+						"subject_claim": "id",
+						"name_claim":    "name",
+						"picture_claim": "avatar_url",
+					},
+				},
+				{
+					URL: "https://api.github.com/user/emails",
+					Claims: map[string]string{
+						"email_claim":          "[0].email",
+						"email_verified_claim": "[0].verified",
+					},
+				},
+			},
 			Scopes:           []string{"user:email"},
 			AdditionalParams: map[string]string{},
-			EmailClaim:       "email",
-			NameClaim:        "name",
-			SubjectClaim:     "id",
+			AuthHeaderFormat: "token %s",
+			AcceptHeader:     "application/json",
 		},
 		"microsoft": {
 			ID:               "microsoft",
 			Name:             "Microsoft",
 			Enabled:          true,
-			Icon:             "microsoft",
+			Icon:             "fa-brands fa-microsoft",
 			ClientID:         "",
 			ClientSecret:     "",
 			AuthorizationURL: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
 			TokenURL:         "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-			UserInfoURL:      "https://graph.microsoft.com/v1.0/me",
+			UserInfo: []UserInfoEndpoint{
+				{
+					URL: "https://graph.microsoft.com/v1.0/me",
+					Claims: map[string]string{
+						"subject_claim":        "id",
+						"email_claim":          "mail",
+						"name_claim":           "displayName",
+						"given_name_claim":     "givenName",
+						"family_name_claim":    "surname",
+						"email_verified_claim": "true", // Literal value
+					},
+				},
+			},
 			Issuer:           "https://login.microsoftonline.com/common/v2.0",
 			JWKSURL:          "https://login.microsoftonline.com/common/discovery/v2.0/keys",
 			Scopes:           []string{"openid", "profile", "email", "User.Read"},
 			AdditionalParams: map[string]string{},
-			EmailClaim:       "email",
-			NameClaim:        "name",
-			SubjectClaim:     "sub",
 		},
 	}
 }

@@ -187,7 +187,12 @@ func TestExchangeHandlerValidation(t *testing.T) {
 					ClientSecret:     "test-secret",
 					AuthorizationURL: "https://accounts.google.com/o/oauth2/auth",
 					TokenURL:         "https://oauth2.googleapis.com/token",
-					UserInfoURL:      "https://www.googleapis.com/oauth2/v3/userinfo",
+					UserInfo: []UserInfoEndpoint{
+						{
+							URL:    "https://www.googleapis.com/oauth2/v3/userinfo",
+							Claims: map[string]string{},
+						},
+					},
 				},
 			},
 		},

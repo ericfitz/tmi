@@ -45,6 +45,15 @@ func convertOAuthProviders(unified map[string]config.OAuthProviderConfig) map[st
 	providers := make(map[string]OAuthProviderConfig)
 
 	for id, provider := range unified {
+		// Convert UserInfo endpoints
+		var userInfo []UserInfoEndpoint
+		for _, endpoint := range provider.UserInfo {
+			userInfo = append(userInfo, UserInfoEndpoint{
+				URL:    endpoint.URL,
+				Claims: endpoint.Claims,
+			})
+		}
+
 		providers[id] = OAuthProviderConfig{
 			ID:               provider.ID,
 			Name:             provider.Name,
@@ -54,14 +63,13 @@ func convertOAuthProviders(unified map[string]config.OAuthProviderConfig) map[st
 			ClientSecret:     provider.ClientSecret,
 			AuthorizationURL: provider.AuthorizationURL,
 			TokenURL:         provider.TokenURL,
-			UserInfoURL:      provider.UserInfoURL,
+			UserInfo:         userInfo,
 			Issuer:           provider.Issuer,
 			JWKSURL:          provider.JWKSURL,
 			Scopes:           provider.Scopes,
 			AdditionalParams: provider.AdditionalParams,
-			EmailClaim:       provider.EmailClaim,
-			NameClaim:        provider.NameClaim,
-			SubjectClaim:     provider.SubjectClaim,
+			AuthHeaderFormat: provider.AuthHeaderFormat,
+			AcceptHeader:     provider.AcceptHeader,
 		}
 	}
 

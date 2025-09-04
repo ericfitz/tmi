@@ -237,8 +237,13 @@ func TestProviderConfiguration(t *testing.T) {
 					ClientSecret:     "google-client-secret",
 					AuthorizationURL: "https://accounts.google.com/o/oauth2/auth",
 					TokenURL:         "https://oauth2.googleapis.com/token",
-					UserInfoURL:      "https://www.googleapis.com/oauth2/v3/userinfo",
-					Icon:             "google",
+					UserInfo: []UserInfoEndpoint{
+						{
+							URL:    "https://www.googleapis.com/oauth2/v3/userinfo",
+							Claims: map[string]string{},
+						},
+					},
+					Icon: "google",
 				},
 				"disabled": {
 					ID:      "disabled",

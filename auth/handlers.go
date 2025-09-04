@@ -1022,38 +1022,6 @@ func exchangeCodeForTokens(ctx context.Context, provider OAuthProviderConfig, co
 	return result, nil
 }
 
-// getUserInfo gets the user info from the provider
-func getUserInfo(ctx context.Context, provider OAuthProviderConfig, accessToken string) (map[string]interface{}, error) {
-	// Prepare the request
-	req, err := http.NewRequestWithContext(ctx, "GET", provider.UserInfoURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer closeBody(resp.Body)
-
-	// Parse the response
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to get user info: %s", body)
-	}
-
-	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
-
 // validateOAuthScope validates the scope parameter according to OpenID Connect specification
 // Requires at least "openid" scope, supports "profile" and "email", ignores other scopes
 func (h *Handlers) validateOAuthScope(scope string) error {
