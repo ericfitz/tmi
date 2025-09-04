@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -326,6 +327,7 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 	logging.Get().Info("Created new session %s for diagram %s (host: %s, threat model: %s)",
 		session.ID, diagramID, hostUserID, threatModelID)
 
+	logging.Get().Debug("Starting session Run() goroutine - Session: %s, Diagram: %s", session.ID, diagramID)
 	go session.Run()
 
 	return session, nil
@@ -398,6 +400,7 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 	logging.Get().Info("Created new session %s for diagram %s (host: %s, threat model: %s)",
 		session.ID, diagramID, hostUserID, threatModelID)
 
+	logging.Get().Debug("Starting session Run() goroutine - Session: %s, Diagram: %s", session.ID, diagramID)
 	go session.Run()
 
 	return session
@@ -1092,9 +1095,14 @@ func (h *WebSocketHub) StartCleanupTimer(ctx context.Context) {
 
 // Run processes messages for a diagram session
 func (s *DiagramSession) Run() {
-	// Defer cleanup when session terminates
+	// Add panic recovery to prevent session goroutine from crashing
 	defer func() {
-		// Remove session from hub when Run exits
+		if r := recover(); r != nil {
+			logging.Get().Error("PANIC in DiagramSession.Run() - Session: %s, Diagram: %s, Error: %v, Stack: %s",
+				s.ID, s.DiagramID, r, debug.Stack())
+		}
+
+		// Remove session from hub when Run exits (either normally or due to panic)
 		if s.Hub != nil {
 			s.Hub.mu.Lock()
 			delete(s.Hub.Diagrams, s.DiagramID)
@@ -1103,13 +1111,17 @@ func (s *DiagramSession) Run() {
 		}
 	}()
 
+	logging.Get().Debug("DiagramSession.Run() started - Session: %s, Diagram: %s, Host: %s", s.ID, s.DiagramID, s.Host)
+
 	for {
 		select {
 		case client := <-s.Register:
+			logging.Get().Debug("Processing Register request in session Run() - Session: %s, User: %s", s.ID, client.UserID)
 			s.mu.Lock()
 			s.Clients[client] = true
 			s.LastActivity = time.Now().UTC()
 			s.mu.Unlock()
+			logging.Get().Debug("Client registered successfully in session - Session: %s, User: %s, Total clients: %d", s.ID, client.UserID, len(s.Clients))
 
 			// Send initial state to the new client
 			// First, send current presenter info
@@ -1417,8 +1429,21 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		LastActivity: time.Now().UTC(),
 	}
 
-	// Register client
-	session.Register <- client
+	// Log before attempting to register client
+	logging.Get().Debug("Attempting to register WebSocket client - User: %s, Session: %s, Diagram: %s", userIDStr, session.ID, diagramID)
+
+	// Register client with timeout to prevent blocking
+	select {
+	case session.Register <- client:
+		logging.Get().Debug("Successfully sent client to Register channel - User: %s, Session: %s", userIDStr, session.ID)
+	case <-time.After(5 * time.Second):
+		logging.Get().Error("Timeout registering WebSocket client - User: %s, Session: %s, Diagram: %s (session may be blocked or dead)", userIDStr, session.ID, diagramID)
+		// Close the connection
+		if err := conn.Close(); err != nil {
+			logging.Get().Debug("Failed to close connection after timeout: %v", err)
+		}
+		return
+	}
 
 	// Log WebSocket connection
 	logging.LogWebSocketConnection("CONNECTION_ESTABLISHED", session.ID, userIDStr, diagramID, h.LoggingConfig)
@@ -1523,6 +1548,14 @@ func validateCell(cell *Cell) error {
 
 // ProcessMessage handles enhanced message types for collaborative editing
 func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte) {
+	// Add panic recovery for message processing
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Get().Error("PANIC in ProcessMessage - Session: %s, User: %s, Error: %v, Stack: %s",
+				s.ID, client.UserID, r, debug.Stack())
+		}
+	}()
+
 	// Log raw incoming message with wsmsg component (sanitized to remove newlines)
 	sanitizedMessage := logging.SanitizeLogMessage(string(message))
 	logging.Get().Debug("[wsmsg] Received WebSocket message - session_id=%s user_id=%s message_size=%d raw_message=%s",
@@ -1535,7 +1568,8 @@ func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte)
 	}
 
 	if err := json.Unmarshal(message, &baseMsg); err != nil {
-		logging.Get().Info("Error parsing message: %v", err)
+		logging.Get().Error("Failed to parse WebSocket message - Session: %s, User: %s, Error: %v, Message: %s",
+			s.ID, client.UserID, err, sanitizedMessage)
 		return
 	}
 
@@ -1592,11 +1626,20 @@ func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte)
 
 // processDiagramOperation handles enhanced diagram operations
 func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, message []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Get().Error("PANIC in processDiagramOperation - Session: %s, User: %s, Error: %v, Stack: %s",
+				s.ID, client.UserID, r, debug.Stack())
+		}
+	}()
+
 	startTime := time.Now()
+	logging.Get().Debug("Processing diagram operation - Session: %s, User: %s", s.ID, client.UserID)
 
 	var msg DiagramOperationMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Info("Error parsing diagram operation: %v", err)
+		logging.Get().Error("Failed to parse diagram operation - Session: %s, User: %s, Error: %v",
+			s.ID, client.UserID, err)
 		return
 	}
 
@@ -1719,9 +1762,19 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 
 // processPresenterRequest handles presenter mode requests
 func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, message []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Get().Error("PANIC in processPresenterRequest - Session: %s, User: %s, Error: %v, Stack: %s",
+				s.ID, client.UserID, r, debug.Stack())
+		}
+	}()
+
+	logging.Get().Debug("Processing presenter request - Session: %s, User: %s", s.ID, client.UserID)
+
 	var msg PresenterRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Info("Error parsing presenter request: %v", err)
+		logging.Get().Error("Failed to parse presenter request - Session: %s, User: %s, Error: %v",
+			s.ID, client.UserID, err)
 		return
 	}
 
@@ -1787,9 +1840,19 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 
 // processChangePresenter handles host changing presenter
 func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Get().Error("PANIC in processChangePresenter - Session: %s, User: %s, Error: %v, Stack: %s",
+				s.ID, client.UserID, r, debug.Stack())
+		}
+	}()
+
+	logging.Get().Debug("Processing change presenter request - Session: %s, User: %s", s.ID, client.UserID)
+
 	var msg ChangePresenterMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Info("Error parsing change presenter: %v", err)
+		logging.Get().Error("Failed to parse change presenter request - Session: %s, User: %s, Error: %v",
+			s.ID, client.UserID, err)
 		return
 	}
 
@@ -3621,15 +3684,25 @@ func (s *DiagramSession) GetRecentOperations(count int) []*HistoryEntry {
 // ReadPump pumps messages from WebSocket to hub
 func (c *WebSocketClient) ReadPump() {
 	defer func() {
+		// Panic recovery
+		if r := recover(); r != nil {
+			logging.Get().Error("PANIC in WebSocketClient.ReadPump() - User: %s, Session: %s, Error: %v, Stack: %s",
+				c.UserID, c.Session.ID, r, debug.Stack())
+		}
+
 		// Log WebSocket disconnection
 		if c.Session != nil && c.Hub != nil {
 			logging.LogWebSocketConnection("CONNECTION_CLOSED", c.Session.ID, c.UserID, c.Session.DiagramID, c.Hub.LoggingConfig)
 		}
-		c.Session.Unregister <- c
+		if c.Session != nil {
+			c.Session.Unregister <- c
+		}
 		if err := c.Conn.Close(); err != nil {
 			logging.Get().Info("Error closing connection: %v", err)
 		}
 	}()
+
+	logging.Get().Debug("WebSocketClient.ReadPump() started - User: %s, Session: %s", c.UserID, c.Session.ID)
 
 	c.Conn.SetReadLimit(4096) // 4KB message limit
 	if err := c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
@@ -3755,11 +3828,19 @@ func applyDiagramOperation(diagramID string, op DiagramOperation) error {
 func (c *WebSocketClient) WritePump() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer func() {
+		// Panic recovery
+		if r := recover(); r != nil {
+			logging.Get().Error("PANIC in WebSocketClient.WritePump() - User: %s, Session: %s, Error: %v, Stack: %s",
+				c.UserID, c.Session.ID, r, debug.Stack())
+		}
+
 		ticker.Stop()
 		if err := c.Conn.Close(); err != nil {
 			logging.Get().Info("Error closing connection: %v", err)
 		}
 	}()
+
+	logging.Get().Debug("WebSocketClient.WritePump() started - User: %s, Session: %s", c.UserID, c.Session.ID)
 
 	for {
 		select {
