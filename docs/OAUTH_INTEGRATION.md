@@ -359,6 +359,57 @@ Authorization: Bearer your_access_token
 1. Go to [Azure Portal](https://portal.azure.com/) → App registrations
 2. Register new application
 3. Add `https://your-web-app.com/oauth2/callback` to redirect URIs
+4. Configure the appropriate endpoints based on your target audience:
+
+#### Microsoft Endpoint Configuration Options
+
+Microsoft Azure AD supports different endpoints depending on which types of accounts you want to support:
+
+##### Option 1: All Microsoft Accounts (Work/School + Personal)
+**Endpoint Type:** `/common/`
+```yaml
+authorization_url: https://login.microsoftonline.com/common/oauth2/v2.0/authorize
+token_url: https://login.microsoftonline.com/common/oauth2/v2.0/token
+```
+**Azure AD App Configuration:**
+- In App Manifest: `"signInAudience": "AzureADandPersonalMicrosoftAccount"`
+- In Portal: Select "Accounts in any organizational directory and personal Microsoft accounts"
+
+##### Option 2: Personal Microsoft Accounts Only
+**Endpoint Type:** `/consumers/`
+```yaml
+authorization_url: https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize
+token_url: https://login.microsoftonline.com/consumers/oauth2/v2.0/token
+```
+**Azure AD App Configuration:**
+- In App Manifest: `"signInAudience": "PersonalMicrosoftAccount"`
+- In Portal: Select "Personal Microsoft accounts only"
+
+##### Option 3: Work/School Accounts Only
+**Endpoint Type:** `/organizations/`
+```yaml
+authorization_url: https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize
+token_url: https://login.microsoftonline.com/organizations/oauth2/v2.0/token
+```
+**Azure AD App Configuration:**
+- In App Manifest: `"signInAudience": "AzureADMultipleOrgs"`
+- In Portal: Select "Accounts in any organizational directory"
+
+##### Option 4: Specific Azure AD Tenant
+**Endpoint Type:** `/{tenant-id}/`
+```yaml
+authorization_url: https://login.microsoftonline.com/{your-tenant-id}/oauth2/v2.0/authorize
+token_url: https://login.microsoftonline.com/{your-tenant-id}/oauth2/v2.0/token
+```
+**Azure AD App Configuration:**
+- In App Manifest: `"signInAudience": "AzureADMyOrg"`
+- In Portal: Select "Accounts in this organizational directory only"
+- Replace `{your-tenant-id}` with your actual Azure AD tenant ID (GUID)
+
+**Important Notes:**
+- The endpoint type MUST match your Azure AD app's `signInAudience` configuration
+- Using `/common/` with `PersonalMicrosoftAccount` will result in a "userAudience configuration" error
+- The issuer and jwks_url in the TMI configuration can remain as `/common/` regardless of the endpoint type
 
 ## Troubleshooting
 
@@ -369,6 +420,10 @@ Authorization: Bearer your_access_token
 3. **"Failed to exchange code"**: Verify redirect_uri matches exactly between OAuth provider and your request
 4. **"Unauthorized"**: Check that Bearer token is included in API requests
 5. **"Token expired"**: Implement token refresh logic
+6. **"The request is not valid for the application's 'userAudience' configuration"** (Microsoft): 
+   - This error occurs when your Azure AD app's `signInAudience` doesn't match the endpoint type
+   - Solution: Either update your Azure AD app's `signInAudience` setting or change the endpoint URLs in your TMI configuration
+   - See the Microsoft OAuth Setup section above for the correct endpoint/audience combinations
 
 ### Debug Mode
 
