@@ -527,8 +527,8 @@ func startCollaborationSession(config Config, tokens *AuthTokens, threatModelID,
 }
 
 func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSession, string, string, error) {
-	// Get list of threat models
-	url := fmt.Sprintf("%s/threat_models", config.ServerURL)
+	// Get list of active collaboration sessions
+	url := fmt.Sprintf("%s/collaboration/sessions", config.ServerURL)
 	fmt.Printf("Attempting: GET %s\n", url)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -551,66 +551,43 @@ func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSess
 		return nil, "", "", fmt.Errorf("failed with status %d", resp.StatusCode)
 	}
 
-	var threatModels []ThreatModel
-	if err := json.Unmarshal(respBody, &threatModels); err != nil {
-		return nil, "", "", err
+	// Parse the response as an array of collaboration sessions
+	var sessions []struct {
+		SessionID      string `json:"session_id"`
+		Host           string `json:"host"`
+		Presenter      string `json:"presenter"`
+		ThreatModelID  string `json:"threat_model_id"`
+		ThreatModelName string `json:"threat_model_name"`
+		DiagramID      string `json:"diagram_id"`
+		DiagramName    string `json:"diagram_name"`
+		WebSocketURL   string `json:"websocket_url"`
+		Participants   []struct {
+			UserID      string `json:"user_id"`
+			Email       string `json:"email"`
+			DisplayName string `json:"displayName"`
+			Role        string `json:"role"`
+			IsHost      bool   `json:"is_host"`
+			IsPresenter bool   `json:"is_presenter"`
+		} `json:"participants"`
+	}
+	if err := json.Unmarshal(respBody, &sessions); err != nil {
+		return nil, "", "", fmt.Errorf("failed to parse sessions response: %w", err)
 	}
 
-	// Check each threat model for collaboration sessions
-	for _, tm := range threatModels {
-		// Get diagrams for this threat model
-		url := fmt.Sprintf("%s/threat_models/%s/diagrams", config.ServerURL, tm.ID)
-		fmt.Printf("Attempting: GET %s\n", url)
-
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			continue
+	// If there are any sessions, return the first one
+	if len(sessions) > 0 {
+		session := sessions[0]
+		fmt.Printf("Found %d active session(s)\n", len(sessions))
+		
+		// Convert to CollaborationSession format (matching the existing structure)
+		collabSession := &CollaborationSession{
+			ID:           session.SessionID,
+			HostID:       session.Host,
+			HostEmail:    session.Host,
+			ActiveClients: len(session.Participants),
 		}
-
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			continue
-		}
-		defer resp.Body.Close()
-
-		respBody, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode != http.StatusOK {
-			continue
-		}
-
-		var diagrams []Diagram
-		if err := json.Unmarshal(respBody, &diagrams); err != nil {
-			continue
-		}
-
-		// Check each diagram for active collaboration sessions
-		for _, diag := range diagrams {
-			url := fmt.Sprintf("%s/threat_models/%s/diagrams/%s/collaborate", config.ServerURL, tm.ID, diag.ID)
-			fmt.Printf("Attempting: GET %s\n", url)
-
-			req, err := http.NewRequest("GET", url, nil)
-			if err != nil {
-				continue
-			}
-
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
-
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				continue
-			}
-			defer resp.Body.Close()
-
-			respBody, _ := io.ReadAll(resp.Body)
-			if resp.StatusCode == http.StatusOK {
-				var session CollaborationSession
-				if err := json.Unmarshal(respBody, &session); err == nil && session.ActiveClients > 0 {
-					return &session, tm.ID, diag.ID, nil
-				}
-			}
-		}
+		
+		return collabSession, session.ThreatModelID, session.DiagramID, nil
 	}
 
 	return nil, "", "", nil
