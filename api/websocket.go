@@ -1341,12 +1341,15 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		validationID = userEmailStr
 	}
 	if !h.validateWebSocketDiagramAccessDirect(validationID, threatModelID, diagramID) {
-		// Send error message before closing
-		errorMsg := map[string]string{
-			"error":   "unauthorized",
-			"message": "You don't have sufficient permissions to collaborate on this diagram",
+		// Send error message using proper message structure
+		errorMsg := ErrorMessage{
+			MessageType: MessageTypeError,
+			Error:       "unauthorized",
+			Message:     "You don't have sufficient permissions to collaborate on this diagram",
+			Code:        "insufficient_permissions",
+			Timestamp:   time.Now().UTC(),
 		}
-		if msgBytes, err := json.Marshal(errorMsg); err == nil {
+		if msgBytes, err := MarshalAsyncMessage(errorMsg); err == nil {
 			if err := conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
 				logging.Get().Debug("Failed to send error message: %v", err)
 			}
@@ -1377,15 +1380,16 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 
 	// Validate session state and ID
 	if sessionState != SessionStateActive {
-		// Session has been terminated
-		errorMsg := map[string]interface{}{
-			"error":   "session_terminated",
-			"message": "The collaboration session has been terminated",
-			"reason":  "host_disconnected",
+		// Session has been terminated - use proper SessionTerminatedMessage
+		terminatedMsg := SessionTerminatedMessage{
+			MessageType: MessageTypeSessionTerminated,
+			Reason:      "host_disconnected",
+			HostID:      session.Host,
+			Timestamp:   time.Now().UTC(),
 		}
-		if msgBytes, err := json.Marshal(errorMsg); err == nil {
+		if msgBytes, err := MarshalAsyncMessage(terminatedMsg); err == nil {
 			if err := conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
-				logging.Get().Debug("Failed to send error message: %v", err)
+				logging.Get().Debug("Failed to send termination message: %v", err)
 			}
 		}
 		// Close the connection
@@ -1399,21 +1403,22 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// If a session ID was provided, validate it matches
 	if sessionID != "" && sessionID != sessionActualID {
 		// Session ID mismatch - likely trying to reconnect to an old session
-		errorMsg := map[string]interface{}{
-			"error":          "session_invalid",
-			"message":        "The collaboration session ID is invalid or expired",
-			"new_session_id": sessionActualID,
+		// Log the mismatch but don't send an error message immediately
+		// The client might be in the process of disconnecting intentionally
+		logging.Get().Info("Session ID mismatch for user %s - provided: %s, actual: %s (client may be disconnecting)",
+			userIDStr, sessionID, sessionActualID)
+
+		// Instead of sending error immediately, just close with appropriate close code
+		// This avoids sending messages to clients that are already disconnecting
+		closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "Session ID mismatch")
+		if err := conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second)); err != nil {
+			logging.Get().Debug("Failed to send close message: %v", err)
 		}
-		if msgBytes, err := json.Marshal(errorMsg); err == nil {
-			if err := conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
-				logging.Get().Debug("Failed to send error message: %v", err)
-			}
-		}
+
 		// Close the connection
 		if err := conn.Close(); err != nil {
 			logging.Get().Debug("Failed to close connection: %v", err)
 		}
-		logging.Get().Info("Rejected connection from user %s - provided session ID %s does not match current session %s", userIDStr, sessionID, sessionActualID)
 		return
 	}
 

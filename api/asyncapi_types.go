@@ -37,6 +37,7 @@ const (
 	MessageTypeParticipantLeft    MessageType = "participant_left"
 	MessageTypeParticipantsUpdate MessageType = "participants_update"
 	MessageTypeSessionTerminated  MessageType = "session_terminated"
+	MessageTypeError              MessageType = "error"
 )
 
 // AsyncMessage is the base interface for all WebSocket messages
@@ -554,6 +555,13 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 		}
 		return msg, msg.Validate()
 
+	case MessageTypeError:
+		var msg ErrorMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, fmt.Errorf("failed to parse error message: %w", err)
+		}
+		return msg, msg.Validate()
+
 	default:
 		return nil, fmt.Errorf("unsupported message type: %s", base.MessageType)
 	}
@@ -616,6 +624,31 @@ func (m SessionTerminatedMessage) Validate() error {
 	}
 	if m.HostID == "" {
 		return fmt.Errorf("host_id is required")
+	}
+	return nil
+}
+
+// ErrorMessage represents a WebSocket error message
+type ErrorMessage struct {
+	MessageType MessageType `json:"message_type"`
+	Error       string      `json:"error"`
+	Message     string      `json:"message"`
+	Code        string      `json:"code,omitempty"`
+	Details     interface{} `json:"details,omitempty"`
+	Timestamp   time.Time   `json:"timestamp"`
+}
+
+func (m ErrorMessage) GetMessageType() MessageType { return m.MessageType }
+
+func (m ErrorMessage) Validate() error {
+	if m.MessageType != MessageTypeError {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeError, m.MessageType)
+	}
+	if m.Error == "" {
+		return fmt.Errorf("error is required")
+	}
+	if m.Message == "" {
+		return fmt.Errorf("message is required")
 	}
 	return nil
 }
