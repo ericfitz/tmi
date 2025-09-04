@@ -144,6 +144,63 @@ This repository contains API documentation and Go implementation for a Collabora
     - **Development**: Simplifies OAuth integration testing without implementing full callback handlers
   - **Security**: Development-only tool, binds to localhost, no persistence, handles both OAuth flow types securely
 
+### WebSocket Test Harness
+
+- **WebSocket Testing Tool**: `make wstest` - Standalone Go application for testing and debugging WebSocket collaborative features
+
+  - **Location**: `ws-test-harness/` directory contains the Go source code
+  - **Purpose**: Test WebSocket connections, diagnose collaboration bugs, and validate message flows
+  - **Features**:
+    - OAuth authentication with test provider using login hints
+    - Host mode: Creates threat models, diagrams, and starts collaboration sessions
+    - Participant mode: Polls for and joins existing collaboration sessions
+    - Comprehensive logging of all WebSocket messages with timestamps
+    - Supports multiple concurrent instances for multi-user testing
+    - 30-second timeout to prevent runaway processes
+  - **Make Commands**:
+    - `make wstest-build` - Build the test harness binary
+    - `make wstest` - Launch 3-terminal test (alice as host, bob & charlie as participants)
+    - `make wstest-clean` - Stop all running test harness instances
+  - **Direct Usage**:
+    ```bash
+    # Build the test harness
+    cd ws-test-harness && go build -o ws-test-harness
+
+    # Run as host (creates new collaboration session)
+    ./ws-test-harness --user alice --host --participants "bob,charlie"
+
+    # Run as participant (joins existing session)
+    ./ws-test-harness --user bob
+
+    # With custom server
+    ./ws-test-harness --server http://localhost:8080 --user alice --host
+    ```
+  - **Debugging WebSocket Issues**:
+    - All WebSocket messages are logged with timestamps and pretty-printed JSON
+    - Check expected initial messages: `current_presenter`, `participants_update`
+    - Add test cases by modifying the message handling in `connectToWebSocket()`
+    - Use for regression testing when modifying WebSocket protocols
+  - **Test Scenarios**:
+    ```bash
+    # Basic collaboration test
+    make dev-start  # Ensure server is running
+    make wstest     # Launches alice (host), bob, and charlie (participants)
+    # Watch the terminals for WebSocket activity
+    make wstest-clean  # Clean up when done
+
+    # Manual multi-user test
+    ./ws-test-harness --user alice --host --participants "bob,charlie,dave" &
+    sleep 5
+    ./ws-test-harness --user bob &
+    ./ws-test-harness --user charlie &
+    ./ws-test-harness --user dave &
+    ```
+  - **Adding Test Cases**: 
+    - Modify `ws-test-harness/main.go` to add new test scenarios
+    - Send test messages after connection in `connectToWebSocket()`
+    - Validate expected responses in the message reader goroutine
+    - Use for testing edge cases, error conditions, and protocol changes
+
 ## Critical Development Guidelines
 
 **MANDATORY: Always use Make targets - NEVER run commands directly**
