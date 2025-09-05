@@ -46,9 +46,10 @@ func DetailedRequestLoggingMiddleware() gin.HandlerFunc {
 
 		logger := logging.GetContextLogger(c)
 
-		// Log incoming request
+		// Log incoming request with redacted headers
+		redactedHeaders := logging.RedactHeaders(c.Request.Header)
 		logger.Info("INCOMING_REQUEST [%s] %s %s - Headers: %v",
-			requestID, c.Request.Method, c.Request.URL.Path, c.Request.Header)
+			requestID, c.Request.Method, c.Request.URL.Path, redactedHeaders)
 
 		// Read and log request body if present
 		if c.Request.Body != nil {

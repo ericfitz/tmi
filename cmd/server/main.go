@@ -194,7 +194,7 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 			// For regular API calls, use Authorization header
 			logger.Debug("[JWT_MIDDLEWARE] Checking for Authorization header")
 			authHeader := c.GetHeader("Authorization")
-			logger.Debug("[JWT_MIDDLEWARE] Authorization header value: '%s' (empty: %t)", authHeader, authHeader == "")
+			logger.Debug("[JWT_MIDDLEWARE] Authorization header value: '%s' (empty: %t)", logging.RedactSensitiveInfo(authHeader), authHeader == "")
 
 			if authHeader == "" {
 				logger.Warn("[JWT_MIDDLEWARE] 🚫 Authentication failed: Missing Authorization header for path: %s", c.Request.URL.Path)
