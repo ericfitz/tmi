@@ -46,6 +46,14 @@ load-config-file:
 		include scripts/load-config.mk; \
 	fi
 
+# Load configuration if CONFIG_FILE is set
+ifdef CONFIG_FILE
+ifneq ($(wildcard $(CONFIG_FILE)),)
+$(info Loading configuration from $(CONFIG_FILE))
+include scripts/load-config.mk
+endif
+endif
+
 # ============================================================================
 # ATOMIC COMPONENTS - Infrastructure Management
 # ============================================================================
@@ -439,7 +447,6 @@ dev-start:
 	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
 	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
 	echo -e "$(BLUE)[INFO]$(NC) Starting development environment: Development Environment Configuration"; \
-	trap 'CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all' EXIT; \
 	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
 	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start && \
 	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
@@ -470,7 +477,7 @@ test-coverage:
 	echo -e "$(BLUE)[INFO]$(NC) Generating coverage reports: Coverage Report Configuration"; \
 	trap 'CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all' EXIT; \
 	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all && \
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^COVERAGE_DIRECTORY := ' | sed 's/:=/=/'); \
+	COVERAGE_DIRECTORY=$$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^COVERAGE_DIRECTORY := ' | sed 's/COVERAGE_DIRECTORY := //'); \
 	mkdir -p $$COVERAGE_DIRECTORY && \
 	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) test-coverage-unit && \
 	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \

@@ -281,14 +281,19 @@ func ParseUUIDOrNil(s string) uuid.UUID {
 
 // Create implements DocumentStore interface for in-memory testing
 func (s *InMemoryDocumentStore) Create(ctx context.Context, document *Document, threatModelID string) error {
-	_, err := s.DataStore.Create(*document, func(doc Document, id string) Document {
+	created, err := s.DataStore.Create(*document, func(doc Document, id string) Document {
 		if doc.Id == nil {
 			uuid := ParseUUIDOrNil(id)
 			doc.Id = &uuid
 		}
 		return doc
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	// Update the original document pointer with the created document (including ID)
+	*document = created
+	return nil
 }
 
 // Implement other required methods with simple implementations
@@ -306,8 +311,8 @@ func (s *InMemoryDocumentStore) Delete(ctx context.Context, id string) error {
 }
 
 func (s *InMemoryDocumentStore) BulkCreate(ctx context.Context, documents []Document, threatModelID string) error {
-	for _, doc := range documents {
-		if err := s.Create(ctx, &doc, threatModelID); err != nil {
+	for i := range documents {
+		if err := s.Create(ctx, &documents[i], threatModelID); err != nil {
 			return err
 		}
 	}
@@ -345,14 +350,19 @@ func (s *InMemorySourceStore) List(ctx context.Context, threatModelID string, of
 
 // Create implements SourceStore interface for in-memory testing
 func (s *InMemorySourceStore) Create(ctx context.Context, source *Source, threatModelID string) error {
-	_, err := s.DataStore.Create(*source, func(src Source, id string) Source {
+	created, err := s.DataStore.Create(*source, func(src Source, id string) Source {
 		if src.Id == nil {
 			uuid := ParseUUIDOrNil(id)
 			src.Id = &uuid
 		}
 		return src
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	// Update the original source pointer with the created source (including ID)
+	*source = created
+	return nil
 }
 
 // Implement other required methods with simple implementations
@@ -370,8 +380,8 @@ func (s *InMemorySourceStore) Delete(ctx context.Context, id string) error {
 }
 
 func (s *InMemorySourceStore) BulkCreate(ctx context.Context, sources []Source, threatModelID string) error {
-	for _, src := range sources {
-		if err := s.Create(ctx, &src, threatModelID); err != nil {
+	for i := range sources {
+		if err := s.Create(ctx, &sources[i], threatModelID); err != nil {
 			return err
 		}
 	}
@@ -409,14 +419,19 @@ func (s *InMemoryThreatStore) List(ctx context.Context, threatModelID string, of
 
 // Create implements ThreatStore interface for in-memory testing
 func (s *InMemoryThreatStore) Create(ctx context.Context, threat *Threat) error {
-	_, err := s.DataStore.Create(*threat, func(t Threat, id string) Threat {
+	created, err := s.DataStore.Create(*threat, func(t Threat, id string) Threat {
 		if t.Id == nil {
 			uuid := ParseUUIDOrNil(id)
 			t.Id = &uuid
 		}
 		return t
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	// Update the original threat pointer with the created threat (including ID)
+	*threat = created
+	return nil
 }
 
 // Get implements ThreatStore interface for in-memory testing
@@ -448,8 +463,8 @@ func (s *InMemoryThreatStore) Patch(ctx context.Context, id string, operations [
 
 // BulkCreate implements ThreatStore interface for in-memory testing
 func (s *InMemoryThreatStore) BulkCreate(ctx context.Context, threats []Threat) error {
-	for _, threat := range threats {
-		if err := s.Create(ctx, &threat); err != nil {
+	for i := range threats {
+		if err := s.Create(ctx, &threats[i]); err != nil {
 			return err
 		}
 	}
@@ -458,8 +473,8 @@ func (s *InMemoryThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 
 // BulkUpdate implements ThreatStore interface for in-memory testing
 func (s *InMemoryThreatStore) BulkUpdate(ctx context.Context, threats []Threat) error {
-	for _, threat := range threats {
-		if err := s.Update(ctx, &threat); err != nil {
+	for i := range threats {
+		if err := s.Update(ctx, &threats[i]); err != nil {
 			return err
 		}
 	}
