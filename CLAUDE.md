@@ -16,6 +16,42 @@ This repository contains API documentation and Go implementation for a Collabora
 - cmd/server/main.go - Server entry point
 - Makefile - Build automation with development targets
 
+## Custom Tools
+
+### fx
+
+The run_fx tool is available for json file manipulation
+
+### jq
+
+The run_jq tool is available for json file manipulation
+
+### Specialized JSON Handling
+
+When working with JSON files **larger than 100KB** or requiring complex manipulations, apply specialized JSON processing techniques from the `json_agent` configuration. This agent provides memory-efficient strategies using `jq` and `fx` tools for streaming, surgical updates, and validation.
+
+#### Activation Triggers
+
+- JSON files ≥ 100KB (check with `ls -lh` or `stat`)
+- Memory errors or slow performance with standard tools
+- Need for surgical updates (modify specific paths without full rewrite)
+- Batch operations across multiple JSON files
+- User mentions "large", "efficient", "streaming", or "without loading entire file"
+
+#### Quick Tool Selection
+
+- **jq**: Preferred for files > 100KB, streaming operations, surgical path updates
+- **fx**: Better for complex JavaScript logic, interactive exploration on files < 10MB
+- **Standard tools**: Only for files < 100KB with simple operations
+
+#### Always Remember
+
+1. Check file size first: `stat -f%z file.json 2>/dev/null || stat -c%s file.json`
+2. Create backups before modifications: `cp file.json file.json.$(date +%Y%m%d_%H%M%S).backup`
+3. Validate after changes: `jq empty modified.json && echo "Valid" || echo "Invalid"`
+
+For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to prevent memory issues and ensure responsive performance.
+
 ## Commands
 
 - List targets: `make list-targets` (lists all available make targets)
@@ -162,6 +198,7 @@ This repository contains API documentation and Go implementation for a Collabora
     - `make wstest` - Launch 3-terminal test (alice as host, bob & charlie as participants)
     - `make wstest-clean` - Stop all running test harness instances
   - **Direct Usage**:
+
     ```bash
     # Build the test harness
     cd ws-test-harness && go build -o ws-test-harness
@@ -175,12 +212,14 @@ This repository contains API documentation and Go implementation for a Collabora
     # With custom server
     ./ws-test-harness --server http://localhost:8080 --user alice --host
     ```
+
   - **Debugging WebSocket Issues**:
     - All WebSocket messages are logged with timestamps and pretty-printed JSON
     - Check expected initial messages: `current_presenter`, `participants_update`
     - Add test cases by modifying the message handling in `connectToWebSocket()`
     - Use for regression testing when modifying WebSocket protocols
   - **Test Scenarios**:
+
     ```bash
     # Basic collaboration test
     make dev-start  # Ensure server is running
@@ -195,7 +234,8 @@ This repository contains API documentation and Go implementation for a Collabora
     ./ws-test-harness --user charlie &
     ./ws-test-harness --user dave &
     ```
-  - **Adding Test Cases**: 
+
+  - **Adding Test Cases**:
     - Modify `ws-test-harness/main.go` to add new test scenarios
     - Send test messages after connection in `connectToWebSocket()`
     - Validate expected responses in the message reader goroutine

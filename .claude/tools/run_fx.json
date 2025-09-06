@@ -1,0 +1,57 @@
+{
+  "name": "run_fx",
+  "description": "Execute the fx JSON processor tool. fx uses JavaScript syntax for JSON manipulation and supports both dot notation and complex JS expressions. Processes JSON via stdin or file input.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "command_args": {
+        "type": "string",
+        "description": "fx command arguments. Can be: dot notation (.field.subfield), JS expression (x => x.filter(...)), or built-in functions (sum(), pluck(), groupBy(), etc.)"
+      },
+      "json_input": {
+        "type": "string",
+        "description": "JSON string to pipe into fx via stdin. Use this for small JSON data or when you have the JSON in memory."
+      },
+      "file_path": {
+        "type": "string",
+        "description": "Path to JSON file for fx to process. Use this for processing files on disk."
+      },
+      "options": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Additional fx options like --slurp for array processing"
+      }
+    },
+    "required": [
+      "command_args"
+    ],
+    "oneOf": [
+      {
+        "required": [
+          "json_input"
+        ],
+        "not": {
+          "required": [
+            "file_path"
+          ]
+        }
+      },
+      {
+        "required": [
+          "file_path"
+        ],
+        "not": {
+          "required": [
+            "json_input"
+          ]
+        }
+      }
+    ]
+  },
+  "execution": {
+    "type": "bash",
+    "command": "if [ -n \"${file_path}\" ]; then fx ${options} ${command_args} < \"${file_path}\"; else echo '${json_input}' | fx ${options} ${command_args}; fi"
+  }
+}

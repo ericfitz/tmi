@@ -1,0 +1,94 @@
+{
+    "name": "run_jq",
+    "description": "Execute jq for efficient JSON streaming, querying, and transformation. jq excels at processing large JSON files with minimal memory usage and supports powerful filtering and modification operations.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "filter": {
+                "type": "string",
+                "description": "jq filter expression (e.g., '.field', '.[] | select(.age > 25)', '.users |= map(.active = true)')"
+            },
+            "file_path": {
+                "type": "string",
+                "description": "Input JSON file path. If not provided, reads from stdin."
+            },
+            "json_input": {
+                "type": "string",
+                "description": "JSON string to process via stdin. Use when you have JSON in memory rather than a file."
+            },
+            "output_file": {
+                "type": "string",
+                "description": "Output file path. If not specified, outputs to stdout."
+            },
+            "options": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": [
+                        "--slurp",
+                        "--raw-output",
+                        "--compact-output",
+                        "--sort-keys",
+                        "--tab",
+                        "--indent",
+                        "--null-input",
+                        "--exit-status",
+                        "--stream",
+                        "--seq",
+                        "--slurpfile",
+                        "--raw-input",
+                        "--join-output",
+                        "--ascii-output",
+                        "--color-output",
+                        "--monochrome-output"
+                    ]
+                },
+                "description": "jq command options. Common: --slurp (read entire input into array), --raw-output (output raw strings), --compact-output (minimal whitespace), --stream (streaming mode for huge files)"
+            },
+            "args": {
+                "type": "object",
+                "description": "Named arguments to pass to jq filter using --arg name value",
+                "additionalProperties": {
+                    "type": "string"
+                }
+            }
+        },
+        "required": [
+            "filter"
+        ],
+        "oneOf": [
+            {
+                "required": [
+                    "file_path"
+                ],
+                "not": {
+                    "required": [
+                        "json_input"
+                    ]
+                }
+            },
+            {
+                "required": [
+                    "json_input"
+                ],
+                "not": {
+                    "required": [
+                        "file_path"
+                    ]
+                }
+            },
+            {
+                "not": {
+                    "required": [
+                        "file_path",
+                        "json_input"
+                    ]
+                }
+            }
+        ]
+    },
+    "execution": {
+        "type": "bash",
+        "command": "jq_opts='${options}'; jq_args=''; for key in $(echo '${args}' | jq -r 'keys[]' 2>/dev/null); do val=$(echo '${args}' | jq -r \".\\$key\"); jq_args=\"$jq_args --arg $key '$val'\"; done; if [ -n \"${output_file}\" ]; then if [ -n \"${file_path}\" ]; then eval \"jq $jq_opts $jq_args '${filter}' '${file_path}' > '${output_file}'\"; elif [ -n \"${json_input}\" ]; then echo '${json_input}' | eval \"jq $jq_opts $jq_args '${filter}' > '${output_file}'\"; else eval \"jq $jq_opts $jq_args '${filter}' > '${output_file}'\"; fi; else if [ -n \"${file_path}\" ]; then eval \"jq $jq_opts $jq_args '${filter}' '${file_path}'\"; elif [ -n \"${json_input}\" ]; then echo '${json_input}' | eval \"jq $jq_opts $jq_args '${filter}'\"; else eval \"jq $jq_opts $jq_args '${filter}'\"; fi; fi"
+    }
+}

@@ -34,6 +34,10 @@
 !static/**
 !ws-test-harness/
 !ws-test-harness/**
+!.claude
+!.claude/**
+!.claude/agents/*.md
+!.claude/tools/*.json
 
 # Explicitly ignore unwanted files and directories
 *.log
@@ -51,10 +55,9 @@ server
 check-db
 .config.*.mk
 test.mk
-.claude/
 .venv/
 .vscode/
-
 api/api.test
 ws-test-harness/ws-test-harness
 ws-test-harness/*.log
+.claude/settings.local.json
