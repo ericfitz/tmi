@@ -1161,16 +1161,7 @@ func (s *DiagramSession) Run() {
 				},
 				Timestamp: time.Now().UTC(),
 			}
-			if msgBytes, err := MarshalAsyncMessage(msg); err == nil {
-				select {
-				case s.Broadcast <- msgBytes:
-					// Successfully queued
-				default:
-					logging.Get().Error("Failed to broadcast participant joined message: broadcast channel full")
-				}
-			} else {
-				logging.Get().Error("Failed to marshal participant joined message: %v", err)
-			}
+			s.broadcastToOthers(client, msg)
 
 			// Broadcast updated participant list to all clients
 			s.broadcastParticipantsUpdate()
