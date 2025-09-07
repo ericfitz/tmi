@@ -72,6 +72,8 @@ type DiagramSession struct {
 	Host string
 	// Current presenter (user whose cursor/selection is broadcast)
 	CurrentPresenter string
+	// Deny list for removed participants (session-specific)
+	DeniedUsers map[string]bool
 	// Operation history for conflict resolution
 	OperationHistory *OperationHistory
 	// Next sequence number for operations
@@ -311,6 +313,7 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 		// Enhanced collaboration state
 		Host:               hostUserID,
 		CurrentPresenter:   hostUserID, // Host starts as presenter
+		DeniedUsers:        make(map[string]bool),
 		NextSequenceNumber: 1,
 		OperationHistory:   NewOperationHistory(),
 		recentCorrections:  make(map[string]int),
@@ -384,6 +387,7 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 		// Enhanced collaboration state
 		Host:               hostUserID,
 		CurrentPresenter:   hostUserID, // Host starts as presenter
+		DeniedUsers:        make(map[string]bool),
 		NextSequenceNumber: 1,
 		OperationHistory:   NewOperationHistory(),
 		recentCorrections:  make(map[string]int),
@@ -1117,6 +1121,37 @@ func (s *DiagramSession) Run() {
 		select {
 		case client := <-s.Register:
 			logging.Get().Debug("Processing Register request in session Run() - Session: %s, User: %s", s.ID, client.UserID)
+
+			// Check if user is on the deny list
+			s.mu.RLock()
+			isDenied := s.DeniedUsers[client.UserID]
+			s.mu.RUnlock()
+
+			if isDenied {
+				logging.Get().Info("Denied user %s attempted to join session %s", client.UserID, s.ID)
+
+				// Send denial message and close connection
+				errorMsg := ErrorMessage{
+					MessageType: "error",
+					Error:       "access_denied",
+					Message:     "You have been removed from this collaboration session and cannot rejoin",
+					Timestamp:   time.Now().UTC(),
+				}
+
+				// Try to send the message first
+				if data, err := json.Marshal(errorMsg); err == nil {
+					if writeErr := client.Conn.WriteMessage(websocket.TextMessage, data); writeErr != nil {
+						logging.Get().Debug("Failed to send denial message to user %s: %v", client.UserID, writeErr)
+					}
+				}
+
+				// Close the connection
+				if closeErr := client.Conn.Close(); closeErr != nil {
+					logging.Get().Debug("Failed to close connection for denied user %s: %v", client.UserID, closeErr)
+				}
+				continue
+			}
+
 			s.mu.Lock()
 			s.Clients[client] = true
 			s.LastActivity = time.Now().UTC()
@@ -1599,6 +1634,9 @@ func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte)
 	case "change_presenter":
 		s.processChangePresenter(client, message)
 
+	case "remove_participant":
+		s.processRemoveParticipant(client, message)
+
 	case "presenter_denied":
 		s.processPresenterDenied(client, message)
 
@@ -1892,6 +1930,107 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 
 	// Also broadcast updated participant list since presenter has changed
 	s.broadcastParticipantsUpdate()
+}
+
+// processRemoveParticipant handles host removing a participant from the session
+func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, message []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Get().Error("PANIC in processRemoveParticipant - Session: %s, User: %s, Error: %v, Stack: %s",
+				s.ID, client.UserID, r, debug.Stack())
+		}
+	}()
+
+	logging.Get().Debug("Processing remove participant request - Session: %s, User: %s", s.ID, client.UserID)
+
+	var msg RemoveParticipantMessage
+	if err := json.Unmarshal(message, &msg); err != nil {
+		logging.Get().Error("Failed to parse remove participant request - Session: %s, User: %s, Error: %v",
+			s.ID, client.UserID, err)
+		s.sendErrorMessage(client, "invalid_message", "Failed to parse remove participant request")
+		return
+	}
+
+	// Only host can remove participants
+	s.mu.RLock()
+	host := s.Host
+	s.mu.RUnlock()
+
+	if client.UserID != host {
+		logging.Get().Info("Non-host attempted to remove participant: %s tried to remove %s", client.UserID, msg.TargetUser)
+		s.sendErrorMessage(client, "unauthorized", "Only the host can remove participants from the session")
+		return
+	}
+
+	// Cannot remove yourself
+	if msg.TargetUser == client.UserID {
+		logging.Get().Info("Host %s attempted to remove themselves from session %s", client.UserID, s.ID)
+		s.sendErrorMessage(client, "invalid_request", "Host cannot remove themselves from the session")
+		return
+	}
+
+	// Find the target client to disconnect
+	var targetClient *WebSocketClient
+	s.mu.RLock()
+	for c := range s.Clients {
+		if c.UserID == msg.TargetUser {
+			targetClient = c
+			break
+		}
+	}
+	s.mu.RUnlock()
+
+	// Add user to deny list (even if not currently connected)
+	s.mu.Lock()
+	s.DeniedUsers[msg.TargetUser] = true
+	s.mu.Unlock()
+
+	logging.Get().Info("Host %s removed participant %s from session %s", client.UserID, msg.TargetUser, s.ID)
+
+	// If the participant is currently connected, disconnect them
+	if targetClient != nil {
+		logging.Get().Info("Disconnecting removed participant %s from session %s", msg.TargetUser, s.ID)
+
+		// Send notification to the removed participant
+		s.sendErrorMessage(targetClient, "removed_from_session", "You have been removed from this collaboration session by the host")
+
+		// Close their connection
+		if closeErr := targetClient.Conn.Close(); closeErr != nil {
+			logging.Get().Debug("Failed to close connection for removed participant %s: %v", msg.TargetUser, closeErr)
+		}
+	}
+
+	// If the removed user was the current presenter, clear presenter
+	s.mu.Lock()
+	if s.CurrentPresenter == msg.TargetUser {
+		s.CurrentPresenter = host // Host becomes presenter again
+		logging.Get().Info("Removed participant %s was presenter, host %s is now presenter in session %s",
+			msg.TargetUser, host, s.ID)
+
+		// Broadcast new presenter
+		broadcastMsg := CurrentPresenterMessage{
+			MessageType:      "current_presenter",
+			CurrentPresenter: host,
+		}
+		s.mu.Unlock()
+		s.broadcastMessage(broadcastMsg)
+	} else {
+		s.mu.Unlock()
+	}
+
+	// Broadcast updated participant list to all remaining participants
+	s.broadcastParticipantsUpdate()
+}
+
+// sendErrorMessage sends an error message to a specific client
+func (s *DiagramSession) sendErrorMessage(client *WebSocketClient, errorCode, errorMessage string) {
+	errorMsg := ErrorMessage{
+		MessageType: "error",
+		Error:       errorCode,
+		Message:     errorMessage,
+		Timestamp:   time.Now().UTC(),
+	}
+	s.sendToClient(client, errorMsg)
 }
 
 // processPresenterDenied handles host denying presenter requests

@@ -21,6 +21,7 @@ const (
 	MessageTypePresenterRequest    MessageType = "presenter_request"
 	MessageTypePresenterDenied     MessageType = "presenter_denied"
 	MessageTypeChangePresenter     MessageType = "change_presenter"
+	MessageTypeRemoveParticipant   MessageType = "remove_participant"
 	MessageTypeCurrentPresenter    MessageType = "current_presenter"
 	MessageTypePresenterCursor     MessageType = "presenter_cursor"
 	MessageTypePresenterSelection  MessageType = "presenter_selection"
@@ -185,6 +186,27 @@ func (m ChangePresenterMessage) Validate() error {
 	}
 	if m.NewPresenter == "" {
 		return fmt.Errorf("new_presenter is required")
+	}
+	return nil
+}
+
+type RemoveParticipantMessage struct {
+	MessageType MessageType `json:"message_type"`
+	User        User        `json:"user"`
+	TargetUser  string      `json:"target_user"`
+}
+
+func (m RemoveParticipantMessage) GetMessageType() MessageType { return m.MessageType }
+
+func (m RemoveParticipantMessage) Validate() error {
+	if m.MessageType != MessageTypeRemoveParticipant {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeRemoveParticipant, m.MessageType)
+	}
+	if m.User.UserId == "" {
+		return fmt.Errorf("user.user_id is required")
+	}
+	if m.TargetUser == "" {
+		return fmt.Errorf("target_user is required")
 	}
 	return nil
 }
@@ -482,6 +504,13 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 		var msg ChangePresenterMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
 			return nil, fmt.Errorf("failed to parse change presenter message: %w", err)
+		}
+		return msg, msg.Validate()
+
+	case MessageTypeRemoveParticipant:
+		var msg RemoveParticipantMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, fmt.Errorf("failed to parse remove participant message: %w", err)
 		}
 		return msg, msg.Validate()
 
