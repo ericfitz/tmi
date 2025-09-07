@@ -225,6 +225,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		var err error
 		state, err = generateRandomState()
 		if err != nil {
+			logging.Get().WithContext(c).Error("Failed to generate OAuth state parameter: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "Failed to generate state parameter",
 			})
@@ -251,6 +252,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	stateJSON, err := json.Marshal(stateData)
 	if err != nil {
+		logging.Get().WithContext(c).Error("Failed to marshal OAuth state data for provider %s: %v", providerID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to encode state data",
 		})
@@ -259,6 +261,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	err = h.service.dbManager.Redis().Set(ctx, stateKey, string(stateJSON), 10*time.Minute)
 	if err != nil {
+		logging.Get().WithContext(c).Error("Failed to store OAuth state in Redis (key: %s, provider: %s): %v", stateKey, providerID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to store state parameter",
 		})
@@ -269,6 +272,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	if responseType != "code" && providerID == "test" {
 		err := h.handleImplicitOrHybridFlow(c, provider, responseType, state, stateData)
 		if err != nil {
+			logging.Get().WithContext(c).Error("Failed to handle OAuth implicit/hybrid flow (provider: %s, response_type: %s): %v", providerID, responseType, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to handle implicit/hybrid flow: %v", err),
 			})
@@ -422,6 +426,7 @@ func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, p
 			strings.Contains(err.Error(), "authorization code is required") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		} else {
+			logging.Get().WithContext(c).Error("Failed to exchange OAuth authorization code for tokens (code prefix: %.10s...): %v", code, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to exchange code for tokens: %v", err),
 			})
@@ -443,6 +448,7 @@ func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, p
 	logging.Get().WithContext(c).Debug("About to call GetUserInfo: access_token=%s", tokenResponse.AccessToken)
 	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
 	if err != nil {
+		logging.Get().WithContext(c).Error("Failed to get user info from OAuth provider using access token: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to get user info: %v", err),
 		})
@@ -463,6 +469,7 @@ func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, userInfo
 	}
 
 	if email == "" {
+		logging.Get().WithContext(c).Error("OAuth provider returned empty email for user (name: %s, id: %s, userInfo.Email: %s)", userInfo.Name, userInfo.ID, userInfo.Email)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user email"})
 		return User{}, fmt.Errorf("no email found")
 	}
@@ -528,6 +535,7 @@ func (h *Handlers) linkProviderToUser(ctx context.Context, userID, providerID st
 func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, user User, userInfo *UserInfo, stateData *callbackStateData) error {
 	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
+		logging.Get().WithContext(c).Error("Failed to generate JWT tokens for user %s: %v", user.Email, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
 		})
@@ -623,6 +631,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 				"error": err.Error(),
 			})
 		} else {
+			logging.Get().WithContext(c).Error("Failed to exchange authorization code for tokens in callback (provider: %s, code prefix: %.10s...): %v", providerID, req.Code, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to exchange authorization code: %v", err),
 			})
@@ -644,6 +653,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	// Get user info from provider
 	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
 	if err != nil {
+		logging.Get().WithContext(c).Error("Failed to get user info from OAuth provider in exchange (provider: %s): %v", providerID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to get user info: %v", err),
 		})
@@ -656,6 +666,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		email = claims.Email
 	}
 	if email == "" {
+		logging.Get().WithContext(c).Error("OAuth provider returned empty email in callback (userInfo.Email: %s, claims present: %v)", userInfo.Email, claims != nil)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get user email from provider",
 		})
@@ -685,6 +696,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 
 		user, err = h.service.CreateUser(ctx, user)
 		if err != nil {
+			logging.Get().WithContext(c).Error("Failed to create new user in database during callback (email: %s, name: %s): %v", user.Email, user.Name, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to create user: %v", err),
 			})
@@ -718,6 +730,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	// Generate TMI JWT tokens (the provider ID will be used as subject in the JWT)
 	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
+		logging.Get().WithContext(c).Error("Failed to generate JWT tokens for user %s: %v", user.Email, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
 		})
@@ -829,6 +842,7 @@ func (h *Handlers) Logout(c *gin.Context) {
 				if h.service != nil && h.service.dbManager != nil && h.service.dbManager.Redis() != nil {
 					blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient())
 					if err := blacklist.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
+						logging.Get().WithContext(c).Error("Failed to blacklist JWT token during logout (token prefix: %.10s...): %v", tokenStr, err)
 						c.JSON(http.StatusInternalServerError, gin.H{
 							"error": fmt.Sprintf("Failed to blacklist token: %v", err),
 						})
@@ -859,6 +873,7 @@ func (h *Handlers) Logout(c *gin.Context) {
 	// Revoke the refresh token
 	err := h.service.RevokeToken(c.Request.Context(), req.RefreshToken)
 	if err != nil {
+		logging.Get().WithContext(c).Error("Failed to revoke refresh token during logout (token prefix: %.10s...): %v", req.RefreshToken, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to revoke token: %v", err),
 		})

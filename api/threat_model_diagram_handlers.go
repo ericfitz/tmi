@@ -210,6 +210,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 
 	createdDiagram, err := DiagramStore.CreateWithThreatModel(d, threatModelId, idSetter)
 	if err != nil {
+		logging.Get().WithContext(c).Error("Failed to create diagram in store for threat model %s (user: %s, diagram type: %s): %v", threatModelId, userName, d.Type, err)
 		HandleRequestError(c, ServerError("Failed to create diagram"))
 		return
 	}
@@ -236,6 +237,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	// Update threat model in store
 	tm.ModifiedAt = &now
 	if err := ThreatModelStore.Update(threatModelId, tm); err != nil {
+		logging.Get().WithContext(c).Error("Failed to update threat model %s with new diagram %s (user: %s): %v", threatModelId, createdDiagram.Id.String(), userName, err)
 		// If updating the threat model fails, delete the created diagram
 		if deleteErr := DiagramStore.Delete(createdDiagram.Id.String()); deleteErr != nil {
 			// Log the error but continue with the main error response
@@ -394,6 +396,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 
 	// Update in store
 	if err := DiagramStore.Update(diagramId, updatedDiagram); err != nil {
+		logging.Get().WithContext(c).Error("Failed to update diagram %s in store (user: %s, type: %s): %v", diagramId, userName, updatedDiagram.Type, err)
 		HandleRequestError(c, ServerError("Failed to update diagram"))
 		return
 	}

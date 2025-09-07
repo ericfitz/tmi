@@ -97,6 +97,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	// Get database manager and fetch user
 	dbManager := auth.GetDatabaseManager()
 	if dbManager == nil {
+		logging.Get().WithContext(c).Error("AuthServiceAdapter: Database manager not available for user lookup (userName: %s)", userEmail)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Database not available",
 		})
@@ -119,6 +120,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 
 	service, err := auth.NewService(dbManager, authConfig)
 	if err != nil {
+		logging.Get().WithContext(c).Error("AuthServiceAdapter: Failed to create auth service for user lookup (userName: %s): %v", userEmail, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Auth service unavailable",
 		})

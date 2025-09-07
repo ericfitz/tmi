@@ -44,6 +44,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 
 	userName, ok := userNameInterface.(string)
 	if !ok {
+		logging.Get().WithContext(c).Error("Notification WebSocket: Invalid user context - userName is not a string (type: %T, value: %v)", userNameInterface, userNameInterface)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "internal_error",
 			ErrorDescription: "Invalid user context",
@@ -67,7 +68,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		logger.Error("Failed to upgrade to WebSocket: %v", err)
+		logger.Error("Failed to upgrade HTTP connection to WebSocket for user %s: %v", userName, err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "websocket_upgrade_failed",
 			ErrorDescription: "Failed to upgrade connection",

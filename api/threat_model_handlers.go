@@ -373,6 +373,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 
 	// Update in store
 	if err := ThreatModelStore.Update(id, updatedTM); err != nil {
+		logging.Get().WithContext(c).Error("Failed to update threat model %s in store (user: %s, name: %s): %v", id, userName, updatedTM.Name, err)
 		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
 	}
@@ -549,6 +550,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 
 	// Delete from store
 	if err := ThreatModelStore.Delete(id); err != nil {
+		logging.Get().WithContext(c).Error("Failed to delete threat model %s from store (user: %s, name: %s): %v", id, userName, tm.Name, err)
 		HandleRequestError(c, ServerError("Failed to delete threat model"))
 		return
 	}
