@@ -699,7 +699,7 @@ test-api:
 # WEBSOCKET TEST HARNESS
 # ============================================================================
 
-.PHONY: wstest-build wstest wstest-clean
+.PHONY: wstest-build wstest wstest-monitor wstest-clean
 
 wstest-build:
 	$(call log_info,Building WebSocket test harness...)
@@ -751,6 +751,16 @@ wstest: wstest-build
 	fi
 	$(call log_success,WebSocket test started with 3 terminals)
 	@echo "Watch the terminals for WebSocket activity. Use 'make wstest-clean' to stop all instances."
+
+wstest-monitor: wstest-build
+	$(call log_info,Starting WebSocket monitor...)
+	@# Check if server is running
+	@if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then \
+		$(call log_error,Server not running. Please run 'make dev-start' first); \
+		exit 1; \
+	fi
+	@# Run monitor in foreground
+	@cd ws-test-harness && ./ws-test-harness --user monitor
 
 wstest-clean:
 	$(call log_info,Stopping all WebSocket test harness instances...)
@@ -806,6 +816,7 @@ help:
 	@echo "WebSocket Testing:"
 	@echo "  wstest-build           - Build WebSocket test harness"
 	@echo "  wstest                 - Run WebSocket test with 3 terminals (alice, bob, charlie)"
+	@echo "  wstest-monitor         - Run WebSocket test harness with user 'monitor'"
 	@echo "  wstest-clean           - Stop all running WebSocket test instances"
 	@echo ""
 	@echo "Validation Targets:"

@@ -486,10 +486,19 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 
 	// Update in store
 	if err := ThreatModelStore.Update(id, modifiedTM); err != nil {
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to update threat model",
-		})
+		// Log the actual error for debugging
+		logging.Get().WithContext(c).Error("Failed to update threat model %s: %v", id, err)
+
+		// Check if this is a foreign key constraint violation
+		if isForeignKeyConstraintError(err) {
+			// This indicates one of the users in the authorization list doesn't exist in the database
+			logging.Get().WithContext(c).Warn("Foreign key constraint violation when updating threat model %s - one or more users in authorization list do not exist", id)
+			HandleRequestError(c, InvalidInputError("One or more users in the authorization list do not exist. Users must log in at least once before they can be added to a threat model."))
+			return
+		}
+
+		// Generic server error for other cases
+		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
 	}
 
