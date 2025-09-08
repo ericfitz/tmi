@@ -147,185 +147,48 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 
 // JWT Middleware factory function that takes config, token blacklist, and auth handlers
 func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers) gin.HandlerFunc {
+	// Initialize authentication components
+	publicPathChecker := &PublicPathChecker{}
+	authenticator := NewJWTAuthenticator(cfg, tokenBlacklist, authHandlers)
+
 	return func(c *gin.Context) {
-		// Get a context-aware logger
 		logger := logging.GetContextLogger(c)
 
-		// SIMPLE TEST: Just log that we entered the middleware
-		logger.Debug("[JWT_MIDDLEWARE] *** ENTERED MIDDLEWARE FOR: %s", c.Request.URL.Path)
-
 		// Log entry to middleware
+		logger.Debug("[JWT_MIDDLEWARE] *** ENTERED MIDDLEWARE FOR: %s", c.Request.URL.Path)
 		logger.Debug("[JWT_MIDDLEWARE] Processing request: %s %s", c.Request.Method, c.Request.URL.Path)
 
-		// Check if isPublicPath is set in context
-		isPublic, exists := c.Get("isPublicPath")
-		logger.Debug("[JWT_MIDDLEWARE] Context check - isPublicPath exists: %t, value: %v", exists, isPublic)
-
-		// Skip authentication for public paths
-		if exists && isPublic.(bool) {
-			logger.Debug("[JWT_MIDDLEWARE] ✅ Skipping authentication for public path: %s", c.Request.URL.Path)
-			// Set a dummy user for context consistency if needed
-			c.Set("userEmail", "anonymous")
-			logger.Debug("[JWT_MIDDLEWARE] Set userEmail=anonymous for public path")
+		// Check if this is a public path
+		if publicPathChecker.IsPublicPath(c) {
 			logger.Debug("[JWT_MIDDLEWARE] Continuing to next middleware (public path)")
 			c.Next()
 			logger.Debug("[JWT_MIDDLEWARE] Returned from middleware chain (public path)")
 			return
 		}
 
-		// Log attempt for debugging
-		logger.Debug("[JWT_MIDDLEWARE] ❌ Authentication required for private path: %s", c.Request.URL.Path)
-
-		var tokenStr string
-
-		// For WebSocket connections, use query parameter authentication
-		if strings.HasPrefix(c.Request.URL.Path, "/ws/") || strings.HasSuffix(c.Request.URL.Path, "/ws") {
-			tokenStr = c.Query("token")
-			if tokenStr == "" {
-				logger.Warn("Authentication failed: Missing token query parameter for WebSocket path: %s", c.Request.URL.Path)
-				c.JSON(http.StatusUnauthorized, api.Error{
-					Error:            "unauthorized",
-					ErrorDescription: "Missing token query parameter",
-				})
-				c.Abort()
-				return
-			}
-		} else {
-			// For regular API calls, use Authorization header
-			logger.Debug("[JWT_MIDDLEWARE] Checking for Authorization header")
-			authHeader := c.GetHeader("Authorization")
-			logger.Debug("[JWT_MIDDLEWARE] Authorization header value: '%s' (empty: %t)", logging.RedactSensitiveInfo(authHeader), authHeader == "")
-
-			if authHeader == "" {
-				logger.Warn("[JWT_MIDDLEWARE] 🚫 Authentication failed: Missing Authorization header for path: %s", c.Request.URL.Path)
-				logger.Debug("[JWT_MIDDLEWARE] Returning 401 Unauthorized and aborting request")
-				c.JSON(http.StatusUnauthorized, api.Error{
-					Error:            "unauthorized",
-					ErrorDescription: "Missing Authorization header",
+		// Perform authentication
+		if err := authenticator.AuthenticateRequest(c); err != nil {
+			if authErr, ok := err.(*AuthError); ok {
+				logger.Debug("[JWT_MIDDLEWARE] Authentication failed: %v", err)
+				c.JSON(authErr.StatusCode, api.Error{
+					Error:            authErr.Code,
+					ErrorDescription: authErr.Description,
 				})
 				c.Abort()
 				return
 			}
 
-			// Parse the header format
-			parts := strings.Split(authHeader, " ")
-			if len(parts) != 2 || parts[0] != "Bearer" {
-				logger.Warn("Authentication failed: Invalid Authorization header format for path: %s", c.Request.URL.Path)
-				c.JSON(http.StatusUnauthorized, api.Error{
-					Error:            "unauthorized",
-					ErrorDescription: "Invalid Authorization header format",
-				})
-				c.Abort()
-				return
-			}
-
-			tokenStr = parts[1]
-		}
-
-		// Get JWT secret from config (same source as auth service)
-		jwtSecret := []byte(cfg.Auth.JWT.Secret)
-
-		// Validate the token
-		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-			// Verify signing method
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return jwtSecret, nil
-		})
-
-		if err != nil || !token.Valid {
-			logger.Warn("Authentication failed: Invalid or expired token - %v", err)
-			c.JSON(http.StatusUnauthorized, api.Error{
-				Error:            "unauthorized",
-				ErrorDescription: "Invalid or expired token",
+			// Fallback for unexpected errors
+			logger.Error("[JWT_MIDDLEWARE] Unexpected authentication error: %v", err)
+			c.JSON(http.StatusInternalServerError, api.Error{
+				Error:            "server_error",
+				ErrorDescription: "Internal authentication error",
 			})
 			c.Abort()
 			return
 		}
 
-		// Check if token is blacklisted
-		if tokenBlacklist != nil {
-			isBlacklisted, err := tokenBlacklist.IsTokenBlacklisted(c.Request.Context(), tokenStr)
-			if err != nil {
-				logger.Error("Failed to check token blacklist: %v", err)
-				c.JSON(http.StatusInternalServerError, api.Error{
-					Error:            "server_error",
-					ErrorDescription: "Authentication service error",
-				})
-				c.Abort()
-				return
-			}
-			if isBlacklisted {
-				logger.Warn("Authentication failed: Token is blacklisted")
-				c.JSON(http.StatusUnauthorized, api.Error{
-					Error:            "unauthorized",
-					ErrorDescription: "Token has been revoked",
-				})
-				c.Abort()
-				return
-			}
-		}
-
-		// Extract claims and add to context
-		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			// Add user info to context
-			if sub, ok := claims["sub"].(string); ok {
-				logger.Debug("Authenticated user ID: %s", sub)
-				c.Set("userID", sub)
-
-				// Extract role if present
-				if roleValue, hasRole := claims["role"]; hasRole {
-					if role, ok := roleValue.(string); ok {
-						logger.Debug("User role from token: %s", role)
-						c.Set("userTokenRole", role)
-					}
-				}
-
-				// Extract display name if present
-				if nameValue, hasName := claims["name"]; hasName {
-					if name, ok := nameValue.(string); ok {
-						logger.Debug("User display name from token: %s", name)
-						c.Set("userDisplayName", name)
-					}
-				}
-
-				// Extract email if present
-				if emailValue, hasEmail := claims["email"]; hasEmail {
-					if email, ok := emailValue.(string); ok {
-						logger.Debug("User email from token: %s", email)
-						c.Set("userEmail", email)
-					}
-				}
-
-				// If auth handlers are available, fetch the full user object and set it in context
-				if authHandlers != nil {
-					// Get the auth service from the handlers to fetch user by ID
-					// The 'sub' claim in our JWT is now the user's ID
-					dbManager := auth.GetDatabaseManager()
-					if dbManager != nil {
-						service, err := auth.NewService(dbManager, auth.ConfigFromUnified(cfg))
-						if err != nil {
-							logger.Debug("Failed to create auth service for user lookup: %v", err)
-						} else {
-							// If we have email from claims, use it. Otherwise try to get user by ID
-							if email := c.GetString("userEmail"); email != "" {
-								user, err := service.GetUserByEmail(c.Request.Context(), email)
-								if err != nil {
-									logger.Debug("Failed to fetch user by email %s: %v", email, err)
-								} else {
-									// Set the full user object in context using auth package's expected key
-									c.Set(string(auth.UserContextKey), user)
-									logger.Debug("Full user object set in context for user: %s", user.Email)
-								}
-							}
-							// TODO: Add GetUserByID method to service
-						}
-					}
-				}
-			}
-		}
-
+		logger.Debug("[JWT_MIDDLEWARE] Authentication successful, proceeding to next middleware")
 		c.Next()
 	}
 }

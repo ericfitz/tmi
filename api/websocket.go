@@ -66,6 +66,8 @@ type DiagramSession struct {
 
 	// Reference to the hub for cleanup when session terminates
 	Hub *WebSocketHub
+	// Message router for handling WebSocket messages
+	MessageRouter *MessageRouter
 
 	// Enhanced collaboration state
 	// Host (user who created the session)
@@ -309,6 +311,7 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 		LastActivity:  time.Now().UTC(),
 		CreatedAt:     time.Now().UTC(),
 		Hub:           h, // Reference to the hub for cleanup
+		MessageRouter: NewMessageRouter(),
 
 		// Enhanced collaboration state
 		Host:               hostUserID,
@@ -383,6 +386,7 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 		LastActivity:  time.Now().UTC(),
 		CreatedAt:     time.Now().UTC(),
 		Hub:           h, // Reference to the hub for cleanup
+		MessageRouter: NewMessageRouter(),
 
 		// Enhanced collaboration state
 		Host:               hostUserID,
@@ -1356,35 +1360,17 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 // HandleWS handles WebSocket connections
 func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Validate request and get parameters
-	threatModelID, diagramID, userIDStr, err := h.validateWebSocketRequest(c)
+	threatModelID, diagramID, _, err := h.validateWebSocketRequest(c)
 	if err != nil {
 		return
 	}
 
-	// Get user display name from context (optional, will use email as fallback)
-	userNameStr := ""
-	if userName, exists := c.Get("user_name"); exists {
-		if name, ok := userName.(string); ok && name != "" {
-			userNameStr = name
-		}
-	}
-
-	// Get user email from context
-	userEmailStr := ""
-	if userEmail, exists := c.Get("userEmail"); exists {
-		if email, ok := userEmail.(string); ok && email != "" {
-			userEmailStr = email
-		}
-	}
-
-	// If no display name, use email as fallback
-	if userNameStr == "" && userEmailStr != "" {
-		userNameStr = userEmailStr
-	}
-
-	// If still no display name, use user ID as last resort
-	if userNameStr == "" {
-		userNameStr = userIDStr
+	// Extract user information from context
+	userExtractor := &UserInfoExtractor{}
+	userInfo, err := userExtractor.ExtractUserInfo(c)
+	if err != nil {
+		logging.Get().Error("Failed to extract user info: %v", err)
+		return
 	}
 
 	// Upgrade to WebSocket first
@@ -1394,31 +1380,14 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		return
 	}
 
-	// CRITICAL: Validate user has access to the diagram after upgrading
-	// For backwards compatibility, use email for validation if userID lookup fails
-	validationID := userIDStr
-	if userEmailStr != "" {
-		// TODO: Update validateWebSocketDiagramAccessDirect to use user ID instead of email
-		validationID = userEmailStr
-	}
-	if !h.validateWebSocketDiagramAccessDirect(validationID, threatModelID, diagramID) {
-		// Send error message using proper message structure
-		errorMsg := ErrorMessage{
-			MessageType: MessageTypeError,
-			Error:       "unauthorized",
-			Message:     "You don't have sufficient permissions to collaborate on this diagram",
-			Timestamp:   time.Now().UTC(),
-		}
-		if msgBytes, err := MarshalAsyncMessage(errorMsg); err == nil {
-			if err := conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
-				logging.Get().Debug("Failed to send error message: %v", err)
-			}
-		}
-		// Close the connection
-		if err := conn.Close(); err != nil {
-			logging.Get().Debug("Failed to close connection: %v", err)
-		}
-		logging.Get().Info("Disconnected user %s - no permissions for diagram %s", userIDStr, diagramID)
+	// Initialize connection manager and validator
+	connManager := &WebSocketConnectionManager{}
+	validator := &SessionValidator{}
+
+	// Validate user has access to the diagram
+	if err := validator.ValidateSessionAccess(h, userInfo, threatModelID, diagramID); err != nil {
+		connManager.SendErrorAndClose(conn, "unauthorized", "You don't have sufficient permissions to collaborate on this diagram")
+		logging.Get().Info("Disconnected user %s - no permissions for diagram %s", userInfo.UserID, diagramID)
 		return
 	}
 
@@ -1426,47 +1395,26 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	sessionID := c.Query("session_id")
 
 	// Get or create session - use email for host tracking
-	session := h.GetOrCreateSession(diagramID, threatModelID, userEmailStr)
+	session := h.GetOrCreateSession(diagramID, threatModelID, userInfo.UserEmail)
 
 	// Log session state
 	logging.Get().Info("WebSocket connection attempt - User: %s, Diagram: %s, Session: %s, Provided SessionID: %s",
-		userIDStr, diagramID, session.ID, sessionID)
+		userInfo.UserID, diagramID, session.ID, sessionID)
 
-	// Check if the session is still active
-	session.mu.RLock()
-	sessionState := session.State
-	sessionActualID := session.ID
-	session.mu.RUnlock()
-
-	// Validate session state and ID
-	if sessionState != SessionStateActive {
+	// Validate session state
+	if err := validator.ValidateSessionState(session); err != nil {
 		// Session is terminated, immediately close the connection without sending termination messages
 		if err := conn.Close(); err != nil {
 			logging.Get().Debug("Failed to close connection: %v", err)
 		}
-		logging.Get().Info("Rejected connection from user %s - session %s is terminated", userIDStr, sessionActualID)
+		logging.Get().Info("Rejected connection from user %s - %v", userInfo.UserID, err)
 		return
 	}
 
-	// If a session ID was provided, validate it matches
-	if sessionID != "" && sessionID != sessionActualID {
-		// Session ID mismatch - likely trying to reconnect to an old session
-		// Log the mismatch but don't send an error message immediately
-		// The client might be in the process of disconnecting intentionally
-		logging.Get().Info("Session ID mismatch for user %s - provided: %s, actual: %s (client may be disconnecting)",
-			userIDStr, sessionID, sessionActualID)
-
-		// Instead of sending error immediately, just close with appropriate close code
-		// This avoids sending messages to clients that are already disconnecting
-		closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "Session ID mismatch")
-		if err := conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second)); err != nil {
-			logging.Get().Debug("Failed to send close message: %v", err)
-		}
-
-		// Close the connection
-		if err := conn.Close(); err != nil {
-			logging.Get().Debug("Failed to close connection: %v", err)
-		}
+	// Validate session ID if provided
+	if err := validator.ValidateSessionID(session, sessionID); err != nil {
+		logging.Get().Info("Session ID validation failed for user %s - %v (client may be disconnecting)", userInfo.UserID, err)
+		connManager.SendCloseAndClose(conn, websocket.CloseNormalClosure, "Session ID mismatch")
 		return
 	}
 
@@ -1475,23 +1423,19 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		Hub:          h,
 		Session:      session,
 		Conn:         conn,
-		UserID:       userIDStr,
-		UserName:     userNameStr,
-		UserEmail:    userEmailStr,
+		UserID:       userInfo.UserID,
+		UserName:     userInfo.UserName,
+		UserEmail:    userInfo.UserEmail,
 		Send:         make(chan []byte, 256),
 		LastActivity: time.Now().UTC(),
 	}
 
 	// Log before attempting to register client
-	logging.Get().Debug("Attempting to register WebSocket client - User: %s, Session: %s, Diagram: %s", userIDStr, session.ID, diagramID)
+	logging.Get().Debug("Attempting to register WebSocket client - User: %s, Session: %s, Diagram: %s", userInfo.UserID, session.ID, diagramID)
 
 	// Register client with timeout to prevent blocking
-	select {
-	case session.Register <- client:
-		logging.Get().Debug("Successfully sent client to Register channel - User: %s, Session: %s", userIDStr, session.ID)
-	case <-time.After(5 * time.Second):
-		logging.Get().Error("Timeout registering WebSocket client - User: %s, Session: %s, Diagram: %s (session may be blocked or dead)", userIDStr, session.ID, diagramID)
-		// Close the connection
+	if err := connManager.RegisterClientWithTimeout(session, client, 5*time.Second); err != nil {
+		logging.Get().Error("Failed to register client: %v", err)
 		if err := conn.Close(); err != nil {
 			logging.Get().Debug("Failed to close connection after timeout: %v", err)
 		}
@@ -1499,7 +1443,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	}
 
 	// Log WebSocket connection
-	logging.LogWebSocketConnection("CONNECTION_ESTABLISHED", session.ID, userIDStr, diagramID, h.LoggingConfig)
+	logging.LogWebSocketConnection("CONNECTION_ESTABLISHED", session.ID, userInfo.UserID, diagramID, h.LoggingConfig)
 
 	// Start goroutines
 	go client.ReadPump()
@@ -1601,82 +1545,9 @@ func validateCell(cell *Cell) error {
 
 // ProcessMessage handles enhanced message types for collaborative editing
 func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte) {
-	// Add panic recovery for message processing
-	defer func() {
-		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in ProcessMessage - Session: %s, User: %s, Error: %v, Stack: %s",
-				s.ID, client.UserID, r, debug.Stack())
-		}
-	}()
-
-	// Log raw incoming message with wsmsg component (sanitized to remove newlines)
-	sanitizedMessage := logging.SanitizeLogMessage(string(message))
-	logging.Get().Debug("[wsmsg] Received WebSocket message - session_id=%s user_id=%s message_size=%d raw_message=%s",
-		s.ID, client.UserID, len(message), sanitizedMessage)
-	// First try to parse as enhanced message format
-	var baseMsg struct {
-		MessageType string          `json:"message_type"`
-		UserID      string          `json:"user_id"`
-		Raw         json.RawMessage `json:"-"`
-	}
-
-	if err := json.Unmarshal(message, &baseMsg); err != nil {
-		logging.Get().Error("Failed to parse WebSocket message - Session: %s, User: %s, Error: %v, Message: %s",
-			s.ID, client.UserID, err, sanitizedMessage)
-		return
-	}
-
-	// Log parsed message details
-	logging.Get().Debug("[wsmsg] Parsed message - session_id=%s message_type=%s user_id=%s",
-		s.ID, baseMsg.MessageType, baseMsg.UserID)
-
-	// Handle different message types
-	switch baseMsg.MessageType {
-	case "diagram_operation":
-		s.processDiagramOperation(client, message)
-
-	case "presenter_request":
-		s.processPresenterRequest(client, message)
-
-	case "change_presenter":
-		s.processChangePresenter(client, message)
-
-	case "remove_participant":
-		s.processRemoveParticipant(client, message)
-
-	case "presenter_denied":
-		s.processPresenterDenied(client, message)
-
-	case "presenter_cursor":
-		s.processPresenterCursor(client, message)
-
-	case "presenter_selection":
-		s.processPresenterSelection(client, message)
-
-	case "resync_request":
-		s.processResyncRequest(client, message)
-
-	case "undo_request":
-		s.processUndoRequest(client, message)
-
-	case "redo_request":
-		s.processRedoRequest(client, message)
-
-	case "participant_joined":
-		// Client is notifying they've joined - this is handled automatically on connection
-		logging.Get().Debug("Received participant_joined from %s - ignored (join is automatic)", client.UserID)
-
-	case "participant_left":
-		// Client is notifying they're leaving - this is handled automatically on disconnect
-		logging.Get().Debug("Received participant_left from %s - ignored (leave is automatic)", client.UserID)
-
-	case "participants_update":
-		// Clients shouldn't send this - server sends it
-		logging.Get().Warn("Client %s sent participants_update - this is a server-only message", client.UserID)
-
-	default:
-		logging.Get().Warn("Unknown message type '%s' from user %s in session %s", baseMsg.MessageType, client.UserID, s.ID)
-		// Could send an error response to the client here
+	if err := s.MessageRouter.RouteMessage(s, client, message); err != nil {
+		logging.Get().Error("Failed to route WebSocket message - Session: %s, User: %s, Error: %v",
+			s.ID, client.UserID, err)
 	}
 }
 
