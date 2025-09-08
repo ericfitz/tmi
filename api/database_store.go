@@ -14,7 +14,6 @@ import (
 // DatabaseStore provides a database-backed store implementation
 type DatabaseStore[T any] struct {
 	db         *sql.DB
-	mutex      sync.RWMutex
 	tableName  string
 	entityType string
 }

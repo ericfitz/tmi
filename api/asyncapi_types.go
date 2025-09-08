@@ -37,7 +37,6 @@ const (
 	MessageTypeParticipantJoined  MessageType = "participant_joined"
 	MessageTypeParticipantLeft    MessageType = "participant_left"
 	MessageTypeParticipantsUpdate MessageType = "participants_update"
-	MessageTypeSessionTerminated  MessageType = "session_terminated"
 	MessageTypeError              MessageType = "error"
 )
 
@@ -50,7 +49,6 @@ type AsyncMessage interface {
 // DiagramOperationMessage represents enhanced collaborative editing operations
 type DiagramOperationMessage struct {
 	MessageType    MessageType        `json:"message_type"`
-	User           User               `json:"user"`
 	OperationID    string             `json:"operation_id"`
 	SequenceNumber *uint64            `json:"sequence_number,omitempty"` // Server-assigned
 	Operation      CellPatchOperation `json:"operation"`
@@ -61,9 +59,6 @@ func (m DiagramOperationMessage) GetMessageType() MessageType { return m.Message
 func (m DiagramOperationMessage) Validate() error {
 	if m.MessageType != MessageTypeDiagramOperation {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeDiagramOperation, m.MessageType)
-	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
 	}
 	if m.OperationID == "" {
 		return fmt.Errorf("operation_id is required")
@@ -133,7 +128,6 @@ func (op CellOperation) Validate() error {
 
 type PresenterRequestMessage struct {
 	MessageType MessageType `json:"message_type"`
-	User        User        `json:"user"`
 }
 
 func (m PresenterRequestMessage) GetMessageType() MessageType { return m.MessageType }
@@ -141,9 +135,6 @@ func (m PresenterRequestMessage) GetMessageType() MessageType { return m.Message
 func (m PresenterRequestMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterRequest, m.MessageType)
-	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
 	}
 	return nil
 }
@@ -236,7 +227,6 @@ type CursorPosition struct {
 
 type PresenterCursorMessage struct {
 	MessageType    MessageType    `json:"message_type"`
-	User           User           `json:"user"`
 	CursorPosition CursorPosition `json:"cursor_position"`
 }
 
@@ -246,15 +236,11 @@ func (m PresenterCursorMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterCursor {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterCursor, m.MessageType)
 	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
-	}
 	return nil
 }
 
 type PresenterSelectionMessage struct {
 	MessageType   MessageType `json:"message_type"`
-	User          User        `json:"user"`
 	SelectedCells []string    `json:"selected_cells"`
 }
 
@@ -263,9 +249,6 @@ func (m PresenterSelectionMessage) GetMessageType() MessageType { return m.Messa
 func (m PresenterSelectionMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterSelection {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterSelection, m.MessageType)
-	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
 	}
 	// Validate that selected cells are valid UUIDs
 	for i, cellID := range m.SelectedCells {
@@ -323,7 +306,6 @@ func (m StateCorrectionMessage) Validate() error {
 
 type ResyncRequestMessage struct {
 	MessageType MessageType `json:"message_type"`
-	User        User        `json:"user"`
 }
 
 func (m ResyncRequestMessage) GetMessageType() MessageType { return m.MessageType }
@@ -331,9 +313,6 @@ func (m ResyncRequestMessage) GetMessageType() MessageType { return m.MessageTyp
 func (m ResyncRequestMessage) Validate() error {
 	if m.MessageType != MessageTypeResyncRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeResyncRequest, m.MessageType)
-	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
 	}
 	return nil
 }
@@ -388,7 +367,6 @@ func (m HistoryOperationMessage) Validate() error {
 
 type UndoRequestMessage struct {
 	MessageType MessageType `json:"message_type"`
-	User        User        `json:"user"`
 }
 
 func (m UndoRequestMessage) GetMessageType() MessageType { return m.MessageType }
@@ -397,15 +375,11 @@ func (m UndoRequestMessage) Validate() error {
 	if m.MessageType != MessageTypeUndoRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeUndoRequest, m.MessageType)
 	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
-	}
 	return nil
 }
 
 type RedoRequestMessage struct {
 	MessageType MessageType `json:"message_type"`
-	User        User        `json:"user"`
 }
 
 func (m RedoRequestMessage) GetMessageType() MessageType { return m.MessageType }
@@ -413,9 +387,6 @@ func (m RedoRequestMessage) GetMessageType() MessageType { return m.MessageType 
 func (m RedoRequestMessage) Validate() error {
 	if m.MessageType != MessageTypeRedoRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeRedoRequest, m.MessageType)
-	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
 	}
 	return nil
 }
@@ -577,13 +548,6 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 		}
 		return msg, msg.Validate()
 
-	case MessageTypeSessionTerminated:
-		var msg SessionTerminatedMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse session terminated message: %w", err)
-		}
-		return msg, msg.Validate()
-
 	case MessageTypeError:
 		var msg ErrorMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
@@ -634,37 +598,13 @@ func (m ParticipantLeftMessage) Validate() error {
 	return nil
 }
 
-// SessionTerminatedMessage notifies when a session is terminated
-type SessionTerminatedMessage struct {
-	MessageType MessageType `json:"message_type"`
-	Reason      string      `json:"reason"`
-	HostID      string      `json:"host_id"`
-	Timestamp   time.Time   `json:"timestamp"`
-}
-
-func (m SessionTerminatedMessage) GetMessageType() MessageType { return m.MessageType }
-
-func (m SessionTerminatedMessage) Validate() error {
-	if m.MessageType != MessageTypeSessionTerminated {
-		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeSessionTerminated, m.MessageType)
-	}
-	if m.Reason == "" {
-		return fmt.Errorf("reason is required")
-	}
-	if m.HostID == "" {
-		return fmt.Errorf("host_id is required")
-	}
-	return nil
-}
-
-// ErrorMessage represents a WebSocket error message
+// ErrorMessage represents an error response
 type ErrorMessage struct {
-	MessageType MessageType `json:"message_type"`
-	Error       string      `json:"error"`
-	Message     string      `json:"message"`
-	Code        string      `json:"code,omitempty"`
-	Details     interface{} `json:"details,omitempty"`
-	Timestamp   time.Time   `json:"timestamp"`
+	MessageType      MessageType `json:"message_type"`
+	Error            string      `json:"error"`
+	Message          string      `json:"message"`
+	ErrorDescription *string     `json:"error_description,omitempty"`
+	Timestamp        time.Time   `json:"timestamp"`
 }
 
 func (m ErrorMessage) GetMessageType() MessageType { return m.MessageType }

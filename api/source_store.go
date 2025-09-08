@@ -55,17 +55,6 @@ func NewDatabaseSourceStore(db *sql.DB, cache *CacheService, invalidator *CacheI
 	}
 }
 
-// sourceToExtended converts a Source to ExtendedSource
-func sourceToExtended(src *Source, threatModelID string, createdAt, modifiedAt time.Time) *ExtendedSource {
-	tmID, _ := uuid.Parse(threatModelID)
-	return &ExtendedSource{
-		Source:        *src,
-		ThreatModelId: tmID,
-		CreatedAt:     createdAt,
-		ModifiedAt:    modifiedAt,
-	}
-}
-
 // extendedToSource converts an ExtendedSource to Source
 func extendedToSource(extSrc *ExtendedSource) *Source {
 	return &extSrc.Source

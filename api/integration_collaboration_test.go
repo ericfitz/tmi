@@ -220,11 +220,6 @@ func (c *CollaborationTestClient) SendOperation(op DiagramOperation) error {
 
 	message := DiagramOperationMessage{
 		MessageType: MessageTypeDiagramOperation,
-		User: User{
-			UserId: c.UserName,
-			Name:   c.UserName,
-			Email:  c.UserName + "@test.com",
-		},
 		OperationID: generateTestUUID(c.t).String(),
 		Operation: CellPatchOperation{
 			Type: "patch",

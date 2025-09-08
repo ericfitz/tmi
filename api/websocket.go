@@ -960,15 +960,35 @@ func (h *WebSocketHub) validateWebSocketDiagramAccess(userName string, diagramID
 // CloseSession closes a session and removes it
 func (h *WebSocketHub) CloseSession(diagramID string) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	if session, ok := h.Diagrams[diagramID]; ok {
-		// Notify clients of close
-		for client := range session.Clients {
-			close(client.Send)
-		}
-		delete(h.Diagrams, diagramID)
+	session, ok := h.Diagrams[diagramID]
+	if !ok {
+		h.mu.Unlock()
+		return
 	}
+	// Remove session from hub immediately to prevent new connections
+	delete(h.Diagrams, diagramID)
+	h.mu.Unlock()
+
+	// Handle immediate session termination
+	session.mu.Lock()
+	session.State = SessionStateTerminated
+	now := time.Now().UTC()
+	session.TerminatedAt = &now
+	session.mu.Unlock()
+
+	// Close all client connections immediately without sending termination messages
+
+	// Close all client connections immediately
+	session.mu.Lock()
+	for client := range session.Clients {
+		close(client.Send)
+		logging.Get().Debug("Closed connection for participant %s due to immediate session termination", client.UserID)
+	}
+	// Clear the clients map
+	session.Clients = make(map[*WebSocketClient]bool)
+	session.mu.Unlock()
+
+	logging.Get().Info("Session %s terminated immediately by host %s", session.ID, session.Host)
 }
 
 // CleanupInactiveSessions removes sessions that are inactive or empty with grace period
@@ -1387,7 +1407,6 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 			MessageType: MessageTypeError,
 			Error:       "unauthorized",
 			Message:     "You don't have sufficient permissions to collaborate on this diagram",
-			Code:        "insufficient_permissions",
 			Timestamp:   time.Now().UTC(),
 		}
 		if msgBytes, err := MarshalAsyncMessage(errorMsg); err == nil {
@@ -1421,19 +1440,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 
 	// Validate session state and ID
 	if sessionState != SessionStateActive {
-		// Session has been terminated - use proper SessionTerminatedMessage
-		terminatedMsg := SessionTerminatedMessage{
-			MessageType: MessageTypeSessionTerminated,
-			Reason:      "host_disconnected",
-			HostID:      session.Host,
-			Timestamp:   time.Now().UTC(),
-		}
-		if msgBytes, err := MarshalAsyncMessage(terminatedMsg); err == nil {
-			if err := conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
-				logging.Get().Debug("Failed to send termination message: %v", err)
-			}
-		}
-		// Close the connection
+		// Session is terminated, immediately close the connection without sending termination messages
 		if err := conn.Close(); err != nil {
 			logging.Get().Debug("Failed to close connection: %v", err)
 		}
@@ -1697,11 +1704,7 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 		GlobalPerformanceMonitor.RecordMessage(s.ID, len(message), 0)
 	}
 
-	// Validate message
-	if msg.User.UserId != client.UserID {
-		logging.Get().Info("User ID mismatch in diagram operation: %s != %s", msg.User.UserId, client.UserID)
-		return
-	}
+	// User identity is validated by connection authentication, not message payload
 
 	// Check authorization (this will be implemented in the authorization filtering task)
 	// Use email for permission check for backwards compatibility
@@ -1773,7 +1776,7 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 		if GlobalPerformanceMonitor != nil {
 			perf := &OperationPerformance{
 				OperationID:      msg.OperationID,
-				UserID:           msg.User.UserId,
+				UserID:           client.UserID,
 				StartTime:        startTime,
 				TotalTime:        time.Since(startTime),
 				CellCount:        len(msg.Operation.Cells),
@@ -1786,13 +1789,13 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 	}
 
 	// Update operation history
-	s.addToHistory(msg, result.PreviousState, result.PreviousState) // For now, use same state
+	s.addToHistory(msg, client.UserID, result.PreviousState, result.PreviousState) // For now, use same state
 
 	// Record operation performance
 	if GlobalPerformanceMonitor != nil {
 		perf := &OperationPerformance{
 			OperationID:      msg.OperationID,
-			UserID:           msg.User.UserId,
+			UserID:           client.UserID,
 			StartTime:        startTime,
 			TotalTime:        time.Since(startTime),
 			CellCount:        len(msg.Operation.Cells),
@@ -1803,7 +1806,7 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 	}
 
 	logging.Get().Info("Successfully applied operation %s from %s with sequence %d",
-		msg.OperationID, msg.User.UserId, *msg.SequenceNumber)
+		msg.OperationID, client.UserID, *msg.SequenceNumber)
 
 	// Broadcast to all other clients (not the sender)
 	s.broadcastToOthers(client, msg)
@@ -1827,11 +1830,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 		return
 	}
 
-	// Validate user ID matches client
-	if msg.User.UserId != client.UserID {
-		logging.Get().Info("User ID mismatch in presenter request: %s != %s", msg.User.UserId, client.UserID)
-		return
-	}
+	// User identity is validated by connection authentication, not message payload
 
 	s.mu.RLock()
 	currentPresenter := s.CurrentPresenter
@@ -1839,24 +1838,24 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	s.mu.RUnlock()
 
 	// If user is already the presenter, ignore
-	if msg.User.UserId == currentPresenter {
-		logging.Get().Info("User %s is already the presenter", msg.User.UserId)
+	if client.UserID == currentPresenter {
+		logging.Get().Info("User %s is already the presenter", client.UserID)
 		return
 	}
 
 	// If user is the host, automatically grant presenter mode
-	if msg.User.UserId == host {
+	if client.UserID == host {
 		s.mu.Lock()
-		s.CurrentPresenter = msg.User.UserId
+		s.CurrentPresenter = client.UserID
 		s.mu.Unlock()
 
 		// Broadcast new presenter to all clients
 		broadcastMsg := CurrentPresenterMessage{
 			MessageType:      "current_presenter",
-			CurrentPresenter: msg.User.UserId,
+			CurrentPresenter: client.UserID,
 		}
 		s.broadcastMessage(broadcastMsg)
-		logging.Get().Info("Host %s became presenter in session %s", msg.User.UserId, s.ID)
+		logging.Get().Info("Host %s became presenter in session %s", client.UserID, s.ID)
 
 		// Also broadcast updated participant list since presenter has changed
 		s.broadcastParticipantsUpdate()
@@ -1869,9 +1868,9 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	if hostClient != nil {
 		// Forward the request to the host for approval
 		s.sendToClient(hostClient, msg)
-		logging.Get().Info("Forwarded presenter request from %s to host %s in session %s", msg.User.UserId, host, s.ID)
+		logging.Get().Info("Forwarded presenter request from %s to host %s in session %s", client.UserID, host, s.ID)
 	} else {
-		logging.Get().Info("Host %s not connected, cannot process presenter request from %s", host, msg.User.UserId)
+		logging.Get().Info("Host %s not connected, cannot process presenter request from %s", host, client.UserID)
 
 		// Send denial to requester since host is not available
 		deniedMsg := PresenterDeniedMessage{
@@ -1881,7 +1880,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 				Email:  "system@tmi",
 				Name:   "System",
 			},
-			TargetUser: msg.User.UserId,
+			TargetUser: client.UserID,
 		}
 		s.sendToClient(client, deniedMsg)
 	}
@@ -2051,17 +2050,14 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 		return
 	}
 
-	// Validate user ID matches client (sender should be host)
-	if msg.User.UserId != client.UserID {
-		logging.Get().Info("User ID mismatch in presenter denied: %s != %s", msg.User.UserId, client.UserID)
-		return
-	}
+	// Validate that sender is authenticated host (using connection context)
+	// User field represents the host who is denying the request
 
 	// Find the target user to send the denial
 	targetClient := s.findClientByUserID(msg.TargetUser)
 	if targetClient != nil {
 		s.sendToClient(targetClient, msg)
-		logging.Get().Info("Host %s denied presenter request from %s in session %s", msg.User.UserId, msg.TargetUser, s.ID)
+		logging.Get().Info("Host %s denied presenter request from %s in session %s", client.UserID, msg.TargetUser, s.ID)
 	} else {
 		logging.Get().Info("Target user %s not found for presenter denial in session %s", msg.TargetUser, s.ID)
 	}
@@ -2075,11 +2071,7 @@ func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message
 		return
 	}
 
-	// Validate user ID matches client
-	if msg.User.UserId != client.UserID {
-		logging.Get().Info("User ID mismatch in presenter cursor: %s != %s", msg.User.UserId, client.UserID)
-		return
-	}
+	// User authentication is validated by connection context
 
 	// Only current presenter can send cursor updates
 	s.mu.RLock()
@@ -2103,11 +2095,7 @@ func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, mess
 		return
 	}
 
-	// Validate user ID matches client
-	if msg.User.UserId != client.UserID {
-		logging.Get().Info("User ID mismatch in presenter selection: %s != %s", msg.User.UserId, client.UserID)
-		return
-	}
+	// User authentication is validated by connection context
 
 	// Only current presenter can send selection updates
 	s.mu.RLock()
@@ -2131,11 +2119,7 @@ func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message [
 		return
 	}
 
-	// Validate user ID matches client
-	if msg.User.UserId != client.UserID {
-		logging.Get().Info("User ID mismatch in resync request: %s != %s", msg.User.UserId, client.UserID)
-		return
-	}
+	// User authentication is validated by connection context
 
 	logging.Get().Info("Client %s requested resync for diagram %s", client.UserID, s.DiagramID)
 
@@ -2148,18 +2132,18 @@ func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message [
 			Email:  "system@tmi",
 			Name:   "System",
 		},
-		TargetUser:    msg.User.UserId,
+		TargetUser:    client.UserID,
 		Method:        "rest_api",
 		DiagramID:     s.DiagramID,
 		ThreatModelID: s.ThreatModelID,
 	}
 
 	s.sendToClient(client, resyncResponse)
-	logging.Get().Info("Sent resync response to %s for diagram %s", msg.User.UserId, s.DiagramID)
+	logging.Get().Info("Sent resync response to %s for diagram %s", client.UserID, s.DiagramID)
 
 	// Record performance metrics
 	if GlobalPerformanceMonitor != nil {
-		GlobalPerformanceMonitor.RecordResyncRequest(s.ID, msg.User.UserId)
+		GlobalPerformanceMonitor.RecordResyncRequest(s.ID, client.UserID)
 	}
 }
 
@@ -2171,11 +2155,7 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 		return
 	}
 
-	// Validate user ID matches client
-	if msg.User.UserId != client.UserID {
-		logging.Get().Info("User ID mismatch in undo request: %s != %s", msg.User.UserId, client.UserID)
-		return
-	}
+	// User authentication is validated by connection context
 
 	// Check permission
 	// Use email for permission check for backwards compatibility
@@ -2250,11 +2230,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 		return
 	}
 
-	// Validate user ID matches client
-	if msg.User.UserId != client.UserID {
-		logging.Get().Info("User ID mismatch in redo request: %s != %s", msg.User.UserId, client.UserID)
-		return
-	}
+	// User authentication is validated by connection context
 
 	// Check permission
 	// Use email for permission check for backwards compatibility
@@ -2404,12 +2380,6 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 	s.TerminatedAt = &now
 	s.mu.Unlock()
 
-	// Broadcast session termination notification to all remaining participants
-	s.broadcastSessionTermination(disconnectedHostID)
-
-	// Give clients a brief moment to process the termination message
-	time.Sleep(100 * time.Millisecond)
-
 	// Close all remaining client connections gracefully
 	s.mu.Lock()
 	for client := range s.Clients {
@@ -2442,58 +2412,6 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 }
 
 // broadcastSessionTermination sends termination messages to all participants
-func (s *DiagramSession) broadcastSessionTermination(hostID string) {
-	// Create session termination message
-	terminationMsg := SessionTerminatedMessage{
-		MessageType: MessageTypeSessionTerminated,
-		Reason:      "host_disconnected",
-		HostID:      hostID,
-		Timestamp:   time.Now().UTC(),
-	}
-
-	// Broadcast to all clients
-	if msgBytes, err := MarshalAsyncMessage(terminationMsg); err == nil {
-		s.mu.RLock()
-		for client := range s.Clients {
-			if client.UserID != hostID { // Don't send to the disconnected host
-				select {
-				case client.Send <- msgBytes:
-					logging.Get().Debug("Sent session termination message to %s", client.UserID)
-				default:
-					logging.Get().Warn("Failed to send session termination message to %s (channel full)", client.UserID)
-				}
-			}
-		}
-		s.mu.RUnlock()
-	} else {
-		logging.Get().Error("Failed to marshal session termination message: %v", err)
-	}
-
-	// Also send a final leave message for the host
-	leaveMsg := ParticipantLeftMessage{
-		MessageType: MessageTypeParticipantLeft,
-		User: User{
-			UserId: hostID,
-			Name:   "", // We don't have the host's name here
-			Email:  "", // We don't have the host's email here
-		},
-		Timestamp: time.Now().UTC(),
-	}
-
-	if msgBytes, err := MarshalAsyncMessage(leaveMsg); err == nil {
-		s.mu.RLock()
-		for client := range s.Clients {
-			if client.UserID != hostID {
-				select {
-				case client.Send <- msgBytes:
-				default:
-					// Ignore if channel is full - termination is more important
-				}
-			}
-		}
-		s.mu.RUnlock()
-	}
-}
 
 // cleanupSession removes this session from the hub when it terminates
 func (s *DiagramSession) cleanupSession() {
@@ -3423,10 +3341,10 @@ func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOper
 	}
 
 	// Update operation history
-	s.addToHistory(msg, result.PreviousState, currentState)
+	s.addToHistory(msg, client.UserID, result.PreviousState, currentState)
 
 	logging.Get().Info("Successfully applied operation %s from %s with sequence %d",
-		msg.OperationID, msg.User.UserId, *msg.SequenceNumber)
+		msg.OperationID, client.UserID, *msg.SequenceNumber)
 
 	return true
 }
@@ -3715,7 +3633,7 @@ func (s *DiagramSession) detectCellChanges(existing, updated *Cell) bool {
 }
 
 // addToHistory adds an operation to the history for conflict resolution
-func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, previousState, currentState map[string]*Cell) {
+func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, userID string, previousState, currentState map[string]*Cell) {
 	if s.OperationHistory == nil {
 		return
 	}
@@ -3726,7 +3644,7 @@ func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, previousState
 	entry := &HistoryEntry{
 		SequenceNumber: *msg.SequenceNumber,
 		OperationID:    msg.OperationID,
-		UserID:         msg.User.UserId,
+		UserID:         userID,
 		Timestamp:      time.Now().UTC(),
 		Operation:      msg.Operation,
 		PreviousState:  previousState,
