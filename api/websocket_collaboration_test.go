@@ -388,6 +388,11 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 	t.Run("PresenterRequestMessage", func(t *testing.T) {
 		msg := PresenterRequestMessage{
 			MessageType: "presenter_request",
+			User: User{
+				UserId: "test-user-123",
+				Email:  "test@example.com",
+				Name:   "Test User",
+			},
 		}
 
 		err := msg.Validate()

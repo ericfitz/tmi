@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -30,7 +31,7 @@ type Server struct {
 }
 
 // NewServer creates a new API server instance
-func NewServer(wsLoggingConfig logging.WebSocketLoggingConfig) *Server {
+func NewServer(wsLoggingConfig logging.WebSocketLoggingConfig, inactivityTimeout time.Duration) *Server {
 	return &Server{
 		threatModelHandler:         NewThreatModelHandler(),
 		documentHandler:            NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
@@ -41,7 +42,7 @@ func NewServer(wsLoggingConfig logging.WebSocketLoggingConfig) *Server {
 		sourceMetadataHandler:      NewSourceMetadataHandlerSimple(),
 		threatMetadataHandler:      NewThreatMetadataHandlerSimple(),
 		threatModelMetadataHandler: NewThreatModelMetadataHandlerSimple(),
-		wsHub:                      NewWebSocketHub(wsLoggingConfig),
+		wsHub:                      NewWebSocketHub(wsLoggingConfig, inactivityTimeout),
 		// authService will be set separately via SetAuthService
 	}
 }
@@ -53,7 +54,7 @@ func NewServerForTests() *Server {
 		RedactTokens:   true,
 		MaxMessageSize: 5 * 1024,
 		OnlyDebugLevel: true,
-	})
+	}, 30*time.Second) // Short timeout for tests
 }
 
 // ServerInfo provides information about the server configuration

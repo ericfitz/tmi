@@ -17,11 +17,12 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Auth     AuthConfig     `yaml:"auth"`
-	Logging  LoggingConfig  `yaml:"logging"`
-	Admin    AdminConfig    `yaml:"admin"`
+	Server    ServerConfig    `yaml:"server"`
+	Database  DatabaseConfig  `yaml:"database"`
+	Auth      AuthConfig      `yaml:"auth"`
+	WebSocket WebSocketConfig `yaml:"websocket"`
+	Logging   LoggingConfig   `yaml:"logging"`
+	Admin     AdminConfig     `yaml:"admin"`
 }
 
 // ServerConfig holds HTTP server configuration
@@ -122,6 +123,11 @@ type LoggingConfig struct {
 	LogWebSocketMsg             bool `yaml:"log_websocket_messages" env:"TMI_LOGGING_LOG_WEBSOCKET_MESSAGES"`
 	RedactAuthTokens            bool `yaml:"redact_auth_tokens" env:"TMI_LOGGING_REDACT_AUTH_TOKENS"`
 	SuppressUnauthenticatedLogs bool `yaml:"suppress_unauthenticated_logs" env:"TMI_LOGGING_SUPPRESS_UNAUTH_LOGS"`
+}
+
+// WebSocketConfig holds WebSocket timeout configuration
+type WebSocketConfig struct {
+	InactivityTimeoutSeconds int `yaml:"inactivity_timeout_seconds" env:"TMI_WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS"`
 }
 
 // AdminConfig holds admin interface configuration
@@ -225,6 +231,9 @@ func getDefaultConfig() *Config {
 				CallbackURL: "http://localhost:8080/oauth2/callback",
 				Providers:   getDefaultOAuthProviders(),
 			},
+		},
+		WebSocket: WebSocketConfig{
+			InactivityTimeoutSeconds: 300, // 5 minutes default
 		},
 		Logging: LoggingConfig{
 			Level:                       "info",
@@ -556,6 +565,11 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("at least one oauth provider must be enabled and configured")
 	}
 
+	// Validate WebSocket configuration
+	if c.WebSocket.InactivityTimeoutSeconds < 15 {
+		return fmt.Errorf("websocket inactivity timeout must be at least 15 seconds")
+	}
+
 	// Validate admin configuration
 	if err := c.validateAdminConfig(); err != nil {
 		return err
@@ -686,4 +700,9 @@ func (c *Config) IsUserAdmin(email string) bool {
 // GetAdminTimeout returns the admin session timeout duration
 func (c *Config) GetAdminTimeout() time.Duration {
 	return time.Duration(c.Admin.Session.TimeoutMinutes) * time.Minute
+}
+
+// GetWebSocketInactivityTimeout returns the websocket inactivity timeout duration
+func (c *Config) GetWebSocketInactivityTimeout() time.Duration {
+	return time.Duration(c.WebSocket.InactivityTimeoutSeconds) * time.Second
 }

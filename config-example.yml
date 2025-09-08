@@ -145,6 +145,12 @@ auth:
                     - "email"
                 additional_params: {}
 
+websocket:
+    inactivity_timeout_seconds: 300     # WebSocket inactivity timeout (5 minutes)
+                                       # Sessions with no activity are cleaned up after this timeout
+                                       # Minimum value: 15 seconds
+                                       # Environment override: TMI_WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS
+
 logging:
     level: "info"                   # Log level (debug/info/warn/error)
     is_dev: true                    # Development mode (includes file/line info)

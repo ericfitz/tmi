@@ -37,6 +37,8 @@ type WebSocketHub struct {
 	mu sync.RWMutex
 	// WebSocket logging configuration
 	LoggingConfig logging.WebSocketLoggingConfig
+	// Inactivity timeout duration
+	InactivityTimeout time.Duration
 }
 
 // DiagramSession represents a collaborative editing session
@@ -208,10 +210,11 @@ var upgrader = websocket.Upgrader{
 }
 
 // NewWebSocketHub creates a new WebSocket hub
-func NewWebSocketHub(loggingConfig logging.WebSocketLoggingConfig) *WebSocketHub {
+func NewWebSocketHub(loggingConfig logging.WebSocketLoggingConfig, inactivityTimeout time.Duration) *WebSocketHub {
 	return &WebSocketHub{
-		Diagrams:      make(map[string]*DiagramSession),
-		LoggingConfig: loggingConfig,
+		Diagrams:          make(map[string]*DiagramSession),
+		LoggingConfig:     loggingConfig,
+		InactivityTimeout: inactivityTimeout,
 	}
 }
 
@@ -222,7 +225,7 @@ func NewWebSocketHubForTests() *WebSocketHub {
 		RedactTokens:   true,
 		MaxMessageSize: 5 * 1024,
 		OnlyDebugLevel: true,
-	})
+	}, 30*time.Second) // Short timeout for tests
 }
 
 // buildWebSocketURL constructs the absolute WebSocket URL from request context
@@ -1001,35 +1004,30 @@ func (h *WebSocketHub) CleanupInactiveSessions() {
 	defer h.mu.Unlock()
 
 	now := time.Now().UTC()
-	inactivityTimeout := now.Add(-5 * time.Minute)
-	emptySessionTimeout := now.Add(-1 * time.Minute) // 1-minute grace period for empty sessions
-
-	terminatedSessionTimeout := now.Add(-15 * time.Second) // 15-second grace period for terminated sessions
+	inactivityTimeout := now.Add(-h.InactivityTimeout)
 
 	for diagramID, session := range h.Diagrams {
 		session.mu.RLock()
 		lastActivity := session.LastActivity
-		createdAt := session.CreatedAt
 		clientCount := len(session.Clients)
 		sessionState := session.State
-		terminatedAt := session.TerminatedAt
 		session.mu.RUnlock()
 
 		shouldCleanup := false
 		cleanupReason := ""
 
-		// Check if session is terminated and past grace period
-		if sessionState == SessionStateTerminated && terminatedAt != nil && terminatedAt.Before(terminatedSessionTimeout) {
+		// Check if session is terminated - immediate cleanup
+		if sessionState == SessionStateTerminated {
 			shouldCleanup = true
-			cleanupReason = "terminated session past grace period"
+			cleanupReason = "terminated session (immediate cleanup)"
 		} else if lastActivity.Before(inactivityTimeout) {
-			// Check for long-term inactivity (15+ minutes)
+			// Check for inactivity timeout
 			shouldCleanup = true
-			cleanupReason = "inactive for 5+ minutes"
-		} else if clientCount == 0 && createdAt.Before(emptySessionTimeout) {
-			// Check for empty sessions past grace period (1+ minute with no clients)
+			cleanupReason = fmt.Sprintf("inactive for %v", h.InactivityTimeout)
+		} else if clientCount == 0 {
+			// Check for empty sessions - immediate cleanup
 			shouldCleanup = true
-			cleanupReason = "empty session past 1-minute grace period"
+			cleanupReason = "empty session (immediate cleanup)"
 		}
 
 		if shouldCleanup {
@@ -1048,22 +1046,18 @@ func (h *WebSocketHub) CleanupInactiveSessions() {
 	}
 }
 
-// CleanupEmptySessions performs immediate cleanup of empty sessions past grace period
+// CleanupEmptySessions performs immediate cleanup of empty sessions
 func (h *WebSocketHub) CleanupEmptySessions() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	now := time.Now().UTC()
-	emptySessionTimeout := now.Add(-1 * time.Minute) // 1-minute grace period for empty sessions
-
 	for diagramID, session := range h.Diagrams {
 		session.mu.RLock()
-		createdAt := session.CreatedAt
 		clientCount := len(session.Clients)
 		session.mu.RUnlock()
 
-		// Only cleanup empty sessions past grace period
-		if clientCount == 0 && createdAt.Before(emptySessionTimeout) {
+		// Immediate cleanup of empty sessions
+		if clientCount == 0 {
 			// Close session
 			for client := range session.Clients {
 				close(client.Send)
@@ -3661,12 +3655,14 @@ func (c *WebSocketClient) ReadPump() {
 	logging.Get().Debug("WebSocketClient.ReadPump() started - User: %s, Session: %s", c.UserID, c.Session.ID)
 
 	c.Conn.SetReadLimit(4096) // 4KB message limit
-	if err := c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
+	// Set read timeout to 3x ping interval (90 seconds)
+	readTimeout := 90 * time.Second
+	if err := c.Conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
 		logging.Get().Info("Error setting read deadline: %v", err)
 		return
 	}
 	c.Conn.SetPongHandler(func(string) error {
-		if err := c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
+		if err := c.Conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
 			logging.Get().Info("Error setting read deadline in pong handler: %v", err)
 		}
 		return nil

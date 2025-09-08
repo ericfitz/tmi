@@ -202,7 +202,7 @@ func (s *Server) GetApiInfo(c *gin.Context) {
 		MaxMessageSize: 5 * 1024,
 		OnlyDebugLevel: true,
 	}
-	apiServer := api.NewServer(wsLoggingConfig)
+	apiServer := api.NewServer(wsLoggingConfig, 5*time.Minute) // Default timeout for API info
 	apiInfoHandler := api.NewApiInfoHandler(apiServer)
 	apiInfoHandler.GetApiInfo(c)
 }
@@ -964,7 +964,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	api.InitializePerformanceMonitoring()
 
 	// Create API server with handlers (after stores are initialized)
-	apiServer := api.NewServer(wsLoggingConfig)
+	apiServer := api.NewServer(wsLoggingConfig, config.GetWebSocketInactivityTimeout())
 
 	// Setup server with handlers
 	server := &Server{
