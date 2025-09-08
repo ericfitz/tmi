@@ -242,15 +242,6 @@ func (s *Server) CreateDiagramCollaborationSession(c *gin.Context, threatModelId
 	handler.CreateDiagramCollaborate(c, threatModelId.String(), diagramId.String())
 }
 
-// JoinDiagramCollaborationSession joins an existing collaboration session for a diagram
-func (s *Server) JoinDiagramCollaborationSession(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	// Create handler with websocket hub
-	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
-
-	// Delegate to existing implementation
-	handler.JoinDiagramCollaborate(c, threatModelId.String(), diagramId.String())
-}
-
 // EndDiagramCollaborationSession ends a collaboration session for a diagram
 func (s *Server) EndDiagramCollaborationSession(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
 	// Create handler with websocket hub
@@ -888,22 +879,6 @@ func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gi
 
 	// Delegate to existing implementation
 	handler.CreateDiagramCollaborate(c, threatModelId, diagramId)
-}
-
-// PutThreatModelsThreatModelIdDiagramsDiagramIdCollaborate - wrapper for JoinDiagramCollaborationSession
-func (s *Server) PutThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context) {
-	threatModelId := c.Param("threat_model_id")
-	diagramId := c.Param("diagram_id")
-
-	// Log the join request for debugging
-	logger := logging.Get()
-	logger.Info("PUT collaborate wrapper method called - TM: %s, Diagram: %s", threatModelId, diagramId)
-
-	// Create handler with websocket hub
-	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
-
-	// Delegate to existing implementation
-	handler.JoinDiagramCollaborate(c, threatModelId, diagramId)
 }
 
 // DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate - wrapper for EndDiagramCollaborationSession

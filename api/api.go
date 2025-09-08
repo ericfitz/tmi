@@ -2350,9 +2350,6 @@ type ServerInterface interface {
 	// Create diagram collaboration session
 	// (POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate)
 	CreateDiagramCollaborationSession(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
-	// Join diagram collaboration session
-	// (PUT /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate)
-	JoinDiagramCollaborationSession(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
 	// Get diagram metadata
 	// (GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata)
 	GetDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID)
@@ -2599,7 +2596,7 @@ func (siw *ServerInterfaceWrapper) AuthorizeOAuthProvider(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "idp", c.Request.URL.Query(), &params.Idp)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter idp: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter idp: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2607,7 +2604,7 @@ func (siw *ServerInterfaceWrapper) AuthorizeOAuthProvider(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "client_callback", c.Request.URL.Query(), &params.ClientCallback)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter client_callback: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter client_callback: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2615,7 +2612,7 @@ func (siw *ServerInterfaceWrapper) AuthorizeOAuthProvider(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "state", c.Request.URL.Query(), &params.State)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter state: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter state: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2623,7 +2620,7 @@ func (siw *ServerInterfaceWrapper) AuthorizeOAuthProvider(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "login_hint", c.Request.URL.Query(), &params.LoginHint)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter login_hint: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter login_hint: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2638,7 +2635,7 @@ func (siw *ServerInterfaceWrapper) AuthorizeOAuthProvider(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, true, "scope", c.Request.URL.Query(), &params.Scope)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter scope: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter scope: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2671,7 +2668,7 @@ func (siw *ServerInterfaceWrapper) HandleOAuthCallback(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, true, "code", c.Request.URL.Query(), &params.Code)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter code: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter code: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2679,7 +2676,7 @@ func (siw *ServerInterfaceWrapper) HandleOAuthCallback(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "state", c.Request.URL.Query(), &params.State)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter state: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter state: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2759,7 +2756,7 @@ func (siw *ServerInterfaceWrapper) ExchangeOAuthCode(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "idp", c.Request.URL.Query(), &params.Idp)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter idp: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter idp: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2802,7 +2799,7 @@ func (siw *ServerInterfaceWrapper) ListThreatModels(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2810,7 +2807,7 @@ func (siw *ServerInterfaceWrapper) ListThreatModels(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "offset", c.Request.URL.Query(), &params.Offset)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2818,7 +2815,7 @@ func (siw *ServerInterfaceWrapper) ListThreatModels(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "sort", c.Request.URL.Query(), &params.Sort)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter sort: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2826,7 +2823,7 @@ func (siw *ServerInterfaceWrapper) ListThreatModels(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "owner", c.Request.URL.Query(), &params.Owner)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter owner: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter owner: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2834,7 +2831,7 @@ func (siw *ServerInterfaceWrapper) ListThreatModels(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "name", c.Request.URL.Query(), &params.Name)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter name: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter name: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2842,7 +2839,7 @@ func (siw *ServerInterfaceWrapper) ListThreatModels(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "description", c.Request.URL.Query(), &params.Description)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter description: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter description: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2850,7 +2847,7 @@ func (siw *ServerInterfaceWrapper) ListThreatModels(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "issue_url", c.Request.URL.Query(), &params.IssueUrl)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter issue_url: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter issue_url: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2858,7 +2855,7 @@ func (siw *ServerInterfaceWrapper) ListThreatModels(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "created_after", c.Request.URL.Query(), &params.CreatedAfter)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter created_after: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter created_after: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2866,7 +2863,7 @@ func (siw *ServerInterfaceWrapper) ListThreatModels(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "created_before", c.Request.URL.Query(), &params.CreatedBefore)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter created_before: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter created_before: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2874,7 +2871,7 @@ func (siw *ServerInterfaceWrapper) ListThreatModels(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "modified_after", c.Request.URL.Query(), &params.ModifiedAfter)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter modified_after: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter modified_after: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2882,7 +2879,7 @@ func (siw *ServerInterfaceWrapper) ListThreatModels(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "modified_before", c.Request.URL.Query(), &params.ModifiedBefore)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter modified_before: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter modified_before: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2921,7 +2918,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatModel(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2947,7 +2944,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModel(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2973,7 +2970,7 @@ func (siw *ServerInterfaceWrapper) PatchThreatModel(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2999,7 +2996,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModel(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3025,7 +3022,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelDiagrams(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3038,7 +3035,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelDiagrams(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3046,7 +3043,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelDiagrams(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "offset", c.Request.URL.Query(), &params.Offset)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3070,7 +3067,7 @@ func (siw *ServerInterfaceWrapper) CreateThreatModelDiagram(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3096,7 +3093,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatModelDiagram(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3105,7 +3102,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatModelDiagram(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3131,7 +3128,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelDiagram(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3140,7 +3137,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelDiagram(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3166,7 +3163,7 @@ func (siw *ServerInterfaceWrapper) PatchThreatModelDiagram(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3175,7 +3172,7 @@ func (siw *ServerInterfaceWrapper) PatchThreatModelDiagram(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3201,7 +3198,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModelDiagram(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3210,7 +3207,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModelDiagram(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3236,7 +3233,7 @@ func (siw *ServerInterfaceWrapper) EndDiagramCollaborationSession(c *gin.Context
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3245,7 +3242,7 @@ func (siw *ServerInterfaceWrapper) EndDiagramCollaborationSession(c *gin.Context
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3271,7 +3268,7 @@ func (siw *ServerInterfaceWrapper) GetDiagramCollaborationSession(c *gin.Context
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3280,7 +3277,7 @@ func (siw *ServerInterfaceWrapper) GetDiagramCollaborationSession(c *gin.Context
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3306,7 +3303,7 @@ func (siw *ServerInterfaceWrapper) CreateDiagramCollaborationSession(c *gin.Cont
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3315,7 +3312,7 @@ func (siw *ServerInterfaceWrapper) CreateDiagramCollaborationSession(c *gin.Cont
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3331,41 +3328,6 @@ func (siw *ServerInterfaceWrapper) CreateDiagramCollaborationSession(c *gin.Cont
 	siw.Handler.CreateDiagramCollaborationSession(c, threatModelId, diagramId)
 }
 
-// JoinDiagramCollaborationSession operation middleware
-func (siw *ServerInterfaceWrapper) JoinDiagramCollaborationSession(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "threat_model_id" -------------
-	var threatModelId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Path parameter "diagram_id" -------------
-	var diagramId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.JoinDiagramCollaborationSession(c, threatModelId, diagramId)
-}
-
 // GetDiagramMetadata operation middleware
 func (siw *ServerInterfaceWrapper) GetDiagramMetadata(c *gin.Context) {
 
@@ -3376,7 +3338,7 @@ func (siw *ServerInterfaceWrapper) GetDiagramMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3385,7 +3347,7 @@ func (siw *ServerInterfaceWrapper) GetDiagramMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3411,7 +3373,7 @@ func (siw *ServerInterfaceWrapper) CreateDiagramMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3420,7 +3382,7 @@ func (siw *ServerInterfaceWrapper) CreateDiagramMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3446,7 +3408,7 @@ func (siw *ServerInterfaceWrapper) BulkCreateDiagramMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3455,7 +3417,7 @@ func (siw *ServerInterfaceWrapper) BulkCreateDiagramMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3481,7 +3443,7 @@ func (siw *ServerInterfaceWrapper) DeleteDiagramMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3490,7 +3452,7 @@ func (siw *ServerInterfaceWrapper) DeleteDiagramMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3499,7 +3461,7 @@ func (siw *ServerInterfaceWrapper) DeleteDiagramMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3525,7 +3487,7 @@ func (siw *ServerInterfaceWrapper) GetDiagramMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3534,7 +3496,7 @@ func (siw *ServerInterfaceWrapper) GetDiagramMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3543,7 +3505,7 @@ func (siw *ServerInterfaceWrapper) GetDiagramMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3569,7 +3531,7 @@ func (siw *ServerInterfaceWrapper) UpdateDiagramMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3578,7 +3540,7 @@ func (siw *ServerInterfaceWrapper) UpdateDiagramMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "diagram_id", c.Param("diagram_id"), &diagramId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter diagram_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3587,7 +3549,7 @@ func (siw *ServerInterfaceWrapper) UpdateDiagramMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3613,7 +3575,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelDocuments(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3626,7 +3588,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelDocuments(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3634,7 +3596,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelDocuments(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "offset", c.Request.URL.Query(), &params.Offset)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3658,7 +3620,7 @@ func (siw *ServerInterfaceWrapper) CreateThreatModelDocument(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3684,7 +3646,7 @@ func (siw *ServerInterfaceWrapper) BulkCreateThreatModelDocuments(c *gin.Context
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3710,7 +3672,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatModelDocument(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3719,7 +3681,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatModelDocument(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3745,7 +3707,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelDocument(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3754,7 +3716,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelDocument(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3780,7 +3742,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModelDocument(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3789,7 +3751,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModelDocument(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3815,7 +3777,7 @@ func (siw *ServerInterfaceWrapper) GetDocumentMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3824,7 +3786,7 @@ func (siw *ServerInterfaceWrapper) GetDocumentMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3850,7 +3812,7 @@ func (siw *ServerInterfaceWrapper) CreateDocumentMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3859,7 +3821,7 @@ func (siw *ServerInterfaceWrapper) CreateDocumentMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3885,7 +3847,7 @@ func (siw *ServerInterfaceWrapper) BulkCreateDocumentMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3894,7 +3856,7 @@ func (siw *ServerInterfaceWrapper) BulkCreateDocumentMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3920,7 +3882,7 @@ func (siw *ServerInterfaceWrapper) DeleteDocumentMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3929,7 +3891,7 @@ func (siw *ServerInterfaceWrapper) DeleteDocumentMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3938,7 +3900,7 @@ func (siw *ServerInterfaceWrapper) DeleteDocumentMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3964,7 +3926,7 @@ func (siw *ServerInterfaceWrapper) GetDocumentMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3973,7 +3935,7 @@ func (siw *ServerInterfaceWrapper) GetDocumentMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3982,7 +3944,7 @@ func (siw *ServerInterfaceWrapper) GetDocumentMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4008,7 +3970,7 @@ func (siw *ServerInterfaceWrapper) UpdateDocumentMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4017,7 +3979,7 @@ func (siw *ServerInterfaceWrapper) UpdateDocumentMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "document_id", c.Param("document_id"), &documentId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter document_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter document_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4026,7 +3988,7 @@ func (siw *ServerInterfaceWrapper) UpdateDocumentMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4052,7 +4014,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4078,7 +4040,7 @@ func (siw *ServerInterfaceWrapper) CreateThreatModelMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4104,7 +4066,7 @@ func (siw *ServerInterfaceWrapper) BulkCreateThreatModelMetadata(c *gin.Context)
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4130,7 +4092,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatModelMetadataByKey(c *gin.Context
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4139,7 +4101,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatModelMetadataByKey(c *gin.Context
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4165,7 +4127,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4174,7 +4136,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4200,7 +4162,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModelMetadataByKey(c *gin.Context
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4209,7 +4171,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModelMetadataByKey(c *gin.Context
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4235,7 +4197,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelSources(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4248,7 +4210,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelSources(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4256,7 +4218,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelSources(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "offset", c.Request.URL.Query(), &params.Offset)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4280,7 +4242,7 @@ func (siw *ServerInterfaceWrapper) CreateThreatModelSource(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4306,7 +4268,7 @@ func (siw *ServerInterfaceWrapper) BulkCreateThreatModelSources(c *gin.Context) 
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4332,7 +4294,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatModelSource(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4341,7 +4303,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatModelSource(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4367,7 +4329,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelSource(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4376,7 +4338,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelSource(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4402,7 +4364,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModelSource(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4411,7 +4373,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModelSource(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4437,7 +4399,7 @@ func (siw *ServerInterfaceWrapper) GetSourceMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4446,7 +4408,7 @@ func (siw *ServerInterfaceWrapper) GetSourceMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4472,7 +4434,7 @@ func (siw *ServerInterfaceWrapper) CreateSourceMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4481,7 +4443,7 @@ func (siw *ServerInterfaceWrapper) CreateSourceMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4507,7 +4469,7 @@ func (siw *ServerInterfaceWrapper) BulkCreateSourceMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4516,7 +4478,7 @@ func (siw *ServerInterfaceWrapper) BulkCreateSourceMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4542,7 +4504,7 @@ func (siw *ServerInterfaceWrapper) DeleteSourceMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4551,7 +4513,7 @@ func (siw *ServerInterfaceWrapper) DeleteSourceMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4560,7 +4522,7 @@ func (siw *ServerInterfaceWrapper) DeleteSourceMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4586,7 +4548,7 @@ func (siw *ServerInterfaceWrapper) GetSourceMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4595,7 +4557,7 @@ func (siw *ServerInterfaceWrapper) GetSourceMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4604,7 +4566,7 @@ func (siw *ServerInterfaceWrapper) GetSourceMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4630,7 +4592,7 @@ func (siw *ServerInterfaceWrapper) UpdateSourceMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4639,7 +4601,7 @@ func (siw *ServerInterfaceWrapper) UpdateSourceMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "source_id", c.Param("source_id"), &sourceId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter source_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4648,7 +4610,7 @@ func (siw *ServerInterfaceWrapper) UpdateSourceMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4674,7 +4636,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelThreats(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4687,7 +4649,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelThreats(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4695,7 +4657,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelThreats(c *gin.Context) {
 
 	err = runtime.BindQueryParameter("form", true, false, "offset", c.Request.URL.Query(), &params.Offset)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4719,7 +4681,7 @@ func (siw *ServerInterfaceWrapper) CreateThreatModelThreat(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4745,7 +4707,7 @@ func (siw *ServerInterfaceWrapper) BatchDeleteThreatModelThreats(c *gin.Context)
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4765,7 +4727,7 @@ func (siw *ServerInterfaceWrapper) BatchDeleteThreatModelThreats(c *gin.Context)
 
 	err = runtime.BindQueryParameter("form", false, true, "threat_ids", c.Request.URL.Query(), &params.ThreatIds)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_ids: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_ids: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4789,7 +4751,7 @@ func (siw *ServerInterfaceWrapper) BatchPatchThreatModelThreats(c *gin.Context) 
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4815,7 +4777,7 @@ func (siw *ServerInterfaceWrapper) BulkCreateThreatModelThreats(c *gin.Context) 
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4841,7 +4803,7 @@ func (siw *ServerInterfaceWrapper) BulkUpdateThreatModelThreats(c *gin.Context) 
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4867,7 +4829,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatModelThreat(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4876,7 +4838,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatModelThreat(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4902,7 +4864,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelThreat(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4911,7 +4873,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelThreat(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4937,7 +4899,7 @@ func (siw *ServerInterfaceWrapper) PatchThreatModelThreat(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4946,7 +4908,7 @@ func (siw *ServerInterfaceWrapper) PatchThreatModelThreat(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4972,7 +4934,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModelThreat(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4981,7 +4943,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModelThreat(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5007,7 +4969,7 @@ func (siw *ServerInterfaceWrapper) GetThreatMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5016,7 +4978,7 @@ func (siw *ServerInterfaceWrapper) GetThreatMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5042,7 +5004,7 @@ func (siw *ServerInterfaceWrapper) CreateThreatMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5051,7 +5013,7 @@ func (siw *ServerInterfaceWrapper) CreateThreatMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5077,7 +5039,7 @@ func (siw *ServerInterfaceWrapper) BulkCreateThreatMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5086,7 +5048,7 @@ func (siw *ServerInterfaceWrapper) BulkCreateThreatMetadata(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5112,7 +5074,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5121,7 +5083,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5130,7 +5092,7 @@ func (siw *ServerInterfaceWrapper) DeleteThreatMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5156,7 +5118,7 @@ func (siw *ServerInterfaceWrapper) GetThreatMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5165,7 +5127,7 @@ func (siw *ServerInterfaceWrapper) GetThreatMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5174,7 +5136,7 @@ func (siw *ServerInterfaceWrapper) GetThreatMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5200,7 +5162,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5209,7 +5171,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "threat_id", c.Param("threat_id"), &threatId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_id: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5218,7 +5180,7 @@ func (siw *ServerInterfaceWrapper) UpdateThreatMetadataByKey(c *gin.Context) {
 
 	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("invalid format for parameter key: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -5289,7 +5251,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.EndDiagramCollaborationSession)
 	router.GET(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.GetDiagramCollaborationSession)
 	router.POST(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.CreateDiagramCollaborationSession)
-	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", wrapper.JoinDiagramCollaborationSession)
 	router.GET(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", wrapper.GetDiagramMetadata)
 	router.POST(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", wrapper.CreateDiagramMetadata)
 	router.POST(options.BaseURL+"/threat_models/:threat_model_id/diagrams/:diagram_id/metadata/bulk", wrapper.BulkCreateDiagramMetadata)
@@ -5595,74 +5556,73 @@ var swaggerSpec = []string{
 	"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",
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

@@ -519,13 +519,6 @@ func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gi
 	handler.CreateDiagramCollaborate(c, threatModelId, diagramId)
 }
 
-func (s *Server) PutThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context) {
-	threatModelId := c.Param("threat_model_id")
-	diagramId := c.Param("diagram_id")
-	handler := api.NewThreatModelDiagramHandler(s.apiServer.GetWebSocketHub())
-	handler.JoinDiagramCollaborate(c, threatModelId, diagramId)
-}
-
 func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *gin.Context) {
 	threatModelId := c.Param("threat_model_id")
 	diagramId := c.Param("diagram_id")
