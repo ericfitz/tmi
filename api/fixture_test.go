@@ -92,21 +92,21 @@ func TestThreatModelRoleBasedAccess(t *testing.T) {
 	// Create routers for different users
 	ownerRouter := gin.New()
 	ownerRouter.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.OwnerUser)
+		c.Set("userEmail", TestFixtures.OwnerUser)
 		c.Next()
 	})
 	ownerRouter.Use(ThreatModelMiddleware())
 
 	writerRouter := gin.New()
 	writerRouter.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.WriterUser)
+		c.Set("userEmail", TestFixtures.WriterUser)
 		c.Next()
 	})
 	writerRouter.Use(ThreatModelMiddleware())
 
 	readerRouter := gin.New()
 	readerRouter.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.ReaderUser)
+		c.Set("userEmail", TestFixtures.ReaderUser)
 		c.Next()
 	})
 	readerRouter.Use(ThreatModelMiddleware())
@@ -191,7 +191,7 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 		}
 
 		// Set the user name
-		c.Set("userName", TestFixtures.OwnerUser)
+		c.Set("userEmail", TestFixtures.OwnerUser)
 		c.Next()
 	})
 	ownerRouter.Use(ThreatModelMiddleware())

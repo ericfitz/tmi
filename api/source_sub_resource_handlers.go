@@ -61,14 +61,14 @@ func (h *SourceSubResourceHandler) GetSources(c *gin.Context) {
 	}
 
 	// Get authenticated user (should be set by middleware)
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
 	logger.Debug("Retrieving source code references for threat model %s (user: %s, offset: %d, limit: %d)",
-		threatModelID, userName, offset, limit)
+		threatModelID, userEmail, offset, limit)
 
 	// Get sources from store (authorization is handled by middleware)
 	sources, err := h.sourceStore.List(c.Request.Context(), threatModelID, offset, limit)
@@ -102,13 +102,13 @@ func (h *SourceSubResourceHandler) GetSource(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving source code reference %s (user: %s)", sourceID, userName)
+	logger.Debug("Retrieving source code reference %s (user: %s)", sourceID, userEmail)
 
 	// Get source from store
 	source, err := h.sourceStore.Get(c.Request.Context(), sourceID)
@@ -142,7 +142,7 @@ func (h *SourceSubResourceHandler) CreateSource(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -163,7 +163,7 @@ func (h *SourceSubResourceHandler) CreateSource(c *gin.Context) {
 	}
 
 	logger.Debug("Creating source code reference %s in threat model %s (user: %s)",
-		source.Id.String(), threatModelID, userName)
+		source.Id.String(), threatModelID, userEmail)
 
 	// Create source in store
 	if err := h.sourceStore.Create(c.Request.Context(), source, threatModelID); err != nil {
@@ -204,7 +204,7 @@ func (h *SourceSubResourceHandler) UpdateSource(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -221,7 +221,7 @@ func (h *SourceSubResourceHandler) UpdateSource(c *gin.Context) {
 	// Set ID from URL (override any value in body)
 	source.Id = &sourceUUID
 
-	logger.Debug("Updating source code reference %s (user: %s)", sourceID, userName)
+	logger.Debug("Updating source code reference %s (user: %s)", sourceID, userEmail)
 
 	// Update source in store
 	if err := h.sourceStore.Update(c.Request.Context(), source, threatModelID); err != nil {
@@ -254,13 +254,13 @@ func (h *SourceSubResourceHandler) DeleteSource(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting source code reference %s (user: %s)", sourceID, userName)
+	logger.Debug("Deleting source code reference %s (user: %s)", sourceID, userEmail)
 
 	// Delete source from store
 	if err := h.sourceStore.Delete(c.Request.Context(), sourceID); err != nil {
@@ -293,7 +293,7 @@ func (h *SourceSubResourceHandler) BulkCreateSources(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -335,7 +335,7 @@ func (h *SourceSubResourceHandler) BulkCreateSources(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d source code references in threat model %s (user: %s)",
-		len(sources), threatModelID, userName)
+		len(sources), threatModelID, userEmail)
 
 	// Create sources in store
 	if err := h.sourceStore.BulkCreate(c.Request.Context(), sources, threatModelID); err != nil {

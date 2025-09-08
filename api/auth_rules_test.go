@@ -23,7 +23,7 @@ func TestOwnerCanChangeOwner(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.OwnerUser)
+		c.Set("userEmail", TestFixtures.OwnerUser)
 		c.Next()
 	})
 
@@ -111,7 +111,7 @@ func TestWriterCannotChangeOwner(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.WriterUser)
+		c.Set("userEmail", TestFixtures.WriterUser)
 		c.Next()
 	})
 
@@ -164,7 +164,7 @@ func TestRejectDuplicateSubjects(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.OwnerUser)
+		c.Set("userEmail", TestFixtures.OwnerUser)
 		c.Next()
 	})
 
@@ -268,7 +268,7 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ownerRouter := gin.New()
 	ownerRouter.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.OwnerUser)
+		c.Set("userEmail", TestFixtures.OwnerUser)
 		c.Next()
 	})
 
@@ -295,7 +295,7 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	writerRouter := gin.New()
 	writerRouter.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.WriterUser)
+		c.Set("userEmail", TestFixtures.WriterUser)
 		c.Next()
 	})
 
@@ -351,7 +351,7 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	readerRouter := gin.New()
 	readerRouter.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.ReaderUser)
+		c.Set("userEmail", TestFixtures.ReaderUser)
 		c.Next()
 	})
 
@@ -402,7 +402,7 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	unauthorizedRouter := gin.New()
 	unauthorizedRouter.Use(func(c *gin.Context) {
-		c.Set("userName", "unauthorized@example.com")
+		c.Set("userEmail", "unauthorized@example.com")
 		c.Next()
 	})
 

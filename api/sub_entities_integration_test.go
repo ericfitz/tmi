@@ -134,7 +134,7 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 
 		// Validate the token (simplified for testing)
 		if authHeader == "Bearer "+accessToken {
-			c.Set("userName", testUser.Email)
+			c.Set("userEmail", testUser.Email)
 			c.Set("userID", testUser.ID)
 		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})

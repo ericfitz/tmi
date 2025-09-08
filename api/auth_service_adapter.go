@@ -77,16 +77,16 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 		return
 	}
 
-	// User not in context, try to fetch it using the userName from JWT middleware
-	userName, exists := c.Get("userName")
+	// User not in context, try to fetch it using the userEmail from JWT middleware
+	userEmailInterface, exists := c.Get("userEmail")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "AuthServiceAdapter: User not authenticated - no userName in context",
+			"error": "AuthServiceAdapter: User not authenticated - no userEmail in context",
 		})
 		return
 	}
 
-	userEmail, ok := userName.(string)
+	userEmail, ok := userEmailInterface.(string)
 	if !ok || userEmail == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "Invalid user context",

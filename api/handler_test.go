@@ -24,7 +24,7 @@ func TestUpdateThreatModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.OwnerUser)
+		c.Set("userEmail", TestFixtures.OwnerUser)
 		// Set userRole to owner - this is needed for the handler
 		c.Set("userRole", RoleOwner)
 		c.Next()
@@ -89,7 +89,7 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.OwnerUser)
+		c.Set("userEmail", TestFixtures.OwnerUser)
 		// Add userRole to context - this is crucial
 		c.Set("userRole", RoleOwner)
 		c.Next()
@@ -172,7 +172,7 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.OwnerUser)
+		c.Set("userEmail", TestFixtures.OwnerUser)
 		// Add userRole to context - this is crucial
 		c.Set("userRole", RoleOwner)
 		c.Next()

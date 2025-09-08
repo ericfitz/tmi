@@ -69,7 +69,7 @@ func (h *BatchHandler) BatchPatchThreats(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, userRole, err := ValidateAuthenticatedUser(c)
+	userEmail, userRole, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -93,7 +93,7 @@ func (h *BatchHandler) BatchPatchThreats(c *gin.Context) {
 	}
 
 	logger.Debug("Processing batch patch for %d threats in threat model %s (user: %s)",
-		len(batchRequest.Operations), threatModelID, userName)
+		len(batchRequest.Operations), threatModelID, userEmail)
 
 	// Initialize response
 	response := BatchThreatPatchResponse{
@@ -195,7 +195,7 @@ func (h *BatchHandler) BatchDeleteThreats(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -223,7 +223,7 @@ func (h *BatchHandler) BatchDeleteThreats(c *gin.Context) {
 	}
 
 	logger.Debug("Batch deleting %d threats in threat model %s (user: %s)",
-		len(deleteRequest.ThreatIDs), threatModelID, userName)
+		len(deleteRequest.ThreatIDs), threatModelID, userEmail)
 
 	// Initialize response
 	type BatchDeleteResponse struct {

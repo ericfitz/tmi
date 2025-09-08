@@ -147,10 +147,10 @@ func isHexDigit(r rune) bool {
 
 // ValidateAuthenticatedUser extracts and validates the authenticated user from context
 func ValidateAuthenticatedUser(c *gin.Context) (string, Role, error) {
-	// Get username from JWT claim
-	userID, _ := c.Get("userName")
-	userName, ok := userID.(string)
-	if !ok || userName == "" {
+	// Get user email from JWT claim
+	userEmailInterface, _ := c.Get("userEmail")
+	userEmail, ok := userEmailInterface.(string)
+	if !ok || userEmail == "" {
 		return "", "", &RequestError{
 			Status:  http.StatusUnauthorized,
 			Code:    "unauthorized",
@@ -163,19 +163,19 @@ func ValidateAuthenticatedUser(c *gin.Context) (string, Role, error) {
 	if !exists {
 		// For some endpoints, role might not be set by middleware
 		// In that case, we return empty role and let the caller handle it
-		return userName, "", nil
+		return userEmail, "", nil
 	}
 
 	userRole, ok := roleValue.(Role)
 	if !ok {
-		return userName, "", &RequestError{
+		return userEmail, "", &RequestError{
 			Status:  http.StatusInternalServerError,
 			Code:    "server_error",
 			Message: "Failed to determine user role",
 		}
 	}
 
-	return userName, userRole, nil
+	return userEmail, userRole, nil
 }
 
 // RequestError represents an error that should be returned as an HTTP response

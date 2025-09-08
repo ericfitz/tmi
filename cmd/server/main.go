@@ -165,8 +165,8 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 		if exists && isPublic.(bool) {
 			logger.Debug("[JWT_MIDDLEWARE] ✅ Skipping authentication for public path: %s", c.Request.URL.Path)
 			// Set a dummy user for context consistency if needed
-			c.Set("userName", "anonymous")
-			logger.Debug("[JWT_MIDDLEWARE] Set userName=anonymous for public path")
+			c.Set("userEmail", "anonymous")
+			logger.Debug("[JWT_MIDDLEWARE] Set userEmail=anonymous for public path")
 			logger.Debug("[JWT_MIDDLEWARE] Continuing to next middleware (public path)")
 			c.Next()
 			logger.Debug("[JWT_MIDDLEWARE] Returned from middleware chain (public path)")
@@ -295,8 +295,6 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 					if email, ok := emailValue.(string); ok {
 						logger.Debug("User email from token: %s", email)
 						c.Set("userEmail", email)
-						// For backwards compatibility, also set userName to email
-						c.Set("userName", email)
 					}
 				}
 

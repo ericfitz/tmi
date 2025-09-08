@@ -73,7 +73,7 @@ func setupSourceSubResourceHandler() (*gin.Engine, *MockSourceStore) {
 
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
-		c.Set("userName", "test@example.com")
+		c.Set("userEmail", "test@example.com")
 		c.Set("userRole", RoleWriter)
 		c.Next()
 	})

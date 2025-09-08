@@ -28,16 +28,16 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	offset := parseIntParam(c.DefaultQuery("offset", "0"), 0)
 
 	// Get username from JWT claim
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		// For listing endpoints, we allow unauthenticated users but return empty results
-		userName = ""
+		userEmail = ""
 	}
 
 	// Filter by user access using new authorization utilities
 	filter := func(tm ThreatModel) bool {
 		// If no user is authenticated, only show public threat models (if any)
-		if userName == "" {
+		if userEmail == "" {
 			return false
 		}
 
@@ -49,7 +49,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		}
 
 		// Check if user has at least reader access
-		return AccessCheck(userName, RoleReader, authData)
+		return AccessCheck(userEmail, RoleReader, authData)
 	}
 
 	// Get threat models from store with filtering and counts
@@ -118,14 +118,14 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
 	// Check authorization using new utilities
-	hasAccess, err := CheckResourceAccess(userName, tm, RoleReader)
+	hasAccess, err := CheckResourceAccess(userEmail, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -156,7 +156,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	}
 
 	// Get username from JWT claim
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -181,7 +181,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// Create authorizations array with owner as first entry
 	authorizations := []Authorization{
 		{
-			Subject: userName,
+			Subject: userEmail,
 			Role:    RoleOwner,
 		},
 	}
@@ -194,8 +194,8 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Description:   request.Description,
 		CreatedAt:     &now,
 		ModifiedAt:    &now,
-		Owner:         userName,
-		CreatedBy:     &userName,
+		Owner:         userEmail,
+		CreatedBy:     &userEmail,
 		Authorization: authorizations,
 		Metadata:      &[]Metadata{},
 		Threats:       &threatIDs,
@@ -217,11 +217,11 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		if isForeignKeyConstraintError(err) {
 			// This indicates the user's JWT token is valid but they no longer exist in the database
 			// This happens when user account is deleted but JWT hasn't expired yet
-			logging.Get().WithContext(c).Warn("Foreign key constraint violation for user %s - invalidating session", userName)
+			logging.Get().WithContext(c).Warn("Foreign key constraint violation for user %s - invalidating session", userEmail)
 
 			// Try to blacklist the token to prevent future use
 			if tokenStr, err := extractTokenFromRequest(c); err == nil {
-				blacklistTokenIfAvailable(c, tokenStr, userName)
+				blacklistTokenIfAvailable(c, tokenStr, userEmail)
 			}
 
 			HandleRequestError(c, UnauthorizedError("Your session is no longer valid. Please log in again."))
@@ -235,7 +235,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// Counts are now calculated dynamically - no need to initialize
 
 	// Broadcast notification about new threat model
-	BroadcastThreatModelCreated(userName, createdTM.Id.String(), createdTM.Name)
+	BroadcastThreatModelCreated(userEmail, createdTM.Id.String(), createdTM.Name)
 
 	// Set the Location header
 	c.Header("Location", "/threat_models/"+createdTM.Id.String())
@@ -269,7 +269,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	logging.Get().WithContext(c).Debug("[HANDLER] Successfully parsed request: %+v", request)
 
 	// Get username from JWT claim
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -323,7 +323,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	}
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccess(userName, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccess(userEmail, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -339,7 +339,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	authChanging := (len(updatedTM.Authorization) > 0) && (!authorizationEqual(updatedTM.Authorization, tm.Authorization))
 
 	if ownerChanging || authChanging {
-		hasOwnerAccess, err := CheckResourceAccess(userName, tm, RoleOwner)
+		hasOwnerAccess, err := CheckResourceAccess(userEmail, tm, RoleOwner)
 		if err != nil {
 			HandleRequestError(c, err)
 			return
@@ -373,7 +373,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 
 	// Update in store
 	if err := ThreatModelStore.Update(id, updatedTM); err != nil {
-		logging.Get().WithContext(c).Error("Failed to update threat model %s in store (user: %s, name: %s): %v", id, userName, updatedTM.Name, err)
+		logging.Get().WithContext(c).Error("Failed to update threat model %s in store (user: %s, name: %s): %v", id, userEmail, updatedTM.Name, err)
 		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
 	}
@@ -381,7 +381,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Counts are now calculated dynamically - no need to update
 
 	// Broadcast notification about updated threat model
-	BroadcastThreatModelUpdated(userName, updatedTM.Id.String(), updatedTM.Name)
+	BroadcastThreatModelUpdated(userEmail, updatedTM.Id.String(), updatedTM.Name)
 
 	c.JSON(http.StatusOK, updatedTM)
 }
@@ -417,7 +417,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		}
 	}
 
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -441,7 +441,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	modifiedTM = h.preserveThreatModelCriticalFields(modifiedTM, existingTM)
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccess(userName, existingTM, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccess(userEmail, existingTM, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -457,7 +457,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	authChanging := !authorizationEqual(existingTM.Authorization, modifiedTM.Authorization)
 
 	if ownerChanging || authChanging {
-		hasOwnerAccess, err := CheckResourceAccess(userName, existingTM, RoleOwner)
+		hasOwnerAccess, err := CheckResourceAccess(userEmail, existingTM, RoleOwner)
 		if err != nil {
 			HandleRequestError(c, err)
 			return
@@ -476,7 +476,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	}
 
 	// Phase 6: Validate the patched threat model
-	if err := ValidatePatchedEntity(existingTM, modifiedTM, userName, validatePatchedThreatModel); err != nil {
+	if err := ValidatePatchedEntity(existingTM, modifiedTM, userEmail, validatePatchedThreatModel); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -506,7 +506,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// Counts are now calculated dynamically - no need to update
 
 	// Broadcast notification about updated threat model
-	BroadcastThreatModelUpdated(userName, modifiedTM.Id.String(), modifiedTM.Name)
+	BroadcastThreatModelUpdated(userEmail, modifiedTM.Id.String(), modifiedTM.Name)
 
 	c.JSON(http.StatusOK, modifiedTM)
 }
@@ -523,7 +523,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	}
 
 	// Get the user making the request
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -537,7 +537,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	}
 
 	// Check if user has owner access (required for deletion)
-	hasOwnerAccess, err := CheckResourceAccess(userName, tm, RoleOwner)
+	hasOwnerAccess, err := CheckResourceAccess(userEmail, tm, RoleOwner)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -550,13 +550,13 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 
 	// Delete from store
 	if err := ThreatModelStore.Delete(id); err != nil {
-		logging.Get().WithContext(c).Error("Failed to delete threat model %s from store (user: %s, name: %s): %v", id, userName, tm.Name, err)
+		logging.Get().WithContext(c).Error("Failed to delete threat model %s from store (user: %s, name: %s): %v", id, userEmail, tm.Name, err)
 		HandleRequestError(c, ServerError("Failed to delete threat model"))
 		return
 	}
 
 	// Broadcast notification about deleted threat model
-	BroadcastThreatModelDeleted(userName, tm.Id.String(), tm.Name)
+	BroadcastThreatModelDeleted(userEmail, tm.Id.String(), tm.Name)
 
 	c.Status(http.StatusNoContent)
 }
@@ -644,7 +644,7 @@ func authorizationEqual(a, b []Authorization) bool {
 }
 
 // validatePatchedThreatModel performs validation on the patched threat model
-func validatePatchedThreatModel(original, patched ThreatModel, userName string) error {
+func validatePatchedThreatModel(original, patched ThreatModel, userEmail string) error {
 	// Add debug logging
 	logging.Get().Debug("Validating patched threat model: %+v", patched)
 
@@ -654,10 +654,10 @@ func validatePatchedThreatModel(original, patched ThreatModel, userName string) 
 	}
 
 	// 2. Check if user has the owner role (either by being the owner or having the owner role in authorization)
-	hasOwnerRole := (original.Owner == userName)
+	hasOwnerRole := (original.Owner == userEmail)
 	if !hasOwnerRole {
 		for _, auth := range original.Authorization {
-			if auth.Subject == userName && auth.Role == RoleOwner {
+			if auth.Subject == userEmail && auth.Role == RoleOwner {
 				hasOwnerRole = true
 				break
 			}

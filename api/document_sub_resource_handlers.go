@@ -61,14 +61,14 @@ func (h *DocumentSubResourceHandler) GetDocuments(c *gin.Context) {
 	}
 
 	// Get authenticated user (should be set by middleware)
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
 	logger.Debug("Retrieving documents for threat model %s (user: %s, offset: %d, limit: %d)",
-		threatModelID, userName, offset, limit)
+		threatModelID, userEmail, offset, limit)
 
 	// Get documents from store (authorization is handled by middleware)
 	documents, err := h.documentStore.List(c.Request.Context(), threatModelID, offset, limit)
@@ -102,13 +102,13 @@ func (h *DocumentSubResourceHandler) GetDocument(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving document %s (user: %s)", documentID, userName)
+	logger.Debug("Retrieving document %s (user: %s)", documentID, userEmail)
 
 	// Get document from store
 	document, err := h.documentStore.Get(c.Request.Context(), documentID)
@@ -142,7 +142,7 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -163,7 +163,7 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 	}
 
 	logger.Debug("Creating document %s in threat model %s (user: %s)",
-		document.Id.String(), threatModelID, userName)
+		document.Id.String(), threatModelID, userEmail)
 
 	// Create document in store
 	if err := h.documentStore.Create(c.Request.Context(), document, threatModelID); err != nil {
@@ -204,7 +204,7 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -221,7 +221,7 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	// Set ID from URL (override any value in body)
 	document.Id = &documentUUID
 
-	logger.Debug("Updating document %s (user: %s)", documentID, userName)
+	logger.Debug("Updating document %s (user: %s)", documentID, userEmail)
 
 	// Update document in store
 	if err := h.documentStore.Update(c.Request.Context(), document, threatModelID); err != nil {
@@ -254,13 +254,13 @@ func (h *DocumentSubResourceHandler) DeleteDocument(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting document %s (user: %s)", documentID, userName)
+	logger.Debug("Deleting document %s (user: %s)", documentID, userEmail)
 
 	// Delete document from store
 	if err := h.documentStore.Delete(c.Request.Context(), documentID); err != nil {
@@ -293,7 +293,7 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -339,7 +339,7 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d documents in threat model %s (user: %s)",
-		len(documents), threatModelID, userName)
+		len(documents), threatModelID, userEmail)
 
 	// Create documents in store
 	if err := h.documentStore.BulkCreate(c.Request.Context(), documents, threatModelID); err != nil {

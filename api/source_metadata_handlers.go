@@ -59,13 +59,13 @@ func (h *SourceMetadataHandler) GetSourceMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata for source %s (user: %s)", sourceID, userName)
+	logger.Debug("Retrieving metadata for source %s (user: %s)", sourceID, userEmail)
 
 	// Get metadata from store
 	metadata, err := h.metadataStore.List(c.Request.Context(), "source", sourceID)
@@ -105,13 +105,13 @@ func (h *SourceMetadataHandler) GetSourceMetadataByKey(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata key '%s' for source %s (user: %s)", key, sourceID, userName)
+	logger.Debug("Retrieving metadata key '%s' for source %s (user: %s)", key, sourceID, userEmail)
 
 	// Get metadata entry from store
 	metadata, err := h.metadataStore.Get(c.Request.Context(), "source", sourceID, key)
@@ -145,7 +145,7 @@ func (h *SourceMetadataHandler) CreateSourceMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -158,7 +158,7 @@ func (h *SourceMetadataHandler) CreateSourceMetadata(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Creating metadata key '%s' for source %s (user: %s)", metadata.Key, sourceID, userName)
+	logger.Debug("Creating metadata key '%s' for source %s (user: %s)", metadata.Key, sourceID, userEmail)
 
 	// Create metadata entry in store
 	if err := h.metadataStore.Create(c.Request.Context(), "source", sourceID, &metadata); err != nil {
@@ -206,7 +206,7 @@ func (h *SourceMetadataHandler) UpdateSourceMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -222,7 +222,7 @@ func (h *SourceMetadataHandler) UpdateSourceMetadata(c *gin.Context) {
 	// Ensure the key matches the URL parameter
 	metadata.Key = key
 
-	logger.Debug("Updating metadata key '%s' for source %s (user: %s)", key, sourceID, userName)
+	logger.Debug("Updating metadata key '%s' for source %s (user: %s)", key, sourceID, userEmail)
 
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "source", sourceID, &metadata); err != nil {
@@ -269,13 +269,13 @@ func (h *SourceMetadataHandler) DeleteSourceMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting metadata key '%s' for source %s (user: %s)", key, sourceID, userName)
+	logger.Debug("Deleting metadata key '%s' for source %s (user: %s)", key, sourceID, userEmail)
 
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "source", sourceID, key); err != nil {
@@ -308,7 +308,7 @@ func (h *SourceMetadataHandler) BulkCreateSourceMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -343,7 +343,7 @@ func (h *SourceMetadataHandler) BulkCreateSourceMetadata(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d metadata entries for source %s (user: %s)",
-		len(metadataList), sourceID, userName)
+		len(metadataList), sourceID, userEmail)
 
 	// Create metadata entries in store
 	if err := h.metadataStore.BulkCreate(c.Request.Context(), "source", sourceID, metadataList); err != nil {

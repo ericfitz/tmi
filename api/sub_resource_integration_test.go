@@ -58,7 +58,7 @@ func setupTestRouter() *gin.Engine {
 
 	// Add test middleware that sets up authentication context
 	router.Use(func(c *gin.Context) {
-		c.Set("userName", TestFixtures.OwnerUser)
+		c.Set("userEmail", TestFixtures.OwnerUser)
 		c.Set("userRole", RoleOwner)
 		c.Set("threatModelID", TestFixtures.ThreatModelID)
 		c.Next()

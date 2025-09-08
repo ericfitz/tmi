@@ -274,7 +274,7 @@ func ExtractAuthData(resource interface{}) (AuthorizationData, error) {
 }
 
 // CheckResourceAccess is a utility function that checks if a user has required access to a resource
-func CheckResourceAccess(userName string, resource interface{}, requiredRole Role) (bool, error) {
+func CheckResourceAccess(userEmail string, resource interface{}, requiredRole Role) (bool, error) {
 	// Extract authorization data from the resource
 	authData, err := ExtractAuthData(resource)
 	if err != nil {
@@ -282,7 +282,7 @@ func CheckResourceAccess(userName string, resource interface{}, requiredRole Rol
 	}
 
 	// Use AccessCheck to determine access
-	hasAccess := AccessCheck(userName, requiredRole, authData)
+	hasAccess := AccessCheck(userEmail, requiredRole, authData)
 	return hasAccess, nil
 }
 
@@ -290,7 +290,7 @@ func CheckResourceAccess(userName string, resource interface{}, requiredRole Rol
 func ValidateResourceAccess(requiredRole Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get authenticated user
-		userName, _, err := ValidateAuthenticatedUser(c)
+		userEmail, _, err := ValidateAuthenticatedUser(c)
 		if err != nil {
 			HandleRequestError(c, err)
 			c.Abort()
@@ -302,7 +302,7 @@ func ValidateResourceAccess(requiredRole Role) gin.HandlerFunc {
 		var resource interface{}
 
 		// Check resource access
-		hasAccess, err := CheckResourceAccess(userName, resource, requiredRole)
+		hasAccess, err := CheckResourceAccess(userEmail, resource, requiredRole)
 		if err != nil {
 			HandleRequestError(c, err)
 			c.Abort()

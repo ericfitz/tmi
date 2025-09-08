@@ -61,13 +61,13 @@ func (h *DiagramMetadataHandler) GetDirectDiagramMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata for diagram %s (user: %s)", diagramID, userName)
+	logger.Debug("Retrieving metadata for diagram %s (user: %s)", diagramID, userEmail)
 
 	// Get metadata from store
 	metadata, err := h.metadataStore.List(c.Request.Context(), "diagram", diagramID)
@@ -107,13 +107,13 @@ func (h *DiagramMetadataHandler) GetDirectDiagramMetadataByKey(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata key '%s' for diagram %s (user: %s)", key, diagramID, userName)
+	logger.Debug("Retrieving metadata key '%s' for diagram %s (user: %s)", key, diagramID, userEmail)
 
 	// Get metadata entry from store
 	metadata, err := h.metadataStore.Get(c.Request.Context(), "diagram", diagramID, key)
@@ -147,7 +147,7 @@ func (h *DiagramMetadataHandler) CreateDirectDiagramMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -160,7 +160,7 @@ func (h *DiagramMetadataHandler) CreateDirectDiagramMetadata(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Creating metadata key '%s' for diagram %s (user: %s)", metadata.Key, diagramID, userName)
+	logger.Debug("Creating metadata key '%s' for diagram %s (user: %s)", metadata.Key, diagramID, userEmail)
 
 	// Create metadata entry in store
 	if err := h.metadataStore.Create(c.Request.Context(), "diagram", diagramID, &metadata); err != nil {
@@ -208,7 +208,7 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -224,7 +224,7 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramMetadata(c *gin.Context) {
 	// Ensure the key matches the URL parameter
 	metadata.Key = key
 
-	logger.Debug("Updating metadata key '%s' for diagram %s (user: %s)", key, diagramID, userName)
+	logger.Debug("Updating metadata key '%s' for diagram %s (user: %s)", key, diagramID, userEmail)
 
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "diagram", diagramID, &metadata); err != nil {
@@ -271,13 +271,13 @@ func (h *DiagramMetadataHandler) DeleteDirectDiagramMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting metadata key '%s' for diagram %s (user: %s)", key, diagramID, userName)
+	logger.Debug("Deleting metadata key '%s' for diagram %s (user: %s)", key, diagramID, userEmail)
 
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "diagram", diagramID, key); err != nil {
@@ -321,13 +321,13 @@ func (h *DiagramMetadataHandler) GetDirectDiagramCellMetadata(c *gin.Context) {
 	// No additional validation required
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata for cell %s in diagram %s (user: %s)", cellID, diagramID, userName)
+	logger.Debug("Retrieving metadata for cell %s in diagram %s (user: %s)", cellID, diagramID, userEmail)
 
 	// Get metadata from store using cell entity type
 	metadata, err := h.metadataStore.List(c.Request.Context(), "cell", cellID)
@@ -372,13 +372,13 @@ func (h *DiagramMetadataHandler) GetDirectDiagramCellMetadataByKey(c *gin.Contex
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata key '%s' for cell %s in diagram %s (user: %s)", key, cellID, diagramID, userName)
+	logger.Debug("Retrieving metadata key '%s' for cell %s in diagram %s (user: %s)", key, cellID, diagramID, userEmail)
 
 	// Get metadata entry from store
 	metadata, err := h.metadataStore.Get(c.Request.Context(), "cell", cellID, key)
@@ -418,7 +418,7 @@ func (h *DiagramMetadataHandler) CreateDirectDiagramCellMetadata(c *gin.Context)
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -431,7 +431,7 @@ func (h *DiagramMetadataHandler) CreateDirectDiagramCellMetadata(c *gin.Context)
 		return
 	}
 
-	logger.Debug("Creating metadata key '%s' for cell %s in diagram %s (user: %s)", metadata.Key, cellID, diagramID, userName)
+	logger.Debug("Creating metadata key '%s' for cell %s in diagram %s (user: %s)", metadata.Key, cellID, diagramID, userEmail)
 
 	// Create metadata entry in store
 	if err := h.metadataStore.Create(c.Request.Context(), "cell", cellID, &metadata); err != nil {
@@ -484,7 +484,7 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramCellMetadata(c *gin.Context)
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -500,7 +500,7 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramCellMetadata(c *gin.Context)
 	// Ensure the key matches the URL parameter
 	metadata.Key = key
 
-	logger.Debug("Updating metadata key '%s' for cell %s in diagram %s (user: %s)", key, cellID, diagramID, userName)
+	logger.Debug("Updating metadata key '%s' for cell %s in diagram %s (user: %s)", key, cellID, diagramID, userEmail)
 
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "cell", cellID, &metadata); err != nil {
@@ -552,13 +552,13 @@ func (h *DiagramMetadataHandler) DeleteDirectDiagramCellMetadata(c *gin.Context)
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting metadata key '%s' for cell %s in diagram %s (user: %s)", key, cellID, diagramID, userName)
+	logger.Debug("Deleting metadata key '%s' for cell %s in diagram %s (user: %s)", key, cellID, diagramID, userEmail)
 
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "cell", cellID, key); err != nil {
@@ -603,13 +603,13 @@ func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata for diagram %s in threat model %s (user: %s)", diagramID, threatModelID, userName)
+	logger.Debug("Retrieving metadata for diagram %s in threat model %s (user: %s)", diagramID, threatModelID, userEmail)
 
 	// Get metadata from store using diagram entity type
 	metadata, err := h.metadataStore.List(c.Request.Context(), "diagram", diagramID)
@@ -658,13 +658,13 @@ func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadataByKey(c *gin.Conte
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata key '%s' for diagram %s in threat model %s (user: %s)", key, diagramID, threatModelID, userName)
+	logger.Debug("Retrieving metadata key '%s' for diagram %s in threat model %s (user: %s)", key, diagramID, threatModelID, userEmail)
 
 	// Get metadata entry from store
 	metadata, err := h.metadataStore.Get(c.Request.Context(), "diagram", diagramID, key)
@@ -708,7 +708,7 @@ func (h *DiagramMetadataHandler) CreateThreatModelDiagramMetadata(c *gin.Context
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -721,7 +721,7 @@ func (h *DiagramMetadataHandler) CreateThreatModelDiagramMetadata(c *gin.Context
 		return
 	}
 
-	logger.Debug("Creating metadata key '%s' for diagram %s in threat model %s (user: %s)", metadata.Key, diagramID, threatModelID, userName)
+	logger.Debug("Creating metadata key '%s' for diagram %s in threat model %s (user: %s)", metadata.Key, diagramID, threatModelID, userEmail)
 
 	// Create metadata entry in store
 	if err := h.metadataStore.Create(c.Request.Context(), "diagram", diagramID, &metadata); err != nil {
@@ -778,7 +778,7 @@ func (h *DiagramMetadataHandler) UpdateThreatModelDiagramMetadata(c *gin.Context
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -794,7 +794,7 @@ func (h *DiagramMetadataHandler) UpdateThreatModelDiagramMetadata(c *gin.Context
 	// Ensure the key matches the URL parameter
 	metadata.Key = key
 
-	logger.Debug("Updating metadata key '%s' for diagram %s in threat model %s (user: %s)", key, diagramID, threatModelID, userName)
+	logger.Debug("Updating metadata key '%s' for diagram %s in threat model %s (user: %s)", key, diagramID, threatModelID, userEmail)
 
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "diagram", diagramID, &metadata); err != nil {
@@ -850,13 +850,13 @@ func (h *DiagramMetadataHandler) DeleteThreatModelDiagramMetadata(c *gin.Context
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting metadata key '%s' for diagram %s in threat model %s (user: %s)", key, diagramID, threatModelID, userName)
+	logger.Debug("Deleting metadata key '%s' for diagram %s in threat model %s (user: %s)", key, diagramID, threatModelID, userEmail)
 
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "diagram", diagramID, key); err != nil {
@@ -889,7 +889,7 @@ func (h *DiagramMetadataHandler) BulkCreateDirectDiagramMetadata(c *gin.Context)
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -924,7 +924,7 @@ func (h *DiagramMetadataHandler) BulkCreateDirectDiagramMetadata(c *gin.Context)
 	}
 
 	logger.Debug("Bulk creating %d metadata entries for diagram %s (user: %s)",
-		len(metadataList), diagramID, userName)
+		len(metadataList), diagramID, userEmail)
 
 	// Create metadata entries in store
 	if err := h.metadataStore.BulkCreate(c.Request.Context(), "diagram", diagramID, metadataList); err != nil {
@@ -976,7 +976,7 @@ func (h *DiagramMetadataHandler) BulkCreateThreatModelDiagramMetadata(c *gin.Con
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -1011,7 +1011,7 @@ func (h *DiagramMetadataHandler) BulkCreateThreatModelDiagramMetadata(c *gin.Con
 	}
 
 	logger.Debug("Bulk creating %d metadata entries for diagram %s in threat model %s (user: %s)",
-		len(metadataList), diagramID, threatModelID, userName)
+		len(metadataList), diagramID, threatModelID, userEmail)
 
 	// Create metadata entries in store
 	if err := h.metadataStore.BulkCreate(c.Request.Context(), "diagram", diagramID, metadataList); err != nil {

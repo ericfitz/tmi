@@ -136,15 +136,15 @@ const (
 var ErrAccessDenied = errors.New("access denied")
 
 // GetUserRole determines the role of the user for a given threat model
-func GetUserRole(userName string, threatModel ThreatModel) Role {
+func GetUserRole(userEmail string, threatModel ThreatModel) Role {
 	// If the user is the owner, they have owner role
-	if threatModel.Owner == userName {
+	if threatModel.Owner == userEmail {
 		return RoleOwner
 	}
 
 	// Check authorization entries
 	for _, auth := range threatModel.Authorization {
-		if auth.Subject == userName {
+		if auth.Subject == userEmail {
 			return auth.Role
 		}
 	}
@@ -154,8 +154,8 @@ func GetUserRole(userName string, threatModel ThreatModel) Role {
 }
 
 // CheckThreatModelAccess checks if a user has required access to a threat model
-func CheckThreatModelAccess(userName string, threatModel ThreatModel, requiredRole Role) error {
-	userRole := GetUserRole(userName, threatModel)
+func CheckThreatModelAccess(userEmail string, threatModel ThreatModel, requiredRole Role) error {
+	userRole := GetUserRole(userEmail, threatModel)
 
 	// If no role found, access is denied
 	if userRole == "" {
@@ -198,9 +198,9 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		}
 
 		// Get username from the request context - needed for all operations
-		userID, exists := c.Get("userName")
+		userID, exists := c.Get("userEmail")
 		if !exists {
-			logger.Warn("Authentication required but userName not found in context for path: %s", c.Request.URL.Path)
+			logger.Warn("Authentication required but userEmail not found in context for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
 				ErrorDescription: "Authentication required",
@@ -208,8 +208,8 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		userName, ok := userID.(string)
-		if !ok || userName == "" {
+		userEmail, ok := userID.(string)
+		if !ok || userEmail == "" {
 			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
@@ -220,7 +220,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 
 		// For POST to collection endpoint (create new threat model), any authenticated user can proceed
 		if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/threat_models" {
-			logger.Debug("Allowing create operation for authenticated user: %s", userName)
+			logger.Debug("Allowing create operation for authenticated user: %s", userEmail)
 			c.Next()
 			return
 		}
@@ -296,10 +296,10 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 
 		// Check authorization without reading request body
 		// This just checks the basic role permission based on resource ownership
-		if err := CheckThreatModelAccess(userName, threatModel, requiredRole); err != nil {
-			userRole := GetUserRole(userName, threatModel)
+		if err := CheckThreatModelAccess(userEmail, threatModel, requiredRole); err != nil {
+			userRole := GetUserRole(userEmail, threatModel)
 			logger.Warn("Access denied for user %s with role %s, required role: %s",
-				userName, userRole, requiredRole)
+				userEmail, userRole, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
 				Error:            "forbidden",
 				ErrorDescription: "You don't have sufficient permissions to perform this action",
@@ -307,12 +307,12 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		userRole := GetUserRole(userName, threatModel)
+		userRole := GetUserRole(userEmail, threatModel)
 		// Set the role and threatModel in the context for handlers to use
 		c.Set("userRole", userRole)
 		c.Set("threatModel", threatModel)
 
-		logger.Debug("Access granted for user %s with role %s", userName, userRole)
+		logger.Debug("Access granted for user %s with role %s", userEmail, userRole)
 
 		c.Next()
 	}
@@ -334,9 +334,9 @@ func DiagramMiddleware() gin.HandlerFunc {
 		}
 
 		// Get username from the request context - needed for all operations
-		userID, exists := c.Get("userName")
+		userID, exists := c.Get("userEmail")
 		if !exists {
-			logger.Warn("Authentication required but userName not found in context for path: %s", c.Request.URL.Path)
+			logger.Warn("Authentication required but userEmail not found in context for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
 				ErrorDescription: "Authentication required",
@@ -344,8 +344,8 @@ func DiagramMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		userName, ok := userID.(string)
-		if !ok || userName == "" {
+		userEmail, ok := userID.(string)
+		if !ok || userEmail == "" {
 			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
@@ -356,7 +356,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 
 		// For POST to collection endpoint (create new diagram), any authenticated user can proceed
 		if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/diagrams" {
-			logger.Debug("Allowing create operation for authenticated user: %s", userName)
+			logger.Debug("Allowing create operation for authenticated user: %s", userEmail)
 			c.Next()
 			return
 		}
@@ -438,10 +438,10 @@ func DiagramMiddleware() gin.HandlerFunc {
 
 		// Check authorization without reading request body
 		// This just checks the basic role permission based on resource ownership
-		if err := CheckDiagramAccess(userName, diagram, requiredRole); err != nil {
-			userRole := GetUserRoleForDiagram(userName, diagram)
+		if err := CheckDiagramAccess(userEmail, diagram, requiredRole); err != nil {
+			userRole := GetUserRoleForDiagram(userEmail, diagram)
 			logger.Warn("Access denied for user %s with role %s, required role: %s",
-				userName, userRole, requiredRole)
+				userEmail, userRole, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
 				Error:            "forbidden",
 				ErrorDescription: "You don't have sufficient permissions to perform this action",
@@ -449,19 +449,19 @@ func DiagramMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		userRole := GetUserRoleForDiagram(userName, diagram)
+		userRole := GetUserRoleForDiagram(userEmail, diagram)
 		// Set the role and diagram in the context for handlers to use
 		c.Set("userRole", userRole)
 		c.Set("diagram", diagram)
 
-		logger.Debug("Access granted for user %s with role %s", userName, userRole)
+		logger.Debug("Access granted for user %s with role %s", userEmail, userRole)
 
 		c.Next()
 	}
 }
 
 // GetUserRoleForDiagram determines the role of the user for a given diagram
-func GetUserRoleForDiagram(userName string, diagram DfdDiagram) Role {
+func GetUserRoleForDiagram(userEmail string, diagram DfdDiagram) Role {
 	// Diagrams inherit permissions from their parent threat model
 	// For database-backed diagrams, we need to find the parent threat model
 
@@ -490,13 +490,13 @@ func GetUserRoleForDiagram(userName string, diagram DfdDiagram) Role {
 				}
 
 				// Check if the user is the owner
-				if userName == threatModel.Owner {
+				if userEmail == threatModel.Owner {
 					return RoleOwner
 				}
 
 				// Check authorization entries
 				for _, auth := range threatModel.Authorization {
-					if auth.Subject == userName {
+					if auth.Subject == userEmail {
 						return auth.Role
 					}
 				}
@@ -511,13 +511,13 @@ func GetUserRoleForDiagram(userName string, diagram DfdDiagram) Role {
 	parentThreatModel := TestFixtures.ThreatModel
 
 	// Check if the user is the owner
-	if userName == parentThreatModel.Owner {
+	if userEmail == parentThreatModel.Owner {
 		return RoleOwner
 	}
 
 	// Check authorization entries
 	for _, auth := range parentThreatModel.Authorization {
-		if auth.Subject == userName {
+		if auth.Subject == userEmail {
 			return auth.Role
 		}
 	}
@@ -563,8 +563,8 @@ func LogRequest(c *gin.Context, prefix string) {
 }
 
 // CheckDiagramAccess checks if a user has required access to a diagram
-func CheckDiagramAccess(userName string, diagram DfdDiagram, requiredRole Role) error {
-	userRole := GetUserRoleForDiagram(userName, diagram)
+func CheckDiagramAccess(userEmail string, diagram DfdDiagram, requiredRole Role) error {
+	userRole := GetUserRoleForDiagram(userEmail, diagram)
 
 	// If no role found, access is denied
 	if userRole == "" {
@@ -607,9 +607,9 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 		}
 
 		// Get username from the request context
-		userID, exists := c.Get("userName")
+		userID, exists := c.Get("userEmail")
 		if !exists {
-			logger.Warn("Authentication required but userName not found in context for path: %s", c.Request.URL.Path)
+			logger.Warn("Authentication required but userEmail not found in context for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
 				ErrorDescription: "Authentication required",
@@ -617,8 +617,8 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 			return
 		}
 
-		userName, ok := userID.(string)
-		if !ok || userName == "" {
+		userEmail, ok := userID.(string)
+		if !ok || userEmail == "" {
 			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
@@ -640,10 +640,10 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 		}
 
 		// Check sub-resource access using inherited authorization
-		hasAccess, err := CheckSubResourceAccess(c.Request.Context(), db, cache, userName, threatModelID, requiredRole)
+		hasAccess, err := CheckSubResourceAccess(c.Request.Context(), db, cache, userEmail, threatModelID, requiredRole)
 		if err != nil {
 			logger.Error("Failed to check sub-resource access for user %s on threat model %s: %v",
-				userName, threatModelID, err)
+				userEmail, threatModelID, err)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, Error{
 				Error:            "server_error",
 				ErrorDescription: "Failed to validate permissions",
@@ -653,7 +653,7 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 
 		if !hasAccess {
 			logger.Warn("Access denied for user %s on threat model %s (required role: %s)",
-				userName, threatModelID, requiredRole)
+				userEmail, threatModelID, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
 				Error:            "forbidden",
 				ErrorDescription: "You don't have sufficient permissions to perform this action",
@@ -665,7 +665,7 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 		c.Set("threatModelID", threatModelID)
 		c.Set("userRole", requiredRole) // The actual role could be higher
 
-		logger.Debug("Sub-resource access granted for user %s on threat model %s", userName, threatModelID)
+		logger.Debug("Sub-resource access granted for user %s on threat model %s", userEmail, threatModelID)
 		c.Next()
 	}
 }

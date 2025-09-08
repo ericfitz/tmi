@@ -33,7 +33,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 	logger := logging.Get()
 
 	// Get user information from JWT context
-	userNameInterface, exists := c.Get("userName")
+	userEmailInterface, exists := c.Get("userEmail")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:            "unauthorized",
@@ -42,9 +42,9 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 		return
 	}
 
-	userName, ok := userNameInterface.(string)
+	userEmail, ok := userEmailInterface.(string)
 	if !ok {
-		logging.Get().WithContext(c).Error("Notification WebSocket: Invalid user context - userName is not a string (type: %T, value: %v)", userNameInterface, userNameInterface)
+		logging.Get().WithContext(c).Error("Notification WebSocket: Invalid user context - userEmail is not a string (type: %T, value: %v)", userEmailInterface, userEmailInterface)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "internal_error",
 			ErrorDescription: "Invalid user context",
@@ -52,9 +52,8 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 		return
 	}
 
-	// For now, use userName as both email and ID
-	userEmail := userName
-	userID := userName
+	// For now, use userEmail as both email and ID
+	userID := userEmail
 
 	// Upgrade HTTP connection to WebSocket
 	upgrader := websocket.Upgrader{
@@ -68,7 +67,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		logger.Error("Failed to upgrade HTTP connection to WebSocket for user %s: %v", userName, err)
+		logger.Error("Failed to upgrade HTTP connection to WebSocket for user %s: %v", userEmail, err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "websocket_upgrade_failed",
 			ErrorDescription: "Failed to upgrade connection",
@@ -81,7 +80,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 		ID:           uuid.New().String(),
 		UserID:       userID,
 		UserEmail:    userEmail,
-		UserName:     userName,
+		UserName:     userEmail,
 		Conn:         conn,
 		Send:         make(chan []byte, 256),
 		Subscription: nil, // Start with no subscription (receives all messages)

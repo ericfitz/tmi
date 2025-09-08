@@ -1351,7 +1351,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 
 	// Get user email from context
 	userEmailStr := ""
-	if userEmail, exists := c.Get("user_email"); exists {
+	if userEmail, exists := c.Get("userEmail"); exists {
 		if email, ok := userEmail.(string); ok && email != "" {
 			userEmailStr = email
 		}
@@ -1406,8 +1406,8 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Get optional session_id from query parameters
 	sessionID := c.Query("session_id")
 
-	// Get or create session
-	session := h.GetOrCreateSession(diagramID, threatModelID, userIDStr)
+	// Get or create session - use email for host tracking
+	session := h.GetOrCreateSession(diagramID, threatModelID, userEmailStr)
 
 	// Log session state
 	logging.Get().Info("WebSocket connection attempt - User: %s, Diagram: %s, Session: %s, Provided SessionID: %s",
@@ -1865,7 +1865,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 
 	// For non-hosts, notify the host of the presenter request
 	// The host can then use change_presenter to grant or send presenter_denied to deny
-	hostClient := s.findClientByUserID(host)
+	hostClient := s.findClientByUserEmail(host)
 	if hostClient != nil {
 		// Forward the request to the host for approval
 		s.sendToClient(hostClient, msg)
@@ -2518,6 +2518,19 @@ func (s *DiagramSession) findClientByUserID(userID string) *WebSocketClient {
 
 	for client := range s.Clients {
 		if client.UserID == userID {
+			return client
+		}
+	}
+	return nil
+}
+
+// findClientByUserEmail finds a connected client by their email address
+func (s *DiagramSession) findClientByUserEmail(userEmail string) *WebSocketClient {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for client := range s.Clients {
+		if client.UserEmail == userEmail {
 			return client
 		}
 	}

@@ -59,13 +59,13 @@ func (h *ThreatMetadataHandler) GetThreatMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata for threat %s (user: %s)", threatID, userName)
+	logger.Debug("Retrieving metadata for threat %s (user: %s)", threatID, userEmail)
 
 	// Get metadata from store
 	metadata, err := h.metadataStore.List(c.Request.Context(), "threat", threatID)
@@ -105,13 +105,13 @@ func (h *ThreatMetadataHandler) GetThreatMetadataByKey(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata key '%s' for threat %s (user: %s)", key, threatID, userName)
+	logger.Debug("Retrieving metadata key '%s' for threat %s (user: %s)", key, threatID, userEmail)
 
 	// Get metadata entry from store
 	metadata, err := h.metadataStore.Get(c.Request.Context(), "threat", threatID, key)
@@ -145,7 +145,7 @@ func (h *ThreatMetadataHandler) CreateThreatMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -158,7 +158,7 @@ func (h *ThreatMetadataHandler) CreateThreatMetadata(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Creating metadata key '%s' for threat %s (user: %s)", metadata.Key, threatID, userName)
+	logger.Debug("Creating metadata key '%s' for threat %s (user: %s)", metadata.Key, threatID, userEmail)
 
 	// Create metadata entry in store
 	if err := h.metadataStore.Create(c.Request.Context(), "threat", threatID, &metadata); err != nil {
@@ -206,7 +206,7 @@ func (h *ThreatMetadataHandler) UpdateThreatMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -222,7 +222,7 @@ func (h *ThreatMetadataHandler) UpdateThreatMetadata(c *gin.Context) {
 	// Ensure the key matches the URL parameter
 	metadata.Key = key
 
-	logger.Debug("Updating metadata key '%s' for threat %s (user: %s)", key, threatID, userName)
+	logger.Debug("Updating metadata key '%s' for threat %s (user: %s)", key, threatID, userEmail)
 
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "threat", threatID, &metadata); err != nil {
@@ -269,13 +269,13 @@ func (h *ThreatMetadataHandler) DeleteThreatMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting metadata key '%s' for threat %s (user: %s)", key, threatID, userName)
+	logger.Debug("Deleting metadata key '%s' for threat %s (user: %s)", key, threatID, userEmail)
 
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "threat", threatID, key); err != nil {
@@ -308,7 +308,7 @@ func (h *ThreatMetadataHandler) BulkCreateThreatMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -343,7 +343,7 @@ func (h *ThreatMetadataHandler) BulkCreateThreatMetadata(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d metadata entries for threat %s (user: %s)",
-		len(metadataList), threatID, userName)
+		len(metadataList), threatID, userEmail)
 
 	// Create metadata entries in store
 	if err := h.metadataStore.BulkCreate(c.Request.Context(), "threat", threatID, metadataList); err != nil {

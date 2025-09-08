@@ -31,7 +31,7 @@ func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 	r.Use(func(c *gin.Context) {
 		fmt.Printf("[TEST DEBUG] User name: %s, Request: %s %s\n",
 			userName, c.Request.Method, c.Request.URL.Path)
-		c.Set("userName", userName)
+		c.Set("userEmail", userName)
 		c.Next()
 	})
 

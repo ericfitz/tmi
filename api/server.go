@@ -105,14 +105,7 @@ func (s *Server) HandleWebSocket(c *gin.Context) {
 	// Pass user email from context to WebSocket handler
 	if userEmail, exists := c.Get("userEmail"); exists {
 		if email, ok := userEmail.(string); ok {
-			c.Set("user_email", email)
-		}
-	}
-
-	// For backwards compatibility, also pass userName (which is email)
-	if userName, exists := c.Get("userName"); exists {
-		if name, ok := userName.(string); ok {
-			c.Set("user_name_legacy", name)
+			c.Set("userEmail", email)
 		}
 	}
 
@@ -140,7 +133,7 @@ func (s *Server) GetWebSocketHub() *WebSocketHub {
 // HandleCollaborationSessions returns all active collaboration sessions that the user has access to
 func (s *Server) HandleCollaborationSessions(c *gin.Context) {
 	// Get username from JWT claim
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		// For collaboration endpoints, return empty list if user is not authenticated
 		c.JSON(http.StatusOK, []CollaborationSession{})
@@ -148,7 +141,7 @@ func (s *Server) HandleCollaborationSessions(c *gin.Context) {
 	}
 
 	// Get filtered sessions based on user permissions
-	sessions := s.wsHub.GetActiveSessionsForUser(c, userName)
+	sessions := s.wsHub.GetActiveSessionsForUser(c, userEmail)
 	c.JSON(http.StatusOK, sessions)
 }
 

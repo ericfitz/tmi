@@ -59,13 +59,13 @@ func (h *ThreatModelMetadataHandler) GetThreatModelMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata for threat model %s (user: %s)", threatModelID, userName)
+	logger.Debug("Retrieving metadata for threat model %s (user: %s)", threatModelID, userEmail)
 
 	// Get metadata from store
 	metadata, err := h.metadataStore.List(c.Request.Context(), "threat_model", threatModelID)
@@ -105,13 +105,13 @@ func (h *ThreatModelMetadataHandler) GetThreatModelMetadataByKey(c *gin.Context)
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata key '%s' for threat model %s (user: %s)", key, threatModelID, userName)
+	logger.Debug("Retrieving metadata key '%s' for threat model %s (user: %s)", key, threatModelID, userEmail)
 
 	// Get metadata entry from store
 	metadata, err := h.metadataStore.Get(c.Request.Context(), "threat_model", threatModelID, key)
@@ -145,7 +145,7 @@ func (h *ThreatModelMetadataHandler) CreateThreatModelMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -158,7 +158,7 @@ func (h *ThreatModelMetadataHandler) CreateThreatModelMetadata(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Creating metadata key '%s' for threat model %s (user: %s)", metadata.Key, threatModelID, userName)
+	logger.Debug("Creating metadata key '%s' for threat model %s (user: %s)", metadata.Key, threatModelID, userEmail)
 
 	// Create metadata entry in store
 	if err := h.metadataStore.Create(c.Request.Context(), "threat_model", threatModelID, &metadata); err != nil {
@@ -206,7 +206,7 @@ func (h *ThreatModelMetadataHandler) UpdateThreatModelMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -222,7 +222,7 @@ func (h *ThreatModelMetadataHandler) UpdateThreatModelMetadata(c *gin.Context) {
 	// Ensure the key matches the URL parameter
 	metadata.Key = key
 
-	logger.Debug("Updating metadata key '%s' for threat model %s (user: %s)", key, threatModelID, userName)
+	logger.Debug("Updating metadata key '%s' for threat model %s (user: %s)", key, threatModelID, userEmail)
 
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "threat_model", threatModelID, &metadata); err != nil {
@@ -269,13 +269,13 @@ func (h *ThreatModelMetadataHandler) DeleteThreatModelMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting metadata key '%s' for threat model %s (user: %s)", key, threatModelID, userName)
+	logger.Debug("Deleting metadata key '%s' for threat model %s (user: %s)", key, threatModelID, userEmail)
 
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "threat_model", threatModelID, key); err != nil {
@@ -308,7 +308,7 @@ func (h *ThreatModelMetadataHandler) BulkCreateThreatModelMetadata(c *gin.Contex
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -343,7 +343,7 @@ func (h *ThreatModelMetadataHandler) BulkCreateThreatModelMetadata(c *gin.Contex
 	}
 
 	logger.Debug("Bulk creating %d metadata entries for threat model %s (user: %s)",
-		len(metadataList), threatModelID, userName)
+		len(metadataList), threatModelID, userEmail)
 
 	// Create metadata entries in store
 	if err := h.metadataStore.BulkCreate(c.Request.Context(), "threat_model", threatModelID, metadataList); err != nil {

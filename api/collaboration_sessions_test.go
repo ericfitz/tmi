@@ -220,7 +220,7 @@ func TestHandleCollaborationSessions(t *testing.T) {
 
 			// Add mock authentication middleware
 			router.Use(func(c *gin.Context) {
-				c.Set("userName", "test@example.com")
+				c.Set("userEmail", "test@example.com")
 				c.Next()
 			})
 

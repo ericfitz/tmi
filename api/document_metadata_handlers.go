@@ -59,13 +59,13 @@ func (h *DocumentMetadataHandler) GetDocumentMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata for document %s (user: %s)", documentID, userName)
+	logger.Debug("Retrieving metadata for document %s (user: %s)", documentID, userEmail)
 
 	// Get metadata from store
 	metadata, err := h.metadataStore.List(c.Request.Context(), "document", documentID)
@@ -105,13 +105,13 @@ func (h *DocumentMetadataHandler) GetDocumentMetadataByKey(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata key '%s' for document %s (user: %s)", key, documentID, userName)
+	logger.Debug("Retrieving metadata key '%s' for document %s (user: %s)", key, documentID, userEmail)
 
 	// Get metadata entry from store
 	metadata, err := h.metadataStore.Get(c.Request.Context(), "document", documentID, key)
@@ -145,7 +145,7 @@ func (h *DocumentMetadataHandler) CreateDocumentMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -158,7 +158,7 @@ func (h *DocumentMetadataHandler) CreateDocumentMetadata(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Creating metadata key '%s' for document %s (user: %s)", metadata.Key, documentID, userName)
+	logger.Debug("Creating metadata key '%s' for document %s (user: %s)", metadata.Key, documentID, userEmail)
 
 	// Create metadata entry in store
 	if err := h.metadataStore.Create(c.Request.Context(), "document", documentID, &metadata); err != nil {
@@ -206,7 +206,7 @@ func (h *DocumentMetadataHandler) UpdateDocumentMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -222,7 +222,7 @@ func (h *DocumentMetadataHandler) UpdateDocumentMetadata(c *gin.Context) {
 	// Ensure the key matches the URL parameter
 	metadata.Key = key
 
-	logger.Debug("Updating metadata key '%s' for document %s (user: %s)", key, documentID, userName)
+	logger.Debug("Updating metadata key '%s' for document %s (user: %s)", key, documentID, userEmail)
 
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "document", documentID, &metadata); err != nil {
@@ -269,13 +269,13 @@ func (h *DocumentMetadataHandler) DeleteDocumentMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting metadata key '%s' for document %s (user: %s)", key, documentID, userName)
+	logger.Debug("Deleting metadata key '%s' for document %s (user: %s)", key, documentID, userEmail)
 
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "document", documentID, key); err != nil {
@@ -308,7 +308,7 @@ func (h *DocumentMetadataHandler) BulkCreateDocumentMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userName, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -343,7 +343,7 @@ func (h *DocumentMetadataHandler) BulkCreateDocumentMetadata(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d metadata entries for document %s (user: %s)",
-		len(metadataList), documentID, userName)
+		len(metadataList), documentID, userEmail)
 
 	// Create metadata entries in store
 	if err := h.metadataStore.BulkCreate(c.Request.Context(), "document", documentID, metadataList); err != nil {

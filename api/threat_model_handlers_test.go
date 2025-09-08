@@ -28,7 +28,7 @@ func setupThreatModelRouterWithUser(userName string) *gin.Engine {
 
 	// Add a fake auth middleware to set user in context
 	r.Use(func(c *gin.Context) {
-		c.Set("userName", userName)
+		c.Set("userEmail", userName)
 		// The middleware will set the userRole, we don't need to set it here
 		c.Next()
 	})
