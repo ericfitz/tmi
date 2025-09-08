@@ -48,20 +48,20 @@ type ThreatModel struct {
 }
 
 type Diagram struct {
-	ID             string                 `json:"id"`
-	ThreatModelID  string                 `json:"threat_model_id"`
-	Name           string                 `json:"name"`
-	Type           string                 `json:"type"`
+	ID            string `json:"id"`
+	ThreatModelID string `json:"threat_model_id"`
+	Name          string `json:"name"`
+	Type          string `json:"type"`
 }
 
 type CollaborationSession struct {
-	ID              string    `json:"id"`
-	CreatedAt       time.Time `json:"created_at"`
-	LastActivity    time.Time `json:"last_activity"`
-	DiagramVersion  int       `json:"diagram_version"`
-	ActiveClients   int       `json:"active_clients"`
-	HostID          string    `json:"host_id"`
-	HostEmail       string    `json:"host_email"`
+	ID             string    `json:"id"`
+	CreatedAt      time.Time `json:"created_at"`
+	LastActivity   time.Time `json:"last_activity"`
+	DiagramVersion int       `json:"diagram_version"`
+	ActiveClients  int       `json:"active_clients"`
+	HostID         string    `json:"host_id"`
+	HostEmail      string    `json:"host_email"`
 }
 
 type WebSocketMessage struct {
@@ -207,7 +207,7 @@ func performOAuthLogin(ctx context.Context, config Config) (*AuthTokens, error) 
 			return http.ErrUseLastResponse
 		},
 	}
-	
+
 	resp, err := client.Get(authURL.String())
 	if err != nil {
 		return nil, fmt.Errorf("OAuth authorization request failed: %w", err)
@@ -215,13 +215,13 @@ func performOAuthLogin(ctx context.Context, config Config) (*AuthTokens, error) 
 	defer resp.Body.Close()
 
 	fmt.Printf("OAuth authorization response: %d %s\n", resp.StatusCode, resp.Status)
-	
+
 	// OAuth should redirect to our callback
 	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusSeeOther {
 		// Get the redirect location
 		redirectURL := resp.Header.Get("Location")
 		fmt.Printf("Redirect location: %s\n", redirectURL)
-		
+
 		// The test OAuth provider might redirect directly with tokens in the fragment
 		// We need to follow this redirect ourselves
 		if redirectURL != "" {
@@ -380,7 +380,26 @@ func runParticipantMode(ctx context.Context, config Config, tokens *AuthTokens) 
 			}
 			if session != nil {
 				fmt.Printf("Found collaboration session: %s (Host: %s)\n", session.ID, session.HostEmail)
-				return connectToWebSocket(ctx, config, tokens, threatModelID, diagramID)
+
+				// Connect to WebSocket - if it disconnects, we'll return here and continue polling
+				err = connectToWebSocket(ctx, config, tokens, threatModelID, diagramID)
+				if err != nil {
+					fmt.Printf("WebSocket connection ended: %v\n", err)
+					fmt.Println("Waiting 3 seconds before returning to polling...")
+
+					// Wait a bit before trying again to avoid hammering the server
+					select {
+					case <-ctx.Done():
+						return nil
+					case <-time.After(3 * time.Second):
+						fmt.Println("Returning to polling for collaboration sessions...")
+						// Continue the loop to start polling again
+						continue
+					}
+				}
+
+				// If connectToWebSocket returns without error, it means context was cancelled
+				return nil
 			}
 			fmt.Println("No available sessions found, continuing to poll...")
 		}
@@ -389,10 +408,10 @@ func runParticipantMode(ctx context.Context, config Config, tokens *AuthTokens) 
 
 func createThreatModel(config Config, tokens *AuthTokens, participants []string) (*ThreatModel, error) {
 	url := fmt.Sprintf("%s/threat_models", config.ServerURL)
-	
+
 	// Build authorization array with participants
 	authorization := []map[string]string{}
-	
+
 	// Add participants if specified
 	for _, participant := range participants {
 		// Convert hint to email format if needed
@@ -400,18 +419,18 @@ func createThreatModel(config Config, tokens *AuthTokens, participants []string)
 		if !strings.Contains(email, "@") {
 			email = fmt.Sprintf("%s@test.tmi", participant)
 		}
-		
+
 		// Randomly select permission
 		permissions := []string{"reader", "writer", "owner"}
 		perm := permissions[rand.Intn(len(permissions))]
-		
+
 		authorization = append(authorization, map[string]string{
 			"subject": email,
 			"role":    perm,
 		})
 		fmt.Printf("Adding participant %s with %s permission\n", email, perm)
 	}
-	
+
 	payload := map[string]interface{}{
 		"name":          fmt.Sprintf("Test TM - %s - %s", config.UserHint, time.Now().Format("15:04:05")),
 		"description":   "Test threat model created by WebSocket test harness",
@@ -451,10 +470,9 @@ func createThreatModel(config Config, tokens *AuthTokens, participants []string)
 	return &threatModel, nil
 }
 
-
 func createDiagram(config Config, tokens *AuthTokens, threatModelID string) (*Diagram, error) {
 	url := fmt.Sprintf("%s/threat_models/%s/diagrams", config.ServerURL, threatModelID)
-	
+
 	payload := map[string]interface{}{
 		"name": fmt.Sprintf("Test Diagram - %s", time.Now().Format("15:04:05")),
 		"type": "DFD-1.0.0",
@@ -495,7 +513,7 @@ func createDiagram(config Config, tokens *AuthTokens, threatModelID string) (*Di
 
 func startCollaborationSession(config Config, tokens *AuthTokens, threatModelID, diagramID string) (*CollaborationSession, error) {
 	url := fmt.Sprintf("%s/threat_models/%s/diagrams/%s/collaborate", config.ServerURL, threatModelID, diagramID)
-	
+
 	fmt.Printf("Attempting: POST %s\n", url)
 
 	req, err := http.NewRequest("POST", url, nil)
@@ -553,15 +571,15 @@ func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSess
 
 	// Parse the response as an array of collaboration sessions
 	var sessions []struct {
-		SessionID      string `json:"session_id"`
-		Host           string `json:"host"`
-		Presenter      string `json:"presenter"`
-		ThreatModelID  string `json:"threat_model_id"`
+		SessionID       string `json:"session_id"`
+		Host            string `json:"host"`
+		Presenter       string `json:"presenter"`
+		ThreatModelID   string `json:"threat_model_id"`
 		ThreatModelName string `json:"threat_model_name"`
-		DiagramID      string `json:"diagram_id"`
-		DiagramName    string `json:"diagram_name"`
-		WebSocketURL   string `json:"websocket_url"`
-		Participants   []struct {
+		DiagramID       string `json:"diagram_id"`
+		DiagramName     string `json:"diagram_name"`
+		WebSocketURL    string `json:"websocket_url"`
+		Participants    []struct {
 			UserID      string `json:"user_id"`
 			Email       string `json:"email"`
 			DisplayName string `json:"displayName"`
@@ -578,15 +596,15 @@ func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSess
 	if len(sessions) > 0 {
 		session := sessions[0]
 		fmt.Printf("Found %d active session(s)\n", len(sessions))
-		
+
 		// Convert to CollaborationSession format (matching the existing structure)
 		collabSession := &CollaborationSession{
-			ID:           session.SessionID,
-			HostID:       session.Host,
-			HostEmail:    session.Host,
+			ID:            session.SessionID,
+			HostID:        session.Host,
+			HostEmail:     session.Host,
 			ActiveClients: len(session.Participants),
 		}
-		
+
 		return collabSession, session.ThreatModelID, session.DiagramID, nil
 	}
 
@@ -597,7 +615,7 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 	// Build WebSocket URL
 	wsURL := strings.Replace(config.ServerURL, "http://", "ws://", 1)
 	wsURL = strings.Replace(wsURL, "https://", "wss://", 1)
-	wsURL = fmt.Sprintf("%s/threat_models/%s/diagrams/%s/ws?token=%s", 
+	wsURL = fmt.Sprintf("%s/threat_models/%s/diagrams/%s/ws?token=%s",
 		wsURL, threatModelID, diagramID, tokens.AccessToken)
 
 	fmt.Printf("\nConnecting to WebSocket: %s\n", wsURL)
@@ -620,20 +638,22 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 
 	fmt.Println("WebSocket connected successfully!")
 
+	// Channel to signal when connection is lost
+	connectionLost := make(chan error, 1)
+
 	// Start message reader
 	go func() {
 		for {
 			messageType, message, err := conn.ReadMessage()
 			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					fmt.Printf("WebSocket read error: %v\n", err)
-				}
+				fmt.Printf("WebSocket read error: %v\n", err)
+				connectionLost <- err
 				return
 			}
 
-			fmt.Printf("\n[%s] Received WebSocket message (type: %d):\n", 
+			fmt.Printf("\n[%s] Received WebSocket message (type: %d):\n",
 				time.Now().Format("15:04:05.000"), messageType)
-			
+
 			// Try to pretty-print JSON
 			var prettyJSON bytes.Buffer
 			if err := json.Indent(&prettyJSON, message, "", "  "); err == nil {
@@ -644,15 +664,18 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 		}
 	}()
 
-	// Keep connection alive
-	<-ctx.Done()
-	
-	// Send close message
-	err = conn.WriteMessage(websocket.CloseMessage, 
-		websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-	if err != nil {
-		fmt.Printf("Error sending close message: %v\n", err)
+	// Wait for either context cancellation or connection loss
+	select {
+	case <-ctx.Done():
+		// Context cancelled - clean shutdown
+		err = conn.WriteMessage(websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		if err != nil {
+			fmt.Printf("Error sending close message: %v\n", err)
+		}
+		return nil
+	case err := <-connectionLost:
+		// Connection was lost - return error so caller can handle reconnection
+		return fmt.Errorf("WebSocket connection lost: %w", err)
 	}
-
-	return nil
 }

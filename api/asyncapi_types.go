@@ -128,6 +128,7 @@ func (op CellOperation) Validate() error {
 
 type PresenterRequestMessage struct {
 	MessageType MessageType `json:"message_type"`
+	User        User        `json:"user"`
 }
 
 func (m PresenterRequestMessage) GetMessageType() MessageType { return m.MessageType }
@@ -135,6 +136,15 @@ func (m PresenterRequestMessage) GetMessageType() MessageType { return m.Message
 func (m PresenterRequestMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterRequest, m.MessageType)
+	}
+	if m.User.UserId == "" {
+		return fmt.Errorf("user.user_id is required")
+	}
+	if m.User.Email == "" {
+		return fmt.Errorf("user.email is required")
+	}
+	if m.User.Name == "" {
+		return fmt.Errorf("user.name is required")
 	}
 	return nil
 }
@@ -227,6 +237,7 @@ type CursorPosition struct {
 
 type PresenterCursorMessage struct {
 	MessageType    MessageType    `json:"message_type"`
+	User           User           `json:"user"`
 	CursorPosition CursorPosition `json:"cursor_position"`
 }
 
@@ -236,11 +247,21 @@ func (m PresenterCursorMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterCursor {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterCursor, m.MessageType)
 	}
+	if m.User.UserId == "" {
+		return fmt.Errorf("user.user_id is required")
+	}
+	if m.User.Email == "" {
+		return fmt.Errorf("user.email is required")
+	}
+	if m.User.Name == "" {
+		return fmt.Errorf("user.name is required")
+	}
 	return nil
 }
 
 type PresenterSelectionMessage struct {
 	MessageType   MessageType `json:"message_type"`
+	User          User        `json:"user"`
 	SelectedCells []string    `json:"selected_cells"`
 }
 
@@ -249,6 +270,15 @@ func (m PresenterSelectionMessage) GetMessageType() MessageType { return m.Messa
 func (m PresenterSelectionMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterSelection {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterSelection, m.MessageType)
+	}
+	if m.User.UserId == "" {
+		return fmt.Errorf("user.user_id is required")
+	}
+	if m.User.Email == "" {
+		return fmt.Errorf("user.email is required")
+	}
+	if m.User.Name == "" {
+		return fmt.Errorf("user.name is required")
 	}
 	// Validate that selected cells are valid UUIDs
 	for i, cellID := range m.SelectedCells {
