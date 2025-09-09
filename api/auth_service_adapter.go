@@ -162,6 +162,13 @@ func (a *AuthServiceAdapter) GetOAuthAuthorizationServerMetadata(c *gin.Context)
 	a.handlers.GetOAuthAuthorizationServerMetadata(c)
 }
 
+// GetOAuthProtectedResourceMetadata delegates to auth handlers
+func (a *AuthServiceAdapter) GetOAuthProtectedResourceMetadata(c *gin.Context) {
+	logger := logging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] GetOAuthProtectedResourceMetadata called - delegating to auth.Handlers")
+	a.handlers.GetOAuthProtectedResourceMetadata(c)
+}
+
 // IntrospectToken delegates to auth handlers
 func (a *AuthServiceAdapter) IntrospectToken(c *gin.Context) {
 	logger := logging.Get()

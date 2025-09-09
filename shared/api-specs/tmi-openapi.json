@@ -133,6 +133,96 @@
           }
         }
       },
+      "OAuthProtectedResourceMetadata": {
+        "type": "object",
+        "description": "OAuth 2.0 protected resource metadata as defined in RFC 9728",
+        "properties": {
+          "resource": {
+            "type": "string",
+            "format": "uri",
+            "description": "The protected resource's resource identifier URL",
+            "example": "http://localhost:8080"
+          },
+          "scopes_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "JSON array of OAuth scope values supported by this protected resource",
+            "example": [
+              "openid",
+              "email",
+              "profile"
+            ]
+          },
+          "authorization_servers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "List of authorization server issuer identifiers that can issue tokens for this resource",
+            "example": [
+              "http://localhost:8080"
+            ]
+          },
+          "jwks_uri": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL of the protected resource's JSON Web Key Set",
+            "example": "http://localhost:8080/.well-known/jwks.json"
+          },
+          "bearer_methods_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Supported token presentation methods for bearer tokens",
+            "example": [
+              "header",
+              "body",
+              "query"
+            ]
+          },
+          "resource_name": {
+            "type": "string",
+            "description": "Human-readable name of the protected resource",
+            "example": "TMI (Threat Modeling Improved) API"
+          },
+          "resource_documentation": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL with information for developers on how to use this protected resource",
+            "example": "https://github.com/ericfitz/tmi"
+          },
+          "tls_client_certificate_bound_access_tokens": {
+            "type": "boolean",
+            "description": "Whether the protected resource supports TLS client certificate bound access tokens",
+            "example": false
+          }
+        },
+        "required": [
+          "resource"
+        ],
+        "example": {
+          "resource": "http://localhost:8080",
+          "scopes_supported": [
+            "openid",
+            "email",
+            "profile"
+          ],
+          "authorization_servers": [
+            "http://localhost:8080"
+          ],
+          "jwks_uri": "http://localhost:8080/.well-known/jwks.json",
+          "bearer_methods_supported": [
+            "header"
+          ],
+          "resource_name": "TMI (Threat Modeling Improved) API",
+          "resource_documentation": "https://github.com/ericfitz/tmi",
+          "tls_client_certificate_bound_access_tokens": false
+        }
+      },
       "Document": {
         "type": "object",
         "properties": {
@@ -2718,6 +2808,35 @@
                   "required": [
                     "keys"
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/.well-known/oauth-protected-resource": {
+      "get": {
+        "tags": [
+          "OAuth Discovery"
+        ],
+        "summary": "OAuth 2.0 Protected Resource Metadata",
+        "description": "Returns OAuth 2.0 protected resource metadata as per RFC 9728",
+        "operationId": "getOAuthProtectedResourceMetadata",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OAuth 2.0 protected resource metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthProtectedResourceMetadata"
                 }
               }
             }

@@ -745,3 +745,108 @@ func TestAuthorizeWithScopeValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestGetOAuthProtectedResourceMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	// Create test config
+	config := Config{
+		OAuth: OAuthConfig{
+			CallbackURL: "http://localhost:8080/oauth2/callback",
+		},
+	}
+
+	handlers := &Handlers{
+		config: config,
+	}
+
+	// Register the RFC 9728 endpoint
+	router.GET("/.well-known/oauth-protected-resource", handlers.GetOAuthProtectedResourceMetadata)
+
+	// Create test request
+	req := httptest.NewRequest("GET", "/.well-known/oauth-protected-resource", nil)
+	req.Host = "localhost:8080"
+	w := httptest.NewRecorder()
+
+	// Execute request
+	router.ServeHTTP(w, req)
+
+	// Assert response
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
+	assert.Equal(t, "public, max-age=3600", w.Header().Get("Cache-Control"))
+
+	// Parse and validate response body
+	var metadata OAuthProtectedResourceMetadata
+	err := json.Unmarshal(w.Body.Bytes(), &metadata)
+	require.NoError(t, err)
+
+	// Validate required field
+	assert.Equal(t, "http://localhost:8080", metadata.Resource)
+
+	// Validate optional fields
+	assert.Equal(t, []string{"openid", "profile", "email"}, metadata.ScopesSupported)
+	assert.Equal(t, []string{"http://localhost:8080"}, metadata.AuthorizationServers)
+	assert.Equal(t, "http://localhost:8080/.well-known/jwks.json", metadata.JWKSURI)
+	assert.Equal(t, []string{"header"}, metadata.BearerMethodsSupported)
+	assert.Equal(t, "TMI (Threat Modeling Improved) API", metadata.ResourceName)
+	assert.Equal(t, "https://github.com/ericfitz/tmi", metadata.ResourceDocumentation)
+	assert.False(t, metadata.TLSClientCertificateBoundAccessTokens)
+
+	// Validate JSON structure matches RFC 9728
+	var jsonResponse map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &jsonResponse)
+	require.NoError(t, err)
+
+	// Check that all expected fields are present
+	assert.Contains(t, jsonResponse, "resource")
+	assert.Contains(t, jsonResponse, "scopes_supported")
+	assert.Contains(t, jsonResponse, "authorization_servers")
+	assert.Contains(t, jsonResponse, "jwks_uri")
+	assert.Contains(t, jsonResponse, "bearer_methods_supported")
+	assert.Contains(t, jsonResponse, "resource_name")
+	assert.Contains(t, jsonResponse, "resource_documentation")
+	assert.Contains(t, jsonResponse, "tls_client_certificate_bound_access_tokens")
+}
+
+func TestGetOAuthProtectedResourceMetadata_WithHTTPS(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	// Create test config
+	config := Config{
+		OAuth: OAuthConfig{
+			CallbackURL: "https://api.example.com/oauth2/callback",
+		},
+	}
+
+	handlers := &Handlers{
+		config: config,
+	}
+
+	// Register the RFC 9728 endpoint
+	router.GET("/.well-known/oauth-protected-resource", handlers.GetOAuthProtectedResourceMetadata)
+
+	// Create test request with HTTPS
+	req := httptest.NewRequest("GET", "/.well-known/oauth-protected-resource", nil)
+	req.Host = "api.example.com"
+	req.Header.Set("X-Forwarded-Proto", "https")
+	w := httptest.NewRecorder()
+
+	// Execute request
+	router.ServeHTTP(w, req)
+
+	// Assert response
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Parse and validate response body
+	var metadata OAuthProtectedResourceMetadata
+	err := json.Unmarshal(w.Body.Bytes(), &metadata)
+	require.NoError(t, err)
+
+	// Validate that HTTPS URLs are generated correctly
+	assert.Equal(t, "https://api.example.com", metadata.Resource)
+	assert.Equal(t, []string{"https://api.example.com"}, metadata.AuthorizationServers)
+	assert.Equal(t, "https://api.example.com/.well-known/jwks.json", metadata.JWKSURI)
+}

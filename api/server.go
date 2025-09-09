@@ -395,6 +395,22 @@ func (s *Server) GetOpenIDConfiguration(c *gin.Context) {
 	}
 }
 
+// GetOAuthProtectedResourceMetadata returns OAuth 2.0 protected resource metadata as per RFC 9728
+func (s *Server) GetOAuthProtectedResourceMetadata(c *gin.Context) {
+	logger := logging.Get()
+	logger.Info("[SERVER_INTERFACE] GetOAuthProtectedResourceMetadata called")
+	if s.authService != nil {
+		// Delegate to auth service (assuming it has this method)
+		if metaHandler, ok := s.authService.(interface{ GetOAuthProtectedResourceMetadata(c *gin.Context) }); ok {
+			metaHandler.GetOAuthProtectedResourceMetadata(c)
+		} else {
+			HandleRequestError(c, ServerError("OAuth protected resource metadata endpoint not supported"))
+		}
+	} else {
+		HandleRequestError(c, ServerError("Auth service not configured"))
+	}
+}
+
 // IntrospectToken handles token introspection requests per RFC 7662
 func (s *Server) IntrospectToken(c *gin.Context) {
 	logger := logging.Get()

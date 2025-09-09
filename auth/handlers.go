@@ -50,6 +50,8 @@ func (h *Handlers) RegisterRoutes(router *gin.Engine) {
 		wellKnown.GET("/oauth-authorization-server", h.GetOAuthAuthorizationServerMetadata)
 		logger.Info("[AUTH_MODULE] Registering route: GET /.well-known/jwks.json")
 		wellKnown.GET("/jwks.json", h.GetJWKS)
+		logger.Info("[AUTH_MODULE] Registering route: GET /.well-known/oauth-protected-resource")
+		wellKnown.GET("/oauth-protected-resource", h.GetOAuthProtectedResourceMetadata)
 	}
 
 	auth := router.Group("/oauth2")
@@ -929,6 +931,12 @@ func getBaseURL(c *gin.Context) string {
 	if c.Request.TLS != nil {
 		scheme = "https"
 	}
+
+	// Check for proxy headers that indicate HTTPS
+	if forwardedProto := c.GetHeader("X-Forwarded-Proto"); forwardedProto == "https" {
+		scheme = "https"
+	}
+
 	return fmt.Sprintf("%s://%s", scheme, c.Request.Host)
 }
 
@@ -1123,6 +1131,18 @@ type OAuthAuthorizationServerMetadata struct {
 	RevocationEndpoint                string   `json:"revocation_endpoint,omitempty"`
 }
 
+// OAuthProtectedResourceMetadata represents OAuth 2.0 protected resource metadata as defined in RFC 9728
+type OAuthProtectedResourceMetadata struct {
+	Resource                              string   `json:"resource"`
+	ScopesSupported                       []string `json:"scopes_supported,omitempty"`
+	AuthorizationServers                  []string `json:"authorization_servers,omitempty"`
+	JWKSURI                               string   `json:"jwks_uri,omitempty"`
+	BearerMethodsSupported                []string `json:"bearer_methods_supported,omitempty"`
+	ResourceName                          string   `json:"resource_name,omitempty"`
+	ResourceDocumentation                 string   `json:"resource_documentation,omitempty"`
+	TLSClientCertificateBoundAccessTokens bool     `json:"tls_client_certificate_bound_access_tokens"`
+}
+
 // GetOpenIDConfiguration returns OpenID Connect Discovery metadata
 func (h *Handlers) GetOpenIDConfiguration(c *gin.Context) {
 	baseURL := getBaseURL(c)
@@ -1166,6 +1186,25 @@ func (h *Handlers) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_post", "client_secret_basic"},
 		RevocationEndpoint:                fmt.Sprintf("%s/oauth2/revoke", baseURL),
 		IntrospectionEndpoint:             fmt.Sprintf("%s/oauth2/introspect", baseURL),
+	}
+
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.JSON(http.StatusOK, metadata)
+}
+
+// GetOAuthProtectedResourceMetadata returns OAuth 2.0 protected resource metadata as per RFC 9728
+func (h *Handlers) GetOAuthProtectedResourceMetadata(c *gin.Context) {
+	baseURL := getBaseURL(c)
+
+	metadata := OAuthProtectedResourceMetadata{
+		Resource:                              baseURL,
+		ScopesSupported:                       []string{"openid", "profile", "email"},
+		AuthorizationServers:                  []string{baseURL},
+		JWKSURI:                               fmt.Sprintf("%s/.well-known/jwks.json", baseURL),
+		BearerMethodsSupported:                []string{"header"},
+		ResourceName:                          "TMI (Threat Modeling Improved) API",
+		ResourceDocumentation:                 "https://github.com/ericfitz/tmi",
+		TLSClientCertificateBoundAccessTokens: false,
 	}
 
 	c.Header("Cache-Control", "public, max-age=3600")
