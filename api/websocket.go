@@ -1227,10 +1227,10 @@ func (s *DiagramSession) Run() {
 				s.LastActivity = time.Now().UTC()
 
 				// Check if the leaving client was the current presenter
-				wasPresenter := client.UserID == s.CurrentPresenter
+				wasPresenter := client.UserEmail == s.CurrentPresenter
 
 				// Check if the leaving client was the host
-				wasHost := client.UserID == s.Host
+				wasHost := client.UserEmail == s.Host
 
 				s.mu.Unlock()
 
@@ -1709,9 +1709,9 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	}
 
 	// If user is the host, automatically grant presenter mode
-	if client.UserID == host {
+	if client.UserEmail == host {
 		s.mu.Lock()
-		s.CurrentPresenter = client.UserID
+		s.CurrentPresenter = client.UserEmail
 		s.mu.Unlock()
 
 		// Broadcast new presenter to all clients
@@ -1774,8 +1774,8 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 	host := s.Host
 	s.mu.RUnlock()
 
-	if client.UserID != host {
-		logging.Get().Info("Non-host attempted to change presenter: %s", client.UserID)
+	if client.UserEmail != host {
+		logging.Get().Info("Non-host attempted to change presenter: %s", client.UserEmail)
 		return
 	}
 
@@ -1820,15 +1820,15 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 	host := s.Host
 	s.mu.RUnlock()
 
-	if client.UserID != host {
-		logging.Get().Info("Non-host attempted to remove participant: %s tried to remove %s", client.UserID, msg.TargetUser)
+	if client.UserEmail != host {
+		logging.Get().Info("Non-host attempted to remove participant: %s tried to remove %s", client.UserEmail, msg.TargetUser)
 		s.sendErrorMessage(client, "unauthorized", "Only the host can remove participants from the session")
 		return
 	}
 
 	// Cannot remove yourself
-	if msg.TargetUser == client.UserID {
-		logging.Get().Info("Host %s attempted to remove themselves from session %s", client.UserID, s.ID)
+	if msg.TargetUser == client.UserEmail {
+		logging.Get().Info("Host %s attempted to remove themselves from session %s", client.UserEmail, s.ID)
 		s.sendErrorMessage(client, "invalid_request", "Host cannot remove themselves from the session")
 		return
 	}
@@ -1878,6 +1878,8 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 		}
 		s.mu.Unlock()
 		s.broadcastMessage(broadcastMsg)
+		// Also broadcast updated participant list since presenter has changed
+		s.broadcastParticipantsUpdate()
 	} else {
 		s.mu.Unlock()
 	}
@@ -1910,8 +1912,8 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	host := s.Host
 	s.mu.RUnlock()
 
-	if client.UserID != host {
-		logging.Get().Info("Non-host attempted to deny presenter request: %s", client.UserID)
+	if client.UserEmail != host {
+		logging.Get().Info("Non-host attempted to deny presenter request: %s", client.UserEmail)
 		return
 	}
 
@@ -1943,8 +1945,8 @@ func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message
 	currentPresenter := s.CurrentPresenter
 	s.mu.RUnlock()
 
-	if client.UserID != currentPresenter {
-		logging.Get().Info("Non-presenter attempted to send cursor: %s", client.UserID)
+	if client.UserEmail != currentPresenter {
+		logging.Get().Info("Non-presenter attempted to send cursor: %s", client.UserEmail)
 		return
 	}
 
@@ -1967,8 +1969,8 @@ func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, mess
 	currentPresenter := s.CurrentPresenter
 	s.mu.RUnlock()
 
-	if client.UserID != currentPresenter {
-		logging.Get().Info("Non-presenter attempted to send selection: %s", client.UserID)
+	if client.UserEmail != currentPresenter {
+		logging.Get().Info("Non-presenter attempted to send selection: %s", client.UserEmail)
 		return
 	}
 
@@ -2180,7 +2182,7 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 	// Check if host is still connected
 	managerConnected := false
 	for client := range s.Clients {
-		if client.UserID == s.Host {
+		if client.UserEmail == s.Host {
 			managerConnected = true
 			newPresenter = s.Host
 			break
@@ -2223,6 +2225,8 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		// Release the lock before broadcasting to avoid deadlock
 		s.mu.Unlock()
 		s.broadcastMessage(broadcastMsg)
+		// Also broadcast updated participant list since presenter has changed
+		s.broadcastParticipantsUpdate()
 		s.mu.Lock()
 
 		logging.Get().Info("Set new presenter to %s in session %s after %s disconnected", newPresenter, s.ID, disconnectedUserID)
