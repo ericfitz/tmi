@@ -22,6 +22,8 @@
 !api/**
 !auth/
 !auth/**
+!cmd/
+!cmd/**
 !docs/
 !docs/**
 !postman/
@@ -51,7 +53,7 @@ coverage_html/
 .venv/**
 **/bin/**
 migrate
-server
+/server
 check-db
 .config.*.mk
 test.mk
