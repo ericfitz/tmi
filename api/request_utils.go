@@ -223,6 +223,11 @@ func HandleRequestError(c *gin.Context, err error) {
 			}
 		}
 
+		// Add WWW-Authenticate header for 401 Unauthorized responses
+		if reqErr.Status == http.StatusUnauthorized {
+			c.Header("WWW-Authenticate", "Bearer")
+		}
+
 		c.JSON(reqErr.Status, response)
 	} else {
 		c.JSON(http.StatusInternalServerError, Error{

@@ -899,6 +899,7 @@ func (h *Handlers) Me(c *gin.Context) {
 	// If full user not available, try to get userName from JWT middleware context
 	userNameInterface, exists := c.Get("userName")
 	if !exists {
+		c.Header("WWW-Authenticate", "Bearer")
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "User not authenticated",
 		})
@@ -907,6 +908,7 @@ func (h *Handlers) Me(c *gin.Context) {
 
 	userName, ok := userNameInterface.(string)
 	if !ok || userName == "" {
+		c.Header("WWW-Authenticate", "Bearer")
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "Invalid user context",
 		})

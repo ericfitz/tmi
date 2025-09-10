@@ -1331,6 +1331,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 		if userNameLegacy, exists := c.Get("user_name_legacy"); exists {
 			userID = userNameLegacy
 		} else {
+			c.Header("WWW-Authenticate", "Bearer")
 			c.JSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
 				ErrorDescription: "User not authenticated",
@@ -1341,6 +1342,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 
 	userIDStr, ok := userID.(string)
 	if !ok || userIDStr == "" {
+		c.Header("WWW-Authenticate", "Bearer")
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:            "unauthorized",
 			ErrorDescription: "Invalid user authentication",

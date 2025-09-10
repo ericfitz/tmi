@@ -35,6 +35,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 	// Get user information from JWT context
 	userEmailInterface, exists := c.Get("userEmail")
 	if !exists {
+		c.Header("WWW-Authenticate", "Bearer")
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:            "unauthorized",
 			ErrorDescription: "User not authenticated",

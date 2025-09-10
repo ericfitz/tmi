@@ -40,6 +40,7 @@ func (m *Middleware) AuthRequired() gin.HandlerFunc {
 		// Extract the token from the Authorization header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Authorization header is required",
 			})
@@ -49,6 +50,7 @@ func (m *Middleware) AuthRequired() gin.HandlerFunc {
 		// Check if the Authorization header has the correct format
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Authorization header format must be Bearer {token}",
 			})
@@ -59,6 +61,7 @@ func (m *Middleware) AuthRequired() gin.HandlerFunc {
 		tokenString := parts[1]
 		claims, err := m.service.ValidateToken(tokenString)
 		if err != nil {
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": fmt.Sprintf("Invalid token: %v", err),
 			})
@@ -107,6 +110,7 @@ func (m *Middleware) RequireRole(role string) gin.HandlerFunc {
 		// Get the user from the context
 		_, exists := c.Get(string(UserContextKey))
 		if !exists {
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "User not found in context",
 			})
@@ -125,6 +129,7 @@ func (m *Middleware) RequireOwner() gin.HandlerFunc {
 		// Get the user from the context
 		_, exists := c.Get(string(UserContextKey))
 		if !exists {
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "User not found in context",
 			})
@@ -143,6 +148,7 @@ func (m *Middleware) RequireWriter() gin.HandlerFunc {
 		// Get the user from the context
 		_, exists := c.Get(string(UserContextKey))
 		if !exists {
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "User not found in context",
 			})
@@ -161,6 +167,7 @@ func (m *Middleware) RequireReader() gin.HandlerFunc {
 		// Get the user from the context
 		_, exists := c.Get(string(UserContextKey))
 		if !exists {
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "User not found in context",
 			})
@@ -243,6 +250,7 @@ func (m *Middleware) RequireAdminAuthAPI(cfg *config.Config) gin.HandlerFunc {
 		// Extract the token from the Authorization header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Authorization header is required",
 			})
@@ -252,6 +260,7 @@ func (m *Middleware) RequireAdminAuthAPI(cfg *config.Config) gin.HandlerFunc {
 		// Check if the Authorization header has the correct format
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Authorization header format must be Bearer {token}",
 			})
@@ -262,6 +271,7 @@ func (m *Middleware) RequireAdminAuthAPI(cfg *config.Config) gin.HandlerFunc {
 		tokenString := parts[1]
 		claims, err := m.service.ValidateToken(tokenString)
 		if err != nil {
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": fmt.Sprintf("Invalid token: %v", err),
 			})

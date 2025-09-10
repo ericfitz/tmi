@@ -201,6 +201,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		userID, exists := c.Get("userEmail")
 		if !exists {
 			logger.Warn("Authentication required but userEmail not found in context for path: %s", c.Request.URL.Path)
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
 				ErrorDescription: "Authentication required",
@@ -211,6 +212,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		userEmail, ok := userID.(string)
 		if !ok || userEmail == "" {
 			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
 				ErrorDescription: "Invalid authentication",
@@ -337,6 +339,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 		userID, exists := c.Get("userEmail")
 		if !exists {
 			logger.Warn("Authentication required but userEmail not found in context for path: %s", c.Request.URL.Path)
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
 				ErrorDescription: "Authentication required",
@@ -347,6 +350,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 		userEmail, ok := userID.(string)
 		if !ok || userEmail == "" {
 			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
 				ErrorDescription: "Invalid authentication",
@@ -610,6 +614,7 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 		userID, exists := c.Get("userEmail")
 		if !exists {
 			logger.Warn("Authentication required but userEmail not found in context for path: %s", c.Request.URL.Path)
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
 				ErrorDescription: "Authentication required",
@@ -620,6 +625,7 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 		userEmail, ok := userID.(string)
 		if !ok || userEmail == "" {
 			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
+			c.Header("WWW-Authenticate", "Bearer")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
 				Error:            "unauthorized",
 				ErrorDescription: "Invalid authentication",
