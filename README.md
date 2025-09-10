@@ -20,6 +20,9 @@ The associated Angular/Typescript front-end web application is called [TMI-UX](h
 
 - Go 1.24+
 - golangci-lint (for linting)
+- git
+- make
+- Docker Desktop (to run the database & redis containers)
 
 ### Installation
 
@@ -33,10 +36,10 @@ go mod download
 
 ```bash
 make build-server
-./bin/server
+make dev
 ```
 
-The server will start on port 8080 by default.
+The server will start on port 8080 by default. The first time you run it, it has to download, create, and start the database and redis containers. This might time out on slow machines; run it again if so. Subsequent runs will not require this.
 
 ## Project Structure
 

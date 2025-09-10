@@ -28,9 +28,10 @@ TMI is a Go-based web application that provides collaborative threat modeling ca
 
 ### Development/Build Environment
 
-- Go 1.21 or later
+- Go 1.24 or later
 - Git
-- Make (optional, for using Makefile targets)
+- Make (server is managed via makefile targets, e.g. "make dev")
+- Docker (I use Docker desktop locally on my Mac)
 
 ### Runtime Environment
 
@@ -43,26 +44,53 @@ TMI is a Go-based web application that provides collaborative threat modeling ca
 ### Network & Security
 
 - Inbound access on configured port (default 8080)
+  - in dev environments just use locally; no need for firewall reconfiguration
 - Outbound HTTPS access to OAuth providers
 - Database and Redis connectivity
+  - in dev enviroments, just run docker desktop and the make file can set up the containers for you
 - Domain name with DNS (for production)
+  - not needed for dev environments
 
 ## Building
 
-### Development Build
+### Environment
+
+Either use the test OAuth provider (enabled by default in dev builds), or set up OAuth. For OAuth you will need a client ID and a client secret, available from your OAuth provider, and you'll need to configure the callback URL to: http://localhost:8080/oauth2/callback
+
+(Home page URL in development environment is http://localhost:4200)
+
+GitHub: https://github.com/settings/developers - create an application
+Google:
+
+- create a Google Cloud project
+- navigate to https://console.cloud.google.com/auth/clients
+- create a new client
+  - Application type: web application
+  - Add the callback URL http://localhost:8080/oauth2/callback
+  - Save your creds json file or copy the client ID and client secret
+  - Navigate to the "audience" page on the left and add your gmail account as a test account
+
+### Development Environment
 
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd tmi
-
-# Build the server
-make build-server
-# or
-go build -o bin/server cmd/server/main.go
 ```
 
-### Production Build
+- [Install Go](https://go.dev/doc/install) 1.24 or later
+- Copy config-example.yml to config-development.yml
+- Modify config-development.yml with your OAuth client information, above
+
+### Build the server
+
+`make build-server`
+
+### Create the development containers and start the app
+
+`make dev`
+
+### Production Build (don't do this at this time)
 
 ```bash
 # Build with optimizations
@@ -73,7 +101,7 @@ GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o tmi-server-linux-amd64 cmd/
 GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o tmi-server-windows-amd64.exe cmd/server/main.go
 ```
 
-### Docker Build
+### Docker Build (Don't use this at this time)
 
 ```dockerfile
 # Dockerfile
