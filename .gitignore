@@ -40,6 +40,8 @@
 !.claude/**
 !.claude/agents/*.md
 !.claude/tools/*.json
+!pages/
+!pages/**
 
 # Explicitly ignore unwanted files and directories
 *.log
