@@ -17,8 +17,9 @@ import (
 
 // Service provides authentication and authorization functionality
 type Service struct {
-	dbManager *db.Manager
-	config    Config
+	dbManager  *db.Manager
+	config     Config
+	keyManager *JWTKeyManager
 }
 
 // NewService creates a new authentication service
@@ -31,10 +32,22 @@ func NewService(dbManager *db.Manager, config Config) (*Service, error) {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
+	// Initialize JWT key manager
+	keyManager, err := NewJWTKeyManager(config.JWT)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize JWT key manager: %w", err)
+	}
+
 	return &Service{
-		dbManager: dbManager,
-		config:    config,
+		dbManager:  dbManager,
+		config:     config,
+		keyManager: keyManager,
 	}, nil
+}
+
+// GetKeyManager returns the JWT key manager (getter for unexported field)
+func (s *Service) GetKeyManager() *JWTKeyManager {
+	return s.keyManager
 }
 
 // User represents a user in the system
@@ -130,11 +143,10 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		},
 	}
 
-	// Create the JWT token
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(s.config.JWT.Secret))
+	// Create the JWT token using the key manager
+	tokenString, err := s.keyManager.CreateToken(claims)
 	if err != nil {
-		return TokenPair{}, fmt.Errorf("failed to sign token: %w", err)
+		return TokenPair{}, fmt.Errorf("failed to create token: %w", err)
 	}
 
 	// Generate a refresh token
@@ -159,17 +171,11 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 
 // ValidateToken validates a JWT token
 func (s *Service) ValidateToken(tokenString string) (*Claims, error) {
-	// Parse the token
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		// Validate the signing method
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(s.config.JWT.Secret), nil
-	})
-
+	// Use the key manager to verify the token
+	claims := &Claims{}
+	token, err := s.keyManager.VerifyToken(tokenString, claims)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse token: %w", err)
+		return nil, fmt.Errorf("failed to verify token: %w", err)
 	}
 
 	// Validate the token

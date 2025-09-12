@@ -24,8 +24,15 @@ func TestTokenBlacklist(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
+	// Create test key manager
+	testKeyManager, err := NewJWTKeyManager(JWTConfig{
+		SigningMethod: "HS256",
+		Secret:        "test-secret",
+	})
+	require.NoError(t, err)
+
 	// Create token blacklist
-	tb := NewTokenBlacklist(rdb, []byte("test-secret"))
+	tb := NewTokenBlacklist(rdb, testKeyManager)
 	ctx := context.Background()
 
 	t.Run("BlacklistValidToken", func(t *testing.T) {
@@ -144,8 +151,15 @@ func TestNewTokenBlacklist(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
+	// Create test key manager
+	testKeyManager, err := NewJWTKeyManager(JWTConfig{
+		SigningMethod: "HS256",
+		Secret:        "test-secret",
+	})
+	require.NoError(t, err)
+
 	// Create token blacklist
-	tb := NewTokenBlacklist(rdb, []byte("test-secret"))
+	tb := NewTokenBlacklist(rdb, testKeyManager)
 
 	assert.NotNil(t, tb)
 	assert.Equal(t, rdb, tb.redis)

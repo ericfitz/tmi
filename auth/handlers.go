@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -34,6 +36,11 @@ func NewHandlers(service *Service, config Config) *Handlers {
 		service: service,
 		config:  config,
 	}
+}
+
+// Service returns the auth service (getter for unexported field)
+func (h *Handlers) Service() *Service {
+	return h.service
 }
 
 // RegisterRoutes registers the authentication routes
@@ -837,19 +844,14 @@ func (h *Handlers) Logout(c *gin.Context) {
 		if len(parts) == 2 && parts[0] == "Bearer" {
 			tokenStr := parts[1]
 
-			// Validate token format and signature
-			token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
-				// Verify signing method
-				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-				}
-				return []byte(h.service.config.JWT.Secret), nil
-			})
+			// Validate token format and signature using centralized JWT verification
+			claims := jwt.MapClaims{}
+			token, err := h.service.GetKeyManager().VerifyToken(tokenStr, claims)
 			if err == nil && token.Valid {
 				// Try to blacklist the JWT token if blacklist service is available
 				// We'll use the database manager to access Redis for token blacklisting
 				if h.service != nil && h.service.dbManager != nil && h.service.dbManager.Redis() != nil {
-					blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), []byte(h.service.config.JWT.Secret))
+					blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), h.service.GetKeyManager())
 					if err := blacklist.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
 						logging.Get().WithContext(c).Error("Failed to blacklist JWT token during logout (token prefix: %.10s...): %v", tokenStr, err)
 						c.JSON(http.StatusInternalServerError, gin.H{
@@ -1231,29 +1233,97 @@ type JWK struct {
 	Use       string `json:"use"`
 	KeyID     string `json:"kid"`
 	Algorithm string `json:"alg"`
-	N         string `json:"n,omitempty"` // RSA modulus
-	E         string `json:"e,omitempty"` // RSA exponent
+	// RSA parameters
+	N string `json:"n,omitempty"` // RSA modulus
+	E string `json:"e,omitempty"` // RSA exponent
+	// ECDSA parameters
+	Curve string `json:"crv,omitempty"` // Elliptic curve
+	X     string `json:"x,omitempty"`   // X coordinate
+	Y     string `json:"y,omitempty"`   // Y coordinate
+}
+
+// createJWKFromPublicKey creates a JWK from a public key
+func (h *Handlers) createJWKFromPublicKey(publicKey interface{}, signingMethod string) (*JWK, error) {
+	jwk := &JWK{
+		Use:       "sig",
+		KeyID:     "key-1", // Simple key ID, could be made configurable
+		Algorithm: signingMethod,
+	}
+
+	switch key := publicKey.(type) {
+	case *rsa.PublicKey:
+		jwk.KeyType = "RSA"
+		// Encode RSA modulus and exponent in base64url format
+		jwk.N = base64URLEncode(key.N.Bytes())
+		jwk.E = base64URLEncode(intToBytes(key.E))
+
+	case *ecdsa.PublicKey:
+		jwk.KeyType = "EC"
+		// Determine the curve name
+		switch key.Curve.Params().Name {
+		case "P-256":
+			jwk.Curve = "P-256"
+		case "P-384":
+			jwk.Curve = "P-384"
+		case "P-521":
+			jwk.Curve = "P-521"
+		default:
+			return nil, fmt.Errorf("unsupported ECDSA curve: %s", key.Curve.Params().Name)
+		}
+
+		// Get coordinate byte length for the curve
+		byteLen := (key.Curve.Params().BitSize + 7) / 8
+
+		// Encode X and Y coordinates
+		jwk.X = base64URLEncode(key.X.FillBytes(make([]byte, byteLen)))
+		jwk.Y = base64URLEncode(key.Y.FillBytes(make([]byte, byteLen)))
+
+	default:
+		return nil, fmt.Errorf("unsupported public key type: %T", publicKey)
+	}
+
+	return jwk, nil
+}
+
+// Helper functions for JWK creation
+func base64URLEncode(data []byte) string {
+	return base64.RawURLEncoding.EncodeToString(data)
+}
+
+func intToBytes(i int) []byte {
+	// Convert int to big-endian bytes
+	if i == 0 {
+		return []byte{0}
+	}
+
+	var bytes []byte
+	for i > 0 {
+		bytes = append([]byte{byte(i)}, bytes...)
+		i >>= 8
+	}
+	return bytes
 }
 
 // GetJWKS returns the JSON Web Key Set for JWT signature verification
 func (h *Handlers) GetJWKS(c *gin.Context) {
-	// For now, return empty key set since we're using HMAC (symmetric) keys
-	// In a production environment, you would expose RSA public keys here
 	jwks := JWKSResponse{
 		Keys: []JWK{},
 	}
 
-	// TODO: When implementing RSA signatures, add public keys here
-	// Example for RSA keys:
-	// jwks.Keys = append(jwks.Keys, JWK{
-	//     KeyType:   "RSA",
-	//     Use:       "sig",
-	//     KeyID:     "key-id-1",
-	//     Algorithm: "RS256",
-	//     N:         base64URLEncode(publicKey.N.Bytes()),
-	//     E:         base64URLEncode(big.NewInt(int64(publicKey.E)).Bytes()),
-	// })
+	// Get public key from the key manager
+	publicKey := h.service.keyManager.GetPublicKey()
+	if publicKey != nil {
+		jwk, err := h.createJWKFromPublicKey(publicKey, h.service.keyManager.GetSigningMethod())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to create JWK",
+			})
+			return
+		}
+		jwks.Keys = append(jwks.Keys, *jwk)
+	}
 
+	// Cache the response for 1 hour since keys don't change frequently
 	c.Header("Cache-Control", "public, max-age=3600")
 	c.JSON(http.StatusOK, jwks)
 }
@@ -1455,15 +1525,9 @@ func (h *Handlers) IntrospectToken(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate the JWT token
-	token, err := jwt.Parse(req.Token, func(token *jwt.Token) (interface{}, error) {
-		// Validate the signing method
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		// Return the secret key used to sign the token
-		return []byte(h.service.config.JWT.Secret), nil
-	})
+	// Parse and validate the JWT token using centralized verification
+	claims := jwt.MapClaims{}
+	token, err := h.service.GetKeyManager().VerifyToken(req.Token, claims)
 
 	// If token parsing failed or token is invalid, return inactive
 	if err != nil || !token.Valid {
@@ -1484,7 +1548,7 @@ func (h *Handlers) IntrospectToken(c *gin.Context) {
 
 	// Check if token is blacklisted (if blacklist service is available)
 	if h.service.dbManager != nil && h.service.dbManager.Redis() != nil {
-		blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), []byte(h.service.config.JWT.Secret))
+		blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), h.service.GetKeyManager())
 		isBlacklisted, err := blacklist.IsTokenBlacklisted(c.Request.Context(), req.Token)
 		if err == nil && isBlacklisted {
 			c.JSON(http.StatusOK, TokenIntrospectionResponse{

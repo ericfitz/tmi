@@ -31,10 +31,33 @@ type Server struct {
 	// Token blacklist for logout functionality
 	tokenBlacklist *auth.TokenBlacklist
 
+	// Auth handlers for JWT verification
+	authHandlers *auth.Handlers
+
 	// API server instance with WebSocket hub
 	apiServer *api.Server
 
 	// Add other dependencies like database clients, services, etc.
+}
+
+// verifyJWTToken verifies a JWT token using the centralized auth service
+func (s *Server) verifyJWTToken(tokenString string) (*jwt.Token, jwt.MapClaims, error) {
+	if s.authHandlers == nil {
+		return nil, nil, fmt.Errorf("auth handlers not available")
+	}
+
+	// Use the auth service's key manager for verification
+	claims := jwt.MapClaims{}
+	token, err := s.authHandlers.Service().GetKeyManager().VerifyToken(tokenString, claims)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !token.Valid {
+		return nil, nil, fmt.Errorf("token is not valid")
+	}
+
+	return token, claims, nil
 }
 
 // HTTPSRedirectMiddleware redirects HTTP requests to HTTPS when TLS is enabled
@@ -283,15 +306,9 @@ func (s *Server) PostAuthLogout(c *gin.Context) {
 	tokenStr := parts[1]
 
 	// Validate token format and signature before attempting to blacklist
-	// Parse the token with signature verification
-	token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
-		// Verify signing method
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(s.config.Auth.JWT.Secret), nil
-	})
-	if err != nil || !token.Valid {
+	// Use centralized JWT verification
+	_, _, err := s.verifyJWTToken(tokenStr)
+	if err != nil {
 		logger.Warn("Logout attempted with invalid token: %v", err)
 		c.JSON(http.StatusUnauthorized, api.Error{
 			Error:            "unauthorized",
@@ -343,14 +360,9 @@ func (s *Server) LogoutUser(c *gin.Context) {
 	tokenStr := parts[1]
 
 	// Validate token format and signature before attempting to blacklist
-	token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
-		// Verify signing method
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(s.config.Auth.JWT.Secret), nil
-	})
-	if err != nil || !token.Valid {
+	// Use centralized JWT verification
+	_, _, err := s.verifyJWTToken(tokenStr)
+	if err != nil {
 		c.JSON(http.StatusUnauthorized, api.Error{
 			Error:            "unauthorized",
 			ErrorDescription: "Invalid or malformed token",
@@ -980,8 +992,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 
 	// Setup server with handlers
 	server := &Server{
-		config:    config,
-		apiServer: apiServer,
+		config:       config,
+		authHandlers: authHandlers,
+		apiServer:    apiServer,
 	}
 
 	// Set up auth service adapter for OpenAPI integration
@@ -997,7 +1010,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Note: dbManager was already retrieved during store initialization
 	if dbManager != nil && dbManager.Redis() != nil {
 		logger.Info("Initializing token blacklist service")
-		server.tokenBlacklist = auth.NewTokenBlacklist(dbManager.Redis().GetClient(), []byte(config.Auth.JWT.Secret))
+		server.tokenBlacklist = auth.NewTokenBlacklist(dbManager.Redis().GetClient(), authHandlers.Service().GetKeyManager())
 	} else {
 		logger.Warn("Redis not available - token blacklist service disabled")
 	}

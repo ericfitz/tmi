@@ -52,13 +52,13 @@ func (t *TokenExtractor) ExtractToken(c *gin.Context) (string, error) {
 
 // TokenValidator handles JWT token validation
 type TokenValidator struct {
-	jwtSecret []byte
+	authHandlers *auth.Handlers
 }
 
 // NewTokenValidator creates a new token validator
-func NewTokenValidator(cfg *config.Config) *TokenValidator {
+func NewTokenValidator(authHandlers *auth.Handlers) *TokenValidator {
 	return &TokenValidator{
-		jwtSecret: []byte(cfg.Auth.JWT.Secret),
+		authHandlers: authHandlers,
 	}
 }
 
@@ -66,18 +66,17 @@ func NewTokenValidator(cfg *config.Config) *TokenValidator {
 func (v *TokenValidator) ValidateToken(c *gin.Context, tokenStr string) (*jwt.Token, error) {
 	logger := logging.GetContextLogger(c)
 
-	// Validate the token
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		// Verify signing method
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return v.jwtSecret, nil
-	})
+	if v.authHandlers == nil {
+		logger.Error("Auth handlers not available for token validation")
+		return nil, fmt.Errorf("auth handlers not available")
+	}
 
-	if err != nil || !token.Valid {
+	// Use the centralized JWT verification
+	claims := jwt.MapClaims{}
+	token, err := v.authHandlers.Service().GetKeyManager().VerifyToken(tokenStr, claims)
+	if err != nil {
 		logger.Warn("Authentication failed: Invalid or expired token - %v", err)
-		return nil, fmt.Errorf("invalid or expired token")
+		return nil, fmt.Errorf("invalid or expired token: %w", err)
 	}
 
 	return token, nil
@@ -222,7 +221,7 @@ type JWTAuthenticator struct {
 func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers) *JWTAuthenticator {
 	return &JWTAuthenticator{
 		tokenExtractor:   &TokenExtractor{},
-		tokenValidator:   NewTokenValidator(cfg),
+		tokenValidator:   NewTokenValidator(authHandlers),
 		blacklistChecker: NewTokenBlacklistChecker(tokenBlacklist),
 		claimsExtractor:  NewClaimsExtractor(authHandlers, cfg),
 	}

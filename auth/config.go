@@ -37,9 +37,19 @@ type RedisConfig struct {
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
-	Secret            string
+	Secret            string // Used for HS256
 	ExpirationSeconds int
-	SigningMethod     string
+	SigningMethod     string // HS256, RS256, ES256
+	// RSA Keys (for RS256)
+	RSAPrivateKeyPath string // Path to RSA private key file
+	RSAPublicKeyPath  string // Path to RSA public key file
+	RSAPrivateKey     string // RSA private key as string (alternative to file path)
+	RSAPublicKey      string // RSA public key as string (alternative to file path)
+	// ECDSA Keys (for ES256)
+	ECDSAPrivateKeyPath string // Path to ECDSA private key file
+	ECDSAPublicKeyPath  string // Path to ECDSA public key file
+	ECDSAPrivateKey     string // ECDSA private key as string (alternative to file path)
+	ECDSAPublicKey      string // ECDSA public key as string (alternative to file path)
 }
 
 // OAuthConfig holds OAuth configuration
@@ -101,9 +111,17 @@ func LoadConfig() (Config, error) {
 			DB:       redisDB,
 		},
 		JWT: JWTConfig{
-			Secret:            getEnv("JWT_SECRET", "your-secret-key"),
-			ExpirationSeconds: jwtExpiration,
-			SigningMethod:     getEnv("JWT_SIGNING_METHOD", "HS256"),
+			Secret:              getEnv("JWT_SECRET", "your-secret-key"),
+			ExpirationSeconds:   jwtExpiration,
+			SigningMethod:       getEnv("JWT_SIGNING_METHOD", "HS256"),
+			RSAPrivateKeyPath:   getEnv("JWT_RSA_PRIVATE_KEY_PATH", ""),
+			RSAPublicKeyPath:    getEnv("JWT_RSA_PUBLIC_KEY_PATH", ""),
+			RSAPrivateKey:       getEnv("JWT_RSA_PRIVATE_KEY", ""),
+			RSAPublicKey:        getEnv("JWT_RSA_PUBLIC_KEY", ""),
+			ECDSAPrivateKeyPath: getEnv("JWT_ECDSA_PRIVATE_KEY_PATH", ""),
+			ECDSAPublicKeyPath:  getEnv("JWT_ECDSA_PUBLIC_KEY_PATH", ""),
+			ECDSAPrivateKey:     getEnv("JWT_ECDSA_PRIVATE_KEY", ""),
+			ECDSAPublicKey:      getEnv("JWT_ECDSA_PUBLIC_KEY", ""),
 		},
 		OAuth: OAuthConfig{
 			CallbackURL: getEnv("OAUTH_CALLBACK_URL", "http://localhost:8080/oauth2/callback"),
@@ -264,11 +282,28 @@ func (c *Config) ValidateConfig() error {
 	}
 
 	// Validate JWT configuration
-	if c.JWT.Secret == "" || c.JWT.Secret == "your-secret-key" {
-		return fmt.Errorf("jwt secret is required and should not be the default value")
-	}
 	if c.JWT.ExpirationSeconds <= 0 {
 		return fmt.Errorf("jwt expiration must be greater than 0")
+	}
+
+	// Validate signing method and required keys
+	switch c.JWT.SigningMethod {
+	case "HS256":
+		if c.JWT.Secret == "" || c.JWT.Secret == "your-secret-key" {
+			return fmt.Errorf("jwt secret is required and should not be the default value for HS256")
+		}
+	case "RS256":
+		if (c.JWT.RSAPrivateKeyPath == "" && c.JWT.RSAPrivateKey == "") ||
+			(c.JWT.RSAPublicKeyPath == "" && c.JWT.RSAPublicKey == "") {
+			return fmt.Errorf("rsa private and public keys are required for RS256 (provide either key paths or key content)")
+		}
+	case "ES256":
+		if (c.JWT.ECDSAPrivateKeyPath == "" && c.JWT.ECDSAPrivateKey == "") ||
+			(c.JWT.ECDSAPublicKeyPath == "" && c.JWT.ECDSAPublicKey == "") {
+			return fmt.Errorf("ecdsa private and public keys are required for ES256 (provide either key paths or key content)")
+		}
+	default:
+		return fmt.Errorf("unsupported jwt signing method: %s (supported: HS256, RS256, ES256)", c.JWT.SigningMethod)
 	}
 
 	// Validate OAuth configuration

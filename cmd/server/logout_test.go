@@ -33,7 +33,14 @@ func TestLogoutEndpoint(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
-	tokenBlacklist := auth.NewTokenBlacklist(rdb, []byte("test-secret-key"))
+	// Create test key manager
+	testKeyManager, err := auth.NewJWTKeyManager(auth.JWTConfig{
+		SigningMethod: "HS256",
+		Secret:        "test-secret-key",
+	})
+	require.NoError(t, err)
+
+	tokenBlacklist := auth.NewTokenBlacklist(rdb, testKeyManager)
 
 	// Create test configuration
 	cfg := &config.Config{
