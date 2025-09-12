@@ -579,7 +579,9 @@ func (s *ThreatModelDatabaseStore) loadMetadata(threatModelId string) ([]Metadat
 
 func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, error) {
 	query := `
-		SELECT id, name, description, severity, mitigation, created_at, modified_at
+		SELECT id, name, description, severity, mitigation, diagram_id, cell_id, 
+		       priority, mitigated, status, threat_type, score, issue_url, metadata,
+		       created_at, modified_at
 		FROM threats 
 		WHERE threat_model_id = $1`
 
@@ -597,11 +599,18 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 	var threats []Threat
 	for rows.Next() {
 		var id, threatModelUuid uuid.UUID
-		var name string
+		var name, priority, status, threatType string
 		var description, severityStr, mitigation *string
+		var diagramIdStr, cellIdStr *string
+		var issueUrl *string
+		var score *float64
+		var mitigated bool
+		var metadataJSON *string
 		var createdAt, modifiedAt time.Time
 
-		if err := rows.Scan(&id, &name, &description, &severityStr, &mitigation, &createdAt, &modifiedAt); err != nil {
+		if err := rows.Scan(&id, &name, &description, &severityStr, &mitigation, &diagramIdStr, &cellIdStr,
+			&priority, &mitigated, &status, &threatType, &score, &issueUrl, &metadataJSON,
+			&createdAt, &modifiedAt); err != nil {
 			continue
 		}
 
@@ -614,19 +623,53 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 			severity = ThreatSeverity(*severityStr)
 		}
 
+		// Convert diagram_id and cell_id from strings to UUIDs
+		var diagramId, cellId *uuid.UUID
+		if diagramIdStr != nil && *diagramIdStr != "" {
+			if diagId, err := uuid.Parse(*diagramIdStr); err == nil {
+				diagramId = &diagId
+			}
+		}
+		if cellIdStr != nil && *cellIdStr != "" {
+			if cId, err := uuid.Parse(*cellIdStr); err == nil {
+				cellId = &cId
+			}
+		}
+
+		// Convert score from float64 to float32
+		var scoreFloat32 *float32
+		if score != nil {
+			score32 := float32(*score)
+			scoreFloat32 = &score32
+		}
+
+		// Parse metadata JSON
+		var metadata *[]Metadata
+		if metadataJSON != nil && *metadataJSON != "" {
+			var metadataSlice []Metadata
+			if err := json.Unmarshal([]byte(*metadataJSON), &metadataSlice); err == nil {
+				metadata = &metadataSlice
+			}
+		}
+
 		threats = append(threats, Threat{
 			Id:            &id,
 			Name:          name,
 			Description:   description,
 			Severity:      severity,
 			Mitigation:    mitigation,
+			DiagramId:     diagramId,
+			CellId:        cellId,
+			Priority:      priority,
+			Mitigated:     mitigated,
+			Status:        status,
+			ThreatType:    threatType,
+			Score:         scoreFloat32,
+			IssueUrl:      issueUrl,
+			Metadata:      metadata,
 			CreatedAt:     &createdAt,
 			ModifiedAt:    &modifiedAt,
 			ThreatModelId: &threatModelUuid,
-			Priority:      "Medium", // default
-			Status:        "Open",   // default
-			ThreatType:    "",       // default
-			Mitigated:     false,    // default
 		})
 	}
 
