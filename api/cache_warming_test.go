@@ -54,7 +54,7 @@ type TestCacheWarmer struct {
 
 // Override cache-dependent methods to use mock instead
 func (tcw *TestCacheWarmer) warmThreatsForThreatModel(ctx context.Context, threatModelID string) error {
-	threats, err := tcw.threatStore.List(ctx, threatModelID, 0, 100)
+	threats, err := tcw.threatStore.ListSimple(ctx, threatModelID, 0, 100)
 	if err != nil {
 		return fmt.Errorf("failed to list threats: %w", err)
 	}

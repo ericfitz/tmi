@@ -71,7 +71,7 @@ func (h *ThreatSubResourceHandler) GetThreats(c *gin.Context) {
 		threatModelID, userEmail, offset, limit)
 
 	// Get threats from store (authorization is handled by middleware)
-	threats, err := h.threatStore.List(c.Request.Context(), threatModelID, offset, limit)
+	threats, err := h.threatStore.ListSimple(c.Request.Context(), threatModelID, offset, limit)
 	if err != nil {
 		logger.Error("Failed to retrieve threats: %v", err)
 		HandleRequestError(c, ServerError("Failed to retrieve threats"))
@@ -79,6 +79,133 @@ func (h *ThreatSubResourceHandler) GetThreats(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully retrieved %d threats", len(threats))
+	c.JSON(http.StatusOK, threats)
+}
+
+// GetThreatsWithFilters retrieves all threats for a threat model with advanced filtering
+// GET /threat_models/{threat_model_id}/threats with query parameters
+func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params GetThreatModelThreatsParams) {
+	logger := logging.GetContextLogger(c)
+	logger.Debug("GetThreatsWithFilters - retrieving threats with advanced filtering")
+
+	// Extract threat model ID from URL
+	threatModelID := c.Param("threat_model_id")
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+
+	// Validate threat model ID format
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user (should be set by middleware)
+	userEmail, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Build filter from parameters
+	filter := ThreatFilter{
+		Offset: 0,
+		Limit:  20, // defaults
+	}
+
+	// Set pagination parameters
+	if params.Limit != nil {
+		if *params.Limit < 1 || *params.Limit > 100 {
+			HandleRequestError(c, InvalidInputError("Limit must be between 1 and 100"))
+			return
+		}
+		filter.Limit = *params.Limit
+	}
+
+	if params.Offset != nil {
+		if *params.Offset < 0 {
+			HandleRequestError(c, InvalidInputError("Offset must be non-negative"))
+			return
+		}
+		filter.Offset = *params.Offset
+	}
+
+	// Set filtering parameters
+	if params.Name != nil {
+		filter.Name = params.Name
+	}
+	if params.Description != nil {
+		filter.Description = params.Description
+	}
+	if params.ThreatType != nil {
+		filter.ThreatType = params.ThreatType
+	}
+	if params.Severity != nil {
+		severity := ThreatSeverity(string(*params.Severity))
+		filter.Severity = &severity
+	}
+	if params.Priority != nil {
+		filter.Priority = params.Priority
+	}
+	if params.Status != nil {
+		filter.Status = params.Status
+	}
+	if params.DiagramId != nil {
+		filter.DiagramID = (*uuid.UUID)(params.DiagramId)
+	}
+	if params.CellId != nil {
+		filter.CellID = (*uuid.UUID)(params.CellId)
+	}
+
+	// Set score comparison parameters
+	if params.ScoreGt != nil {
+		filter.ScoreGT = params.ScoreGt
+	}
+	if params.ScoreLt != nil {
+		filter.ScoreLT = params.ScoreLt
+	}
+	if params.ScoreEq != nil {
+		filter.ScoreEQ = params.ScoreEq
+	}
+	if params.ScoreGe != nil {
+		filter.ScoreGE = params.ScoreGe
+	}
+	if params.ScoreLe != nil {
+		filter.ScoreLE = params.ScoreLe
+	}
+
+	// Set date parameters
+	if params.CreatedAfter != nil {
+		filter.CreatedAfter = params.CreatedAfter
+	}
+	if params.CreatedBefore != nil {
+		filter.CreatedBefore = params.CreatedBefore
+	}
+	if params.ModifiedAfter != nil {
+		filter.ModifiedAfter = params.ModifiedAfter
+	}
+	if params.ModifiedBefore != nil {
+		filter.ModifiedBefore = params.ModifiedBefore
+	}
+
+	// Set sorting parameter
+	if params.Sort != nil {
+		filter.Sort = params.Sort
+	}
+
+	logger.Debug("Retrieving threats for threat model %s (user: %s) with filters",
+		threatModelID, userEmail)
+
+	// Get threats from store with filtering
+	threats, err := h.threatStore.List(c.Request.Context(), threatModelID, filter)
+	if err != nil {
+		logger.Error("Failed to retrieve threats with filters: %v", err)
+		HandleRequestError(c, ServerError("Failed to retrieve threats"))
+		return
+	}
+
+	logger.Debug("Successfully retrieved %d threats with filters", len(threats))
 	c.JSON(http.StatusOK, threats)
 }
 

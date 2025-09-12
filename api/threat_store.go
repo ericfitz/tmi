@@ -12,6 +12,37 @@ import (
 	"github.com/google/uuid"
 )
 
+// ThreatFilter defines filtering criteria for threats
+type ThreatFilter struct {
+	// Basic filters
+	Name        *string
+	Description *string
+	ThreatType  *string
+	Severity    *ThreatSeverity
+	Priority    *string
+	Status      *string
+	DiagramID   *uuid.UUID
+	CellID      *uuid.UUID
+
+	// Score comparison filters
+	ScoreGT *float32
+	ScoreLT *float32
+	ScoreEQ *float32
+	ScoreGE *float32
+	ScoreLE *float32
+
+	// Date filters
+	CreatedAfter   *time.Time
+	CreatedBefore  *time.Time
+	ModifiedAfter  *time.Time
+	ModifiedBefore *time.Time
+
+	// Sorting and pagination
+	Sort   *string
+	Offset int
+	Limit  int
+}
+
 // normalizeSeverity converts severity values to the standardized case-sensitive format
 func normalizeSeverity(severity ThreatSeverity) ThreatSeverity {
 	switch strings.ToLower(string(severity)) {
@@ -41,8 +72,10 @@ type ThreatStore interface {
 	Update(ctx context.Context, threat *Threat) error
 	Delete(ctx context.Context, id string) error
 
-	// List operations with pagination
-	List(ctx context.Context, threatModelID string, offset, limit int) ([]Threat, error)
+	// List operations with filtering, sorting and pagination
+	List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error)
+	// Legacy method for backward compatibility
+	ListSimple(ctx context.Context, threatModelID string, offset, limit int) ([]Threat, error)
 
 	// PATCH operations for granular updates
 	Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error)
@@ -417,17 +450,37 @@ func (s *DatabaseThreatStore) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// List retrieves threats for a threat model with pagination and caching
-func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Threat, error) {
-	logger := logging.Get()
-	logger.Debug("Listing threats for threat model %s (offset: %d, limit: %d)", threatModelID, offset, limit)
+// ListSimple retrieves threats for a threat model with basic pagination (backward compatibility)
+func (s *DatabaseThreatStore) ListSimple(ctx context.Context, threatModelID string, offset, limit int) ([]Threat, error) {
+	filter := ThreatFilter{
+		Offset: offset,
+		Limit:  limit,
+	}
+	return s.List(ctx, threatModelID, filter)
+}
 
-	// Try cache first
+// List retrieves threats for a threat model with advanced filtering, sorting and pagination
+func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
+	logger := logging.Get()
+	logger.Debug("Listing threats for threat model %s with advanced filters", threatModelID)
+
+	// For filtered queries, skip cache to ensure fresh results
+	// Only use cache for simple pagination-only queries
+	var useCache = (filter.Name == nil && filter.Description == nil && filter.ThreatType == nil &&
+		filter.Severity == nil && filter.Priority == nil && filter.Status == nil &&
+		filter.DiagramID == nil && filter.CellID == nil &&
+		filter.ScoreGT == nil && filter.ScoreLT == nil && filter.ScoreEQ == nil &&
+		filter.ScoreGE == nil && filter.ScoreLE == nil &&
+		filter.CreatedAfter == nil && filter.CreatedBefore == nil &&
+		filter.ModifiedAfter == nil && filter.ModifiedBefore == nil &&
+		filter.Sort == nil)
+
+	// Try cache first for simple queries
 	var threats []Threat
-	if s.cache != nil {
-		err := s.cache.GetCachedList(ctx, "threats", threatModelID, offset, limit, &threats)
+	if useCache && s.cache != nil {
+		err := s.cache.GetCachedList(ctx, "threats", threatModelID, filter.Offset, filter.Limit, &threats)
 		if err == nil && threats != nil {
-			logger.Debug("Cache hit for threat list %s [%d:%d]", threatModelID, offset, limit)
+			logger.Debug("Cache hit for threat list %s [%d:%d]", threatModelID, filter.Offset, filter.Limit)
 			return threats, nil
 		}
 		if err != nil {
@@ -435,20 +488,137 @@ func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, of
 		}
 	}
 
-	// Cache miss - get from database
-	logger.Debug("Cache miss for threat list, querying database")
-
+	// Build dynamic query with filters
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
 			   score, issue_url, diagram_id, cell_id, metadata, created_at, modified_at
 		FROM threats 
-		WHERE threat_model_id = $1
-		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3
-	`
+		WHERE threat_model_id = $1`
 
-	rows, err := s.db.QueryContext(ctx, query, threatModelID, limit, offset)
+	args := []interface{}{threatModelID}
+	argIndex := 2
+
+	// Add filters to WHERE clause
+	if filter.Name != nil {
+		query += fmt.Sprintf(" AND name ILIKE $%d", argIndex)
+		args = append(args, "%"+*filter.Name+"%")
+		argIndex++
+	}
+
+	if filter.Description != nil {
+		query += fmt.Sprintf(" AND description ILIKE $%d", argIndex)
+		args = append(args, "%"+*filter.Description+"%")
+		argIndex++
+	}
+
+	if filter.ThreatType != nil {
+		query += fmt.Sprintf(" AND threat_type = $%d", argIndex)
+		args = append(args, *filter.ThreatType)
+		argIndex++
+	}
+
+	if filter.Severity != nil {
+		query += fmt.Sprintf(" AND severity = $%d", argIndex)
+		args = append(args, string(*filter.Severity))
+		argIndex++
+	}
+
+	if filter.Priority != nil {
+		query += fmt.Sprintf(" AND priority = $%d", argIndex)
+		args = append(args, *filter.Priority)
+		argIndex++
+	}
+
+	if filter.Status != nil {
+		query += fmt.Sprintf(" AND status = $%d", argIndex)
+		args = append(args, *filter.Status)
+		argIndex++
+	}
+
+	if filter.DiagramID != nil {
+		query += fmt.Sprintf(" AND diagram_id = $%d", argIndex)
+		args = append(args, filter.DiagramID.String())
+		argIndex++
+	}
+
+	if filter.CellID != nil {
+		query += fmt.Sprintf(" AND cell_id = $%d", argIndex)
+		args = append(args, filter.CellID.String())
+		argIndex++
+	}
+
+	// Score filters
+	if filter.ScoreGT != nil {
+		query += fmt.Sprintf(" AND score > $%d", argIndex)
+		args = append(args, *filter.ScoreGT)
+		argIndex++
+	}
+
+	if filter.ScoreLT != nil {
+		query += fmt.Sprintf(" AND score < $%d", argIndex)
+		args = append(args, *filter.ScoreLT)
+		argIndex++
+	}
+
+	if filter.ScoreEQ != nil {
+		query += fmt.Sprintf(" AND score = $%d", argIndex)
+		args = append(args, *filter.ScoreEQ)
+		argIndex++
+	}
+
+	if filter.ScoreGE != nil {
+		query += fmt.Sprintf(" AND score >= $%d", argIndex)
+		args = append(args, *filter.ScoreGE)
+		argIndex++
+	}
+
+	if filter.ScoreLE != nil {
+		query += fmt.Sprintf(" AND score <= $%d", argIndex)
+		args = append(args, *filter.ScoreLE)
+		argIndex++
+	}
+
+	// Date filters
+	if filter.CreatedAfter != nil {
+		query += fmt.Sprintf(" AND created_at > $%d", argIndex)
+		args = append(args, *filter.CreatedAfter)
+		argIndex++
+	}
+
+	if filter.CreatedBefore != nil {
+		query += fmt.Sprintf(" AND created_at < $%d", argIndex)
+		args = append(args, *filter.CreatedBefore)
+		argIndex++
+	}
+
+	if filter.ModifiedAfter != nil {
+		query += fmt.Sprintf(" AND modified_at > $%d", argIndex)
+		args = append(args, *filter.ModifiedAfter)
+		argIndex++
+	}
+
+	if filter.ModifiedBefore != nil {
+		query += fmt.Sprintf(" AND modified_at < $%d", argIndex)
+		args = append(args, *filter.ModifiedBefore)
+		argIndex++
+	}
+
+	// Add ORDER BY clause
+	orderBy := "created_at DESC"
+	if filter.Sort != nil {
+		orderBy = s.buildOrderBy(*filter.Sort)
+	}
+	query += " ORDER BY " + orderBy
+
+	// Add LIMIT and OFFSET
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+	args = append(args, filter.Limit, filter.Offset)
+
+	logger.Debug("Executing threat query: %s", query)
+	logger.Debug("With args: %v", args)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		logger.Error("Failed to query threats from database: %v", err)
 		return nil, fmt.Errorf("failed to list threats: %w", err)
@@ -531,15 +701,50 @@ func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, of
 		return nil, fmt.Errorf("error iterating threats: %w", err)
 	}
 
-	// Cache the result
-	if s.cache != nil {
-		if cacheErr := s.cache.CacheList(ctx, "threats", threatModelID, offset, limit, threats); cacheErr != nil {
+	// Cache the result only for simple queries
+	if useCache && s.cache != nil {
+		if cacheErr := s.cache.CacheList(ctx, "threats", threatModelID, filter.Offset, filter.Limit, threats); cacheErr != nil {
 			logger.Error("Failed to cache threat list: %v", cacheErr)
 		}
 	}
 
 	logger.Debug("Successfully retrieved %d threats", len(threats))
 	return threats, nil
+}
+
+// buildOrderBy constructs a safe ORDER BY clause from sort parameter
+func (s *DatabaseThreatStore) buildOrderBy(sort string) string {
+	validColumns := map[string]string{
+		"name":        "name",
+		"created_at":  "created_at",
+		"modified_at": "modified_at",
+		"severity":    "severity",
+		"priority":    "priority",
+		"status":      "status",
+		"score":       "score",
+		"threat_type": "threat_type",
+	}
+
+	// Parse sort parameter (e.g., "created_at:desc" or "name:asc")
+	parts := strings.Split(sort, ":")
+	if len(parts) != 2 {
+		return "created_at DESC" // fallback to default
+	}
+
+	column, direction := parts[0], strings.ToUpper(parts[1])
+
+	// Validate column name
+	safeColumn, exists := validColumns[column]
+	if !exists {
+		return "created_at DESC" // fallback to default
+	}
+
+	// Validate direction
+	if direction != "ASC" && direction != "DESC" {
+		direction = "DESC"
+	}
+
+	return safeColumn + " " + direction
 }
 
 // Patch applies JSON patch operations to a threat
@@ -900,7 +1105,7 @@ func (s *DatabaseThreatStore) WarmCache(ctx context.Context, threatModelID strin
 	}
 
 	// Load first page of threats
-	threats, err := s.List(ctx, threatModelID, 0, 50)
+	threats, err := s.ListSimple(ctx, threatModelID, 0, 50)
 	if err != nil {
 		return fmt.Errorf("failed to warm cache: %w", err)
 	}

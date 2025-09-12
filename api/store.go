@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -408,13 +409,50 @@ func NewInMemoryThreatStore() *InMemoryThreatStore {
 	}
 }
 
-// List implements ThreatStore interface for in-memory testing
-func (s *InMemoryThreatStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Threat, error) {
+// ListSimple implements ThreatStore interface for in-memory testing (backward compatibility)
+func (s *InMemoryThreatStore) ListSimple(ctx context.Context, threatModelID string, offset, limit int) ([]Threat, error) {
 	filter := func(threat Threat) bool {
 		// Simple filtering - in real implementation this would check threat_model_id relationship
 		return true
 	}
 	return s.DataStore.List(offset, limit, filter), nil
+}
+
+// List implements ThreatStore interface for in-memory testing with advanced filtering
+func (s *InMemoryThreatStore) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
+	// For in-memory testing, apply simple filtering logic
+	filterFunc := func(threat Threat) bool {
+		// Check threat model ID
+		if threat.ThreatModelId == nil || threat.ThreatModelId.String() != threatModelID {
+			return false
+		}
+
+		// Apply name filter
+		if filter.Name != nil {
+			if threat.Name == "" || !strings.Contains(strings.ToLower(threat.Name), strings.ToLower(*filter.Name)) {
+				return false
+			}
+		}
+
+		// Apply severity filter
+		if filter.Severity != nil {
+			if string(threat.Severity) != string(*filter.Severity) {
+				return false
+			}
+		}
+
+		// Apply status filter
+		if filter.Status != nil {
+			if threat.Status != *filter.Status {
+				return false
+			}
+		}
+
+		// For testing purposes, skip complex filters like score comparisons and dates
+		return true
+	}
+
+	return s.DataStore.List(filter.Offset, filter.Limit, filterFunc), nil
 }
 
 // Create implements ThreatStore interface for in-memory testing

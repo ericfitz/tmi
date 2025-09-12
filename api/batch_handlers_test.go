@@ -33,8 +33,13 @@ func (m *MockThreatStore) Get(ctx context.Context, id string) (*Threat, error) {
 	return args.Get(0).(*Threat), args.Error(1)
 }
 
-func (m *MockThreatStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Threat, error) {
+func (m *MockThreatStore) ListSimple(ctx context.Context, threatModelID string, offset, limit int) ([]Threat, error) {
 	args := m.Called(ctx, threatModelID, offset, limit)
+	return args.Get(0).([]Threat), args.Error(1)
+}
+
+func (m *MockThreatStore) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
+	args := m.Called(ctx, threatModelID, filter)
 	return args.Get(0).([]Threat), args.Error(1)
 }
 

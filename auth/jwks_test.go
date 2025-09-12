@@ -18,7 +18,7 @@ func TestCreateJWKFromRSAPublicKey(t *testing.T) {
 	// Create test JWT config with custom Key ID
 	config := JWTConfig{
 		SigningMethod:     "RS256",
-		KeyID:            "test-key-123",
+		KeyID:             "test-key-123",
 		ExpirationSeconds: 3600,
 	}
 
@@ -71,7 +71,7 @@ func TestJWKConfigDefaults(t *testing.T) {
 	// Test loading config with defaults
 	defaultConfig, err := LoadConfig()
 	require.NoError(t, err)
-	
+
 	// Should default to "1" if not set via environment
 	assert.Equal(t, "1", defaultConfig.JWT.KeyID, "Default Key ID should be '1'")
 

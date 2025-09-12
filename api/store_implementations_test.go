@@ -442,16 +442,16 @@ func TestInMemoryThreatStore(t *testing.T) {
 		}
 
 		// Test list all
-		retrieved, err := store.List(ctx, threatModelID, 0, 10)
+		retrieved, err := store.ListSimple(ctx, threatModelID, 0, 10)
 		require.NoError(t, err)
 		assert.Len(t, retrieved, 3)
 
 		// Test pagination
-		page1, err := store.List(ctx, threatModelID, 0, 2)
+		page1, err := store.ListSimple(ctx, threatModelID, 0, 2)
 		require.NoError(t, err)
 		assert.Len(t, page1, 2)
 
-		page2, err := store.List(ctx, threatModelID, 2, 2)
+		page2, err := store.ListSimple(ctx, threatModelID, 2, 2)
 		require.NoError(t, err)
 		assert.Len(t, page2, 1)
 	})

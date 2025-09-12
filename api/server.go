@@ -792,7 +792,7 @@ func (s *Server) UpdateSourceMetadataByKey(c *gin.Context, threatModelId openapi
 
 // GetThreatModelThreats lists threats
 func (s *Server) GetThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelThreatsParams) {
-	s.threatHandler.GetThreats(c)
+	s.threatHandler.GetThreatsWithFilters(c, params)
 }
 
 // CreateThreatModelThreat creates a threat
