@@ -40,6 +40,7 @@ type JWTConfig struct {
 	Secret            string // Used for HS256
 	ExpirationSeconds int
 	SigningMethod     string // HS256, RS256, ES256
+	KeyID             string // Key ID for JWKS (defaults to "1")
 	// RSA Keys (for RS256)
 	RSAPrivateKeyPath string // Path to RSA private key file
 	RSAPublicKeyPath  string // Path to RSA public key file
@@ -114,6 +115,7 @@ func LoadConfig() (Config, error) {
 			Secret:              getEnv("JWT_SECRET", "your-secret-key"),
 			ExpirationSeconds:   jwtExpiration,
 			SigningMethod:       getEnv("JWT_SIGNING_METHOD", "HS256"),
+			KeyID:               getEnv("JWT_KEY_ID", "1"),
 			RSAPrivateKeyPath:   getEnv("JWT_RSA_PRIVATE_KEY_PATH", ""),
 			RSAPublicKeyPath:    getEnv("JWT_RSA_PUBLIC_KEY_PATH", ""),
 			RSAPrivateKey:       getEnv("JWT_RSA_PRIVATE_KEY", ""),

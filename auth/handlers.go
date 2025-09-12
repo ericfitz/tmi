@@ -1229,10 +1229,11 @@ type JWKSResponse struct {
 
 // JWK represents a JSON Web Key
 type JWK struct {
-	KeyType   string `json:"kty"`
-	Use       string `json:"use"`
-	KeyID     string `json:"kid"`
-	Algorithm string `json:"alg"`
+	KeyType   string   `json:"kty"`
+	Use       string   `json:"use,omitempty"`
+	KeyOps    []string `json:"key_ops,omitempty"`
+	KeyID     string   `json:"kid,omitempty"`
+	Algorithm string   `json:"alg,omitempty"`
 	// RSA parameters
 	N string `json:"n,omitempty"` // RSA modulus
 	E string `json:"e,omitempty"` // RSA exponent
@@ -1246,7 +1247,8 @@ type JWK struct {
 func (h *Handlers) createJWKFromPublicKey(publicKey interface{}, signingMethod string) (*JWK, error) {
 	jwk := &JWK{
 		Use:       "sig",
-		KeyID:     "key-1", // Simple key ID, could be made configurable
+		KeyOps:    []string{"verify"},
+		KeyID:     h.service.config.JWT.KeyID,
 		Algorithm: signingMethod,
 	}
 
