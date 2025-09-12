@@ -282,14 +282,20 @@ func (s *Server) PostAuthLogout(c *gin.Context) {
 
 	tokenStr := parts[1]
 
-	// Validate token format before attempting to blacklist
-	// Parse the token to check if it's valid JWT format
-	_, _, err := new(jwt.Parser).ParseUnverified(tokenStr, jwt.MapClaims{})
-	if err != nil {
-		logger.Warn("Logout attempted with malformed token: %v", err)
+	// Validate token format and signature before attempting to blacklist
+	// Parse the token with signature verification
+	token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Verify signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(s.config.Auth.JWT.Secret), nil
+	})
+	if err != nil || !token.Valid {
+		logger.Warn("Logout attempted with invalid token: %v", err)
 		c.JSON(http.StatusUnauthorized, api.Error{
 			Error:            "unauthorized",
-			ErrorDescription: "Invalid token format",
+			ErrorDescription: "Invalid or malformed token",
 		})
 		return
 	}
@@ -336,12 +342,18 @@ func (s *Server) LogoutUser(c *gin.Context) {
 
 	tokenStr := parts[1]
 
-	// Validate token format before attempting to blacklist
-	_, _, err := new(jwt.Parser).ParseUnverified(tokenStr, jwt.MapClaims{})
-	if err != nil {
+	// Validate token format and signature before attempting to blacklist
+	token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Verify signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(s.config.Auth.JWT.Secret), nil
+	})
+	if err != nil || !token.Valid {
 		c.JSON(http.StatusUnauthorized, api.Error{
 			Error:            "unauthorized",
-			ErrorDescription: "Invalid token format",
+			ErrorDescription: "Invalid or malformed token",
 		})
 		return
 	}
@@ -985,7 +997,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Note: dbManager was already retrieved during store initialization
 	if dbManager != nil && dbManager.Redis() != nil {
 		logger.Info("Initializing token blacklist service")
-		server.tokenBlacklist = auth.NewTokenBlacklist(dbManager.Redis().GetClient())
+		server.tokenBlacklist = auth.NewTokenBlacklist(dbManager.Redis().GetClient(), []byte(config.Auth.JWT.Secret))
 	} else {
 		logger.Warn("Redis not available - token blacklist service disabled")
 	}

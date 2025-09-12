@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html"
 	"io"
 	"math/rand"
 	"net"
@@ -309,7 +310,7 @@ func startCallbackServer(ctx context.Context, handler *OAuthCallbackHandler) (ne
 			errorDesc := r.URL.Query().Get("error_description")
 			handler.errorChan <- fmt.Errorf("OAuth error: %s - %s", errorMsg, errorDesc)
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(fmt.Sprintf("OAuth error: %s", errorMsg)))
+			w.Write([]byte(fmt.Sprintf("OAuth error: %s", html.EscapeString(errorMsg))))
 			return
 		}
 

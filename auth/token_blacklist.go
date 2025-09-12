@@ -13,22 +13,30 @@ import (
 
 // TokenBlacklist manages blacklisted JWT tokens using Redis
 type TokenBlacklist struct {
-	redis *redis.Client
+	redis     *redis.Client
+	jwtSecret []byte
 }
 
 // NewTokenBlacklist creates a new token blacklist service
-func NewTokenBlacklist(redisClient *redis.Client) *TokenBlacklist {
+func NewTokenBlacklist(redisClient *redis.Client, jwtSecret []byte) *TokenBlacklist {
 	return &TokenBlacklist{
-		redis: redisClient,
+		redis:     redisClient,
+		jwtSecret: jwtSecret,
 	}
 }
 
 // BlacklistToken adds a JWT token to the blacklist
 func (tb *TokenBlacklist) BlacklistToken(ctx context.Context, tokenString string) error {
-	// Parse the token to get expiration time
-	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
-	if err != nil {
-		return fmt.Errorf("failed to parse token: %w", err)
+	// Parse the token with signature verification to get expiration time
+	token, err := jwt.ParseWithClaims(tokenString, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Verify signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return tb.jwtSecret, nil
+	})
+	if err != nil || !token.Valid {
+		return fmt.Errorf("failed to parse or validate token: %w", err)
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)

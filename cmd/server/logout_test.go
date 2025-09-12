@@ -33,7 +33,7 @@ func TestLogoutEndpoint(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
-	tokenBlacklist := auth.NewTokenBlacklist(rdb)
+	tokenBlacklist := auth.NewTokenBlacklist(rdb, []byte("test-secret-key"))
 
 	// Create test configuration
 	cfg := &config.Config{

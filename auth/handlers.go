@@ -837,12 +837,19 @@ func (h *Handlers) Logout(c *gin.Context) {
 		if len(parts) == 2 && parts[0] == "Bearer" {
 			tokenStr := parts[1]
 
-			// Validate token format
-			if _, _, err := new(jwt.Parser).ParseUnverified(tokenStr, jwt.MapClaims{}); err == nil {
+			// Validate token format and signature
+			token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
+				// Verify signing method
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+				}
+				return []byte(h.service.config.JWT.Secret), nil
+			})
+			if err == nil && token.Valid {
 				// Try to blacklist the JWT token if blacklist service is available
 				// We'll use the database manager to access Redis for token blacklisting
 				if h.service != nil && h.service.dbManager != nil && h.service.dbManager.Redis() != nil {
-					blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient())
+					blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), []byte(h.service.config.JWT.Secret))
 					if err := blacklist.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
 						logging.Get().WithContext(c).Error("Failed to blacklist JWT token during logout (token prefix: %.10s...): %v", tokenStr, err)
 						c.JSON(http.StatusInternalServerError, gin.H{
@@ -1477,7 +1484,7 @@ func (h *Handlers) IntrospectToken(c *gin.Context) {
 
 	// Check if token is blacklisted (if blacklist service is available)
 	if h.service.dbManager != nil && h.service.dbManager.Redis() != nil {
-		blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient())
+		blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), []byte(h.service.config.JWT.Secret))
 		isBlacklisted, err := blacklist.IsTokenBlacklisted(c.Request.Context(), req.Token)
 		if err == nil && isBlacklisted {
 			c.JSON(http.StatusOK, TokenIntrospectionResponse{

@@ -122,7 +122,12 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 	logger := logging.GetContextLogger(c)
 
 	logger.Debug("Handling root endpoint request from %s", c.ClientIP())
-	logger.Debug("Request headers: %v", c.Request.Header)
+	// Log header names only to avoid exposing sensitive values
+	headerNames := make([]string, 0, len(c.Request.Header))
+	for k := range c.Request.Header {
+		headerNames = append(headerNames, k)
+	}
+	logger.Debug("Request headers present: %v", headerNames)
 
 	// Get user from context if available (will be "anonymous" for public paths)
 	if userName, exists := c.Get("userName"); exists {
