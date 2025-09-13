@@ -1525,7 +1525,7 @@ func validateDiagramOperation(op DiagramOperation) error {
 	return nil
 }
 
-// Validate cell
+// validateCell performs basic cell validation
 func validateCell(cell *Cell) error {
 	if cell == nil {
 		return fmt.Errorf("cell cannot be nil")
