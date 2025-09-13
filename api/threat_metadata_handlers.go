@@ -26,7 +26,6 @@ func NewThreatMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *Ca
 	}
 }
 
-
 // GetThreatMetadata retrieves all metadata for a threat
 // GET /threat_models/{threat_model_id}/threats/{threat_id}/metadata
 func (h *ThreatMetadataHandler) GetThreatMetadata(c *gin.Context) {

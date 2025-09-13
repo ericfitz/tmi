@@ -257,14 +257,29 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// Safety check: if ThreatModelStore is not initialized, skip validation
+		if ThreatModelStore == nil {
+			logger.Error("ThreatModelStore is not initialized")
+			c.AbortWithStatusJSON(http.StatusInternalServerError, Error{
+				Error:            "server_error",
+				ErrorDescription: "Storage not available",
+			})
+			return
+		}
+
 		// Get the threat model from storage
+		logger.Debug("ThreatModelMiddleware attempting to get threat model with ID: %s", id)
 		threatModel, err := ThreatModelStore.Get(id)
 		if err != nil {
 			logger.Debug("Threat model not found: %s, error: %v", id, err)
-			// Let the handler deal with not found errors
-			c.Next()
+			// Return 404 instead of letting handler deal with it
+			c.AbortWithStatusJSON(http.StatusNotFound, Error{
+				Error:            "not_found",
+				ErrorDescription: "Threat model not found",
+			})
 			return
 		}
+		logger.Debug("ThreatModelMiddleware successfully found threat model: %s", id)
 
 		// Determine required role based on HTTP method
 		var requiredRole Role

@@ -141,10 +141,10 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 		INSERT INTO threats (
 			id, threat_model_id, name, description, severity, 
 			mitigation, threat_type, status, priority, mitigated, 
-			score, issue_url, diagram_id, cell_id, metadata, 
+			score, issue_url, diagram_id, cell_id, 
 			created_at, modified_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
 		)
 	`
 
@@ -163,7 +163,6 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 		threat.IssueUrl,
 		threat.DiagramId,
 		threat.CellId,
-		metadataJSON,
 		threat.CreatedAt,
 		threat.ModifiedAt,
 	)
@@ -885,9 +884,9 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 		INSERT INTO threats (
 			id, threat_model_id, name, description, severity, 
 			mitigation, threat_type, status, priority, mitigated, 
-			score, issue_url, diagram_id, cell_id, metadata, created_at, modified_at
+			score, issue_url, diagram_id, cell_id, created_at, modified_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
 		)
 	`
 
@@ -950,7 +949,6 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 			threat.IssueUrl,
 			threat.DiagramId,
 			threat.CellId,
-			metadataJSON,
 			threat.CreatedAt,
 			threat.ModifiedAt,
 		)

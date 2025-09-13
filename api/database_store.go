@@ -45,8 +45,23 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
+	fmt.Printf("DEBUG: ThreatModelDatabaseStore.Get() called with ID: '%s'\n", id)
+
+	// Check if database connection is nil
+	if s.db == nil {
+		fmt.Printf("DEBUG: Database connection is nil!\n")
+		return ThreatModel{}, fmt.Errorf("database connection is nil")
+	}
+
+	// Test database connectivity
+	if err := s.db.Ping(); err != nil {
+		fmt.Printf("DEBUG: Database ping failed: %v\n", err)
+		return ThreatModel{}, fmt.Errorf("database ping failed: %w", err)
+	}
+	fmt.Printf("DEBUG: Database ping successful\n")
+
 	var tm ThreatModel
-	var uuid uuid.UUID
+	var tmUUID uuid.UUID
 	var name, ownerEmail, createdBy string
 	var description, issueUrl *string
 	var threatModelFramework string
@@ -58,17 +73,45 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		FROM threat_models 
 		WHERE id = $1`
 
+	fmt.Printf("DEBUG: Executing query: %s\n", query)
+	fmt.Printf("DEBUG: Query parameter: '%s' (type: %T, length: %d)\n", id, id, len(id))
+
+	// Try to validate the UUID format first
+	if _, err := uuid.Parse(id); err != nil {
+		fmt.Printf("DEBUG: Invalid UUID format: %v\n", err)
+		return tm, fmt.Errorf("invalid UUID format: %w", err)
+	}
+	fmt.Printf("DEBUG: UUID format validation passed\n")
+
 	err := s.db.QueryRow(query, id).Scan(
-		&uuid, &name, &description, &ownerEmail, &createdBy,
+		&tmUUID, &name, &description, &ownerEmail, &createdBy,
 		&threatModelFramework, &issueUrl, &createdAt, &modifiedAt,
 	)
 
+	fmt.Printf("DEBUG: Query execution completed, error: %v\n", err)
+
 	if err != nil {
 		if err == sql.ErrNoRows {
+			fmt.Printf("DEBUG: No rows found for ID '%s'\n", id)
+			// Let's check if ANY threat models exist and what their IDs look like
+			countQuery := "SELECT COUNT(*), string_agg(id::text, ', ') FROM threat_models LIMIT 5"
+			var count int
+			var sampleIds sql.NullString
+			if countErr := s.db.QueryRow(countQuery).Scan(&count, &sampleIds); countErr == nil {
+				fmt.Printf("DEBUG: Total threat models in DB: %d\n", count)
+				if sampleIds.Valid {
+					fmt.Printf("DEBUG: Sample IDs in DB: %s\n", sampleIds.String)
+				}
+			} else {
+				fmt.Printf("DEBUG: Failed to get sample data: %v\n", countErr)
+			}
 			return tm, fmt.Errorf("threat model with ID %s not found", id)
 		}
+		fmt.Printf("DEBUG: Database error (not ErrNoRows): %v\n", err)
 		return tm, fmt.Errorf("failed to get threat model: %w", err)
 	}
+
+	fmt.Printf("DEBUG: Query successful! Retrieved: id=%s, name=%s, owner=%s\n", tmUUID.String(), name, ownerEmail)
 
 	// Load authorization
 	authorization, err := s.loadAuthorization(id)
@@ -101,7 +144,7 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	}
 
 	tm = ThreatModel{
-		Id:                   &uuid,
+		Id:                   &tmUUID,
 		Name:                 name,
 		Description:          description,
 		Owner:                ownerEmail,
@@ -580,7 +623,7 @@ func (s *ThreatModelDatabaseStore) loadMetadata(threatModelId string) ([]Metadat
 func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, error) {
 	query := `
 		SELECT id, name, description, severity, mitigation, diagram_id, cell_id, 
-		       priority, mitigated, status, threat_type, score, issue_url, metadata,
+		       priority, mitigated, status, threat_type, score, issue_url,
 		       created_at, modified_at
 		FROM threats 
 		WHERE threat_model_id = $1`
@@ -605,11 +648,10 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 		var issueUrl *string
 		var score *float64
 		var mitigated bool
-		var metadataJSON *string
 		var createdAt, modifiedAt time.Time
 
 		if err := rows.Scan(&id, &name, &description, &severityStr, &mitigation, &diagramIdStr, &cellIdStr,
-			&priority, &mitigated, &status, &threatType, &score, &issueUrl, &metadataJSON,
+			&priority, &mitigated, &status, &threatType, &score, &issueUrl,
 			&createdAt, &modifiedAt); err != nil {
 			continue
 		}
@@ -643,14 +685,8 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 			scoreFloat32 = &score32
 		}
 
-		// Parse metadata JSON
+		// Threats use separate metadata table, not embedded JSON
 		var metadata *[]Metadata
-		if metadataJSON != nil && *metadataJSON != "" {
-			var metadataSlice []Metadata
-			if err := json.Unmarshal([]byte(*metadataJSON), &metadataSlice); err == nil {
-				metadata = &metadataSlice
-			}
-		}
 
 		threats = append(threats, Threat{
 			Id:            &id,
@@ -836,17 +872,17 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 	var diagramUuid uuid.UUID
 	var threatModelId uuid.UUID
 	var name, diagramType string
-	var cellsJSON, metadataJSON []byte
+	var cellsJSON []byte
 	var createdAt, modifiedAt time.Time
 
 	query := `
-		SELECT id, threat_model_id, name, type, cells, metadata, created_at, modified_at
+		SELECT id, threat_model_id, name, type, cells, created_at, modified_at
 		FROM diagrams 
 		WHERE id = $1`
 
 	err := s.db.QueryRow(query, id).Scan(
 		&diagramUuid, &threatModelId, &name, &diagramType,
-		&cellsJSON, &metadataJSON, &createdAt, &modifiedAt,
+		&cellsJSON, &createdAt, &modifiedAt,
 	)
 
 	if err != nil {
@@ -864,12 +900,10 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 		}
 	}
 
-	// Parse metadata JSON
-	var metadata []Metadata
-	if metadataJSON != nil {
-		if err := json.Unmarshal(metadataJSON, &metadata); err != nil {
-			return diagram, fmt.Errorf("failed to parse metadata JSON: %w", err)
-		}
+	// Load diagram metadata from separate metadata table
+	metadata, err := s.loadMetadata("diagram", diagramUuid.String())
+	if err != nil {
+		return diagram, fmt.Errorf("failed to load diagram metadata: %w", err)
 	}
 
 	// Convert type to enum
@@ -918,15 +952,6 @@ func (s *DiagramDatabaseStore) CreateWithThreatModel(item DfdDiagram, threatMode
 		return item, fmt.Errorf("failed to marshal cells: %w", err)
 	}
 
-	// Serialize metadata to JSON
-	var metadataJSON []byte
-	if item.Metadata != nil {
-		metadataJSON, err = json.Marshal(*item.Metadata)
-		if err != nil {
-			return item, fmt.Errorf("failed to marshal metadata: %w", err)
-		}
-	}
-
 	// Parse the threat model ID
 	threatModelUUID, err := uuid.Parse(threatModelID)
 	if err != nil {
@@ -934,12 +959,12 @@ func (s *DiagramDatabaseStore) CreateWithThreatModel(item DfdDiagram, threatMode
 	}
 
 	query := `
-		INSERT INTO diagrams (id, threat_model_id, name, type, cells, metadata, created_at, modified_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+		INSERT INTO diagrams (id, threat_model_id, name, type, cells, created_at, modified_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
 	_, err = s.db.Exec(query,
 		id, threatModelUUID, item.Name, string(item.Type),
-		cellsJSON, metadataJSON, item.CreatedAt, item.ModifiedAt,
+		cellsJSON, item.CreatedAt, item.ModifiedAt,
 	)
 	if err != nil {
 		return item, fmt.Errorf("failed to insert diagram: %w", err)
@@ -1033,6 +1058,45 @@ func (s *DiagramDatabaseStore) Count() int {
 		return 0
 	}
 	return count
+}
+
+// loadMetadata loads metadata for a diagram from the metadata table
+func (s *DiagramDatabaseStore) loadMetadata(entityType, entityID string) ([]Metadata, error) {
+	query := `
+		SELECT key, value 
+		FROM metadata 
+		WHERE entity_type = $1 AND entity_id = $2
+		ORDER BY key ASC
+	`
+
+	rows, err := s.db.Query(query, entityType, entityID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Error closing rows, but don't fail the operation
+			_ = err
+		}
+	}()
+
+	var metadata []Metadata
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			continue
+		}
+		metadata = append(metadata, Metadata{
+			Key:   key,
+			Value: value,
+		})
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating metadata: %w", err)
+	}
+
+	return metadata, nil
 }
 
 // loadDiagramMetadata loads metadata for a diagram from the metadata table

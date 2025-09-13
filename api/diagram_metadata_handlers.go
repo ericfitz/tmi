@@ -26,7 +26,6 @@ func NewDiagramMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *C
 	}
 }
 
-
 // Direct diagram metadata handlers for /diagrams/:id/metadata endpoints
 
 // GetDirectDiagramMetadata retrieves all metadata for a diagram via direct route

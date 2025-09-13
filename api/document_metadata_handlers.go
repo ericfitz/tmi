@@ -26,7 +26,6 @@ func NewDocumentMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *
 	}
 }
 
-
 // GetDocumentMetadata retrieves all metadata for a document
 // GET /threat_models/{threat_model_id}/documents/{document_id}/metadata
 func (h *DocumentMetadataHandler) GetDocumentMetadata(c *gin.Context) {

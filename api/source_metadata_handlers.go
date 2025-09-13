@@ -26,7 +26,6 @@ func NewSourceMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *Ca
 	}
 }
 
-
 // GetSourceMetadata retrieves all metadata for a source code reference
 // GET /threat_models/{threat_model_id}/sources/{source_id}/metadata
 func (h *SourceMetadataHandler) GetSourceMetadata(c *gin.Context) {

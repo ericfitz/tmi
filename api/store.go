@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-
 // WithTimestamps is a mixin interface for entities with timestamps
 type WithTimestamps interface {
 	SetCreatedAt(time.Time)
@@ -62,7 +61,6 @@ var GlobalSourceStore SourceStore
 var GlobalThreatStore ThreatStore
 var GlobalMetadataStore MetadataStore
 
-
 // InitializeDatabaseStores initializes stores with database implementations
 func InitializeDatabaseStores(db *sql.DB) {
 	ThreatModelStore = NewThreatModelDatabaseStore(db)
@@ -82,5 +80,3 @@ func ParseUUIDOrNil(s string) uuid.UUID {
 	}
 	return uuid.Nil
 }
-
-
