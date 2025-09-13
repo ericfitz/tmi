@@ -479,7 +479,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 
 	// Update in store
 	if err := DiagramStore.Update(diagramId, modifiedDiagram); err != nil {
-		HandleRequestError(c, ServerError("Failed to update diagram"))
+		HandleRequestError(c, ServerError("Failed to update diagram: "+err.Error()))
 		return
 	}
 

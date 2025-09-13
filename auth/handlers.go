@@ -268,6 +268,14 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		return
 	}
 
+	// Check if service is available (for testing purposes)
+	if h.service == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "OAuth service not initialized",
+		})
+		return
+	}
+
 	err = h.service.dbManager.Redis().Set(ctx, stateKey, string(stateJSON), 10*time.Minute)
 	if err != nil {
 		logging.Get().WithContext(c).Error("Failed to store OAuth state in Redis (key: %s, provider: %s): %v", stateKey, providerID, err)

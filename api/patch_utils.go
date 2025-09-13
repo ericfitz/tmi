@@ -27,7 +27,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 		return zero, &RequestError{
 			Status:  http.StatusInternalServerError,
 			Code:    "server_error",
-			Message: "Failed to serialize entity",
+			Message: "Failed to serialize entity: " + err.Error(),
 		}
 	}
 
@@ -51,13 +51,16 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 		}
 	}
 
+	// Fix the JSON to ensure consistent metadata handling
+	modifiedBytes = fixMetadataField(modifiedBytes, originalBytes)
+
 	// Deserialize back into entity
 	var modified T
 	if err := json.Unmarshal(modifiedBytes, &modified); err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusInternalServerError,
 			Code:    "server_error",
-			Message: "Failed to deserialize patched entity",
+			Message: "Failed to deserialize patched entity: " + err.Error(),
 		}
 	}
 
@@ -149,4 +152,39 @@ func ConvertJSONPatchToCellOperations(operations []PatchOperation) (*CellPatchOp
 func ProcessDiagramCellOperations(diagramID string, operations CellPatchOperation) (*OperationValidationResult, error) {
 	processor := NewCellOperationProcessor(DiagramStore)
 	return processor.ProcessCellOperations(diagramID, operations)
+}
+
+// fixMetadataField ensures that metadata fields are consistent between original and modified JSON.
+// This fixes the issue where "metadata": [] becomes "metadata": null after JSON marshal/unmarshal.
+func fixMetadataField(modifiedBytes, originalBytes []byte) []byte {
+	// Parse original JSON to check metadata field
+	var originalData map[string]interface{}
+	if err := json.Unmarshal(originalBytes, &originalData); err != nil {
+		return modifiedBytes // If we can't parse, return as-is
+	}
+
+	// Parse modified JSON
+	var modifiedData map[string]interface{}
+	if err := json.Unmarshal(modifiedBytes, &modifiedData); err != nil {
+		return modifiedBytes // If we can't parse, return as-is
+	}
+
+	// Check if original had metadata as empty array and modified has null
+	if originalMetadata, hasOriginal := originalData["metadata"]; hasOriginal {
+		if modifiedMetadata, hasModified := modifiedData["metadata"]; hasModified {
+			// If original was empty array and modified is null, restore empty array
+			if originalArray, isArray := originalMetadata.([]interface{}); isArray && len(originalArray) == 0 {
+				if modifiedMetadata == nil {
+					modifiedData["metadata"] = []interface{}{}
+				}
+			}
+		}
+	}
+
+	// Re-marshal the fixed data
+	if fixedBytes, err := json.Marshal(modifiedData); err == nil {
+		return fixedBytes
+	}
+
+	return modifiedBytes // If marshaling fails, return original
 }

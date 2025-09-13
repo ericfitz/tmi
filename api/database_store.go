@@ -1031,23 +1031,14 @@ func (s *DiagramDatabaseStore) Update(id string, item DfdDiagram) error {
 		return fmt.Errorf("failed to marshal cells: %w", err)
 	}
 
-	// Serialize metadata to JSON
-	var metadataJSON []byte
-	if item.Metadata != nil {
-		metadataJSON, err = json.Marshal(*item.Metadata)
-		if err != nil {
-			return fmt.Errorf("failed to marshal metadata: %w", err)
-		}
-	}
-
 	query := `
 		UPDATE diagrams 
-		SET name = $2, type = $3, cells = $4, metadata = $5, modified_at = $6
+		SET name = $2, type = $3, cells = $4, modified_at = $5
 		WHERE id = $1`
 
 	result, err := s.db.Exec(query,
 		id, item.Name, string(item.Type),
-		cellsJSON, metadataJSON, item.ModifiedAt,
+		cellsJSON, item.ModifiedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update diagram: %w", err)
