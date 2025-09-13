@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"html"
 
 	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
@@ -573,7 +574,7 @@ func LogRequest(c *gin.Context, prefix string) {
 	if err != nil {
 		logger.Debug("%s - Error reading body: %v", prefix, err)
 	} else if len(bodyBytes) > 0 {
-		logger.Debug("%s - Body: %s", prefix, string(bodyBytes))
+		logger.Debug("%s - Body: %s", prefix, html.EscapeString(string(bodyBytes)))
 		// Reset the body for later use
 		c.Request.Body = NewReadCloser(bodyBytes)
 	} else {
