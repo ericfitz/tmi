@@ -26,18 +26,6 @@ func NewDocumentMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *
 	}
 }
 
-// NewDocumentMetadataHandlerSimple creates a new document metadata handler with default dependencies
-func NewDocumentMetadataHandlerSimple() *DocumentMetadataHandler {
-	// Create a simple in-memory metadata store for now
-	// In production, this should be properly injected
-	store := NewInMemoryMetadataStore()
-	return &DocumentMetadataHandler{
-		metadataStore:    store,
-		db:               nil,
-		cache:            nil,
-		cacheInvalidator: nil,
-	}
-}
 
 // GetDocumentMetadata retrieves all metadata for a document
 // GET /threat_models/{threat_model_id}/documents/{document_id}/metadata

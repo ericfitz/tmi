@@ -21,7 +21,6 @@ CREATE TABLE IF NOT EXISTS diagrams (
     type VARCHAR(50) CHECK (type IN ('DFD-1.0.0')),
     content TEXT,
     cells JSONB,
-    metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (threat_model_id) REFERENCES threat_models(id) ON DELETE CASCADE
@@ -45,7 +44,6 @@ CREATE TABLE IF NOT EXISTS threats (
     threat_type VARCHAR(256) NOT NULL DEFAULT 'Unspecified',
     mitigation TEXT,
     issue_url VARCHAR(1024),
-    metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (threat_model_id) REFERENCES threat_models(id) ON DELETE CASCADE,
@@ -127,7 +125,6 @@ CREATE INDEX idx_threats_mitigated ON threats(mitigated);
 CREATE INDEX idx_threats_status ON threats(status);
 CREATE INDEX idx_threats_threat_type ON threats(threat_type);
 CREATE INDEX idx_threats_score ON threats(score);
-CREATE INDEX IF NOT EXISTS idx_threats_metadata_gin ON threats USING GIN (metadata);
 CREATE INDEX IF NOT EXISTS idx_threats_name ON threats(name);
 CREATE INDEX IF NOT EXISTS idx_threats_modified_at ON threats(modified_at);
 CREATE INDEX IF NOT EXISTS idx_threats_threat_model_created_at ON threats(threat_model_id, created_at DESC);

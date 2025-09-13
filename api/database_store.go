@@ -678,7 +678,7 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 
 func (s *ThreatModelDatabaseStore) loadDiagrams(threatModelId string) ([]Diagram, error) {
 	query := `
-		SELECT id, name, type, cells, metadata, created_at, modified_at
+		SELECT id, name, type, cells, created_at, modified_at
 		FROM diagrams 
 		WHERE threat_model_id = $1`
 
@@ -697,10 +697,10 @@ func (s *ThreatModelDatabaseStore) loadDiagrams(threatModelId string) ([]Diagram
 	for rows.Next() {
 		var diagramUuid uuid.UUID
 		var name, diagramType string
-		var cellsJSON, metadataJSON []byte
+		var cellsJSON []byte
 		var createdAt, modifiedAt time.Time
 
-		if err := rows.Scan(&diagramUuid, &name, &diagramType, &cellsJSON, &metadataJSON, &createdAt, &modifiedAt); err != nil {
+		if err := rows.Scan(&diagramUuid, &name, &diagramType, &cellsJSON, &createdAt, &modifiedAt); err != nil {
 			continue
 		}
 
@@ -712,12 +712,11 @@ func (s *ThreatModelDatabaseStore) loadDiagrams(threatModelId string) ([]Diagram
 			}
 		}
 
-		// Parse metadata JSON
-		var metadata []Metadata
-		if metadataJSON != nil {
-			if err := json.Unmarshal(metadataJSON, &metadata); err != nil {
-				continue // Skip this diagram if metadata can't be parsed
-			}
+		// Load metadata from the metadata table
+		metadata, err := s.loadDiagramMetadata(diagramUuid.String())
+		if err != nil {
+			// Don't fail the request if metadata loading fails, just set empty metadata
+			metadata = []Metadata{}
 		}
 
 		// Convert type to enum
@@ -1034,4 +1033,43 @@ func (s *DiagramDatabaseStore) Count() int {
 		return 0
 	}
 	return count
+}
+
+// loadDiagramMetadata loads metadata for a diagram from the metadata table
+func (s *ThreatModelDatabaseStore) loadDiagramMetadata(diagramID string) ([]Metadata, error) {
+	query := `
+		SELECT key, value 
+		FROM metadata 
+		WHERE entity_type = 'diagram' AND entity_id = $1
+		ORDER BY key ASC
+	`
+
+	rows, err := s.db.Query(query, diagramID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Error closing rows, but don't fail the operation
+			_ = err
+		}
+	}()
+
+	var metadata []Metadata
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			continue
+		}
+		metadata = append(metadata, Metadata{
+			Key:   key,
+			Value: value,
+		})
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating metadata: %w", err)
+	}
+
+	return metadata, nil
 }

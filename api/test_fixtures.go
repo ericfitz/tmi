@@ -45,15 +45,13 @@ var TestFixtures struct {
 
 // ResetStores clears all data from the stores
 func ResetStores() {
-	// Create new empty stores using the proper constructors
-	ThreatModelStore = NewThreatModelInMemoryStore()
-	DiagramStore = NewDiagramInMemoryStore()
+	// Note: Database stores require actual database connection to reset
+	// This function is primarily for compatibility with existing test code
 }
 
 // InitTestFixtures initializes test data in stores
 func InitTestFixtures() {
-	// Initialize in-memory stores for testing
-	InitializeInMemoryStores()
+	// Database stores are initialized by the main application
 
 	// Clear any existing test data first
 	ResetStores()
@@ -193,34 +191,22 @@ func InitTestFixtures() {
 		TestFixtures.ThreatModel = threatModel
 	}
 
-	// Add to stores (handling both in-memory and database stores)
+	// Add to stores using database store interfaces
 	// Use the updated threat model that has the diagram association
 	updatedThreatModel := TestFixtures.ThreatModel
-	if inMemoryTMStore, ok := ThreatModelStore.(*ThreatModelInMemoryStore); ok {
-		inMemoryTMStore.mutex.Lock()
-		inMemoryTMStore.data[tmID] = updatedThreatModel
-		inMemoryTMStore.mutex.Unlock()
-	} else {
-		// For database stores, use the interface
-		_, _ = ThreatModelStore.Create(updatedThreatModel, func(tm ThreatModel, _ string) ThreatModel {
-			parsedId, _ := ParseUUID(tmID)
-			tm.Id = &parsedId
-			return tm
-		})
-	}
+	// For database stores, use the interface
+	_, _ = ThreatModelStore.Create(updatedThreatModel, func(tm ThreatModel, _ string) ThreatModel {
+		parsedId, _ := ParseUUID(tmID)
+		tm.Id = &parsedId
+		return tm
+	})
 
-	if inMemoryDStore, ok := DiagramStore.(*DiagramInMemoryStore); ok {
-		inMemoryDStore.mutex.Lock()
-		inMemoryDStore.data[dID] = diagram
-		inMemoryDStore.mutex.Unlock()
-	} else {
-		// For database stores, use the interface
-		_, _ = DiagramStore.Create(diagram, func(d DfdDiagram, _ string) DfdDiagram {
-			parsedId, _ := ParseUUID(dID)
-			d.Id = &parsedId
-			return d
-		})
-	}
+	// For database stores, use the interface
+	_, _ = DiagramStore.Create(diagram, func(d DfdDiagram, _ string) DfdDiagram {
+		parsedId, _ := ParseUUID(dID)
+		d.Id = &parsedId
+		return d
+	})
 
 	TestFixtures.Initialized = true
 }

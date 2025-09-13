@@ -458,32 +458,32 @@ func (s *Server) DeleteThreatModelsId(c *gin.Context) {
 
 // Threat Model Metadata handlers
 func (s *Server) GetThreatModelsIdMetadata(c *gin.Context) {
-	handler := api.NewThreatModelMetadataHandlerSimple()
+	handler := api.NewThreatModelMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.GetThreatModelMetadata(c)
 }
 
 func (s *Server) PostThreatModelsIdMetadata(c *gin.Context) {
-	handler := api.NewThreatModelMetadataHandlerSimple()
+	handler := api.NewThreatModelMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.CreateThreatModelMetadata(c)
 }
 
 func (s *Server) GetThreatModelsIdMetadataKey(c *gin.Context) {
-	handler := api.NewThreatModelMetadataHandlerSimple()
+	handler := api.NewThreatModelMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.GetThreatModelMetadataByKey(c)
 }
 
 func (s *Server) PutThreatModelsIdMetadataKey(c *gin.Context) {
-	handler := api.NewThreatModelMetadataHandlerSimple()
+	handler := api.NewThreatModelMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.UpdateThreatModelMetadata(c)
 }
 
 func (s *Server) DeleteThreatModelsIdMetadataKey(c *gin.Context) {
-	handler := api.NewThreatModelMetadataHandlerSimple()
+	handler := api.NewThreatModelMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.DeleteThreatModelMetadata(c)
 }
 
 func (s *Server) PostThreatModelsIdMetadataBulk(c *gin.Context) {
-	handler := api.NewThreatModelMetadataHandlerSimple()
+	handler := api.NewThreatModelMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.BulkCreateThreatModelMetadata(c)
 }
 
@@ -579,7 +579,7 @@ func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramIdMetadataKey(c *
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdMetadataBulk(c *gin.Context) {
-	handler := api.NewDiagramMetadataHandlerSimple()
+	handler := api.NewDiagramMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.BulkCreateThreatModelDiagramMetadata(c)
 }
 
@@ -660,32 +660,32 @@ func (s *Server) PutThreatModelsThreatModelIdThreatsBulk(c *gin.Context) {
 
 // Threat Model Threat Metadata handlers
 func (s *Server) GetThreatModelsThreatModelIdThreatsThreatIdMetadata(c *gin.Context) {
-	handler := api.NewThreatMetadataHandlerSimple()
+	handler := api.NewThreatMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.GetThreatMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdThreatsThreatIdMetadata(c *gin.Context) {
-	handler := api.NewThreatMetadataHandlerSimple()
+	handler := api.NewThreatMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.CreateThreatMetadata(c)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdThreatsThreatIdMetadataKey(c *gin.Context) {
-	handler := api.NewThreatMetadataHandlerSimple()
+	handler := api.NewThreatMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.GetThreatMetadataByKey(c)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdThreatsThreatIdMetadataKey(c *gin.Context) {
-	handler := api.NewThreatMetadataHandlerSimple()
+	handler := api.NewThreatMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.UpdateThreatMetadata(c)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdThreatsThreatIdMetadataKey(c *gin.Context) {
-	handler := api.NewThreatMetadataHandlerSimple()
+	handler := api.NewThreatMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.DeleteThreatMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdThreatsThreatIdMetadataBulk(c *gin.Context) {
-	handler := api.NewThreatMetadataHandlerSimple()
+	handler := api.NewThreatMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.BulkCreateThreatMetadata(c)
 }
 
@@ -751,32 +751,32 @@ func (s *Server) PostThreatModelsThreatModelIdDocumentsBulk(c *gin.Context) {
 
 // Threat Model Document Metadata handlers
 func (s *Server) GetThreatModelsThreatModelIdDocumentsDocumentIdMetadata(c *gin.Context) {
-	handler := api.NewDocumentMetadataHandlerSimple()
+	handler := api.NewDocumentMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.GetDocumentMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDocumentsDocumentIdMetadata(c *gin.Context) {
-	handler := api.NewDocumentMetadataHandlerSimple()
+	handler := api.NewDocumentMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.CreateDocumentMetadata(c)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdDocumentsDocumentIdMetadataKey(c *gin.Context) {
-	handler := api.NewDocumentMetadataHandlerSimple()
+	handler := api.NewDocumentMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.GetDocumentMetadataByKey(c)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdDocumentsDocumentIdMetadataKey(c *gin.Context) {
-	handler := api.NewDocumentMetadataHandlerSimple()
+	handler := api.NewDocumentMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.UpdateDocumentMetadata(c)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdDocumentsDocumentIdMetadataKey(c *gin.Context) {
-	handler := api.NewDocumentMetadataHandlerSimple()
+	handler := api.NewDocumentMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.DeleteDocumentMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDocumentsDocumentIdMetadataBulk(c *gin.Context) {
-	handler := api.NewDocumentMetadataHandlerSimple()
+	handler := api.NewDocumentMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.BulkCreateDocumentMetadata(c)
 }
 
@@ -842,32 +842,32 @@ func (s *Server) PostThreatModelsThreatModelIdSourcesBulk(c *gin.Context) {
 
 // Threat Model Source Metadata handlers
 func (s *Server) GetThreatModelsThreatModelIdSourcesSourceIdMetadata(c *gin.Context) {
-	handler := api.NewSourceMetadataHandlerSimple()
+	handler := api.NewSourceMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.GetSourceMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSourcesSourceIdMetadata(c *gin.Context) {
-	handler := api.NewSourceMetadataHandlerSimple()
+	handler := api.NewSourceMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.CreateSourceMetadata(c)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gin.Context) {
-	handler := api.NewSourceMetadataHandlerSimple()
+	handler := api.NewSourceMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.GetSourceMetadataByKey(c)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gin.Context) {
-	handler := api.NewSourceMetadataHandlerSimple()
+	handler := api.NewSourceMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.UpdateSourceMetadata(c)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gin.Context) {
-	handler := api.NewSourceMetadataHandlerSimple()
+	handler := api.NewSourceMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.DeleteSourceMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSourcesSourceIdMetadataBulk(c *gin.Context) {
-	handler := api.NewSourceMetadataHandlerSimple()
+	handler := api.NewSourceMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
 	handler.BulkCreateSourceMetadata(c)
 }
 
@@ -958,30 +958,24 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Note: Middleware setup and route registration moved to after server creation
 
 	// Initialize database stores for API data persistence
-	logger.Info("Initializing database stores for threat models and diagrams")
+	logger.Info("Initializing database stores for all data persistence")
 	dbManager := auth.GetDatabaseManager()
 
-	// Check if we're in test mode
-	if config.IsTestMode() {
-		logger.Info("Running in test mode - using in-memory stores")
-		api.InitializeInMemoryStores()
-	} else {
-		// In development or production, require database
-		if dbManager == nil || dbManager.Postgres() == nil {
-			logger.Error("Database not available - database is required in non-test mode")
-			os.Exit(1)
-		}
-
-		logger.Info("Using database-backed stores for data persistence")
-		api.InitializeDatabaseStores(dbManager.Postgres().GetDB())
-
-		// Test database connection
-		if err := dbManager.Postgres().GetDB().Ping(); err != nil {
-			logger.Error("Database connection failed: %v", err)
-			os.Exit(1)
-		}
-		logger.Info("Database connection verified successfully")
+	// Always require database
+	if dbManager == nil || dbManager.Postgres() == nil {
+		logger.Error("Database not available - database is required")
+		os.Exit(1)
 	}
+
+	logger.Info("Using database-backed stores for data persistence")
+	api.InitializeDatabaseStores(dbManager.Postgres().GetDB())
+
+	// Test database connection
+	if err := dbManager.Postgres().GetDB().Ping(); err != nil {
+		logger.Error("Database connection failed: %v", err)
+		os.Exit(1)
+	}
+	logger.Info("Database connection verified successfully")
 
 	// Initialize performance monitoring
 	logger.Info("Initializing performance monitoring for collaborative editing")

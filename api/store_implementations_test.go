@@ -767,42 +767,6 @@ func TestParseUUIDOrNil(t *testing.T) {
 
 // TestInitializeStores tests store initialization functions
 func TestInitializeStores(t *testing.T) {
-	t.Run("InitializeInMemoryStores", func(t *testing.T) {
-		// Save original values
-		origThreatModelStore := ThreatModelStore
-		origDiagramStore := DiagramStore
-		origDocumentStore := GlobalDocumentStore
-		origSourceStore := GlobalSourceStore
-		origThreatStore := GlobalThreatStore
-
-		// Reset to nil to test initialization
-		ThreatModelStore = nil
-		DiagramStore = nil
-		GlobalDocumentStore = nil
-		GlobalSourceStore = nil
-		GlobalThreatStore = nil
-
-		InitializeInMemoryStores()
-
-		// Check that all stores were initialized
-		assert.NotNil(t, ThreatModelStore)
-		assert.NotNil(t, DiagramStore)
-		assert.NotNil(t, GlobalDocumentStore)
-		assert.NotNil(t, GlobalSourceStore)
-		assert.NotNil(t, GlobalThreatStore)
-
-		// Check types
-		assert.IsType(t, &ThreatModelInMemoryStore{}, ThreatModelStore)
-		assert.IsType(t, &DiagramInMemoryStore{}, DiagramStore)
-		assert.IsType(t, &InMemoryDocumentStore{}, GlobalDocumentStore)
-		assert.IsType(t, &InMemorySourceStore{}, GlobalSourceStore)
-		assert.IsType(t, &InMemoryThreatStore{}, GlobalThreatStore)
-
-		// Restore original values
-		ThreatModelStore = origThreatModelStore
-		DiagramStore = origDiagramStore
-		GlobalDocumentStore = origDocumentStore
-		GlobalSourceStore = origSourceStore
-		GlobalThreatStore = origThreatStore
-	})
+	// NOTE: InitializeInMemoryStores test removed - function no longer exists
+	// All stores now use database implementations only
 }

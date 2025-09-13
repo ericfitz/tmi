@@ -53,7 +53,6 @@ DROP INDEX IF EXISTS idx_threats_threat_model_modified_at;
 DROP INDEX IF EXISTS idx_threats_threat_model_created_at;
 DROP INDEX IF EXISTS idx_threats_modified_at;
 DROP INDEX IF EXISTS idx_threats_name;
-DROP INDEX IF EXISTS idx_threats_metadata_gin;
 DROP INDEX IF EXISTS idx_threats_score;
 DROP INDEX IF EXISTS idx_threats_threat_type;
 DROP INDEX IF EXISTS idx_threats_status;

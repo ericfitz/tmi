@@ -359,8 +359,8 @@ func TestWebSocketConnection(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	hub := NewWebSocketHubForTests()
 
-	// Initialize stores
-	InitializeInMemoryStores()
+	// Note: Tests should use database stores - in-memory stores removed
+	// GlobalMetadataStore will be nil for these tests since they don't test metadata
 
 	// Create test server with mock auth service
 	server := &Server{
@@ -411,7 +411,8 @@ func TestWebSocketMessageFlow(t *testing.T) {
 
 	// Setup test environment
 	hub := NewWebSocketHubForTests()
-	InitializeInMemoryStores()
+	// Note: Tests should use database stores - in-memory stores removed
+	// GlobalMetadataStore will be nil for these tests since they don't test metadata
 
 	// Create test threat model and diagram
 	threatModelID := uuid.New().String()

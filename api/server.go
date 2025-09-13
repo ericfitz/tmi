@@ -38,10 +38,10 @@ func NewServer(wsLoggingConfig logging.WebSocketLoggingConfig, inactivityTimeout
 		sourceHandler:              NewSourceSubResourceHandler(GlobalSourceStore, nil, nil, nil),
 		threatHandler:              NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
 		batchHandler:               NewBatchHandler(GlobalThreatStore, nil, nil, nil),
-		documentMetadataHandler:    NewDocumentMetadataHandlerSimple(),
-		sourceMetadataHandler:      NewSourceMetadataHandlerSimple(),
-		threatMetadataHandler:      NewThreatMetadataHandlerSimple(),
-		threatModelMetadataHandler: NewThreatModelMetadataHandlerSimple(),
+		documentMetadataHandler:    NewDocumentMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		sourceMetadataHandler:      NewSourceMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		threatMetadataHandler:      NewThreatMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		threatModelMetadataHandler: NewThreatModelMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		wsHub:                      NewWebSocketHub(wsLoggingConfig, inactivityTimeout),
 		// authService will be set separately via SetAuthService
 	}
@@ -477,25 +477,25 @@ func (s *Server) CreateThreatModel(c *gin.Context) {
 // GetThreatModel gets a specific threat model
 func (s *Server) GetThreatModel(c *gin.Context, threatModelId openapi_types.UUID) {
 	// Set path parameter for handler
-	c.Params = append(c.Params, gin.Param{Key: "id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	s.threatModelHandler.GetThreatModelByID(c)
 }
 
 // UpdateThreatModel updates a threat model
 func (s *Server) UpdateThreatModel(c *gin.Context, threatModelId openapi_types.UUID) {
-	c.Params = append(c.Params, gin.Param{Key: "id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	s.threatModelHandler.UpdateThreatModel(c)
 }
 
 // PatchThreatModel partially updates a threat model
 func (s *Server) PatchThreatModel(c *gin.Context, threatModelId openapi_types.UUID) {
-	c.Params = append(c.Params, gin.Param{Key: "id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	s.threatModelHandler.PatchThreatModel(c)
 }
 
 // DeleteThreatModel deletes a threat model
 func (s *Server) DeleteThreatModel(c *gin.Context, threatModelId openapi_types.UUID) {
-	c.Params = append(c.Params, gin.Param{Key: "id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	s.threatModelHandler.DeleteThreatModel(c)
 }
 
@@ -559,7 +559,7 @@ func (s *Server) DeleteThreatModelDiagram(c *gin.Context, threatModelId openapi_
 // GetDiagramMetadata gets diagram metadata
 func (s *Server) GetDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
 	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandlerSimple()
+	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
 
 	// Delegate to existing implementation
 	handler.GetThreatModelDiagramMetadata(c)
@@ -568,7 +568,7 @@ func (s *Server) GetDiagramMetadata(c *gin.Context, threatModelId openapi_types.
 // CreateDiagramMetadata creates diagram metadata
 func (s *Server) CreateDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
 	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandlerSimple()
+	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
 
 	// Delegate to existing implementation
 	handler.CreateThreatModelDiagramMetadata(c)
@@ -577,7 +577,7 @@ func (s *Server) CreateDiagramMetadata(c *gin.Context, threatModelId openapi_typ
 // BulkCreateDiagramMetadata bulk creates diagram metadata
 func (s *Server) BulkCreateDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
 	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandlerSimple()
+	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
 
 	// Delegate to existing implementation
 	handler.BulkCreateThreatModelDiagramMetadata(c)
@@ -586,7 +586,7 @@ func (s *Server) BulkCreateDiagramMetadata(c *gin.Context, threatModelId openapi
 // DeleteDiagramMetadataByKey deletes diagram metadata by key
 func (s *Server) DeleteDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) {
 	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandlerSimple()
+	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
 
 	// Delegate to existing implementation
 	handler.DeleteThreatModelDiagramMetadata(c)
@@ -595,7 +595,7 @@ func (s *Server) DeleteDiagramMetadataByKey(c *gin.Context, threatModelId openap
 // GetDiagramMetadataByKey gets diagram metadata by key
 func (s *Server) GetDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) {
 	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandlerSimple()
+	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
 
 	// Delegate to existing implementation
 	handler.GetThreatModelDiagramMetadataByKey(c)
@@ -604,7 +604,7 @@ func (s *Server) GetDiagramMetadataByKey(c *gin.Context, threatModelId openapi_t
 // UpdateDiagramMetadataByKey updates diagram metadata by key
 func (s *Server) UpdateDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) {
 	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandlerSimple()
+	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
 
 	// Delegate to existing implementation
 	handler.UpdateThreatModelDiagramMetadata(c)

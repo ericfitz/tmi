@@ -26,18 +26,6 @@ func NewSourceMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *Ca
 	}
 }
 
-// NewSourceMetadataHandlerSimple creates a new source metadata handler with default dependencies
-func NewSourceMetadataHandlerSimple() *SourceMetadataHandler {
-	// Create a simple in-memory metadata store for now
-	// In production, this should be properly injected
-	store := NewInMemoryMetadataStore()
-	return &SourceMetadataHandler{
-		metadataStore:    store,
-		db:               nil,
-		cache:            nil,
-		cacheInvalidator: nil,
-	}
-}
 
 // GetSourceMetadata retrieves all metadata for a source code reference
 // GET /threat_models/{threat_model_id}/sources/{source_id}/metadata

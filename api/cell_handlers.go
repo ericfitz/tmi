@@ -78,11 +78,9 @@ func NewCellHandler(metadataStore MetadataStore, db *sql.DB, cache *CacheService
 
 // NewCellHandlerSimple creates a new cell handler with default dependencies
 func NewCellHandlerSimple() *CellHandler {
-	// Create a simple in-memory metadata store for now
-	// In production, this should be properly injected
-	store := NewInMemoryMetadataStore()
+	// Use the global database metadata store
 	return &CellHandler{
-		metadataStore:    store,
+		metadataStore:    GlobalMetadataStore,
 		db:               nil,
 		cache:            nil,
 		cacheInvalidator: nil,

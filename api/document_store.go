@@ -196,6 +196,15 @@ func (s *DatabaseDocumentStore) Get(ctx context.Context, id string) (*Document, 
 
 	document := extendedToDocument(&extDoc)
 
+	// Load metadata
+	metadata, err := s.loadMetadata(ctx, id)
+	if err != nil {
+		logger.Error("Failed to load metadata for document %s: %v", id, err)
+		// Don't fail the request if metadata loading fails, just set empty metadata
+		metadata = []Metadata{}
+	}
+	document.Metadata = &metadata
+
 	// Cache the result for future requests
 	if s.cache != nil {
 		if cacheErr := s.cache.CacheDocument(ctx, document); cacheErr != nil {
@@ -403,6 +412,16 @@ func (s *DatabaseDocumentStore) List(ctx context.Context, threatModelID string, 
 		}
 
 		document := extendedToDocument(&extDoc)
+
+		// Load metadata for this document
+		metadata, metaErr := s.loadMetadata(ctx, extDoc.Id.String())
+		if metaErr != nil {
+			logger.Error("Failed to load metadata for document %s: %v", extDoc.Id.String(), metaErr)
+			// Don't fail the request if metadata loading fails, just set empty metadata
+			metadata = []Metadata{}
+		}
+		document.Metadata = &metadata
+
 		documents = append(documents, *document)
 	}
 
@@ -542,4 +561,43 @@ func (s *DatabaseDocumentStore) WarmCache(ctx context.Context, threatModelID str
 	// Individual documents are already cached by List(), so we're done
 	logger.Debug("Warmed cache with %d documents for threat model %s", len(documents), threatModelID)
 	return nil
+}
+
+// loadMetadata loads metadata for a document from the metadata table
+func (s *DatabaseDocumentStore) loadMetadata(ctx context.Context, documentID string) ([]Metadata, error) {
+	query := `
+		SELECT key, value 
+		FROM metadata 
+		WHERE entity_type = 'document' AND entity_id = $1
+		ORDER BY key ASC
+	`
+
+	rows, err := s.db.QueryContext(ctx, query, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Error closing rows, but don't fail the operation
+			_ = err
+		}
+	}()
+
+	var metadata []Metadata
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			continue
+		}
+		metadata = append(metadata, Metadata{
+			Key:   key,
+			Value: value,
+		})
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating metadata: %w", err)
+	}
+
+	return metadata, nil
 }

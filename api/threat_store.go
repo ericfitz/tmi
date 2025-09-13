@@ -222,7 +222,7 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
-			   score, issue_url, diagram_id, cell_id, metadata, created_at, modified_at
+			   score, issue_url, diagram_id, cell_id, created_at, modified_at
 		FROM threats 
 		WHERE id = $1
 	`
@@ -231,7 +231,6 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 	var description, mitigation, issueUrl sql.NullString
 	var score sql.NullFloat64
 	var diagramId, cellId sql.NullString
-	var metadataJSON sql.NullString
 
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&threat.Id,
@@ -248,7 +247,6 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 		&issueUrl,
 		&diagramId,
 		&cellId,
-		&metadataJSON,
 		&threat.CreatedAt,
 		&threat.ModifiedAt,
 	)
@@ -285,12 +283,14 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 			threat.CellId = &cID
 		}
 	}
-	if metadataJSON.Valid && metadataJSON.String != "" {
-		var metadata []Metadata
-		if err := json.Unmarshal([]byte(metadataJSON.String), &metadata); err == nil {
-			threat.Metadata = &metadata
-		}
+	// Load metadata from the metadata table
+	metadata, err := s.loadMetadata(ctx, id)
+	if err != nil {
+		logger.Error("Failed to load metadata for threat %s: %v", id, err)
+		// Don't fail the request if metadata loading fails, just set empty metadata
+		metadata = []Metadata{}
 	}
+	threat.Metadata = &metadata
 
 	// Cache the result for future requests
 	if s.cache != nil {
@@ -1113,4 +1113,43 @@ func (s *DatabaseThreatStore) WarmCache(ctx context.Context, threatModelID strin
 	// Individual threats are already cached by List(), so we're done
 	logger.Debug("Warmed cache with %d threats for threat model %s", len(threats), threatModelID)
 	return nil
+}
+
+// loadMetadata loads metadata for a threat from the metadata table
+func (s *DatabaseThreatStore) loadMetadata(ctx context.Context, threatID string) ([]Metadata, error) {
+	query := `
+		SELECT key, value 
+		FROM metadata 
+		WHERE entity_type = 'threat' AND entity_id = $1
+		ORDER BY key ASC
+	`
+
+	rows, err := s.db.QueryContext(ctx, query, threatID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Error closing rows, but don't fail the operation
+			_ = err
+		}
+	}()
+
+	var metadata []Metadata
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			continue
+		}
+		metadata = append(metadata, Metadata{
+			Key:   key,
+			Value: value,
+		})
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating metadata: %w", err)
+	}
+
+	return metadata, nil
 }

@@ -26,18 +26,6 @@ func NewDiagramMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *C
 	}
 }
 
-// NewDiagramMetadataHandlerSimple creates a new diagram metadata handler with default dependencies
-func NewDiagramMetadataHandlerSimple() *DiagramMetadataHandler {
-	// Create a simple in-memory metadata store for now
-	// In production, this should be properly injected
-	store := NewInMemoryMetadataStore()
-	return &DiagramMetadataHandler{
-		metadataStore:    store,
-		db:               nil,
-		cache:            nil,
-		cacheInvalidator: nil,
-	}
-}
 
 // Direct diagram metadata handlers for /diagrams/:id/metadata endpoints
 

@@ -206,11 +206,11 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	// Register metadata handlers for comprehensive testing (using simple constructors)
 	// These handlers work without complex dependencies and can be tested directly
 
-	threatMetadataHandler := NewThreatMetadataHandlerSimple()
-	documentMetadataHandler := NewDocumentMetadataHandlerSimple()
-	sourceMetadataHandler := NewSourceMetadataHandlerSimple()
-	diagramMetadataHandler := NewDiagramMetadataHandlerSimple()
-	threatModelMetadataHandler := NewThreatModelMetadataHandlerSimple()
+	threatMetadataHandler := NewThreatMetadataHandler(GlobalMetadataStore, nil, nil, nil)
+	documentMetadataHandler := NewDocumentMetadataHandler(GlobalMetadataStore, nil, nil, nil)
+	sourceMetadataHandler := NewSourceMetadataHandler(GlobalMetadataStore, nil, nil, nil)
+	diagramMetadataHandler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
+	threatModelMetadataHandler := NewThreatModelMetadataHandler(GlobalMetadataStore, nil, nil, nil)
 
 	// Threat metadata routes
 	router.GET("/threat_models/:threat_model_id/threats/:threat_id/metadata", threatMetadataHandler.GetThreatMetadata)
