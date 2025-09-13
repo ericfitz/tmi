@@ -891,7 +891,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Add custom middleware
+	// Add custom recovery middleware first (must be before other middleware)
+	r.Use(api.CustomRecoveryMiddleware())
+
+	// Add custom logging middleware
 	r.Use(logging.LoggerMiddleware())
 
 	// Add enhanced request/response logging middleware if configured
