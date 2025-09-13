@@ -620,6 +620,41 @@ func (s *ThreatModelDatabaseStore) loadMetadata(threatModelId string) ([]Metadat
 	return metadata, nil
 }
 
+// loadThreatMetadata loads metadata for a specific threat from the metadata table
+func (s *ThreatModelDatabaseStore) loadThreatMetadata(threatId string) ([]Metadata, error) {
+	query := `
+		SELECT key, value 
+		FROM metadata 
+		WHERE entity_type = 'threat' AND entity_id = $1
+		ORDER BY key ASC`
+
+	rows, err := s.db.Query(query, threatId)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Error closing rows, but don't fail the operation
+			_ = err
+		}
+	}()
+
+	var metadata []Metadata
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			continue
+		}
+
+		metadata = append(metadata, Metadata{
+			Key:   key,
+			Value: value,
+		})
+	}
+
+	return metadata, nil
+}
+
 func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, error) {
 	query := `
 		SELECT id, name, description, severity, mitigation, diagram_id, cell_id, 
@@ -685,8 +720,13 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 			scoreFloat32 = &score32
 		}
 
-		// Threats use separate metadata table, not embedded JSON
-		var metadata *[]Metadata
+		// Load metadata for this threat from the metadata table
+		threatMetadata, err := s.loadThreatMetadata(id.String())
+		if err != nil {
+			// Log error but don't fail the entire operation - just set empty metadata
+			threatMetadata = []Metadata{}
+		}
+		metadata := &threatMetadata
 
 		threats = append(threats, Threat{
 			Id:            &id,
