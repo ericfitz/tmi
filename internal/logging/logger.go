@@ -488,6 +488,58 @@ func RedactSensitiveInfo(input string) string {
 	return input
 }
 
+// partialRedactToken keeps the first and last few characters of a token for identification
+// while redacting the middle portion to prevent leaking sensitive information
+func partialRedactToken(token string) string {
+	if token == "" {
+		return token
+	}
+
+	// For very short tokens, just fully redact
+	if len(token) <= 12 {
+		return "[REDACTED]"
+	}
+
+	// For Bearer tokens, handle the "Bearer " prefix specially
+	if strings.HasPrefix(strings.ToLower(token), "bearer ") {
+		prefix := token[:7] // "Bearer "
+		actualToken := token[7:]
+		return prefix + partialRedactToken(actualToken)
+	}
+
+	// For JWT tokens (3 parts separated by dots)
+	if strings.Count(token, ".") == 2 && strings.HasPrefix(token, "eyJ") {
+		parts := strings.Split(token, ".")
+		// Keep first 8 chars of header, last 4 of signature
+		headerPart := parts[0]
+		signaturePart := parts[2]
+
+		redactedHeader := headerPart
+		if len(headerPart) > 8 {
+			redactedHeader = headerPart[:8] + "...REDACTED..."
+		}
+
+		redactedSignature := signaturePart
+		if len(signaturePart) > 4 {
+			redactedSignature = "...REDACTED..." + signaturePart[len(signaturePart)-4:]
+		}
+
+		return redactedHeader + ".REDACTED." + redactedSignature
+	}
+
+	// For other tokens, keep first 6 and last 4 characters
+	visibleStart := 6
+	visibleEnd := 4
+
+	// Ensure we don't expose too much of short tokens
+	if len(token) < visibleStart+visibleEnd+10 {
+		visibleStart = 3
+		visibleEnd = 2
+	}
+
+	return token[:visibleStart] + "...REDACTED..." + token[len(token)-visibleEnd:]
+}
+
 // RedactHeaders creates a copy of headers map with sensitive values redacted
 func RedactHeaders(headers map[string][]string) map[string][]string {
 	if headers == nil {
@@ -506,7 +558,12 @@ func RedactHeaders(headers map[string][]string) map[string][]string {
 	for key, values := range headers {
 		lowerKey := strings.ToLower(key)
 		if sensitiveHeaders[lowerKey] {
-			redacted[key] = []string{"[REDACTED]"}
+			// Use partial redaction for sensitive headers to keep some identifying info
+			redactedValues := make([]string, len(values))
+			for i, value := range values {
+				redactedValues[i] = partialRedactToken(value)
+			}
+			redacted[key] = redactedValues
 		} else {
 			// Still check individual values for embedded tokens
 			redactedValues := make([]string, len(values))
