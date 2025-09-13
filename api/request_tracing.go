@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"html"
 	"io"
 	"time"
 
@@ -55,7 +56,7 @@ func DetailedRequestLoggingMiddleware() gin.HandlerFunc {
 		if c.Request.Body != nil {
 			bodyBytes, _ := io.ReadAll(c.Request.Body)
 			if len(bodyBytes) > 0 {
-				logger.Debug("REQUEST_BODY [%s] %s", requestID, string(bodyBytes))
+				logger.Debug("REQUEST_BODY [%s] %s", requestID, html.EscapeString(string(bodyBytes)))
 				// Restore body for further processing
 				c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 			}

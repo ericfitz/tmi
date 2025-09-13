@@ -3,6 +3,7 @@ package logging
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"io"
 	"os"
 	"strings"
@@ -136,7 +137,7 @@ func logRequestDetails(c *gin.Context, logger *ContextLogger, config RequestResp
 				bodyStr = RedactSensitiveInfo(bodyStr)
 			}
 
-			logger.Debug("REQUEST Body: %s", bodyStr)
+			logger.Debug("REQUEST Body: %s", html.EscapeString(bodyStr))
 		}
 	}
 }
@@ -168,7 +169,7 @@ func logResponseDetails(c *gin.Context, logger *ContextLogger, config RequestRes
 		// Filter out stack traces from response bodies for security
 		bodyStr = FilterStackTraceFromResponseBody(bodyStr, status)
 
-		logger.Debug("RESPONSE Body: %s", bodyStr)
+		logger.Debug("RESPONSE Body: %s", html.EscapeString(bodyStr))
 	}
 }
 

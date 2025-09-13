@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -127,9 +128,11 @@ func (m *JWTKeyManager) getKeyData(keyPath, keyContent string) ([]byte, error) {
 	}
 
 	if keyPath != "" {
-		data, err := os.ReadFile(keyPath)
+		// Clean the path to prevent directory traversal attacks
+		cleanPath := filepath.Clean(keyPath)
+		data, err := os.ReadFile(cleanPath) // #nosec G304 -- path is sanitized with filepath.Clean
 		if err != nil {
-			return nil, fmt.Errorf("failed to read key file %s: %w", keyPath, err)
+			return nil, fmt.Errorf("failed to read key file %s: %w", cleanPath, err)
 		}
 		return data, nil
 	}

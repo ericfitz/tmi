@@ -152,10 +152,10 @@ func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params 
 		filter.Status = params.Status
 	}
 	if params.DiagramId != nil {
-		filter.DiagramID = (*uuid.UUID)(params.DiagramId)
+		filter.DiagramID = params.DiagramId
 	}
 	if params.CellId != nil {
-		filter.CellID = (*uuid.UUID)(params.CellId)
+		filter.CellID = params.CellId
 	}
 
 	// Set score comparison parameters
