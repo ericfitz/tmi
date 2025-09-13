@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"html"
 
 	"github.com/ericfitz/tmi/internal/logging"
 	"github.com/gin-gonic/gin"
