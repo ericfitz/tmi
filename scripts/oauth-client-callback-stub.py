@@ -245,12 +245,25 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     if user_id:
                         # Create the same response format as /latest endpoint
                         if flow_type == "authorization_code":
-                            credentials_to_save = {
-                                "flow_type": "authorization_code",
-                                "code": code,
-                                "state": state,
-                                "ready_for_token_exchange": code is not None,
-                            }
+                            if access_token:
+                                # Save the final exchanged tokens
+                                credentials_to_save = {
+                                    "flow_type": "authorization_code", 
+                                    "state": state,
+                                    "access_token": access_token,
+                                    "refresh_token": refresh_token,
+                                    "token_type": token_type,
+                                    "expires_in": expires_in,
+                                    "tokens_ready": True,
+                                }
+                            else:
+                                # Save just the authorization code for later exchange
+                                credentials_to_save = {
+                                    "flow_type": "authorization_code",
+                                    "code": code,
+                                    "state": state,
+                                    "ready_for_token_exchange": code is not None,
+                                }
                         elif flow_type == "implicit":
                             credentials_to_save = {
                                 "flow_type": "implicit",

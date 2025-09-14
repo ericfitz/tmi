@@ -110,9 +110,18 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 	timestamp := time.Now().Unix()
 	accessToken := fmt.Sprintf("test_access_token_%d", timestamp)
 	
-	// Check if login_hint is provided in context
-	if userHint, ok := ctx.Value(userHintContextKey).(string); ok && userHint != "" {
-		logger := logging.Get()
+	// Extract login_hint from authorization code if present
+	userHint := p.extractUserHintFromAuthCode(code)
+	
+	// Also check context as fallback for backward compatibility
+	if userHint == "" {
+		if contextHint, ok := ctx.Value(userHintContextKey).(string); ok && contextHint != "" {
+			userHint = contextHint
+		}
+	}
+	
+	logger := logging.Get()
+	if userHint != "" {
 		logger.Debug("[TEST_PROVIDER] ExchangeCode: Found login_hint: %s", userHint)
 		// Validate and sanitize login_hint
 		if validatedHint := p.validateUserHint(userHint); validatedHint != "" {
@@ -124,8 +133,7 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 			logger.Debug("[TEST_PROVIDER] ExchangeCode: login_hint validation failed: %s", userHint)
 		}
 	} else {
-		logger := logging.Get()
-		logger.Debug("[TEST_PROVIDER] ExchangeCode: No login_hint in context")
+		logger.Debug("[TEST_PROVIDER] ExchangeCode: No login_hint found in code or context")
 	}
 	
 	idToken := p.generateTestIDToken()
@@ -286,6 +294,28 @@ func (p *TestProvider) extractUserHintFromToken(accessToken string) string {
 	
 	// Extract the encoded hint part
 	parts := strings.Split(accessToken, "_hint_")
+	if len(parts) != 2 {
+		return ""
+	}
+	
+	encodedHint := parts[1]
+	decodedBytes, err := base64.URLEncoding.DecodeString(encodedHint)
+	if err != nil {
+		return ""
+	}
+	
+	return string(decodedBytes)
+}
+
+// extractUserHintFromAuthCode extracts login_hint from authorization code if present
+func (p *TestProvider) extractUserHintFromAuthCode(authCode string) string {
+	// Check if auth code contains hint pattern: test_auth_code_{timestamp}_hint_{encoded_hint}
+	if !strings.Contains(authCode, "_hint_") {
+		return ""
+	}
+	
+	// Extract the encoded hint part
+	parts := strings.Split(authCode, "_hint_")
 	if len(parts) != 2 {
 		return ""
 	}

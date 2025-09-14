@@ -307,8 +307,14 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	// For authorization code flow, handle client_callback if provided
 	if providerID == "test" && clientCallback != "" {
 		logging.Get().WithContext(c).Debug("Authorization code flow with client_callback, redirecting directly to client")
-		// Generate test authorization code
+		// Generate test authorization code with login_hint encoded if available
 		authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
+		if userHint != "" {
+			// Encode login_hint into the authorization code for later retrieval
+			encodedHint := base64.URLEncoding.EncodeToString([]byte(userHint))
+			authCode = fmt.Sprintf("test_auth_code_%d_hint_%s", time.Now().Unix(), encodedHint)
+			logging.Get().WithContext(c).Debug("Generated auth code with login_hint: %s", userHint)
+		}
 
 		// Build redirect URL with code and state
 		redirectURL := fmt.Sprintf("%s?code=%s&state=%s", clientCallback, authCode, url.QueryEscape(state))
@@ -658,6 +664,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	}
 
 	// Exchange authorization code for tokens
+	// Note: login_hint is now encoded directly in the authorization code for test provider
 	tokenResponse, err := provider.ExchangeCode(ctx, req.Code)
 	if err != nil {
 		// Check if it's an invalid code error (client error) vs server error
