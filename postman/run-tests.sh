@@ -9,7 +9,7 @@ set -e
 cleanup() {
     echo "🧹 Cleaning up..."
     cd "$PROJECT_ROOT" 2>/dev/null || true
-    make oauth-stub-kill 2>/dev/null || true
+    make oauth-stub-stop 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -28,10 +28,18 @@ echo "Collection: $COLLECTION_FILE"
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
-# Force kill any existing OAuth stub
-echo "Force killing any existing OAuth stub..."
+# Stop any existing OAuth stub gracefully
+echo "Stopping any existing OAuth stub..."
 cd "$PROJECT_ROOT"
-make oauth-stub-kill || true
+make oauth-stub-stop 2>/dev/null || true
+sleep 2  # Wait for graceful shutdown
+
+# If still running, force kill
+if make oauth-stub-status 2>&1 | grep -q "✅"; then
+    echo "OAuth stub still running, force killing..."
+    make oauth-stub-kill || true
+    sleep 2  # Wait for force kill to complete
+fi
 
 # Start OAuth stub 
 echo "Starting OAuth stub..."
@@ -170,10 +178,10 @@ fi
 echo "   Log: $LOG_FILE"
 echo ""
 
-# Stop OAuth stub
+# Stop OAuth stub (will also be called by cleanup trap)
 echo "Stopping OAuth stub..."
 cd "$PROJECT_ROOT"
-make oauth-stub-kill || true
+make oauth-stub-stop || true
 
 # Exit with newman's exit code
 if [ $TEST_EXIT_CODE -eq 0 ]; then
