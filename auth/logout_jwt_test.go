@@ -17,13 +17,29 @@ import (
 func TestLogoutWithJWT(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Create a test service (minimal setup)
-	service := &Service{}
+	// Create a test service with proper JWT configuration
+	config := Config{
+		JWT: JWTConfig{
+			Secret:            "test-secret",
+			ExpirationSeconds: 3600,
+			SigningMethod:     "HS256",
+		},
+	}
+
+	// Create JWT key manager
+	keyManager, err := NewJWTKeyManager(config.JWT)
+	require.NoError(t, err)
+
+	// Create minimal service with key manager
+	service := &Service{
+		keyManager: keyManager,
+		config:     config,
+	}
 
 	// Create handlers
 	handlers := &Handlers{
 		service: service,
-		config:  Config{},
+		config:  config,
 	}
 
 	// Create a valid JWT token for testing

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -191,17 +192,22 @@ func InitTestFixtures() {
 		TestFixtures.ThreatModel = threatModel
 	}
 
-	// Add to stores using database store interfaces
+	// Initialize stores appropriately for test environment
+	if ThreatModelStore == nil || DiagramStore == nil {
+		// Unit tests - initialize mock stores
+		InitializeMockStores()
+	}
+	
+	// Always populate the stores with test data
 	// Use the updated threat model that has the diagram association
 	updatedThreatModel := TestFixtures.ThreatModel
-	// For database stores, use the interface
 	_, _ = ThreatModelStore.Create(updatedThreatModel, func(tm ThreatModel, _ string) ThreatModel {
 		parsedId, _ := ParseUUID(tmID)
 		tm.Id = &parsedId
 		return tm
 	})
 
-	// For database stores, use the interface
+	// Store the diagram
 	_, _ = DiagramStore.Create(diagram, func(d DfdDiagram, _ string) DfdDiagram {
 		parsedId, _ := ParseUUID(dID)
 		d.Id = &parsedId
@@ -209,4 +215,113 @@ func InitTestFixtures() {
 	})
 
 	TestFixtures.Initialized = true
+}
+
+// Simple mock stores for unit tests
+type MockThreatModelStore struct {
+	data map[string]ThreatModel
+}
+
+func (m *MockThreatModelStore) Get(id string) (ThreatModel, error) {
+	if item, exists := m.data[id]; exists {
+		return item, nil
+	}
+	return ThreatModel{}, fmt.Errorf("threat model not found")
+}
+
+func (m *MockThreatModelStore) List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel {
+	var result []ThreatModel
+	for _, item := range m.data {
+		if filter == nil || filter(item) {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool) []ThreatModelWithCounts {
+	var result []ThreatModelWithCounts
+	for _, item := range m.data {
+		if filter == nil || filter(item) {
+			result = append(result, ThreatModelWithCounts{ThreatModel: item})
+		}
+	}
+	return result
+}
+
+func (m *MockThreatModelStore) Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
+	id := item.Id.String()
+	if idSetter != nil {
+		item = idSetter(item, id)
+	}
+	m.data[id] = item
+	return item, nil
+}
+
+func (m *MockThreatModelStore) Update(id string, item ThreatModel) error {
+	m.data[id] = item
+	return nil
+}
+
+func (m *MockThreatModelStore) Delete(id string) error {
+	delete(m.data, id)
+	return nil
+}
+
+func (m *MockThreatModelStore) Count() int {
+	return len(m.data)
+}
+
+type MockDiagramStore struct {
+	data map[string]DfdDiagram
+}
+
+func (m *MockDiagramStore) Get(id string) (DfdDiagram, error) {
+	if item, exists := m.data[id]; exists {
+		return item, nil
+	}
+	return DfdDiagram{}, fmt.Errorf("diagram not found")
+}
+
+func (m *MockDiagramStore) List(offset, limit int, filter func(DfdDiagram) bool) []DfdDiagram {
+	var result []DfdDiagram
+	for _, item := range m.data {
+		if filter == nil || filter(item) {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func (m *MockDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
+	id := item.Id.String()
+	if idSetter != nil {
+		item = idSetter(item, id)
+	}
+	m.data[id] = item
+	return item, nil
+}
+
+func (m *MockDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
+	return m.Create(item, idSetter)
+}
+
+func (m *MockDiagramStore) Update(id string, item DfdDiagram) error {
+	m.data[id] = item
+	return nil
+}
+
+func (m *MockDiagramStore) Delete(id string) error {
+	delete(m.data, id)
+	return nil
+}
+
+func (m *MockDiagramStore) Count() int {
+	return len(m.data)
+}
+
+// InitializeMockStores creates simple mock stores for unit tests
+func InitializeMockStores() {
+	ThreatModelStore = &MockThreatModelStore{data: make(map[string]ThreatModel)}
+	DiagramStore = &MockDiagramStore{data: make(map[string]DfdDiagram)}
 }
