@@ -9,7 +9,10 @@ set -e
 cleanup() {
     echo "🧹 Cleaning up..."
     cd "$PROJECT_ROOT" 2>/dev/null || true
-    make oauth-stub-stop 2>/dev/null || true
+    if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]" 2>/dev/null; then
+        make oauth-stub-stop 2>/dev/null || true
+        sleep 2  # Brief wait for cleanup
+    fi
 }
 trap cleanup EXIT INT TERM
 
@@ -28,30 +31,53 @@ echo "Collection: $COLLECTION_FILE"
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
-# Stop any existing OAuth stub gracefully
-echo "Stopping any existing OAuth stub..."
+# Check current OAuth stub status first
+echo "Checking current OAuth stub status..."
 cd "$PROJECT_ROOT"
-make oauth-stub-stop 2>/dev/null || true
-sleep 2  # Wait for graceful shutdown
-
-# If still running, force kill
-if make oauth-stub-status 2>&1 | grep -q "✅"; then
-    echo "OAuth stub still running, force killing..."
-    make oauth-stub-kill || true
-    sleep 2  # Wait for force kill to complete
+if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]"; then
+    echo "OAuth stub is already running, stopping it first..."
+    make oauth-stub-stop 2>/dev/null || true
+    sleep 5  # Wait for graceful shutdown
+    
+    # Verify it stopped
+    if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]"; then
+        echo "OAuth stub still running after graceful stop, force killing..."
+        make oauth-stub-kill || true
+        sleep 5  # Wait for force kill to complete
+    fi
+elif make oauth-stub-status 2>&1 | grep -q "\[WARNING\].*running"; then
+    echo "OAuth stub is running without PID file, stopping it..."
+    make oauth-stub-stop 2>/dev/null || true
+    sleep 5  # Wait for graceful shutdown
+    
+    # If still running, force kill
+    if make oauth-stub-status 2>&1 | grep -q "\[WARNING\].*running"; then
+        echo "OAuth stub still running, force killing..."
+        make oauth-stub-kill || true
+        sleep 5  # Wait for force kill to complete
+    fi
+else
+    echo "OAuth stub is not running, proceeding to start..."
 fi
 
 # Start OAuth stub 
 echo "Starting OAuth stub..."
 cd "$PROJECT_ROOT"
-make oauth-stub-start
+if make oauth-stub-start; then
+    sleep 5  # Wait for startup to complete
+    echo "✅ OAuth stub start command completed"
+else
+    echo "❌ OAuth stub start command failed"
+    echo -e "$(RED)[ERROR]$(NC) Failed to start OAuth stub"
+    exit 1
+fi
 
 # Verify stub is running using make target
 echo "Verifying OAuth stub status..."
 if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]"; then
     echo "✅ OAuth stub is ready"
 else
-    echo "❌ OAuth stub failed to start"
+    echo "❌ OAuth stub failed to start properly"
     echo "Status check result:"
     make oauth-stub-status
     exit 1
@@ -181,7 +207,10 @@ echo ""
 # Stop OAuth stub (will also be called by cleanup trap)
 echo "Stopping OAuth stub..."
 cd "$PROJECT_ROOT"
-make oauth-stub-stop || true
+if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]"; then
+    make oauth-stub-stop || true
+    sleep 5  # Wait for graceful shutdown
+fi
 
 # Exit with newman's exit code
 if [ $TEST_EXIT_CODE -eq 0 ]; then
