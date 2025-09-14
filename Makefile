@@ -90,13 +90,17 @@ infra-db-start:
 	echo "✅ PostgreSQL container is running on port $$PORT"
 
 infra-db-stop:
-	$(call log_info,Stopping PostgreSQL container: $(INFRASTRUCTURE_POSTGRES_CONTAINER))
-	@docker stop $(INFRASTRUCTURE_POSTGRES_CONTAINER) 2>/dev/null || true
+	$(call log_info,Stopping PostgreSQL container...)
+	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
+	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
+	docker stop $$CONTAINER 2>/dev/null || true
 	$(call log_success,"PostgreSQL container stopped")
 
 infra-db-clean:
-	$(call log_warning,"Removing PostgreSQL container and data: $(INFRASTRUCTURE_POSTGRES_CONTAINER)")
-	@docker rm -f $(INFRASTRUCTURE_POSTGRES_CONTAINER) 2>/dev/null || true
+	$(call log_warning,"Removing PostgreSQL container and data...")
+	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
+	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
+	docker rm -f $$CONTAINER 2>/dev/null || true
 	$(call log_success,"PostgreSQL container and data removed")
 
 infra-redis-start:
@@ -120,13 +124,17 @@ infra-redis-start:
 	echo "✅ Redis container is running on port $$PORT"
 
 infra-redis-stop:
-	$(call log_info,Stopping Redis container: $(INFRASTRUCTURE_REDIS_CONTAINER))
-	@docker stop $(INFRASTRUCTURE_REDIS_CONTAINER) 2>/dev/null || true
+	$(call log_info,Stopping Redis container...)
+	@CONTAINER="$(INFRASTRUCTURE_REDIS_CONTAINER)"; \
+	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-redis"; fi; \
+	docker stop $$CONTAINER 2>/dev/null || true
 	$(call log_success,"Redis container stopped")
 
 infra-redis-clean:
-	$(call log_warning,"Removing Redis container and data: $(INFRASTRUCTURE_REDIS_CONTAINER)")
-	@docker rm -f $(INFRASTRUCTURE_REDIS_CONTAINER) 2>/dev/null || true
+	$(call log_warning,"Removing Redis container and data...")
+	@CONTAINER="$(INFRASTRUCTURE_REDIS_CONTAINER)"; \
+	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-redis"; fi; \
+	docker rm -f $$CONTAINER 2>/dev/null || true
 	$(call log_success,"Redis container and data removed")
 
 
