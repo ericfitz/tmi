@@ -5,6 +5,18 @@
 
 set -e
 
+# Setup cleanup trap
+cleanup() {
+    echo "🧹 Cleaning up..."
+    if [ ! -z "$OAUTH_STUB_PID" ]; then
+        kill $OAUTH_STUB_PID 2>/dev/null || true
+        echo "Background OAuth stub process terminated"
+    fi
+    cd "$PROJECT_ROOT" 2>/dev/null || true
+    make oauth-stub-stop 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 OUTPUT_DIR="$SCRIPT_DIR/test-results"
@@ -25,20 +37,45 @@ echo "Stopping existing OAuth stub..."
 cd "$PROJECT_ROOT"
 make oauth-stub-stop 2>&1 | tee -a "$LOG_FILE" || true
 
-# Start OAuth stub
-echo "Starting OAuth stub..."
-make oauth-stub-start 2>&1 | tee -a "$LOG_FILE"
+# Start OAuth stub in background
+echo "Starting OAuth stub in background..."
+cd "$PROJECT_ROOT"
+make oauth-stub-start 2>&1 | tee -a "$LOG_FILE" &
+OAUTH_STUB_PID=$!
 
 # Wait for stub to be ready
 echo "Waiting for OAuth stub to be ready..."
-for i in {1..10}; do
+STUB_READY=false
+for i in {1..15}; do
     if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then
-        echo "OAuth stub is ready"
+        echo "✅ OAuth stub is ready"
+        STUB_READY=true
         break
     fi
-    echo "Waiting... ($i/10)"
-    sleep 1
+    echo "Waiting... ($i/15)"
+    sleep 2
 done
+
+if [ "$STUB_READY" = false ]; then
+    echo "❌ OAuth stub failed to start within 30 seconds"
+    echo "Killing background process..."
+    kill $OAUTH_STUB_PID 2>/dev/null || true
+    exit 1
+fi
+
+# Check if htmlextra reporter is available
+echo "Checking Newman HTML reporter..."
+if npm list -g newman-reporter-htmlextra >/dev/null 2>&1; then
+    echo "✅ newman-reporter-htmlextra is available"
+    HTML_REPORTER="htmlextra"
+elif command -v newman-reporter-htmlextra >/dev/null 2>&1; then
+    echo "✅ newman-reporter-htmlextra is available"
+    HTML_REPORTER="htmlextra"
+else
+    echo "⚠️ newman-reporter-htmlextra not found, HTML reports will be disabled"
+    echo "   To install: npm install -g newman-reporter-htmlextra"
+    HTML_REPORTER=""
+fi
 
 # Check if TMI server is running
 echo "Checking TMI server..."
@@ -67,17 +104,33 @@ echo "📁 Setting up test utilities..."
 cp "$SCRIPT_DIR/test-data-factory.js" /tmp/ 2>/dev/null || echo "⚠️ test-data-factory.js not found"
 cp "$SCRIPT_DIR/multi-user-auth.js" /tmp/ 2>/dev/null || echo "⚠️ multi-user-auth.js not found"
 
-newman run "$COLLECTION_FILE" \
-    --env-var "loginHint=test-runner-$TIMESTAMP" \
-    --env-var "baseUrl=http://127.0.0.1:8080" \
-    --env-var "oauthStubUrl=http://127.0.0.1:8079" \
-    --reporters cli,json,htmlextra \
-    --reporter-json-export "$OUTPUT_FILE" \
-    --reporter-htmlextra-export "$OUTPUT_DIR/test-report-$TIMESTAMP.html" \
-    --timeout-request 10000 \
-    --delay-request 200 \
-    --ignore-redirects \
-    2>&1 | tee -a "$LOG_FILE"
+# Run newman with conditional HTML reporter
+if [ ! -z "$HTML_REPORTER" ]; then
+    echo "Running with HTML report generation..."
+    newman run "$COLLECTION_FILE" \
+        --env-var "loginHint=test-runner-$TIMESTAMP" \
+        --env-var "baseUrl=http://127.0.0.1:8080" \
+        --env-var "oauthStubUrl=http://127.0.0.1:8079" \
+        --reporters cli,json,htmlextra \
+        --reporter-json-export "$OUTPUT_FILE" \
+        --reporter-htmlextra-export "$OUTPUT_DIR/test-report-$TIMESTAMP.html" \
+        --timeout-request 10000 \
+        --delay-request 200 \
+        --ignore-redirects \
+        2>&1 | tee -a "$LOG_FILE"
+else
+    echo "Running without HTML report (htmlextra not available)..."
+    newman run "$COLLECTION_FILE" \
+        --env-var "loginHint=test-runner-$TIMESTAMP" \
+        --env-var "baseUrl=http://127.0.0.1:8080" \
+        --env-var "oauthStubUrl=http://127.0.0.1:8079" \
+        --reporters cli,json \
+        --reporter-json-export "$OUTPUT_FILE" \
+        --timeout-request 10000 \
+        --delay-request 200 \
+        --ignore-redirects \
+        2>&1 | tee -a "$LOG_FILE"
+fi
 
 # Capture exit code
 TEST_EXIT_CODE=${PIPESTATUS[0]}
@@ -122,13 +175,24 @@ fi
 echo ""
 echo "📄 Reports Generated:"
 echo "   JSON: $OUTPUT_FILE"
-echo "   HTML: $OUTPUT_DIR/test-report-$TIMESTAMP.html"
+HTML_REPORT="$OUTPUT_DIR/test-report-$TIMESTAMP.html"
+if [ -f "$HTML_REPORT" ]; then
+    echo "   HTML: $HTML_REPORT"
+else
+    echo "   HTML: ❌ Report not generated (check newman-reporter-htmlextra installation)"
+fi
 echo "   Log: $LOG_FILE"
 echo ""
 
 # Stop OAuth stub
 echo "Stopping OAuth stub..."
 cd "$PROJECT_ROOT"
+# Kill the background process first if it's still running
+if [ ! -z "$OAUTH_STUB_PID" ]; then
+    kill $OAUTH_STUB_PID 2>/dev/null || true
+    echo "Background OAuth stub process terminated"
+fi
+# Also run the make target to ensure cleanup
 make oauth-stub-stop 2>&1 | tee -a "$LOG_FILE" || true
 
 # Exit with newman's exit code

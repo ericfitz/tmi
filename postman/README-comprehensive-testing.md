@@ -90,7 +90,9 @@ Real-time collaboration features:
 
 #### `run-tests.sh`
 Enhanced test execution script:
-- **OAuth Stub Management**: Automatic startup/cleanup
+- **OAuth Stub Management**: Background process startup with proper cleanup
+- **Signal Handling**: Graceful cleanup on script interruption (Ctrl+C)
+- **Health Checks**: Automatic verification of OAuth stub readiness
 - **Multiple Reporters**: CLI, JSON, HTML reports
 - **Detailed Analytics**: Status code coverage, failure analysis
 - **Performance Metrics**: Response times, success rates
