@@ -286,7 +286,9 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	}
 
 	// Handle implicit and hybrid flows for test provider
-	if responseType != "code" && providerID == "test" {
+	logging.Get().WithContext(c).Debug("OAuth flow decision: provider=%s, responseType=%s, clientCallback=%s", providerID, responseType, clientCallback)
+	if (responseType != "code" && providerID == "test") {
+		logging.Get().WithContext(c).Debug("Triggering implicit/hybrid flow for test provider")
 		err := h.handleImplicitOrHybridFlow(c, provider, responseType, state, stateData)
 		if err != nil {
 			logging.Get().WithContext(c).Error("Failed to handle OAuth implicit/hybrid flow (provider: %s, response_type: %s): %v", providerID, responseType, err)
@@ -297,9 +299,21 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		return
 	}
 
-	// For authorization code flow, get the authorization URL and redirect
-	authURL := provider.GetAuthorizationURL(state)
-	c.Redirect(http.StatusFound, authURL)
+	// For authorization code flow, handle client_callback if provided
+	if providerID == "test" && clientCallback != "" {
+		logging.Get().WithContext(c).Debug("Authorization code flow with client_callback, redirecting directly to client")
+		// Generate test authorization code
+		authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
+		
+		// Build redirect URL with code and state
+		redirectURL := fmt.Sprintf("%s?code=%s&state=%s", clientCallback, authCode, url.QueryEscape(state))
+		logging.Get().WithContext(c).Debug("Redirecting to client callback: %s", redirectURL)
+		c.Redirect(http.StatusFound, redirectURL)
+	} else {
+		// For normal authorization code flow, get the authorization URL and redirect
+		authURL := provider.GetAuthorizationURL(state)
+		c.Redirect(http.StatusFound, authURL)
+	}
 }
 
 // callbackStateData holds parsed OAuth state information

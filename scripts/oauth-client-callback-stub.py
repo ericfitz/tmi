@@ -205,12 +205,67 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 logger.info(f"  Expires In: {expires_in}")
                 logger.info(f"  Flow Type: {flow_type}")
 
-                # Send a simple response to the client
-                response_body = b"Redirect received. Check server logs for details."
-                self.send_response(200)
-                self.send_header("Content-type", "text/plain")
-                self.end_headers()
-                self.wfile.write(response_body)
+                # Handle response based on flow type
+                if flow_type == "unknown" and not code and not access_token:
+                    # Likely implicit flow with tokens in URL fragment
+                    # Return HTML page with JavaScript to extract fragment tokens
+                    html_response = """<!DOCTYPE html>
+<html>
+<head>
+    <title>OAuth Callback Handler</title>
+    <script>
+        function handleOAuthCallback() {
+            // Extract tokens from URL fragment
+            const fragment = window.location.hash.substring(1);
+            const params = new URLSearchParams(fragment);
+            
+            const credentials = {
+                access_token: params.get('access_token'),
+                refresh_token: params.get('refresh_token'),
+                token_type: params.get('token_type'),
+                expires_in: params.get('expires_in'),
+                state: params.get('state')
+            };
+            
+            if (credentials.access_token) {
+                // Send tokens back to server via POST to /oauth-fragment
+                fetch('/oauth-fragment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(credentials)
+                }).then(() => {
+                    document.body.innerHTML = '<h1>OAuth tokens processed successfully!</h1><p>You can close this window.</p>';
+                }).catch(err => {
+                    console.error('Failed to send tokens:', err);
+                    document.body.innerHTML = '<h1>Error processing OAuth tokens</h1>';
+                });
+            } else {
+                document.body.innerHTML = '<h1>No OAuth tokens found in URL fragment</h1>';
+            }
+        }
+        
+        window.onload = handleOAuthCallback;
+    </script>
+</head>
+<body>
+    <h1>Processing OAuth callback...</h1>
+    <p>Please wait while we process your authentication.</p>
+</body>
+</html>"""
+                    response_body = html_response.encode('utf-8')
+                    self.send_response(200)
+                    self.send_header("Content-type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(response_body)
+                else:
+                    # Traditional flow with tokens/code in query params
+                    response_body = b"Redirect received. Check server logs for details."
+                    self.send_response(200)
+                    self.send_header("Content-type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(response_body)
 
                 # Log API request
                 logger.info(
@@ -400,6 +455,126 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 )
             except:
                 # If we can't even send an error response, just log it
+                logger.error("Failed to send error response to client")
+
+    def do_POST(self):
+        """Handle POST requests from JavaScript fragment token extraction."""
+        global latest_oauth_credentials
+        
+        client_ip = self.client_address[0]
+        http_version = self.request_version
+        method = "POST"
+        
+        try:
+            # Parse the URL path
+            parsed_url = urllib.parse.urlparse(self.path)
+            path = parsed_url.path
+            
+            logger.info(f"INCOMING POST REQUEST: {method} {self.path}")
+            logger.info(f"  Path: {path}")
+            
+            # Handle POST to /oauth-fragment (from JavaScript)
+            if path == "/oauth-fragment":
+                # Read the JSON payload
+                content_length = int(self.headers.get('Content-Length', 0))
+                post_data = self.rfile.read(content_length)
+                
+                try:
+                    credentials = json.loads(post_data.decode('utf-8'))
+                    logger.info("  Fragment tokens received from JavaScript:")
+                    
+                    # Extract credentials from JavaScript
+                    access_token = credentials.get('access_token')
+                    refresh_token = credentials.get('refresh_token') 
+                    token_type = credentials.get('token_type')
+                    expires_in = credentials.get('expires_in')
+                    state = credentials.get('state')
+                    
+                    logger.info(f"    Access Token: {access_token}")
+                    logger.info(f"    Refresh Token: {refresh_token}")
+                    logger.info(f"    Token Type: {token_type}")
+                    logger.info(f"    Expires In: {expires_in}")
+                    logger.info(f"    State: {state}")
+                    
+                    if access_token:
+                        # Store the credentials
+                        latest_oauth_credentials.update({
+                            "flow_type": "implicit",
+                            "code": None,
+                            "state": state,
+                            "access_token": access_token,
+                            "refresh_token": refresh_token,
+                            "token_type": token_type,
+                            "expires_in": expires_in,
+                        })
+                        
+                        # Extract user ID and save to file
+                        user_id = extract_user_id_from_credentials(latest_oauth_credentials)
+                        if user_id:
+                            credentials_to_save = {
+                                "flow_type": "implicit",
+                                "state": state,
+                                "access_token": access_token,
+                                "refresh_token": refresh_token,
+                                "token_type": token_type,
+                                "expires_in": expires_in,
+                                "tokens_ready": True,
+                            }
+                            save_credentials_to_file(credentials_to_save, user_id)
+                            logger.info(f"  Saved credentials for user: {user_id}")
+                        
+                        # Send success response
+                        self.send_response(200)
+                        self.send_header("Content-type", "application/json")
+                        self.end_headers()
+                        response = {"status": "success", "message": "Tokens processed successfully"}
+                        self.wfile.write(json.dumps(response).encode())
+                        
+                        logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 200 "Fragment tokens processed"')
+                    else:
+                        # No access token found
+                        self.send_response(400)
+                        self.send_header("Content-type", "application/json")
+                        self.end_headers()
+                        response = {"status": "error", "message": "No access token found in fragment data"}
+                        self.wfile.write(json.dumps(response).encode())
+                        
+                        logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 400 "No access token"')
+                        
+                except json.JSONDecodeError as e:
+                    # Invalid JSON
+                    self.send_response(400)
+                    self.send_header("Content-type", "application/json")
+                    self.end_headers()
+                    response = {"status": "error", "message": f"Invalid JSON: {str(e)}"}
+                    self.wfile.write(json.dumps(response).encode())
+                    
+                    logger.error(f"Invalid JSON in POST data: {str(e)}")
+                    logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 400 "Invalid JSON"')
+            else:
+                # Unknown POST endpoint
+                self.send_response(404)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                response = {"status": "error", "message": "Endpoint not found"}
+                self.wfile.write(json.dumps(response).encode())
+                
+                logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 404 "Endpoint not found"')
+                
+        except Exception as e:
+            # Handle any errors during POST request processing
+            error_msg = f"Server error: {str(e)}"
+            logger.error(f"Error processing POST request: {str(e)}")
+
+            try:
+                self.send_response(500)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                response = {"status": "error", "message": error_msg}
+                self.wfile.write(json.dumps(response).encode())
+                
+                logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 500 "{error_msg}"')
+            except:
                 logger.error("Failed to send error response to client")
 
 

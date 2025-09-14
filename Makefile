@@ -237,19 +237,21 @@ process-stop:
 
 server-start:
 	$(call log_info,"Starting server on port $(SERVER_PORT)")
+	@# Build server first to ensure latest code
+	@$(MAKE) build-server
 	@LOG_FILE="$(SERVER_LOG_FILE)"; \
-	if [ -z "$$LOG_FILE" ]; then LOG_FILE="logs/server.log"; fi; \
+	if [ -z "$$LOG_FILE" ]; then LOG_FILE="server.log"; fi; \
 	CONFIG_FILE="$(SERVER_CONFIG_FILE)"; \
 	if [ -z "$$CONFIG_FILE" ]; then CONFIG_FILE="config-development.yml"; fi; \
 	BINARY="$(SERVER_BINARY)"; \
 	if [ -z "$$BINARY" ]; then BINARY="bin/server"; fi; \
 	if [ -n "$(SERVER_TAGS)" ]; then \
 		echo "Starting server with build tags: $(SERVER_TAGS)"; \
-		go run -tags $(SERVER_TAGS) cmd/server/main.go --config=$$CONFIG_FILE > $$LOG_FILE 2>&1 & \
-	else \
-		echo "Starting server binary: $$BINARY"; \
-		$$BINARY --config=$$CONFIG_FILE > $$LOG_FILE 2>&1 & \
+		echo "Building server with tags: $(SERVER_TAGS)"; \
+		go build -tags $(SERVER_TAGS) -o $$BINARY ./cmd/server/; \
 	fi; \
+	echo "Starting server binary: $$BINARY"; \
+	$$BINARY --config=$$CONFIG_FILE > $$LOG_FILE 2>&1 & \
 	echo $$! > .server.pid
 	$(call log_success,"Server started with PID: $$(cat .server.pid)")
 
@@ -390,9 +392,47 @@ clean-containers:
 
 clean-processes:
 	$(call log_info,"Cleaning up processes...")
+	@# Kill server using PID file first (if available)
+	@if [ -f .server.pid ]; then \
+		PID=$$(cat .server.pid 2>/dev/null || true); \
+		if [ -n "$$PID" ] && ps -p $$PID > /dev/null 2>&1; then \
+			echo -e "$(BLUE)[INFO]$(NC) Killing server process from PID file: $$PID"; \
+			kill $$PID 2>/dev/null || true; \
+			sleep 2; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				kill -9 $$PID 2>/dev/null || true; \
+			fi; \
+		fi; \
+		rm -f .server.pid; \
+	fi
+	@# Kill any remaining server processes (bin/server)
+	@SERVER_PIDS=$$(ps aux | grep '[b]in/server' | awk '{print $$2}' || true); \
+	if [ -n "$$SERVER_PIDS" ]; then \
+		for PID in $$SERVER_PIDS; do \
+			echo -e "$(BLUE)[INFO]$(NC) Killing server process: $$PID"; \
+			kill $$PID 2>/dev/null || true; \
+			sleep 1; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				kill -9 $$PID 2>/dev/null || true; \
+			fi; \
+		done; \
+	fi
+	@# Kill OAuth stub processes
+	@OAUTH_PIDS=$$(ps aux | grep '[o]auth.*stub' | awk '{print $$2}' || true); \
+	if [ -n "$$OAUTH_PIDS" ]; then \
+		for PID in $$OAUTH_PIDS; do \
+			echo -e "$(BLUE)[INFO]$(NC) Killing OAuth stub process: $$PID"; \
+			kill $$PID 2>/dev/null || true; \
+			sleep 1; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				kill -9 $$PID 2>/dev/null || true; \
+			fi; \
+		done; \
+	fi
+	@# Kill processes on specified ports (final cleanup)
 	@if [ -n "$(CLEANUP_PROCESSES)" ] && [ "$(CLEANUP_PROCESSES)" != "" ]; then \
 		for port in $(CLEANUP_PROCESSES); do \
-			echo -e "$(BLUE)[INFO]$(NC) Killing processes on port: $$port"; \
+			echo -e "$(BLUE)[INFO]$(NC) Killing any remaining processes on port: $$port"; \
 			PIDS=$$(lsof -ti :$$port 2>/dev/null || true); \
 			if [ -n "$$PIDS" ]; then \
 				for PID in $$PIDS; do \
