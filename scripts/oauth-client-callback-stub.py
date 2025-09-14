@@ -86,6 +86,7 @@ def signal_handler(sig, frame):
     """Handle SIGTERM for graceful shutdown."""
     global should_exit
     logger.info("Received SIGTERM, shutting down gracefully...")
+    cleanup_temp_files()
     should_exit = True
 
 
@@ -373,6 +374,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     logger.info(
                         "Received 'exit' in code parameter, shutting down gracefully..."
                     )
+                    cleanup_temp_files()
                     should_exit = True
 
             # Route 2: API endpoint to retrieve latest OAuth credentials (/latest)
@@ -691,19 +693,22 @@ def run_server(port):
         # Close the server
         server.server_close()
         logger.info("Server has shut down.")
+        cleanup_temp_files()
         sys.exit(0)
 
     except KeyboardInterrupt:
         logger.info("Received KeyboardInterrupt, shutting down gracefully...")
         server.server_close()
+        cleanup_temp_files()
         sys.exit(0)
     except Exception as e:
         logger.error(f"Server error: {str(e)}")
+        cleanup_temp_files()
         sys.exit(1)
 
 
 def cleanup_temp_files():
-    """Delete all .json files in $TMP directory on startup."""
+    """Delete all .json files in $TMP directory."""
     tmp_dir = tempfile.gettempdir()
     json_files = glob.glob(os.path.join(tmp_dir, "*.json"))
 

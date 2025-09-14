@@ -35,15 +35,16 @@ mkdir -p "$OUTPUT_DIR"
 echo "Checking current OAuth stub status..."
 cd "$PROJECT_ROOT"
 if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]"; then
-    echo "OAuth stub is already running, stopping it first..."
-    make oauth-stub-stop 2>/dev/null || true
-    sleep 5  # Wait for graceful shutdown
-    
-    # Verify it stopped
-    if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]"; then
-        echo "OAuth stub still running after graceful stop, force killing..."
-        make oauth-stub-kill || true
-        sleep 5  # Wait for force kill to complete
+    echo "✅ OAuth stub is already running and healthy, keeping it..."
+    # Test that it's actually responding
+    if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then
+        echo "✅ OAuth stub is responding correctly, no restart needed"
+        OAUTH_STUB_ALREADY_RUNNING=true
+    else
+        echo "⚠️ OAuth stub is running but not responding, restarting..."
+        make oauth-stub-stop 2>/dev/null || true
+        sleep 5  # Wait for graceful shutdown
+        OAUTH_STUB_ALREADY_RUNNING=false
     fi
 elif make oauth-stub-status 2>&1 | grep -q "\[WARNING\].*running"; then
     echo "OAuth stub is running without PID file, stopping it..."
@@ -56,20 +57,26 @@ elif make oauth-stub-status 2>&1 | grep -q "\[WARNING\].*running"; then
         make oauth-stub-kill || true
         sleep 5  # Wait for force kill to complete
     fi
+    OAUTH_STUB_ALREADY_RUNNING=false
 else
     echo "OAuth stub is not running, proceeding to start..."
+    OAUTH_STUB_ALREADY_RUNNING=false
 fi
 
-# Start OAuth stub 
-echo "Starting OAuth stub..."
-cd "$PROJECT_ROOT"
-if make oauth-stub-start; then
-    sleep 5  # Wait for startup to complete
-    echo "✅ OAuth stub start command completed"
+# Start OAuth stub only if needed
+if [ "$OAUTH_STUB_ALREADY_RUNNING" != "true" ]; then
+    echo "Starting OAuth stub..."
+    cd "$PROJECT_ROOT"
+    if make oauth-stub-start; then
+        sleep 5  # Wait for startup to complete
+        echo "✅ OAuth stub start command completed"
+    else
+        echo "❌ OAuth stub start command failed"
+        echo -e "$(RED)[ERROR]$(NC) Failed to start OAuth stub"
+        exit 1
+    fi
 else
-    echo "❌ OAuth stub start command failed"
-    echo -e "$(RED)[ERROR]$(NC) Failed to start OAuth stub"
-    exit 1
+    echo "✅ Using existing OAuth stub (preserving any stored credentials)"
 fi
 
 # Verify stub is running using make target
