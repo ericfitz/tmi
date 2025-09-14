@@ -63,4 +63,5 @@ api/api.test
 ws-test-harness/ws-test-harness
 ws-test-harness/*.log
 .claude/settings.local.json
+postman/test-results
 postman/test-results/**
