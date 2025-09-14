@@ -1051,6 +1051,8 @@ func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state st
 }
 
 // exchangeCodeForTokens exchanges an authorization code for tokens
+// TODO: Currently unused - reserved for future OAuth Authorization Code flow implementation
+/*
 func exchangeCodeForTokens(ctx context.Context, provider OAuthProviderConfig, code, redirectURI string) (map[string]string, error) {
 	// Prepare the request
 	data := url.Values{}
@@ -1089,6 +1091,7 @@ func exchangeCodeForTokens(ctx context.Context, provider OAuthProviderConfig, co
 
 	return result, nil
 }
+*/
 
 // validateOAuthScope validates the scope parameter according to OpenID Connect specification
 // Requires at least "openid" scope, supports "profile" and "email", ignores other scopes
