@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+
+# /// script
+# dependencies = ["requests>=2.31.0"]
+# ///
+
 import http.server
 import socketserver
 import urllib.parse
@@ -12,6 +18,9 @@ import glob
 import re
 import tempfile
 import base64
+import time
+import uuid
+import requests
 
 # Global flag to control server shutdown
 should_exit = False
@@ -124,13 +133,87 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 refresh_token = query_params.get("refresh_token", [None])[0]
                 token_type = query_params.get("token_type", [None])[0]
                 expires_in = query_params.get("expires_in", [None])[0]
+                
+                # Extract additional OAuth parameters that may help identify the user
+                login_hint = query_params.get("login_hint", [None])[0]
 
-                # Determine flow type and store appropriate credentials
+                # Determine flow type and handle authorization code flow specially
                 if code and not access_token:
                     flow_type = "authorization_code"
                     logger.info(
                         "  FLOW TYPE: Authorization Code Flow (code present, no tokens)"
                     )
+                    
+                    # For authorization code flow, generate access tokens for testing
+                    # Extract user info from login_hint or create a default user from the authorization code
+                    user_id = None
+                    login_hint_user = None
+                    
+                    if login_hint and login_hint not in ["exit"]:
+                        # Validate login_hint format
+                        if re.match(r"^[a-zA-Z0-9-]{3,20}$", login_hint):
+                            user_id = f"{login_hint}@test.tmi"
+                            login_hint_user = login_hint
+                    
+                    # If no login_hint, use default user for testing
+                    if not user_id and code:
+                        # For API testing, use postman-user as the default user ID
+                        # This ensures consistency with test collection expectations
+                        login_hint_user = "postman-user"
+                        user_id = f"{login_hint_user}@test.tmi"
+                        logger.info(f"  Using default test user ID: {user_id}")
+                    
+                    # If we have a valid user_id, exchange the code for real tokens using TMI server
+                    if user_id and login_hint_user and code:
+                        # Use TMI server's token exchange endpoint to get real tokens
+                        try:
+                            token_url = "http://localhost:8080/oauth2/token?idp=test"
+                            token_data = {
+                                "grant_type": "authorization_code",
+                                "code": code,
+                                "redirect_uri": "http://localhost:8079/"
+                            }
+                            
+                            logger.info(f"  Exchanging authorization code for real tokens via TMI server...")
+                            logger.info(f"    Token URL: {token_url}")
+                            logger.info(f"    Code: {code}")
+                            
+                            # Make the token exchange request to TMI server
+                            response = requests.post(
+                                token_url,
+                                json=token_data,
+                                headers={"Content-Type": "application/json"},
+                                timeout=10
+                            )
+                            
+                            if response.status_code == 200:
+                                token_response = response.json()
+                                access_token = token_response.get("access_token")
+                                refresh_token = token_response.get("refresh_token") 
+                                token_type = token_response.get("token_type", "Bearer")
+                                expires_in = str(token_response.get("expires_in", 3600))
+                                
+                                logger.info(f"  Successfully exchanged code for real tokens:")
+                                logger.info(f"    Access Token: {access_token[:50] if access_token else 'None'}...")
+                                logger.info(f"    Refresh Token: {refresh_token}")
+                                logger.info(f"    Token Type: {token_type}")
+                                logger.info(f"    Expires In: {expires_in}s")
+                            else:
+                                logger.error(f"  Token exchange failed: {response.status_code} - {response.text}")
+                                # Fall back to storing just the code for client to handle
+                                access_token = None
+                                refresh_token = None
+                                token_type = "Bearer"
+                                expires_in = "3600"
+                                
+                        except Exception as e:
+                            logger.error(f"  Failed to exchange authorization code: {e}")
+                            # Fall back to storing just the code for client to handle
+                            access_token = None
+                            refresh_token = None
+                            token_type = "Bearer"
+                            expires_in = "3600"
+                
                 elif access_token and not code:
                     flow_type = "implicit"
                     logger.info("  FLOW TYPE: Implicit Flow (tokens present, no code)")

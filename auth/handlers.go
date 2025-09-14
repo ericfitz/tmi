@@ -98,6 +98,7 @@ type ProviderInfo struct {
 	Name        string `json:"name"`
 	Icon        string `json:"icon"`
 	AuthURL     string `json:"auth_url"`
+	TokenURL    string `json:"token_url"`
 	RedirectURI string `json:"redirect_uri"`
 	ClientID    string `json:"client_id"`
 }
@@ -139,11 +140,15 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 		// Build the authorization URL for this provider (using query parameter format)
 		authURL := fmt.Sprintf("%s/oauth2/authorize?idp=%s", getBaseURL(c), id)
 
+		// Build the token URL for this provider
+		tokenURL := fmt.Sprintf("%s/oauth2/token?idp=%s", getBaseURL(c), id)
+
 		providers = append(providers, ProviderInfo{
 			ID:          id,
 			Name:        name,
 			Icon:        icon,
 			AuthURL:     authURL,
+			TokenURL:    tokenURL,
 			RedirectURI: h.config.OAuth.CallbackURL,
 			ClientID:    providerConfig.ClientID,
 		})
@@ -287,7 +292,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	// Handle implicit and hybrid flows for test provider
 	logging.Get().WithContext(c).Debug("OAuth flow decision: provider=%s, responseType=%s, clientCallback=%s", providerID, responseType, clientCallback)
-	if (responseType != "code" && providerID == "test") {
+	if responseType != "code" && providerID == "test" {
 		logging.Get().WithContext(c).Debug("Triggering implicit/hybrid flow for test provider")
 		err := h.handleImplicitOrHybridFlow(c, provider, responseType, state, stateData)
 		if err != nil {
@@ -304,7 +309,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		logging.Get().WithContext(c).Debug("Authorization code flow with client_callback, redirecting directly to client")
 		// Generate test authorization code
 		authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
-		
+
 		// Build redirect URL with code and state
 		redirectURL := fmt.Sprintf("%s?code=%s&state=%s", clientCallback, authCode, url.QueryEscape(state))
 		logging.Get().WithContext(c).Debug("Redirecting to client callback: %s", redirectURL)
