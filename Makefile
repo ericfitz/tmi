@@ -650,7 +650,7 @@ oauth-stub-status:
 # BACKWARD COMPATIBILITY ALIASES
 # ============================================================================
 
-.PHONY: build build-all test lint clean dev prod test-api
+.PHONY: build build-all test lint clean dev prod
 
 # Keep backward compatibility with existing commands
 build: build-server
@@ -662,38 +662,6 @@ clean: build-clean
 dev: dev-start
 prod: dev-start  # For now, prod is same as dev
 
-
-
-# Legacy test-api target (simplified)
-test-api:
-	@CONFIG_FILE=config/dev-environment.yml; \
-	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
-	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
-	echo -e "$(BLUE)[INFO]$(NC) Testing API endpoints..."; \
-	eval $$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^SERVER_PORT := ' | sed 's/:=/=/'); \
-	if [ -z "$$SERVER_PORT" ]; then SERVER_PORT="8080"; fi; \
-	if [ "$(auth)" = "only" ]; then \
-		echo -e "$(BLUE)[INFO]$(NC) Getting JWT token via OAuth test provider..."; \
-		AUTH_REDIRECT=$$(curl -s "http://localhost:$$SERVER_PORT/oauth2/authorize?idp=test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
-		if [ -n "$$AUTH_REDIRECT" ]; then \
-			echo -e "$(GREEN)[SUCCESS]$(NC) Token:"; \
-			curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null || curl -s "$$AUTH_REDIRECT"; \
-		else \
-			echo -e "$(RED)[ERROR]$(NC) Failed to get OAuth authorization redirect"; \
-		fi; \
-	else \
-		echo -e "$(BLUE)[INFO]$(NC) Testing authenticated access..."; \
-		AUTH_REDIRECT=$$(curl -s "http://localhost:$$SERVER_PORT/oauth2/authorize?idp=test" | grep -oE 'href="[^"]*"' | sed 's/href="//; s/"//' | sed 's/&amp;/\&/g'); \
-		if [ -n "$$AUTH_REDIRECT" ]; then \
-			TOKEN=$$(curl -s "$$AUTH_REDIRECT" | jq -r '.access_token' 2>/dev/null); \
-			if [ "$$TOKEN" != "null" ] && [ -n "$$TOKEN" ]; then \
-				echo -e "$(GREEN)[SUCCESS]$(NC) Got token: $$TOKEN"; \
-				echo -e "$(BLUE)[INFO]$(NC) Testing /threat_models endpoint..."; \
-				curl -H "Authorization: Bearer $$TOKEN" "http://localhost:$$SERVER_PORT/threat_models" | jq .; \
-			fi; \
-		fi; \
-	fi; \
-	rm -f .config.tmp.mk
 
 # ============================================================================
 # WEBSOCKET TEST HARNESS

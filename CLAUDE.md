@@ -74,22 +74,6 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
   - Useful for implementing Input/Output schema separation or other targeted schema modifications
 - Validate OpenAPI: `make validate-openapi [file=path/to/spec.json]` (validates OpenAPI specification with comprehensive JSON syntax and detailed analysis)
 
-### API Testing Tool
-
-- **Ad-hoc API Testing**: `make test-api-script script=<script.txt>` - Human-readable API testing with simple script format
-  - **Location**: `scripts/api_test.py` (executable Python script)
-  - **Examples**: `test_examples/` directory contains sample test scripts
-  - **Features**: OAuth authentication, variable substitution, JSON expectations, response validation
-  - **Script Format**:
-    ```
-    server localhost    # Configure server (optional)
-    port 8080          # Configure port (optional)
-    auth user1         # Authenticate user via OAuth
-    request createtm post /threat_models $user1.jwt$ body={"name":"Test"}
-    expect $createtm.status$ == 201
-    expect $createtm.body.id$ exists
-    ```
-
 ### OAuth Callback Stub
 
 - **OAuth Development Tool**: `make oauth-stub-start` or `uv run scripts/oauth-client-callback-stub.py --port 8079` - Universal OAuth callback handler supporting both Authorization Code and Implicit flows
@@ -281,17 +265,6 @@ make infra-db-start
   - Specific test: `make test-integration name=TestName`
   - Cleanup only: `make clean-all`
 
-#### Specialized Testing
-
-- Telemetry tests: `make test-telemetry` (unit tests for telemetry components)
-  - Integration mode: `make test-telemetry integration=true`
-- API testing: `make test-api` (requires running server via `make dev-start`)
-  - Auth token only: `make test-api auth=only`
-  - No auth test only: `make test-api noauth=true`
-- Full API test: `make test-api-full` (automated setup: kills servers, starts DB/Redis, starts server, runs tests, cleans up)
-- Development test: `make test-dev` (builds and tests API endpoints, requires running server)
-- Full dev test: `make test-dev-full` (alias for `make test-api-full`)
-
 #### Testing Examples
 
 ```bash
@@ -306,11 +279,6 @@ make test-integration name=TestDatabaseIntegration  # Run one integration test
 
 # API testing (requires server)
 make dev-start                   # Start server first
-make test-api                    # Test API endpoints with auth
-
-# Automated API testing (no manual setup required)
-make test-api-full               # Full automated API testing (setup + test + cleanup)
-```
 
 ## Go Style Guidelines
 
@@ -441,9 +409,11 @@ The system now uses a clean, single-router architecture with OpenAPI-driven rout
 **Request Flow**:
 
 ```
+
 HTTP Request → OpenAPI Route Registration → ServerInterface Implementation →
 JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
-```
+
+````
 
 **Key Components**:
 
@@ -455,9 +425,13 @@ JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
 ## Authentication Memories
 
 - Always use a normal oauth login flow with the "test" provider when performing any development or testing task that requires authentication
-- Use `make test-api auth=only` to get JWT tokens for testing
-- OAuth test provider generates JWT tokens with user claims (email, name, sub)
-- For API testing, use `make test-api` (requires `make dev-start` first)
+- The oauth-client-callback-stub can receive callbacks from the test oauth provider with the token, and you can retrieve the token from the oauth-client-callback-stub with a REST api call.
+    - start stub: make oauth-stub-start
+    - stop stub: make oauth-stub-stop
+    - get JWT:
+        - start the stub
+        - perform a normal authorization request, using http://localhost:8079 as the callback url and specifying a user name as a login_hint
+        - retrieve the JWT from http://localhost:8079/creds?userid=<username-hint>
 
 ### Test OAuth Provider login_hints
 
@@ -480,7 +454,7 @@ curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=qa-automation"
 
 # Without login_hint - generates random user like 'testuser-12345678@test.tmi'
 curl "http://localhost:8080/oauth2/authorize?idp=test"
-```
+````
 
 **Automation Integration**:
 
@@ -488,18 +462,7 @@ curl "http://localhost:8080/oauth2/authorize?idp=test"
 # OAuth callback stub with login_hint
 curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_callback=http://localhost:8079/"
 
-# API testing script with login_hint
-echo "auth alice hint=alice" >> test_script.txt
-make test-api-script script=test_script.txt
-```
-
-**Use Cases**:
-
-- **StepCI Tests**: Consistent user identities across test runs
-- **API Integration Tests**: Predictable user data for validation
-- **Development Testing**: Named test users for debugging
-- **Automation Pipelines**: Reproducible test scenarios
-
 ## Python Development Memories
 
 - Run python scripts with uv. When creating python scripts, add uv toml to the script for automatic package management.
+```
