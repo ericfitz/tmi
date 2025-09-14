@@ -1,0 +1,481 @@
+{
+  "name": "4. Metadata CRUD Tests",
+  "item": [
+    {
+      "name": "Create Threat Model Metadata - Success (201)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Ensure Alice is active user",
+              "if (typeof tmiAuth !== 'undefined') {",
+              "    tmiAuth.setActiveUser('alice');",
+              "}",
+              "",
+              "// Generate valid metadata",
+              "const factory = new TMITestDataFactory();",
+              "const metadata = factory.validMetadata({",
+              "    key: 'test-framework',",
+              "    value: 'STRIDE'",
+              "});",
+              "",
+              "pm.collectionVariables.set('metadataData', JSON.stringify(metadata));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test('Response has metadata entry', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.have.property('key');",
+              "    pm.expect(responseData).to.have.property('value');",
+              "    ",
+              "    // Store key for subsequent tests",
+              "    pm.collectionVariables.set('testMetadataKey', responseData.key);",
+              "});",
+              "",
+              "pm.test('Metadata has correct values', function () {",
+              "    const responseData = pm.response.json();",
+              "    const originalData = JSON.parse(pm.collectionVariables.get('metadataData'));",
+              "    ",
+              "    pm.expect(responseData.key).to.equal(originalData.key);",
+              "    pm.expect(responseData.value).to.equal(originalData.value);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{metadataData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+        },
+        "description": "Create metadata entry for threat model"
+      }
+    },
+    {
+      "name": "Create Metadata - Missing Key (400)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate metadata missing key",
+              "const invalidMetadata = {",
+              "    value: 'some value'",
+              "    // Missing required 'key' field",
+              "};",
+              "",
+              "pm.collectionVariables.set('invalidMetadataData', JSON.stringify(invalidMetadata));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Error indicates missing key', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.have.property('error');",
+              "    pm.expect(responseData.error_description).to.include('validation');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{invalidMetadataData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+        },
+        "description": "Test metadata creation with missing key"
+      }
+    },
+    {
+      "name": "Create Metadata - Empty Values (400)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate metadata with empty values",
+              "const emptyMetadata = {",
+              "    key: '',",
+              "    value: ''",
+              "};",
+              "",
+              "pm.collectionVariables.set('emptyMetadataData', JSON.stringify(emptyMetadata));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Error indicates empty values not allowed', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData.error_description).to.include('validation');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{emptyMetadataData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+        },
+        "description": "Test metadata creation with empty values"
+      }
+    },
+    {
+      "name": "Get All Metadata - Success (200)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response is array of metadata', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.be.an('array');",
+              "});",
+              "",
+              "pm.test('Contains our test metadata', function () {",
+              "    const responseData = pm.response.json();",
+              "    const testKey = pm.collectionVariables.get('testMetadataKey');",
+              "    ",
+              "    const testMetadata = responseData.find(m => m.key === testKey);",
+              "    pm.expect(testMetadata).to.not.be.undefined;",
+              "    pm.expect(testMetadata.value).to.equal('STRIDE');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+        },
+        "description": "Get all metadata for threat model"
+      }
+    },
+    {
+      "name": "Get Metadata by Key - Success (200)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response has metadata entry', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.have.property('key');",
+              "    pm.expect(responseData).to.have.property('value');",
+              "});",
+              "",
+              "pm.test('Metadata key matches request', function () {",
+              "    const responseData = pm.response.json();",
+              "    const expectedKey = pm.collectionVariables.get('testMetadataKey');",
+              "    pm.expect(responseData.key).to.equal(expectedKey);",
+              "    pm.expect(responseData.value).to.equal('STRIDE');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/{{testMetadataKey}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "{{testMetadataKey}}"]
+        },
+        "description": "Get specific metadata entry by key"
+      }
+    },
+    {
+      "name": "Get Metadata by Key - Not Found (404)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 404', function () {",
+              "    pm.response.to.have.status(404);",
+              "});",
+              "",
+              "pm.test('Error indicates key not found', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData.error).to.include('not_found');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/nonexistent-key",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "nonexistent-key"]
+        },
+        "description": "Try to get non-existent metadata key"
+      }
+    },
+    {
+      "name": "Update Metadata by Key - Success (200)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate updated metadata value",
+              "const updatedValue = {",
+              "    value: `PASTA-${Date.now()}`",
+              "};",
+              "",
+              "pm.collectionVariables.set('updatedMetadataValue', JSON.stringify(updatedValue));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Metadata value was updated', function () {",
+              "    const responseData = pm.response.json();",
+              "    const updatedData = JSON.parse(pm.collectionVariables.get('updatedMetadataValue'));",
+              "    ",
+              "    pm.expect(responseData.value).to.equal(updatedData.value);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{updatedMetadataValue}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/{{testMetadataKey}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "{{testMetadataKey}}"]
+        },
+        "description": "Update metadata value by key"
+      }
+    },
+    {
+      "name": "Bulk Create Metadata - Success (201)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate bulk metadata",
+              "const factory = new TMITestDataFactory();",
+              "const bulkMetadata = factory.bulkMetadata(3);",
+              "",
+              "pm.collectionVariables.set('bulkMetadataData', JSON.stringify(bulkMetadata));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test('Response is array of created metadata', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.be.an('array');",
+              "    pm.expect(responseData).to.have.lengthOf(3);",
+              "});",
+              "",
+              "pm.test('All metadata entries created correctly', function () {",
+              "    const responseData = pm.response.json();",
+              "    const originalData = JSON.parse(pm.collectionVariables.get('bulkMetadataData'));",
+              "    ",
+              "    responseData.forEach((item, index) => {",
+              "        pm.expect(item.key).to.equal(originalData[index].key);",
+              "        pm.expect(item.value).to.equal(originalData[index].value);",
+              "    });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{bulkMetadataData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/bulk",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "bulk"]
+        },
+        "description": "Create multiple metadata entries in bulk"
+      }
+    },
+    {
+      "name": "Delete Metadata by Key - Success (204)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 204', function () {",
+              "    pm.response.to.have.status(204);",
+              "});",
+              "",
+              "pm.test('Response body is empty', function () {",
+              "    pm.expect(pm.response.text()).to.be.empty;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/{{testMetadataKey}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "{{testMetadataKey}}"]
+        },
+        "description": "Delete metadata entry by key"
+      }
+    },
+    {
+      "name": "Delete Metadata - Confirm Deletion (404)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 404', function () {",
+              "    pm.response.to.have.status(404);",
+              "});",
+              "",
+              "pm.test('Confirms metadata was deleted', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData.error).to.include('not_found');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/{{testMetadataKey}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "{{testMetadataKey}}"]
+        },
+        "description": "Verify metadata was actually deleted"
+      }
+    }
+  ],
+  "description": "Comprehensive metadata CRUD testing with validation scenarios"
+}

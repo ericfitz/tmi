@@ -1,0 +1,625 @@
+{
+  "name": "6. Bulk Operations & Batch Processing Tests",
+  "item": [
+    {
+      "name": "Bulk Create Threats - Success (201)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Ensure Alice is active user",
+              "if (typeof tmiAuth !== 'undefined') {",
+              "    tmiAuth.setActiveUser('alice');",
+              "}",
+              "",
+              "// Generate bulk threat data",
+              "const factory = new TMITestDataFactory();",
+              "const bulkThreats = [];",
+              "for (let i = 1; i <= 5; i++) {",
+              "    bulkThreats.push(factory.validThreat({",
+              "        name: `Bulk Threat ${i} - ${Date.now()}`,",
+              "        description: `Bulk created threat number ${i}`,",
+              "        threat_type: ['Spoofing', 'Tampering', 'Repudiation', 'Information Disclosure', 'Denial of Service'][i-1],",
+              "        severity: ['Low', 'Medium', 'High', 'Critical', 'High'][i-1],",
+              "        priority: ['Low', 'Medium', 'High', 'Critical', 'High'][i-1]",
+              "    }));",
+              "}",
+              "",
+              "pm.collectionVariables.set('bulkThreatsData', JSON.stringify(bulkThreats));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test('Response is array of created threats', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.be.an('array');",
+              "    pm.expect(responseData).to.have.lengthOf(5);",
+              "    ",
+              "    // Store threat IDs for batch operations",
+              "    const threatIds = responseData.map(threat => threat.id);",
+              "    pm.collectionVariables.set('bulkThreatIds', JSON.stringify(threatIds));",
+              "});",
+              "",
+              "pm.test('All threats have required fields', function () {",
+              "    const responseData = pm.response.json();",
+              "    const originalData = JSON.parse(pm.collectionVariables.get('bulkThreatsData'));",
+              "    ",
+              "    responseData.forEach((threat, index) => {",
+              "        pm.expect(threat.id).to.match(/^[0-9a-f-]{36}$/);",
+              "        pm.expect(threat.name).to.equal(originalData[index].name);",
+              "        pm.expect(threat.threat_type).to.equal(originalData[index].threat_type);",
+              "        pm.expect(threat.severity).to.equal(originalData[index].severity);",
+              "    });",
+              "});",
+              "",
+              "pm.test('Performance is acceptable for bulk create', function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(5000); // 5 seconds",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{bulkThreatsData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/bulk",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "bulk"]
+        },
+        "description": "Create multiple threats in a single bulk operation"
+      }
+    },
+    {
+      "name": "Bulk Create - Invalid Data (400)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate bulk data with some invalid entries",
+              "const factory = new TMITestDataFactory();",
+              "const invalidBulkThreats = [",
+              "    factory.validThreat({ name: 'Valid Threat 1' }),",
+              "    {",
+              "        // Invalid: missing required fields",
+              "        name: 'Invalid Threat',",
+              "        description: 'Missing required severity, priority, etc.'",
+              "    },",
+              "    factory.validThreat({ name: 'Valid Threat 2' }),",
+              "    {",
+              "        // Invalid: wrong data types",
+              "        name: 123,",
+              "        threat_type: true,",
+              "        severity: 'InvalidSeverity'",
+              "    }",
+              "];",
+              "",
+              "pm.collectionVariables.set('invalidBulkThreatsData', JSON.stringify(invalidBulkThreats));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Error indicates bulk validation failure', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData.error_description).to.include('validation');",
+              "});",
+              "",
+              "pm.test('No threats were created due to batch failure', function () {",
+              "    // Bulk operations should be atomic - if any fail, none succeed",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.not.have.property('created_count');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{invalidBulkThreatsData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/bulk",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "bulk"]
+        },
+        "description": "Test bulk create with invalid data entries"
+      }
+    },
+    {
+      "name": "Bulk Update Threats - Success (200)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate bulk update data using existing threat IDs",
+              "const threatIds = JSON.parse(pm.collectionVariables.get('bulkThreatIds') || '[]');",
+              "const factory = new TMITestDataFactory();",
+              "",
+              "const bulkUpdates = threatIds.map((id, index) => ({",
+              "    id: id,",
+              "    ...factory.validThreat({",
+              "        name: `Updated Bulk Threat ${index + 1} - ${Date.now()}`,",
+              "        description: `Bulk updated threat ${index + 1}`,",
+              "        status: 'In Progress',",
+              "        severity: 'High'",
+              "    })",
+              "}));",
+              "",
+              "pm.collectionVariables.set('bulkUpdateThreatsData', JSON.stringify(bulkUpdates));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response contains updated threats', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.be.an('array');",
+              "    pm.expect(responseData).to.have.lengthOf(5);",
+              "});",
+              "",
+              "pm.test('All threats were updated correctly', function () {",
+              "    const responseData = pm.response.json();",
+              "    const updateData = JSON.parse(pm.collectionVariables.get('bulkUpdateThreatsData'));",
+              "    ",
+              "    responseData.forEach((threat, index) => {",
+              "        pm.expect(threat.name).to.equal(updateData[index].name);",
+              "        pm.expect(threat.status).to.equal('In Progress');",
+              "        pm.expect(threat.severity).to.equal('High');",
+              "    });",
+              "});",
+              "",
+              "pm.test('Performance is acceptable for bulk update', function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{bulkUpdateThreatsData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/bulk",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "bulk"]
+        },
+        "description": "Update multiple threats in a single bulk operation"
+      }
+    },
+    {
+      "name": "Batch Patch Threats - Success (200)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate batch patch operations",
+              "const threatIds = JSON.parse(pm.collectionVariables.get('bulkThreatIds') || '[]');",
+              "",
+              "const batchPatches = {",
+              "    patches: threatIds.slice(0, 3).map((id, index) => ({",
+              "        threat_id: id,",
+              "        operations: [",
+              "            {",
+              "                op: 'replace',",
+              "                path: '/status',",
+              "                value: 'Closed'",
+              "            },",
+              "            {",
+              "                op: 'replace',",
+              "                path: '/mitigated',",
+              "                value: true",
+              "            },",
+              "            {",
+              "                op: 'replace',",
+              "                path: '/description',",
+              "                value: `Batch patched threat ${index + 1} - ${Date.now()}`",
+              "            }",
+              "        ]",
+              "    }))",
+              "};",
+              "",
+              "pm.collectionVariables.set('batchPatchData', JSON.stringify(batchPatches));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response contains patched threats', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.be.an('array');",
+              "    pm.expect(responseData).to.have.lengthOf(3);",
+              "});",
+              "",
+              "pm.test('All patch operations were applied', function () {",
+              "    const responseData = pm.response.json();",
+              "    ",
+              "    responseData.forEach(threat => {",
+              "        pm.expect(threat.status).to.equal('Closed');",
+              "        pm.expect(threat.mitigated).to.equal(true);",
+              "        pm.expect(threat.description).to.include('Batch patched');",
+              "    });",
+              "});",
+              "",
+              "pm.test('Performance is acceptable for batch patch', function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(3000);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{batchPatchData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/batch/patch",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "batch", "patch"]
+        },
+        "description": "Apply JSON patch operations to multiple threats"
+      }
+    },
+    {
+      "name": "Batch Delete Threats - Success (200)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate batch delete data for first 2 threats",
+              "const threatIds = JSON.parse(pm.collectionVariables.get('bulkThreatIds') || '[]');",
+              "const deleteData = {",
+              "    threat_ids: threatIds.slice(0, 2)",
+              "};",
+              "",
+              "pm.collectionVariables.set('batchDeleteData', JSON.stringify(deleteData));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response confirms deletions', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.have.property('deleted_count');",
+              "    pm.expect(responseData).to.have.property('deleted_ids');",
+              "    pm.expect(responseData.deleted_count).to.equal(2);",
+              "    pm.expect(responseData.deleted_ids).to.have.lengthOf(2);",
+              "});",
+              "",
+              "pm.test('Deleted IDs match request', function () {",
+              "    const responseData = pm.response.json();",
+              "    const deleteData = JSON.parse(pm.collectionVariables.get('batchDeleteData'));",
+              "    ",
+              "    deleteData.threat_ids.forEach(id => {",
+              "        pm.expect(responseData.deleted_ids).to.include(id);",
+              "    });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{batchDeleteData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/batch",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "batch"]
+        },
+        "description": "Delete multiple threats in a single batch operation"
+      }
+    },
+    {
+      "name": "Bulk Create Documents - Success (201)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate bulk document data",
+              "const factory = new TMITestDataFactory();",
+              "const bulkDocuments = [];",
+              "for (let i = 1; i <= 3; i++) {",
+              "    bulkDocuments.push(factory.validDocument({",
+              "        name: `Bulk Document ${i} - ${Date.now()}`,",
+              "        description: `Bulk created document number ${i}`,",
+              "        url: `https://docs.example.com/bulk-doc-${i}`",
+              "    }));",
+              "}",
+              "",
+              "pm.collectionVariables.set('bulkDocumentsData', JSON.stringify(bulkDocuments));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test('Response is array of created documents', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.be.an('array');",
+              "    pm.expect(responseData).to.have.lengthOf(3);",
+              "});",
+              "",
+              "pm.test('All documents have correct data', function () {",
+              "    const responseData = pm.response.json();",
+              "    const originalData = JSON.parse(pm.collectionVariables.get('bulkDocumentsData'));",
+              "    ",
+              "    responseData.forEach((doc, index) => {",
+              "        pm.expect(doc.id).to.match(/^[0-9a-f-]{36}$/);",
+              "        pm.expect(doc.name).to.equal(originalData[index].name);",
+              "        pm.expect(doc.url).to.equal(originalData[index].url);",
+              "    });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{bulkDocumentsData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/documents/bulk",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "documents", "bulk"]
+        },
+        "description": "Create multiple documents in a single bulk operation"
+      }
+    },
+    {
+      "name": "Bulk Create Sources - Success (201)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate bulk source data",
+              "const factory = new TMITestDataFactory();",
+              "const bulkSources = [];",
+              "for (let i = 1; i <= 3; i++) {",
+              "    bulkSources.push(factory.validSource({",
+              "        name: `Bulk Source ${i} - ${Date.now()}`,",
+              "        description: `Bulk created source number ${i}`,",
+              "        url: `https://github.com/example/repo-${i}`,",
+              "        ref: {",
+              "            refType: 'branch',",
+              "            refValue: `feature-branch-${i}`",
+              "        }",
+              "    }));",
+              "}",
+              "",
+              "pm.collectionVariables.set('bulkSourcesData', JSON.stringify(bulkSources));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test('Response is array of created sources', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.be.an('array');",
+              "    pm.expect(responseData).to.have.lengthOf(3);",
+              "});",
+              "",
+              "pm.test('All sources have correct data', function () {",
+              "    const responseData = pm.response.json();",
+              "    const originalData = JSON.parse(pm.collectionVariables.get('bulkSourcesData'));",
+              "    ",
+              "    responseData.forEach((source, index) => {",
+              "        pm.expect(source.id).to.match(/^[0-9a-f-]{36}$/);",
+              "        pm.expect(source.name).to.equal(originalData[index].name);",
+              "        pm.expect(source.url).to.equal(originalData[index].url);",
+              "        pm.expect(source.ref.refType).to.equal(originalData[index].ref.refType);",
+              "        pm.expect(source.ref.refValue).to.equal(originalData[index].ref.refValue);",
+              "    });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{bulkSourcesData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/sources/bulk",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "sources", "bulk"]
+        },
+        "description": "Create multiple sources in a single bulk operation"
+      }
+    },
+    {
+      "name": "Large Bulk Operation - Performance Test",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate a larger bulk operation (20 threats)",
+              "const factory = new TMITestDataFactory();",
+              "const largeBulkThreats = [];",
+              "for (let i = 1; i <= 20; i++) {",
+              "    largeBulkThreats.push(factory.validThreat({",
+              "        name: `Performance Test Threat ${i} - ${Date.now()}`,",
+              "        description: `Large bulk operation test threat ${i}`,",
+              "        threat_type: ['Spoofing', 'Tampering', 'Repudiation', 'Information Disclosure', 'Denial of Service'][i % 5],",
+              "        severity: ['Low', 'Medium', 'High', 'Critical'][i % 4]",
+              "    }));",
+              "}",
+              "",
+              "pm.collectionVariables.set('largeBulkThreatsData', JSON.stringify(largeBulkThreats));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test('All 20 threats created successfully', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.be.an('array');",
+              "    pm.expect(responseData).to.have.lengthOf(20);",
+              "});",
+              "",
+              "pm.test('Large bulk operation performance is acceptable', function () {",
+              "    // 20 items should complete within 10 seconds",
+              "    pm.expect(pm.response.responseTime).to.be.below(10000);",
+              "});",
+              "",
+              "pm.test('No memory or resource exhaustion', function () {",
+              "    // Check that server didn't return 5xx errors",
+              "    pm.expect(pm.response.code).to.be.below(500);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{largeBulkThreatsData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/bulk",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "bulk"]
+        },
+        "description": "Test performance with larger bulk operation (20 items)"
+      }
+    }
+  ],
+  "description": "Comprehensive testing of bulk and batch operations with performance validation"
+}

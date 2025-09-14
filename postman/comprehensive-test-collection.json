@@ -1,0 +1,780 @@
+{
+  "info": {
+    "_postman_id": "tmi-comprehensive-api-tests",
+    "name": "TMI API - Comprehensive Test Suite",
+    "description": "Complete test coverage for TMI threat modeling API including all status codes, multi-user scenarios, data validation, and edge cases",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. Setup & Authentication",
+      "item": [
+        {
+          "name": "Setup Multi-User Test Environment",
+          "event": [
+            {
+              "listen": "prerequest", 
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Load test data factory and multi-user auth",
+                  "const factory = new TMITestDataFactory();",
+                  "pm.globals.set('testDataFactory', JSON.stringify(factory));",
+                  "",
+                  "// Initialize multi-user authentication",
+                  "console.log('🚀 Setting up comprehensive test environment...');",
+                  "",
+                  "// Prepare multi-user testing",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.prepareMultiUserTest().then(() => {",
+                  "        console.log('✅ Multi-user environment ready');",
+                  "    }).catch(err => {",
+                  "        console.error('❌ Multi-user setup failed:', err);",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript", 
+                "exec": [
+                  "pm.test('Test environment setup completed', function () {",
+                  "    // This is a setup step, always passes",
+                  "    pm.expect(true).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            },
+            "description": "Setup test environment with multi-user authentication"
+          }
+        },
+        {
+          "name": "Authenticate Alice (Owner)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Authenticate Alice as the primary owner user",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.authenticateUser('alice').then(token => {",
+                  "        tmiAuth.setActiveUser('alice');",
+                  "        console.log('✅ Alice authenticated and set as active user');",
+                  "    }).catch(err => {",
+                  "        console.error('❌ Alice authentication failed:', err);",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test", 
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Alice token is valid', function () {",
+                  "    const token = pm.collectionVariables.get('access_token');",
+                  "    pm.expect(token).to.be.a('string');",
+                  "    pm.expect(token.length).to.be.above(10);",
+                  "});",
+                  "",
+                  "pm.test('Current user is Alice', function () {",
+                  "    const currentUser = pm.collectionVariables.get('currentUser');",
+                  "    pm.expect(currentUser).to.equal('alice');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/oauth2/userinfo",
+              "host": ["{{baseUrl}}"],
+              "path": ["oauth2", "userinfo"]
+            },
+            "description": "Authenticate Alice as primary test user"
+          }
+        },
+        {
+          "name": "Authenticate Bob (Writer)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Authenticate Bob as writer user",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.authenticateUser('bob').then(token => {",
+                  "        console.log('✅ Bob authenticated');",
+                  "    }).catch(err => {",
+                  "        console.error('❌ Bob authentication failed:', err);",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Bob token is valid', function () {",
+                  "    const token = pm.collectionVariables.get('token_bob');",
+                  "    pm.expect(token).to.be.a('string');",
+                  "    pm.expect(token.length).to.be.above(10);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET", 
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_bob}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/oauth2/userinfo",
+              "host": ["{{baseUrl}}"],
+              "path": ["oauth2", "userinfo"]
+            },
+            "description": "Authenticate Bob as writer test user"
+          }
+        },
+        {
+          "name": "Authenticate Charlie (Reader)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Authenticate Charlie as reader user",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.authenticateUser('charlie').then(token => {",
+                  "        console.log('✅ Charlie authenticated');",
+                  "    }).catch(err => {",
+                  "        console.error('❌ Charlie authentication failed:', err);",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Charlie token is valid', function () {",
+                  "    const token = pm.collectionVariables.get('token_charlie');",
+                  "    pm.expect(token).to.be.a('string');",
+                  "    pm.expect(token.length).to.be.above(10);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/oauth2/userinfo", 
+              "host": ["{{baseUrl}}"],
+              "path": ["oauth2", "userinfo"]
+            },
+            "description": "Authenticate Charlie as reader test user"
+          }
+        }
+      ],
+      "description": "Setup multi-user authentication environment for comprehensive testing"
+    },
+    {
+      "name": "1. Discovery & Public Endpoints",
+      "item": [
+        {
+          "name": "API Root - Success (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has required fields', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.all.keys('status', 'service', 'api', 'operator');",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            },
+            "description": "Test API root endpoint returns 200 with service information"
+          }
+        },
+        {
+          "name": "OpenID Configuration - Success (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has OpenID fields', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('issuer');",
+                  "    pm.expect(responseData).to.have.property('authorization_endpoint');",
+                  "    pm.expect(responseData).to.have.property('token_endpoint');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept", 
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/.well-known/openid-configuration",
+              "host": ["{{baseUrl}}"],
+              "path": [".well-known", "openid-configuration"]
+            },
+            "description": "Test OpenID Connect discovery endpoint"
+          }
+        },
+        {
+          "name": "JWKS - Success (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has keys array', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('keys');",
+                  "    pm.expect(responseData.keys).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/.well-known/jwks.json",
+              "host": ["{{baseUrl}}"],
+              "path": [".well-known", "jwks.json"]
+            },
+            "description": "Test JSON Web Key Set endpoint"
+          }
+        },
+        {
+          "name": "OAuth Providers - Success (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has providers array', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('providers');",
+                  "    pm.expect(responseData.providers).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/oauth2/providers",
+              "host": ["{{baseUrl}}"],
+              "path": ["oauth2", "providers"]
+            },
+            "description": "Test OAuth providers listing endpoint"
+          }
+        }
+      ],
+      "description": "Test all public discovery endpoints for proper responses"
+    },
+    {
+      "name": "2. Threat Model CRUD Tests",
+      "item": [
+        {
+          "name": "Create Threat Model - Success (201)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Ensure Alice is the active user",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "// Generate valid threat model data",
+                  "const factory = new TMITestDataFactory();",
+                  "const threatModel = factory.validThreatModel({",
+                  "    name: `Alice Test Threat Model ${Date.now()}`,",
+                  "    description: 'Created by Alice for permission testing'",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('threatModelData', JSON.stringify(threatModel));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has Location header', function () {",
+                  "    pm.expect(pm.response.headers.has('Location')).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Response has threat model with ID', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('id');",
+                  "    pm.expect(responseData.id).to.match(/^[0-9a-f-]{36}$/);",
+                  "    ",
+                  "    // Store for subsequent tests",
+                  "    pm.collectionVariables.set('aliceThreatModelId', responseData.id);",
+                  "    ",
+                  "    // Store for permission testing",
+                  "    if (typeof tmiAuth !== 'undefined') {",
+                  "        tmiAuth.storeResourceForPermissionTest('threat_model', responseData.id, 'alice');",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Created threat model has correct data', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    const originalData = JSON.parse(pm.collectionVariables.get('threatModelData'));",
+                  "    ",
+                  "    pm.expect(responseData.name).to.equal(originalData.name);",
+                  "    pm.expect(responseData.description).to.equal(originalData.description);",
+                  "    pm.expect(responseData.threat_model_framework).to.equal(originalData.threat_model_framework);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{threatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models"]
+            },
+            "description": "Create a threat model with valid data as Alice"
+          }
+        },
+        {
+          "name": "Create Threat Model - Invalid Data (400)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Generate invalid threat model data (missing required name)",
+                  "const invalidData = {",
+                  "    description: 'Missing required name field',",
+                  "    threat_model_framework: 'STRIDE'",
+                  "};",
+                  "",
+                  "pm.collectionVariables.set('invalidThreatModelData', JSON.stringify(invalidData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error response has proper format', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('error');",
+                  "    pm.expect(responseData).to.have.property('error_description');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{invalidThreatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models"]
+            },
+            "description": "Test threat model creation with invalid data"
+          }
+        },
+        {
+          "name": "Create Threat Model - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Generate valid threat model data",
+                  "const factory = new TMITestDataFactory();",
+                  "const threatModel = factory.validThreatModel();",
+                  "pm.collectionVariables.set('threatModelData', JSON.stringify(threatModel));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('unauthorized');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{threatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models"]
+            },
+            "description": "Test threat model creation without authentication"
+          },
+          "auth": {
+            "type": "noauth"
+          }
+        },
+        {
+          "name": "Get Threat Model - Success (200)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Ensure Alice is active user",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has threat model data', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('id');",
+                  "    pm.expect(responseData).to.have.property('name');",
+                  "    pm.expect(responseData).to.have.property('created_at');",
+                  "    pm.expect(responseData).to.have.property('modified_at');",
+                  "});",
+                  "",
+                  "pm.test('Threat model ID matches', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    const expectedId = pm.collectionVariables.get('aliceThreatModelId');",
+                  "    pm.expect(responseData.id).to.equal(expectedId);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}"]
+            },
+            "description": "Get threat model that Alice owns"
+          }
+        },
+        {
+          "name": "Get Threat Model - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (no access user)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.authenticateUser('diana').then(() => {",
+                  "        tmiAuth.setActiveUser('diana');",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript", 
+                "exec": [
+                  "pm.test('Status code is 403', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET", 
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}"]
+            },
+            "description": "Try to get Alice's threat model as Diana (no access)"
+          }
+        },
+        {
+          "name": "Get Threat Model - Not Found (404)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch back to Alice",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates resource not found', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('not_found');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "00000000-0000-0000-0000-000000000000"]
+            },
+            "description": "Try to get non-existent threat model"
+          }
+        }
+      ],
+      "description": "Comprehensive CRUD testing for threat models with all status codes"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080"
+    },
+    {
+      "key": "loginHint",
+      "value": "alice",
+      "type": "string"
+    },
+    {
+      "key": "oauthStubUrl",
+      "value": "http://127.0.0.1:8079",
+      "type": "string"
+    },
+    {
+      "key": "currentUser",
+      "value": "alice",
+      "type": "string"
+    },
+    {
+      "key": "token_alice",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "token_bob", 
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "token_charlie",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "token_diana",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "aliceThreatModelId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "threatModelData",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

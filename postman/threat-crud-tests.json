@@ -1,0 +1,579 @@
+{
+  "name": "3. Threat CRUD & Validation Tests",
+  "item": [
+    {
+      "name": "Create Threat - Success (201)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Ensure Alice is active user and has a threat model",
+              "if (typeof tmiAuth !== 'undefined') {",
+              "    tmiAuth.setActiveUser('alice');",
+              "}",
+              "",
+              "// Generate valid threat data",
+              "const factory = new TMITestDataFactory();",
+              "const threat = factory.validThreat({",
+              "    name: `Test Threat ${Date.now()}`,",
+              "    description: 'A comprehensive test threat',",
+              "    threat_type: 'Spoofing',",
+              "    severity: 'High',",
+              "    priority: 'High',",
+              "    score: 8.5,",
+              "    status: 'Open',",
+              "    mitigated: false",
+              "});",
+              "",
+              "pm.collectionVariables.set('threatData', JSON.stringify(threat));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test('Response has threat with ID', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.have.property('id');",
+              "    pm.expect(responseData.id).to.match(/^[0-9a-f-]{36}$/);",
+              "    ",
+              "    // Store for subsequent tests",
+              "    pm.collectionVariables.set('aliceThreatId', responseData.id);",
+              "    ",
+              "    // Store for permission testing",
+              "    if (typeof tmiAuth !== 'undefined') {",
+              "        tmiAuth.storeResourceForPermissionTest('threat', responseData.id, 'alice');",
+              "    }",
+              "});",
+              "",
+              "pm.test('Created threat has correct data', function () {",
+              "    const responseData = pm.response.json();",
+              "    const originalData = JSON.parse(pm.collectionVariables.get('threatData'));",
+              "    ",
+              "    pm.expect(responseData.name).to.equal(originalData.name);",
+              "    pm.expect(responseData.threat_type).to.equal(originalData.threat_type);",
+              "    pm.expect(responseData.severity).to.equal(originalData.severity);",
+              "    pm.expect(responseData.priority).to.equal(originalData.priority);",
+              "    pm.expect(responseData.status).to.equal(originalData.status);",
+              "    pm.expect(responseData.mitigated).to.equal(originalData.mitigated);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{threatData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+        },
+        "description": "Create a threat with valid data"
+      }
+    },
+    {
+      "name": "Create Threat - Missing Required Fields (400)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate threat data missing required fields",
+              "const invalidThreat = {",
+              "    description: 'Missing name field',",
+              "    threat_type: 'Spoofing'",
+              "    // Missing: name, severity, priority, status, mitigated",
+              "};",
+              "",
+              "pm.collectionVariables.set('invalidThreatData', JSON.stringify(invalidThreat));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Error response indicates missing fields', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.have.property('error');",
+              "    pm.expect(responseData.error_description).to.include('validation');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{invalidThreatData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+        },
+        "description": "Test threat creation with missing required fields"
+      }
+    },
+    {
+      "name": "Create Threat - Invalid Enum Values (400)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate threat data with invalid enum values",
+              "const invalidThreat = {",
+              "    name: 'Test Threat',",
+              "    threat_type: 'InvalidThreatType',",
+              "    severity: 'InvalidSeverity', ",
+              "    priority: 'InvalidPriority',",
+              "    status: 'InvalidStatus',",
+              "    mitigated: false",
+              "};",
+              "",
+              "pm.collectionVariables.set('invalidEnumThreatData', JSON.stringify(invalidThreat));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Error indicates invalid enum values', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData.error_description).to.include('validation');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{invalidEnumThreatData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+        },
+        "description": "Test threat creation with invalid enum values"
+      }
+    },
+    {
+      "name": "Create Threat - Invalid Score Range (400)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate threat data with invalid score",
+              "const invalidThreat = {",
+              "    name: 'Test Threat',",
+              "    threat_type: 'Spoofing',",
+              "    severity: 'High',",
+              "    priority: 'High',", 
+              "    status: 'Open',",
+              "    mitigated: false,",
+              "    score: 15 // Invalid: must be 0-10",
+              "};",
+              "",
+              "pm.collectionVariables.set('invalidScoreThreatData', JSON.stringify(invalidThreat));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Error indicates invalid score range', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData.error_description).to.include('validation');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type", 
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{invalidScoreThreatData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+        },
+        "description": "Test threat creation with invalid score range"
+      }
+    },
+    {
+      "name": "Create Threat - Wrong Data Types (400)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate threat data with wrong data types",
+              "const invalidThreat = {",
+              "    name: 123, // should be string",
+              "    threat_type: true, // should be string",
+              "    severity: 456, // should be string",
+              "    priority: [], // should be string",
+              "    status: {}, // should be string", 
+              "    mitigated: 'true', // should be boolean",
+              "    score: 'high' // should be number",
+              "};",
+              "",
+              "pm.collectionVariables.set('wrongTypesThreatData', JSON.stringify(invalidThreat));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Error indicates type validation failure', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData.error_description).to.include('validation');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{wrongTypesThreatData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+        },
+        "description": "Test threat creation with wrong data types"
+      }
+    },
+    {
+      "name": "Create Threat - Nonexistent Threat Model (404)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate valid threat data",
+              "const factory = new TMITestDataFactory();",
+              "const threat = factory.validThreat();",
+              "pm.collectionVariables.set('validThreatData', JSON.stringify(threat));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 404', function () {",
+              "    pm.response.to.have.status(404);",
+              "});",
+              "",
+              "pm.test('Error indicates threat model not found', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData.error).to.include('not_found');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw", 
+          "raw": "{{validThreatData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000/threats",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "00000000-0000-0000-0000-000000000000", "threats"]
+        },
+        "description": "Test threat creation with nonexistent threat model"
+      }
+    },
+    {
+      "name": "Get Threat - Success (200)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response has threat data', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData).to.have.property('id');",
+              "    pm.expect(responseData).to.have.property('name');",
+              "    pm.expect(responseData).to.have.property('threat_type');",
+              "    pm.expect(responseData).to.have.property('severity');",
+              "    pm.expect(responseData).to.have.property('created_at');",
+              "});",
+              "",
+              "pm.test('Threat ID matches', function () {",
+              "    const responseData = pm.response.json();",
+              "    const expectedId = pm.collectionVariables.get('aliceThreatId');",
+              "    pm.expect(responseData.id).to.equal(expectedId);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{aliceThreatId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{aliceThreatId}}"]
+        },
+        "description": "Get threat that Alice owns"
+      }
+    },
+    {
+      "name": "Update Threat - Success (200)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate updated threat data",
+              "const factory = new TMITestDataFactory();",
+              "const updatedThreat = factory.validThreat({",
+              "    name: `Updated Threat ${Date.now()}`,",
+              "    description: 'Updated threat description',",
+              "    severity: 'Critical',",
+              "    status: 'In Progress'",
+              "});",
+              "",
+              "pm.collectionVariables.set('updatedThreatData', JSON.stringify(updatedThreat));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Threat was updated correctly', function () {",
+              "    const responseData = pm.response.json();",
+              "    const updatedData = JSON.parse(pm.collectionVariables.get('updatedThreatData'));",
+              "    ",
+              "    pm.expect(responseData.name).to.equal(updatedData.name);",
+              "    pm.expect(responseData.severity).to.equal(updatedData.severity);",
+              "    pm.expect(responseData.status).to.equal(updatedData.status);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{updatedThreatData}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{aliceThreatId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{aliceThreatId}}"]
+        },
+        "description": "Update threat with valid data"
+      }
+    },
+    {
+      "name": "Patch Threat - Success (200)", 
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate JSON patch operations",
+              "const patchOps = [",
+              "    {",
+              "        op: 'replace',",
+              "        path: '/status',",
+              "        value: 'Closed'",
+              "    },",
+              "    {",
+              "        op: 'replace',",
+              "        path: '/mitigated',",
+              "        value: true",
+              "    }",
+              "];",
+              "",
+              "pm.collectionVariables.set('threatPatchOps', JSON.stringify(patchOps));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Patch operations applied correctly', function () {",
+              "    const responseData = pm.response.json();",
+              "    pm.expect(responseData.status).to.equal('Closed');",
+              "    pm.expect(responseData.mitigated).to.equal(true);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{threatPatchOps}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{aliceThreatId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{aliceThreatId}}"]
+        },
+        "description": "Apply JSON patch to threat"
+      }
+    },
+    {
+      "name": "Delete Threat - Success (204)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 204', function () {",
+              "    pm.response.to.have.status(204);",
+              "});",
+              "",
+              "pm.test('Response body is empty', function () {",
+              "    pm.expect(pm.response.text()).to.be.empty;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{aliceThreatId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{aliceThreatId}}"]
+        },
+        "description": "Delete the threat"
+      }
+    }
+  ],
+  "description": "Comprehensive CRUD testing for threats with all validation scenarios"
+}

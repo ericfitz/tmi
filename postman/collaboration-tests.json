@@ -1,0 +1,525 @@
+{
+  "name": "7. Collaboration Session Tests",
+  "item": [
+    {
+      "name": "Setup Collaboration Test Resources",
+      "item": [
+        {
+          "name": "Create Test Diagram for Collaboration",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Ensure Alice is active user",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "// Generate diagram for collaboration testing",
+                  "const factory = new TMITestDataFactory();",
+                  "const diagram = factory.validDiagram({",
+                  "    name: `Collaboration Test Diagram ${Date.now()}`,",
+                  "    description: 'Diagram for testing collaboration features',",
+                  "    type: 'DFD-1.0.0'",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('collaborationDiagramData', JSON.stringify(diagram));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Diagram created for collaboration', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('id');",
+                  "    pm.collectionVariables.set('collaborationDiagramId', responseData.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{collaborationDiagramData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams"]
+            },
+            "description": "Create diagram for collaboration testing"
+          }
+        }
+      ],
+      "description": "Setup resources needed for collaboration testing"
+    },
+    {
+      "name": "Collaboration Session Management",
+      "item": [
+        {
+          "name": "Start Collaboration Session - Success (201)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Generate collaboration session data",
+                  "const sessionData = {",
+                  "    participants: ['bob@test.tmi', 'charlie@test.tmi'],",
+                  "    permissions: 'writer'",
+                  "};",
+                  "",
+                  "pm.collectionVariables.set('collaborationSessionData', JSON.stringify(sessionData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Collaboration session started', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('session_id');",
+                  "    pm.expect(responseData).to.have.property('host');",
+                  "    pm.expect(responseData).to.have.property('participants');",
+                  "    pm.expect(responseData).to.have.property('websocket_url');",
+                  "    ",
+                  "    // Store session ID for subsequent tests",
+                  "    pm.collectionVariables.set('collaborationSessionId', responseData.session_id);",
+                  "});",
+                  "",
+                  "pm.test('Session has correct host and participants', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.host.email).to.include('alice');",
+                  "    pm.expect(responseData.participants).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('WebSocket URL is provided', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.websocket_url).to.match(/^ws/);",
+                  "    pm.expect(responseData.websocket_url).to.include('diagrams');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{collaborationSessionData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+            },
+            "description": "Start a new collaboration session"
+          }
+        },
+        {
+          "name": "Start Session - Already Active (409)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Try to start another session on same diagram",
+                  "const duplicateSessionData = {",
+                  "    participants: ['diana@test.tmi'],",
+                  "    permissions: 'reader'",
+                  "};",
+                  "",
+                  "pm.collectionVariables.set('duplicateSessionData', JSON.stringify(duplicateSessionData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 409', function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates session conflict', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('conflict');",
+                  "    pm.expect(responseData.error_description).to.include('collaboration');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{duplicateSessionData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+            },
+            "description": "Try to start duplicate collaboration session"
+          }
+        },
+        {
+          "name": "Get Collaboration Session Info - Success (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Session info is complete', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('session_id');",
+                  "    pm.expect(responseData).to.have.property('host');",
+                  "    pm.expect(responseData).to.have.property('participants');",
+                  "    pm.expect(responseData).to.have.property('diagram_id');",
+                  "    pm.expect(responseData).to.have.property('threat_model_id');",
+                  "});",
+                  "",
+                  "pm.test('Session IDs match', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    const expectedSessionId = pm.collectionVariables.get('collaborationSessionId');",
+                  "    pm.expect(responseData.session_id).to.equal(expectedSessionId);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+            },
+            "description": "Get current collaboration session information"
+          }
+        },
+        {
+          "name": "List All Collaboration Sessions - Success (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Sessions list is array', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Contains our active session', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    const expectedSessionId = pm.collectionVariables.get('collaborationSessionId');",
+                  "    ",
+                  "    const ourSession = responseData.find(session => session.session_id === expectedSessionId);",
+                  "    pm.expect(ourSession).to.not.be.undefined;",
+                  "    pm.expect(ourSession.diagram_id).to.equal(pm.collectionVariables.get('collaborationDiagramId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/collaboration/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaboration", "sessions"]
+            },
+            "description": "List all active collaboration sessions"
+          }
+        }
+      ],
+      "description": "Test collaboration session management operations"
+    },
+    {
+      "name": "Participant Permission Tests",
+      "item": [
+        {
+          "name": "Participant Access Session - Success (200)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Bob (invited participant)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('bob');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Participant can access session (200)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Participant sees session details', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('session_id');",
+                  "    pm.expect(responseData.host.email).to.include('alice');",
+                  "});",
+                  "",
+                  "pm.test('Participant has correct permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    const bobParticipant = responseData.participants.find(p => p.user.email.includes('bob'));",
+                  "    pm.expect(bobParticipant).to.not.be.undefined;",
+                  "    pm.expect(bobParticipant.permissions).to.equal('writer');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+            },
+            "description": "Bob accesses the collaboration session he was invited to"
+          }
+        },
+        {
+          "name": "Non-Participant Access - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (not invited)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('diana');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Non-participant cannot access session (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+            },
+            "description": "Diana tries to access collaboration session she wasn't invited to"
+          }
+        }
+      ],
+      "description": "Test participant permissions in collaboration sessions"
+    },
+    {
+      "name": "Session Updates and Cleanup",
+      "item": [
+        {
+          "name": "Update Collaboration Session - Success (200)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch back to Alice (host)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "// Generate session update data",
+                  "const updateData = {",
+                  "    participants: ['bob@test.tmi', 'charlie@test.tmi', 'diana@test.tmi'],",
+                  "    permissions: 'reader'",
+                  "};",
+                  "",
+                  "pm.collectionVariables.set('sessionUpdateData', JSON.stringify(updateData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Session updated successfully', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.participants).to.have.lengthOf(3);",
+                  "});",
+                  "",
+                  "pm.test('New participant added', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    const dianaParticipant = responseData.participants.find(p => p.user.email.includes('diana'));",
+                  "    pm.expect(dianaParticipant).to.not.be.undefined;",
+                  "    pm.expect(dianaParticipant.permissions).to.equal('reader');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{sessionUpdateData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+            },
+            "description": "Update collaboration session participants"
+          }
+        },
+        {
+          "name": "End Collaboration Session - Success (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test('Response body is empty', function () {",
+                  "    pm.expect(pm.response.text()).to.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+            },
+            "description": "End the collaboration session"
+          }
+        },
+        {
+          "name": "Verify Session Ended - Not Found (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Confirms session was terminated', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('not_found');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+            },
+            "description": "Verify collaboration session was properly ended"
+          }
+        }
+      ],
+      "description": "Test session updates and proper cleanup"
+    }
+  ],
+  "description": "Comprehensive testing of real-time collaboration features including session management, participant permissions, and WebSocket integration"
+}

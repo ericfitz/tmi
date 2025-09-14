@@ -1,0 +1,590 @@
+{
+  "name": "5. Multi-User Permission Testing",
+  "item": [
+    {
+      "name": "Setup Permission Test Resources",
+      "item": [
+        {
+          "name": "Create Bob's Threat Model", 
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Bob as active user",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('bob');",
+                  "}",
+                  "",
+                  "// Generate threat model for Bob",
+                  "const factory = new TMITestDataFactory();",
+                  "const bobThreatModel = factory.validThreatModel({",
+                  "    name: `Bob's Private Threat Model ${Date.now()}`,",
+                  "    description: 'Created by Bob for permission testing'",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('bobThreatModelData', JSON.stringify(bobThreatModel));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Bob owns the threat model', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.collectionVariables.set('bobThreatModelId', responseData.id);",
+                  "    ",
+                  "    // Store for permission testing",
+                  "    if (typeof tmiAuth !== 'undefined') {",
+                  "        tmiAuth.storeResourceForPermissionTest('threat_model', responseData.id, 'bob');",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{bobThreatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models"]
+            },
+            "description": "Create threat model as Bob for permission testing"
+          }
+        },
+        {
+          "name": "Grant Charlie Reader Access to Alice's Threat Model",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch back to Alice (owner)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "// Generate authorization grant",
+                  "const authGrant = {",
+                  "    subject: 'charlie@test.tmi',",
+                  "    role: 'reader'",
+                  "};",
+                  "",
+                  "pm.collectionVariables.set('charlieReaderAuth', JSON.stringify(authGrant));"
+                ]
+              }
+            },
+            {
+              "listen": "test", 
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "    pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test('Authorization granted successfully', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.subject).to.include('charlie');",
+                  "    pm.expect(responseData.role).to.equal('reader');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{charlieReaderAuth}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/authorization",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "authorization"]
+            },
+            "description": "Grant Charlie reader access to Alice's threat model"
+          }
+        }
+      ],
+      "description": "Setup resources for comprehensive permission testing"
+    },
+    {
+      "name": "Owner Access Tests (Alice)",
+      "item": [
+        {
+          "name": "Owner Read Access - Success (200)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Ensure Alice is active user",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Owner can read own threat model (200)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains threat model data', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('id');",
+                  "    pm.expect(responseData.id).to.equal(pm.collectionVariables.get('aliceThreatModelId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}"]
+            },
+            "description": "Alice reads her own threat model"
+          }
+        },
+        {
+          "name": "Owner Write Access - Success (200)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Generate patch to update description",
+                  "const patchOps = [{",
+                  "    op: 'replace',",
+                  "    path: '/description',",
+                  "    value: `Updated by owner ${Date.now()}`",
+                  "}];",
+                  "",
+                  "pm.collectionVariables.set('ownerPatchOps', JSON.stringify(patchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Owner can modify own threat model (200)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Modification was applied', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.description).to.include('Updated by owner');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type", 
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{ownerPatchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}"]
+            },
+            "description": "Alice modifies her own threat model"
+          }
+        }
+      ],
+      "description": "Test owner permissions (full access)"
+    },
+    {
+      "name": "Reader Access Tests (Charlie)", 
+      "item": [
+        {
+          "name": "Reader Read Access - Success (200)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Charlie (reader)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('charlie');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader can read permitted threat model (200)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains threat model data', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('id');",
+                  "    pm.expect(responseData.id).to.equal(pm.collectionVariables.get('aliceThreatModelId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}"]
+            },
+            "description": "Charlie reads Alice's threat model (granted reader access)"
+          }
+        },
+        {
+          "name": "Reader Write Access - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Generate patch attempt", 
+                  "const patchOps = [{",
+                  "    op: 'replace',",
+                  "    path: '/description',",
+                  "    value: 'Unauthorized modification attempt'",
+                  "}];",
+                  "",
+                  "pm.collectionVariables.set('readerPatchOps', JSON.stringify(patchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot modify threat model (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.details.required_role).to.equal('writer');",
+                  "    pm.expect(responseData.details.user_role).to.equal('reader');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerPatchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}"]
+            },
+            "description": "Charlie attempts to modify Alice's threat model (should fail)"
+          }
+        },
+        {
+          "name": "Reader Delete Access - Forbidden (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot delete threat model (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions for delete', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.details.required_role).to.equal('owner');",
+                  "    pm.expect(responseData.details.user_role).to.equal('reader');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}"]
+            },
+            "description": "Charlie attempts to delete Alice's threat model (should fail)"
+          }
+        }
+      ],
+      "description": "Test reader permissions (read-only access)"
+    },
+    {
+      "name": "No Access Tests (Diana)",
+      "item": [
+        {
+          "name": "No Access Read - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (no access)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.authenticateUser('diana').then(() => {",
+                  "        tmiAuth.setActiveUser('diana');",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No access user cannot read threat model (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates no access permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}"]
+            },
+            "description": "Diana attempts to read Alice's threat model (no permissions)"
+          }
+        },
+        {
+          "name": "No Access Write - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Generate unauthorized modification attempt",
+                  "const patchOps = [{",
+                  "    op: 'replace',",
+                  "    path: '/description',",
+                  "    value: 'Completely unauthorized modification'",
+                  "}];",
+                  "",
+                  "pm.collectionVariables.set('unauthorizedPatchOps', JSON.stringify(patchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No access user cannot modify threat model (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates complete lack of access', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{unauthorizedPatchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}"]
+            },
+            "description": "Diana attempts to modify Alice's threat model (no permissions)"
+          }
+        }
+      ],
+      "description": "Test scenarios with no access permissions"
+    },
+    {
+      "name": "Cross-Resource Permission Tests",
+      "item": [
+        {
+          "name": "Access Other User's Resource - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Alice trying to access Bob's threat model",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cannot access other user resources without permission (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates resource belongs to different user', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{bobThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{bobThreatModelId}}"]
+            },
+            "description": "Alice attempts to access Bob's threat model without permission"
+          }
+        }
+      ],
+      "description": "Test cross-user resource access permissions"
+    },
+    {
+      "name": "Cleanup Permission Test Resources",
+      "item": [
+        {
+          "name": "Delete Bob's Threat Model",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch back to Bob to delete his resource",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('bob');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Bob can delete his own threat model (204)', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test('Cleanup successful', function () {",
+                  "    pm.expect(pm.response.text()).to.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{bobThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{bobThreatModelId}}"]
+            },
+            "description": "Bob deletes his threat model"
+          }
+        }
+      ],
+      "description": "Clean up resources created during permission testing"
+    }
+  ],
+  "description": "Comprehensive multi-user permission matrix testing covering owner, writer, reader, and no-access scenarios"
+}
