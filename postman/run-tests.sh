@@ -8,12 +8,8 @@ set -e
 # Setup cleanup trap
 cleanup() {
     echo "🧹 Cleaning up..."
-    if [ ! -z "$OAUTH_STUB_PID" ]; then
-        kill $OAUTH_STUB_PID 2>/dev/null || true
-        echo "Background OAuth stub process terminated"
-    fi
     cd "$PROJECT_ROOT" 2>/dev/null || true
-    make oauth-stub-stop 2>/dev/null || true
+    make oauth-stub-kill 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -32,34 +28,24 @@ echo "Collection: $COLLECTION_FILE"
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
-# Stop any existing OAuth stub
-echo "Stopping existing OAuth stub..."
+# Force kill any existing OAuth stub
+echo "Force killing any existing OAuth stub..."
 cd "$PROJECT_ROOT"
-make oauth-stub-stop 2>&1 | tee -a "$LOG_FILE" || true
+make oauth-stub-kill || true
 
-# Start OAuth stub in background
-echo "Starting OAuth stub in background..."
+# Start OAuth stub 
+echo "Starting OAuth stub..."
 cd "$PROJECT_ROOT"
-make oauth-stub-start 2>&1 | tee -a "$LOG_FILE" &
-OAUTH_STUB_PID=$!
+make oauth-stub-start
 
-# Wait for stub to be ready
-echo "Waiting for OAuth stub to be ready..."
-STUB_READY=false
-for i in {1..15}; do
-    if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then
-        echo "✅ OAuth stub is ready"
-        STUB_READY=true
-        break
-    fi
-    echo "Waiting... ($i/15)"
-    sleep 2
-done
-
-if [ "$STUB_READY" = false ]; then
-    echo "❌ OAuth stub failed to start within 30 seconds"
-    echo "Killing background process..."
-    kill $OAUTH_STUB_PID 2>/dev/null || true
+# Verify stub is running using make target
+echo "Verifying OAuth stub status..."
+if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]"; then
+    echo "✅ OAuth stub is ready"
+else
+    echo "❌ OAuth stub failed to start"
+    echo "Status check result:"
+    make oauth-stub-status
     exit 1
 fi
 
@@ -187,13 +173,7 @@ echo ""
 # Stop OAuth stub
 echo "Stopping OAuth stub..."
 cd "$PROJECT_ROOT"
-# Kill the background process first if it's still running
-if [ ! -z "$OAUTH_STUB_PID" ]; then
-    kill $OAUTH_STUB_PID 2>/dev/null || true
-    echo "Background OAuth stub process terminated"
-fi
-# Also run the make target to ensure cleanup
-make oauth-stub-stop 2>&1 | tee -a "$LOG_FILE" || true
+make oauth-stub-kill || true
 
 # Exit with newman's exit code
 if [ $TEST_EXIT_CODE -eq 0 ]; then

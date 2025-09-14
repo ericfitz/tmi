@@ -413,7 +413,7 @@ clean-all: clean-processes clean-containers clean-files
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration dev-start dev-clean test-coverage
+.PHONY: test-unit test-integration test-api dev-start dev-clean test-coverage
 
 # Unit Testing - Fast tests with no external dependencies
 test-unit:
@@ -440,6 +440,19 @@ test-integration:
 	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) server-start && \
 	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) process-wait && \
 	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) test-integration-execute
+
+# API Testing - Comprehensive Postman/Newman test suite
+test-api:
+	$(call log_info,"Running comprehensive API test suite...")
+	@if [ ! -f postman/run-tests.sh ]; then \
+		echo -e "$(RED)[ERROR]$(NC) API test script not found at postman/run-tests.sh"; \
+		exit 1; \
+	fi
+	@if ! command -v newman >/dev/null 2>&1; then \
+		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: npm install -g newman"; \
+		exit 1; \
+	fi
+	@cd postman && ./run-tests.sh
 
 # Development Environment - Start local dev environment
 dev-start:
@@ -565,7 +578,7 @@ coverage-reports:
 
 
 # OAuth Stub - Development tool for OAuth callback testing
-.PHONY: oauth-stub-start oauth-stub-stop oauth-stub-status
+.PHONY: oauth-stub-start oauth-stub-stop oauth-stub-kill oauth-stub-status
 oauth-stub-start:
 	$(call log_info,"Starting OAuth callback stub on port 8079...")
 	@if pgrep -f "oauth-client-callback-stub.py" > /dev/null; then \
@@ -621,6 +634,22 @@ oauth-stub-stop:
 	else \
 		echo -e "$(RED)[ERROR]$(NC) Failed to stop all processes on port 8079: $$PIDS"; \
 	fi
+
+oauth-stub-kill:
+	$(call log_info,"Force killing anything on port 8079...")
+	@PIDS=$$(lsof -ti :8079 2>/dev/null || true); \
+	if [ -n "$$PIDS" ]; then \
+		echo -e "$(YELLOW)[WARNING]$(NC) Found processes on port 8079: $$PIDS"; \
+		for PID in $$PIDS; do \
+			echo -e "$(BLUE)[INFO]$(NC) Force killing process $$PID with SIGKILL..."; \
+			kill -9 $$PID 2>/dev/null || true; \
+		done; \
+		sleep 1; \
+		echo -e "$(GREEN)[SUCCESS]$(NC) All processes on port 8079 killed"; \
+	else \
+		echo -e "$(GREEN)[SUCCESS]$(NC) No processes found on port 8079"; \
+	fi
+	@rm -f .oauth-stub.pid
 
 oauth-stub-status:
 	@if [ -f .oauth-stub.pid ]; then \
