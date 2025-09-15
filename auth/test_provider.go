@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"golang.org/x/oauth2"
 )
 
@@ -120,7 +120,7 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 		}
 	}
 	
-	logger := logging.Get()
+	logger := slogging.Get()
 	if userHint != "" {
 		logger.Debug("[TEST_PROVIDER] ExchangeCode: Found login_hint: %s", userHint)
 		// Validate and sanitize login_hint
@@ -148,7 +148,7 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 
 // GetUserInfo returns fake user information
 func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("[TEST_PROVIDER] GetUserInfo: Called with access token: %s", accessToken)
 	
 	// Check if access token contains a login_hint

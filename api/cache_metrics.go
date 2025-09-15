@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/auth/db"
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // CacheMetrics tracks cache performance and usage statistics
@@ -299,7 +299,7 @@ func (cm *CacheMetrics) GetCacheStats(ctx context.Context) (*CacheStats, error) 
 
 	// Get system stats from Redis
 	if err := cm.populateSystemStats(ctx, stats); err != nil {
-		logging.Get().Error("Failed to get Redis system stats: %v", err)
+		slogging.Get().Error("Failed to get Redis system stats: %v", err)
 	}
 
 	return stats, nil
@@ -413,7 +413,7 @@ func (cm *CacheMetrics) ResetMetrics() {
 	cm.timings = make(map[string][]time.Duration)
 	cm.startTime = time.Now()
 
-	logging.Get().Info("Cache metrics reset")
+	slogging.Get().Info("Cache metrics reset")
 }
 
 // ExportMetrics exports metrics in JSON format
@@ -434,11 +434,11 @@ func (cm *CacheMetrics) LogMetricsSummary(ctx context.Context) {
 
 	stats, err := cm.GetCacheStats(ctx)
 	if err != nil {
-		logging.Get().Error("Failed to get cache stats for logging: %v", err)
+		slogging.Get().Error("Failed to get cache stats for logging: %v", err)
 		return
 	}
 
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("Cache Metrics Summary:")
 	logger.Info("  Hit Ratio: %.2f%% (%d hits, %d misses)",
 		stats.HitRatio*100, stats.TotalHits, stats.TotalMisses)

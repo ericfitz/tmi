@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -210,7 +210,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 
 	createdDiagram, err := DiagramStore.CreateWithThreatModel(d, threatModelId, idSetter)
 	if err != nil {
-		logging.Get().WithContext(c).Error("Failed to create diagram in store for threat model %s (user: %s, diagram type: %s): %v", threatModelId, userEmail, d.Type, err)
+		slogging.Get().WithContext(c).Error("Failed to create diagram in store for threat model %s (user: %s, diagram type: %s): %v", threatModelId, userEmail, d.Type, err)
 		HandleRequestError(c, ServerError("Failed to create diagram"))
 		return
 	}
@@ -221,7 +221,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	if err := diagramUnion.FromDfdDiagram(createdDiagram); err != nil {
 		// Delete the created diagram if we can't add it to the threat model
 		if deleteErr := DiagramStore.Delete(createdDiagram.Id.String()); deleteErr != nil {
-			logging.Get().WithContext(c).Error("Failed to delete diagram after union conversion failure: %v", deleteErr)
+			slogging.Get().WithContext(c).Error("Failed to delete diagram after union conversion failure: %v", deleteErr)
 		}
 		HandleRequestError(c, ServerError("Failed to convert diagram: "+err.Error()))
 		return
@@ -237,11 +237,11 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	// Update threat model in store
 	tm.ModifiedAt = &now
 	if err := ThreatModelStore.Update(threatModelId, tm); err != nil {
-		logging.Get().WithContext(c).Error("Failed to update threat model %s with new diagram %s (user: %s): %v", threatModelId, createdDiagram.Id.String(), userEmail, err)
+		slogging.Get().WithContext(c).Error("Failed to update threat model %s with new diagram %s (user: %s): %v", threatModelId, createdDiagram.Id.String(), userEmail, err)
 		// If updating the threat model fails, delete the created diagram
 		if deleteErr := DiagramStore.Delete(createdDiagram.Id.String()); deleteErr != nil {
 			// Log the error but continue with the main error response
-			logging.Get().WithContext(c).Error("Failed to delete diagram after threat model update failure: %v", deleteErr)
+			slogging.Get().WithContext(c).Error("Failed to delete diagram after threat model update failure: %v", deleteErr)
 		}
 		HandleRequestError(c, ServerError("Failed to update threat model with new diagram"))
 		return
@@ -396,7 +396,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 
 	// Update in store
 	if err := DiagramStore.Update(diagramId, updatedDiagram); err != nil {
-		logging.Get().WithContext(c).Error("Failed to update diagram %s in store (user: %s, type: %s): %v", diagramId, userEmail, updatedDiagram.Type, err)
+		slogging.Get().WithContext(c).Error("Failed to update diagram %s in store (user: %s, type: %s): %v", diagramId, userEmail, updatedDiagram.Type, err)
 		HandleRequestError(c, ServerError("Failed to update diagram"))
 		return
 	}
@@ -785,11 +785,11 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	if isHost {
 		// If the user is the host, close the entire session
 		h.wsHub.CloseSession(diagramId)
-		logging.Get().WithContext(c).Info("Collaboration session %s closed by host %s", session.ID, userEmail)
+		slogging.Get().WithContext(c).Info("Collaboration session %s closed by host %s", session.ID, userEmail)
 	} else {
 		// If user is not the host, they will be removed when their WebSocket disconnects
 		// No need to do anything here since we only track active connections
-		logging.Get().WithContext(c).Info("User %s leaving session %s (will disconnect from WebSocket)", userEmail, session.ID)
+		slogging.Get().WithContext(c).Info("User %s leaving session %s (will disconnect from WebSocket)", userEmail, session.ID)
 	}
 
 	c.Status(http.StatusNoContent)

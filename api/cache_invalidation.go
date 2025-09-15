@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/ericfitz/tmi/auth/db"
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // CacheInvalidator handles complex cache invalidation scenarios
@@ -49,7 +49,7 @@ type InvalidationEvent struct {
 
 // InvalidateSubResourceChange handles cache invalidation when a sub-resource changes
 func (ci *CacheInvalidator) InvalidateSubResourceChange(ctx context.Context, event InvalidationEvent) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Processing cache invalidation event: %s %s:%s (parent: %s:%s)",
 		event.OperationType, event.EntityType, event.EntityID, event.ParentType, event.ParentID)
 
@@ -73,7 +73,7 @@ func (ci *CacheInvalidator) InvalidateSubResourceChange(ctx context.Context, eve
 
 // invalidateImmediately performs immediate cache invalidation
 func (ci *CacheInvalidator) invalidateImmediately(ctx context.Context, event InvalidationEvent) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	// Check if cache service is available
 	if ci.cache == nil {
@@ -113,7 +113,7 @@ func (ci *CacheInvalidator) invalidateImmediately(ctx context.Context, event Inv
 
 // invalidateThreatRelatedCaches handles threat-specific cache invalidation
 func (ci *CacheInvalidator) invalidateThreatRelatedCaches(ctx context.Context, event InvalidationEvent) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	// Check if cache service is available
 	if ci.cache == nil {
@@ -141,7 +141,7 @@ func (ci *CacheInvalidator) invalidateThreatRelatedCaches(ctx context.Context, e
 
 // invalidateDocumentRelatedCaches handles document-specific cache invalidation
 func (ci *CacheInvalidator) invalidateDocumentRelatedCaches(ctx context.Context, event InvalidationEvent) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	// Check if cache service is available
 	if ci.cache == nil {
@@ -163,7 +163,7 @@ func (ci *CacheInvalidator) invalidateDocumentRelatedCaches(ctx context.Context,
 
 // invalidateSourceRelatedCaches handles source code-specific cache invalidation
 func (ci *CacheInvalidator) invalidateSourceRelatedCaches(ctx context.Context, event InvalidationEvent) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	// Check if cache service is available
 	if ci.cache == nil {
@@ -185,7 +185,7 @@ func (ci *CacheInvalidator) invalidateSourceRelatedCaches(ctx context.Context, e
 
 // invalidateCellRelatedCaches handles cell-specific cache invalidation
 func (ci *CacheInvalidator) invalidateCellRelatedCaches(ctx context.Context, event InvalidationEvent) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	// Check if cache service is available
 	if ci.cache == nil {
@@ -215,7 +215,7 @@ func (ci *CacheInvalidator) invalidateCellRelatedCaches(ctx context.Context, eve
 
 // invalidateMetadataRelatedCaches handles metadata-specific cache invalidation
 func (ci *CacheInvalidator) invalidateMetadataRelatedCaches(ctx context.Context, event InvalidationEvent) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	// Check if cache service is available
 	if ci.cache == nil {
@@ -243,7 +243,7 @@ func (ci *CacheInvalidator) invalidateMetadataRelatedCaches(ctx context.Context,
 
 // invalidatePaginatedLists invalidates all paginated list caches for a given entity type and parent
 func (ci *CacheInvalidator) invalidatePaginatedLists(ctx context.Context, entityType, parentID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	// Check if redis is available
 	if ci.redis == nil {
@@ -282,7 +282,7 @@ func (ci *CacheInvalidator) invalidatePaginatedLists(ctx context.Context, entity
 
 // InvalidateAllRelatedCaches performs comprehensive cache invalidation for a threat model
 func (ci *CacheInvalidator) InvalidateAllRelatedCaches(ctx context.Context, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Performing comprehensive cache invalidation for threat model %s", threatModelID)
 
 	// Check if cache service is available
@@ -315,7 +315,7 @@ func (ci *CacheInvalidator) InvalidateAllRelatedCaches(ctx context.Context, thre
 
 // InvalidatePermissionRelatedCaches invalidates caches when permissions change
 func (ci *CacheInvalidator) InvalidatePermissionRelatedCaches(ctx context.Context, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Invalidating permission-related caches for threat model %s", threatModelID)
 
 	// Check if cache service is available
@@ -340,7 +340,7 @@ func (ci *CacheInvalidator) InvalidatePermissionRelatedCaches(ctx context.Contex
 
 // BulkInvalidate handles bulk cache invalidation for multiple entities
 func (ci *CacheInvalidator) BulkInvalidate(ctx context.Context, events []InvalidationEvent) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Processing bulk cache invalidation for %d events", len(events))
 
 	// Group events by strategy for efficient processing

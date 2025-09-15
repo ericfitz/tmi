@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/ericfitz/tmi/internal/dbschema"
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/joho/godotenv"
 )
@@ -15,22 +15,22 @@ import (
 func main() {
 	// Load environment variables
 	if err := godotenv.Load(".env.dev"); err != nil {
-		logging.Get().Warn("Warning: Could not load .env.dev: %v", err)
+		slogging.Get().Warn("Warning: Could not load .env.dev: %v", err)
 	}
 
 	// Initialize logger for consistent logging
-	if err := logging.Initialize(logging.Config{
-		Level:            logging.ParseLogLevel("info"),
+	if err := slogging.Initialize(slogging.Config{
+		Level:            slogging.ParseLogLevel("info"),
 		IsDev:            true,
 		AlsoLogToConsole: true,
 	}); err != nil {
-		logging.Get().Error("Failed to initialize logger: %v", err)
+		slogging.Get().Error("Failed to initialize logger: %v", err)
 		os.Exit(1)
 	}
-	logger := logging.Get()
+	logger := slogging.Get()
 	defer func() {
 		if err := logger.Close(); err != nil {
-			logging.Get().Warn("Error closing logger: %v", err)
+			slogging.Get().Warn("Error closing logger: %v", err)
 		}
 	}()
 

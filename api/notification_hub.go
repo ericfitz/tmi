@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gorilla/websocket"
 )
 
@@ -56,7 +56,7 @@ type NotificationHub struct {
 	mu sync.RWMutex
 
 	// Logger
-	logger *logging.Logger
+	logger *slogging.Logger
 }
 
 // NewNotificationHub creates a new notification hub
@@ -67,7 +67,7 @@ func NewNotificationHub() *NotificationHub {
 		register:    make(chan *NotificationClient),
 		unregister:  make(chan *NotificationClient),
 		broadcast:   make(chan *NotificationMessage),
-		logger:      logging.Get(),
+		logger:      slogging.Get(),
 	}
 }
 

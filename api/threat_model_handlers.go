@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -211,13 +211,13 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	createdTM, err := ThreatModelStore.Create(tm, idSetter)
 	if err != nil {
 		// Log the actual error for debugging
-		logging.Get().WithContext(c).Error("Failed to create threat model: %v", err)
+		slogging.Get().WithContext(c).Error("Failed to create threat model: %v", err)
 
 		// Check if this is a foreign key constraint violation (stale user session)
 		if isForeignKeyConstraintError(err) {
 			// This indicates the user's JWT token is valid but they no longer exist in the database
 			// This happens when user account is deleted but JWT hasn't expired yet
-			logging.Get().WithContext(c).Warn("Foreign key constraint violation for user %s - invalidating session", userEmail)
+			slogging.Get().WithContext(c).Warn("Foreign key constraint violation for user %s - invalidating session", userEmail)
 
 			// Try to blacklist the token to prevent future use
 			if tokenStr, err := extractTokenFromRequest(c); err == nil {
@@ -257,7 +257,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 
 	// Parse ID from URL parameter
 	id := c.Param("threat_model_id")
-	logging.Get().WithContext(c).Debug("[HANDLER] UpdateThreatModel called for ID: %s", id)
+	slogging.Get().WithContext(c).Debug("[HANDLER] UpdateThreatModel called for ID: %s", id)
 
 	// Parse and validate request body using OpenAPI validation
 	var request UpdateThreatModelRequest
@@ -266,7 +266,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		return
 	}
 
-	logging.Get().WithContext(c).Debug("[HANDLER] Successfully parsed request: %+v", request)
+	slogging.Get().WithContext(c).Debug("[HANDLER] Successfully parsed request: %+v", request)
 
 	// Get username from JWT claim
 	userEmail, _, err := ValidateAuthenticatedUser(c)
@@ -373,7 +373,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 
 	// Update in store
 	if err := ThreatModelStore.Update(id, updatedTM); err != nil {
-		logging.Get().WithContext(c).Error("Failed to update threat model %s in store (user: %s, name: %s): %v", id, userEmail, updatedTM.Name, err)
+		slogging.Get().WithContext(c).Error("Failed to update threat model %s in store (user: %s, name: %s): %v", id, userEmail, updatedTM.Name, err)
 		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
 	}
@@ -389,7 +389,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 // PatchThreatModel partially updates a threat model
 func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	id := c.Param("threat_model_id")
-	logging.Get().WithContext(c).Debug("[HANDLER] PatchThreatModel called for ID: %s", id)
+	slogging.Get().WithContext(c).Debug("[HANDLER] PatchThreatModel called for ID: %s", id)
 
 	// Phase 1: Parse request and validate user
 	operations, err := ParsePatchRequest(c)
@@ -397,7 +397,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		HandleRequestError(c, err)
 		return
 	}
-	logging.Get().WithContext(c).Debug("[HANDLER] Successfully parsed PATCH request with %d operations", len(operations))
+	slogging.Get().WithContext(c).Debug("[HANDLER] Successfully parsed PATCH request with %d operations", len(operations))
 
 	// Validate patch operations against prohibited fields
 	prohibitedPaths := []string{
@@ -488,12 +488,12 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// Update in store
 	if err := ThreatModelStore.Update(id, modifiedTM); err != nil {
 		// Log the actual error for debugging
-		logging.Get().WithContext(c).Error("Failed to update threat model %s: %v", id, err)
+		slogging.Get().WithContext(c).Error("Failed to update threat model %s: %v", id, err)
 
 		// Check if this is a foreign key constraint violation
 		if isForeignKeyConstraintError(err) {
 			// This indicates one of the users in the authorization list doesn't exist in the database
-			logging.Get().WithContext(c).Warn("Foreign key constraint violation when updating threat model %s - one or more users in authorization list do not exist", id)
+			slogging.Get().WithContext(c).Warn("Foreign key constraint violation when updating threat model %s - one or more users in authorization list do not exist", id)
 			HandleRequestError(c, InvalidInputError("One or more users in the authorization list do not exist. Users must log in at least once before they can be added to a threat model."))
 			return
 		}
@@ -550,7 +550,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 
 	// Delete from store
 	if err := ThreatModelStore.Delete(id); err != nil {
-		logging.Get().WithContext(c).Error("Failed to delete threat model %s from store (user: %s, name: %s): %v", id, userEmail, tm.Name, err)
+		slogging.Get().WithContext(c).Error("Failed to delete threat model %s from store (user: %s, name: %s): %v", id, userEmail, tm.Name, err)
 		HandleRequestError(c, ServerError("Failed to delete threat model"))
 		return
 	}
@@ -646,7 +646,7 @@ func authorizationEqual(a, b []Authorization) bool {
 // validatePatchedThreatModel performs validation on the patched threat model
 func validatePatchedThreatModel(original, patched ThreatModel, userEmail string) error {
 	// Add debug logging
-	logging.Get().Debug("Validating patched threat model: %+v", patched)
+	slogging.Get().Debug("Validating patched threat model: %+v", patched)
 
 	// 1. Ensure ID is not changed
 	if patched.Id != original.Id {

@@ -197,7 +197,7 @@ func InitTestFixtures() {
 		// Unit tests - initialize mock stores
 		InitializeMockStores()
 	}
-	
+
 	// Always populate the stores with test data
 	// Use the updated threat model that has the diagram association
 	updatedThreatModel := TestFixtures.ThreatModel

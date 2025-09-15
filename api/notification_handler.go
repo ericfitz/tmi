@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -19,7 +19,7 @@ func InitNotificationHub() {
 	if notificationHub == nil {
 		notificationHub = NewNotificationHub()
 		go notificationHub.Run()
-		logging.Get().Info("Notification hub initialized and running")
+		slogging.Get().Info("Notification hub initialized and running")
 	}
 }
 
@@ -30,7 +30,7 @@ func GetNotificationHub() *NotificationHub {
 
 // HandleNotificationWebSocket handles WebSocket connections for notifications
 func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	// Get user information from JWT context
 	userEmailInterface, exists := c.Get("userEmail")
@@ -45,7 +45,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 
 	userEmail, ok := userEmailInterface.(string)
 	if !ok {
-		logging.Get().WithContext(c).Error("Notification WebSocket: Invalid user context - userEmail is not a string (type: %T, value: %v)", userEmailInterface, userEmailInterface)
+		slogging.Get().WithContext(c).Error("Notification WebSocket: Invalid user context - userEmail is not a string (type: %T, value: %v)", userEmailInterface, userEmailInterface)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "internal_error",
 			ErrorDescription: "Invalid user context",
@@ -116,7 +116,7 @@ func (c *NotificationClient) readPump() {
 		_, message, err := c.Conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				logging.Get().Error("WebSocket error: %v", err)
+				slogging.Get().Error("WebSocket error: %v", err)
 			}
 			break
 		}
@@ -124,7 +124,7 @@ func (c *NotificationClient) readPump() {
 		// Handle incoming messages (subscription updates, etc.)
 		var msg map[string]interface{}
 		if err := json.Unmarshal(message, &msg); err != nil {
-			logging.Get().Warn("Invalid message from client %s: %v", c.ID, err)
+			slogging.Get().Warn("Invalid message from client %s: %v", c.ID, err)
 			continue
 		}
 
@@ -181,7 +181,7 @@ func (c *NotificationClient) writePump() {
 
 // handleSubscriptionUpdate processes subscription update messages from the client
 func (c *NotificationClient) handleSubscriptionUpdate(msg map[string]interface{}) {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	// Extract subscription data
 	if data, ok := msg["data"].(map[string]interface{}); ok {

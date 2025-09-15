@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -119,7 +119,7 @@ const rootPageHTML = `<!DOCTYPE html>
 // GetApiInfo returns service, API, and operator information
 func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 	// Get logger from context
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 
 	logger.Debug("Handling root endpoint request from %s", c.ClientIP())
 	// Log header names only to avoid exposing sensitive values

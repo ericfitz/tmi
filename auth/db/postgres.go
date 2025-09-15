@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	_ "github.com/jackc/pgx/v4/stdlib" // pgx driver for database/sql
 )
 
@@ -28,7 +28,7 @@ type PostgresDB struct {
 
 // NewPostgresDB creates a new PostgreSQL database connection
 func NewPostgresDB(cfg PostgresConfig) (*PostgresDB, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Initializing PostgreSQL connection to %s:%s/%s", cfg.Host, cfg.Port, cfg.Database)
 
 	connString := fmt.Sprintf(
@@ -70,7 +70,7 @@ func NewPostgresDB(cfg PostgresConfig) (*PostgresDB, error) {
 
 // Close closes the database connection
 func (db *PostgresDB) Close() error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Closing PostgreSQL connection to %s:%s/%s", db.cfg.Host, db.cfg.Port, db.cfg.Database)
 
 	if db.db != nil {
@@ -90,7 +90,7 @@ func (db *PostgresDB) GetDB() *sql.DB {
 
 // Ping checks if the database connection is alive
 func (db *PostgresDB) Ping(ctx context.Context) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Pinging PostgreSQL connection to %s:%s/%s", db.cfg.Host, db.cfg.Port, db.cfg.Database)
 
 	err := db.db.PingContext(ctx)
@@ -104,7 +104,7 @@ func (db *PostgresDB) Ping(ctx context.Context) error {
 
 // LogStats logs statistics about the database connection pool
 func (db *PostgresDB) LogStats() {
-	logger := logging.Get()
+	logger := slogging.Get()
 	stats := db.db.Stats()
 	logger.Debug("PostgreSQL connection pool stats: open=%d, inUse=%d, idle=%d, waitCount=%d, waitDuration=%s, maxIdleClosed=%d, maxLifetimeClosed=%d",
 		stats.OpenConnections,

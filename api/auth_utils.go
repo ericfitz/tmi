@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -324,7 +324,7 @@ func ValidateResourceAccess(requiredRole Role) gin.HandlerFunc {
 // This function implements authorization inheritance by fetching threat model permissions
 // that apply to all sub-resources within that threat model
 func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string) (*AuthorizationData, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Retrieving inherited authorization data for threat model %s", threatModelID)
 
 	// Query threat model to get owner
@@ -411,7 +411,7 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 // CheckSubResourceAccess validates if a user has the required access to a sub-resource
 // This function implements authorization inheritance with Redis caching for performance
 func CheckSubResourceAccess(ctx context.Context, db *sql.DB, cache *CacheService, principal, threatModelID string, requiredRole Role) (bool, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Checking sub-resource access for user %s on threat model %s (required role: %s)",
 		principal, threatModelID, requiredRole)
 

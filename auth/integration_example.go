@@ -90,7 +90,7 @@ import (
 
 	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/oauth2"
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -108,8 +108,8 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 	}
 
 	// Add custom middleware
-	r.Use(logging.LoggerMiddleware())
-	r.Use(logging.Recoverer())
+	r.Use(slogging.LoggerMiddleware())
+	r.Use(slogging.Recoverer())
 	r.Use(api.CORS())
 	r.Use(api.ContextTimeout(30 * time.Second))
 
@@ -122,7 +122,7 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 	r.StaticFile("/favicon.svg", "./static/favicon.svg")
 
 	// Initialize authentication system
-	logger := logging.Get()
+	logger := slogging.Get()
 	if err := auth.InitAuth(r); err != nil {
 		logger.Error("Failed to initialize authentication system: %%v", err)
 		os.Exit(1)

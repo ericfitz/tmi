@@ -7,7 +7,7 @@ import (
 
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -114,7 +114,7 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 
 	// Register routes
 	// Skip route registration - routes will be handled by OpenAPI integration
-	logging.Get().Info("[AUTH_CONFIG_ADAPTER] Route registration DISABLED - delegating to OpenAPI")
+	slogging.Get().Info("[AUTH_CONFIG_ADAPTER] Route registration DISABLED - delegating to OpenAPI")
 	// handlers.RegisterRoutes(router) // Disabled to avoid conflicts with OpenAPI routes
 
 	// Start background job for periodic cache rebuilding
@@ -123,6 +123,6 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 	// Store global reference to database manager
 	globalDBManager = dbManager
 
-	logging.Get().Info("Authentication system initialized successfully")
+	slogging.Get().Info("Authentication system initialized successfully")
 	return handlers, nil
 }

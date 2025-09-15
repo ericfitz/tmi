@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // MigrationBasedValidator validates database schema against applied migrations
@@ -50,7 +50,7 @@ type SchemaValidationResult struct {
 
 // ValidateSchema performs comprehensive migration-based schema validation
 func (v *MigrationBasedValidator) ValidateSchema() (*SchemaValidationResult, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Starting migration-based schema validation")
 
 	result := &SchemaValidationResult{
@@ -210,7 +210,7 @@ func (v *MigrationBasedValidator) getAppliedMigrations() (map[int64]bool, error)
 
 // checkMigrationCompleteness validates that all expected migrations have been applied
 func (v *MigrationBasedValidator) checkMigrationCompleteness(available []MigrationInfo, dirtyState map[int64]bool, result *SchemaValidationResult) {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	for i, migration := range available {
 		dirty, exists := dirtyState[migration.Version]
@@ -264,7 +264,7 @@ func (v *MigrationBasedValidator) checkDirtyMigrations(applied map[int64]bool, r
 
 // validateDatabaseConsistency performs basic database schema consistency checks
 func (v *MigrationBasedValidator) validateDatabaseConsistency(result *SchemaValidationResult) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Validating database schema consistency")
 
 	// Check that essential tables exist
@@ -310,7 +310,7 @@ func (v *MigrationBasedValidator) tableExists(tableName string) (bool, error) {
 
 // LogValidationResults logs the validation results in a user-friendly format
 func (v *MigrationBasedValidator) LogValidationResults(result *SchemaValidationResult) {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	if result.Valid {
 		logger.Info("✅ Migration-based schema validation PASSED!")

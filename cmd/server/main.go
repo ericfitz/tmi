@@ -17,7 +17,7 @@ import (
 	"github.com/ericfitz/tmi/auth" // Import auth package
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/dbschema"
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/jackc/pgx/v4/stdlib"
@@ -64,7 +64,7 @@ func (s *Server) verifyJWTToken(tokenString string) (*jwt.Token, jwt.MapClaims, 
 func HTTPSRedirectMiddleware(tlsEnabled bool, tlsSubjectName string, port string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger from context
-		logger := logging.GetContextLogger(c)
+		logger := slogging.GetContextLogger(c)
 
 		// Only redirect if TLS is enabled and this is not already HTTPS
 		// In a real environment, we'd check c.Request.TLS, but in our setup,
@@ -115,7 +115,7 @@ func isHTTPS(r *http.Request) bool {
 func PublicPathsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get a context-aware logger
-		logger := logging.GetContextLogger(c)
+		logger := slogging.GetContextLogger(c)
 
 		// Log entry to middleware
 		logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] Processing request: %s %s", c.Request.Method, c.Request.URL.Path)
@@ -175,7 +175,7 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 	authenticator := NewJWTAuthenticator(cfg, tokenBlacklist, authHandlers)
 
 	return func(c *gin.Context) {
-		logger := logging.GetContextLogger(c)
+		logger := slogging.GetContextLogger(c)
 
 		// Log entry to middleware
 		logger.Debug("[JWT_MIDDLEWARE] *** ENTERED MIDDLEWARE FOR: %s", c.Request.URL.Path)
@@ -219,7 +219,7 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 func (s *Server) GetApiInfo(c *gin.Context) {
 	// Create API server to provide WebSocket URL building functionality
 	// Use minimal logging config since this is just for API info
-	wsLoggingConfig := logging.WebSocketLoggingConfig{
+	wsLoggingConfig := slogging.WebSocketLoggingConfig{
 		Enabled:        false, // No WebSocket activity in API info endpoint
 		RedactTokens:   true,
 		MaxMessageSize: 5 * 1024,
@@ -232,7 +232,7 @@ func (s *Server) GetApiInfo(c *gin.Context) {
 
 func (s *Server) GetAuthCallback(c *gin.Context) {
 	// Get logger from context
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 
 	// In dev mode, generate a token based on the provided parameters
 	username := c.Query("username")
@@ -279,7 +279,7 @@ func (s *Server) GetAuthCallback(c *gin.Context) {
 }
 
 func (s *Server) PostAuthLogout(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 
 	// Get the JWT token from the Authorization header
 	authHeader := c.GetHeader("Authorization")
@@ -387,7 +387,7 @@ func (s *Server) LogoutUser(c *gin.Context) {
 // Dev-mode only endpoint to get current user info
 func DevUserInfoHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		logger := logging.GetContextLogger(c)
+		logger := slogging.GetContextLogger(c)
 		logger.Debug("Handling /dev/me request")
 
 		// Get username from context
@@ -895,11 +895,11 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.Use(api.CustomRecoveryMiddleware())
 
 	// Add custom logging middleware
-	r.Use(logging.LoggerMiddleware())
+	r.Use(slogging.LoggerMiddleware())
 
 	// Add enhanced request/response logging middleware if configured
 	if config.Logging.LogAPIRequests || config.Logging.LogAPIResponses {
-		requestConfig := logging.RequestResponseLoggingConfig{
+		requestConfig := slogging.RequestResponseLoggingConfig{
 			LogRequests:    config.Logging.LogAPIRequests,
 			LogResponses:   config.Logging.LogAPIResponses,
 			RedactTokens:   config.Logging.RedactAuthTokens,
@@ -909,10 +909,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 				"/favicon.ico",
 			},
 		}
-		r.Use(logging.RequestResponseLogger(requestConfig))
+		r.Use(slogging.RequestResponseLogger(requestConfig))
 	}
 
-	r.Use(logging.Recoverer())   // Use our recoverer
+	r.Use(slogging.Recoverer())  // Use our recoverer
 	r.Use(api.SecurityHeaders()) // Add security headers
 	r.Use(api.CORS())
 	r.Use(api.HSTSMiddleware(config.Server.TLSEnabled)) // Add HSTS when TLS is enabled
@@ -936,7 +936,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.Use(PublicPathsMiddleware()) // Identify public paths first
 
 	// Create WebSocket logging configuration from main config
-	wsLoggingConfig := logging.WebSocketLoggingConfig{
+	wsLoggingConfig := slogging.WebSocketLoggingConfig{
 		Enabled:        config.Logging.LogWebSocketMsg,
 		RedactTokens:   config.Logging.RedactAuthTokens,
 		MaxMessageSize: 5 * 1024, // 5KB default
@@ -948,7 +948,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 
 	// Initialize auth package with database connections
 	// This must be done before registering API routes to avoid conflicts
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("Initializing authentication system with database connections")
 	authHandlers, err := auth.InitAuthWithConfig(r, config)
 	if err != nil {
@@ -1063,7 +1063,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 
 	// Add development routes when in dev mode
 	if config.Logging.IsDev {
-		logger := logging.Get()
+		logger := slogging.Get()
 		logger.Info("Adding development-only endpoints")
 		r.GET("/dev/me", DevUserInfoHandler()) // Endpoint to check current user
 	}
@@ -1075,14 +1075,14 @@ func main() {
 	// Parse command line flags
 	configFile, generateConfig, err := config.ParseFlags()
 	if err != nil {
-		logging.Get().Error("Error parsing flags: %v", err)
+		slogging.Get().Error("Error parsing flags: %v", err)
 		os.Exit(1)
 	}
 
 	// Generate example config files if requested
 	if generateConfig {
 		if err := config.GenerateExampleConfig(); err != nil {
-			logging.Get().Error("Error generating config: %v", err)
+			slogging.Get().Error("Error generating config: %v", err)
 			os.Exit(1)
 		}
 		return
@@ -1091,12 +1091,12 @@ func main() {
 	// Load configuration
 	cfg, err := config.Load(configFile)
 	if err != nil {
-		logging.Get().Error("Error loading configuration: %v", err)
+		slogging.Get().Error("Error loading configuration: %v", err)
 		os.Exit(1)
 	}
 
 	// Initialize logger
-	if err := logging.Initialize(logging.Config{
+	if err := slogging.Initialize(slogging.Config{
 		Level:                       cfg.GetLogLevel(),
 		IsDev:                       cfg.Logging.IsDev,
 		LogDir:                      cfg.Logging.LogDir,
@@ -1106,15 +1106,15 @@ func main() {
 		AlsoLogToConsole:            cfg.Logging.AlsoLogToConsole,
 		SuppressUnauthenticatedLogs: cfg.Logging.SuppressUnauthenticatedLogs,
 	}); err != nil {
-		logging.Get().Error("Failed to initialize logger: %v", err)
+		slogging.Get().Error("Failed to initialize logger: %v", err)
 		os.Exit(1)
 	}
 
 	// Get logger instance
-	logger := logging.Get()
+	logger := slogging.Get()
 	defer func() {
 		if err := logger.Close(); err != nil {
-			logging.Get().Error("Error closing logger: %v", err)
+			slogging.Get().Error("Error closing logger: %v", err)
 		}
 	}()
 

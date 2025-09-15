@@ -5,7 +5,7 @@ import (
 
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/config"
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -23,49 +23,49 @@ func NewAuthServiceAdapter(handlers *auth.Handlers) *AuthServiceAdapter {
 
 // GetProviders delegates to auth handlers
 func (a *AuthServiceAdapter) GetProviders(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_SERVICE_ADAPTER] GetProviders called - delegating to auth.Handlers")
 	a.handlers.GetProviders(c)
 }
 
 // Authorize delegates to auth handlers
 func (a *AuthServiceAdapter) Authorize(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_SERVICE_ADAPTER] Authorize called - delegating to auth.Handlers")
 	a.handlers.Authorize(c)
 }
 
 // Callback delegates to auth handlers
 func (a *AuthServiceAdapter) Callback(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_SERVICE_ADAPTER] Callback called - delegating to auth.Handlers")
 	a.handlers.Callback(c)
 }
 
 // Exchange delegates to auth handlers
 func (a *AuthServiceAdapter) Exchange(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_SERVICE_ADAPTER] Exchange called - delegating to auth.Handlers")
 	a.handlers.Exchange(c)
 }
 
 // Refresh delegates to auth handlers
 func (a *AuthServiceAdapter) Refresh(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_SERVICE_ADAPTER] Refresh called - delegating to auth.Handlers")
 	a.handlers.Refresh(c)
 }
 
 // Logout delegates to auth handlers
 func (a *AuthServiceAdapter) Logout(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_SERVICE_ADAPTER] Logout called - delegating to auth.Handlers")
 	a.handlers.Logout(c)
 }
 
 // Me delegates to auth handlers, with fallback user lookup if needed
 func (a *AuthServiceAdapter) Me(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_SERVICE_ADAPTER] Me called - processing user context")
 
 	// First check if this method is actually being called by our OpenAPI integration
@@ -99,7 +99,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	// Get database manager and fetch user
 	dbManager := auth.GetDatabaseManager()
 	if dbManager == nil {
-		logging.Get().WithContext(c).Error("AuthServiceAdapter: Database manager not available for user lookup (userName: %s)", userEmail)
+		slogging.Get().WithContext(c).Error("AuthServiceAdapter: Database manager not available for user lookup (userName: %s)", userEmail)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Database not available",
 		})
@@ -122,7 +122,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 
 	service, err := auth.NewService(dbManager, authConfig)
 	if err != nil {
-		logging.Get().WithContext(c).Error("AuthServiceAdapter: Failed to create auth service for user lookup (userName: %s): %v", userEmail, err)
+		slogging.Get().WithContext(c).Error("AuthServiceAdapter: Failed to create auth service for user lookup (userName: %s): %v", userEmail, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Auth service unavailable",
 		})
@@ -145,35 +145,35 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 
 // GetJWKS delegates to auth handlers
 func (a *AuthServiceAdapter) GetJWKS(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_SERVICE_ADAPTER] GetJWKS called - delegating to auth.Handlers")
 	a.handlers.GetJWKS(c)
 }
 
 // GetOpenIDConfiguration delegates to auth handlers
 func (a *AuthServiceAdapter) GetOpenIDConfiguration(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_SERVICE_ADAPTER] GetOpenIDConfiguration called - delegating to auth.Handlers")
 	a.handlers.GetOpenIDConfiguration(c)
 }
 
 // GetOAuthAuthorizationServerMetadata delegates to auth handlers
 func (a *AuthServiceAdapter) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_SERVICE_ADAPTER] GetOAuthAuthorizationServerMetadata called - delegating to auth.Handlers")
 	a.handlers.GetOAuthAuthorizationServerMetadata(c)
 }
 
 // GetOAuthProtectedResourceMetadata delegates to auth handlers
 func (a *AuthServiceAdapter) GetOAuthProtectedResourceMetadata(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_SERVICE_ADAPTER] GetOAuthProtectedResourceMetadata called - delegating to auth.Handlers")
 	a.handlers.GetOAuthProtectedResourceMetadata(c)
 }
 
 // IntrospectToken delegates to auth handlers
 func (a *AuthServiceAdapter) IntrospectToken(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_SERVICE_ADAPTER] IntrospectToken called - delegating to auth.Handlers")
 	a.handlers.IntrospectToken(c)
 }

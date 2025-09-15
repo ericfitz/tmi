@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -369,9 +369,9 @@ func blacklistTokenIfAvailable(c *gin.Context, tokenStr string, userName string)
 	// we'll focus on logging the intent and let the calling code handle the blacklisting
 	// This is a defensive approach that ensures the main error handling works even if
 	// blacklisting isn't available
-	logging.Get().WithContext(c).Info("Attempting to invalidate JWT token for user %s due to stale session", userName)
+	slogging.Get().WithContext(c).Info("Attempting to invalidate JWT token for user %s due to stale session", userName)
 
 	// In a full implementation, this would integrate with the token blacklist service
 	// For now, we log the action and continue with the authentication error response
-	logging.Get().WithContext(c).Warn("Token blacklist integration not yet fully implemented - user %s should log out and log back in", userName)
+	slogging.Get().WithContext(c).Warn("Token blacklist integration not yet fully implemented - user %s should log out and log back in", userName)
 }

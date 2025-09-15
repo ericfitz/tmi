@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // Manager handles database connections
@@ -22,7 +22,7 @@ func NewManager() *Manager {
 
 // InitPostgres initializes the PostgreSQL connection
 func (m *Manager) InitPostgres(cfg PostgresConfig) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Initializing PostgreSQL connection in database manager")
 
 	m.mu.Lock()
@@ -46,7 +46,7 @@ func (m *Manager) InitPostgres(cfg PostgresConfig) error {
 
 // InitRedis initializes the Redis connection
 func (m *Manager) InitRedis(cfg RedisConfig) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Initializing Redis connection in database manager")
 
 	m.mu.Lock()
@@ -84,7 +84,7 @@ func (m *Manager) Redis() *RedisDB {
 
 // Close closes all database connections
 func (m *Manager) Close() error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Closing all database connections in manager")
 
 	m.mu.Lock()
@@ -119,7 +119,7 @@ func (m *Manager) Close() error {
 
 // Ping checks if all database connections are alive
 func (m *Manager) Ping(ctx context.Context) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Pinging all database connections")
 
 	m.mu.Lock()
@@ -162,7 +162,7 @@ func (m *Manager) Ping(ctx context.Context) error {
 
 // LogConnectionStats logs statistics about all database connections
 func (m *Manager) LogConnectionStats(ctx context.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Logging database connection statistics")
 
 	m.mu.Lock()

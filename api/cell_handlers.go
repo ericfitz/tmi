@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -91,7 +91,7 @@ func NewCellHandlerSimple() *CellHandler {
 // GetCellMetadata retrieves all metadata for a diagram cell
 // GET /diagrams/{diagram_id}/cells/{cell_id}/metadata
 func (h *CellHandler) GetCellMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetCellMetadata - retrieving metadata for cell")
 
 	// Extract cell ID from URL
@@ -131,7 +131,7 @@ func (h *CellHandler) GetCellMetadata(c *gin.Context) {
 // GetCellMetadataByKey retrieves a specific metadata entry by key
 // GET /diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}
 func (h *CellHandler) GetCellMetadataByKey(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetCellMetadataByKey - retrieving specific metadata entry")
 
 	// Extract cell ID and key from URL
@@ -177,7 +177,7 @@ func (h *CellHandler) GetCellMetadataByKey(c *gin.Context) {
 // CreateCellMetadata creates a new metadata entry for a cell
 // POST /diagrams/{diagram_id}/cells/{cell_id}/metadata
 func (h *CellHandler) CreateCellMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateCellMetadata - creating new metadata entry")
 
 	// Extract cell ID from URL
@@ -250,7 +250,7 @@ func (h *CellHandler) CreateCellMetadata(c *gin.Context) {
 // UpdateCellMetadata updates an existing metadata entry
 // PUT /diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}
 func (h *CellHandler) UpdateCellMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateCellMetadata - updating metadata entry")
 
 	// Extract cell ID and key from URL
@@ -339,7 +339,7 @@ func (h *CellHandler) UpdateCellMetadata(c *gin.Context) {
 // DeleteCellMetadata deletes a metadata entry
 // DELETE /diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}
 func (h *CellHandler) DeleteCellMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteCellMetadata - deleting metadata entry")
 
 	// Extract cell ID and key from URL
@@ -402,7 +402,7 @@ func (h *CellHandler) DeleteCellMetadata(c *gin.Context) {
 // PatchCell applies JSON patch operations to a cell (requires WebSocket connection for real-time updates)
 // PATCH /diagrams/{diagram_id}/cells/{cell_id}
 func (h *CellHandler) PatchCell(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchCell - applying patch operations to cell")
 
 	// Extract cell ID from URL
@@ -472,7 +472,7 @@ func (h *CellHandler) PatchCell(c *gin.Context) {
 // BatchPatchCells applies patch operations to multiple cells (optimized for collaboration)
 // POST /diagrams/{diagram_id}/cells/batch/patch
 func (h *CellHandler) BatchPatchCells(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BatchPatchCells - applying patch operations to multiple cells")
 
 	// Extract diagram ID from URL

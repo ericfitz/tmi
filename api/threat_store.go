@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 )
 
@@ -107,7 +107,7 @@ func NewDatabaseThreatStore(db *sql.DB, cache *CacheService, invalidator *CacheI
 
 // Create creates a new threat with write-through caching
 func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Creating threat: %s in threat model: %s", threat.Name, threat.ThreatModelId)
 
 	// Generate ID if not provided
@@ -201,7 +201,7 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 
 // Get retrieves a threat by ID with cache-first strategy
 func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Getting threat: %s", id)
 
 	// Try cache first
@@ -304,7 +304,7 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 
 // Update updates an existing threat with write-through caching
 func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Updating threat: %s", threat.Id)
 
 	// Update modified timestamp
@@ -396,7 +396,7 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 
 // Delete removes a threat and invalidates related caches
 func (s *DatabaseThreatStore) Delete(ctx context.Context, id string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Deleting threat: %s", id)
 
 	// Get the threat first to get parent info for cache invalidation
@@ -460,7 +460,7 @@ func (s *DatabaseThreatStore) ListSimple(ctx context.Context, threatModelID stri
 
 // List retrieves threats for a threat model with advanced filtering, sorting and pagination
 func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Listing threats for threat model %s with advanced filters", threatModelID)
 
 	// Check if we should use cache
@@ -492,7 +492,7 @@ func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, fi
 
 // executeListQuery builds and executes the database query for listing threats
 func (s *DatabaseThreatStore) executeListQuery(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	// Build query
 	query, args := s.buildListQuery(threatModelID, filter)
@@ -551,7 +551,7 @@ func (s *DatabaseThreatStore) buildOrderBy(sort string) string {
 
 // Patch applies JSON patch operations to a threat
 func (s *DatabaseThreatStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Patching threat %s with %d operations", id, len(operations))
 
 	// Get current threat
@@ -662,7 +662,7 @@ func (s *DatabaseThreatStore) applyPatchOperation(threat *Threat, op PatchOperat
 
 // BulkCreate creates multiple threats in a single transaction
 func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Bulk creating %d threats", len(threats))
 
 	if len(threats) == 0 {
@@ -781,7 +781,7 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 
 // BulkUpdate updates multiple threats in a single transaction
 func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Bulk updating %d threats", len(threats))
 
 	if len(threats) == 0 {
@@ -898,7 +898,7 @@ func (s *DatabaseThreatStore) InvalidateCache(ctx context.Context, id string) er
 
 // WarmCache preloads threats for a threat model into cache
 func (s *DatabaseThreatStore) WarmCache(ctx context.Context, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model: %s", threatModelID)
 
 	if s.cache == nil {
@@ -975,7 +975,7 @@ func (s *DatabaseThreatStore) tryGetFromCache(ctx context.Context, threatModelID
 		return nil, fmt.Errorf("cache not available")
 	}
 
-	logger := logging.Get()
+	logger := slogging.Get()
 	var threats []Threat
 	err := s.cache.GetCachedList(ctx, "threats", threatModelID, filter.Offset, filter.Limit, &threats)
 	if err == nil && threats != nil {
@@ -1166,7 +1166,7 @@ func (s *DatabaseThreatStore) buildDateConditions(filter ThreatFilter, startInde
 
 // scanThreatRows scans database rows into Threat objects
 func (s *DatabaseThreatStore) scanThreatRows(rows *sql.Rows) ([]Threat, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	threats := make([]Threat, 0)
 
 	for rows.Next() {

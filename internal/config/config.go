@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"gopkg.in/yaml.v3"
 )
 
@@ -651,8 +651,8 @@ func (c *Config) GetJWTDuration() time.Duration {
 }
 
 // GetLogLevel returns the parsed log level
-func (c *Config) GetLogLevel() logging.LogLevel {
-	return logging.ParseLogLevel(c.Logging.Level)
+func (c *Config) GetLogLevel() slogging.LogLevel {
+	return slogging.ParseLogLevel(c.Logging.Level)
 }
 
 // GetEnabledOAuthProviders returns a slice of enabled OAuth providers

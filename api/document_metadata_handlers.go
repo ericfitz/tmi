@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,7 +29,7 @@ func NewDocumentMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *
 // GetDocumentMetadata retrieves all metadata for a document
 // GET /threat_models/{threat_model_id}/documents/{document_id}/metadata
 func (h *DocumentMetadataHandler) GetDocumentMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetDocumentMetadata - retrieving metadata for document")
 
 	// Extract document ID from URL
@@ -69,7 +69,7 @@ func (h *DocumentMetadataHandler) GetDocumentMetadata(c *gin.Context) {
 // GetDocumentMetadataByKey retrieves a specific metadata entry by key
 // GET /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key}
 func (h *DocumentMetadataHandler) GetDocumentMetadataByKey(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetDocumentMetadataByKey - retrieving specific metadata entry")
 
 	// Extract document ID and key from URL
@@ -115,7 +115,7 @@ func (h *DocumentMetadataHandler) GetDocumentMetadataByKey(c *gin.Context) {
 // CreateDocumentMetadata creates a new metadata entry for a document
 // POST /threat_models/{threat_model_id}/documents/{document_id}/metadata
 func (h *DocumentMetadataHandler) CreateDocumentMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateDocumentMetadata - creating new metadata entry")
 
 	// Extract document ID from URL
@@ -170,7 +170,7 @@ func (h *DocumentMetadataHandler) CreateDocumentMetadata(c *gin.Context) {
 // UpdateDocumentMetadata updates an existing metadata entry
 // PUT /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key}
 func (h *DocumentMetadataHandler) UpdateDocumentMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateDocumentMetadata - updating metadata entry")
 
 	// Extract document ID and key from URL
@@ -233,7 +233,7 @@ func (h *DocumentMetadataHandler) UpdateDocumentMetadata(c *gin.Context) {
 // DeleteDocumentMetadata deletes a metadata entry
 // DELETE /threat_models/{threat_model_id}/documents/{document_id}/metadata/{key}
 func (h *DocumentMetadataHandler) DeleteDocumentMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteDocumentMetadata - deleting metadata entry")
 
 	// Extract document ID and key from URL
@@ -278,7 +278,7 @@ func (h *DocumentMetadataHandler) DeleteDocumentMetadata(c *gin.Context) {
 // BulkCreateDocumentMetadata creates multiple metadata entries in a single request
 // POST /threat_models/{threat_model_id}/documents/{document_id}/metadata/bulk
 func (h *DocumentMetadataHandler) BulkCreateDocumentMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateDocumentMetadata - creating multiple metadata entries")
 
 	// Extract document ID from URL

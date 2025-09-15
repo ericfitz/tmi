@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -45,7 +45,7 @@ func (h *Handlers) Service() *Service {
 
 // RegisterRoutes registers the authentication routes
 func (h *Handlers) RegisterRoutes(router *gin.Engine) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[AUTH_MODULE] Starting route registration")
 
 	// Register OpenID Connect Discovery endpoints
@@ -175,7 +175,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	if providerID == "" {
 		// In non-production builds, default to "test" provider for convenience
 		if defaultProviderID := getDefaultProviderID(); defaultProviderID != "" {
-			logging.Get().WithContext(c).Debug("No idp parameter provided, defaulting to provider: %s", defaultProviderID)
+			slogging.Get().WithContext(c).Debug("No idp parameter provided, defaulting to provider: %s", defaultProviderID)
 			providerID = defaultProviderID
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -229,7 +229,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	// Get optional login_hint for test provider automation
 	userHint := c.Query("login_hint")
-	logging.Get().WithContext(c).Debug("OAuth Authorize handler - extracted query parameters: provider=%s, client_callback=%s, login_hint=%s, scope=%s",
+	slogging.Get().WithContext(c).Debug("OAuth Authorize handler - extracted query parameters: provider=%s, client_callback=%s, login_hint=%s, scope=%s",
 		providerID, clientCallback, userHint, scope)
 
 	// Get state parameter from client or generate one if not provided
@@ -239,7 +239,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		var err error
 		state, err = generateRandomState()
 		if err != nil {
-			logging.Get().WithContext(c).Error("Failed to generate OAuth state parameter: %v", err)
+			slogging.Get().WithContext(c).Error("Failed to generate OAuth state parameter: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "Failed to generate state parameter",
 			})
@@ -261,12 +261,12 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	}
 	if userHint != "" {
 		stateData["login_hint"] = userHint
-		logging.Get().WithContext(c).Debug("Storing login_hint in state: %s", userHint)
+		slogging.Get().WithContext(c).Debug("Storing login_hint in state: %s", userHint)
 	}
 
 	stateJSON, err := json.Marshal(stateData)
 	if err != nil {
-		logging.Get().WithContext(c).Error("Failed to marshal OAuth state data for provider %s: %v", providerID, err)
+		slogging.Get().WithContext(c).Error("Failed to marshal OAuth state data for provider %s: %v", providerID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to encode state data",
 		})
@@ -283,7 +283,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	err = h.service.dbManager.Redis().Set(ctx, stateKey, string(stateJSON), 10*time.Minute)
 	if err != nil {
-		logging.Get().WithContext(c).Error("Failed to store OAuth state in Redis (key: %s, provider: %s): %v", stateKey, providerID, err)
+		slogging.Get().WithContext(c).Error("Failed to store OAuth state in Redis (key: %s, provider: %s): %v", stateKey, providerID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to store state parameter",
 		})
@@ -291,12 +291,12 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	}
 
 	// Handle implicit and hybrid flows for test provider
-	logging.Get().WithContext(c).Debug("OAuth flow decision: provider=%s, responseType=%s, clientCallback=%s", providerID, responseType, clientCallback)
+	slogging.Get().WithContext(c).Debug("OAuth flow decision: provider=%s, responseType=%s, clientCallback=%s", providerID, responseType, clientCallback)
 	if responseType != "code" && providerID == "test" {
-		logging.Get().WithContext(c).Debug("Triggering implicit/hybrid flow for test provider")
+		slogging.Get().WithContext(c).Debug("Triggering implicit/hybrid flow for test provider")
 		err := h.handleImplicitOrHybridFlow(c, provider, responseType, state, stateData)
 		if err != nil {
-			logging.Get().WithContext(c).Error("Failed to handle OAuth implicit/hybrid flow (provider: %s, response_type: %s): %v", providerID, responseType, err)
+			slogging.Get().WithContext(c).Error("Failed to handle OAuth implicit/hybrid flow (provider: %s, response_type: %s): %v", providerID, responseType, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to handle implicit/hybrid flow: %v", err),
 			})
@@ -306,19 +306,19 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	// For authorization code flow, handle client_callback if provided
 	if providerID == "test" && clientCallback != "" {
-		logging.Get().WithContext(c).Debug("Authorization code flow with client_callback, redirecting directly to client")
+		slogging.Get().WithContext(c).Debug("Authorization code flow with client_callback, redirecting directly to client")
 		// Generate test authorization code with login_hint encoded if available
 		authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
 		if userHint != "" {
 			// Encode login_hint into the authorization code for later retrieval
 			encodedHint := base64.URLEncoding.EncodeToString([]byte(userHint))
 			authCode = fmt.Sprintf("test_auth_code_%d_hint_%s", time.Now().Unix(), encodedHint)
-			logging.Get().WithContext(c).Debug("Generated auth code with login_hint: %s", userHint)
+			slogging.Get().WithContext(c).Debug("Generated auth code with login_hint: %s", userHint)
 		}
 
 		// Build redirect URL with code and state
 		redirectURL := fmt.Sprintf("%s?code=%s&state=%s", clientCallback, authCode, url.QueryEscape(state))
-		logging.Get().WithContext(c).Debug("Redirecting to client callback: %s", redirectURL)
+		slogging.Get().WithContext(c).Debug("Redirecting to client callback: %s", redirectURL)
 		c.Redirect(http.StatusFound, redirectURL)
 	} else {
 		// For normal authorization code flow, get the authorization URL and redirect
@@ -393,7 +393,7 @@ func (h *Handlers) parseCallbackState(c *gin.Context, state string) (*callbackSt
 		result.ClientCallback = stateMap["client_callback"]
 		result.UserHint = stateMap["login_hint"]
 
-		logging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, response_type=%s, client_callback=%s, login_hint=%s",
+		slogging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, response_type=%s, client_callback=%s, login_hint=%s",
 			result.ProviderID, result.ResponseType, result.ClientCallback, result.UserHint)
 	}
 
@@ -437,7 +437,7 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 	userWithProviderID, err := h.service.GetUserWithProviderID(ctx, user.Email)
 	if err != nil {
 		// Fallback to original user if fetch fails
-		logging.Get().WithContext(c).Error("Failed to get user with provider ID: %v", err)
+		slogging.Get().WithContext(c).Error("Failed to get user with provider ID: %v", err)
 		userWithProviderID = user
 	}
 
@@ -448,10 +448,10 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 // setUserHintContext adds login_hint to context for test provider
 func (h *Handlers) setUserHintContext(c *gin.Context, ctx context.Context, stateData *callbackStateData) context.Context {
 	if stateData.UserHint != "" && stateData.ProviderID == "test" {
-		logging.Get().WithContext(c).Debug("Setting login_hint in context for test provider: %s", stateData.UserHint)
+		slogging.Get().WithContext(c).Debug("Setting login_hint in context for test provider: %s", stateData.UserHint)
 		return context.WithValue(ctx, userHintContextKey, stateData.UserHint)
 	} else if stateData.ProviderID == "test" {
-		logging.Get().WithContext(c).Debug("No login_hint provided for test provider: provider=%s userHint=%s",
+		slogging.Get().WithContext(c).Debug("No login_hint provided for test provider: provider=%s userHint=%s",
 			stateData.ProviderID, stateData.UserHint)
 	}
 	return ctx
@@ -459,7 +459,7 @@ func (h *Handlers) setUserHintContext(c *gin.Context, ctx context.Context, state
 
 // exchangeCodeAndGetUser exchanges OAuth code for tokens and gets user info
 func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, provider Provider, code string) (*TokenResponse, *UserInfo, *IDTokenClaims, error) {
-	logging.Get().WithContext(c).Debug("About to call ExchangeCode: code=%s has_login_hint_in_context=%v",
+	slogging.Get().WithContext(c).Debug("About to call ExchangeCode: code=%s has_login_hint_in_context=%v",
 		code, ctx.Value(userHintContextKey) != nil)
 
 	tokenResponse, err := provider.ExchangeCode(ctx, code)
@@ -468,7 +468,7 @@ func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, p
 			strings.Contains(err.Error(), "authorization code is required") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		} else {
-			logging.Get().WithContext(c).Error("Failed to exchange OAuth authorization code for tokens (code prefix: %.10s...): %v", code, err)
+			slogging.Get().WithContext(c).Error("Failed to exchange OAuth authorization code for tokens (code prefix: %.10s...): %v", code, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to exchange code for tokens: %v", err),
 			})
@@ -481,23 +481,23 @@ func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, p
 	if tokenResponse.IDToken != "" {
 		claims, err = provider.ValidateIDToken(ctx, tokenResponse.IDToken)
 		if err != nil {
-			logger := logging.Get().WithContext(c)
+			logger := slogging.Get().WithContext(c)
 			logger.Error("Failed to validate ID token: %v", err)
 		}
 	}
 
 	// Get user info
-	logging.Get().WithContext(c).Debug("About to call GetUserInfo: access_token=%s", tokenResponse.AccessToken)
+	slogging.Get().WithContext(c).Debug("About to call GetUserInfo: access_token=%s", tokenResponse.AccessToken)
 	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
 	if err != nil {
-		logging.Get().WithContext(c).Error("Failed to get user info from OAuth provider using access token: %v", err)
+		slogging.Get().WithContext(c).Error("Failed to get user info from OAuth provider using access token: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to get user info: %v", err),
 		})
 		return nil, nil, nil, err
 	}
 
-	logging.Get().WithContext(c).Debug("GetUserInfo returned: user_id=%s email=%s name=%s",
+	slogging.Get().WithContext(c).Debug("GetUserInfo returned: user_id=%s email=%s name=%s",
 		userInfo.ID, userInfo.Email, userInfo.Name)
 
 	return tokenResponse, userInfo, claims, nil
@@ -511,7 +511,7 @@ func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, userInfo
 	}
 
 	if email == "" {
-		logging.Get().WithContext(c).Error("OAuth provider returned empty email for user (name: %s, id: %s, userInfo.Email: %s)", userInfo.Name, userInfo.ID, userInfo.Email)
+		slogging.Get().WithContext(c).Error("OAuth provider returned empty email for user (name: %s, id: %s, userInfo.Email: %s)", userInfo.Name, userInfo.ID, userInfo.Email)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user email"})
 		return User{}, fmt.Errorf("no email found")
 	}
@@ -567,7 +567,7 @@ func (h *Handlers) linkProviderToUser(ctx context.Context, userID, providerID st
 	if providerUserID != "" {
 		err := h.service.LinkUserProvider(ctx, userID, providerID, providerUserID, userInfo.Email)
 		if err != nil {
-			logger := logging.Get()
+			logger := slogging.Get()
 			logger.Error("Failed to link provider: %v (provider: %s, user_id: %s)", err, providerID, userID)
 		}
 	}
@@ -577,7 +577,7 @@ func (h *Handlers) linkProviderToUser(ctx context.Context, userID, providerID st
 func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, user User, userInfo *UserInfo, stateData *callbackStateData) error {
 	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
-		logging.Get().WithContext(c).Error("Failed to generate JWT tokens for user %s: %v", user.Email, err)
+		slogging.Get().WithContext(c).Error("Failed to generate JWT tokens for user %s: %v", user.Email, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
 		})
@@ -608,7 +608,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	if providerID == "" {
 		// In non-production builds, default to "test" provider for convenience
 		if defaultProviderID := getDefaultProviderID(); defaultProviderID != "" {
-			logging.Get().WithContext(c).Debug("No idp parameter provided, defaulting to provider: %s", defaultProviderID)
+			slogging.Get().WithContext(c).Debug("No idp parameter provided, defaulting to provider: %s", defaultProviderID)
 			providerID = defaultProviderID
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -674,7 +674,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 				"error": err.Error(),
 			})
 		} else {
-			logging.Get().WithContext(c).Error("Failed to exchange authorization code for tokens in callback (provider: %s, code prefix: %.10s...): %v", providerID, req.Code, err)
+			slogging.Get().WithContext(c).Error("Failed to exchange authorization code for tokens in callback (provider: %s, code prefix: %.10s...): %v", providerID, req.Code, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to exchange authorization code: %v", err),
 			})
@@ -688,7 +688,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		claims, err = provider.ValidateIDToken(ctx, tokenResponse.IDToken)
 		if err != nil {
 			// Log error but continue - we can get user info from userinfo endpoint
-			logger := logging.Get().WithContext(c)
+			logger := slogging.Get().WithContext(c)
 			logger.Error("Failed to validate ID token: %v", err)
 		}
 	}
@@ -696,7 +696,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	// Get user info from provider
 	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
 	if err != nil {
-		logging.Get().WithContext(c).Error("Failed to get user info from OAuth provider in exchange (provider: %s): %v", providerID, err)
+		slogging.Get().WithContext(c).Error("Failed to get user info from OAuth provider in exchange (provider: %s): %v", providerID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to get user info: %v", err),
 		})
@@ -709,7 +709,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		email = claims.Email
 	}
 	if email == "" {
-		logging.Get().WithContext(c).Error("OAuth provider returned empty email in callback (userInfo.Email: %s, claims present: %v)", userInfo.Email, claims != nil)
+		slogging.Get().WithContext(c).Error("OAuth provider returned empty email in callback (userInfo.Email: %s, claims present: %v)", userInfo.Email, claims != nil)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get user email from provider",
 		})
@@ -739,7 +739,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 
 		user, err = h.service.CreateUser(ctx, user)
 		if err != nil {
-			logging.Get().WithContext(c).Error("Failed to create new user in database during callback (email: %s, name: %s): %v", user.Email, user.Name, err)
+			slogging.Get().WithContext(c).Error("Failed to create new user in database during callback (email: %s, name: %s): %v", user.Email, user.Name, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to create user: %v", err),
 			})
@@ -751,7 +751,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		err = h.service.UpdateUser(ctx, user)
 		if err != nil {
 			// Log error but continue
-			logger := logging.Get().WithContext(c)
+			logger := slogging.Get().WithContext(c)
 			logger.Error("Failed to update user last login: %v (user_id: %s)", err, user.ID)
 		}
 	}
@@ -765,7 +765,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		err = h.service.LinkUserProvider(ctx, user.ID, providerID, providerUserID, email)
 		if err != nil {
 			// Log error but continue
-			logger := logging.Get().WithContext(c)
+			logger := slogging.Get().WithContext(c)
 			logger.Error("Failed to link user provider: %v (user_id: %s, provider: %s)", err, user.ID, providerID)
 		}
 	}
@@ -773,7 +773,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	// Generate TMI JWT tokens (the provider ID will be used as subject in the JWT)
 	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
-		logging.Get().WithContext(c).Error("Failed to generate JWT tokens for user %s: %v", user.Email, err)
+		slogging.Get().WithContext(c).Error("Failed to generate JWT tokens for user %s: %v", user.Email, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
 		})
@@ -887,7 +887,7 @@ func (h *Handlers) Logout(c *gin.Context) {
 				if h.service != nil && h.service.dbManager != nil && h.service.dbManager.Redis() != nil {
 					blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), h.service.GetKeyManager())
 					if err := blacklist.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
-						logging.Get().WithContext(c).Error("Failed to blacklist JWT token during logout (token prefix: %.10s...): %v", tokenStr, err)
+						slogging.Get().WithContext(c).Error("Failed to blacklist JWT token during logout (token prefix: %.10s...): %v", tokenStr, err)
 						c.JSON(http.StatusInternalServerError, gin.H{
 							"error": fmt.Sprintf("Failed to blacklist token: %v", err),
 						})
@@ -918,7 +918,7 @@ func (h *Handlers) Logout(c *gin.Context) {
 	// Revoke the refresh token
 	err := h.service.RevokeToken(c.Request.Context(), req.RefreshToken)
 	if err != nil {
-		logging.Get().WithContext(c).Error("Failed to revoke refresh token during logout (token prefix: %.10s...): %v", req.RefreshToken, err)
+		slogging.Get().WithContext(c).Error("Failed to revoke refresh token during logout (token prefix: %.10s...): %v", req.RefreshToken, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to revoke token: %v", err),
 		})
@@ -1139,7 +1139,7 @@ func (h *Handlers) validateOAuthScope(scope string) error {
 		// Silently ignore unsupported scopes as per OAuth 2.0/OIDC spec
 	}
 
-	logging.Get().Debug("OAuth scope validation: requested=%s, validated=%v", scope, validScopes)
+	slogging.Get().Debug("OAuth scope validation: requested=%s, validated=%v", scope, validScopes)
 	return nil
 }
 
@@ -1441,7 +1441,7 @@ func (h *Handlers) handleImplicitOrHybridFlow(c *gin.Context, provider Provider,
 			err = h.service.LinkUserProvider(ctx, user.ID, stateData["provider"], providerUserID, email)
 			if err != nil {
 				// Log error but continue
-				logging.Get().Error("Failed to link provider in implicit flow: %v", err)
+				slogging.Get().Error("Failed to link provider in implicit flow: %v", err)
 			}
 		}
 	}

@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/golang-jwt/jwt/v5"
@@ -105,7 +105,7 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		// Update the user in the database with fresh provider data
 		if err := s.UpdateUser(ctx, user); err != nil {
 			// Log error but continue - token generation shouldn't fail due to update issues
-			logging.Get().Error("Failed to update user provider data: %v", err)
+			slogging.Get().Error("Failed to update user provider data: %v", err)
 		}
 	}
 
@@ -234,7 +234,7 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 	user.LastLogin = time.Now()
 	if err := s.UpdateUser(ctx, user); err != nil {
 		// Log the error but continue
-		logging.Get().Error("Failed to update user last login: %v", err)
+		slogging.Get().Error("Failed to update user last login: %v", err)
 	}
 
 	// Generate new tokens
@@ -487,7 +487,7 @@ func (s *Service) GetUserProviders(ctx context.Context, userID string) ([]UserPr
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			logging.Get().Error("Error closing rows: %v", err)
+			slogging.Get().Error("Error closing rows: %v", err)
 		}
 	}()
 
