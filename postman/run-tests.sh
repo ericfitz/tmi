@@ -112,6 +112,49 @@ if ! curl -s http://127.0.0.1:8080/ >/dev/null 2>&1; then
     exit 1
 fi
 
+# Pre-authenticate test users and store JWT tokens
+echo ""
+echo "🔑 Pre-authenticating test users..."
+
+# Function to authenticate a user and extract JWT token
+authenticate_user() {
+    local username="$1"
+    echo "Authenticating $username..." >&2
+    
+    # Trigger OAuth flow with login_hint
+    curl -sL "http://127.0.0.1:8080/oauth2/authorize?idp=test&login_hint=$username&client_callback=http://127.0.0.1:8079/&scope=openid" >/dev/null
+    
+    # Wait for token to be stored
+    sleep 3
+    
+    # Retrieve token from OAuth stub
+    local token_response=$(curl -s "http://127.0.0.1:8079/creds?userid=$username")
+    local token=$(echo "$token_response" | jq -r '.access_token' 2>/dev/null)
+    
+    if [ "$token" != "null" ] && [ "$token" != "" ]; then
+        echo "✅ Token retrieved for $username" >&2
+        printf "%s" "$token"
+    else
+        echo "❌ Failed to retrieve token for $username" >&2
+        echo "Response: $token_response" >&2
+        return 1
+    fi
+}
+
+# Authenticate all test users
+TOKEN_ALICE=$(authenticate_user "alice")
+TOKEN_BOB=$(authenticate_user "bob") 
+TOKEN_CHARLIE=$(authenticate_user "charlie")
+TOKEN_DIANA=$(authenticate_user "diana")
+
+# Verify we got all tokens
+if [ -z "$TOKEN_ALICE" ] || [ -z "$TOKEN_BOB" ] || [ -z "$TOKEN_CHARLIE" ] || [ -z "$TOKEN_DIANA" ]; then
+    echo "❌ Failed to authenticate all users"
+    exit 1
+fi
+
+echo "✅ All users authenticated successfully"
+
 # Run newman tests
 echo ""
 echo "Running Postman collection with newman..."
@@ -138,6 +181,10 @@ if [ ! -z "$HTML_REPORTER" ]; then
         --env-var "loginHint=test-runner-$TIMESTAMP" \
         --env-var "baseUrl=http://127.0.0.1:8080" \
         --env-var "oauthStubUrl=http://127.0.0.1:8079" \
+        --env-var "token_alice=$TOKEN_ALICE" \
+        --env-var "token_bob=$TOKEN_BOB" \
+        --env-var "token_charlie=$TOKEN_CHARLIE" \
+        --env-var "token_diana=$TOKEN_DIANA" \
         --reporters cli,json,htmlextra \
         --reporter-json-export "$OUTPUT_FILE" \
         --reporter-htmlextra-export "$OUTPUT_DIR/test-report-$TIMESTAMP.html" \
@@ -151,6 +198,10 @@ else
         --env-var "loginHint=test-runner-$TIMESTAMP" \
         --env-var "baseUrl=http://127.0.0.1:8080" \
         --env-var "oauthStubUrl=http://127.0.0.1:8079" \
+        --env-var "token_alice=$TOKEN_ALICE" \
+        --env-var "token_bob=$TOKEN_BOB" \
+        --env-var "token_charlie=$TOKEN_CHARLIE" \
+        --env-var "token_diana=$TOKEN_DIANA" \
         --reporters cli,json \
         --reporter-json-export "$OUTPUT_FILE" \
         --timeout-request 10000 \

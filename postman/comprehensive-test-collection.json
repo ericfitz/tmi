@@ -43,7 +43,7 @@
           "}",
           "`;",
           "    pm.globals.set('TMITestDataFactory', factoryCode);",
-          "    console.log('✅ TMITestDataFactory loaded into globals');",
+          "    console.log('\u2705 TMITestDataFactory loaded into globals');",
           "}"
         ]
       }
@@ -57,7 +57,7 @@
           "name": "Setup Multi-User Test Environment",
           "event": [
             {
-              "listen": "prerequest", 
+              "listen": "prerequest",
               "script": {
                 "type": "text/javascript",
                 "exec": [
@@ -87,103 +87,49 @@
                   "}",
                   "const factory = new TMITestDataFactory();",
                   "pm.globals.set('testDataFactory', JSON.stringify(factory));",
-                  "console.log('✅ Test data factory loaded and instantiated');",
+                  "console.log('\u2705 Test data factory loaded and instantiated');",
                   "",
-                  "// Initialize multi-user authentication system",
-                  "console.log('🚀 Setting up comprehensive test environment...');",
+                  "// Setup authentication tokens from environment variables",
+                  "console.log('\ud83d\udd11 Setting up pre-authenticated user tokens...');",
                   "",
-                  "// Define OAuth authentication helper",
-                  "if (typeof pm.globals.get('tmiAuthHelper') === 'undefined') {",
-                  "    const authHelper = {",
-                  "        authenticateUser: async (username) => {",
-                  "            const baseUrl = pm.collectionVariables.get('baseUrl');",
-                  "            const stubUrl = pm.collectionVariables.get('oauthStubUrl');",
-                  "            ",
-                  "            // Clear any existing user token first",
-                  "            const existingToken = pm.collectionVariables.get('token_' + username);",
-                  "            if (existingToken && existingToken.length > 10) {",
-                  "                console.log('✓ Using cached token for', username);",
-                  "                return existingToken;",
-                  "            }",
-                  "            ",
-                  "            // Trigger OAuth flow",
-                  "            const authUrl = baseUrl + '/oauth2/authorize?idp=test&login_hint=' + username + '&client_callback=' + stubUrl + '/&scope=openid';",
-                  "            const authReq = {",
-                  "                url: authUrl,",
-                  "                method: 'GET',",
-                  "                header: { 'User-Agent': 'PostmanRuntime/7.x' }",
-                  "            };",
-                  "            ",
-                  "            // Follow redirect to trigger OAuth",
-                  "            await new Promise((resolve) => {",
-                  "                pm.sendRequest(authReq, (err, res) => {",
-                  "                    if (err) console.log('Auth request error:', err);",
-                  "                    resolve();",
-                  "                });",
-                  "            });",
-                  "            ",
-                  "            // Wait for token capture",
-                  "            await new Promise(r => setTimeout(r, 5000));",
-                  "            ",
-                  "            // Retrieve token from stub",
-                  "            const tokenReq = {",
-                  "                url: stubUrl + '/creds?userid=' + username,",
-                  "                method: 'GET'",
-                  "            };",
-                  "            ",
-                  "            return new Promise((resolve, reject) => {",
-                  "                pm.sendRequest(tokenReq, (err, res) => {",
-                  "                    if (err) {",
-                  "                        console.error('Token retrieval failed:', err);",
-                  "                        reject(err);",
-                  "                        return;",
-                  "                    }",
-                  "                    ",
-                  "                    try {",
-                  "                        const data = res.json();",
-                  "                        const token = data.access_token;",
-                  "                        if (token && token.length > 10) {",
-                  "                            pm.collectionVariables.set('token_' + username, token);",
-                  "                            console.log('✅ Token obtained for', username, '- length:', token.length);",
-                  "                            resolve(token);",
-                  "                        } else {",
-                  "                            console.error('Invalid token received for', username, ':', data);",
-                  "                            reject(new Error('Invalid token'));",
-                  "                        }",
-                  "                    } catch (parseErr) {",
-                  "                        console.error('Token parsing failed:', parseErr, res.text());",
-                  "                        reject(parseErr);",
-                  "                    }",
-                  "                });",
-                  "            });",
-                  "        },",
-                  "        setActiveUser: (username) => {",
-                  "            const token = pm.collectionVariables.get('token_' + username);",
-                  "            if (token) {",
-                  "                pm.collectionVariables.set('access_token', token);",
-                  "                pm.collectionVariables.set('currentUser', username);",
-                  "                pm.collectionVariables.set('loginHint', username);",
-                  "                console.log('✓ Active user set to', username);",
-                  "            } else {",
-                  "                console.error('No token found for user', username);",
-                  "            }",
-                  "        }",
-                  "    };",
-                  "    ",
-                  "    pm.globals.set('tmiAuthHelper', JSON.stringify(authHelper));",
-                  "    console.log('✅ TMI Auth helper initialized');",
-                  "}"
+                  "// Get tokens from environment variables (passed by run-tests.sh)",
+                  "pm.collectionVariables.set('token_alice', pm.environment.get('token_alice'));",
+                  "pm.collectionVariables.set('token_bob', pm.environment.get('token_bob'));",
+                  "pm.collectionVariables.set('token_charlie', pm.environment.get('token_charlie'));",
+                  "pm.collectionVariables.set('token_diana', pm.environment.get('token_diana'));",
+                  "",
+                  "// Set default active user to alice",
+                  "pm.collectionVariables.set('access_token', pm.environment.get('token_alice'));",
+                  "pm.collectionVariables.set('currentUser', 'alice');",
+                  "",
+                  "console.log('\u2705 Authentication tokens configured for all users');"
                 ]
               }
             },
             {
               "listen": "test",
               "script": {
-                "type": "text/javascript", 
+                "type": "text/javascript",
                 "exec": [
                   "pm.test('Test environment setup completed', function () {",
-                  "    // This is a setup step, always passes",
-                  "    pm.expect(true).to.be.true;",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('All user tokens are available', function () {",
+                  "    const alice_token = pm.collectionVariables.get('token_alice');",
+                  "    const bob_token = pm.collectionVariables.get('token_bob');",
+                  "    const charlie_token = pm.collectionVariables.get('token_charlie');",
+                  "    const diana_token = pm.collectionVariables.get('token_diana');",
+                  "    ",
+                  "    pm.expect(alice_token).to.be.a('string');",
+                  "    pm.expect(bob_token).to.be.a('string');",
+                  "    pm.expect(charlie_token).to.be.a('string');",
+                  "    pm.expect(diana_token).to.be.a('string');",
+                  "    ",
+                  "    pm.expect(alice_token.length).to.be.above(10);",
+                  "    pm.expect(bob_token.length).to.be.above(10);",
+                  "    pm.expect(charlie_token.length).to.be.above(10);",
+                  "    pm.expect(diana_token.length).to.be.above(10);",
                   "});"
                 ]
               }
@@ -194,10 +140,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/",
-              "host": ["{{baseUrl}}"],
-              "path": [""]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
             },
-            "description": "Setup test environment with multi-user authentication"
+            "description": "Setup test environment and validate pre-authenticated tokens"
           }
         },
         {
@@ -208,85 +158,23 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Authenticate Alice as the primary owner user",
-                  "(async () => {",
-                  "    try {",
-                  "        const authHelper = JSON.parse(pm.globals.get('tmiAuthHelper') || '{}');",
-                  "        if (authHelper.authenticateUser) {",
-                  "            // Check if we already have a token",
-                  "            const existingToken = pm.collectionVariables.get('token_alice');",
-                  "            if (!existingToken || existingToken.length <= 10) {",
-                  "                console.log('🔑 Authenticating Alice...');",
-                  "                ",
-                  "                // Manual OAuth flow for Alice",
-                  "                const baseUrl = pm.collectionVariables.get('baseUrl');",
-                  "                const stubUrl = pm.collectionVariables.get('oauthStubUrl');",
-                  "                const authUrl = baseUrl + '/oauth2/authorize?idp=test&login_hint=alice&client_callback=' + stubUrl + '/&scope=openid';",
-                  "                ",
-                  "                // Trigger OAuth with redirect following",
-                  "                const authReqOptions = {",
-                  "                    url: authUrl,",
-                  "                    method: 'GET',",
-                  "                    followRedirect: true,",
-                  "                    followOriginalHttpMethod: true",
-                  "                };",
-                  "                ",
-                  "                await new Promise((resolve) => {",
-                  "                    pm.sendRequest(authReqOptions, (err, res) => {",
-                  "                        if (err) console.log('Auth request error:', err);",
-                  "                        else console.log('Auth triggered for alice, status:', res.code);",
-                  "                        resolve();",
-                  "                    });",
-                  "                });",
-                  "                ",
-                  "                // Wait for token capture",
-                  "                await new Promise(r => setTimeout(r, 3000));",
-                  "                ",
-                  "                // Retrieve token",
-                  "                await new Promise((resolve, reject) => {",
-                  "                    pm.sendRequest(stubUrl + '/creds?userid=alice', (err, res) => {",
-                  "                        if (err) {",
-                  "                            console.error('Token retrieval failed:', err);",
-                  "                            return reject(err);",
-                  "                        }",
-                  "                        ",
-                  "                        try {",
-                  "                            const data = res.json();",
-                  "                            const token = data.access_token;",
-                  "                            if (token && token.length > 10) {",
-                  "                                pm.collectionVariables.set('token_alice', token);",
-                  "                                pm.collectionVariables.set('access_token', token);",
-                  "                                pm.collectionVariables.set('currentUser', 'alice');",
-                  "                                console.log('✅ Alice authenticated - token length:', token.length);",
-                  "                                resolve();",
-                  "                            } else {",
-                  "                                console.error('Invalid token for Alice:', data);",
-                  "                                reject(new Error('Invalid token'));",
-                  "                            }",
-                  "                        } catch (parseErr) {",
-                  "                            console.error('Token parsing failed:', parseErr, res.text());",
-                  "                            reject(parseErr);",
-                  "                        }",
-                  "                    });",
-                  "                });",
-                  "            } else {",
-                  "                console.log('✓ Using cached token for Alice');",
-                  "                pm.collectionVariables.set('access_token', existingToken);",
-                  "                pm.collectionVariables.set('currentUser', 'alice');",
-                  "            }",
-                  "        }",
-                  "    } catch (err) {",
-                  "        console.error('❌ Alice authentication failed:', err);",
-                  "    }",
-                  "})();"
+                  "// Switch to Alice's token",
+                  "const aliceToken = pm.collectionVariables.get('token_alice');",
+                  "pm.collectionVariables.set('access_token', aliceToken);",
+                  "pm.collectionVariables.set('currentUser', 'alice');",
+                  "console.log('\ud83d\udd04 Switched to Alice (Owner)');"
                 ]
               }
             },
             {
-              "listen": "test", 
+              "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
                   "pm.test('Alice authentication successful', function () {",
                   "    const token = pm.collectionVariables.get('access_token');",
                   "    pm.expect(token).to.be.a('string');",
@@ -303,11 +191,21 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
             },
             "description": "Authenticate Alice as primary test user"
           }
@@ -320,68 +218,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Authenticate Bob as writer user",
-                  "(async () => {",
-                  "    try {",
-                  "        const existingToken = pm.collectionVariables.get('token_bob');",
-                  "        if (!existingToken || existingToken.length <= 10) {",
-                  "            console.log('🔑 Authenticating Bob...');",
-                  "            ",
-                  "            const baseUrl = pm.collectionVariables.get('baseUrl');",
-                  "            const stubUrl = pm.collectionVariables.get('oauthStubUrl');",
-                  "            const authUrl = baseUrl + '/oauth2/authorize?idp=test&login_hint=bob&client_callback=' + stubUrl + '/&scope=openid';",
-                  "            ",
-                  "            // Trigger OAuth with redirect following",
-                  "            const authReqOptions = {",
-                  "                url: authUrl,",
-                  "                method: 'GET',",
-                  "                followRedirect: true,",
-                  "                followOriginalHttpMethod: true",
-                  "            };",
-                  "            ",
-                  "            await new Promise((resolve) => {",
-                  "                pm.sendRequest(authReqOptions, (err, res) => {",
-                  "                    if (err) console.log('Auth request error:', err);",
-                  "                    else console.log('✓ Bob OAuth completed with redirect following');",
-                  "                    resolve();",
-                  "                });",
-                  "            });",
-                  "            ",
-                  "            // Wait for token capture",
-                  "            await new Promise(r => setTimeout(r, 3000));",
-                  "            ",
-                  "            // Retrieve token",
-                  "            await new Promise((resolve, reject) => {",
-                  "                pm.sendRequest(stubUrl + '/creds?userid=bob', (err, res) => {",
-                  "                    if (err) {",
-                  "                        console.error('Token retrieval failed:', err);",
-                  "                        return reject(err);",
-                  "                    }",
-                  "                    ",
-                  "                    try {",
-                  "                        const data = res.json();",
-                  "                        const token = data.access_token;",
-                  "                        if (token && token.length > 10) {",
-                  "                            pm.collectionVariables.set('token_bob', token);",
-                  "                            console.log('✅ Bob authenticated - token length:', token.length);",
-                  "                            resolve();",
-                  "                        } else {",
-                  "                            console.error('Invalid token for Bob:', data);",
-                  "                            reject(new Error('Invalid token'));",
-                  "                        }",
-                  "                    } catch (parseErr) {",
-                  "                        console.error('Token parsing failed:', parseErr, res.text());",
-                  "                        reject(parseErr);",
-                  "                    }",
-                  "                });",
-                  "            });",
-                  "        } else {",
-                  "            console.log('✓ Using cached token for Bob');",
-                  "        }",
-                  "    } catch (err) {",
-                  "        console.error('❌ Bob authentication failed:', err);",
-                  "    }",
-                  "})();"
+                  "// Switch to Bob's token",
+                  "const bobToken = pm.collectionVariables.get('token_bob');",
+                  "pm.collectionVariables.set('access_token', bobToken);",
+                  "pm.collectionVariables.set('currentUser', 'bob');",
+                  "console.log('\ud83d\udd04 Switched to Bob (Writer)');"
                 ]
               }
             },
@@ -390,6 +231,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
                   "pm.test('Bob authentication successful', function () {",
                   "    const token = pm.collectionVariables.get('token_bob');",
                   "    pm.expect(token).to.be.a('string');",
@@ -400,7 +245,7 @@
             }
           ],
           "request": {
-            "method": "GET", 
+            "method": "GET",
             "header": [
               {
                 "key": "Authorization",
@@ -410,8 +255,12 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/threat_models",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
             },
             "description": "Authenticate Bob as writer test user"
           }
@@ -424,68 +273,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Authenticate Charlie as reader user",
-                  "(async () => {",
-                  "    try {",
-                  "        const existingToken = pm.collectionVariables.get('token_charlie');",
-                  "        if (!existingToken || existingToken.length <= 10) {",
-                  "            console.log('🔑 Authenticating Charlie...');",
-                  "            ",
-                  "            const baseUrl = pm.collectionVariables.get('baseUrl');",
-                  "            const stubUrl = pm.collectionVariables.get('oauthStubUrl');",
-                  "            const authUrl = baseUrl + '/oauth2/authorize?idp=test&login_hint=charlie&client_callback=' + stubUrl + '/&scope=openid';",
-                  "            ",
-                  "            // Trigger OAuth with redirect following",
-                  "            const authReqOptions = {",
-                  "                url: authUrl,",
-                  "                method: 'GET',",
-                  "                followRedirect: true,",
-                  "                followOriginalHttpMethod: true",
-                  "            };",
-                  "            ",
-                  "            await new Promise((resolve) => {",
-                  "                pm.sendRequest(authReqOptions, (err, res) => {",
-                  "                    if (err) console.log('Auth request error:', err);",
-                  "                    else console.log('✓ Charlie OAuth completed with redirect following');",
-                  "                    resolve();",
-                  "                });",
-                  "            });",
-                  "            ",
-                  "            // Wait for token capture",
-                  "            await new Promise(r => setTimeout(r, 3000));",
-                  "            ",
-                  "            // Retrieve token",
-                  "            await new Promise((resolve, reject) => {",
-                  "                pm.sendRequest(stubUrl + '/creds?userid=charlie', (err, res) => {",
-                  "                    if (err) {",
-                  "                        console.error('Token retrieval failed:', err);",
-                  "                        return reject(err);",
-                  "                    }",
-                  "                    ",
-                  "                    try {",
-                  "                        const data = res.json();",
-                  "                        const token = data.access_token;",
-                  "                        if (token && token.length > 10) {",
-                  "                            pm.collectionVariables.set('token_charlie', token);",
-                  "                            console.log('✅ Charlie authenticated - token length:', token.length);",
-                  "                            resolve();",
-                  "                        } else {",
-                  "                            console.error('Invalid token for Charlie:', data);",
-                  "                            reject(new Error('Invalid token'));",
-                  "                        }",
-                  "                    } catch (parseErr) {",
-                  "                        console.error('Token parsing failed:', parseErr, res.text());",
-                  "                        reject(parseErr);",
-                  "                    }",
-                  "                });",
-                  "            });",
-                  "        } else {",
-                  "            console.log('✓ Using cached token for Charlie');",
-                  "        }",
-                  "    } catch (err) {",
-                  "        console.error('❌ Charlie authentication failed:', err);",
-                  "    }",
-                  "})();"
+                  "// Switch to Charlie's token",
+                  "const charlieToken = pm.collectionVariables.get('token_charlie');",
+                  "pm.collectionVariables.set('access_token', charlieToken);",
+                  "pm.collectionVariables.set('currentUser', 'charlie');",
+                  "console.log('\ud83d\udd04 Switched to Charlie (Reader)');"
                 ]
               }
             },
@@ -494,6 +286,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
                   "pm.test('Charlie authentication successful', function () {",
                   "    const token = pm.collectionVariables.get('token_charlie');",
                   "    pm.expect(token).to.be.a('string');",
@@ -513,15 +309,19 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/threat_models", 
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "raw": "{{baseUrl}}/threat_models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
             },
             "description": "Authenticate Charlie as reader test user"
           }
         }
       ],
-      "description": "Setup multi-user authentication environment for comprehensive testing"
+      "description": "Setup multi-user authentication environment with pre-authenticated tokens"
     },
     {
       "name": "1. Discovery & Public Endpoints",
@@ -560,8 +360,12 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/",
-              "host": ["{{baseUrl}}"],
-              "path": [""]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
             },
             "description": "Test API root endpoint returns 200 with service information"
           }
@@ -592,14 +396,19 @@
             "method": "GET",
             "header": [
               {
-                "key": "Accept", 
+                "key": "Accept",
                 "value": "application/json"
               }
             ],
             "url": {
               "raw": "{{baseUrl}}/.well-known/openid-configuration",
-              "host": ["{{baseUrl}}"],
-              "path": [".well-known", "openid-configuration"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ".well-known",
+                "openid-configuration"
+              ]
             },
             "description": "Test OpenID Connect discovery endpoint"
           }
@@ -635,8 +444,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/.well-known/jwks.json",
-              "host": ["{{baseUrl}}"],
-              "path": [".well-known", "jwks.json"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ".well-known",
+                "jwks.json"
+              ]
             },
             "description": "Test JSON Web Key Set endpoint"
           }
@@ -672,8 +486,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/oauth2/providers",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "providers"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "providers"
+              ]
             },
             "description": "Test OAuth providers listing endpoint"
           }
@@ -761,8 +580,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
             },
             "description": "Create a threat model with valid data as Alice"
           }
@@ -817,8 +640,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
             },
             "description": "Test threat model creation with invalid data"
           }
@@ -869,8 +696,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
             },
             "description": "Test threat model creation without authentication"
           },
@@ -924,8 +755,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
             },
             "description": "Get threat model that Alice owns"
           }
@@ -950,7 +786,7 @@
             {
               "listen": "test",
               "script": {
-                "type": "text/javascript", 
+                "type": "text/javascript",
                 "exec": [
                   "pm.test('Status code is 403', function () {",
                   "    pm.response.to.have.status(403);",
@@ -965,12 +801,17 @@
             }
           ],
           "request": {
-            "method": "GET", 
+            "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
             },
             "description": "Try to get Alice's threat model as Diana (no access)"
           }
@@ -1012,8 +853,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "00000000-0000-0000-0000-000000000000"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "00000000-0000-0000-0000-000000000000"
+              ]
             },
             "description": "Try to get non-existent threat model"
           }
@@ -1063,7 +909,7 @@
       "type": "string"
     },
     {
-      "key": "token_bob", 
+      "key": "token_bob",
       "value": "",
       "type": "string"
     },
