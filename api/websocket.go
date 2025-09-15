@@ -3660,7 +3660,7 @@ func (c *WebSocketClient) ReadPump() {
 
 	logging.Get().Debug("WebSocketClient.ReadPump() started - User: %s, Session: %s", c.UserID, c.Session.ID)
 
-	c.Conn.SetReadLimit(4096) // 4KB message limit
+	c.Conn.SetReadLimit(65536) // 64KB message limit
 	// Set read timeout to 3x ping interval (90 seconds)
 	readTimeout := 90 * time.Second
 	if err := c.Conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
@@ -3677,7 +3677,14 @@ func (c *WebSocketClient) ReadPump() {
 	for {
 		_, message, err := c.Conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+			// Check for message size limit error (code 1009)
+			if websocket.IsCloseError(err, websocket.CloseMessageTooBig) {
+				if c.Session != nil {
+					logging.Get().Info("WebSocket message too large in session %s for user %s (limit: 64KB): %v", c.Session.ID, c.UserID, err)
+				} else {
+					logging.Get().Info("WebSocket message too large (no session) for user %s (limit: 64KB): %v", c.UserID, err)
+				}
+			} else if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				if c.Session != nil {
 					logging.Get().Info("WebSocket error in session %s for user %s: %v", c.Session.ID, c.UserID, err)
 				} else {
