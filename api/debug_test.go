@@ -2,9 +2,9 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
+	"github.com/ericfitz/tmi/internal/logging"
 	jsonpatch "github.com/evanphx/json-patch"
 )
 
@@ -40,10 +40,10 @@ func TestDiagramStoreAuth(t *testing.T) {
 
 	// Test role resolution
 	role := GetUserRoleForDiagram("test@example.com", d)
-	fmt.Printf("Role for original owner: %s\n", role)
+	logging.Get().Debug("Role for original owner: %s", role)
 
 	newRole := GetUserRoleForDiagram("newowner@example.com", d)
-	fmt.Printf("Role for new owner: %s\n", newRole)
+	logging.Get().Debug("Role for new owner: %s", newRole)
 }
 
 func TestPatchOperation(t *testing.T) {
@@ -129,10 +129,10 @@ func TestPatchOperation(t *testing.T) {
 	}
 
 	// Check that the patch applied correctly
-	fmt.Printf("Modified diagram: %+v\n", modifiedDiagram)
+	logging.Get().Debug("Modified diagram: %+v", modifiedDiagram)
 
 	// Check authorization entries
-	fmt.Printf("Authorization entries after patch: %+v\n", TestFixtures.ThreatModel.Authorization)
+	logging.Get().Debug("Authorization entries after patch: %+v", TestFixtures.ThreatModel.Authorization)
 
 	// Update store
 	err = DiagramStore.Update(diagramID, modifiedDiagram)
@@ -142,7 +142,7 @@ func TestPatchOperation(t *testing.T) {
 
 	// Check role for new user
 	newUserRole := GetUserRoleForDiagram("newowner@example.com", modifiedDiagram)
-	fmt.Printf("Role for new user: %s\n", newUserRole)
+	logging.Get().Debug("Role for new user: %s", newUserRole)
 
 	// Check that we can retrieve the modified diagram
 	retrieved, err := DiagramStore.Get(diagramID)
@@ -150,9 +150,9 @@ func TestPatchOperation(t *testing.T) {
 		t.Fatalf("Failed to retrieve diagram: %v", err)
 	}
 
-	fmt.Printf("Retrieved diagram: %+v\n", retrieved)
+	logging.Get().Debug("Retrieved diagram: %+v", retrieved)
 
 	// Test role resolution for the new user
 	roleAfterRetrieval := GetUserRoleForDiagram("newowner@example.com", retrieved)
-	fmt.Printf("Role after retrieval: %s\n", roleAfterRetrieval)
+	logging.Get().Debug("Role after retrieval: %s", roleAfterRetrieval)
 }

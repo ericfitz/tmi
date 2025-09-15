@@ -1294,7 +1294,7 @@ func validateDatabaseSchema(cfg *config.Config) error {
 	defer func() {
 		if err := db.Close(); err != nil {
 			// Log error but don't fail validation
-			fmt.Printf("Error closing database: %v\n", err)
+			slogging.Get().Error("Error closing database: %v", err)
 		}
 	}()
 

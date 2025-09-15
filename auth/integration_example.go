@@ -1,31 +1,32 @@
 package auth
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/ericfitz/tmi/internal/logging"
 )
 
 // printExample is a helper function to print code examples without triggering linter warnings
 func printExample(s string) {
 	_, err := os.Stdout.WriteString(s + "\n")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing to stdout: %v\n", err)
+		logging.Get().Error("Error writing to stdout: %v", err)
 	}
 }
 
 // IntegrationExample shows how to integrate the authentication system with the main application
 func IntegrationExample() {
-	fmt.Println("This is an example of how to integrate the authentication system with the main application.")
-	fmt.Println("To integrate the authentication system, make the following changes to cmd/server/main.go:")
+	logging.Get().Info("This is an example of how to integrate the authentication system with the main application.")
+	logging.Get().Info("To integrate the authentication system, make the following changes to cmd/server/main.go:")
 
-	fmt.Println("\n1. Import the auth package:")
-	fmt.Println(`
+	logging.Get().Info("\n1. Import the auth package:")
+	logging.Get().Info(`
 import (
 	// ... existing imports
 	"github.com/ericfitz/tmi/oauth2"
 )`)
 
-	fmt.Println("\n2. Replace the existing JWT middleware with the new auth middleware:")
+	logging.Get().Info("\n2. Replace the existing JWT middleware with the new auth middleware:")
 	printExample(`
 // Replace this:
 r.Use(PublicPathsMiddleware())
@@ -37,14 +38,14 @@ if err := auth.InitAuth(r); err != nil {
 	os.Exit(1)
 }`)
 
-	fmt.Println("\n3. Remove the existing auth handlers from the Server struct:")
-	fmt.Println(`
+	logging.Get().Info("\n3. Remove the existing auth handlers from the Server struct:")
+	logging.Get().Info(`
 // Remove these methods:
 func (s *Server) GetAuthLogin(c *gin.Context) { ... }
 func (s *Server) GetAuthCallback(c *gin.Context) { ... }
 func (s *Server) PostAuthLogout(c *gin.Context) { ... }`)
 
-	fmt.Println("\n4. Update the setupRouter function to use the new auth middleware:")
+	logging.Get().Info("\n4. Update the setupRouter function to use the new auth middleware:")
 	printExample(`
 func setupRouter(config Config) (*gin.Engine, *api.Server) {
 	// ... existing code
@@ -63,7 +64,7 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 	// ... rest of the function
 }`)
 
-	fmt.Println("\n5. Add shutdown code for the auth system in the main function:")
+	logging.Get().Info("\n5. Add shutdown code for the auth system in the main function:")
 	printExample(`
 // In the main function, before srv.Shutdown:
 logger.Info("Shutting down authentication system...")
@@ -71,7 +72,7 @@ if err := auth.Shutdown(nil); err != nil {
 	logger.Error("Error shutting down authentication system: %%v", err)
 }`)
 
-	fmt.Println("\nComplete Example:")
+	logging.Get().Info("\nComplete Example:")
 	printExample(`
 package main
 
