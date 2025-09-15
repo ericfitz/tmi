@@ -123,7 +123,7 @@
                   "            });",
                   "            ",
                   "            // Wait for token capture",
-                  "            await new Promise(r => setTimeout(r, 5000));",
+                  "            await new Promise(r => setTimeout(r, 2000));",
                   "            ",
                   "            // Retrieve token from stub",
                   "            const tokenReq = {",
@@ -287,7 +287,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Alice authentication successful', function () {",
+                  "pm.test('Alice token is valid', function () {",
                   "    const token = pm.collectionVariables.get('access_token');",
                   "    pm.expect(token).to.be.a('string');",
                   "    pm.expect(token.length).to.be.above(10);",
@@ -305,9 +305,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/threat_models",
+              "raw": "{{baseUrl}}/oauth2/userinfo",
               "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "path": ["oauth2", "userinfo"]
             },
             "description": "Authenticate Alice as primary test user"
           }
@@ -390,7 +390,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Bob authentication successful', function () {",
+                  "pm.test('Bob token is valid', function () {",
                   "    const token = pm.collectionVariables.get('token_bob');",
                   "    pm.expect(token).to.be.a('string');",
                   "    pm.expect(token.length).to.be.above(10);",
@@ -409,9 +409,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/threat_models",
+              "raw": "{{baseUrl}}/oauth2/userinfo",
               "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "path": ["oauth2", "userinfo"]
             },
             "description": "Authenticate Bob as writer test user"
           }
@@ -494,7 +494,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Charlie authentication successful', function () {",
+                  "pm.test('Charlie token is valid', function () {",
                   "    const token = pm.collectionVariables.get('token_charlie');",
                   "    pm.expect(token).to.be.a('string');",
                   "    pm.expect(token.length).to.be.above(10);",
@@ -513,9 +513,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/threat_models", 
+              "raw": "{{baseUrl}}/oauth2/userinfo", 
               "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "path": ["oauth2", "userinfo"]
             },
             "description": "Authenticate Charlie as reader test user"
           }
@@ -843,13 +843,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code is 200', function () {",
-                  "    pm.response.to.have.status(200);",
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
                   "});",
                   "",
-                  "pm.test('Response contains data', function () {",
+                  "pm.test('Error indicates authentication required', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(Array.isArray(responseData)).to.be.true;",
+                  "    pm.expect(responseData.error).to.include('unauthorized');",
                   "});"
                 ]
               }
