@@ -517,6 +517,31 @@
                   "}",
                   "",
                   "// Generate valid threat model data",
+                  "// Load TMITestDataFactory inline",
+                  "class TMITestDataFactory {",
+                  "    constructor() {",
+                  "        this.timestamp = new Date().toISOString();",
+                  "        this.testRunId = Date.now();",
+                  "    }",
+                  "    ",
+                  "    generateUUID() {",
+                  "        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                  "            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                  "            return v.toString(16);",
+                  "        });",
+                  "    }",
+                  "    ",
+                  "    validThreatModel(options = {}) {",
+                  "        options = options || {};",
+                  "        return {",
+                  "            name: options.name || 'Test Threat Model ' + this.testRunId,",
+                  "            description: options.description || 'A comprehensive threat model for testing purposes',",
+                  "            threat_model_framework: options.framework || 'STRIDE',",
+                  "            issue_url: options.issueUrl || 'https://github.com/example/project/issues/123'",
+                  "        };",
+                  "    }",
+                  "}",
+                  "",
                   "const factory = new TMITestDataFactory();",
                   "const threatModel = factory.validThreatModel({",
                   "    name: `Alice Test Threat Model ${Date.now()}`,",
@@ -572,6 +597,11 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}",
+                "type": "text"
               }
             ],
             "body": {
@@ -659,6 +689,31 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Generate valid threat model data",
+                  "// Load TMITestDataFactory inline",
+                  "class TMITestDataFactory {",
+                  "    constructor() {",
+                  "        this.timestamp = new Date().toISOString();",
+                  "        this.testRunId = Date.now();",
+                  "    }",
+                  "    ",
+                  "    generateUUID() {",
+                  "        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                  "            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                  "            return v.toString(16);",
+                  "        });",
+                  "    }",
+                  "    ",
+                  "    validThreatModel(options = {}) {",
+                  "        options = options || {};",
+                  "        return {",
+                  "            name: options.name || 'Test Threat Model ' + this.testRunId,",
+                  "            description: options.description || 'A comprehensive threat model for testing purposes',",
+                  "            threat_model_framework: options.framework || 'STRIDE',",
+                  "            issue_url: options.issueUrl || 'https://github.com/example/project/issues/123'",
+                  "        };",
+                  "    }",
+                  "}",
+                  "",
                   "const factory = new TMITestDataFactory();",
                   "const threatModel = factory.validThreatModel();",
                   "pm.collectionVariables.set('threatModelData', JSON.stringify(threatModel));"
@@ -670,13 +725,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code is 200', function () {",
-                  "    pm.response.to.have.status(200);",
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
                   "});",
                   "",
-                  "pm.test('Response contains data', function () {",
+                  "pm.test('Error indicates authentication required', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(Array.isArray(responseData)).to.be.true;",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "    pm.expect(responseData.message).to.include('token');",
                   "});"
                 ]
               }
@@ -752,7 +808,13 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}",
+                "type": "text"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
               "host": [
@@ -802,7 +864,13 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}",
+                "type": "text"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
               "host": [

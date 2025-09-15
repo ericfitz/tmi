@@ -563,6 +563,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		// For collaboration endpoints, allow anonymous users
+		// TODO: make this code more readable.  We expect middleware to set userEmail to "anonymous" when unauthenticated
 		userEmail = ""
 	}
 
@@ -642,6 +643,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		// For collaboration endpoints, allow anonymous users
+		// TODO: make this code more readable.  We expect middleware to set userEmail to "anonymous" when unauthenticated
 		userEmail = ""
 	}
 
@@ -728,6 +730,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		// For collaboration endpoints, allow anonymous users
+		// TODO: make this code more readable.  We expect middleware to set userEmail to "anonymous" when unauthenticated
 		userEmail = ""
 	}
 
