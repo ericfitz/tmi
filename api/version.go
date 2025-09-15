@@ -200,10 +200,12 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 			return
 		}
 
-		// Format HTML with API info as JSON
-		html := fmt.Sprintf(rootPageHTML, string(apiInfoJSON))
+		// Format HTML with API info as JSON - escape for JavaScript context to prevent XSS
+		escapedJSON := strings.ReplaceAll(string(apiInfoJSON), "</", "<\\/")
+		escapedJSON = strings.ReplaceAll(escapedJSON, "<!--", "<\\!--")
+		htmlResponse := fmt.Sprintf(rootPageHTML, escapedJSON)
 		c.Header("Content-Type", "text/html")
-		c.String(http.StatusOK, html)
+		c.String(http.StatusOK, htmlResponse)
 		logger.Debug("Returned HTML response for browser")
 	} else {
 		// Return JSON for API clients
