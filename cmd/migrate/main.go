@@ -10,7 +10,7 @@ import (
 
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dbschema"
-	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/logging"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/joho/godotenv"
 )
@@ -26,7 +26,7 @@ func main() {
 
 	// Load environment variables
 	if err := godotenv.Load(*envFile); err != nil {
-		slogging.Get().Info("Warning: Could not load env file %s: %v", *envFile, err)
+		logging.Get().Warn("Could not load env file %s: %v", *envFile, err)
 	}
 
 	// Create database configuration
@@ -43,14 +43,14 @@ func main() {
 	dbManager := db.NewManager()
 
 	// Initialize PostgreSQL connection
-	slogging.Get().Info("Connecting to PostgreSQL at %s:%s/%s", pgConfig.Host, pgConfig.Port, pgConfig.Database)
+	logging.Get().Info("Connecting to PostgreSQL at %s:%s/%s", pgConfig.Host, pgConfig.Port, pgConfig.Database)
 	if err := dbManager.InitPostgres(pgConfig); err != nil {
-		slogging.Get().Error("Failed to connect to PostgreSQL: %v", err)
+		logging.Get().Error("Failed to connect to PostgreSQL: %v", err)
 		os.Exit(1)
 	}
 	defer func() {
 		if err := dbManager.Close(); err != nil {
-			slogging.Get().Info("Error closing database manager: %v", err)
+			logging.Get().Error("Error closing database manager: %v", err)
 		}
 	}()
 
@@ -74,11 +74,11 @@ func main() {
 	}
 
 	if migrationsPath == "" {
-		slogging.Get().Error("Could not find migrations directory. Tried paths: %v", possiblePaths)
+		logging.Get().Error("Could not find migrations directory. Tried paths: %v", possiblePaths)
 		os.Exit(1)
 	}
 
-	slogging.Get().Info("Using migrations from: %s", absPath)
+	logging.Get().Info("Using migrations from: %s", absPath)
 
 	// Create migration config
 	migrationConfig := db.MigrationConfig{
@@ -88,26 +88,26 @@ func main() {
 
 	// Run migrations based on flags
 	if *down {
-		slogging.Get().Info("Running down migrations...")
+		logging.Get().Info("Running down migrations...")
 		if err := dbManager.MigrateDown(migrationConfig); err != nil {
-			slogging.Get().Error("Failed to run down migrations: %v", err)
+			logging.Get().Error("Failed to run down migrations: %v", err)
 			os.Exit(1)
 		}
-		slogging.Get().Info("Down migrations completed successfully")
+		logging.Get().Info("Down migrations completed successfully")
 	} else if *steps != 0 {
-		slogging.Get().Info("Running %d migration steps...", *steps)
+		logging.Get().Info("Running %d migration steps...", *steps)
 		if err := dbManager.MigrateStep(migrationConfig, *steps); err != nil {
-			slogging.Get().Error("Failed to run migration steps: %v", err)
+			logging.Get().Error("Failed to run migration steps: %v", err)
 			os.Exit(1)
 		}
-		slogging.Get().Info("%d migration steps completed successfully", *steps)
+		logging.Get().Info("%d migration steps completed successfully", *steps)
 	} else {
-		slogging.Get().Info("Running all pending migrations...")
+		logging.Get().Info("Running all pending migrations...")
 		if err := dbManager.RunMigrations(migrationConfig); err != nil {
-			slogging.Get().Error("Failed to run migrations: %v", err)
+			logging.Get().Error("Failed to run migrations: %v", err)
 			os.Exit(1)
 		}
-		slogging.Get().Info("All migrations completed successfully")
+		logging.Get().Info("All migrations completed successfully")
 	}
 
 	fmt.Println("\nDatabase migration complete!")
@@ -121,18 +121,18 @@ func main() {
 // validateSchema validates the database schema after migrations
 func validateSchema(pgConfig db.PostgresConfig) {
 	// Initialize logger for schema validation
-	if err := slogging.Initialize(slogging.Config{
-		Level:            slogging.ParseLogLevel("info"),
+	if err := logging.Initialize(logging.Config{
+		Level:            logging.ParseLogLevel("info"),
 		IsDev:            true,
 		AlsoLogToConsole: true,
 	}); err != nil {
-		slogging.Get().Info("Warning: Failed to initialize logger: %v", err)
+		logging.Get().Warn("Failed to initialize logger: %v", err)
 		return
 	}
-	logger := slogging.Get()
+	logger := logging.Get()
 	defer func() {
 		if err := logger.Close(); err != nil {
-			slogging.Get().Info("Error closing logger: %v", err)
+			logging.Get().Error("Error closing logger: %v", err)
 		}
 	}()
 

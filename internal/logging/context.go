@@ -2,6 +2,7 @@ package logging
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,7 +14,7 @@ type FallbackLogger struct{}
 func (l *FallbackLogger) Debug(format string, args ...interface{}) {
 	_, err := fmt.Fprintf(gin.DefaultWriter, "[DEBUG] "+format+"\n", args...)
 	if err != nil {
-		fmt.Printf("Error writing debug log: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error writing debug log: %v\n", err)
 	}
 }
 
@@ -21,7 +22,7 @@ func (l *FallbackLogger) Debug(format string, args ...interface{}) {
 func (l *FallbackLogger) Info(format string, args ...interface{}) {
 	_, err := fmt.Fprintf(gin.DefaultWriter, "[INFO] "+format+"\n", args...)
 	if err != nil {
-		fmt.Printf("Error writing info log: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error writing info log: %v\n", err)
 	}
 }
 
@@ -29,7 +30,7 @@ func (l *FallbackLogger) Info(format string, args ...interface{}) {
 func (l *FallbackLogger) Warn(format string, args ...interface{}) {
 	_, err := fmt.Fprintf(gin.DefaultWriter, "[WARN] "+format+"\n", args...)
 	if err != nil {
-		fmt.Printf("Error writing warning log: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error writing warning log: %v\n", err)
 	}
 }
 
@@ -37,7 +38,7 @@ func (l *FallbackLogger) Warn(format string, args ...interface{}) {
 func (l *FallbackLogger) Error(format string, args ...interface{}) {
 	_, err := fmt.Fprintf(gin.DefaultErrorWriter, "[ERROR] "+format+"\n", args...)
 	if err != nil {
-		fmt.Printf("Error writing error log: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error writing error log: %v\n", err)
 	}
 }
 
