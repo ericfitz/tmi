@@ -916,17 +916,18 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 	var cellsJSON []byte
 	var createdAt, modifiedAt time.Time
 	var updateVector int64
+	var imageUpdateVector *int64
 
 	var svgImageBytes []byte
 
 	query := `
-		SELECT id, threat_model_id, name, type, cells, svg_image, update_vector, created_at, modified_at
+		SELECT id, threat_model_id, name, type, cells, svg_image, image_update_vector, update_vector, created_at, modified_at
 		FROM diagrams 
 		WHERE id = $1`
 
 	err := s.db.QueryRow(query, id).Scan(
 		&diagramUuid, &threatModelId, &name, &diagramType,
-		&cellsJSON, &svgImageBytes, &updateVector, &createdAt, &modifiedAt,
+		&cellsJSON, &svgImageBytes, &imageUpdateVector, &updateVector, &createdAt, &modifiedAt,
 	)
 
 	if err != nil {
@@ -956,18 +957,18 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 		diagType = DfdDiagramType(diagramType)
 	}
 
-	// Handle svg_image - create struct with Image and UpdateVector
-	var svgImagePtr *struct {
-		Image        *[]byte `json:"image,omitempty"`
+	// Handle image - create struct with Svg and UpdateVector
+	var imagePtr *struct {
+		Svg          *[]byte `json:"svg,omitempty"`
 		UpdateVector *int64  `json:"update_vector,omitempty"`
 	}
 	if svgImageBytes != nil {
-		svgImagePtr = &struct {
-			Image        *[]byte `json:"image,omitempty"`
+		imagePtr = &struct {
+			Svg          *[]byte `json:"svg,omitempty"`
 			UpdateVector *int64  `json:"update_vector,omitempty"`
 		}{
-			Image:        &svgImageBytes,
-			UpdateVector: &updateVector,
+			Svg:          &svgImageBytes,
+			UpdateVector: imageUpdateVector,
 		}
 	}
 
@@ -977,7 +978,7 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 		Type:         diagType,
 		Cells:        cells,
 		Metadata:     &metadata,
-		SvgImage:     svgImagePtr,
+		Image:        imagePtr,
 		UpdateVector: &updateVector,
 		CreatedAt:    createdAt,
 		ModifiedAt:   modifiedAt,
@@ -1019,10 +1020,12 @@ func (s *DiagramDatabaseStore) CreateWithThreatModel(item DfdDiagram, threatMode
 		return item, fmt.Errorf("invalid threat model ID format: %w", err)
 	}
 
-	// Handle svg_image - extract Image field from the struct
+	// Handle image - extract Svg field from the struct
 	var svgImageBytes []byte
-	if item.SvgImage != nil && item.SvgImage.Image != nil {
-		svgImageBytes = *item.SvgImage.Image
+	var imageUpdateVector *int64
+	if item.Image != nil && item.Image.Svg != nil {
+		svgImageBytes = *item.Image.Svg
+		imageUpdateVector = item.Image.UpdateVector
 	}
 
 	// Get update_vector (default to 0 for new diagrams)
@@ -1032,12 +1035,12 @@ func (s *DiagramDatabaseStore) CreateWithThreatModel(item DfdDiagram, threatMode
 	}
 
 	query := `
-		INSERT INTO diagrams (id, threat_model_id, name, type, cells, svg_image, update_vector, created_at, modified_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+		INSERT INTO diagrams (id, threat_model_id, name, type, cells, svg_image, image_update_vector, update_vector, created_at, modified_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 
 	_, err = s.db.Exec(query,
 		id, threatModelUUID, item.Name, string(item.Type),
-		cellsJSON, svgImageBytes, updateVector, item.CreatedAt, item.ModifiedAt,
+		cellsJSON, svgImageBytes, imageUpdateVector, updateVector, item.CreatedAt, item.ModifiedAt,
 	)
 	if err != nil {
 		return item, fmt.Errorf("failed to insert diagram: %w", err)
@@ -1064,10 +1067,12 @@ func (s *DiagramDatabaseStore) Update(id string, item DfdDiagram) error {
 		return fmt.Errorf("failed to marshal cells: %w", err)
 	}
 
-	// Handle svg_image - extract Image field from the struct
+	// Handle image - extract Svg field from the struct
 	var svgImageBytes []byte
-	if item.SvgImage != nil && item.SvgImage.Image != nil {
-		svgImageBytes = *item.SvgImage.Image
+	var imageUpdateVector *int64
+	if item.Image != nil && item.Image.Svg != nil {
+		svgImageBytes = *item.Image.Svg
+		imageUpdateVector = item.Image.UpdateVector
 	}
 
 	// Get update_vector (should be provided by caller)
@@ -1078,12 +1083,12 @@ func (s *DiagramDatabaseStore) Update(id string, item DfdDiagram) error {
 
 	query := `
 		UPDATE diagrams 
-		SET name = $2, type = $3, cells = $4, svg_image = $5, update_vector = $6, modified_at = $7
+		SET name = $2, type = $3, cells = $4, svg_image = $5, image_update_vector = $6, update_vector = $7, modified_at = $8
 		WHERE id = $1`
 
 	result, err := s.db.Exec(query,
 		id, item.Name, string(item.Type),
-		cellsJSON, svgImageBytes, updateVector, item.ModifiedAt,
+		cellsJSON, svgImageBytes, imageUpdateVector, updateVector, item.ModifiedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update diagram: %w", err)

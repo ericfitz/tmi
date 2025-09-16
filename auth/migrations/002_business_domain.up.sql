@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS diagrams (
     content TEXT,
     cells JSONB,
     svg_image TEXT,
+    image_update_vector BIGINT,
     update_vector BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
