@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,7 +29,7 @@ func NewThreatModelMetadataHandler(metadataStore MetadataStore, db *sql.DB, cach
 // GetThreatModelMetadata retrieves all metadata for a threat model
 // GET /threat_models/{threat_model_id}/metadata
 func (h *ThreatModelMetadataHandler) GetThreatModelMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreatModelMetadata - retrieving metadata for threat model")
 
 	// Extract threat model ID from URL
@@ -69,7 +69,7 @@ func (h *ThreatModelMetadataHandler) GetThreatModelMetadata(c *gin.Context) {
 // GetThreatModelMetadataByKey retrieves a specific metadata entry by key
 // GET /threat_models/{threat_model_id}/metadata/{key}
 func (h *ThreatModelMetadataHandler) GetThreatModelMetadataByKey(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreatModelMetadataByKey - retrieving specific metadata entry")
 
 	// Extract threat model ID and key from URL
@@ -115,7 +115,7 @@ func (h *ThreatModelMetadataHandler) GetThreatModelMetadataByKey(c *gin.Context)
 // CreateThreatModelMetadata creates a new metadata entry for a threat model
 // POST /threat_models/{threat_model_id}/metadata
 func (h *ThreatModelMetadataHandler) CreateThreatModelMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateThreatModelMetadata - creating new metadata entry")
 
 	// Extract threat model ID from URL
@@ -170,7 +170,7 @@ func (h *ThreatModelMetadataHandler) CreateThreatModelMetadata(c *gin.Context) {
 // UpdateThreatModelMetadata updates an existing metadata entry
 // PUT /threat_models/{threat_model_id}/metadata/{key}
 func (h *ThreatModelMetadataHandler) UpdateThreatModelMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateThreatModelMetadata - updating metadata entry")
 
 	// Extract threat model ID and key from URL
@@ -233,7 +233,7 @@ func (h *ThreatModelMetadataHandler) UpdateThreatModelMetadata(c *gin.Context) {
 // DeleteThreatModelMetadata deletes a metadata entry
 // DELETE /threat_models/{threat_model_id}/metadata/{key}
 func (h *ThreatModelMetadataHandler) DeleteThreatModelMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteThreatModelMetadata - deleting metadata entry")
 
 	// Extract threat model ID and key from URL
@@ -278,7 +278,7 @@ func (h *ThreatModelMetadataHandler) DeleteThreatModelMetadata(c *gin.Context) {
 // BulkCreateThreatModelMetadata creates multiple metadata entries in a single request
 // POST /threat_models/{threat_model_id}/metadata/bulk
 func (h *ThreatModelMetadataHandler) BulkCreateThreatModelMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateThreatModelMetadata - creating multiple metadata entries")
 
 	// Extract threat model ID from URL

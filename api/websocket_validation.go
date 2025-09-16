@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -128,13 +128,13 @@ func (m *WebSocketConnectionManager) SendErrorAndClose(conn *websocket.Conn, err
 
 	if msgBytes, err := MarshalAsyncMessage(errorMsg); err == nil {
 		if err := conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
-			logging.Get().Debug("Failed to send error message: %v", err)
+			slogging.Get().Debug("Failed to send error message: %v", err)
 		}
 	}
 
 	// Close the connection
 	if err := conn.Close(); err != nil {
-		logging.Get().Debug("Failed to close connection: %v", err)
+		slogging.Get().Debug("Failed to close connection: %v", err)
 	}
 }
 
@@ -142,12 +142,12 @@ func (m *WebSocketConnectionManager) SendErrorAndClose(conn *websocket.Conn, err
 func (m *WebSocketConnectionManager) SendCloseAndClose(conn *websocket.Conn, closeCode int, closeText string) {
 	closeMsg := websocket.FormatCloseMessage(closeCode, closeText)
 	if err := conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second)); err != nil {
-		logging.Get().Debug("Failed to send close message: %v", err)
+		slogging.Get().Debug("Failed to send close message: %v", err)
 	}
 
 	// Close the connection
 	if err := conn.Close(); err != nil {
-		logging.Get().Debug("Failed to close connection: %v", err)
+		slogging.Get().Debug("Failed to close connection: %v", err)
 	}
 }
 
@@ -155,10 +155,10 @@ func (m *WebSocketConnectionManager) SendCloseAndClose(conn *websocket.Conn, clo
 func (m *WebSocketConnectionManager) RegisterClientWithTimeout(session *DiagramSession, client *WebSocketClient, timeoutDuration time.Duration) error {
 	select {
 	case session.Register <- client:
-		logging.Get().Debug("Successfully sent client to Register channel - User: %s, Session: %s", client.UserID, session.ID)
+		slogging.Get().Debug("Successfully sent client to Register channel - User: %s, Session: %s", client.UserID, session.ID)
 		return nil
 	case <-time.After(timeoutDuration):
-		logging.Get().Error("Timeout registering WebSocket client - User: %s, Session: %s (session may be blocked or dead)",
+		slogging.Get().Error("Timeout registering WebSocket client - User: %s, Session: %s (session may be blocked or dead)",
 			client.UserID, session.ID)
 		return fmt.Errorf("timeout registering client after %v", timeoutDuration)
 	}

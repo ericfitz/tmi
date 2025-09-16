@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -30,7 +30,7 @@ func NewDocumentSubResourceHandler(documentStore DocumentStore, db *sql.DB, cach
 // GetDocuments retrieves all documents for a threat model with pagination
 // GET /threat_models/{threat_model_id}/documents
 func (h *DocumentSubResourceHandler) GetDocuments(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetDocuments - retrieving documents for threat model")
 
 	// Extract threat model ID from URL
@@ -85,7 +85,7 @@ func (h *DocumentSubResourceHandler) GetDocuments(c *gin.Context) {
 // GetDocument retrieves a specific document by ID
 // GET /threat_models/{threat_model_id}/documents/{document_id}
 func (h *DocumentSubResourceHandler) GetDocument(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetDocument - retrieving specific document")
 
 	// Extract document ID from URL
@@ -125,7 +125,7 @@ func (h *DocumentSubResourceHandler) GetDocument(c *gin.Context) {
 // CreateDocument creates a new document in a threat model
 // POST /threat_models/{threat_model_id}/documents
 func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateDocument - creating new document")
 
 	// Extract threat model ID from URL
@@ -179,7 +179,7 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 // UpdateDocument updates an existing document
 // PUT /threat_models/{threat_model_id}/documents/{document_id}
 func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateDocument - updating existing document")
 
 	// Extract document ID from URL
@@ -237,7 +237,7 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 // DeleteDocument deletes a document
 // DELETE /threat_models/{threat_model_id}/documents/{document_id}
 func (h *DocumentSubResourceHandler) DeleteDocument(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteDocument - deleting document")
 
 	// Extract document ID from URL
@@ -276,7 +276,7 @@ func (h *DocumentSubResourceHandler) DeleteDocument(c *gin.Context) {
 // BulkCreateDocuments creates multiple documents in a single request
 // POST /threat_models/{threat_model_id}/documents/bulk
 func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateDocuments - creating multiple documents")
 
 	// Extract threat model ID from URL

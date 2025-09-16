@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -14,7 +14,7 @@ import (
 type RedisHealthChecker struct {
 	client    *redis.Client
 	validator *RedisKeyValidator
-	logger    *logging.Logger
+	logger    *slogging.Logger
 }
 
 // NewRedisHealthChecker creates a new Redis health checker
@@ -22,7 +22,7 @@ func NewRedisHealthChecker(client *redis.Client) *RedisHealthChecker {
 	return &RedisHealthChecker{
 		client:    client,
 		validator: NewRedisKeyValidator(),
-		logger:    logging.Get(),
+		logger:    slogging.Get(),
 	}
 }
 

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	middleware "github.com/oapi-codegen/gin-middleware"
 )
@@ -16,7 +16,7 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 
 	// Enhanced debug logging for OpenAPI validation failures with request tracing
 	requestID := getRequestID(c)
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Error("OPENAPI_VALIDATION_FAILED [%s] %s %s -> %d: %s",
 		requestID, c.Request.Method, c.Request.URL.Path, statusCode, message)
 
@@ -87,7 +87,7 @@ func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 	// Return a wrapper that skips validation for WebSocket routes
 	return func(c *gin.Context) {
 		requestID := getRequestID(c)
-		logger := logging.GetContextLogger(c)
+		logger := slogging.GetContextLogger(c)
 
 		// Skip OpenAPI validation for WebSocket endpoints
 		// WebSocket endpoints are not REST APIs and shouldn't be validated against OpenAPI spec

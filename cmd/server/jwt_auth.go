@@ -8,7 +8,7 @@ import (
 
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/config"
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -18,7 +18,7 @@ type TokenExtractor struct{}
 
 // ExtractToken extracts the JWT token from the request
 func (t *TokenExtractor) ExtractToken(c *gin.Context) (string, error) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 
 	// For WebSocket connections, use query parameter authentication
 	if strings.HasPrefix(c.Request.URL.Path, "/ws/") || strings.HasSuffix(c.Request.URL.Path, "/ws") {
@@ -33,7 +33,7 @@ func (t *TokenExtractor) ExtractToken(c *gin.Context) (string, error) {
 	// For regular API calls, use Authorization header
 	logger.Debug("[JWT_MIDDLEWARE] Checking for Authorization header")
 	authHeader := c.GetHeader("Authorization")
-	logger.Debug("[JWT_MIDDLEWARE] Authorization header value: '%s' (empty: %t)", logging.RedactSensitiveInfo(authHeader), authHeader == "")
+	logger.Debug("[JWT_MIDDLEWARE] Authorization header value: '%s' (empty: %t)", slogging.RedactSensitiveInfo(authHeader), authHeader == "")
 
 	if authHeader == "" {
 		logger.Warn("[JWT_MIDDLEWARE] 🚫 Authentication failed: Missing Authorization header for path: %s", c.Request.URL.Path)
@@ -64,7 +64,7 @@ func NewTokenValidator(authHandlers *auth.Handlers) *TokenValidator {
 
 // ValidateToken validates a JWT token and returns the parsed token
 func (v *TokenValidator) ValidateToken(c *gin.Context, tokenStr string) (*jwt.Token, error) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 
 	if v.authHandlers == nil {
 		logger.Error("Auth handlers not available for token validation")
@@ -128,7 +128,7 @@ func NewClaimsExtractor(authHandlers *auth.Handlers, cfg *config.Config) *Claims
 
 // ExtractAndSetClaims extracts claims from a valid token and sets them in the context
 func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) error {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
@@ -180,7 +180,7 @@ func (e *ClaimsExtractor) fetchAndSetUserObject(c *gin.Context) error {
 		return fmt.Errorf("auth handlers not available")
 	}
 
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 
 	// Get the auth service from the handlers to fetch user by ID
 	dbManager := auth.GetDatabaseManager()
@@ -229,7 +229,7 @@ func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist
 
 // AuthenticateRequest performs the complete JWT authentication process
 func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 
 	// Extract token from request
 	tokenStr, err := a.tokenExtractor.ExtractToken(c)
@@ -298,7 +298,7 @@ type PublicPathChecker struct{}
 
 // IsPublicPath checks if the current request is for a public path
 func (p *PublicPathChecker) IsPublicPath(c *gin.Context) bool {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 
 	// Check if isPublicPath is set in context
 	isPublic, exists := c.Get("isPublicPath")

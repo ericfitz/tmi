@@ -168,7 +168,7 @@ func (v *MigrationBasedValidator) getAppliedMigrations() (map[int64]bool, error)
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			fmt.Printf("Warning: Failed to close rows: %v\n", err)
+			logging.Get().Warn("Failed to close rows: %v", err)
 		}
 	}()
 

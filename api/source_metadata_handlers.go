@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,7 +29,7 @@ func NewSourceMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *Ca
 // GetSourceMetadata retrieves all metadata for a source code reference
 // GET /threat_models/{threat_model_id}/sources/{source_id}/metadata
 func (h *SourceMetadataHandler) GetSourceMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetSourceMetadata - retrieving metadata for source code reference")
 
 	// Extract source ID from URL
@@ -69,7 +69,7 @@ func (h *SourceMetadataHandler) GetSourceMetadata(c *gin.Context) {
 // GetSourceMetadataByKey retrieves a specific metadata entry by key
 // GET /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key}
 func (h *SourceMetadataHandler) GetSourceMetadataByKey(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetSourceMetadataByKey - retrieving specific metadata entry")
 
 	// Extract source ID and key from URL
@@ -115,7 +115,7 @@ func (h *SourceMetadataHandler) GetSourceMetadataByKey(c *gin.Context) {
 // CreateSourceMetadata creates a new metadata entry for a source code reference
 // POST /threat_models/{threat_model_id}/sources/{source_id}/metadata
 func (h *SourceMetadataHandler) CreateSourceMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateSourceMetadata - creating new metadata entry")
 
 	// Extract source ID from URL
@@ -170,7 +170,7 @@ func (h *SourceMetadataHandler) CreateSourceMetadata(c *gin.Context) {
 // UpdateSourceMetadata updates an existing metadata entry
 // PUT /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key}
 func (h *SourceMetadataHandler) UpdateSourceMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateSourceMetadata - updating metadata entry")
 
 	// Extract source ID and key from URL
@@ -233,7 +233,7 @@ func (h *SourceMetadataHandler) UpdateSourceMetadata(c *gin.Context) {
 // DeleteSourceMetadata deletes a metadata entry
 // DELETE /threat_models/{threat_model_id}/sources/{source_id}/metadata/{key}
 func (h *SourceMetadataHandler) DeleteSourceMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteSourceMetadata - deleting metadata entry")
 
 	// Extract source ID and key from URL
@@ -278,7 +278,7 @@ func (h *SourceMetadataHandler) DeleteSourceMetadata(c *gin.Context) {
 // BulkCreateSourceMetadata creates multiple metadata entries in a single request
 // POST /threat_models/{threat_model_id}/sources/{source_id}/metadata/bulk
 func (h *SourceMetadataHandler) BulkCreateSourceMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateSourceMetadata - creating multiple metadata entries")
 
 	// Extract source ID from URL

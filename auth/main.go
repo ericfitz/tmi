@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/auth/db"
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -63,7 +63,7 @@ func InitAuth(router *gin.Engine) error {
 	// Store global reference to database manager
 	globalDBManager = dbManager
 
-	logging.Get().Info("Authentication system initialized successfully")
+	slogging.Get().Info("Authentication system initialized successfully")
 	return nil
 }
 
@@ -78,9 +78,9 @@ func startCacheRebuildJob(ctx context.Context, dbManager *db.Manager) {
 			return
 		case <-ticker.C:
 			if err := rebuildCache(ctx, dbManager); err != nil {
-				logging.Get().Error("Failed to rebuild cache: %v", err)
+				slogging.Get().Error("Failed to rebuild cache: %v", err)
 			} else {
-				logging.Get().Info("Cache rebuilt successfully")
+				slogging.Get().Info("Cache rebuilt successfully")
 			}
 		}
 	}
@@ -103,7 +103,7 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	defer func() {
 		if !committed {
 			if err := tx.Rollback(); err != nil {
-				logging.Get().Error("Error rolling back transaction: %v", err)
+				slogging.Get().Error("Error rolling back transaction: %v", err)
 			}
 		}
 	}()
@@ -117,7 +117,7 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			logging.Get().Error("Error closing rows: %v", err)
+			slogging.Get().Error("Error closing rows: %v", err)
 		}
 	}()
 
@@ -138,7 +138,7 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 		}
 		defer func() {
 			if err := accessRows.Close(); err != nil {
-				logging.Get().Error("Error closing accessRows: %v", err)
+				slogging.Get().Error("Error closing accessRows: %v", err)
 			}
 		}()
 
@@ -185,7 +185,7 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	}
 	defer func() {
 		if err := threatRows.Close(); err != nil {
-			logging.Get().Error("Error closing threatRows: %v", err)
+			slogging.Get().Error("Error closing threatRows: %v", err)
 		}
 	}()
 
@@ -215,7 +215,7 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	}
 	defer func() {
 		if err := diagramRows.Close(); err != nil {
-			logging.Get().Error("Error closing diagramRows: %v", err)
+			slogging.Get().Error("Error closing diagramRows: %v", err)
 		}
 	}()
 

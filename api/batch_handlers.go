@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -52,7 +52,7 @@ func NewBatchHandler(threatStore ThreatStore, db *sql.DB, cache *CacheService, i
 // BatchPatchThreats applies patch operations to multiple threats in a single request
 // POST /threat_models/{threat_model_id}/threats/batch/patch
 func (h *BatchHandler) BatchPatchThreats(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BatchPatchThreats - applying patch operations to multiple threats")
 
 	// Extract threat model ID from URL
@@ -178,7 +178,7 @@ func (h *BatchHandler) BatchPatchThreats(c *gin.Context) {
 // BatchDeleteThreats deletes multiple threats in a single request
 // DELETE /threat_models/{threat_model_id}/threats/batch
 func (h *BatchHandler) BatchDeleteThreats(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BatchDeleteThreats - deleting multiple threats")
 
 	// Extract threat model ID from URL

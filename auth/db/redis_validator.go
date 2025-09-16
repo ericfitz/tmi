@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -23,14 +23,14 @@ type RedisKeyPattern struct {
 // RedisKeyValidator validates Redis keys against defined patterns
 type RedisKeyValidator struct {
 	patterns map[string]RedisKeyPattern
-	logger   *logging.Logger
+	logger   *slogging.Logger
 }
 
 // NewRedisKeyValidator creates a new Redis key validator
 func NewRedisKeyValidator() *RedisKeyValidator {
 	validator := &RedisKeyValidator{
 		patterns: make(map[string]RedisKeyPattern),
-		logger:   logging.Get(),
+		logger:   slogging.Get(),
 	}
 	validator.initializePatterns()
 	return validator

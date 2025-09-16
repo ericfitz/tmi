@@ -3,7 +3,7 @@ package api
 import (
 	"runtime/debug"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // PresenterRequestHandler handles presenter request messages
@@ -16,7 +16,7 @@ func (h *PresenterRequestHandler) MessageType() string {
 func (h *PresenterRequestHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in PresenterRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in PresenterRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
 				session.ID, client.UserID, r, debug.Stack())
 		}
 	}()
@@ -35,7 +35,7 @@ func (h *ChangePresenterHandler) MessageType() string {
 func (h *ChangePresenterHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in ChangePresenterHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in ChangePresenterHandler - Session: %s, User: %s, Error: %v, Stack: %s",
 				session.ID, client.UserID, r, debug.Stack())
 		}
 	}()
@@ -54,7 +54,7 @@ func (h *RemoveParticipantHandler) MessageType() string {
 func (h *RemoveParticipantHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in RemoveParticipantHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in RemoveParticipantHandler - Session: %s, User: %s, Error: %v, Stack: %s",
 				session.ID, client.UserID, r, debug.Stack())
 		}
 	}()
@@ -73,7 +73,7 @@ func (h *PresenterDeniedHandler) MessageType() string {
 func (h *PresenterDeniedHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in PresenterDeniedHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in PresenterDeniedHandler - Session: %s, User: %s, Error: %v, Stack: %s",
 				session.ID, client.UserID, r, debug.Stack())
 		}
 	}()
@@ -92,7 +92,7 @@ func (h *PresenterCursorHandler) MessageType() string {
 func (h *PresenterCursorHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in PresenterCursorHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in PresenterCursorHandler - Session: %s, User: %s, Error: %v, Stack: %s",
 				session.ID, client.UserID, r, debug.Stack())
 		}
 	}()
@@ -111,7 +111,7 @@ func (h *PresenterSelectionHandler) MessageType() string {
 func (h *PresenterSelectionHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in PresenterSelectionHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in PresenterSelectionHandler - Session: %s, User: %s, Error: %v, Stack: %s",
 				session.ID, client.UserID, r, debug.Stack())
 		}
 	}()

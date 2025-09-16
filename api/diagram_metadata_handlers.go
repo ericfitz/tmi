@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,7 +31,7 @@ func NewDiagramMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *C
 // GetDirectDiagramMetadata retrieves all metadata for a diagram via direct route
 // GET /diagrams/{id}/metadata
 func (h *DiagramMetadataHandler) GetDirectDiagramMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetDirectDiagramMetadata - retrieving metadata for diagram")
 
 	// Extract diagram ID from URL (using 'id' parameter for direct routes)
@@ -71,7 +71,7 @@ func (h *DiagramMetadataHandler) GetDirectDiagramMetadata(c *gin.Context) {
 // GetDirectDiagramMetadataByKey retrieves a specific metadata entry by key via direct route
 // GET /diagrams/{id}/metadata/{key}
 func (h *DiagramMetadataHandler) GetDirectDiagramMetadataByKey(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetDirectDiagramMetadataByKey - retrieving specific metadata entry")
 
 	// Extract diagram ID and key from URL
@@ -117,7 +117,7 @@ func (h *DiagramMetadataHandler) GetDirectDiagramMetadataByKey(c *gin.Context) {
 // CreateDirectDiagramMetadata creates a new metadata entry for a diagram via direct route
 // POST /diagrams/{id}/metadata
 func (h *DiagramMetadataHandler) CreateDirectDiagramMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateDirectDiagramMetadata - creating new metadata entry")
 
 	// Extract diagram ID from URL
@@ -172,7 +172,7 @@ func (h *DiagramMetadataHandler) CreateDirectDiagramMetadata(c *gin.Context) {
 // UpdateDirectDiagramMetadata updates an existing metadata entry via direct route
 // PUT /diagrams/{id}/metadata/{key}
 func (h *DiagramMetadataHandler) UpdateDirectDiagramMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateDirectDiagramMetadata - updating metadata entry")
 
 	// Extract diagram ID and key from URL
@@ -235,7 +235,7 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramMetadata(c *gin.Context) {
 // DeleteDirectDiagramMetadata deletes a metadata entry via direct route
 // DELETE /diagrams/{id}/metadata/{key}
 func (h *DiagramMetadataHandler) DeleteDirectDiagramMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteDirectDiagramMetadata - deleting metadata entry")
 
 	// Extract diagram ID and key from URL
@@ -282,7 +282,7 @@ func (h *DiagramMetadataHandler) DeleteDirectDiagramMetadata(c *gin.Context) {
 // GetDirectDiagramCellMetadata retrieves all metadata for a diagram cell via direct route
 // GET /diagrams/{id}/cells/{cell_id}/metadata
 func (h *DiagramMetadataHandler) GetDirectDiagramCellMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetDirectDiagramCellMetadata - retrieving metadata for diagram cell")
 
 	// Extract diagram ID and cell ID from URL
@@ -331,7 +331,7 @@ func (h *DiagramMetadataHandler) GetDirectDiagramCellMetadata(c *gin.Context) {
 // GetDirectDiagramCellMetadataByKey retrieves a specific metadata entry by key for a diagram cell
 // GET /diagrams/{id}/cells/{cell_id}/metadata/{key}
 func (h *DiagramMetadataHandler) GetDirectDiagramCellMetadataByKey(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetDirectDiagramCellMetadataByKey - retrieving specific metadata entry for cell")
 
 	// Extract parameters from URL
@@ -382,7 +382,7 @@ func (h *DiagramMetadataHandler) GetDirectDiagramCellMetadataByKey(c *gin.Contex
 // CreateDirectDiagramCellMetadata creates a new metadata entry for a diagram cell
 // POST /diagrams/{id}/cells/{cell_id}/metadata
 func (h *DiagramMetadataHandler) CreateDirectDiagramCellMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateDirectDiagramCellMetadata - creating new metadata entry for cell")
 
 	// Extract parameters from URL
@@ -443,7 +443,7 @@ func (h *DiagramMetadataHandler) CreateDirectDiagramCellMetadata(c *gin.Context)
 // UpdateDirectDiagramCellMetadata updates an existing metadata entry for a diagram cell
 // PUT /diagrams/{id}/cells/{cell_id}/metadata/{key}
 func (h *DiagramMetadataHandler) UpdateDirectDiagramCellMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateDirectDiagramCellMetadata - updating metadata entry for cell")
 
 	// Extract parameters from URL
@@ -511,7 +511,7 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramCellMetadata(c *gin.Context)
 // DeleteDirectDiagramCellMetadata deletes a metadata entry for a diagram cell
 // DELETE /diagrams/{id}/cells/{cell_id}/metadata/{key}
 func (h *DiagramMetadataHandler) DeleteDirectDiagramCellMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteDirectDiagramCellMetadata - deleting metadata entry for cell")
 
 	// Extract parameters from URL
@@ -563,7 +563,7 @@ func (h *DiagramMetadataHandler) DeleteDirectDiagramCellMetadata(c *gin.Context)
 // GetThreatModelDiagramMetadata retrieves all metadata for a diagram within a threat model
 // GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata
 func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreatModelDiagramMetadata - retrieving metadata for diagram in threat model")
 
 	// Extract threat model ID and diagram ID from URL
@@ -613,7 +613,7 @@ func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadata(c *gin.Context) {
 // GetThreatModelDiagramMetadataByKey retrieves a specific metadata entry by key for a diagram within a threat model
 // GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key}
 func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadataByKey(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreatModelDiagramMetadataByKey - retrieving specific metadata entry for diagram in threat model")
 
 	// Extract threat model ID, diagram ID, and key from URL
@@ -668,7 +668,7 @@ func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadataByKey(c *gin.Conte
 // CreateThreatModelDiagramMetadata creates a new metadata entry for a diagram within a threat model
 // POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata
 func (h *DiagramMetadataHandler) CreateThreatModelDiagramMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateThreatModelDiagramMetadata - creating new metadata entry for diagram in threat model")
 
 	// Extract threat model ID and diagram ID from URL
@@ -733,7 +733,7 @@ func (h *DiagramMetadataHandler) CreateThreatModelDiagramMetadata(c *gin.Context
 // UpdateThreatModelDiagramMetadata updates an existing metadata entry for a diagram within a threat model
 // PUT /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key}
 func (h *DiagramMetadataHandler) UpdateThreatModelDiagramMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateThreatModelDiagramMetadata - updating metadata entry for diagram in threat model")
 
 	// Extract threat model ID, diagram ID, and key from URL
@@ -805,7 +805,7 @@ func (h *DiagramMetadataHandler) UpdateThreatModelDiagramMetadata(c *gin.Context
 // DeleteThreatModelDiagramMetadata deletes a metadata entry for a diagram within a threat model
 // DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/{key}
 func (h *DiagramMetadataHandler) DeleteThreatModelDiagramMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteThreatModelDiagramMetadata - deleting metadata entry for diagram in threat model")
 
 	// Extract threat model ID, diagram ID, and key from URL
@@ -859,7 +859,7 @@ func (h *DiagramMetadataHandler) DeleteThreatModelDiagramMetadata(c *gin.Context
 // BulkCreateDirectDiagramMetadata creates multiple metadata entries for a diagram via direct route
 // POST /diagrams/{id}/metadata/bulk
 func (h *DiagramMetadataHandler) BulkCreateDirectDiagramMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateDirectDiagramMetadata - creating multiple metadata entries")
 
 	// Extract diagram ID from URL
@@ -936,7 +936,7 @@ func (h *DiagramMetadataHandler) BulkCreateDirectDiagramMetadata(c *gin.Context)
 // BulkCreateThreatModelDiagramMetadata creates multiple metadata entries for a diagram within a threat model
 // POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/bulk
 func (h *DiagramMetadataHandler) BulkCreateThreatModelDiagramMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateThreatModelDiagramMetadata - creating multiple metadata entries for diagram in threat model")
 
 	// Extract threat model ID and diagram ID from URL

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 )
 
@@ -62,7 +62,7 @@ func extendedToSource(extSrc *ExtendedSource) *Source {
 
 // Create creates a new source with write-through caching
 func (s *DatabaseSourceStore) Create(ctx context.Context, source *Source, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Creating source: %s in threat model: %s", source.Url, threatModelID)
 
 	// Generate ID if not provided
@@ -155,7 +155,7 @@ func (s *DatabaseSourceStore) Create(ctx context.Context, source *Source, threat
 
 // Get retrieves a source by ID with cache-first strategy
 func (s *DatabaseSourceStore) Get(ctx context.Context, id string) (*Source, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Getting source: %s", id)
 
 	// Try cache first
@@ -247,7 +247,7 @@ func (s *DatabaseSourceStore) Get(ctx context.Context, id string) (*Source, erro
 
 // Update updates an existing source with write-through caching
 func (s *DatabaseSourceStore) Update(ctx context.Context, source *Source, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Updating source: %s", source.Id)
 
 	// Parse threat model ID
@@ -339,7 +339,7 @@ func (s *DatabaseSourceStore) Update(ctx context.Context, source *Source, threat
 
 // Delete removes a source and invalidates related caches
 func (s *DatabaseSourceStore) Delete(ctx context.Context, id string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Deleting source: %s", id)
 
 	// Get the threat model ID from database for cache invalidation
@@ -398,7 +398,7 @@ func (s *DatabaseSourceStore) Delete(ctx context.Context, id string) error {
 
 // List retrieves sources for a threat model with pagination and caching
 func (s *DatabaseSourceStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Source, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Listing sources for threat model %s (offset: %d, limit: %d)", threatModelID, offset, limit)
 
 	// Try cache first
@@ -512,7 +512,7 @@ func (s *DatabaseSourceStore) List(ctx context.Context, threatModelID string, of
 
 // BulkCreate creates multiple sources in a single transaction
 func (s *DatabaseSourceStore) BulkCreate(ctx context.Context, sources []Source, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Bulk creating %d sources", len(sources))
 
 	if len(sources) == 0 {
@@ -635,7 +635,7 @@ func (s *DatabaseSourceStore) InvalidateCache(ctx context.Context, id string) er
 
 // WarmCache preloads sources for a threat model into cache
 func (s *DatabaseSourceStore) WarmCache(ctx context.Context, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model sources: %s", threatModelID)
 
 	if s.cache == nil {

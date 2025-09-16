@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 )
 
@@ -72,7 +72,7 @@ func extendedToDocument(extDoc *ExtendedDocument) *Document {
 
 // Create creates a new document with write-through caching
 func (s *DatabaseDocumentStore) Create(ctx context.Context, document *Document, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Creating document: %s in threat model: %s", document.Name, threatModelID)
 
 	// Generate ID if not provided
@@ -145,7 +145,7 @@ func (s *DatabaseDocumentStore) Create(ctx context.Context, document *Document, 
 
 // Get retrieves a document by ID with cache-first strategy
 func (s *DatabaseDocumentStore) Get(ctx context.Context, id string) (*Document, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Getting document: %s", id)
 
 	// Try cache first
@@ -218,7 +218,7 @@ func (s *DatabaseDocumentStore) Get(ctx context.Context, id string) (*Document, 
 
 // Update updates an existing document with write-through caching
 func (s *DatabaseDocumentStore) Update(ctx context.Context, document *Document, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Updating document: %s", document.Id)
 
 	// Parse threat model ID
@@ -289,7 +289,7 @@ func (s *DatabaseDocumentStore) Update(ctx context.Context, document *Document, 
 
 // Delete removes a document and invalidates related caches
 func (s *DatabaseDocumentStore) Delete(ctx context.Context, id string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Deleting document: %s", id)
 
 	// Get the threat model ID from database for cache invalidation
@@ -348,7 +348,7 @@ func (s *DatabaseDocumentStore) Delete(ctx context.Context, id string) error {
 
 // List retrieves documents for a threat model with pagination and caching
 func (s *DatabaseDocumentStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Document, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Listing documents for threat model %s (offset: %d, limit: %d)", threatModelID, offset, limit)
 
 	// Try cache first
@@ -443,7 +443,7 @@ func (s *DatabaseDocumentStore) List(ctx context.Context, threatModelID string, 
 
 // BulkCreate creates multiple documents in a single transaction
 func (s *DatabaseDocumentStore) BulkCreate(ctx context.Context, documents []Document, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Bulk creating %d documents", len(documents))
 
 	if len(documents) == 0 {
@@ -545,7 +545,7 @@ func (s *DatabaseDocumentStore) InvalidateCache(ctx context.Context, id string) 
 
 // WarmCache preloads documents for a threat model into cache
 func (s *DatabaseDocumentStore) WarmCache(ctx context.Context, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model documents: %s", threatModelID)
 
 	if s.cache == nil {

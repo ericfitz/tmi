@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -187,7 +187,7 @@ func CheckThreatModelAccess(userEmail string, threatModel ThreatModel, requiredR
 func ThreatModelMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger from context
-		logger := logging.GetContextLogger(c)
+		logger := slogging.GetContextLogger(c)
 
 		logger.Debug("ThreatModelMiddleware processing request: %s %s", c.Request.Method, c.Request.URL.Path)
 
@@ -340,7 +340,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 func DiagramMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger from context
-		logger := logging.GetContextLogger(c)
+		logger := slogging.GetContextLogger(c)
 
 		logger.Debug("DiagramMiddleware processing request: %s %s", c.Request.Method, c.Request.URL.Path)
 
@@ -562,12 +562,12 @@ func NewReadCloser(b []byte) *readCloser {
 // LogRequest logs debug information about the request
 func LogRequest(c *gin.Context, prefix string) {
 	// Get logger from context
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 
 	logger.Debug("%s - Method: %s, Path: %s", prefix, c.Request.Method, c.Request.URL.Path)
 
 	// Log headers as structured data on same line
-	logger.Debug("%s - Headers: %v", prefix, logging.RedactHeaders(c.Request.Header))
+	logger.Debug("%s - Headers: %v", prefix, slogging.RedactHeaders(c.Request.Header))
 
 	// Try to log body
 	bodyBytes, err := c.GetRawData()
@@ -616,7 +616,7 @@ func CheckDiagramAccess(userEmail string, diagram DfdDiagram, requiredRole Role)
 // permissions from their parent threat model
 func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		logger := logging.GetContextLogger(c)
+		logger := slogging.GetContextLogger(c)
 		logger.Debug("ValidateSubResourceAccess processing request: %s %s", c.Request.Method, c.Request.URL.Path)
 
 		// Skip for public paths

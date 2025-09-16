@@ -3,19 +3,19 @@ package api
 import (
 	"net/http"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
 // DebugHandlers provides HTTP endpoints for controlling debug logging
 type DebugHandlers struct {
-	wsDebugLogger *logging.WebSocketDebugLogger
+	wsDebugLogger *slogging.WebSocketDebugLogger
 }
 
 // NewDebugHandlers creates a new debug handlers instance
 func NewDebugHandlers() *DebugHandlers {
 	return &DebugHandlers{
-		wsDebugLogger: logging.GetWebSocketDebugLogger(),
+		wsDebugLogger: slogging.GetWebSocketDebugLogger(),
 	}
 }
 

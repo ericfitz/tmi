@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 )
 
@@ -78,7 +78,7 @@ func (s *DatabaseMetadataStore) validateEntityType(entityType string) error {
 
 // Create creates a new metadata entry with write-through caching
 func (s *DatabaseMetadataStore) Create(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Creating metadata: %s=%s for %s:%s", metadata.Key, metadata.Value, entityType, entityID)
 
 	// Validate entity type
@@ -146,7 +146,7 @@ func (s *DatabaseMetadataStore) Create(ctx context.Context, entityType, entityID
 
 // Get retrieves a specific metadata entry by key with cache-first strategy
 func (s *DatabaseMetadataStore) Get(ctx context.Context, entityType, entityID, key string) (*Metadata, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Getting metadata: %s for %s:%s", key, entityType, entityID)
 
 	// Try cache first by getting the full metadata collection
@@ -207,7 +207,7 @@ func (s *DatabaseMetadataStore) Get(ctx context.Context, entityType, entityID, k
 
 // Update updates an existing metadata entry with write-through caching
 func (s *DatabaseMetadataStore) Update(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Updating metadata: %s=%s for %s:%s", metadata.Key, metadata.Value, entityType, entityID)
 
 	// Validate entity type
@@ -274,7 +274,7 @@ func (s *DatabaseMetadataStore) Update(ctx context.Context, entityType, entityID
 
 // Delete removes a metadata entry and invalidates related caches
 func (s *DatabaseMetadataStore) Delete(ctx context.Context, entityType, entityID, key string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Deleting metadata: %s for %s:%s", key, entityType, entityID)
 
 	// Validate entity type
@@ -327,7 +327,7 @@ func (s *DatabaseMetadataStore) Delete(ctx context.Context, entityType, entityID
 
 // List retrieves all metadata for an entity with caching
 func (s *DatabaseMetadataStore) List(ctx context.Context, entityType, entityID string) ([]Metadata, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Listing metadata for %s:%s", entityType, entityID)
 
 	// Try cache first
@@ -402,7 +402,7 @@ func (s *DatabaseMetadataStore) List(ctx context.Context, entityType, entityID s
 
 // Post creates a new metadata entry using POST semantics (allowing duplicates initially)
 func (s *DatabaseMetadataStore) Post(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Posting metadata: %s=%s for %s:%s", metadata.Key, metadata.Value, entityType, entityID)
 
 	// POST semantics: create regardless of existing keys, let the database handle conflicts
@@ -411,7 +411,7 @@ func (s *DatabaseMetadataStore) Post(ctx context.Context, entityType, entityID s
 
 // BulkCreate creates multiple metadata entries in a single transaction
 func (s *DatabaseMetadataStore) BulkCreate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Bulk creating %d metadata entries", len(metadata))
 
 	if len(metadata) == 0 {
@@ -513,7 +513,7 @@ func (s *DatabaseMetadataStore) BulkCreate(ctx context.Context, entityType, enti
 
 // BulkUpdate updates multiple metadata entries in a single transaction
 func (s *DatabaseMetadataStore) BulkUpdate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Bulk updating %d metadata entries", len(metadata))
 
 	if len(metadata) == 0 {
@@ -526,7 +526,7 @@ func (s *DatabaseMetadataStore) BulkUpdate(ctx context.Context, entityType, enti
 
 // BulkDelete deletes multiple metadata entries by key in a single transaction
 func (s *DatabaseMetadataStore) BulkDelete(ctx context.Context, entityType, entityID string, keys []string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Bulk deleting %d metadata keys", len(keys))
 
 	if len(keys) == 0 {
@@ -605,7 +605,7 @@ func (s *DatabaseMetadataStore) BulkDelete(ctx context.Context, entityType, enti
 
 // GetByKey retrieves all metadata entries with a specific key across all entities
 func (s *DatabaseMetadataStore) GetByKey(ctx context.Context, key string) ([]Metadata, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Getting metadata by key: %s", key)
 
 	query := `
@@ -648,7 +648,7 @@ func (s *DatabaseMetadataStore) GetByKey(ctx context.Context, key string) ([]Met
 
 // ListKeys retrieves all metadata keys for an entity
 func (s *DatabaseMetadataStore) ListKeys(ctx context.Context, entityType, entityID string) ([]string, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Listing metadata keys for %s:%s", entityType, entityID)
 
 	// Validate entity type
@@ -711,7 +711,7 @@ func (s *DatabaseMetadataStore) InvalidateCache(ctx context.Context, entityType,
 
 // WarmCache preloads metadata for an entity into cache
 func (s *DatabaseMetadataStore) WarmCache(ctx context.Context, entityType, entityID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Warming cache for %s:%s metadata", entityType, entityID)
 
 	if s.cache == nil {

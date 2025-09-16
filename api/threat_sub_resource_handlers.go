@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -30,7 +30,7 @@ func NewThreatSubResourceHandler(threatStore ThreatStore, db *sql.DB, cache *Cac
 // GetThreats retrieves all threats for a threat model with pagination
 // GET /threat_models/{threat_model_id}/threats
 func (h *ThreatSubResourceHandler) GetThreats(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreats - retrieving threats for threat model")
 
 	// Extract threat model ID from URL
@@ -85,7 +85,7 @@ func (h *ThreatSubResourceHandler) GetThreats(c *gin.Context) {
 // GetThreatsWithFilters retrieves all threats for a threat model with advanced filtering
 // GET /threat_models/{threat_model_id}/threats with query parameters
 func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params GetThreatModelThreatsParams) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreatsWithFilters - retrieving threats with advanced filtering")
 
 	// Extract threat model ID from URL
@@ -212,7 +212,7 @@ func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params 
 // GetThreat retrieves a specific threat by ID
 // GET /threat_models/{threat_model_id}/threats/{threat_id}
 func (h *ThreatSubResourceHandler) GetThreat(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreat - retrieving specific threat")
 
 	// Extract threat ID from URL
@@ -252,7 +252,7 @@ func (h *ThreatSubResourceHandler) GetThreat(c *gin.Context) {
 // CreateThreat creates a new threat in a threat model
 // POST /threat_models/{threat_model_id}/threats
 func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateThreat - creating new threat")
 
 	// Extract threat model ID from URL
@@ -310,7 +310,7 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 // UpdateThreat updates an existing threat
 // PUT /threat_models/{threat_model_id}/threats/{threat_id}
 func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateThreat - updating existing threat")
 
 	// Extract threat ID from URL
@@ -370,7 +370,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 // PatchThreat applies JSON patch operations to a threat
 // PATCH /threat_models/{threat_model_id}/threats/{threat_id}
 func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchThreat - applying patch operations to threat")
 
 	// Extract threat ID from URL
@@ -429,7 +429,7 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 // DeleteThreat deletes a threat
 // DELETE /threat_models/{threat_model_id}/threats/{threat_id}
 func (h *ThreatSubResourceHandler) DeleteThreat(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteThreat - deleting threat")
 
 	// Extract threat ID from URL
@@ -468,7 +468,7 @@ func (h *ThreatSubResourceHandler) DeleteThreat(c *gin.Context) {
 // BulkCreateThreats creates multiple threats in a single request
 // POST /threat_models/{threat_model_id}/threats/bulk
 func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateThreats - creating multiple threats")
 
 	// Extract threat model ID from URL
@@ -549,7 +549,7 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 // BulkUpdateThreats updates multiple threats in a single request
 // PUT /threat_models/{threat_model_id}/threats/bulk
 func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkUpdateThreats - updating multiple threats")
 
 	// Extract threat model ID from URL

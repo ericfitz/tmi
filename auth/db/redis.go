@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -25,7 +25,7 @@ type RedisDB struct {
 
 // NewRedisDB creates a new Redis database connection
 func NewRedisDB(cfg RedisConfig) (*RedisDB, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Initializing Redis connection to %s:%s DB=%d", cfg.Host, cfg.Port, cfg.DB)
 
 	client := redis.NewClient(&redis.Options{
@@ -62,7 +62,7 @@ func NewRedisDB(cfg RedisConfig) (*RedisDB, error) {
 
 // Close closes the Redis connection
 func (db *RedisDB) Close() error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Closing Redis connection to %s:%s DB=%d", db.cfg.Host, db.cfg.Port, db.cfg.DB)
 
 	if db.client != nil {
@@ -84,7 +84,7 @@ func (db *RedisDB) GetClient() *redis.Client {
 
 // Ping checks if the Redis connection is alive
 func (db *RedisDB) Ping(ctx context.Context) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Pinging Redis connection to %s:%s DB=%d", db.cfg.Host, db.cfg.Port, db.cfg.DB)
 
 	err := db.client.Ping(ctx).Err()
@@ -98,7 +98,7 @@ func (db *RedisDB) Ping(ctx context.Context) error {
 
 // LogStats logs statistics about the Redis connection
 func (db *RedisDB) LogStats(ctx context.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	// Get pool stats
 	poolStats := db.client.PoolStats()

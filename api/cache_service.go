@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/auth/db"
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -37,7 +37,7 @@ const (
 
 // CacheThreat caches an individual threat with write-through strategy
 func (cs *CacheService) CacheThreat(ctx context.Context, threat *Threat) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheThreatKey(threat.Id.String())
 
 	data, err := json.Marshal(threat)
@@ -58,7 +58,7 @@ func (cs *CacheService) CacheThreat(ctx context.Context, threat *Threat) error {
 
 // GetCachedThreat retrieves a cached threat
 func (cs *CacheService) GetCachedThreat(ctx context.Context, threatID string) (*Threat, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheThreatKey(threatID)
 
 	data, err := cs.redis.Get(ctx, key)
@@ -84,7 +84,7 @@ func (cs *CacheService) GetCachedThreat(ctx context.Context, threatID string) (*
 
 // CacheDocument caches a document
 func (cs *CacheService) CacheDocument(ctx context.Context, document *Document) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheDocumentKey(document.Id.String())
 
 	data, err := json.Marshal(document)
@@ -105,7 +105,7 @@ func (cs *CacheService) CacheDocument(ctx context.Context, document *Document) e
 
 // GetCachedDocument retrieves a cached document
 func (cs *CacheService) GetCachedDocument(ctx context.Context, documentID string) (*Document, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheDocumentKey(documentID)
 
 	data, err := cs.redis.Get(ctx, key)
@@ -131,7 +131,7 @@ func (cs *CacheService) GetCachedDocument(ctx context.Context, documentID string
 
 // CacheSource caches a source code entry
 func (cs *CacheService) CacheSource(ctx context.Context, source *Source) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheSourceKey(source.Id.String())
 
 	data, err := json.Marshal(source)
@@ -152,7 +152,7 @@ func (cs *CacheService) CacheSource(ctx context.Context, source *Source) error {
 
 // GetCachedSource retrieves a cached source code entry
 func (cs *CacheService) GetCachedSource(ctx context.Context, sourceID string) (*Source, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheSourceKey(sourceID)
 
 	data, err := cs.redis.Get(ctx, key)
@@ -178,7 +178,7 @@ func (cs *CacheService) GetCachedSource(ctx context.Context, sourceID string) (*
 
 // CacheMetadata caches metadata collection for an entity
 func (cs *CacheService) CacheMetadata(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheMetadataKey(entityType, entityID)
 
 	data, err := json.Marshal(metadata)
@@ -199,7 +199,7 @@ func (cs *CacheService) CacheMetadata(ctx context.Context, entityType, entityID 
 
 // GetCachedMetadata retrieves cached metadata for an entity
 func (cs *CacheService) GetCachedMetadata(ctx context.Context, entityType, entityID string) ([]Metadata, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheMetadataKey(entityType, entityID)
 
 	data, err := cs.redis.Get(ctx, key)
@@ -225,7 +225,7 @@ func (cs *CacheService) GetCachedMetadata(ctx context.Context, entityType, entit
 
 // CacheCells caches diagram cells collection
 func (cs *CacheService) CacheCells(ctx context.Context, diagramID string, cells []Cell) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheCellsKey(diagramID)
 
 	data, err := json.Marshal(cells)
@@ -246,7 +246,7 @@ func (cs *CacheService) CacheCells(ctx context.Context, diagramID string, cells 
 
 // GetCachedCells retrieves cached diagram cells
 func (cs *CacheService) GetCachedCells(ctx context.Context, diagramID string) ([]Cell, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheCellsKey(diagramID)
 
 	data, err := cs.redis.Get(ctx, key)
@@ -272,7 +272,7 @@ func (cs *CacheService) GetCachedCells(ctx context.Context, diagramID string) ([
 
 // CacheAuthData caches authorization data for a threat model
 func (cs *CacheService) CacheAuthData(ctx context.Context, threatModelID string, authData AuthorizationData) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheAuthKey(threatModelID)
 
 	data, err := json.Marshal(authData)
@@ -293,7 +293,7 @@ func (cs *CacheService) CacheAuthData(ctx context.Context, threatModelID string,
 
 // GetCachedAuthData retrieves cached authorization data
 func (cs *CacheService) GetCachedAuthData(ctx context.Context, threatModelID string) (*AuthorizationData, error) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheAuthKey(threatModelID)
 
 	data, err := cs.redis.Get(ctx, key)
@@ -319,7 +319,7 @@ func (cs *CacheService) GetCachedAuthData(ctx context.Context, threatModelID str
 
 // CacheList caches a paginated list result
 func (cs *CacheService) CacheList(ctx context.Context, entityType, parentID string, offset, limit int, data interface{}) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheListKey(entityType, parentID, offset, limit)
 
 	jsonData, err := json.Marshal(data)
@@ -340,7 +340,7 @@ func (cs *CacheService) CacheList(ctx context.Context, entityType, parentID stri
 
 // GetCachedList retrieves a cached paginated list result
 func (cs *CacheService) GetCachedList(ctx context.Context, entityType, parentID string, offset, limit int, result interface{}) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheListKey(entityType, parentID, offset, limit)
 
 	data, err := cs.redis.Get(ctx, key)
@@ -365,7 +365,7 @@ func (cs *CacheService) GetCachedList(ctx context.Context, entityType, parentID 
 
 // InvalidateEntity removes an entity from cache
 func (cs *CacheService) InvalidateEntity(ctx context.Context, entityType, entityID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	var key string
 	switch entityType {
@@ -395,7 +395,7 @@ func (cs *CacheService) InvalidateEntity(ctx context.Context, entityType, entity
 
 // InvalidateMetadata removes metadata cache for an entity
 func (cs *CacheService) InvalidateMetadata(ctx context.Context, entityType, entityID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheMetadataKey(entityType, entityID)
 
 	err := cs.redis.Del(ctx, key)
@@ -410,7 +410,7 @@ func (cs *CacheService) InvalidateMetadata(ctx context.Context, entityType, enti
 
 // InvalidateAuthData removes authorization data cache
 func (cs *CacheService) InvalidateAuthData(ctx context.Context, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	key := cs.builder.CacheAuthKey(threatModelID)
 
 	err := cs.redis.Del(ctx, key)

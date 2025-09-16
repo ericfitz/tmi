@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -30,7 +30,7 @@ func NewSourceSubResourceHandler(sourceStore SourceStore, db *sql.DB, cache *Cac
 // GetSources retrieves all source code references for a threat model with pagination
 // GET /threat_models/{threat_model_id}/sources
 func (h *SourceSubResourceHandler) GetSources(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetSources - retrieving source code references for threat model")
 
 	// Extract threat model ID from URL
@@ -85,7 +85,7 @@ func (h *SourceSubResourceHandler) GetSources(c *gin.Context) {
 // GetSource retrieves a specific source code reference by ID
 // GET /threat_models/{threat_model_id}/sources/{source_id}
 func (h *SourceSubResourceHandler) GetSource(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetSource - retrieving specific source code reference")
 
 	// Extract source ID from URL
@@ -125,7 +125,7 @@ func (h *SourceSubResourceHandler) GetSource(c *gin.Context) {
 // CreateSource creates a new source code reference in a threat model
 // POST /threat_models/{threat_model_id}/sources
 func (h *SourceSubResourceHandler) CreateSource(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateSource - creating new source code reference")
 
 	// Extract threat model ID from URL
@@ -179,7 +179,7 @@ func (h *SourceSubResourceHandler) CreateSource(c *gin.Context) {
 // UpdateSource updates an existing source code reference
 // PUT /threat_models/{threat_model_id}/sources/{source_id}
 func (h *SourceSubResourceHandler) UpdateSource(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateSource - updating existing source code reference")
 
 	// Extract source ID from URL
@@ -237,7 +237,7 @@ func (h *SourceSubResourceHandler) UpdateSource(c *gin.Context) {
 // DeleteSource deletes a source code reference
 // DELETE /threat_models/{threat_model_id}/sources/{source_id}
 func (h *SourceSubResourceHandler) DeleteSource(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteSource - deleting source code reference")
 
 	// Extract source ID from URL
@@ -276,7 +276,7 @@ func (h *SourceSubResourceHandler) DeleteSource(c *gin.Context) {
 // BulkCreateSources creates multiple source code references in a single request
 // POST /threat_models/{threat_model_id}/sources/bulk
 func (h *SourceSubResourceHandler) BulkCreateSources(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateSources - creating multiple source code references")
 
 	// Extract threat model ID from URL

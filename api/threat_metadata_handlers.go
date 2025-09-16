@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,7 +29,7 @@ func NewThreatMetadataHandler(metadataStore MetadataStore, db *sql.DB, cache *Ca
 // GetThreatMetadata retrieves all metadata for a threat
 // GET /threat_models/{threat_model_id}/threats/{threat_id}/metadata
 func (h *ThreatMetadataHandler) GetThreatMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreatMetadata - retrieving metadata for threat")
 
 	// Extract threat ID from URL
@@ -69,7 +69,7 @@ func (h *ThreatMetadataHandler) GetThreatMetadata(c *gin.Context) {
 // GetThreatMetadataByKey retrieves a specific metadata entry by key
 // GET /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key}
 func (h *ThreatMetadataHandler) GetThreatMetadataByKey(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreatMetadataByKey - retrieving specific metadata entry")
 
 	// Extract threat ID and key from URL
@@ -115,7 +115,7 @@ func (h *ThreatMetadataHandler) GetThreatMetadataByKey(c *gin.Context) {
 // CreateThreatMetadata creates a new metadata entry for a threat
 // POST /threat_models/{threat_model_id}/threats/{threat_id}/metadata
 func (h *ThreatMetadataHandler) CreateThreatMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateThreatMetadata - creating new metadata entry")
 
 	// Extract threat ID from URL
@@ -170,7 +170,7 @@ func (h *ThreatMetadataHandler) CreateThreatMetadata(c *gin.Context) {
 // UpdateThreatMetadata updates an existing metadata entry
 // PUT /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key}
 func (h *ThreatMetadataHandler) UpdateThreatMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateThreatMetadata - updating metadata entry")
 
 	// Extract threat ID and key from URL
@@ -233,7 +233,7 @@ func (h *ThreatMetadataHandler) UpdateThreatMetadata(c *gin.Context) {
 // DeleteThreatMetadata deletes a metadata entry
 // DELETE /threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key}
 func (h *ThreatMetadataHandler) DeleteThreatMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteThreatMetadata - deleting metadata entry")
 
 	// Extract threat ID and key from URL
@@ -278,7 +278,7 @@ func (h *ThreatMetadataHandler) DeleteThreatMetadata(c *gin.Context) {
 // BulkCreateThreatMetadata creates multiple metadata entries in a single request
 // POST /threat_models/{threat_model_id}/threats/{threat_id}/metadata/bulk
 func (h *ThreatMetadataHandler) BulkCreateThreatMetadata(c *gin.Context) {
-	logger := logging.GetContextLogger(c)
+	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateThreatMetadata - creating multiple metadata entries")
 
 	// Extract threat ID from URL

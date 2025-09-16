@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // CacheWarmer handles proactive cache warming for frequently accessed data
@@ -104,7 +104,7 @@ func (cw *CacheWarmer) StartProactiveWarming(ctx context.Context) error {
 		return fmt.Errorf("cache warming is disabled")
 	}
 
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("Starting proactive cache warming with interval %v", cw.warmingInterval)
 
 	go cw.warmingLoop(ctx)
@@ -116,7 +116,7 @@ func (cw *CacheWarmer) StopProactiveWarming() {
 	cw.mutex.Lock()
 	defer cw.mutex.Unlock()
 
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("Stopping proactive cache warming")
 
 	close(cw.stopChannel)
@@ -125,7 +125,7 @@ func (cw *CacheWarmer) StopProactiveWarming() {
 
 // warmingLoop runs the continuous cache warming process
 func (cw *CacheWarmer) warmingLoop(ctx context.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	ticker := time.NewTicker(cw.warmingInterval)
 	defer ticker.Stop()
 
@@ -154,7 +154,7 @@ func (cw *CacheWarmer) WarmFrequentlyAccessedData(ctx context.Context) error {
 	cw.setWarmingInProgress(true)
 	defer cw.setWarmingInProgress(false)
 
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("Starting cache warming for frequently accessed data")
 
 	startTime := time.Now()
@@ -189,7 +189,7 @@ func (cw *CacheWarmer) WarmFrequentlyAccessedData(ctx context.Context) error {
 
 // warmRecentThreatModels warms cache with recently accessed threat models
 func (cw *CacheWarmer) warmRecentThreatModels(ctx context.Context, stats *WarmingStats) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 
 	// Query for recently accessed threat models (last 24 hours)
 	query := `
@@ -228,7 +228,7 @@ func (cw *CacheWarmer) warmRecentThreatModels(ctx context.Context, stats *Warmin
 
 // WarmThreatModelData warms cache with all data for a specific threat model
 func (cw *CacheWarmer) WarmThreatModelData(ctx context.Context, threatModelID string) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model %s", threatModelID)
 
 	var wg sync.WaitGroup
@@ -451,7 +451,7 @@ func (cw *CacheWarmer) warmPopularMetadata(ctx context.Context, stats *WarmingSt
 
 // WarmOnDemandRequest handles on-demand cache warming requests
 func (cw *CacheWarmer) WarmOnDemandRequest(ctx context.Context, request WarmingRequest) error {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Debug("Processing on-demand warming request for %s:%s", request.EntityType, request.EntityID)
 
 	switch request.EntityType {

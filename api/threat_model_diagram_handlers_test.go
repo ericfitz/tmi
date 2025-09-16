@@ -12,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // setupThreatModelDiagramRouter returns a router with threat model diagram handlers registered for the owner user
@@ -30,7 +32,7 @@ func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 
 	// Add a fake auth middleware to set user in context
 	r.Use(func(c *gin.Context) {
-		fmt.Printf("[TEST DEBUG] User name: %s, Request: %s %s\n",
+		slogging.Get().WithContext(c).Debug("[TEST DEBUG] User name: %s, Request: %s %s",
 			userName, c.Request.Method, c.Request.URL.Path)
 		c.Set("userEmail", userName)
 		c.Next()

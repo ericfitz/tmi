@@ -6,14 +6,14 @@ import (
 	"io"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
 // RequestTracingMiddleware provides comprehensive request tracing
 func RequestTracingMiddleware() gin.HandlerFunc {
 	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-		logger := logging.Get()
+		logger := slogging.Get()
 
 		// Extract request ID from context
 		requestID := "unknown"
@@ -45,10 +45,10 @@ func DetailedRequestLoggingMiddleware() gin.HandlerFunc {
 		requestID := generateRequestID()
 		c.Set("request_id", requestID)
 
-		logger := logging.GetContextLogger(c)
+		logger := slogging.GetContextLogger(c)
 
 		// Log incoming request with redacted headers
-		redactedHeaders := logging.RedactHeaders(c.Request.Header)
+		redactedHeaders := slogging.RedactHeaders(c.Request.Header)
 		logger.Info("INCOMING_REQUEST [%s] %s %s - Headers: %v",
 			requestID, c.Request.Method, c.Request.URL.Path, redactedHeaders)
 
@@ -81,7 +81,7 @@ func DetailedRequestLoggingMiddleware() gin.HandlerFunc {
 func RouteMatchingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := getRequestID(c)
-		logger := logging.GetContextLogger(c)
+		logger := slogging.GetContextLogger(c)
 
 		logger.Debug("ROUTE_MATCHING [%s] Attempting to match %s %s",
 			requestID, c.Request.Method, c.Request.URL.Path)

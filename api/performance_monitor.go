@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // PerformanceMonitor tracks collaboration system performance metrics
@@ -113,7 +113,7 @@ func (pm *PerformanceMonitor) RecordSessionStart(sessionID, diagramID string) {
 		AverageMessageSize: 0.0,
 	}
 
-	logging.Get().Info("PERFORMANCE: Session %s started for diagram %s", sessionID, diagramID)
+	slogging.Get().Info("PERFORMANCE: Session %s started for diagram %s", sessionID, diagramID)
 }
 
 // RecordSessionEnd records the end of a collaboration session
@@ -125,7 +125,7 @@ func (pm *PerformanceMonitor) RecordSessionEnd(sessionID string) {
 		duration := time.Since(session.StartTime)
 		pm.ConnectionDurations = append(pm.ConnectionDurations, duration)
 
-		logging.Get().Info("PERFORMANCE: Session %s ended, duration: %v, operations: %d, messages: %d",
+		slogging.Get().Info("PERFORMANCE: Session %s ended, duration: %v, operations: %d, messages: %d",
 			sessionID, duration, session.OperationCount, session.MessageCount)
 
 		delete(pm.SessionMetrics, sessionID)
@@ -154,7 +154,7 @@ func (pm *PerformanceMonitor) RecordOperation(perf *OperationPerformance) {
 
 	// Log slow operations
 	if perf.TotalTime > 100*time.Millisecond {
-		logging.Get().Info("PERFORMANCE WARNING: Slow operation %s took %v (validation: %v, processing: %v, broadcast: %v)",
+		slogging.Get().Info("PERFORMANCE WARNING: Slow operation %s took %v (validation: %v, processing: %v, broadcast: %v)",
 			perf.OperationID, perf.TotalTime, perf.ValidationTime, perf.ProcessingTime, perf.BroadcastTime)
 	}
 }
@@ -178,7 +178,7 @@ func (pm *PerformanceMonitor) RecordMessage(sessionID string, messageSize int, p
 
 	// Log large messages
 	if messageSize > 10*1024 { // 10KB
-		logging.Get().Info("PERFORMANCE WARNING: Large message %d bytes in session %s", messageSize, sessionID)
+		slogging.Get().Info("PERFORMANCE WARNING: Large message %d bytes in session %s", messageSize, sessionID)
 	}
 }
 
@@ -206,7 +206,7 @@ func (pm *PerformanceMonitor) RecordConnection(sessionID string, connect bool) {
 }
 
 // RecordStateCorrection records state correction events
-func (pm *PerformanceMonitor) RecordStateCorrection(sessionID, userID, reason string, cellCount int) {
+func (pm *PerformanceMonitor) RecordStateCorrection(sessionID, userID, reason string) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
@@ -217,8 +217,8 @@ func (pm *PerformanceMonitor) RecordStateCorrection(sessionID, userID, reason st
 		session.LastActivity = time.Now()
 	}
 
-	logging.Get().Info("PERFORMANCE: State correction sent to %s in session %s, reason: %s, cells: %d",
-		userID, sessionID, reason, cellCount)
+	slogging.Get().Info("PERFORMANCE: State correction sent to %s in session %s, reason: %s",
+		userID, sessionID, reason)
 }
 
 // RecordResyncRequest records resync request events
@@ -231,7 +231,7 @@ func (pm *PerformanceMonitor) RecordResyncRequest(sessionID, userID string) {
 		session.LastActivity = time.Now()
 	}
 
-	logging.Get().Info("PERFORMANCE: Resync requested by %s in session %s", userID, sessionID)
+	slogging.Get().Info("PERFORMANCE: Resync requested by %s in session %s", userID, sessionID)
 }
 
 // RecordAuthorizationDenied records authorization denial events
@@ -244,7 +244,7 @@ func (pm *PerformanceMonitor) RecordAuthorizationDenied(sessionID, userID, reaso
 		session.LastActivity = time.Now()
 	}
 
-	logging.Get().Info("PERFORMANCE: Authorization denied for %s in session %s, reason: %s",
+	slogging.Get().Info("PERFORMANCE: Authorization denied for %s in session %s, reason: %s",
 		userID, sessionID, reason)
 }
 
@@ -339,18 +339,18 @@ func (pm *PerformanceMonitor) logPerformanceSummary() {
 	metrics := pm.GetGlobalMetrics()
 	sessions := pm.GetSessionMetrics()
 
-	logging.Get().Info("PERFORMANCE SUMMARY: Sessions: %d, Operations: %d, Messages: %d, Connections: %d",
+	slogging.Get().Info("PERFORMANCE SUMMARY: Sessions: %d, Operations: %d, Messages: %d, Connections: %d",
 		metrics.ActiveSessions, metrics.TotalOperations, metrics.TotalMessages, metrics.TotalConnections)
 
 	if metrics.AverageOperationLatency > 0 {
-		logging.Get().Info("PERFORMANCE SUMMARY: Avg Operation Latency: %v, Avg Message Size: %.1f bytes",
+		slogging.Get().Info("PERFORMANCE SUMMARY: Avg Operation Latency: %v, Avg Message Size: %.1f bytes",
 			metrics.AverageOperationLatency, metrics.AverageMessageSize)
 	}
 
 	// Log sessions with high activity
 	for sessionID, session := range sessions {
 		if session.OperationCount > 100 || session.MessageCount > 1000 {
-			logging.Get().Info("PERFORMANCE SUMMARY: High activity session %s - ops: %d, msgs: %d, participants: %d",
+			slogging.Get().Info("PERFORMANCE SUMMARY: High activity session %s - ops: %d, msgs: %d, participants: %d",
 				sessionID, session.OperationCount, session.MessageCount, session.ParticipantCount)
 		}
 	}
@@ -387,5 +387,5 @@ var GlobalPerformanceMonitor *PerformanceMonitor
 // InitializePerformanceMonitoring initializes the global performance monitor
 func InitializePerformanceMonitoring() {
 	GlobalPerformanceMonitor = NewPerformanceMonitor()
-	logging.Get().Info("Performance monitoring initialized")
+	slogging.Get().Info("Performance monitoring initialized")
 }

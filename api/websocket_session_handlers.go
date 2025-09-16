@@ -3,7 +3,7 @@ package api
 import (
 	"runtime/debug"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // ResyncRequestHandler handles resync request messages
@@ -16,7 +16,7 @@ func (h *ResyncRequestHandler) MessageType() string {
 func (h *ResyncRequestHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in ResyncRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in ResyncRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
 				session.ID, client.UserID, r, debug.Stack())
 		}
 	}()
@@ -35,7 +35,7 @@ func (h *UndoRequestHandler) MessageType() string {
 func (h *UndoRequestHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in UndoRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in UndoRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
 				session.ID, client.UserID, r, debug.Stack())
 		}
 	}()
@@ -54,7 +54,7 @@ func (h *RedoRequestHandler) MessageType() string {
 func (h *RedoRequestHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in RedoRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in RedoRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
 				session.ID, client.UserID, r, debug.Stack())
 		}
 	}()

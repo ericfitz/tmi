@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,7 +21,7 @@ func CustomRecoveryMiddleware() gin.HandlerFunc {
 				stack := debug.Stack()
 
 				// Get logger with context
-				logger := logging.GetContextLogger(c)
+				logger := slogging.GetContextLogger(c)
 
 				// Log the panic internally with full details for debugging
 				logger.Error("PANIC recovered: %v\nStack Trace:\n%s", err, stack)

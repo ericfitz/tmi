@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // Server is the main API server instance
@@ -31,7 +31,7 @@ type Server struct {
 }
 
 // NewServer creates a new API server instance
-func NewServer(wsLoggingConfig logging.WebSocketLoggingConfig, inactivityTimeout time.Duration) *Server {
+func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeout time.Duration) *Server {
 	return &Server{
 		threatModelHandler:         NewThreatModelHandler(),
 		documentHandler:            NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
@@ -49,7 +49,7 @@ func NewServer(wsLoggingConfig logging.WebSocketLoggingConfig, inactivityTimeout
 
 // NewServerForTests creates a server with default test configuration
 func NewServerForTests() *Server {
-	return NewServer(logging.WebSocketLoggingConfig{
+	return NewServer(slogging.WebSocketLoggingConfig{
 		Enabled:        false, // Disable logging in tests by default
 		RedactTokens:   true,
 		MaxMessageSize: 5 * 1024,
@@ -69,7 +69,7 @@ type ServerInfo struct {
 
 // RegisterHandlers registers custom API handlers with the router
 func (s *Server) RegisterHandlers(r *gin.Engine) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[API_SERVER] Starting custom route registration")
 
 	// Register WebSocket handler - it needs a custom route because it's not part of the OpenAPI spec
@@ -283,7 +283,7 @@ func (s *Server) GetApiInfo(c *gin.Context) {
 
 // HandleOAuthCallback handles OAuth callback
 func (s *Server) HandleOAuthCallback(c *gin.Context, params HandleOAuthCallbackParams) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] HandleOAuthCallback called")
 	if s.authService != nil {
 		s.authService.Callback(c)
@@ -294,7 +294,7 @@ func (s *Server) HandleOAuthCallback(c *gin.Context, params HandleOAuthCallbackP
 
 // AuthorizeOAuthProvider initiates OAuth flow
 func (s *Server) AuthorizeOAuthProvider(c *gin.Context, params AuthorizeOAuthProviderParams) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	var providerStr string
 	if params.Idp != nil {
 		providerStr = *params.Idp
@@ -316,7 +316,7 @@ func (s *Server) AuthorizeOAuthProvider(c *gin.Context, params AuthorizeOAuthPro
 
 // LogoutUser logs out the current user
 func (s *Server) LogoutUser(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] LogoutUser called")
 	if s.authService != nil {
 		s.authService.Logout(c)
@@ -327,7 +327,7 @@ func (s *Server) LogoutUser(c *gin.Context) {
 
 // GetCurrentUser gets current user information
 func (s *Server) GetCurrentUser(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetCurrentUser called - delegating to authService.Me()")
 	if s.authService != nil {
 		s.authService.Me(c)
@@ -338,7 +338,7 @@ func (s *Server) GetCurrentUser(c *gin.Context) {
 
 // GetAuthProviders lists OAuth providers
 func (s *Server) GetAuthProviders(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetAuthProviders called")
 	if s.authService != nil {
 		s.authService.GetProviders(c)
@@ -349,7 +349,7 @@ func (s *Server) GetAuthProviders(c *gin.Context) {
 
 // GetJWKS returns the JSON Web Key Set for JWT signature verification
 func (s *Server) GetJWKS(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetJWKS called")
 	if s.authService != nil {
 		// Delegate to auth service (assuming it has a GetJWKS method)
@@ -365,7 +365,7 @@ func (s *Server) GetJWKS(c *gin.Context) {
 
 // GetOAuthAuthorizationServerMetadata returns OAuth 2.0 Authorization Server Metadata
 func (s *Server) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetOAuthAuthorizationServerMetadata called")
 	if s.authService != nil {
 		// Delegate to auth service (assuming it has this method)
@@ -381,7 +381,7 @@ func (s *Server) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
 
 // GetOpenIDConfiguration returns OpenID Connect configuration
 func (s *Server) GetOpenIDConfiguration(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetOpenIDConfiguration called")
 	if s.authService != nil {
 		// Delegate to auth service (assuming it has this method)
@@ -397,7 +397,7 @@ func (s *Server) GetOpenIDConfiguration(c *gin.Context) {
 
 // GetOAuthProtectedResourceMetadata returns OAuth 2.0 protected resource metadata as per RFC 9728
 func (s *Server) GetOAuthProtectedResourceMetadata(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetOAuthProtectedResourceMetadata called")
 	if s.authService != nil {
 		// Delegate to auth service (assuming it has this method)
@@ -413,7 +413,7 @@ func (s *Server) GetOAuthProtectedResourceMetadata(c *gin.Context) {
 
 // IntrospectToken handles token introspection requests per RFC 7662
 func (s *Server) IntrospectToken(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] IntrospectToken called")
 	if s.authService != nil {
 		// Delegate to auth service (assuming it has an IntrospectToken method)
@@ -429,7 +429,7 @@ func (s *Server) IntrospectToken(c *gin.Context) {
 
 // RefreshToken refreshes JWT token
 func (s *Server) RefreshToken(c *gin.Context) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] RefreshToken called")
 	if s.authService != nil {
 		s.authService.Refresh(c)
@@ -440,7 +440,7 @@ func (s *Server) RefreshToken(c *gin.Context) {
 
 // ExchangeOAuthCode exchanges auth code for tokens
 func (s *Server) ExchangeOAuthCode(c *gin.Context, params ExchangeOAuthCodeParams) {
-	logger := logging.Get()
+	logger := slogging.Get()
 	var providerStr string
 	if params.Idp != nil {
 		providerStr = *params.Idp

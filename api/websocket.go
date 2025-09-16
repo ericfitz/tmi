@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -36,9 +36,11 @@ type WebSocketHub struct {
 	// Mutex for thread safety
 	mu sync.RWMutex
 	// WebSocket logging configuration
-	LoggingConfig logging.WebSocketLoggingConfig
+	LoggingConfig slogging.WebSocketLoggingConfig
 	// Inactivity timeout duration
 	InactivityTimeout time.Duration
+	// Mutex for diagram update operations (separate from session management)
+	updateMutex sync.Mutex
 }
 
 // DiagramSession represents a collaborative editing session
@@ -204,13 +206,13 @@ var upgrader = websocket.Upgrader{
 			}
 		}
 
-		logging.Get().Warn("Rejected WebSocket connection from origin: %s", origin)
+		slogging.Get().Warn("Rejected WebSocket connection from origin: %s", origin)
 		return false
 	},
 }
 
 // NewWebSocketHub creates a new WebSocket hub
-func NewWebSocketHub(loggingConfig logging.WebSocketLoggingConfig, inactivityTimeout time.Duration) *WebSocketHub {
+func NewWebSocketHub(loggingConfig slogging.WebSocketLoggingConfig, inactivityTimeout time.Duration) *WebSocketHub {
 	return &WebSocketHub{
 		Diagrams:          make(map[string]*DiagramSession),
 		LoggingConfig:     loggingConfig,
@@ -220,12 +222,130 @@ func NewWebSocketHub(loggingConfig logging.WebSocketLoggingConfig, inactivityTim
 
 // NewWebSocketHubForTests creates a WebSocket hub with default test configuration
 func NewWebSocketHubForTests() *WebSocketHub {
-	return NewWebSocketHub(logging.WebSocketLoggingConfig{
+	return NewWebSocketHub(slogging.WebSocketLoggingConfig{
 		Enabled:        false, // Disable logging in tests by default
 		RedactTokens:   true,
 		MaxMessageSize: 5 * 1024,
 		OnlyDebugLevel: true,
 	}, 30*time.Second) // Short timeout for tests
+}
+
+// UpdateDiagramResult contains the result of a centralized diagram update
+type UpdateDiagramResult struct {
+	UpdatedDiagram    DfdDiagram
+	PreviousVector    int64
+	NewVector         int64
+	VectorIncremented bool
+}
+
+// UpdateDiagram provides centralized diagram updates with version control and WebSocket notification
+// This function:
+// 1. Handles all diagram modifications (cells, metadata, properties)
+// 2. Auto-increments update_vector when cells[] changes or when explicitly requested
+// 3. Notifies WebSocket sessions when updates come from REST API
+// 4. Serves as single source of truth for all diagram modifications
+// 5. Provides thread-safe updates with proper locking
+func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagram) (DfdDiagram, bool, error), updateSource string, excludeUserID string) (*UpdateDiagramResult, error) {
+	// Use dedicated update mutex to prevent race conditions on update_vector
+	h.updateMutex.Lock()
+	defer h.updateMutex.Unlock()
+
+	// Get the current diagram
+	currentDiagram, err := DiagramStore.Get(diagramID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get diagram %s: %w", diagramID, err)
+	}
+
+	// Store previous update vector
+	previousVector := int64(0)
+	if currentDiagram.UpdateVector != nil {
+		previousVector = *currentDiagram.UpdateVector
+	}
+
+	// Apply the update function
+	updatedDiagram, shouldIncrementVector, err := updateFunc(currentDiagram)
+	if err != nil {
+		return nil, fmt.Errorf("update function failed for diagram %s: %w", diagramID, err)
+	}
+
+	// Increment update vector if requested
+	newVector := previousVector
+	vectorIncremented := false
+	if shouldIncrementVector {
+		newVector = previousVector + 1
+		updatedDiagram.UpdateVector = &newVector
+		vectorIncremented = true
+	}
+
+	// Update timestamps (pass pointer for WithTimestamps interface)
+	updatedDiagram = *UpdateTimestamps(&updatedDiagram, false)
+
+	// Save to database
+	if err := DiagramStore.Update(diagramID, updatedDiagram); err != nil {
+		return nil, fmt.Errorf("failed to update diagram %s: %w", diagramID, err)
+	}
+
+	// Notify WebSocket clients if this update came from REST API and vector was incremented
+	if updateSource == "rest_api" && vectorIncremented {
+		h.notifyWebSocketClientsOfUpdate(diagramID, newVector, excludeUserID)
+	}
+
+	return &UpdateDiagramResult{
+		UpdatedDiagram:    updatedDiagram,
+		PreviousVector:    previousVector,
+		NewVector:         newVector,
+		VectorIncremented: vectorIncremented,
+	}, nil
+}
+
+// UpdateDiagramCells provides centralized diagram cell updates (convenience wrapper)
+func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []Cell, updateSource string, excludeUserID string) (*UpdateDiagramResult, error) {
+	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {
+		// Convert []Cell to []DfdDiagram_Cells_Item using CellConverter
+		converter := NewCellConverter()
+		unionItems := make([]DfdDiagram_Cells_Item, len(newCells))
+		for i, cell := range newCells {
+			unionItem, err := converter.ConvertCellToUnionItem(cell)
+			if err != nil {
+				return diagram, false, fmt.Errorf("failed to convert cell %d: %w", i, err)
+			}
+			unionItems[i] = unionItem
+		}
+
+		// Update cells and request vector increment
+		diagram.Cells = unionItems
+		return diagram, true, nil // true = increment update vector for cell changes
+	}
+
+	return h.UpdateDiagram(diagramID, updateFunc, updateSource, excludeUserID)
+}
+
+// notifyWebSocketClientsOfUpdate sends state correction messages to active WebSocket sessions
+// to trigger client resync when diagram is updated via REST API
+func (h *WebSocketHub) notifyWebSocketClientsOfUpdate(diagramID string, newUpdateVector int64, excludeUserID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	session, exists := h.Diagrams[diagramID]
+	if !exists {
+		// No active WebSocket session for this diagram
+		return
+	}
+
+	// Create state correction message with update_vector
+	correctionMsg := StateCorrectionMessage{
+		MessageType:  "state_correction",
+		UpdateVector: &newUpdateVector,
+	}
+
+	// Send correction to all connected clients except the excluded user
+	for client := range session.Clients {
+		if client.UserID != excludeUserID {
+			session.sendToClient(client, correctionMsg)
+			slogging.Get().Debug("Sent state correction due to REST API update - diagram: %s, user: %s, update_vector: %d",
+				diagramID, client.UserID, newUpdateVector)
+		}
+	}
 }
 
 // buildWebSocketURL constructs the absolute WebSocket URL from request context
@@ -333,10 +453,10 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 		GlobalPerformanceMonitor.RecordSessionStart(session.ID, diagramID)
 	}
 
-	logging.Get().Info("Created new session %s for diagram %s (host: %s, threat model: %s)",
+	slogging.Get().Info("Created new session %s for diagram %s (host: %s, threat model: %s)",
 		session.ID, diagramID, hostUserID, threatModelID)
 
-	logging.Get().Debug("Starting session Run() goroutine - Session: %s, Diagram: %s", session.ID, diagramID)
+	slogging.Get().Debug("Starting session Run() goroutine - Session: %s, Diagram: %s", session.ID, diagramID)
 	go session.Run()
 
 	return session, nil
@@ -372,7 +492,7 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 			session.Host = hostUserID
 			session.CurrentPresenter = hostUserID // Host starts as presenter
 		}
-		logging.Get().Info("Retrieved existing session %s for diagram %s (host: %s, state: %s)",
+		slogging.Get().Info("Retrieved existing session %s for diagram %s (host: %s, state: %s)",
 			session.ID, diagramID, session.Host, session.State)
 		return session
 	}
@@ -408,10 +528,10 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 		GlobalPerformanceMonitor.RecordSessionStart(session.ID, diagramID)
 	}
 
-	logging.Get().Info("Created new session %s for diagram %s (host: %s, threat model: %s)",
+	slogging.Get().Info("Created new session %s for diagram %s (host: %s, threat model: %s)",
 		session.ID, diagramID, hostUserID, threatModelID)
 
-	logging.Get().Debug("Starting session Run() goroutine - Session: %s, Diagram: %s", session.ID, diagramID)
+	slogging.Get().Debug("Starting session Run() goroutine - Session: %s, Diagram: %s", session.ID, diagramID)
 	go session.Run()
 
 	return session
@@ -650,7 +770,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 	// Convert diagram ID to UUID
 	diagramUUID, err := uuid.Parse(diagramID)
 	if err != nil {
-		logging.Get().Error("buildCollaborationSessionFromDiagramSession: Failed to parse diagram ID '%s': %v", diagramID, err)
+		slogging.Get().Error("buildCollaborationSessionFromDiagramSession: Failed to parse diagram ID '%s': %v", diagramID, err)
 		return nil, fmt.Errorf("invalid diagram ID: %w", err)
 	}
 
@@ -848,36 +968,36 @@ func (h *WebSocketHub) userHasAccessToThreatModel(userName string, threatModelId
 func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_types.UUID {
 	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), return empty UUID
 	if ThreatModelStore == nil {
-		logging.Get().Debug(" ThreatModelStore is nil, denying WebSocket access for diagram %s", diagramID)
+		slogging.Get().Debug(" ThreatModelStore is nil, denying WebSocket access for diagram %s", diagramID)
 		return openapi_types.UUID{}
 	}
 
 	// Search through all threat models to find the one containing this diagram
 	// Use a large limit to get all threat models (in practice we should have pagination)
 	threatModels := ThreatModelStore.List(0, 1000, nil)
-	logging.Get().Debug(" Searching for diagram %s in %d threat models", diagramID, len(threatModels))
+	slogging.Get().Debug(" Searching for diagram %s in %d threat models", diagramID, len(threatModels))
 
 	for _, tm := range threatModels {
 		if tm.Diagrams != nil {
-			logging.Get().Debug(" Checking threat model %s with %d diagrams", tm.Id.String(), len(*tm.Diagrams))
+			slogging.Get().Debug(" Checking threat model %s with %d diagrams", tm.Id.String(), len(*tm.Diagrams))
 			for _, diagramUnion := range *tm.Diagrams {
 				// Convert union type to DfdDiagram to get the ID
 				if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
-					logging.Get().Debug(" Found diagram %s in threat model %s", dfdDiag.Id.String(), tm.Id.String())
+					slogging.Get().Debug(" Found diagram %s in threat model %s", dfdDiag.Id.String(), tm.Id.String())
 					if dfdDiag.Id.String() == diagramID {
-						logging.Get().Debug(" Match found! Diagram %s belongs to threat model %s", diagramID, tm.Id.String())
+						slogging.Get().Debug(" Match found! Diagram %s belongs to threat model %s", diagramID, tm.Id.String())
 						return *tm.Id
 					}
 				} else {
-					logging.Get().Debug(" Failed to convert diagram union to DfdDiagram: %v", err)
+					slogging.Get().Debug(" Failed to convert diagram union to DfdDiagram: %v", err)
 				}
 			}
 		} else {
-			logging.Get().Debug(" Threat model %s has nil Diagrams", tm.Id.String())
+			slogging.Get().Debug(" Threat model %s has nil Diagrams", tm.Id.String())
 		}
 	}
 
-	logging.Get().Debug(" Diagram %s not found in any threat model", diagramID)
+	slogging.Get().Debug(" Diagram %s not found in any threat model", diagramID)
 	return openapi_types.UUID{}
 }
 
@@ -989,13 +1109,13 @@ func (h *WebSocketHub) CloseSession(diagramID string) {
 	session.mu.Lock()
 	for client := range session.Clients {
 		close(client.Send)
-		logging.Get().Debug("Closed connection for participant %s due to immediate session termination", client.UserID)
+		slogging.Get().Debug("Closed connection for participant %s due to immediate session termination", client.UserID)
 	}
 	// Clear the clients map
 	session.Clients = make(map[*WebSocketClient]bool)
 	session.mu.Unlock()
 
-	logging.Get().Info("Session %s terminated immediately by host %s", session.ID, session.Host)
+	slogging.Get().Info("Session %s terminated immediately by host %s", session.ID, session.Host)
 }
 
 // CleanupInactiveSessions removes sessions that are inactive or empty with grace period
@@ -1036,7 +1156,7 @@ func (h *WebSocketHub) CleanupInactiveSessions() {
 				close(client.Send)
 			}
 			delete(h.Diagrams, diagramID)
-			logging.Get().Info("Cleaned up session %s for diagram %s: %s", session.ID, diagramID, cleanupReason)
+			slogging.Get().Info("Cleaned up session %s for diagram %s: %s", session.ID, diagramID, cleanupReason)
 
 			// Record session cleanup
 			if GlobalPerformanceMonitor != nil {
@@ -1063,7 +1183,7 @@ func (h *WebSocketHub) CleanupEmptySessions() {
 				close(client.Send)
 			}
 			delete(h.Diagrams, diagramID)
-			logging.Get().Info("Cleaned up empty session %s for diagram %s (triggered by user departure)", session.ID, diagramID)
+			slogging.Get().Info("Cleaned up empty session %s for diagram %s (triggered by user departure)", session.ID, diagramID)
 
 			// Record session cleanup
 			if GlobalPerformanceMonitor != nil {
@@ -1080,11 +1200,11 @@ func (h *WebSocketHub) CleanupAllSessions() {
 
 	sessionCount := len(h.Diagrams)
 	if sessionCount == 0 {
-		logging.Get().Info("No active collaboration sessions to clean up")
+		slogging.Get().Info("No active collaboration sessions to clean up")
 		return
 	}
 
-	logging.Get().Info("Cleaning up %d existing collaboration sessions from previous server run", sessionCount)
+	slogging.Get().Info("Cleaning up %d existing collaboration sessions from previous server run", sessionCount)
 
 	// Close all sessions
 	for diagramID, session := range h.Diagrams {
@@ -1092,12 +1212,12 @@ func (h *WebSocketHub) CleanupAllSessions() {
 		for client := range session.Clients {
 			close(client.Send)
 		}
-		logging.Get().Debug("Cleaned up collaboration session for diagram %s", diagramID)
+		slogging.Get().Debug("Cleaned up collaboration session for diagram %s", diagramID)
 	}
 
 	// Clear the sessions map
 	h.Diagrams = make(map[string]*DiagramSession)
-	logging.Get().Info("All collaboration sessions cleaned up successfully")
+	slogging.Get().Info("All collaboration sessions cleaned up successfully")
 }
 
 // StartCleanupTimer starts a periodic cleanup timer
@@ -1120,7 +1240,7 @@ func (s *DiagramSession) Run() {
 	// Add panic recovery to prevent session goroutine from crashing
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in DiagramSession.Run() - Session: %s, Diagram: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in DiagramSession.Run() - Session: %s, Diagram: %s, Error: %v, Stack: %s",
 				s.ID, s.DiagramID, r, debug.Stack())
 		}
 
@@ -1129,16 +1249,16 @@ func (s *DiagramSession) Run() {
 			s.Hub.mu.Lock()
 			delete(s.Hub.Diagrams, s.DiagramID)
 			s.Hub.mu.Unlock()
-			logging.Get().Info("Session %s removed from hub after termination", s.ID)
+			slogging.Get().Info("Session %s removed from hub after termination", s.ID)
 		}
 	}()
 
-	logging.Get().Debug("DiagramSession.Run() started - Session: %s, Diagram: %s, Host: %s", s.ID, s.DiagramID, s.Host)
+	slogging.Get().Debug("DiagramSession.Run() started - Session: %s, Diagram: %s, Host: %s", s.ID, s.DiagramID, s.Host)
 
 	for {
 		select {
 		case client := <-s.Register:
-			logging.Get().Debug("Processing Register request in session Run() - Session: %s, User: %s", s.ID, client.UserID)
+			slogging.Get().Debug("Processing Register request in session Run() - Session: %s, User: %s", s.ID, client.UserID)
 
 			// Check if user is on the deny list
 			s.mu.RLock()
@@ -1146,7 +1266,7 @@ func (s *DiagramSession) Run() {
 			s.mu.RUnlock()
 
 			if isDenied {
-				logging.Get().Info("Denied user %s attempted to join session %s", client.UserID, s.ID)
+				slogging.Get().Info("Denied user %s attempted to join session %s", client.UserID, s.ID)
 
 				// Send denial message and close connection
 				errorMsg := ErrorMessage{
@@ -1159,13 +1279,13 @@ func (s *DiagramSession) Run() {
 				// Try to send the message first
 				if data, err := json.Marshal(errorMsg); err == nil {
 					if writeErr := client.Conn.WriteMessage(websocket.TextMessage, data); writeErr != nil {
-						logging.Get().Debug("Failed to send denial message to user %s: %v", client.UserID, writeErr)
+						slogging.Get().Debug("Failed to send denial message to user %s: %v", client.UserID, writeErr)
 					}
 				}
 
 				// Close the connection
 				if closeErr := client.Conn.Close(); closeErr != nil {
-					logging.Get().Debug("Failed to close connection for denied user %s: %v", client.UserID, closeErr)
+					slogging.Get().Debug("Failed to close connection for denied user %s: %v", client.UserID, closeErr)
 				}
 				continue
 			}
@@ -1174,7 +1294,7 @@ func (s *DiagramSession) Run() {
 			s.Clients[client] = true
 			s.LastActivity = time.Now().UTC()
 			s.mu.Unlock()
-			logging.Get().Debug("Client registered successfully in session - Session: %s, User: %s, Total clients: %d", s.ID, client.UserID, len(s.Clients))
+			slogging.Get().Debug("Client registered successfully in session - Session: %s, User: %s, Total clients: %d", s.ID, client.UserID, len(s.Clients))
 
 			// Send initial state to the new client
 			// First, send current presenter info
@@ -1183,7 +1303,7 @@ func (s *DiagramSession) Run() {
 			s.mu.RUnlock()
 
 			if currentPresenter != "" {
-				logging.Get().Debug("Sending current presenter message to new client %s - presenter: %s", client.UserID, currentPresenter)
+				slogging.Get().Debug("Sending current presenter message to new client %s - presenter: %s", client.UserID, currentPresenter)
 				presenterMsg := CurrentPresenterMessage{
 					MessageType:      MessageTypeCurrentPresenter,
 					CurrentPresenter: currentPresenter,
@@ -1191,17 +1311,17 @@ func (s *DiagramSession) Run() {
 				if msgBytes, err := json.Marshal(presenterMsg); err == nil {
 					select {
 					case client.Send <- msgBytes:
-						logging.Get().Debug("Successfully queued current presenter message for client %s", client.UserID)
+						slogging.Get().Debug("Successfully queued current presenter message for client %s", client.UserID)
 					default:
-						logging.Get().Error("Failed to send current presenter to new client")
+						slogging.Get().Error("Failed to send current presenter to new client")
 					}
 				}
 			} else {
-				logging.Get().Debug("No current presenter set for session %s", s.ID)
+				slogging.Get().Debug("No current presenter set for session %s", s.ID)
 			}
 
 			// Send participant list to the new client
-			logging.Get().Debug("Sending participants update to new client %s", client.UserID)
+			slogging.Get().Debug("Sending participants update to new client %s", client.UserID)
 			s.sendParticipantsUpdateToClient(client)
 
 			// Notify other clients that someone joined
@@ -1263,10 +1383,10 @@ func (s *DiagramSession) Run() {
 				case s.Broadcast <- msgBytes:
 					// Successfully queued
 				default:
-					logging.Get().Error("Failed to broadcast participant left message: broadcast channel full")
+					slogging.Get().Error("Failed to broadcast participant left message: broadcast channel full")
 				}
 			} else {
-				logging.Get().Error("Failed to marshal participant left message: %v", err)
+				slogging.Get().Error("Failed to marshal participant left message: %v", err)
 			}
 
 			// Broadcast updated participant list to all remaining clients
@@ -1279,8 +1399,8 @@ func (s *DiagramSession) Run() {
 
 		case message := <-s.Broadcast:
 			// Log outgoing broadcast message (sanitized to remove newlines)
-			sanitizedBroadcast := logging.SanitizeLogMessage(string(message))
-			logging.Get().Debug("[wsmsg] Broadcasting message - session_id=%s message_size=%d raw_message=%s client_count=%d",
+			sanitizedBroadcast := slogging.SanitizeLogMessage(string(message))
+			slogging.Get().Debug("[wsmsg] Broadcasting message - session_id=%s message_size=%d raw_message=%s client_count=%d",
 				s.ID, len(message), sanitizedBroadcast, len(s.Clients))
 			s.mu.Lock()
 			s.LastActivity = time.Now().UTC()
@@ -1365,14 +1485,14 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	userExtractor := &UserInfoExtractor{}
 	userInfo, err := userExtractor.ExtractUserInfo(c)
 	if err != nil {
-		logging.Get().Error("Failed to extract user info: %v", err)
+		slogging.Get().Error("Failed to extract user info: %v", err)
 		return
 	}
 
 	// Upgrade to WebSocket first
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		logging.Get().Info("Failed to upgrade connection: %v", err)
+		slogging.Get().Info("Failed to upgrade connection: %v", err)
 		return
 	}
 
@@ -1383,7 +1503,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Validate user has access to the diagram
 	if err := validator.ValidateSessionAccess(h, userInfo, threatModelID, diagramID); err != nil {
 		connManager.SendErrorAndClose(conn, "unauthorized", "You don't have sufficient permissions to collaborate on this diagram")
-		logging.Get().Info("Disconnected user %s - no permissions for diagram %s", userInfo.UserID, diagramID)
+		slogging.Get().Info("Disconnected user %s - no permissions for diagram %s", userInfo.UserID, diagramID)
 		return
 	}
 
@@ -1394,22 +1514,22 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	session := h.GetOrCreateSession(diagramID, threatModelID, userInfo.UserEmail)
 
 	// Log session state
-	logging.Get().Info("WebSocket connection attempt - User: %s, Diagram: %s, Session: %s, Provided SessionID: %s",
+	slogging.Get().Info("WebSocket connection attempt - User: %s, Diagram: %s, Session: %s, Provided SessionID: %s",
 		userInfo.UserID, diagramID, session.ID, sessionID)
 
 	// Validate session state
 	if err := validator.ValidateSessionState(session); err != nil {
 		// Session is terminated, immediately close the connection without sending termination messages
 		if err := conn.Close(); err != nil {
-			logging.Get().Debug("Failed to close connection: %v", err)
+			slogging.Get().Debug("Failed to close connection: %v", err)
 		}
-		logging.Get().Info("Rejected connection from user %s - %v", userInfo.UserID, err)
+		slogging.Get().Info("Rejected connection from user %s - %v", userInfo.UserID, err)
 		return
 	}
 
 	// Validate session ID if provided
 	if err := validator.ValidateSessionID(session, sessionID); err != nil {
-		logging.Get().Info("Session ID validation failed for user %s - %v (client may be disconnecting)", userInfo.UserID, err)
+		slogging.Get().Info("Session ID validation failed for user %s - %v (client may be disconnecting)", userInfo.UserID, err)
 		connManager.SendCloseAndClose(conn, websocket.CloseNormalClosure, "Session ID mismatch")
 		return
 	}
@@ -1427,19 +1547,19 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	}
 
 	// Log before attempting to register client
-	logging.Get().Debug("Attempting to register WebSocket client - User: %s, Session: %s, Diagram: %s", userInfo.UserID, session.ID, diagramID)
+	slogging.Get().Debug("Attempting to register WebSocket client - User: %s, Session: %s, Diagram: %s", userInfo.UserID, session.ID, diagramID)
 
 	// Register client with timeout to prevent blocking
 	if err := connManager.RegisterClientWithTimeout(session, client, 5*time.Second); err != nil {
-		logging.Get().Error("Failed to register client: %v", err)
+		slogging.Get().Error("Failed to register client: %v", err)
 		if err := conn.Close(); err != nil {
-			logging.Get().Debug("Failed to close connection after timeout: %v", err)
+			slogging.Get().Debug("Failed to close connection after timeout: %v", err)
 		}
 		return
 	}
 
 	// Log WebSocket connection
-	logging.LogWebSocketConnection("CONNECTION_ESTABLISHED", session.ID, userInfo.UserID, diagramID, h.LoggingConfig)
+	slogging.LogWebSocketConnection("CONNECTION_ESTABLISHED", session.ID, userInfo.UserID, diagramID, h.LoggingConfig)
 
 	// Start goroutines
 	go client.ReadPump()
@@ -1542,7 +1662,7 @@ func validateCell(cell *Cell) error {
 // ProcessMessage handles enhanced message types for collaborative editing
 func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte) {
 	if err := s.MessageRouter.RouteMessage(s, client, message); err != nil {
-		logging.Get().Error("Failed to route WebSocket message - Session: %s, User: %s, Error: %v",
+		slogging.Get().Error("Failed to route WebSocket message - Session: %s, User: %s, Error: %v",
 			s.ID, client.UserID, err)
 	}
 }
@@ -1551,17 +1671,17 @@ func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte)
 func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, message []byte) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in processDiagramOperation - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in processDiagramOperation - Session: %s, User: %s, Error: %v, Stack: %s",
 				s.ID, client.UserID, r, debug.Stack())
 		}
 	}()
 
 	startTime := time.Now()
-	logging.Get().Debug("Processing diagram operation - Session: %s, User: %s", s.ID, client.UserID)
+	slogging.Get().Debug("Processing diagram operation - Session: %s, User: %s", s.ID, client.UserID)
 
 	var msg DiagramOperationMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Error("Failed to parse diagram operation - Session: %s, User: %s, Error: %v",
+		slogging.Get().Error("Failed to parse diagram operation - Session: %s, User: %s, Error: %v",
 			s.ID, client.UserID, err)
 		return
 	}
@@ -1596,11 +1716,11 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 
 		if exists && *msg.SequenceNumber != expectedSeq {
 			if *msg.SequenceNumber < expectedSeq {
-				logging.Get().Info("Duplicate or old message from %s: expected %d, got %d",
+				slogging.Get().Info("Duplicate or old message from %s: expected %d, got %d",
 					client.UserID, expectedSeq, *msg.SequenceNumber)
 				s.trackPotentialSyncIssue(client.UserID, "duplicate_message")
 			} else {
-				logging.Get().Info("Message gap detected from %s: expected %d, got %d (gap of %d)",
+				slogging.Get().Info("Message gap detected from %s: expected %d, got %d (gap of %d)",
 					client.UserID, expectedSeq, *msg.SequenceNumber, *msg.SequenceNumber-expectedSeq)
 				s.trackPotentialSyncIssue(client.UserID, "message_gap")
 			}
@@ -1623,12 +1743,12 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 	processor := NewCellOperationProcessor(DiagramStore)
 	result, err := processor.ProcessCellOperations(s.DiagramID, msg.Operation)
 	if err != nil {
-		logging.Get().Info("Failed to process cell operation: %v", err)
+		slogging.Get().Info("Failed to process cell operation: %v", err)
 		return
 	}
 
 	if !result.Valid {
-		logging.Get().Info("Operation %s validation failed: %s", msg.OperationID, result.Reason)
+		slogging.Get().Info("Operation %s validation failed: %s", msg.OperationID, result.Reason)
 
 		if result.CorrectionNeeded {
 			s.sendStateCorrection(client, result.CellsModified)
@@ -1637,7 +1757,7 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 	}
 
 	if !result.StateChanged {
-		logging.Get().Info("Operation %s resulted in no state changes", msg.OperationID)
+		slogging.Get().Info("Operation %s resulted in no state changes", msg.OperationID)
 
 		// Record operation performance even for no-op operations
 		if GlobalPerformanceMonitor != nil {
@@ -1672,7 +1792,7 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 		GlobalPerformanceMonitor.RecordOperation(perf)
 	}
 
-	logging.Get().Info("Successfully applied operation %s from %s with sequence %d",
+	slogging.Get().Info("Successfully applied operation %s from %s with sequence %d",
 		msg.OperationID, client.UserID, *msg.SequenceNumber)
 
 	// Broadcast to all other clients (not the sender)
@@ -1683,16 +1803,16 @@ func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, messag
 func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, message []byte) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in processPresenterRequest - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in processPresenterRequest - Session: %s, User: %s, Error: %v, Stack: %s",
 				s.ID, client.UserID, r, debug.Stack())
 		}
 	}()
 
-	logging.Get().Debug("Processing presenter request - Session: %s, User: %s", s.ID, client.UserID)
+	slogging.Get().Debug("Processing presenter request - Session: %s, User: %s", s.ID, client.UserID)
 
 	var msg PresenterRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Error("Failed to parse presenter request - Session: %s, User: %s, Error: %v",
+		slogging.Get().Error("Failed to parse presenter request - Session: %s, User: %s, Error: %v",
 			s.ID, client.UserID, err)
 		return
 	}
@@ -1706,7 +1826,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 
 	// If user is already the presenter, ignore
 	if client.UserID == currentPresenter {
-		logging.Get().Info("User %s is already the presenter", client.UserID)
+		slogging.Get().Info("User %s is already the presenter", client.UserID)
 		return
 	}
 
@@ -1722,7 +1842,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 			CurrentPresenter: client.UserID,
 		}
 		s.broadcastMessage(broadcastMsg)
-		logging.Get().Info("Host %s became presenter in session %s", client.UserID, s.ID)
+		slogging.Get().Info("Host %s became presenter in session %s", client.UserID, s.ID)
 
 		// Also broadcast updated participant list since presenter has changed
 		s.broadcastParticipantsUpdate()
@@ -1735,9 +1855,9 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	if hostClient != nil {
 		// Forward the request to the host for approval
 		s.sendToClient(hostClient, msg)
-		logging.Get().Info("Forwarded presenter request from %s to host %s in session %s", client.UserID, host, s.ID)
+		slogging.Get().Info("Forwarded presenter request from %s to host %s in session %s", client.UserID, host, s.ID)
 	} else {
-		logging.Get().Info("Host %s not connected, cannot process presenter request from %s", host, client.UserID)
+		slogging.Get().Info("Host %s not connected, cannot process presenter request from %s", host, client.UserID)
 
 		// Send denial to requester since host is not available
 		deniedMsg := PresenterDeniedMessage{
@@ -1757,16 +1877,16 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message []byte) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in processChangePresenter - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in processChangePresenter - Session: %s, User: %s, Error: %v, Stack: %s",
 				s.ID, client.UserID, r, debug.Stack())
 		}
 	}()
 
-	logging.Get().Debug("Processing change presenter request - Session: %s, User: %s", s.ID, client.UserID)
+	slogging.Get().Debug("Processing change presenter request - Session: %s, User: %s", s.ID, client.UserID)
 
 	var msg ChangePresenterMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Error("Failed to parse change presenter request - Session: %s, User: %s, Error: %v",
+		slogging.Get().Error("Failed to parse change presenter request - Session: %s, User: %s, Error: %v",
 			s.ID, client.UserID, err)
 		return
 	}
@@ -1777,7 +1897,7 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 	s.mu.RUnlock()
 
 	if client.UserEmail != host {
-		logging.Get().Info("Non-host attempted to change presenter: %s", client.UserEmail)
+		slogging.Get().Info("Non-host attempted to change presenter: %s", client.UserEmail)
 		return
 	}
 
@@ -1792,7 +1912,7 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 		CurrentPresenter: msg.NewPresenter,
 	}
 	s.broadcastMessage(broadcastMsg)
-	logging.Get().Info("Host %s changed presenter to %s in session %s", client.UserID, msg.NewPresenter, s.ID)
+	slogging.Get().Info("Host %s changed presenter to %s in session %s", client.UserID, msg.NewPresenter, s.ID)
 
 	// Also broadcast updated participant list since presenter has changed
 	s.broadcastParticipantsUpdate()
@@ -1802,16 +1922,16 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, message []byte) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in processRemoveParticipant - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in processRemoveParticipant - Session: %s, User: %s, Error: %v, Stack: %s",
 				s.ID, client.UserID, r, debug.Stack())
 		}
 	}()
 
-	logging.Get().Debug("Processing remove participant request - Session: %s, User: %s", s.ID, client.UserID)
+	slogging.Get().Debug("Processing remove participant request - Session: %s, User: %s", s.ID, client.UserID)
 
 	var msg RemoveParticipantMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Error("Failed to parse remove participant request - Session: %s, User: %s, Error: %v",
+		slogging.Get().Error("Failed to parse remove participant request - Session: %s, User: %s, Error: %v",
 			s.ID, client.UserID, err)
 		s.sendErrorMessage(client, "invalid_message", "Failed to parse remove participant request")
 		return
@@ -1823,14 +1943,14 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 	s.mu.RUnlock()
 
 	if client.UserEmail != host {
-		logging.Get().Info("Non-host attempted to remove participant: %s tried to remove %s", client.UserEmail, msg.TargetUser)
+		slogging.Get().Info("Non-host attempted to remove participant: %s tried to remove %s", client.UserEmail, msg.TargetUser)
 		s.sendErrorMessage(client, "unauthorized", "Only the host can remove participants from the session")
 		return
 	}
 
 	// Cannot remove yourself
 	if msg.TargetUser == client.UserEmail {
-		logging.Get().Info("Host %s attempted to remove themselves from session %s", client.UserEmail, s.ID)
+		slogging.Get().Info("Host %s attempted to remove themselves from session %s", client.UserEmail, s.ID)
 		s.sendErrorMessage(client, "invalid_request", "Host cannot remove themselves from the session")
 		return
 	}
@@ -1851,18 +1971,18 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 	s.DeniedUsers[msg.TargetUser] = true
 	s.mu.Unlock()
 
-	logging.Get().Info("Host %s removed participant %s from session %s", client.UserID, msg.TargetUser, s.ID)
+	slogging.Get().Info("Host %s removed participant %s from session %s", client.UserID, msg.TargetUser, s.ID)
 
 	// If the participant is currently connected, disconnect them
 	if targetClient != nil {
-		logging.Get().Info("Disconnecting removed participant %s from session %s", msg.TargetUser, s.ID)
+		slogging.Get().Info("Disconnecting removed participant %s from session %s", msg.TargetUser, s.ID)
 
 		// Send notification to the removed participant
 		s.sendErrorMessage(targetClient, "removed_from_session", "You have been removed from this collaboration session by the host")
 
 		// Close their connection
 		if closeErr := targetClient.Conn.Close(); closeErr != nil {
-			logging.Get().Debug("Failed to close connection for removed participant %s: %v", msg.TargetUser, closeErr)
+			slogging.Get().Debug("Failed to close connection for removed participant %s: %v", msg.TargetUser, closeErr)
 		}
 	}
 
@@ -1870,7 +1990,7 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 	s.mu.Lock()
 	if s.CurrentPresenter == msg.TargetUser {
 		s.CurrentPresenter = host // Host becomes presenter again
-		logging.Get().Info("Removed participant %s was presenter, host %s is now presenter in session %s",
+		slogging.Get().Info("Removed participant %s was presenter, host %s is now presenter in session %s",
 			msg.TargetUser, host, s.ID)
 
 		// Broadcast new presenter
@@ -1905,7 +2025,7 @@ func (s *DiagramSession) sendErrorMessage(client *WebSocketClient, errorCode, er
 func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message []byte) {
 	var msg PresenterDeniedMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Info("Error parsing presenter denied: %v", err)
+		slogging.Get().Info("Error parsing presenter denied: %v", err)
 		return
 	}
 
@@ -1915,7 +2035,7 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	s.mu.RUnlock()
 
 	if client.UserEmail != host {
-		logging.Get().Info("Non-host attempted to deny presenter request: %s", client.UserEmail)
+		slogging.Get().Info("Non-host attempted to deny presenter request: %s", client.UserEmail)
 		return
 	}
 
@@ -1926,9 +2046,9 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	targetClient := s.findClientByUserID(msg.TargetUser)
 	if targetClient != nil {
 		s.sendToClient(targetClient, msg)
-		logging.Get().Info("Host %s denied presenter request from %s in session %s", client.UserID, msg.TargetUser, s.ID)
+		slogging.Get().Info("Host %s denied presenter request from %s in session %s", client.UserID, msg.TargetUser, s.ID)
 	} else {
-		logging.Get().Info("Target user %s not found for presenter denial in session %s", msg.TargetUser, s.ID)
+		slogging.Get().Info("Target user %s not found for presenter denial in session %s", msg.TargetUser, s.ID)
 	}
 }
 
@@ -1936,7 +2056,7 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message []byte) {
 	var msg PresenterCursorMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Info("Error parsing presenter cursor: %v", err)
+		slogging.Get().Info("Error parsing presenter cursor: %v", err)
 		return
 	}
 
@@ -1948,7 +2068,7 @@ func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message
 	s.mu.RUnlock()
 
 	if client.UserEmail != currentPresenter {
-		logging.Get().Info("Non-presenter attempted to send cursor: %s", client.UserEmail)
+		slogging.Get().Info("Non-presenter attempted to send cursor: %s", client.UserEmail)
 		return
 	}
 
@@ -1960,7 +2080,7 @@ func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message
 func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, message []byte) {
 	var msg PresenterSelectionMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Info("Error parsing presenter selection: %v", err)
+		slogging.Get().Info("Error parsing presenter selection: %v", err)
 		return
 	}
 
@@ -1972,7 +2092,7 @@ func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, mess
 	s.mu.RUnlock()
 
 	if client.UserEmail != currentPresenter {
-		logging.Get().Info("Non-presenter attempted to send selection: %s", client.UserEmail)
+		slogging.Get().Info("Non-presenter attempted to send selection: %s", client.UserEmail)
 		return
 	}
 
@@ -1984,13 +2104,13 @@ func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, mess
 func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message []byte) {
 	var msg ResyncRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Info("Error parsing resync request: %v", err)
+		slogging.Get().Info("Error parsing resync request: %v", err)
 		return
 	}
 
 	// User authentication is validated by connection context
 
-	logging.Get().Info("Client %s requested resync for diagram %s", client.UserID, s.DiagramID)
+	slogging.Get().Info("Client %s requested resync for diagram %s", client.UserID, s.DiagramID)
 
 	// According to the plan, we use REST API for resync for simplicity
 	// Send a message telling the client to use the REST endpoint for resync
@@ -2008,7 +2128,7 @@ func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message [
 	}
 
 	s.sendToClient(client, resyncResponse)
-	logging.Get().Info("Sent resync response to %s for diagram %s", client.UserID, s.DiagramID)
+	slogging.Get().Info("Sent resync response to %s for diagram %s", client.UserID, s.DiagramID)
 
 	// Record performance metrics
 	if GlobalPerformanceMonitor != nil {
@@ -2020,7 +2140,7 @@ func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message [
 func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []byte) {
 	var msg UndoRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Info("Error parsing undo request: %v", err)
+		slogging.Get().Info("Error parsing undo request: %v", err)
 		return
 	}
 
@@ -2039,7 +2159,7 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 
 	// Check if undo is possible
 	if !s.OperationHistory.CanUndo() {
-		logging.Get().Info("No operations to undo for user %s", client.UserID)
+		slogging.Get().Info("No operations to undo for user %s", client.UserID)
 		// Send message indicating no undo available
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -2053,7 +2173,7 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 	// Get the operation to undo
 	entry, previousState, ok := s.OperationHistory.GetUndoOperation()
 	if !ok {
-		logging.Get().Info("Failed to get undo operation for user %s", client.UserID)
+		slogging.Get().Info("Failed to get undo operation for user %s", client.UserID)
 		// Send resync required as fallback
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -2067,7 +2187,7 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 	// Apply the undo by restoring previous state
 	err := s.applyHistoryState(previousState)
 	if err != nil {
-		logging.Get().Info("Failed to apply undo state: %v", err)
+		slogging.Get().Info("Failed to apply undo state: %v", err)
 		// Send resync required as fallback
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -2088,14 +2208,14 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 		Message:       "resync_required", // For now, tell clients to resync
 	}
 	s.broadcastToAllClients(response)
-	logging.Get().Info("Processed undo request from %s, reverted to sequence %d", client.UserID, entry.SequenceNumber-1)
+	slogging.Get().Info("Processed undo request from %s, reverted to sequence %d", client.UserID, entry.SequenceNumber-1)
 }
 
 // processRedoRequest handles redo requests
 func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []byte) {
 	var msg RedoRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		logging.Get().Info("Error parsing redo request: %v", err)
+		slogging.Get().Info("Error parsing redo request: %v", err)
 		return
 	}
 
@@ -2114,7 +2234,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 
 	// Check if redo is possible
 	if !s.OperationHistory.CanRedo() {
-		logging.Get().Info("No operations to redo for user %s", client.UserID)
+		slogging.Get().Info("No operations to redo for user %s", client.UserID)
 		// Send message indicating no redo available
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -2128,7 +2248,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 	// Get the operation to redo
 	entry, ok := s.OperationHistory.GetRedoOperation()
 	if !ok {
-		logging.Get().Info("Failed to get redo operation for user %s", client.UserID)
+		slogging.Get().Info("Failed to get redo operation for user %s", client.UserID)
 		// Send resync required as fallback
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -2142,7 +2262,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 	// Apply the redo by re-executing the operation
 	err := s.applyHistoryOperation(entry.Operation)
 	if err != nil {
-		logging.Get().Info("Failed to apply redo operation: %v", err)
+		slogging.Get().Info("Failed to apply redo operation: %v", err)
 		// Send resync required as fallback
 		response := HistoryOperationMessage{
 			MessageType:   "history_operation",
@@ -2163,7 +2283,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 		Message:       "resync_required", // For now, tell clients to resync
 	}
 	s.broadcastToAllClients(response)
-	logging.Get().Info("Processed redo request from %s, restored to sequence %d", client.UserID, entry.SequenceNumber)
+	slogging.Get().Info("Processed redo request from %s, restored to sequence %d", client.UserID, entry.SequenceNumber)
 }
 
 // Helper methods
@@ -2173,7 +2293,7 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	logging.Get().Info("Presenter %s disconnected from session %s, reassigning presenter", disconnectedUserID, s.ID)
+	slogging.Get().Info("Presenter %s disconnected from session %s, reassigning presenter", disconnectedUserID, s.ID)
 
 	// Reset presenter according to the plan:
 	// 1. First try to set presenter back to host
@@ -2196,7 +2316,7 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		// Get the threat model to check user permissions
 		tm, err := ThreatModelStore.Get(s.ThreatModelID)
 		if err != nil {
-			logging.Get().Info("Failed to get threat model %s for presenter reassignment: %v", s.ThreatModelID, err)
+			slogging.Get().Info("Failed to get threat model %s for presenter reassignment: %v", s.ThreatModelID, err)
 		} else {
 			// Find first connected user with write permissions
 			for client := range s.Clients {
@@ -2231,18 +2351,18 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		s.broadcastParticipantsUpdate()
 		s.mu.Lock()
 
-		logging.Get().Info("Set new presenter to %s in session %s after %s disconnected", newPresenter, s.ID, disconnectedUserID)
+		slogging.Get().Info("Set new presenter to %s in session %s after %s disconnected", newPresenter, s.ID, disconnectedUserID)
 	} else {
 		// No suitable presenter found, clear presenter
 		s.CurrentPresenter = ""
-		logging.Get().Info("No suitable presenter found for session %s after %s disconnected", s.ID, disconnectedUserID)
+		slogging.Get().Info("No suitable presenter found for session %s after %s disconnected", s.ID, disconnectedUserID)
 	}
 }
 
 // handleHostDisconnection handles when the host leaves
 // This method broadcasts session termination messages and prepares for session cleanup
 func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
-	logging.Get().Info("Host %s disconnected from session %s, initiating session termination", disconnectedHostID, s.ID)
+	slogging.Get().Info("Host %s disconnected from session %s, initiating session termination", disconnectedHostID, s.ID)
 
 	// Update session state to terminating
 	s.mu.Lock()
@@ -2256,7 +2376,7 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 	for client := range s.Clients {
 		if client.UserID != disconnectedHostID { // Host already disconnected
 			close(client.Send)
-			logging.Get().Debug("Closed connection for participant %s due to session termination", client.UserID)
+			slogging.Get().Debug("Closed connection for participant %s due to session termination", client.UserID)
 		}
 	}
 
@@ -2271,7 +2391,7 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 		delete(s.Hub.Diagrams, s.DiagramID)
 		s.Hub.mu.Unlock()
 
-		logging.Get().Info("Session %s removed from hub after host disconnection", s.ID)
+		slogging.Get().Info("Session %s removed from hub after host disconnection", s.ID)
 
 		// Record session end
 		if GlobalPerformanceMonitor != nil {
@@ -2279,7 +2399,7 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 		}
 	}
 
-	logging.Get().Info("Session %s terminated due to host departure", s.ID)
+	slogging.Get().Info("Session %s terminated due to host departure", s.ID)
 }
 
 // broadcastSessionTermination sends termination messages to all participants
@@ -2291,7 +2411,7 @@ func (s *DiagramSession) cleanupSession() {
 		delete(s.Hub.Diagrams, s.DiagramID)
 		s.Hub.mu.Unlock()
 
-		logging.Get().Info("Session %s removed from hub after termination", s.ID)
+		slogging.Get().Info("Session %s removed from hub after termination", s.ID)
 
 		// Record session end
 		if GlobalPerformanceMonitor != nil {
@@ -2394,7 +2514,7 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 			perms := getSessionPermissionsForUser(permissionCheckID, tm)
 			if perms == nil {
 				// User is unauthorized, skip them
-				logging.Get().Debug("Skipping user %s (%s) - no permissions found for threat model %s", client.UserID, permissionCheckID, tm.Id)
+				slogging.Get().Debug("Skipping user %s (%s) - no permissions found for threat model %s", client.UserID, permissionCheckID, tm.Id)
 				continue
 			}
 			permissions = string(*perms)
@@ -2428,10 +2548,10 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 		select {
 		case s.Broadcast <- msgBytes:
 		default:
-			logging.Get().Error("Failed to broadcast participants update: broadcast channel full")
+			slogging.Get().Error("Failed to broadcast participants update: broadcast channel full")
 		}
 	} else {
-		logging.Get().Error("Failed to marshal participants update: %v", err)
+		slogging.Get().Error("Failed to marshal participants update: %v", err)
 	}
 }
 
@@ -2470,7 +2590,7 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 			perms := getSessionPermissionsForUser(permissionCheckID, tm)
 			if perms == nil {
 				// User is unauthorized, skip them
-				logging.Get().Debug("Skipping user %s (%s) - no permissions found for threat model %s", c.UserID, permissionCheckID, tm.Id)
+				slogging.Get().Debug("Skipping user %s (%s) - no permissions found for threat model %s", c.UserID, permissionCheckID, tm.Id)
 				continue
 			}
 			permissions = string(*perms)
@@ -2501,15 +2621,15 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 
 	if msgBytes, err := json.Marshal(msg); err == nil {
 		// Send to specific client
-		logging.Get().Debug("Sending participants update message to client %s with %d participants", client.UserID, len(participants))
+		slogging.Get().Debug("Sending participants update message to client %s with %d participants", client.UserID, len(participants))
 		select {
 		case client.Send <- msgBytes:
-			logging.Get().Debug("Successfully queued participants update for client %s", client.UserID)
+			slogging.Get().Debug("Successfully queued participants update for client %s", client.UserID)
 		default:
-			logging.Get().Error("Failed to send participants update to client %s: send channel full", client.UserID)
+			slogging.Get().Error("Failed to send participants update to client %s: send channel full", client.UserID)
 		}
 	} else {
-		logging.Get().Error("Failed to marshal participants update for client: %v", err)
+		slogging.Get().Error("Failed to marshal participants update for client: %v", err)
 	}
 }
 
@@ -2568,7 +2688,7 @@ func (s *DiagramSession) sendStateCorrectionWithReason(client *WebSocketClient, 
 		return
 	}
 
-	logging.Get().Info("Sending state correction to %s for cells %v (reason: %s)", client.UserID, affectedCellIDs, reason)
+	slogging.Get().Info("Sending state correction to %s for cells %v (reason: %s)", client.UserID, affectedCellIDs, reason)
 
 	// Check user permission level for enhanced messaging
 	// Use email for permission check for backwards compatibility
@@ -2580,87 +2700,66 @@ func (s *DiagramSession) sendStateCorrectionWithReason(client *WebSocketClient, 
 	s.sendEnhancedStateCorrection(client, affectedCellIDs, reason, userRole)
 }
 
-// sendEnhancedStateCorrection sends enhanced state correction with role-specific messaging
+// sendEnhancedStateCorrection sends enhanced state correction with update vector
 func (s *DiagramSession) sendEnhancedStateCorrection(client *WebSocketClient, affectedCellIDs []string, reason string, userRole Role) {
 
 	// Get current diagram state
 	diagram, err := DiagramStore.Get(s.DiagramID)
 	if err != nil {
-		logging.Get().Info("Error getting diagram for state correction: %v", err)
+		slogging.Get().Info("Error getting diagram for state correction: %v", err)
 		return
 	}
 
-	// Build correction cells for the affected cell IDs
-	var correctionCells []Cell
-	converter := NewCellConverter()
-
-	// Convert diagram cells to a map for quick lookup
-	cellMap := make(map[string]Cell)
-	totalCells := 0
-	for _, cellItem := range diagram.Cells {
-		// Convert DfdDiagram_Cells_Item to Cell using existing conversion logic
-		if cell, err := converter.ConvertUnionItemToCell(cellItem); err == nil {
-			cellMap[cell.Id.String()] = cell
-			totalCells++
-		}
+	// Get current update vector from diagram
+	updateVector := int64(0)
+	if diagram.UpdateVector != nil {
+		updateVector = *diagram.UpdateVector
 	}
 
-	// Include current state of affected cells in the correction
-	correctionsSent := 0
-	for _, cellID := range affectedCellIDs {
-		if cell, exists := cellMap[cellID]; exists {
-			correctionCells = append(correctionCells, cell)
-			correctionsSent++
-		}
-		// If cell doesn't exist, it means it was deleted - this is also valid state to communicate
+	// Send the correction with update vector
+	correctionMsg := StateCorrectionMessage{
+		MessageType:  "state_correction",
+		UpdateVector: &updateVector,
 	}
+	s.sendToClient(client, correctionMsg)
 
-	// Send the correction with enhanced messaging based on user role and reason
-	if len(correctionCells) > 0 || correctionsSent < len(affectedCellIDs) {
-		correctionMsg := StateCorrectionMessage{
-			MessageType: "state_correction",
-			Cells:       correctionCells,
-		}
-		s.sendToClient(client, correctionMsg)
+	// Enhanced logging based on reason and user role
+	s.logEnhancedStateCorrection(client.UserID, reason, userRole)
 
-		// Enhanced logging based on reason and user role
-		s.logEnhancedStateCorrection(client.UserID, reason, userRole, correctionsSent, len(affectedCellIDs)-correctionsSent, totalCells)
+	// Track correction frequency for potential sync issues
+	s.trackCorrectionEvent(client.UserID, reason)
 
-		// Track correction frequency for potential sync issues
-		s.trackCorrectionEvent(client.UserID, reason)
-
-		// Record performance metrics
-		if GlobalPerformanceMonitor != nil {
-			GlobalPerformanceMonitor.RecordStateCorrection(s.ID, client.UserID, reason, len(correctionCells))
-		}
+	// Record performance metrics
+	if GlobalPerformanceMonitor != nil {
+		GlobalPerformanceMonitor.RecordStateCorrection(s.ID, client.UserID, reason)
 	}
 }
 
 // logEnhancedStateCorrection provides detailed logging for state corrections
-func (s *DiagramSession) logEnhancedStateCorrection(userID string, reason string, userRole Role, correctionsSent, deletionsSent, totalCells int) {
+func (s *DiagramSession) logEnhancedStateCorrection(userID string, reason string, userRole Role) {
 	roleStr := string(userRole)
 
 	switch reason {
 	case "unauthorized_operation":
-		logging.Get().Warn("STATE CORRECTION [UNAUTHORIZED]: User %s (%s role) attempted unauthorized operation - sent %d cell corrections, %d deletions (total cells: %d)",
-			userID, roleStr, correctionsSent, deletionsSent, totalCells)
+		slogging.Get().Warn("STATE CORRECTION [UNAUTHORIZED]: User %s (%s role) attempted unauthorized operation - resync required",
+			userID, roleStr)
 
 		// Enhanced security logging for unauthorized operations
 		if userRole == RoleReader {
-			logging.Get().Error("SECURITY ALERT: Read-only user %s attempted to modify diagram %s", userID, s.DiagramID)
+			slogging.Get().Error("SECURITY ALERT: Read-only user %s attempted to modify diagram %s", userID, s.DiagramID)
 		}
 
 	case "operation_failed":
-		logging.Get().Warn("STATE CORRECTION [OPERATION_FAILED]: User %s (%s role) operation failed - sent %d cell corrections, %d deletions (total cells: %d)",
-			userID, roleStr, correctionsSent, deletionsSent, totalCells)
+		slogging.Get().Warn("STATE CORRECTION [OPERATION_FAILED]: User %s (%s role) operation failed - resync required",
+			userID, roleStr)
 
 	case "out_of_order_sequence", "duplicate_message", "message_gap":
-		logging.Get().Warn("STATE CORRECTION [SYNC_ISSUE]: User %s (%s role) sync issue (%s) - sent %d cell corrections, %d deletions (total cells: %d)",
-			userID, roleStr, reason, correctionsSent, deletionsSent, totalCells)
+		slogging.Get().Warn("STATE CORRECTION [SYNC_ISSUE]: User %s (%s role) sync issue (%s) - resync required",
+			userID, roleStr, reason)
 
 	default:
-		logging.Get().Warn("STATE CORRECTION [%s]: User %s (%s role) - sent %d cell corrections, %d deletions (total cells: %d)",
-			strings.ToUpper(reason), userID, roleStr, correctionsSent, deletionsSent, totalCells)
+		slogging.Get().Warn("STATE CORRECTION [%s]: User %s (%s role) - resync required",
+			strings.ToUpper(reason), userID, roleStr)
 	}
 }
 
@@ -2683,7 +2782,7 @@ func (s *DiagramSession) trackCorrectionEvent(userID, reason string) {
 
 	// Log potential sync issues
 	if s.recentCorrections[correctionKey] >= 3 {
-		logging.Get().Warn("WARNING: User %s has received %d state corrections for reason '%s' - potential sync issue",
+		slogging.Get().Warn("WARNING: User %s has received %d state corrections for reason '%s' - potential sync issue",
 			userID, s.recentCorrections[correctionKey], reason)
 	}
 }
@@ -2705,7 +2804,7 @@ func (s *DiagramSession) trackPotentialSyncIssue(userID, issueType string) {
 
 	// Log potential sync issues based on frequency
 	if s.recentCorrections[issueKey] >= 5 {
-		logging.Get().Warn("WARNING: User %s has experienced %d '%s' issues - may need resync",
+		slogging.Get().Warn("WARNING: User %s has experienced %d '%s' issues - may need resync",
 			userID, s.recentCorrections[issueKey], issueType)
 
 		// Send automatic resync recommendation to client
@@ -2721,7 +2820,7 @@ func (s *DiagramSession) sendResyncRecommendation(userID, issueType string) {
 	// Find the client by user ID
 	client := s.findClientByUserID(userID)
 	if client == nil {
-		logging.Get().Info("Cannot send resync recommendation: client %s not found", userID)
+		slogging.Get().Info("Cannot send resync recommendation: client %s not found", userID)
 		return
 	}
 
@@ -2740,40 +2839,24 @@ func (s *DiagramSession) sendResyncRecommendation(userID, issueType string) {
 	}
 
 	s.sendToClient(client, resyncResponse)
-	logging.Get().Info("Sent automatic resync recommendation to %s due to %s issues", userID, issueType)
+	slogging.Get().Info("Sent automatic resync recommendation to %s due to %s issues", userID, issueType)
 }
 
 // applyHistoryState applies a historical state to the diagram (for undo)
 func (s *DiagramSession) applyHistoryState(state map[string]*Cell) error {
-	// Get current diagram
-	diagram, err := DiagramStore.Get(s.DiagramID)
-	if err != nil {
-		return fmt.Errorf("failed to get diagram: %w", err)
-	}
-
-	// Clear existing cells and apply historical state
-	diagram.Cells = []DfdDiagram_Cells_Item{}
-
-	// Create converter for cell transformations
-	converter := NewCellConverter()
-
-	// Convert historical state back to diagram cells
+	// Convert state map to Cell slice for centralized update
+	cells := make([]Cell, 0, len(state))
 	for _, cell := range state {
-		// Convert Cell to DfdDiagram_Cells_Item
-		cellUnion, err := converter.ConvertCellToUnionItem(*cell)
-		if err != nil {
-			logging.Get().Info("Warning: failed to convert cell %s: %v", cell.Id.String(), err)
-			continue
-		}
-		diagram.Cells = append(diagram.Cells, cellUnion)
+		cells = append(cells, *cell)
 	}
 
-	// Update modification time
-	now := time.Now().UTC()
-	diagram.ModifiedAt = now
+	// Use centralized update function
+	_, err := s.Hub.UpdateDiagramCells(s.DiagramID, cells, "websocket", "")
+	if err != nil {
+		return fmt.Errorf("failed to update diagram via centralized function: %w", err)
+	}
 
-	// Save updated diagram
-	return DiagramStore.Update(s.DiagramID, diagram)
+	return nil
 }
 
 // applyHistoryOperation applies a historical operation to the diagram (for redo)
@@ -2796,7 +2879,7 @@ func (s *DiagramSession) applyHistoryOperation(operation CellPatchOperation) err
 func (s *DiagramSession) broadcastToAllClients(message interface{}) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
-		logging.Get().Info("Error marshaling broadcast message: %v", err)
+		slogging.Get().Info("Error marshaling broadcast message: %v", err)
 		return
 	}
 
@@ -2812,7 +2895,7 @@ func (s *DiagramSession) broadcastToAllClients(message interface{}) {
 		select {
 		case client.Send <- msgBytes:
 		default:
-			logging.Get().Info("Failed to send message to client %s", client.UserID)
+			slogging.Get().Info("Failed to send message to client %s", client.UserID)
 		}
 	}
 }
@@ -2821,14 +2904,14 @@ func (s *DiagramSession) broadcastToAllClients(message interface{}) {
 func (s *DiagramSession) sendToClient(client *WebSocketClient, message interface{}) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
-		logging.Get().Info("Error marshaling message: %v", err)
+		slogging.Get().Info("Error marshaling message: %v", err)
 		return
 	}
 
 	select {
 	case client.Send <- msgBytes:
 	default:
-		logging.Get().Info("Client send channel full, dropping message")
+		slogging.Get().Info("Client send channel full, dropping message")
 	}
 }
 
@@ -2836,7 +2919,7 @@ func (s *DiagramSession) sendToClient(client *WebSocketClient, message interface
 func (s *DiagramSession) broadcastMessage(message interface{}) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
-		logging.Get().Info("Error marshaling broadcast message: %v", err)
+		slogging.Get().Info("Error marshaling broadcast message: %v", err)
 		return
 	}
 
@@ -2847,7 +2930,7 @@ func (s *DiagramSession) broadcastMessage(message interface{}) {
 func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message interface{}) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
-		logging.Get().Info("Error marshaling message: %v", err)
+		slogging.Get().Info("Error marshaling message: %v", err)
 		return
 	}
 
@@ -2857,7 +2940,7 @@ func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message inte
 			select {
 			case client.Send <- msgBytes:
 			default:
-				logging.Get().Info("Client send channel full, dropping message")
+				slogging.Get().Info("Client send channel full, dropping message")
 			}
 		}
 	}
@@ -2937,8 +3020,28 @@ func (cop *CellOperationProcessor) processAndValidateCellOperations(diagram *Dfd
 		return result
 	}
 
-	// Process each cell operation
+	// Check for duplicate cell IDs within this operation to prevent client bugs
+	// from causing conflicts and disconnections
+	seenCellIDs := make(map[string]bool)
+	deduplicatedCells := make([]CellOperation, 0, len(operation.Cells))
+
 	for _, cellOp := range operation.Cells {
+		if seenCellIDs[cellOp.ID] {
+			slogging.Get().Warn("Duplicate cell operation detected in single message - CellID: %s, Operation: %s",
+				cellOp.ID, cellOp.Operation)
+			continue // Skip duplicate operations
+		}
+		seenCellIDs[cellOp.ID] = true
+		deduplicatedCells = append(deduplicatedCells, cellOp)
+	}
+
+	if len(deduplicatedCells) != len(operation.Cells) {
+		slogging.Get().Info("Filtered %d duplicate cell operations from message",
+			len(operation.Cells)-len(deduplicatedCells))
+	}
+
+	// Process each deduplicated cell operation
+	for _, cellOp := range deduplicatedCells {
 		cellResult := cop.validateAndProcessCellOperation(diagram, currentState, cellOp)
 
 		if !cellResult.Valid {
@@ -3180,7 +3283,7 @@ func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOper
 	// Get current diagram state
 	diagram, err := DiagramStore.Get(s.DiagramID)
 	if err != nil {
-		logging.Get().Info("Failed to get diagram %s: %v", s.DiagramID, err)
+		slogging.Get().Info("Failed to get diagram %s: %v", s.DiagramID, err)
 		return false
 	}
 
@@ -3197,7 +3300,7 @@ func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOper
 	result := s.processAndValidateCellOperations(&diagram, currentState, msg.Operation)
 
 	if !result.Valid {
-		logging.Get().Info("Operation %s validation failed: %s", msg.OperationID, result.Reason)
+		slogging.Get().Info("Operation %s validation failed: %s", msg.OperationID, result.Reason)
 
 		if result.CorrectionNeeded {
 			s.sendStateCorrection(client, result.CellsModified)
@@ -3207,14 +3310,14 @@ func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOper
 	}
 
 	if !result.StateChanged {
-		logging.Get().Info("Operation %s resulted in no state changes", msg.OperationID)
+		slogging.Get().Info("Operation %s resulted in no state changes", msg.OperationID)
 		return false // Don't broadcast no-op operations
 	}
 
 	// Update operation history
 	s.addToHistory(msg, client.UserID, result.PreviousState, currentState)
 
-	logging.Get().Info("Successfully applied operation %s from %s with sequence %d",
+	slogging.Get().Info("Successfully applied operation %s from %s with sequence %d",
 		msg.OperationID, client.UserID, *msg.SequenceNumber)
 
 	return true
@@ -3248,8 +3351,28 @@ func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, c
 		return result
 	}
 
-	// Process each cell operation
+	// Check for duplicate cell IDs within this operation to prevent client bugs
+	// from causing conflicts and disconnections
+	seenCellIDs := make(map[string]bool)
+	deduplicatedCells := make([]CellOperation, 0, len(operation.Cells))
+
 	for _, cellOp := range operation.Cells {
+		if seenCellIDs[cellOp.ID] {
+			slogging.Get().Warn("Duplicate cell operation detected in single message - Session: %s, CellID: %s, Operation: %s",
+				s.ID, cellOp.ID, cellOp.Operation)
+			continue // Skip duplicate operations
+		}
+		seenCellIDs[cellOp.ID] = true
+		deduplicatedCells = append(deduplicatedCells, cellOp)
+	}
+
+	if len(deduplicatedCells) != len(operation.Cells) {
+		slogging.Get().Info("Filtered %d duplicate cell operations from message - Session: %s",
+			len(operation.Cells)-len(deduplicatedCells), s.ID)
+	}
+
+	// Process each deduplicated cell operation
+	for _, cellOp := range deduplicatedCells {
 		cellResult := s.validateAndProcessCellOperation(diagram, currentState, cellOp)
 
 		if !cellResult.Valid {
@@ -3326,9 +3449,23 @@ func (s *DiagramSession) validateAddOperation(diagram *DfdDiagram, currentState 
 	diagram.Cells = append(diagram.Cells, cellItem)
 	result.StateChanged = true
 
-	// Save changes
-	if err := DiagramStore.Update(s.DiagramID, *diagram); err != nil {
-		logging.Get().Info("Failed to save diagram after add operation: %v", err)
+	// Use centralized update function to save changes
+	saveConverter := NewCellConverter()
+	cells := make([]Cell, len(diagram.Cells))
+	for i, cellItem := range diagram.Cells {
+		if cell, err := saveConverter.ConvertUnionItemToCell(cellItem); err == nil {
+			cells[i] = cell
+		} else {
+			slogging.Get().Info("Warning: failed to convert cell during save: %v", err)
+			result.Valid = false
+			result.Reason = "save_failed"
+			return result
+		}
+	}
+
+	_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, cells, "websocket", "")
+	if saveErr != nil {
+		slogging.Get().Info("Failed to save diagram after add operation: %v", saveErr)
 		result.Valid = false
 		result.Reason = "save_failed"
 		return result
@@ -3397,9 +3534,23 @@ func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentSta
 
 	result.StateChanged = true
 
-	// Save changes
-	if err := DiagramStore.Update(s.DiagramID, *diagram); err != nil {
-		logging.Get().Info("Failed to save diagram after update operation: %v", err)
+	// Use centralized update function to save changes
+	saveConverter := NewCellConverter()
+	cells := make([]Cell, len(diagram.Cells))
+	for i, cellItem := range diagram.Cells {
+		if cell, err := saveConverter.ConvertUnionItemToCell(cellItem); err == nil {
+			cells[i] = cell
+		} else {
+			slogging.Get().Info("Warning: failed to convert cell during save: %v", err)
+			result.Valid = false
+			result.Reason = "save_failed"
+			return result
+		}
+	}
+
+	_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, cells, "websocket", "")
+	if saveErr != nil {
+		slogging.Get().Info("Failed to save diagram after update operation: %v", saveErr)
 		result.Valid = false
 		result.Reason = "save_failed"
 		return result
@@ -3440,9 +3591,23 @@ func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentSta
 	result.StateChanged = found
 
 	if found {
-		// Save changes
-		if err := DiagramStore.Update(s.DiagramID, *diagram); err != nil {
-			logging.Get().Info("Failed to save diagram after remove operation: %v", err)
+		// Use centralized update function to save changes
+		saveConverter := NewCellConverter()
+		cells := make([]Cell, len(diagram.Cells))
+		for i, cellItem := range diagram.Cells {
+			if cell, err := saveConverter.ConvertUnionItemToCell(cellItem); err == nil {
+				cells[i] = cell
+			} else {
+				slogging.Get().Info("Warning: failed to convert cell during save: %v", err)
+				result.Valid = false
+				result.Reason = "save_failed"
+				return result
+			}
+		}
+
+		_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, cells, "websocket", "")
+		if saveErr != nil {
+			slogging.Get().Info("Failed to save diagram after remove operation: %v", saveErr)
 			result.Valid = false
 			result.Reason = "save_failed"
 			return result
@@ -3512,8 +3677,13 @@ func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, userID string
 	s.OperationHistory.mutex.Lock()
 	defer s.OperationHistory.mutex.Unlock()
 
+	var sequenceNumber uint64
+	if msg.SequenceNumber != nil {
+		sequenceNumber = *msg.SequenceNumber
+	}
+
 	entry := &HistoryEntry{
-		SequenceNumber: *msg.SequenceNumber,
+		SequenceNumber: sequenceNumber,
 		OperationID:    msg.OperationID,
 		UserID:         userID,
 		Timestamp:      time.Now().UTC(),
@@ -3642,34 +3812,34 @@ func (c *WebSocketClient) ReadPump() {
 	defer func() {
 		// Panic recovery
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in WebSocketClient.ReadPump() - User: %s, Session: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in WebSocketClient.ReadPump() - User: %s, Session: %s, Error: %v, Stack: %s",
 				c.UserID, c.Session.ID, r, debug.Stack())
 		}
 
 		// Log WebSocket disconnection
 		if c.Session != nil && c.Hub != nil {
-			logging.LogWebSocketConnection("CONNECTION_CLOSED", c.Session.ID, c.UserID, c.Session.DiagramID, c.Hub.LoggingConfig)
+			slogging.LogWebSocketConnection("CONNECTION_CLOSED", c.Session.ID, c.UserID, c.Session.DiagramID, c.Hub.LoggingConfig)
 		}
 		if c.Session != nil {
 			c.Session.Unregister <- c
 		}
 		if err := c.Conn.Close(); err != nil {
-			logging.Get().Info("Error closing connection: %v", err)
+			slogging.Get().Info("Error closing connection: %v", err)
 		}
 	}()
 
-	logging.Get().Debug("WebSocketClient.ReadPump() started - User: %s, Session: %s", c.UserID, c.Session.ID)
+	slogging.Get().Debug("WebSocketClient.ReadPump() started - User: %s, Session: %s", c.UserID, c.Session.ID)
 
 	c.Conn.SetReadLimit(65536) // 64KB message limit
 	// Set read timeout to 3x ping interval (90 seconds)
 	readTimeout := 90 * time.Second
 	if err := c.Conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
-		logging.Get().Info("Error setting read deadline: %v", err)
+		slogging.Get().Info("Error setting read deadline: %v", err)
 		return
 	}
 	c.Conn.SetPongHandler(func(string) error {
 		if err := c.Conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
-			logging.Get().Info("Error setting read deadline in pong handler: %v", err)
+			slogging.Get().Info("Error setting read deadline in pong handler: %v", err)
 		}
 		return nil
 	})
@@ -3686,13 +3856,13 @@ func (c *WebSocketClient) ReadPump() {
 				}
 			} else if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				if c.Session != nil {
-					logging.Get().Info("WebSocket error in session %s for user %s: %v", c.Session.ID, c.UserID, err)
+					slogging.Get().Info("WebSocket error in session %s for user %s: %v", c.Session.ID, c.UserID, err)
 				} else {
-					logging.Get().Info("WebSocket error (no session) for user %s: %v", c.UserID, err)
+					slogging.Get().Info("WebSocket error (no session) for user %s: %v", c.UserID, err)
 				}
 				// Log WebSocket error
 				if c.Session != nil && c.Hub != nil {
-					logging.LogWebSocketError("UNEXPECTED_CLOSE", err.Error(), c.Session.ID, c.UserID, c.Hub.LoggingConfig)
+					slogging.LogWebSocketError("UNEXPECTED_CLOSE", err.Error(), c.Session.ID, c.UserID, c.Hub.LoggingConfig)
 				}
 			}
 			break
@@ -3703,8 +3873,8 @@ func (c *WebSocketClient) ReadPump() {
 
 		// Log inbound WebSocket message
 		if c.Session != nil && c.Hub != nil {
-			logging.LogWebSocketMessage(
-				logging.WSMessageInbound,
+			slogging.LogWebSocketMessage(
+				slogging.WSMessageInbound,
 				c.Session.ID,
 				c.UserName,
 				"text",
@@ -3719,74 +3889,13 @@ func (c *WebSocketClient) ReadPump() {
 }
 
 // applyDiagramOperation applies a diagram operation to the stored diagram
+// Note: This function is currently unused according to linter warnings
 func applyDiagramOperation(diagramID string, op DiagramOperation) error {
-	// Get the diagram from the store
-	diagram, err := DiagramStore.Get(diagramID)
-	if err != nil {
-		return err
-	}
-
-	// Ensure cells array exists (no longer need to check since Cells is not a pointer)
-	if diagram.Cells == nil {
-		diagram.Cells = []DfdDiagram_Cells_Item{}
-	}
-
-	// Update diagram based on operation type
-	switch op.Type {
-	case "add":
-		// Add a new component
-		if op.Component != nil {
-			// Convert Cell to DfdDiagram_Cells_Item using conversion utility
-			converter := NewCellConverter()
-			cellItem, err := converter.ConvertCellToUnionItem(*op.Component)
-			if err != nil {
-				return fmt.Errorf("failed to convert cell: %w", err)
-			}
-			diagram.Cells = append(diagram.Cells, cellItem)
-		}
-	case "update":
-		// Update an existing cell
-		converter := NewCellConverter()
-		for i := range diagram.Cells {
-			cellItem := &diagram.Cells[i]
-			// Convert to Cell to check ID
-			if cell, err := converter.ConvertUnionItemToCell(*cellItem); err == nil {
-				if cell.Id.String() == op.ComponentID {
-					// Update existing cell with new properties from op.Component
-					if op.Component != nil {
-						// Replace the entire cell with the updated version
-						if updatedCellItem, err := converter.ConvertCellToUnionItem(*op.Component); err == nil {
-							diagram.Cells[i] = updatedCellItem
-						}
-					}
-					break
-				}
-			}
-		}
-	case "remove":
-		// Remove a cell
-		converter := NewCellConverter()
-		for i, cellItem := range diagram.Cells {
-			// Convert to Cell to check ID
-			if cell, err := converter.ConvertUnionItemToCell(cellItem); err == nil {
-				if cell.Id.String() == op.ComponentID {
-					// Remove by replacing with last element and truncating
-					lastIndex := len(diagram.Cells) - 1
-					if i != lastIndex {
-						diagram.Cells[i] = diagram.Cells[lastIndex]
-					}
-					diagram.Cells = diagram.Cells[:lastIndex]
-					break
-				}
-			}
-		}
-	}
-
-	// Update modification time
-	diagram.ModifiedAt = time.Now().UTC()
-
-	// Save changes
-	return DiagramStore.Update(diagramID, diagram)
+	// Since this function is unused and the validation functions (validateAddOperation, etc.)
+	// already handle individual cell operations with proper centralized updates,
+	// we'll deprecate this function to avoid complexity.
+	// If needed in the future, it should be refactored to use the centralized UpdateDiagram function.
+	return fmt.Errorf("applyDiagramOperation is deprecated - use CellOperationProcessor instead")
 }
 
 // WritePump pumps messages from hub to WebSocket
@@ -3795,38 +3904,38 @@ func (c *WebSocketClient) WritePump() {
 	defer func() {
 		// Panic recovery
 		if r := recover(); r != nil {
-			logging.Get().Error("PANIC in WebSocketClient.WritePump() - User: %s, Session: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in WebSocketClient.WritePump() - User: %s, Session: %s, Error: %v, Stack: %s",
 				c.UserID, c.Session.ID, r, debug.Stack())
 		}
 
 		ticker.Stop()
 		if err := c.Conn.Close(); err != nil {
-			logging.Get().Info("Error closing connection: %v", err)
+			slogging.Get().Info("Error closing connection: %v", err)
 		}
 	}()
 
-	logging.Get().Debug("WebSocketClient.WritePump() started - User: %s, Session: %s", c.UserID, c.Session.ID)
+	slogging.Get().Debug("WebSocketClient.WritePump() started - User: %s, Session: %s", c.UserID, c.Session.ID)
 
 	for {
 		select {
 		case message, ok := <-c.Send:
 			if err := c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-				logging.Get().Info("Error setting write deadline: %v", err)
+				slogging.Get().Info("Error setting write deadline: %v", err)
 				return
 			}
 			if !ok {
 				// Hub closed the channel
 				if err := c.Conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
-					logging.Get().Info("Error writing close message: %v", err)
+					slogging.Get().Info("Error writing close message: %v", err)
 				}
 				return
 			}
-			logging.Get().Debug("WritePump: Sending message to client %s - length: %d", c.UserID, len(message))
+			slogging.Get().Debug("WritePump: Sending message to client %s - length: %d", c.UserID, len(message))
 
 			// Log outbound WebSocket message
 			if c.Session != nil && c.Hub != nil {
-				logging.LogWebSocketMessage(
-					logging.WSMessageOutbound,
+				slogging.LogWebSocketMessage(
+					slogging.WSMessageOutbound,
 					c.Session.ID,
 					c.UserName,
 					"text",
@@ -3840,7 +3949,7 @@ func (c *WebSocketClient) WritePump() {
 				return
 			}
 			if _, err := w.Write(message); err != nil {
-				logging.Get().Info("Error writing message: %v", err)
+				slogging.Get().Info("Error writing message: %v", err)
 				return
 			}
 
@@ -3852,7 +3961,7 @@ func (c *WebSocketClient) WritePump() {
 			}
 		case <-ticker.C:
 			if err := c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-				logging.Get().Info("Error setting write deadline for ping: %v", err)
+				slogging.Get().Info("Error setting write deadline for ping: %v", err)
 				return
 			}
 			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {

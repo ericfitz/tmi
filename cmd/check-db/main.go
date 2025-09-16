@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/ericfitz/tmi/internal/dbschema"
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/joho/godotenv"
 )
@@ -15,22 +15,22 @@ import (
 func main() {
 	// Load environment variables
 	if err := godotenv.Load(".env.dev"); err != nil {
-		logging.Get().Warn("Warning: Could not load .env.dev: %v", err)
+		slogging.Get().Warn("Warning: Could not load .env.dev: %v", err)
 	}
 
 	// Initialize logger for consistent logging
-	if err := logging.Initialize(logging.Config{
-		Level:            logging.ParseLogLevel("info"),
+	if err := slogging.Initialize(slogging.Config{
+		Level:            slogging.ParseLogLevel("info"),
 		IsDev:            true,
 		AlsoLogToConsole: true,
 	}); err != nil {
-		logging.Get().Error("Failed to initialize logger: %v", err)
+		slogging.Get().Error("Failed to initialize logger: %v", err)
 		os.Exit(1)
 	}
-	logger := logging.Get()
+	logger := slogging.Get()
 	defer func() {
 		if err := logger.Close(); err != nil {
-			logging.Get().Warn("Error closing logger: %v", err)
+			slogging.Get().Warn("Error closing logger: %v", err)
 		}
 	}()
 
@@ -95,7 +95,7 @@ func main() {
 	for _, table := range tables {
 		// Validate table name against whitelist to prevent SQL injection
 		if !validTables[table.Name] {
-			fmt.Printf("  %-25s: Invalid table name\n", table.Name)
+			logger.Error("Invalid table name during row count check: %s", table.Name)
 			continue
 		}
 
@@ -103,6 +103,7 @@ func main() {
 		// #nosec G201 - table name is validated against whitelist from our schema definition
 		countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", table.Name)
 		if err := db.QueryRow(countQuery).Scan(&count); err != nil {
+			logger.Error("Error counting rows for table %s: %v", table.Name, err)
 			fmt.Printf("  %-25s: Error counting rows\n", table.Name)
 		} else {
 			fmt.Printf("  %-25s: %d rows\n", table.Name, count)
