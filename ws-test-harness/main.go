@@ -20,7 +20,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 type Config struct {
@@ -84,15 +84,15 @@ type User struct {
 func main() {
 	config := parseArgs()
 
-	logging.Get().Info("WebSocket Test Harness starting")
-	logging.Get().Info("Configuration", "server", config.ServerURL, "user_hint", config.UserHint, "mode", func() string {
+	slogging.Get().GetSlogger().Info("WebSocket Test Harness starting")
+	slogging.Get().GetSlogger().Info("Configuration", "server", config.ServerURL, "user_hint", config.UserHint, "mode", func() string {
 		if config.IsHost {
 			return "Host"
 		}
 		return "Participant"
 	}())
 	if config.IsHost && len(config.Participants) > 0 {
-		logging.Get().Info("Host mode participants", "participants", strings.Join(config.Participants, ", "))
+		slogging.Get().GetSlogger().Info("Host mode participants", "participants", strings.Join(config.Participants, ", "))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -103,18 +103,18 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
-		logging.Get().Info("Shutting down")
+		slogging.Get().GetSlogger().Info("Shutting down")
 		cancel()
 	}()
 
 	// Perform OAuth login
 	tokens, err := performOAuthLogin(ctx, config)
 	if err != nil {
-		logging.Get().Error("OAuth login failed", "error", err)
+		slogging.Get().GetSlogger().Error("OAuth login failed", "error", err)
 		os.Exit(1)
 	}
 
-	logging.Get().Info("Login successful", "access_token_prefix", tokens.AccessToken[:20])
+	slogging.Get().GetSlogger().Info("Login successful", "access_token_prefix", tokens.AccessToken[:20])
 
 	if config.IsHost {
 		err = runHostMode(ctx, config, tokens)
@@ -123,7 +123,7 @@ func main() {
 	}
 
 	if err != nil {
-		logging.Get().Error("Application error", "error", err)
+		slogging.Get().GetSlogger().Error("Application error", "error", err)
 		os.Exit(1)
 	}
 }
@@ -139,12 +139,12 @@ func parseArgs() Config {
 	flag.Parse()
 
 	if userHint == "" {
-		logging.Get().Error("Required parameter missing", "parameter", "user")
+		slogging.Get().GetSlogger().Error("Required parameter missing", "parameter", "user")
 		os.Exit(1)
 	}
 
 	if participantsStr != "" && !isHost {
-		logging.Get().Error("Invalid parameter combination", "error", "participants can only be used with host mode")
+		slogging.Get().GetSlogger().Error("Invalid parameter combination", "error", "participants can only be used with host mode")
 		os.Exit(1)
 	}
 
@@ -199,7 +199,7 @@ func performOAuthLogin(ctx context.Context, config Config) (*AuthTokens, error) 
 	query.Set("scope", "openid email profile")
 	authURL.RawQuery = query.Encode()
 
-	logging.Get().Debug("OAuth authorization request", "url", authURL.String())
+	slogging.Get().GetSlogger().Debug("OAuth authorization request", "url", authURL.String())
 
 	// Make the OAuth authorization request
 	// Don't follow redirects automatically since we need the callback to go to our server
@@ -215,35 +215,35 @@ func performOAuthLogin(ctx context.Context, config Config) (*AuthTokens, error) 
 	}
 	defer resp.Body.Close()
 
-	logging.Get().Debug("OAuth authorization response", "status_code", resp.StatusCode, "status", resp.Status)
+	slogging.Get().GetSlogger().Debug("OAuth authorization response", "status_code", resp.StatusCode, "status", resp.Status)
 
 	// OAuth should redirect to our callback
 	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusSeeOther {
 		// Get the redirect location
 		redirectURL := resp.Header.Get("Location")
-		logging.Get().Debug("OAuth redirect", "location", redirectURL)
+		slogging.Get().GetSlogger().Debug("OAuth redirect", "location", redirectURL)
 
 		// The test OAuth provider might redirect directly with tokens in the fragment
 		// We need to follow this redirect ourselves
 		if redirectURL != "" {
 			redirectResp, err := http.Get(redirectURL)
 			if err != nil {
-				logging.Get().Warn("Error following OAuth redirect", "error", err)
+				slogging.Get().GetSlogger().Warn("Error following OAuth redirect", "error", err)
 			} else {
 				redirectResp.Body.Close()
 			}
 		}
 	} else {
 		body, _ := io.ReadAll(resp.Body)
-		logging.Get().Debug("OAuth unexpected response", "body", string(body))
+		slogging.Get().GetSlogger().Debug("OAuth unexpected response", "body", string(body))
 		return nil, fmt.Errorf("Expected redirect, got status %d", resp.StatusCode)
 	}
 
 	// Wait for callback
-	logging.Get().Info("Waiting for OAuth callback")
+	slogging.Get().GetSlogger().Info("Waiting for OAuth callback")
 	select {
 	case tokens := <-callbackHandler.tokens:
-		logging.Get().Info("Received tokens from OAuth callback")
+		slogging.Get().GetSlogger().Info("Received tokens from OAuth callback")
 		return &tokens, nil
 	case err := <-callbackHandler.errorChan:
 		return nil, fmt.Errorf("OAuth callback error: %w", err)
@@ -263,18 +263,18 @@ func startCallbackServer(ctx context.Context, handler *OAuthCallbackHandler) (ne
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		logging.Get().Debug("OAuth callback received", "method", r.Method, "url", r.URL.String())
+		slogging.Get().GetSlogger().Debug("OAuth callback received", "method", r.Method, "url", r.URL.String())
 
 		// Log all query parameters
 		for k, v := range r.URL.Query() {
-			logging.Get().Debug("OAuth callback parameter", "key", k, "value", strings.Join(v, ", "))
+			slogging.Get().GetSlogger().Debug("OAuth callback parameter", "key", k, "value", strings.Join(v, ", "))
 		}
 
 		// Check for implicit flow tokens
 		accessToken := r.URL.Query().Get("access_token")
 		if accessToken != "" {
 			// Implicit flow
-			logging.Get().Debug("Detected implicit flow OAuth response")
+			slogging.Get().GetSlogger().Debug("Detected implicit flow OAuth response")
 			tokens := AuthTokens{
 				AccessToken:  accessToken,
 				RefreshToken: r.URL.Query().Get("refresh_token"),
@@ -296,7 +296,7 @@ func startCallbackServer(ctx context.Context, handler *OAuthCallbackHandler) (ne
 		code := r.URL.Query().Get("code")
 		if code != "" {
 			// Authorization code flow - would need to exchange code for tokens
-			logging.Get().Debug("Detected authorization code flow OAuth response")
+			slogging.Get().GetSlogger().Debug("Detected authorization code flow OAuth response")
 			// For now, we'll error as the test provider uses implicit flow
 			handler.errorChan <- fmt.Errorf("authorization code flow not implemented (received code: %s)", code)
 			w.WriteHeader(http.StatusBadRequest)
@@ -335,36 +335,36 @@ func startCallbackServer(ctx context.Context, handler *OAuthCallbackHandler) (ne
 }
 
 func runHostMode(ctx context.Context, config Config, tokens *AuthTokens) error {
-	logging.Get().Info("Running in Host Mode")
+	slogging.Get().GetSlogger().Info("Running in Host Mode")
 
 	// Create threat model with participants
 	threatModel, err := createThreatModel(config, tokens, config.Participants)
 	if err != nil {
 		return fmt.Errorf("failed to create threat model: %w", err)
 	}
-	logging.Get().Info("Created threat model", "name", threatModel.Name, "id", threatModel.ID)
+	slogging.Get().GetSlogger().Info("Created threat model", "name", threatModel.Name, "id", threatModel.ID)
 
 	// Create diagram
 	diagram, err := createDiagram(config, tokens, threatModel.ID)
 	if err != nil {
 		return fmt.Errorf("failed to create diagram: %w", err)
 	}
-	logging.Get().Info("Created diagram", "name", diagram.Name, "id", diagram.ID)
+	slogging.Get().GetSlogger().Info("Created diagram", "name", diagram.Name, "id", diagram.ID)
 
 	// Start collaboration session
 	session, err := startCollaborationSession(config, tokens, threatModel.ID, diagram.ID)
 	if err != nil {
 		return fmt.Errorf("failed to start collaboration session: %w", err)
 	}
-	logging.Get().Info("Started collaboration session", "id", session.ID)
+	slogging.Get().GetSlogger().Info("Started collaboration session", "id", session.ID)
 
 	// Connect to WebSocket
 	return connectToWebSocket(ctx, config, tokens, threatModel.ID, diagram.ID)
 }
 
 func runParticipantMode(ctx context.Context, config Config, tokens *AuthTokens) error {
-	logging.Get().Info("Running in Participant Mode")
-	logging.Get().Info("Polling for available collaboration sessions")
+	slogging.Get().GetSlogger().Info("Running in Participant Mode")
+	slogging.Get().GetSlogger().Info("Polling for available collaboration sessions")
 
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -376,24 +376,24 @@ func runParticipantMode(ctx context.Context, config Config, tokens *AuthTokens) 
 		case <-ticker.C:
 			session, threatModelID, diagramID, err := findAvailableSession(config, tokens)
 			if err != nil {
-				logging.Get().Warn("Error checking for sessions", "error", err)
+				slogging.Get().GetSlogger().Warn("Error checking for sessions", "error", err)
 				continue
 			}
 			if session != nil {
-				logging.Get().Info("Found collaboration session", "session_id", session.ID, "host", session.HostEmail)
+				slogging.Get().GetSlogger().Info("Found collaboration session", "session_id", session.ID, "host", session.HostEmail)
 
 				// Connect to WebSocket - if it disconnects, we'll return here and continue polling
 				err = connectToWebSocket(ctx, config, tokens, threatModelID, diagramID)
 				if err != nil {
-					logging.Get().Info("WebSocket connection ended", "error", err)
-					logging.Get().Info("Waiting 3 seconds before returning to polling")
+					slogging.Get().GetSlogger().Info("WebSocket connection ended", "error", err)
+					slogging.Get().GetSlogger().Info("Waiting 3 seconds before returning to polling")
 
 					// Wait a bit before trying again to avoid hammering the server
 					select {
 					case <-ctx.Done():
 						return nil
 					case <-time.After(3 * time.Second):
-						logging.Get().Info("Returning to polling for collaboration sessions")
+						slogging.Get().GetSlogger().Info("Returning to polling for collaboration sessions")
 						// Continue the loop to start polling again
 						continue
 					}
@@ -402,7 +402,7 @@ func runParticipantMode(ctx context.Context, config Config, tokens *AuthTokens) 
 				// If connectToWebSocket returns without error, it means context was cancelled
 				return nil
 			}
-			logging.Get().Debug("No available sessions found, continuing to poll")
+			slogging.Get().GetSlogger().Debug("No available sessions found, continuing to poll")
 		}
 	}
 }
@@ -429,7 +429,7 @@ func createThreatModel(config Config, tokens *AuthTokens, participants []string)
 			"subject": email,
 			"role":    perm,
 		})
-		logging.Get().Debug("Adding participant", "email", email, "permission", perm)
+		slogging.Get().GetSlogger().Debug("Adding participant", "email", email, "permission", perm)
 	}
 
 	payload := map[string]interface{}{
@@ -439,7 +439,7 @@ func createThreatModel(config Config, tokens *AuthTokens, participants []string)
 	}
 
 	body, _ := json.Marshal(payload)
-	logging.Get().Debug("CreateThreatModel API request", "method", "POST", "url", url, "body", string(body))
+	slogging.Get().GetSlogger().Debug("CreateThreatModel API request", "method", "POST", "url", url, "body", string(body))
 
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
@@ -456,9 +456,9 @@ func createThreatModel(config Config, tokens *AuthTokens, participants []string)
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	logging.Get().Debug("CreateThreatModel API response", "status_code", resp.StatusCode, "status", resp.Status)
+	slogging.Get().GetSlogger().Debug("CreateThreatModel API response", "status_code", resp.StatusCode, "status", resp.Status)
 	if resp.StatusCode != http.StatusCreated {
-		logging.Get().Debug("CreateThreatModel API error response", "body", string(respBody))
+		slogging.Get().GetSlogger().Debug("CreateThreatModel API error response", "body", string(respBody))
 		return nil, fmt.Errorf("failed with status %d", resp.StatusCode)
 	}
 
@@ -479,7 +479,7 @@ func createDiagram(config Config, tokens *AuthTokens, threatModelID string) (*Di
 	}
 
 	body, _ := json.Marshal(payload)
-	logging.Get().Debug("CreateDiagram API request", "method", "POST", "url", url, "body", string(body))
+	slogging.Get().GetSlogger().Debug("CreateDiagram API request", "method", "POST", "url", url, "body", string(body))
 
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
@@ -496,9 +496,9 @@ func createDiagram(config Config, tokens *AuthTokens, threatModelID string) (*Di
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	logging.Get().Debug("CreateDiagram API response", "status_code", resp.StatusCode, "status", resp.Status)
+	slogging.Get().GetSlogger().Debug("CreateDiagram API response", "status_code", resp.StatusCode, "status", resp.Status)
 	if resp.StatusCode != http.StatusCreated {
-		logging.Get().Debug("CreateDiagram API error response", "body", string(respBody))
+		slogging.Get().GetSlogger().Debug("CreateDiagram API error response", "body", string(respBody))
 		return nil, fmt.Errorf("failed with status %d", resp.StatusCode)
 	}
 
@@ -513,7 +513,7 @@ func createDiagram(config Config, tokens *AuthTokens, threatModelID string) (*Di
 func startCollaborationSession(config Config, tokens *AuthTokens, threatModelID, diagramID string) (*CollaborationSession, error) {
 	url := fmt.Sprintf("%s/threat_models/%s/diagrams/%s/collaborate", config.ServerURL, threatModelID, diagramID)
 
-	logging.Get().Debug("StartCollaborationSession API request", "method", "POST", "url", url)
+	slogging.Get().GetSlogger().Debug("StartCollaborationSession API request", "method", "POST", "url", url)
 
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
@@ -529,9 +529,9 @@ func startCollaborationSession(config Config, tokens *AuthTokens, threatModelID,
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	logging.Get().Debug("StartCollaborationSession API response", "status_code", resp.StatusCode, "status", resp.Status)
+	slogging.Get().GetSlogger().Debug("StartCollaborationSession API response", "status_code", resp.StatusCode, "status", resp.Status)
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		logging.Get().Debug("StartCollaborationSession API error response", "body", string(respBody))
+		slogging.Get().GetSlogger().Debug("StartCollaborationSession API error response", "body", string(respBody))
 		return nil, fmt.Errorf("failed with status %d", resp.StatusCode)
 	}
 
@@ -546,7 +546,7 @@ func startCollaborationSession(config Config, tokens *AuthTokens, threatModelID,
 func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSession, string, string, error) {
 	// Get list of active collaboration sessions
 	url := fmt.Sprintf("%s/collaboration/sessions", config.ServerURL)
-	logging.Get().Debug("FindAvailableSession API request", "method", "GET", "url", url)
+	slogging.Get().GetSlogger().Debug("FindAvailableSession API request", "method", "GET", "url", url)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -562,9 +562,9 @@ func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSess
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	logging.Get().Debug("FindAvailableSession API response", "status_code", resp.StatusCode, "status", resp.Status)
+	slogging.Get().GetSlogger().Debug("FindAvailableSession API response", "status_code", resp.StatusCode, "status", resp.Status)
 	if resp.StatusCode != http.StatusOK {
-		logging.Get().Debug("FindAvailableSession API error response", "body", string(respBody))
+		slogging.Get().GetSlogger().Debug("FindAvailableSession API error response", "body", string(respBody))
 		return nil, "", "", fmt.Errorf("failed with status %d", resp.StatusCode)
 	}
 
@@ -594,7 +594,7 @@ func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSess
 	// If there are any sessions, return the first one
 	if len(sessions) > 0 {
 		session := sessions[0]
-		logging.Get().Debug("Found active sessions", "count", len(sessions))
+		slogging.Get().GetSlogger().Debug("Found active sessions", "count", len(sessions))
 
 		// Convert to CollaborationSession format (matching the existing structure)
 		collabSession := &CollaborationSession{
@@ -617,7 +617,7 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 	wsURL = fmt.Sprintf("%s/threat_models/%s/diagrams/%s/ws?token=%s",
 		wsURL, threatModelID, diagramID, tokens.AccessToken)
 
-	logging.Get().Info("Connecting to WebSocket", "url", wsURL)
+	slogging.Get().GetSlogger().Info("Connecting to WebSocket", "url", wsURL)
 
 	// Connect to WebSocket
 	dialer := websocket.Dialer{
@@ -628,13 +628,13 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 	if err != nil {
 		if resp != nil {
 			body, _ := io.ReadAll(resp.Body)
-			logging.Get().Error("WebSocket connection failed", "status_code", resp.StatusCode, "status", resp.Status, "body", string(body))
+			slogging.Get().GetSlogger().Error("WebSocket connection failed", "status_code", resp.StatusCode, "status", resp.Status, "body", string(body))
 		}
 		return fmt.Errorf("WebSocket connection failed: %w", err)
 	}
 	defer conn.Close()
 
-	logging.Get().Info("WebSocket connected successfully")
+	slogging.Get().GetSlogger().Info("WebSocket connected successfully")
 
 	// Channel to signal when connection is lost
 	connectionLost := make(chan error, 1)
@@ -644,19 +644,19 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 		for {
 			messageType, message, err := conn.ReadMessage()
 			if err != nil {
-				logging.Get().Warn("WebSocket read error", "error", err)
+				slogging.Get().GetSlogger().Warn("WebSocket read error", "error", err)
 				connectionLost <- err
 				return
 			}
 
-			logging.Get().Debug("Received WebSocket message", "type", messageType, "timestamp", time.Now().Format("15:04:05.000"))
+			slogging.Get().GetSlogger().Debug("Received WebSocket message", "type", messageType, "timestamp", time.Now().Format("15:04:05.000"))
 
 			// Try to pretty-print JSON
 			var prettyJSON bytes.Buffer
 			if err := json.Indent(&prettyJSON, message, "", "  "); err == nil {
-				logging.Get().Debug("WebSocket message content", "json", prettyJSON.String())
+				slogging.Get().GetSlogger().Debug("WebSocket message content", "json", prettyJSON.String())
 			} else {
-				logging.Get().Debug("WebSocket message content (raw)", "message", string(message))
+				slogging.Get().GetSlogger().Debug("WebSocket message content (raw)", "message", string(message))
 			}
 		}
 	}()
@@ -668,7 +668,7 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 		err = conn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 		if err != nil {
-			logging.Get().Warn("Error sending WebSocket close message", "error", err)
+			slogging.Get().GetSlogger().Warn("Error sending WebSocket close message", "error", err)
 		}
 		return nil
 	case err := <-connectionLost:

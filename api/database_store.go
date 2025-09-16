@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
@@ -46,20 +46,20 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	logging.Get().Debug("ThreatModelDatabaseStore.Get() called with ID: %s", id)
+	slogging.Get().GetSlogger().Debug("ThreatModelDatabaseStore.Get() called", "id", id)
 
 	// Check if database connection is nil
 	if s.db == nil {
-		logging.Get().Error("Database connection is nil")
+		slogging.Get().Error("Database connection is nil")
 		return ThreatModel{}, fmt.Errorf("database connection is nil")
 	}
 
 	// Test database connectivity
 	if err := s.db.Ping(); err != nil {
-		logging.Get().Error("Database ping failed: %v", err)
+		slogging.Get().GetSlogger().Error("Database ping failed", "error", err)
 		return ThreatModel{}, fmt.Errorf("database ping failed: %w", err)
 	}
-	logging.Get().Debug("Database ping successful")
+	slogging.Get().Debug("Database ping successful")
 
 	var tm ThreatModel
 	var tmUUID uuid.UUID
@@ -74,45 +74,45 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		FROM threat_models 
 		WHERE id = $1`
 
-	logging.Get().Debug("Executing query: %s", query)
-	logging.Get().Debug("Query parameter: id=%s (type=%T, length=%d)", id, id, len(id))
+	slogging.Get().GetSlogger().Debug("Executing query", "query", query)
+	slogging.Get().GetSlogger().Debug("Query parameter", "id", id, "type", fmt.Sprintf("%T", id), "length", len(id))
 
 	// Try to validate the UUID format first
 	if _, err := uuid.Parse(id); err != nil {
-		logging.Get().Error("Invalid UUID format for id=%s: %v", id, err)
+		slogging.Get().GetSlogger().Error("Invalid UUID format", "id", id, "error", err)
 		return tm, fmt.Errorf("invalid UUID format: %w", err)
 	}
-	logging.Get().Debug("UUID format validation passed for id=%s", id)
+	slogging.Get().GetSlogger().Debug("UUID format validation passed", "id", id)
 
 	err := s.db.QueryRow(query, id).Scan(
 		&tmUUID, &name, &description, &ownerEmail, &createdBy,
 		&threatModelFramework, &issueUrl, &createdAt, &modifiedAt,
 	)
 
-	logging.Get().Debug("Query execution completed, error: %v", err)
+	slogging.Get().GetSlogger().Debug("Query execution completed", "error", err)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			logging.Get().Debug("No rows found for ID: %s", id)
+			slogging.Get().GetSlogger().Debug("No rows found", "id", id)
 			// Let's check if ANY threat models exist and what their IDs look like
 			countQuery := "SELECT COUNT(*), string_agg(id::text, ', ') FROM threat_models LIMIT 5"
 			var count int
 			var sampleIds sql.NullString
 			if countErr := s.db.QueryRow(countQuery).Scan(&count, &sampleIds); countErr == nil {
-				logging.Get().Debug("Total threat models in DB: %d", count)
+				slogging.Get().GetSlogger().Debug("Total threat models in DB", "count", count)
 				if sampleIds.Valid {
-					logging.Get().Debug("Sample IDs in DB: %s", sampleIds.String)
+					slogging.Get().GetSlogger().Debug("Sample IDs in DB", "sample_ids", sampleIds.String)
 				}
 			} else {
-				logging.Get().Error("Failed to get sample data: %v", countErr)
+				slogging.Get().GetSlogger().Error("Failed to get sample data", "error", countErr)
 			}
 			return tm, fmt.Errorf("threat model with ID %s not found", id)
 		}
-		logging.Get().Error("Database error (not ErrNoRows): %v", err)
+		slogging.Get().GetSlogger().Error("Database error (not ErrNoRows)", "error", err)
 		return tm, fmt.Errorf("failed to get threat model: %w", err)
 	}
 
-	logging.Get().Debug("Query successful! Retrieved: id=%s, name=%s, owner=%s", tmUUID.String(), name, ownerEmail)
+	slogging.Get().GetSlogger().Debug("Query successful! Retrieved threat model", "id", tmUUID.String(), "name", name, "owner", ownerEmail)
 
 	// Load authorization
 	authorization, err := s.loadAuthorization(id)
