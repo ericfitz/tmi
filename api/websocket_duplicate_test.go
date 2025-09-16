@@ -3,7 +3,6 @@ package api
 import (
 	"testing"
 
-	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,7 +11,7 @@ import (
 // TestDuplicateCellOperationFiltering tests that duplicate cell operations within a single message are filtered out
 func TestDuplicateCellOperationFiltering(t *testing.T) {
 	// Create a test diagram with initial state
-	diagramID := openapi_types.UUID(uuid.New())
+	diagramID := uuid.New()
 	testDiagram := &DfdDiagram{
 		Id:    &diagramID,
 		Name:  "Test Diagram",
@@ -72,7 +71,7 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 		currentState = make(map[string]*Cell)
 
 		cellID := uuid.New().String()
-		
+
 		// Create 8 identical cell operations (simulating the bug reported)
 		duplicateCells := make([]CellOperation, 8)
 		for i := 0; i < 8; i++ {
@@ -101,13 +100,13 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 		}
 
 		result := session.processAndValidateCellOperations(testDiagram, currentState, operation)
-		
+
 		// The operation should be valid because duplicates are filtered out
 		assert.True(t, result.Valid, "Duplicate cell operations should be filtered and result should be valid")
 		assert.True(t, result.StateChanged, "Filtered operation should still change state")
 		assert.Len(t, result.CellsModified, 1, "Should have only one modified cell after deduplication")
 		assert.Equal(t, cellID, result.CellsModified[0], "Modified cell ID should match")
-		
+
 		// Verify the cell was actually added to the diagram
 		assert.Len(t, testDiagram.Cells, 1, "Should have exactly one cell in the diagram after deduplication")
 	})
@@ -119,7 +118,7 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 
 		cellID1 := uuid.New().String()
 		cellID2 := uuid.New().String()
-		
+
 		operation := CellPatchOperation{
 			Type: "patch",
 			Cells: []CellOperation{
@@ -183,14 +182,14 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 		}
 
 		result := session.processAndValidateCellOperations(testDiagram, currentState, operation)
-		
+
 		assert.True(t, result.Valid, "Mixed duplicate and unique operations should be valid after filtering")
 		assert.True(t, result.StateChanged, "Mixed operation should change state")
 		assert.Len(t, result.CellsModified, 2, "Should have two modified cells after deduplication")
-		
+
 		// Verify both unique cells were added
 		assert.Len(t, testDiagram.Cells, 2, "Should have exactly two cells in the diagram after deduplication")
-		
+
 		// Verify the correct cell IDs were processed
 		assert.Contains(t, result.CellsModified, cellID1, "First cell ID should be in modified list")
 		assert.Contains(t, result.CellsModified, cellID2, "Second cell ID should be in modified list")
@@ -208,7 +207,7 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 				},
 			},
 		}
-		
+
 		// Add cell to current state
 		currentState[cellID] = cell
 		converter := NewCellConverter()
@@ -251,7 +250,7 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 		}
 
 		result := session.processAndValidateCellOperations(testDiagram, currentState, operation)
-		
+
 		assert.True(t, result.Valid, "Duplicate update operations should be valid after filtering")
 		assert.True(t, result.StateChanged, "Update operation should change state")
 		assert.Len(t, result.CellsModified, 1, "Should have one modified cell after deduplication")

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 	jsonpatch "github.com/evanphx/json-patch"
 )
 
@@ -40,10 +40,10 @@ func TestDiagramStoreAuth(t *testing.T) {
 
 	// Test role resolution
 	role := GetUserRoleForDiagram("test@example.com", d)
-	logging.Get().Debug("Role for original owner: %s", role)
+	slogging.Get().Debug("Role for original owner: %s", role)
 
 	newRole := GetUserRoleForDiagram("newowner@example.com", d)
-	logging.Get().Debug("Role for new owner: %s", newRole)
+	slogging.Get().Debug("Role for new owner: %s", newRole)
 }
 
 func TestPatchOperation(t *testing.T) {
@@ -129,10 +129,10 @@ func TestPatchOperation(t *testing.T) {
 	}
 
 	// Check that the patch applied correctly
-	logging.Get().Debug("Modified diagram: %+v", modifiedDiagram)
+	slogging.Get().Debug("Modified diagram: %+v", modifiedDiagram)
 
 	// Check authorization entries
-	logging.Get().Debug("Authorization entries after patch: %+v", TestFixtures.ThreatModel.Authorization)
+	slogging.Get().Debug("Authorization entries after patch: %+v", TestFixtures.ThreatModel.Authorization)
 
 	// Update store
 	err = DiagramStore.Update(diagramID, modifiedDiagram)
@@ -142,7 +142,7 @@ func TestPatchOperation(t *testing.T) {
 
 	// Check role for new user
 	newUserRole := GetUserRoleForDiagram("newowner@example.com", modifiedDiagram)
-	logging.Get().Debug("Role for new user: %s", newUserRole)
+	slogging.Get().Debug("Role for new user: %s", newUserRole)
 
 	// Check that we can retrieve the modified diagram
 	retrieved, err := DiagramStore.Get(diagramID)
@@ -150,9 +150,9 @@ func TestPatchOperation(t *testing.T) {
 		t.Fatalf("Failed to retrieve diagram: %v", err)
 	}
 
-	logging.Get().Debug("Retrieved diagram: %+v", retrieved)
+	slogging.Get().Debug("Retrieved diagram: %+v", retrieved)
 
 	// Test role resolution for the new user
 	roleAfterRetrieval := GetUserRoleForDiagram("newowner@example.com", retrieved)
-	logging.Get().Debug("Role after retrieval: %s", roleAfterRetrieval)
+	slogging.Get().Debug("Role after retrieval: %s", roleAfterRetrieval)
 }
