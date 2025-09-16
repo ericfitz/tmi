@@ -51,8 +51,9 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 		}
 	}
 
-	// Fix the JSON to ensure consistent metadata handling
+	// Fix the JSON to ensure consistent metadata and image field handling
 	modifiedBytes = fixMetadataField(modifiedBytes, originalBytes)
+	modifiedBytes = fixImageField(modifiedBytes, originalBytes)
 
 	// Deserialize back into entity
 	var modified T
@@ -178,6 +179,45 @@ func fixMetadataField(modifiedBytes, originalBytes []byte) []byte {
 					modifiedData["metadata"] = []interface{}{}
 				}
 			}
+		}
+	}
+
+	// Re-marshal the fixed data
+	if fixedBytes, err := json.Marshal(modifiedData); err == nil {
+		return fixedBytes
+	}
+
+	return modifiedBytes // If marshaling fails, return original
+}
+
+// fixImageField ensures that image fields are consistent between original and modified JSON.
+// This fixes the issue where "image": {} becomes "image": null after JSON marshal/unmarshal
+// when the original had a non-null image field.
+func fixImageField(modifiedBytes, originalBytes []byte) []byte {
+	// Parse original JSON to check image field
+	var originalData map[string]interface{}
+	if err := json.Unmarshal(originalBytes, &originalData); err != nil {
+		return modifiedBytes // If we can't parse, return as-is
+	}
+
+	// Parse modified JSON
+	var modifiedData map[string]interface{}
+	if err := json.Unmarshal(modifiedBytes, &modifiedData); err != nil {
+		return modifiedBytes // If we can't parse, return as-is
+	}
+
+	// Check if original had a non-null image field and modified has null
+	if originalImage, hasOriginal := originalData["image"]; hasOriginal {
+		if modifiedImage, hasModified := modifiedData["image"]; hasModified {
+			// If original was a map and modified is null, restore empty map
+			if originalMap, isMap := originalImage.(map[string]interface{}); isMap {
+				if modifiedImage == nil {
+					modifiedData["image"] = originalMap
+				}
+			}
+		} else if originalImage != nil {
+			// If original had image but modified doesn't, restore it
+			modifiedData["image"] = originalImage
 		}
 	}
 

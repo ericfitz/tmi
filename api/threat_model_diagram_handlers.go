@@ -200,6 +200,10 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		ModifiedAt: now,
 		Cells:      cells,
 		Metadata:   &metadata,
+		Image:      &struct {
+			Svg          *[]byte `json:"svg,omitempty"`
+			UpdateVector *int64  `json:"update_vector,omitempty"`
+		}{}, // Initialize empty image struct instead of nil
 	}
 
 	// Add to store
@@ -216,37 +220,8 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		return
 	}
 
-	// Add diagram to threat model's diagrams array
-	// Convert DfdDiagram to Diagram union type
-	var diagramUnion Diagram
-	if err := diagramUnion.FromDfdDiagram(createdDiagram); err != nil {
-		// Delete the created diagram if we can't add it to the threat model
-		if deleteErr := DiagramStore.Delete(createdDiagram.Id.String()); deleteErr != nil {
-			slogging.Get().WithContext(c).Error("Failed to delete diagram after union conversion failure: %v", deleteErr)
-		}
-		HandleRequestError(c, ServerError("Failed to convert diagram: "+err.Error()))
-		return
-	}
-
-	if tm.Diagrams == nil {
-		diagrams := []Diagram{diagramUnion}
-		tm.Diagrams = &diagrams
-	} else {
-		*tm.Diagrams = append(*tm.Diagrams, diagramUnion)
-	}
-
-	// Update threat model in store
-	tm.ModifiedAt = &now
-	if err := ThreatModelStore.Update(threatModelId, tm); err != nil {
-		slogging.Get().WithContext(c).Error("Failed to update threat model %s with new diagram %s (user: %s): %v", threatModelId, createdDiagram.Id.String(), userEmail, err)
-		// If updating the threat model fails, delete the created diagram
-		if deleteErr := DiagramStore.Delete(createdDiagram.Id.String()); deleteErr != nil {
-			// Log the error but continue with the main error response
-			slogging.Get().WithContext(c).Error("Failed to delete diagram after threat model update failure: %v", deleteErr)
-		}
-		HandleRequestError(c, ServerError("Failed to update threat model with new diagram"))
-		return
-	}
+	// No need to manually manage diagrams array anymore - 
+	// ThreatModelStore now dynamically loads diagrams from DiagramStore
 
 	// Set the Location header
 	c.Header("Location", fmt.Sprintf("/threat_models/%s/diagrams/%s", threatModelId, createdDiagram.Id.String()))
@@ -313,6 +288,14 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 	if err != nil {
 		HandleRequestError(c, NotFoundError("Diagram not found"))
 		return
+	}
+
+	// Ensure image field is initialized for backward compatibility with existing diagrams
+	if diagram.Image == nil {
+		diagram.Image = &struct {
+			Svg          *[]byte `json:"svg,omitempty"`
+			UpdateVector *int64  `json:"update_vector,omitempty"`
+		}{}
 	}
 
 	c.JSON(http.StatusOK, diagram)
@@ -465,6 +448,14 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 		return
 	}
 
+	// Ensure image field is initialized for backward compatibility with existing diagrams
+	if existingDiagram.Image == nil {
+		existingDiagram.Image = &struct {
+			Svg          *[]byte `json:"svg,omitempty"`
+			UpdateVector *int64  `json:"update_vector,omitempty"`
+		}{}
+	}
+
 	// Parse patch operations from request body
 	var operations []PatchOperation
 	if err := c.ShouldBindJSON(&operations); err != nil {
@@ -529,13 +520,11 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
-	var diagramIndex int
 	if tm.Diagrams != nil {
-		for i, diagUnion := range *tm.Diagrams {
+		for _, diagUnion := range *tm.Diagrams {
 			// Convert union type to DfdDiagram to get the ID
 			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
-				diagramIndex = i
 				break
 			}
 		}
@@ -552,17 +541,8 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 		return
 	}
 
-	// Remove diagram ID from threat model's diagrams array
-	diagrams := *tm.Diagrams
-	*tm.Diagrams = append(diagrams[:diagramIndex], diagrams[diagramIndex+1:]...)
-
-	// Update threat model in store
-	now := time.Now().UTC()
-	tm.ModifiedAt = &now
-	if err := ThreatModelStore.Update(threatModelId, tm); err != nil {
-		HandleRequestError(c, ServerError("Failed to update threat model after diagram deletion"))
-		return
-	}
+	// No need to manually manage diagrams array anymore - 
+	// ThreatModelStore now dynamically loads diagrams from DiagramStore
 
 	c.Status(http.StatusNoContent)
 }
@@ -631,7 +611,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 			"session_id":      nil,
 			"threat_model_id": threatModelId,
 			"diagram_id":      diagramId,
-			"participants":    []interface{}{},
+			"participants":    []any{},
 			"websocket_url":   h.buildWebSocketURL(c, threatModelId, diagramId),
 		})
 		return

@@ -132,8 +132,8 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		return tm, fmt.Errorf("failed to load threats: %w", err)
 	}
 
-	// Load diagrams
-	diagrams, err := s.loadDiagrams(id)
+	// Load diagrams dynamically from DiagramStore to ensure single source of truth
+	diagrams, err := s.loadDiagramsDynamically(id)
 	if err != nil {
 		return tm, fmt.Errorf("failed to load diagrams: %w", err)
 	}
@@ -157,7 +157,7 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		Authorization:        authorization,
 		Metadata:             &metadata,
 		Threats:              &threats,
-		Diagrams:             &diagrams,
+		Diagrams:             diagrams,
 	}
 
 	return tm, nil
@@ -823,6 +823,61 @@ func (s *ThreatModelDatabaseStore) loadDiagrams(threatModelId string) ([]Diagram
 	}
 
 	return diagrams, nil
+}
+
+// loadDiagramsDynamically loads diagrams using the DiagramStore for single source of truth
+func (s *ThreatModelDatabaseStore) loadDiagramsDynamically(threatModelId string) (*[]Diagram, error) {
+	// First, get diagram IDs for this threat model
+	query := `SELECT id FROM diagrams WHERE threat_model_id = $1 ORDER BY created_at`
+	rows, err := s.db.Query(query, threatModelId)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Error closing rows, but don't fail the operation
+			_ = err
+		}
+	}()
+
+	var diagramIds []string
+	for rows.Next() {
+		var diagramUuid uuid.UUID
+		if err := rows.Scan(&diagramUuid); err != nil {
+			continue
+		}
+		diagramIds = append(diagramIds, diagramUuid.String())
+	}
+
+	if len(diagramIds) == 0 {
+		return nil, nil // No diagrams
+	}
+
+	// Load each diagram from the DiagramStore to ensure single source of truth
+	var diagrams []Diagram
+	for _, diagramId := range diagramIds {
+		diagram, err := DiagramStore.Get(diagramId)
+		if err != nil {
+			// Skip missing diagrams but continue with others
+			continue
+		}
+		
+		// Ensure backward compatibility for existing diagrams
+		if diagram.Image == nil {
+			diagram.Image = &struct {
+				Svg          *[]byte `json:"svg,omitempty"`
+				UpdateVector *int64  `json:"update_vector,omitempty"`
+			}{}
+		}
+
+		var diagramUnion Diagram
+		if err := diagramUnion.FromDfdDiagram(diagram); err != nil {
+			continue
+		}
+		diagrams = append(diagrams, diagramUnion)
+	}
+
+	return &diagrams, nil
 }
 
 func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId string, authorization []Authorization) error {
