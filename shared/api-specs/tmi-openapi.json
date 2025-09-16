@@ -4299,7 +4299,14 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": ["Unknown", "None", "Low", "Medium", "High", "Critical"]
+              "enum": [
+                "Unknown",
+                "None",
+                "Low",
+                "Medium",
+                "High",
+                "Critical"
+              ]
             },
             "description": "Filter by severity level (exact match)"
           },
