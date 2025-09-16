@@ -2937,8 +2937,28 @@ func (cop *CellOperationProcessor) processAndValidateCellOperations(diagram *Dfd
 		return result
 	}
 
-	// Process each cell operation
+	// Check for duplicate cell IDs within this operation to prevent client bugs
+	// from causing conflicts and disconnections
+	seenCellIDs := make(map[string]bool)
+	deduplicatedCells := make([]CellOperation, 0, len(operation.Cells))
+
 	for _, cellOp := range operation.Cells {
+		if seenCellIDs[cellOp.ID] {
+			slogging.Get().Warn("Duplicate cell operation detected in single message - CellID: %s, Operation: %s",
+				cellOp.ID, cellOp.Operation)
+			continue // Skip duplicate operations
+		}
+		seenCellIDs[cellOp.ID] = true
+		deduplicatedCells = append(deduplicatedCells, cellOp)
+	}
+
+	if len(deduplicatedCells) != len(operation.Cells) {
+		slogging.Get().Info("Filtered %d duplicate cell operations from message",
+			len(operation.Cells)-len(deduplicatedCells))
+	}
+
+	// Process each deduplicated cell operation
+	for _, cellOp := range deduplicatedCells {
 		cellResult := cop.validateAndProcessCellOperation(diagram, currentState, cellOp)
 
 		if !cellResult.Valid {
@@ -3248,8 +3268,28 @@ func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, c
 		return result
 	}
 
-	// Process each cell operation
+	// Check for duplicate cell IDs within this operation to prevent client bugs
+	// from causing conflicts and disconnections
+	seenCellIDs := make(map[string]bool)
+	deduplicatedCells := make([]CellOperation, 0, len(operation.Cells))
+
 	for _, cellOp := range operation.Cells {
+		if seenCellIDs[cellOp.ID] {
+			slogging.Get().Warn("Duplicate cell operation detected in single message - Session: %s, CellID: %s, Operation: %s",
+				s.ID, cellOp.ID, cellOp.Operation)
+			continue // Skip duplicate operations
+		}
+		seenCellIDs[cellOp.ID] = true
+		deduplicatedCells = append(deduplicatedCells, cellOp)
+	}
+
+	if len(deduplicatedCells) != len(operation.Cells) {
+		slogging.Get().Info("Filtered %d duplicate cell operations from message - Session: %s",
+			len(operation.Cells)-len(deduplicatedCells), s.ID)
+	}
+
+	// Process each deduplicated cell operation
+	for _, cellOp := range deduplicatedCells {
 		cellResult := s.validateAndProcessCellOperation(diagram, currentState, cellOp)
 
 		if !cellResult.Valid {
