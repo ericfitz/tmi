@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // Config holds all authentication configuration
@@ -86,17 +87,22 @@ type OAuthProviderConfig struct {
 
 // LoadConfig loads configuration from environment variables
 func LoadConfig() (Config, error) {
+	logger := slogging.Get()
+	logger.Info("Loading authentication configuration from environment variables")
+
 	redisDB, err := strconv.Atoi(getEnv("REDIS_DB", "0"))
 	if err != nil {
+		logger.Warn("Invalid REDIS_DB value, using default value=%v default=%v", getEnv("REDIS_DB", "0"), 0)
 		redisDB = 0
 	}
 
 	jwtExpiration, err := strconv.Atoi(getEnv("JWT_EXPIRATION_SECONDS", "3600"))
 	if err != nil {
+		logger.Warn("Invalid JWT_EXPIRATION_SECONDS value, using default value=%v default=%v", getEnv("JWT_EXPIRATION_SECONDS", "3600"), 3600)
 		jwtExpiration = 3600
 	}
 
-	return Config{
+	config := Config{
 		Postgres: PostgresConfig{
 			Host:     getEnv("POSTGRES_HOST", "localhost"),
 			Port:     getEnv("POSTGRES_PORT", "5432"),
@@ -129,7 +135,10 @@ func LoadConfig() (Config, error) {
 			CallbackURL: getEnv("OAUTH_CALLBACK_URL", "http://localhost:8080/oauth2/callback"),
 			Providers:   loadOAuthProviders(),
 		},
-	}, nil
+	}
+
+	logger.Info("Authentication configuration loaded successfully postgres_host=%v redis_host=%v jwt_signing_method=%v oauth_providers_count=%v", config.Postgres.Host, config.Redis.Host, config.JWT.SigningMethod, len(config.OAuth.Providers))
+	return config, nil
 }
 
 // ToDBConfig converts Config to db.PostgresConfig and db.RedisConfig
@@ -156,10 +165,13 @@ func (c *Config) GetJWTDuration() time.Duration {
 
 // loadOAuthProviders loads OAuth provider configurations
 func loadOAuthProviders() map[string]OAuthProviderConfig {
+	logger := slogging.Get()
+	logger.Debug("Loading OAuth provider configurations")
 	providers := make(map[string]OAuthProviderConfig)
 
 	// Google OAuth configuration
 	if getEnv("OAUTH_GOOGLE_ENABLED", "true") == "true" {
+		logger.Debug("Configuring Google OAuth provider")
 		providers["google"] = OAuthProviderConfig{
 			ID:               "google",
 			Name:             "Google",
@@ -184,6 +196,7 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 
 	// GitHub OAuth configuration
 	if getEnv("OAUTH_GITHUB_ENABLED", "true") == "true" {
+		logger.Debug("Configuring GitHub OAuth provider")
 		providers["github"] = OAuthProviderConfig{
 			ID:               "github",
 			Name:             "GitHub",
@@ -219,6 +232,7 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 
 	// Microsoft OAuth configuration
 	if getEnv("OAUTH_MICROSOFT_ENABLED", "true") == "true" {
+		logger.Debug("Configuring Microsoft OAuth provider")
 		providers["microsoft"] = OAuthProviderConfig{
 			ID:               "microsoft",
 			Name:             "Microsoft",
@@ -248,7 +262,19 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 		}
 	}
 
+	logger.Info("OAuth providers loaded providers_count=%v enabled_providers=%v", len(providers), getEnabledProviderIDs(providers))
 	return providers
+}
+
+// getEnabledProviderIDs returns a slice of enabled provider IDs for logging
+func getEnabledProviderIDs(providers map[string]OAuthProviderConfig) []string {
+	var enabled []string
+	for id, provider := range providers {
+		if provider.Enabled {
+			enabled = append(enabled, id)
+		}
+	}
+	return enabled
 }
 
 // Helper function to get environment variables with fallback
@@ -261,30 +287,40 @@ func getEnv(key, fallback string) string {
 
 // ValidateConfig validates the configuration
 func (c *Config) ValidateConfig() error {
+	logger := slogging.Get()
+	logger.Debug("Validating authentication configuration")
+
 	// Validate PostgreSQL configuration
 	if c.Postgres.Host == "" {
+		logger.Error("PostgreSQL host is required but not configured")
 		return fmt.Errorf("postgres host is required")
 	}
 	if c.Postgres.Port == "" {
+		logger.Error("PostgreSQL port is required but not configured")
 		return fmt.Errorf("postgres port is required")
 	}
 	if c.Postgres.User == "" {
+		logger.Error("PostgreSQL user is required but not configured")
 		return fmt.Errorf("postgres user is required")
 	}
 	if c.Postgres.Database == "" {
+		logger.Error("PostgreSQL database is required but not configured")
 		return fmt.Errorf("postgres database is required")
 	}
 
 	// Validate Redis configuration
 	if c.Redis.Host == "" {
+		logger.Error("Redis host is required but not configured")
 		return fmt.Errorf("redis host is required")
 	}
 	if c.Redis.Port == "" {
+		logger.Error("Redis port is required but not configured")
 		return fmt.Errorf("redis port is required")
 	}
 
 	// Validate JWT configuration
 	if c.JWT.ExpirationSeconds <= 0 {
+		logger.Error("JWT expiration must be greater than 0 expiration_seconds=%v", c.JWT.ExpirationSeconds)
 		return fmt.Errorf("jwt expiration must be greater than 0")
 	}
 
@@ -292,30 +328,37 @@ func (c *Config) ValidateConfig() error {
 	switch c.JWT.SigningMethod {
 	case "HS256":
 		if c.JWT.Secret == "" || c.JWT.Secret == "your-secret-key" {
+			logger.Error("JWT secret is required and should not be the default value for HS256 signing_method=%v", c.JWT.SigningMethod)
 			return fmt.Errorf("jwt secret is required and should not be the default value for HS256")
 		}
 	case "RS256":
 		if (c.JWT.RSAPrivateKeyPath == "" && c.JWT.RSAPrivateKey == "") ||
 			(c.JWT.RSAPublicKeyPath == "" && c.JWT.RSAPublicKey == "") {
+			logger.Error("RSA keys are required for RS256 signing_method=%v has_private_key_path=%v has_public_key_path=%v", c.JWT.SigningMethod, c.JWT.RSAPrivateKeyPath != "", c.JWT.RSAPublicKeyPath != "")
 			return fmt.Errorf("rsa private and public keys are required for RS256 (provide either key paths or key content)")
 		}
 	case "ES256":
 		if (c.JWT.ECDSAPrivateKeyPath == "" && c.JWT.ECDSAPrivateKey == "") ||
 			(c.JWT.ECDSAPublicKeyPath == "" && c.JWT.ECDSAPublicKey == "") {
+			logger.Error("ECDSA keys are required for ES256 signing_method=%v has_private_key_path=%v has_public_key_path=%v", c.JWT.SigningMethod, c.JWT.ECDSAPrivateKeyPath != "", c.JWT.ECDSAPublicKeyPath != "")
 			return fmt.Errorf("ecdsa private and public keys are required for ES256 (provide either key paths or key content)")
 		}
 	default:
+		logger.Error("Unsupported JWT signing method signing_method=%v", c.JWT.SigningMethod)
 		return fmt.Errorf("unsupported jwt signing method: %s (supported: HS256, RS256, ES256)", c.JWT.SigningMethod)
 	}
 
 	// Validate OAuth configuration
 	if c.OAuth.CallbackURL == "" {
+		logger.Error("OAuth callback URL is required but not configured")
 		return fmt.Errorf("oauth callback url is required")
 	}
 	if len(c.OAuth.Providers) == 0 {
+		logger.Error("At least one OAuth provider is required but none configured")
 		return fmt.Errorf("at least one oauth provider is required")
 	}
 
+	logger.Info("Authentication configuration validated successfully jwt_signing_method=%v oauth_providers_count=%v", c.JWT.SigningMethod, len(c.OAuth.Providers))
 	return nil
 }
 

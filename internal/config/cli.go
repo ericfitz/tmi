@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ericfitz/tmi/internal/logging"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // ParseFlags parses command line flags and returns the config file path
@@ -19,20 +19,20 @@ func ParseFlags() (configFile string, generateConfig bool, err error) {
 	flag.Parse()
 
 	if *help {
-		logging.Get().Info("Displaying help and exiting")
+		slogging.Get().Debug("Displaying help and exiting")
 		flag.Usage()
 		os.Exit(0)
 	}
 
 	if generateConfig {
-		logging.Get().Info("Configuration generation requested")
+		slogging.Get().Info("Configuration generation requested")
 		return "", true, nil
 	}
 
 	if configFile != "" {
-		logging.Get().Info("Using configuration file: %s", configFile)
+		slogging.Get().Info("Using configuration file: %s", configFile)
 	} else {
-		logging.Get().Info("No configuration file specified, using defaults")
+		slogging.Get().Info("No configuration file specified, using defaults")
 	}
 
 	return configFile, false, nil
@@ -40,7 +40,7 @@ func ParseFlags() (configFile string, generateConfig bool, err error) {
 
 // GenerateExampleConfig generates example configuration files
 func GenerateExampleConfig() error {
-	logging.Get().Info("Displaying configuration setup help to user")
+	slogging.Get().Debug("Displaying configuration setup help to user")
 
 	fmt.Println("Configuration files already exist in the project:")
 	fmt.Println("- config-example.yml - Template configuration file")

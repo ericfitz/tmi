@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"golang.org/x/oauth2"
 )
 
@@ -71,20 +72,28 @@ type IDTokenClaims struct {
 
 // NewProvider creates a new OAuth provider based on the provider ID
 func NewProvider(config OAuthProviderConfig, callbackURL string) (Provider, error) {
+	logger := slogging.Get()
+	logger.Debug("Creating OAuth provider: %s (%s)", config.ID, config.Name)
+
 	switch config.ID {
 	case "test":
 		// Special case for integrated test provider
+		logger.Debug("Creating test provider")
 		provider := newTestProvider(config, callbackURL)
 		if provider == nil {
+			logger.Error("Test provider not available in production builds provider_id=%v", config.ID)
 			return nil, fmt.Errorf("test provider is not available in production builds")
 		}
+		logger.Info("Test provider created successfully provider_id=%v", config.ID)
 		return provider, nil
 	default:
 		if config.Issuer != "" && config.JWKSURL != "" {
 			// Use OIDC provider for providers with ID token validation
+			logger.Debug("Creating OIDC provider provider_id=%v issuer=%v", config.ID, config.Issuer)
 			return NewGenericOIDCProvider(config, callbackURL)
 		}
 		// Use base provider for pure OAuth2
+		logger.Debug("Creating base OAuth2 provider provider_id=%v", config.ID)
 		return NewBaseProvider(config, callbackURL)
 	}
 }
@@ -98,6 +107,9 @@ type BaseProvider struct {
 
 // NewBaseProvider creates a new base OAuth provider
 func NewBaseProvider(config OAuthProviderConfig, callbackURL string) (*BaseProvider, error) {
+	logger := slogging.Get()
+	logger.Info("Initializing base OAuth provider provider_id=%v provider_name=%v", config.ID, config.Name)
+
 	oauth2Config := &oauth2.Config{
 		ClientID:     config.ClientID,
 		ClientSecret: config.ClientSecret,
@@ -111,6 +123,7 @@ func NewBaseProvider(config OAuthProviderConfig, callbackURL string) (*BaseProvi
 
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 
+	logger.Info("Base OAuth provider initialized successfully provider_id=%v scopes=%v", config.ID, config.Scopes)
 	return &BaseProvider{
 		config:       config,
 		oauth2Config: oauth2Config,
@@ -130,15 +143,21 @@ func (p *BaseProvider) GetAuthorizationURL(state string) string {
 
 // ExchangeCode exchanges an authorization code for tokens
 func (p *BaseProvider) ExchangeCode(ctx context.Context, code string) (*TokenResponse, error) {
+	logger := slogging.Get()
+	logger.Debug("Exchanging authorization code for tokens provider_id=%v", p.config.ID)
+
 	// Some providers (like GitHub) require Accept header
 	if p.config.AcceptHeader != "" {
 		// Custom token exchange for providers that need special headers
+		logger.Debug("Using custom token exchange provider_id=%v", p.config.ID)
 		return p.customTokenExchange(ctx, code)
 	}
 
 	// Standard OAuth2 token exchange
+	logger.Debug("Using standard OAuth2 token exchange provider_id=%v", p.config.ID)
 	token, err := p.oauth2Config.Exchange(ctx, code)
 	if err != nil {
+		logger.Error("Failed to exchange authorization code provider_id=%v error=%v", p.config.ID, err)
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
 
@@ -153,17 +172,23 @@ func (p *BaseProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 	}
 
 	// Extract ID token if present
+	hasIDToken := false
 	if idToken := token.Extra("id_token"); idToken != nil {
 		if idTokenStr, ok := idToken.(string); ok {
 			response.IDToken = idTokenStr
+			hasIDToken = true
 		}
 	}
 
+	logger.Info("Token exchange successful provider_id=%v token_type=%v has_id_token=%v expires_in=%v", p.config.ID, token.TokenType, hasIDToken, expiresIn)
 	return response, nil
 }
 
 // customTokenExchange handles token exchange for providers that need special headers
 func (p *BaseProvider) customTokenExchange(ctx context.Context, code string) (*TokenResponse, error) {
+	logger := slogging.Get()
+	logger.Debug("Performing custom token exchange provider_id=%v", p.config.ID)
+
 	data := url.Values{}
 	data.Set("client_id", p.config.ClientID)
 	data.Set("client_secret", p.config.ClientSecret)
@@ -173,6 +198,7 @@ func (p *BaseProvider) customTokenExchange(ctx context.Context, code string) (*T
 
 	req, err := http.NewRequestWithContext(ctx, "POST", p.config.TokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
+		logger.Error("Failed to create token exchange request provider_id=%v error=%v", p.config.ID, err)
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -183,31 +209,40 @@ func (p *BaseProvider) customTokenExchange(ctx context.Context, code string) (*T
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
+		logger.Error("Custom token exchange request failed provider_id=%v error=%v", p.config.ID, err)
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
 	defer closeBody(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		logger.Error("Token exchange returned error status provider_id=%v status_code=%v response_body=%v", p.config.ID, resp.StatusCode, string(body))
 		return nil, fmt.Errorf("failed to exchange code: %s", body)
 	}
 
 	var tokenResp TokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		logger.Error("Failed to decode token response provider_id=%v error=%v", p.config.ID, err)
 		return nil, fmt.Errorf("failed to decode token response: %w", err)
 	}
 
 	// GitHub doesn't provide expires_in, set a default
 	if tokenResp.ExpiresIn == 0 {
 		tokenResp.ExpiresIn = 3600 // 1 hour default
+		logger.Debug("Set default token expiration provider_id=%v expires_in=%v", p.config.ID, 3600)
 	}
 
+	logger.Info("Custom token exchange successful provider_id=%v token_type=%v expires_in=%v", p.config.ID, tokenResp.TokenType, tokenResp.ExpiresIn)
 	return &tokenResp, nil
 }
 
 // GetUserInfo gets user information from the provider
 func (p *BaseProvider) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
+	logger := slogging.Get()
+	logger.Debug("Fetching user information provider_id=%v endpoints_count=%v", p.config.ID, len(p.config.UserInfo))
+
 	if len(p.config.UserInfo) == 0 {
+		logger.Error("No userinfo endpoints configured provider_id=%v", p.config.ID)
 		return nil, fmt.Errorf("no userinfo endpoints configured")
 	}
 
@@ -227,9 +262,11 @@ func (p *BaseProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 
 	// Process each userinfo endpoint
 	for i, endpoint := range p.config.UserInfo {
+		logger.Debug("Processing userinfo endpoint provider_id=%v endpoint_index=%v endpoint_url=%v", p.config.ID, i, endpoint.URL)
 		// Fetch data from endpoint
 		jsonData, err := p.fetchEndpoint(ctx, endpoint.URL, accessToken, authHeaderFormat, acceptHeader)
 		if err != nil {
+			logger.Error("Failed to fetch userinfo provider_id=%v endpoint_url=%v error=%v", p.config.ID, endpoint.URL, err)
 			return nil, fmt.Errorf("failed to fetch userinfo from %s: %w", endpoint.URL, err)
 		}
 
@@ -246,17 +283,24 @@ func (p *BaseProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 
 		// Extract claims using the claim extractor
 		if err := extractClaims(jsonData, claims, userInfo); err != nil {
+			logger.Error("Failed to extract claims provider_id=%v endpoint_url=%v error=%v", p.config.ID, endpoint.URL, err)
 			return nil, fmt.Errorf("failed to extract claims: %w", err)
 		}
+		logger.Debug("Claims extracted successfully provider_id=%v endpoint_index=%v", p.config.ID, i)
 	}
 
+	logger.Info("User information retrieved successfully provider_id=%v user_id=%v user_email=%v", p.config.ID, userInfo.ID, userInfo.Email)
 	return userInfo, nil
 }
 
 // fetchEndpoint fetches JSON data from an endpoint
 func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, authHeaderFormat, acceptHeader string) (map[string]interface{}, error) {
+	logger := slogging.Get()
+	logger.Debug("Fetching endpoint data provider_id=%v url=%v", p.config.ID, url)
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
+		logger.Error("Failed to create endpoint request provider_id=%v url=%v error=%v", p.config.ID, url, err)
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -265,12 +309,14 @@ func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, auth
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
+		logger.Error("Endpoint request failed provider_id=%v url=%v error=%v", p.config.ID, url, err)
 		return nil, fmt.Errorf("failed to fetch endpoint: %w", err)
 	}
 	defer closeBody(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		logger.Error("Endpoint returned error status provider_id=%v url=%v status_code=%v response_body=%v", p.config.ID, url, resp.StatusCode, string(body))
 		return nil, fmt.Errorf("failed to fetch endpoint (status %d): %s", resp.StatusCode, body)
 	}
 
@@ -278,24 +324,29 @@ func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, auth
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		// Try to decode as array
 		_ = resp.Body.Close()
+		logger.Debug("Retrying endpoint as array provider_id=%v url=%v", p.config.ID, url)
 		req2, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 		req2.Header = req.Header
 		resp2, err := p.httpClient.Do(req2)
 		if err != nil {
+			logger.Error("Failed to re-fetch endpoint provider_id=%v url=%v error=%v", p.config.ID, url, err)
 			return nil, fmt.Errorf("failed to re-fetch endpoint: %w", err)
 		}
 		defer closeBody(resp2.Body)
 
 		var arrData []interface{}
 		if err := json.NewDecoder(resp2.Body).Decode(&arrData); err != nil {
+			logger.Error("Failed to decode array response provider_id=%v url=%v error=%v", p.config.ID, url, err)
 			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
 		// Wrap array response so it can be accessed with [0] syntax
 		data = map[string]interface{}{
 			"": arrData,
 		}
+		logger.Debug("Successfully decoded array response provider_id=%v url=%v array_length=%v", p.config.ID, url, len(arrData))
 	}
 
+	logger.Debug("Endpoint data fetched successfully provider_id=%v url=%v", p.config.ID, url)
 	return data, nil
 }
 
@@ -314,9 +365,13 @@ type GenericOIDCProvider struct {
 
 // NewGenericOIDCProvider creates a new generic OIDC provider
 func NewGenericOIDCProvider(config OAuthProviderConfig, callbackURL string) (*GenericOIDCProvider, error) {
+	logger := slogging.Get()
+	logger.Info("Initializing generic OIDC provider provider_id=%v issuer=%v", config.ID, config.Issuer)
+
 	// Create base provider first
 	baseProvider, err := NewBaseProvider(config, callbackURL)
 	if err != nil {
+		logger.Error("Failed to create base provider for OIDC provider_id=%v error=%v", config.ID, err)
 		return nil, err
 	}
 
@@ -326,12 +381,14 @@ func NewGenericOIDCProvider(config OAuthProviderConfig, callbackURL string) (*Ge
 	if err != nil {
 		// For providers like Microsoft with issuer validation issues, fall back to base provider
 		if strings.Contains(err.Error(), "issuer did not match") {
+			logger.Warn("OIDC issuer validation failed, falling back to base provider provider_id=%v issuer=%v error=%v", config.ID, config.Issuer, err)
 			return &GenericOIDCProvider{
 				BaseProvider: *baseProvider,
 				provider:     nil,
 				verifier:     nil,
 			}, nil
 		}
+		logger.Error("Failed to create OIDC provider provider_id=%v issuer=%v error=%v", config.ID, config.Issuer, err)
 		return nil, fmt.Errorf("failed to create OIDC provider: %w", err)
 	}
 
@@ -346,11 +403,13 @@ func NewGenericOIDCProvider(config OAuthProviderConfig, callbackURL string) (*Ge
 
 	// Skip issuer check for providers with known issues
 	if strings.Contains(config.Issuer, "microsoft") {
+		logger.Debug("Skipping issuer check for Microsoft provider provider_id=%v", config.ID)
 		verifierConfig.SkipIssuerCheck = true
 	}
 
 	verifier := provider.Verifier(verifierConfig)
 
+	logger.Info("Generic OIDC provider initialized successfully provider_id=%v issuer=%v", config.ID, config.Issuer)
 	return &GenericOIDCProvider{
 		BaseProvider: *baseProvider,
 		provider:     provider,
@@ -360,19 +419,26 @@ func NewGenericOIDCProvider(config OAuthProviderConfig, callbackURL string) (*Ge
 
 // ValidateIDToken validates an ID token
 func (p *GenericOIDCProvider) ValidateIDToken(ctx context.Context, idToken string) (*IDTokenClaims, error) {
+	logger := slogging.Get()
+	logger.Debug("Validating ID token provider_id=%v", p.config.ID)
+
 	if p.verifier == nil {
+		logger.Error("ID token validation not available provider_id=%v", p.config.ID)
 		return nil, fmt.Errorf("ID token validation not available for this provider")
 	}
 
 	token, err := p.verifier.Verify(ctx, idToken)
 	if err != nil {
+		logger.Error("ID token verification failed provider_id=%v error=%v", p.config.ID, err)
 		return nil, fmt.Errorf("failed to verify ID token: %w", err)
 	}
 
 	var claims IDTokenClaims
 	if err := token.Claims(&claims); err != nil {
+		logger.Error("Failed to parse ID token claims provider_id=%v error=%v", p.config.ID, err)
 		return nil, fmt.Errorf("failed to parse ID token claims: %w", err)
 	}
 
+	logger.Info("ID token validated successfully provider_id=%v subject=%v issuer=%v", p.config.ID, claims.Subject, claims.Issuer)
 	return &claims, nil
 }
