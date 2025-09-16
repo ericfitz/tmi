@@ -916,14 +916,16 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 	var cellsJSON []byte
 	var createdAt, modifiedAt time.Time
 
+	var svgImageBytes []byte
+
 	query := `
-		SELECT id, threat_model_id, name, type, cells, created_at, modified_at
+		SELECT id, threat_model_id, name, type, cells, svg_image, created_at, modified_at
 		FROM diagrams 
 		WHERE id = $1`
 
 	err := s.db.QueryRow(query, id).Scan(
 		&diagramUuid, &threatModelId, &name, &diagramType,
-		&cellsJSON, &createdAt, &modifiedAt,
+		&cellsJSON, &svgImageBytes, &createdAt, &modifiedAt,
 	)
 
 	if err != nil {
@@ -953,12 +955,19 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 		diagType = DfdDiagramType(diagramType)
 	}
 
+	// Handle svg_image
+	var svgImagePtr *[]byte
+	if svgImageBytes != nil {
+		svgImagePtr = &svgImageBytes
+	}
+
 	diagram = DfdDiagram{
 		Id:         &diagramUuid,
 		Name:       name,
 		Type:       diagType,
 		Cells:      cells,
 		Metadata:   &metadata,
+		SvgImage:   svgImagePtr,
 		CreatedAt:  createdAt,
 		ModifiedAt: modifiedAt,
 	}
@@ -999,13 +1008,19 @@ func (s *DiagramDatabaseStore) CreateWithThreatModel(item DfdDiagram, threatMode
 		return item, fmt.Errorf("invalid threat model ID format: %w", err)
 	}
 
+	// Handle svg_image
+	var svgImageBytes []byte
+	if item.SvgImage != nil {
+		svgImageBytes = *item.SvgImage
+	}
+
 	query := `
-		INSERT INTO diagrams (id, threat_model_id, name, type, cells, created_at, modified_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`
+		INSERT INTO diagrams (id, threat_model_id, name, type, cells, svg_image, created_at, modified_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 	_, err = s.db.Exec(query,
 		id, threatModelUUID, item.Name, string(item.Type),
-		cellsJSON, item.CreatedAt, item.ModifiedAt,
+		cellsJSON, svgImageBytes, item.CreatedAt, item.ModifiedAt,
 	)
 	if err != nil {
 		return item, fmt.Errorf("failed to insert diagram: %w", err)
@@ -1032,14 +1047,20 @@ func (s *DiagramDatabaseStore) Update(id string, item DfdDiagram) error {
 		return fmt.Errorf("failed to marshal cells: %w", err)
 	}
 
+	// Handle svg_image
+	var svgImageBytes []byte
+	if item.SvgImage != nil {
+		svgImageBytes = *item.SvgImage
+	}
+
 	query := `
 		UPDATE diagrams 
-		SET name = $2, type = $3, cells = $4, modified_at = $5
+		SET name = $2, type = $3, cells = $4, svg_image = $5, modified_at = $6
 		WHERE id = $1`
 
 	result, err := s.db.Exec(query,
 		id, item.Name, string(item.Type),
-		cellsJSON, item.ModifiedAt,
+		cellsJSON, svgImageBytes, item.ModifiedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update diagram: %w", err)

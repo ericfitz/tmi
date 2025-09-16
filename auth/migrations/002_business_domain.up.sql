@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS diagrams (
     type VARCHAR(50) CHECK (type IN ('DFD-1.0.0')),
     content TEXT,
     cells JSONB,
+    svg_image TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (threat_model_id) REFERENCES threat_models(id) ON DELETE CASCADE
