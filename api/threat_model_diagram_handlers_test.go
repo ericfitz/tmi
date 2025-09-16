@@ -794,3 +794,120 @@ func TestDeleteThreatModelDiagramCollaborateImmediateDisconnection(t *testing.T)
 	t.Log("✓ Host DELETE request immediately removed session from hub")
 	t.Log("✓ No timeouts were waited for - immediate cleanup confirmed")
 }
+
+// TestImageUpdateVectorLogic tests that image.update_vector is automatically set when SVG is provided but update_vector is not
+func TestImageUpdateVectorLogic(t *testing.T) {
+	r := setupThreatModelDiagramRouter()
+
+	// Create a test threat model with a diagram
+	tm, diagram := createTestThreatModelWithDiagram(t, r, "Test Threat Model", "This is a test threat model",
+		"Test Diagram", "This is a test diagram")
+
+	// Encode test SVG data
+	testSVG := []byte("<svg><circle r='10'/></svg>")
+
+	// Test Case 1: Update diagram with SVG but no image.update_vector - should auto-set
+	updatePayload1 := map[string]interface{}{
+		"name":     "Updated Diagram with SVG",
+		"type":     "DFD-1.0.0",
+		"cells":    diagram.Cells,
+		"metadata": diagram.Metadata,
+		"image": map[string]interface{}{
+			"svg": testSVG,
+			// Deliberately omit update_vector to test auto-set logic
+		},
+	}
+
+	updateBody1, _ := json.Marshal(updatePayload1)
+	updateReq1, _ := http.NewRequest("PUT", fmt.Sprintf("/threat_models/%s/diagrams/%s", tm.Id.String(), diagram.Id.String()), bytes.NewBuffer(updateBody1))
+	updateReq1.Header.Set("Content-Type", "application/json")
+	updateW1 := httptest.NewRecorder()
+
+	r.ServeHTTP(updateW1, updateReq1)
+
+	// Assert response
+	assert.Equal(t, http.StatusOK, updateW1.Code)
+
+	// Parse response
+	var resultDiagramUnion1 Diagram
+	err := json.Unmarshal(updateW1.Body.Bytes(), &resultDiagramUnion1)
+	require.NoError(t, err)
+
+	// Convert union type to DfdDiagram for field access
+	resultDiagram1, err := resultDiagramUnion1.AsDfdDiagram()
+	require.NoError(t, err)
+
+	// Verify that image.update_vector was automatically set to match BaseDiagram.update_vector
+	require.NotNil(t, resultDiagram1.Image, "Image should not be nil")
+	require.NotNil(t, resultDiagram1.Image.UpdateVector, "Image.UpdateVector should be auto-set")
+	require.NotNil(t, resultDiagram1.UpdateVector, "BaseDiagram.UpdateVector should exist")
+	assert.Equal(t, *resultDiagram1.UpdateVector, *resultDiagram1.Image.UpdateVector, "Image.UpdateVector should match BaseDiagram.UpdateVector")
+
+	// Test Case 2: Update diagram with SVG and explicit image.update_vector - should use provided value
+	explicitImageVector := int64(42)
+	updatePayload2 := map[string]interface{}{
+		"name":     "Updated Diagram with Explicit Image Vector",
+		"type":     "DFD-1.0.0",
+		"cells":    diagram.Cells,
+		"metadata": diagram.Metadata,
+		"image": map[string]interface{}{
+			"svg":           testSVG,
+			"update_vector": explicitImageVector,
+		},
+	}
+
+	updateBody2, _ := json.Marshal(updatePayload2)
+	updateReq2, _ := http.NewRequest("PUT", fmt.Sprintf("/threat_models/%s/diagrams/%s", tm.Id.String(), diagram.Id.String()), bytes.NewBuffer(updateBody2))
+	updateReq2.Header.Set("Content-Type", "application/json")
+	updateW2 := httptest.NewRecorder()
+
+	r.ServeHTTP(updateW2, updateReq2)
+
+	// Assert response
+	assert.Equal(t, http.StatusOK, updateW2.Code)
+
+	// Parse response
+	var resultDiagramUnion2 Diagram
+	err = json.Unmarshal(updateW2.Body.Bytes(), &resultDiagramUnion2)
+	require.NoError(t, err)
+
+	// Convert union type to DfdDiagram for field access
+	resultDiagram2, err := resultDiagramUnion2.AsDfdDiagram()
+	require.NoError(t, err)
+
+	// Verify that explicit image.update_vector was preserved
+	require.NotNil(t, resultDiagram2.Image, "Image should not be nil")
+	require.NotNil(t, resultDiagram2.Image.UpdateVector, "Image.UpdateVector should exist")
+	assert.Equal(t, explicitImageVector, *resultDiagram2.Image.UpdateVector, "Image.UpdateVector should use explicitly provided value")
+
+	// Test Case 3: Update diagram without image - should not create image
+	updatePayload3 := map[string]interface{}{
+		"name":     "Updated Diagram without Image",
+		"type":     "DFD-1.0.0",
+		"cells":    diagram.Cells,
+		"metadata": diagram.Metadata,
+	}
+
+	updateBody3, _ := json.Marshal(updatePayload3)
+	updateReq3, _ := http.NewRequest("PUT", fmt.Sprintf("/threat_models/%s/diagrams/%s", tm.Id.String(), diagram.Id.String()), bytes.NewBuffer(updateBody3))
+	updateReq3.Header.Set("Content-Type", "application/json")
+	updateW3 := httptest.NewRecorder()
+
+	r.ServeHTTP(updateW3, updateReq3)
+
+	// Assert response
+	assert.Equal(t, http.StatusOK, updateW3.Code)
+
+	// Parse response
+	var resultDiagramUnion3 Diagram
+	err = json.Unmarshal(updateW3.Body.Bytes(), &resultDiagramUnion3)
+	require.NoError(t, err)
+
+	// Convert union type to DfdDiagram for field access
+	resultDiagram3, err := resultDiagramUnion3.AsDfdDiagram()
+	require.NoError(t, err)
+
+	// The logic should not affect image field when none was provided
+	// This is mainly to verify the logic doesn't break when no image is present
+	t.Logf("Test Case 3 completed successfully - no image provided, no crashes: %s", resultDiagram3.Name)
+}

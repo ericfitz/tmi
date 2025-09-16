@@ -277,6 +277,17 @@ func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagra
 		vectorIncremented = true
 	}
 
+	// Handle image.update_vector logic: if image.svg is provided but image.update_vector is not,
+	// then set image.update_vector to the current BaseDiagram.update_vector
+	if updatedDiagram.Image != nil && updatedDiagram.Image.Svg != nil && updatedDiagram.Image.UpdateVector == nil {
+		// Use the current diagram's update_vector (after potential increment)
+		currentUpdateVector := newVector
+		if !vectorIncremented && updatedDiagram.UpdateVector != nil {
+			currentUpdateVector = *updatedDiagram.UpdateVector
+		}
+		updatedDiagram.Image.UpdateVector = &currentUpdateVector
+	}
+
 	// Update timestamps (pass pointer for WithTimestamps interface)
 	updatedDiagram = *UpdateTimestamps(&updatedDiagram, false)
 
