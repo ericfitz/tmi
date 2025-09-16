@@ -513,7 +513,7 @@ func TestPerformanceMonitoringIntegration(t *testing.T) {
 	GlobalPerformanceMonitor.RecordConnection(sessionID, false) // disconnect
 
 	// Test recording state correction
-	GlobalPerformanceMonitor.RecordStateCorrection(sessionID, "user@example.com", "conflict", 2)
+	GlobalPerformanceMonitor.RecordStateCorrection(sessionID, "user@example.com", "conflict")
 
 	// Get metrics
 	metrics := GlobalPerformanceMonitor.GetGlobalMetrics()

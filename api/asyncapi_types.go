@@ -316,8 +316,8 @@ func (m AuthorizationDeniedMessage) Validate() error {
 }
 
 type StateCorrectionMessage struct {
-	MessageType MessageType `json:"message_type"`
-	Cells       []Cell      `json:"cells"`
+	MessageType  MessageType `json:"message_type"`
+	UpdateVector *int64      `json:"update_vector"`
 }
 
 func (m StateCorrectionMessage) GetMessageType() MessageType { return m.MessageType }
@@ -326,8 +326,11 @@ func (m StateCorrectionMessage) Validate() error {
 	if m.MessageType != MessageTypeStateCorrection {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeStateCorrection, m.MessageType)
 	}
-	if len(m.Cells) == 0 {
-		return fmt.Errorf("at least one cell is required for state correction")
+	if m.UpdateVector == nil {
+		return fmt.Errorf("update_vector is required for state correction")
+	}
+	if *m.UpdateVector < 0 {
+		return fmt.Errorf("update_vector must be non-negative")
 	}
 	return nil
 }

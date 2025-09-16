@@ -206,7 +206,7 @@ func (pm *PerformanceMonitor) RecordConnection(sessionID string, connect bool) {
 }
 
 // RecordStateCorrection records state correction events
-func (pm *PerformanceMonitor) RecordStateCorrection(sessionID, userID, reason string, cellCount int) {
+func (pm *PerformanceMonitor) RecordStateCorrection(sessionID, userID, reason string) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
@@ -217,8 +217,8 @@ func (pm *PerformanceMonitor) RecordStateCorrection(sessionID, userID, reason st
 		session.LastActivity = time.Now()
 	}
 
-	slogging.Get().Info("PERFORMANCE: State correction sent to %s in session %s, reason: %s, cells: %d",
-		userID, sessionID, reason, cellCount)
+	slogging.Get().Info("PERFORMANCE: State correction sent to %s in session %s, reason: %s",
+		userID, sessionID, reason)
 }
 
 // RecordResyncRequest records resync request events

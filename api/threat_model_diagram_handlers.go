@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"reflect"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -390,18 +391,24 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	}
 	updatedDiagram.Id = &uuid
 
-	// Preserve creation time but update modification time
+	// Preserve creation time
 	updatedDiagram.CreatedAt = existingDiagram.CreatedAt
-	updatedDiagram.ModifiedAt = time.Now().UTC()
 
-	// Update in store
-	if err := DiagramStore.Update(diagramId, updatedDiagram); err != nil {
-		slogging.Get().WithContext(c).Error("Failed to update diagram %s in store (user: %s, type: %s): %v", diagramId, userEmail, updatedDiagram.Type, err)
+	// Use centralized update function
+	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {
+		// Return the full updated diagram, incrementing vector only if cells changed
+		cellsChanged := !areSlicesEqual(diagram.Cells, updatedDiagram.Cells)
+		return updatedDiagram, cellsChanged, nil
+	}
+
+	result, err := h.wsHub.UpdateDiagram(diagramId, updateFunc, "rest_api", userEmail)
+	if err != nil {
+		slogging.Get().WithContext(c).Error("Failed to update diagram %s via centralized function (user: %s, type: %s): %v", diagramId, userEmail, updatedDiagram.Type, err)
 		HandleRequestError(c, ServerError("Failed to update diagram"))
 		return
 	}
 
-	c.JSON(http.StatusOK, updatedDiagram)
+	c.JSON(http.StatusOK, result.UpdatedDiagram)
 }
 
 // PatchDiagram partially updates a diagram within a threat model
@@ -475,15 +482,21 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	// Preserve critical fields that shouldn't change during patching
 	modifiedDiagram.Id = existingDiagram.Id
 	modifiedDiagram.CreatedAt = existingDiagram.CreatedAt
-	modifiedDiagram.ModifiedAt = time.Now().UTC()
 
-	// Update in store
-	if err := DiagramStore.Update(diagramId, modifiedDiagram); err != nil {
+	// Use centralized update function
+	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {
+		// Check if cells changed to determine if we should increment vector
+		cellsChanged := !areSlicesEqual(diagram.Cells, modifiedDiagram.Cells)
+		return modifiedDiagram, cellsChanged, nil
+	}
+
+	result, err := h.wsHub.UpdateDiagram(diagramId, updateFunc, "rest_api", userEmail)
+	if err != nil {
 		HandleRequestError(c, ServerError("Failed to update diagram: "+err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, modifiedDiagram)
+	c.JSON(http.StatusOK, result.UpdatedDiagram)
 }
 
 // DeleteDiagram deletes a diagram within a threat model
@@ -793,4 +806,14 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// areSlicesEqual compares two slices of DfdDiagram_Cells_Item for equality
+func areSlicesEqual(a, b []DfdDiagram_Cells_Item) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	// Use deep comparison for complex slice elements
+	return reflect.DeepEqual(a, b)
 }

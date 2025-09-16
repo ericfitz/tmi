@@ -39,6 +39,8 @@ type WebSocketHub struct {
 	LoggingConfig slogging.WebSocketLoggingConfig
 	// Inactivity timeout duration
 	InactivityTimeout time.Duration
+	// Mutex for diagram update operations (separate from session management)
+	updateMutex sync.Mutex
 }
 
 // DiagramSession represents a collaborative editing session
@@ -228,20 +230,26 @@ func NewWebSocketHubForTests() *WebSocketHub {
 	}, 30*time.Second) // Short timeout for tests
 }
 
-// UpdateDiagramCellsResult contains the result of a centralized diagram update
-type UpdateDiagramCellsResult struct {
-	UpdatedDiagram DfdDiagram
-	PreviousVector int64
-	NewVector      int64
+// UpdateDiagramResult contains the result of a centralized diagram update
+type UpdateDiagramResult struct {
+	UpdatedDiagram    DfdDiagram
+	PreviousVector    int64
+	NewVector         int64
+	VectorIncremented bool
 }
 
-// UpdateDiagramCells provides centralized diagram cell updates with version control and WebSocket notification
+// UpdateDiagram provides centralized diagram updates with version control and WebSocket notification
 // This function:
-// 1. Handles all diagram cell modifications
-// 2. Auto-increments update_vector on any cells[] changes
+// 1. Handles all diagram modifications (cells, metadata, properties)
+// 2. Auto-increments update_vector when cells[] changes or when explicitly requested
 // 3. Notifies WebSocket sessions when updates come from REST API
 // 4. Serves as single source of truth for all diagram modifications
-func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []Cell, updateSource string, excludeUserID string) (*UpdateDiagramCellsResult, error) {
+// 5. Provides thread-safe updates with proper locking
+func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagram) (DfdDiagram, bool, error), updateSource string, excludeUserID string) (*UpdateDiagramResult, error) {
+	// Use dedicated update mutex to prevent race conditions on update_vector
+	h.updateMutex.Lock()
+	defer h.updateMutex.Unlock()
+
 	// Get the current diagram
 	currentDiagram, err := DiagramStore.Get(diagramID)
 	if err != nil {
@@ -254,24 +262,20 @@ func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []Cell, upd
 		previousVector = *currentDiagram.UpdateVector
 	}
 
-	// Convert []Cell to []DfdDiagram_Cells_Item using CellConverter
-	converter := NewCellConverter()
-	unionItems := make([]DfdDiagram_Cells_Item, len(newCells))
-	for i, cell := range newCells {
-		unionItem, err := converter.ConvertCellToUnionItem(cell)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert cell %d: %w", i, err)
-		}
-		unionItems[i] = unionItem
+	// Apply the update function
+	updatedDiagram, shouldIncrementVector, err := updateFunc(currentDiagram)
+	if err != nil {
+		return nil, fmt.Errorf("update function failed for diagram %s: %w", diagramID, err)
 	}
 
-	// Create updated diagram with new cells and incremented update vector
-	updatedDiagram := currentDiagram
-	updatedDiagram.Cells = unionItems
-
-	// Increment update vector
-	newVector := previousVector + 1
-	updatedDiagram.UpdateVector = &newVector
+	// Increment update vector if requested
+	newVector := previousVector
+	vectorIncremented := false
+	if shouldIncrementVector {
+		newVector = previousVector + 1
+		updatedDiagram.UpdateVector = &newVector
+		vectorIncremented = true
+	}
 
 	// Update timestamps (pass pointer for WithTimestamps interface)
 	updatedDiagram = *UpdateTimestamps(&updatedDiagram, false)
@@ -281,16 +285,39 @@ func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []Cell, upd
 		return nil, fmt.Errorf("failed to update diagram %s: %w", diagramID, err)
 	}
 
-	// Notify WebSocket clients if this update came from REST API
-	if updateSource == "rest_api" {
+	// Notify WebSocket clients if this update came from REST API and vector was incremented
+	if updateSource == "rest_api" && vectorIncremented {
 		h.notifyWebSocketClientsOfUpdate(diagramID, newVector, excludeUserID)
 	}
 
-	return &UpdateDiagramCellsResult{
-		UpdatedDiagram: updatedDiagram,
-		PreviousVector: previousVector,
-		NewVector:      newVector,
+	return &UpdateDiagramResult{
+		UpdatedDiagram:    updatedDiagram,
+		PreviousVector:    previousVector,
+		NewVector:         newVector,
+		VectorIncremented: vectorIncremented,
 	}, nil
+}
+
+// UpdateDiagramCells provides centralized diagram cell updates (convenience wrapper)
+func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []Cell, updateSource string, excludeUserID string) (*UpdateDiagramResult, error) {
+	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {
+		// Convert []Cell to []DfdDiagram_Cells_Item using CellConverter
+		converter := NewCellConverter()
+		unionItems := make([]DfdDiagram_Cells_Item, len(newCells))
+		for i, cell := range newCells {
+			unionItem, err := converter.ConvertCellToUnionItem(cell)
+			if err != nil {
+				return diagram, false, fmt.Errorf("failed to convert cell %d: %w", i, err)
+			}
+			unionItems[i] = unionItem
+		}
+
+		// Update cells and request vector increment
+		diagram.Cells = unionItems
+		return diagram, true, nil // true = increment update vector for cell changes
+	}
+
+	return h.UpdateDiagram(diagramID, updateFunc, updateSource, excludeUserID)
 }
 
 // notifyWebSocketClientsOfUpdate sends state correction messages to active WebSocket sessions
@@ -305,10 +332,10 @@ func (h *WebSocketHub) notifyWebSocketClientsOfUpdate(diagramID string, newUpdat
 		return
 	}
 
-	// Create state correction message with update_vector (without cells per user requirement)
+	// Create state correction message with update_vector
 	correctionMsg := StateCorrectionMessage{
-		MessageType: "state_correction",
-		Cells:       []Cell{}, // Empty cells array - clients will resync via REST API
+		MessageType:  "state_correction",
+		UpdateVector: &newUpdateVector,
 	}
 
 	// Send correction to all connected clients except the excluded user
@@ -2673,7 +2700,7 @@ func (s *DiagramSession) sendStateCorrectionWithReason(client *WebSocketClient, 
 	s.sendEnhancedStateCorrection(client, affectedCellIDs, reason, userRole)
 }
 
-// sendEnhancedStateCorrection sends enhanced state correction with role-specific messaging
+// sendEnhancedStateCorrection sends enhanced state correction with update vector
 func (s *DiagramSession) sendEnhancedStateCorrection(client *WebSocketClient, affectedCellIDs []string, reason string, userRole Role) {
 
 	// Get current diagram state
@@ -2683,60 +2710,39 @@ func (s *DiagramSession) sendEnhancedStateCorrection(client *WebSocketClient, af
 		return
 	}
 
-	// Build correction cells for the affected cell IDs
-	var correctionCells []Cell
-	converter := NewCellConverter()
-
-	// Convert diagram cells to a map for quick lookup
-	cellMap := make(map[string]Cell)
-	totalCells := 0
-	for _, cellItem := range diagram.Cells {
-		// Convert DfdDiagram_Cells_Item to Cell using existing conversion logic
-		if cell, err := converter.ConvertUnionItemToCell(cellItem); err == nil {
-			cellMap[cell.Id.String()] = cell
-			totalCells++
-		}
+	// Get current update vector from diagram
+	updateVector := int64(0)
+	if diagram.UpdateVector != nil {
+		updateVector = *diagram.UpdateVector
 	}
 
-	// Include current state of affected cells in the correction
-	correctionsSent := 0
-	for _, cellID := range affectedCellIDs {
-		if cell, exists := cellMap[cellID]; exists {
-			correctionCells = append(correctionCells, cell)
-			correctionsSent++
-		}
-		// If cell doesn't exist, it means it was deleted - this is also valid state to communicate
+	// Send the correction with update vector
+	correctionMsg := StateCorrectionMessage{
+		MessageType:  "state_correction",
+		UpdateVector: &updateVector,
 	}
+	s.sendToClient(client, correctionMsg)
 
-	// Send the correction with enhanced messaging based on user role and reason
-	if len(correctionCells) > 0 || correctionsSent < len(affectedCellIDs) {
-		correctionMsg := StateCorrectionMessage{
-			MessageType: "state_correction",
-			Cells:       correctionCells,
-		}
-		s.sendToClient(client, correctionMsg)
+	// Enhanced logging based on reason and user role
+	s.logEnhancedStateCorrection(client.UserID, reason, userRole)
 
-		// Enhanced logging based on reason and user role
-		s.logEnhancedStateCorrection(client.UserID, reason, userRole, correctionsSent, len(affectedCellIDs)-correctionsSent, totalCells)
+	// Track correction frequency for potential sync issues
+	s.trackCorrectionEvent(client.UserID, reason)
 
-		// Track correction frequency for potential sync issues
-		s.trackCorrectionEvent(client.UserID, reason)
-
-		// Record performance metrics
-		if GlobalPerformanceMonitor != nil {
-			GlobalPerformanceMonitor.RecordStateCorrection(s.ID, client.UserID, reason, len(correctionCells))
-		}
+	// Record performance metrics
+	if GlobalPerformanceMonitor != nil {
+		GlobalPerformanceMonitor.RecordStateCorrection(s.ID, client.UserID, reason)
 	}
 }
 
 // logEnhancedStateCorrection provides detailed logging for state corrections
-func (s *DiagramSession) logEnhancedStateCorrection(userID string, reason string, userRole Role, correctionsSent, deletionsSent, totalCells int) {
+func (s *DiagramSession) logEnhancedStateCorrection(userID string, reason string, userRole Role) {
 	roleStr := string(userRole)
 
 	switch reason {
 	case "unauthorized_operation":
-		slogging.Get().Warn("STATE CORRECTION [UNAUTHORIZED]: User %s (%s role) attempted unauthorized operation - sent %d cell corrections, %d deletions (total cells: %d)",
-			userID, roleStr, correctionsSent, deletionsSent, totalCells)
+		slogging.Get().Warn("STATE CORRECTION [UNAUTHORIZED]: User %s (%s role) attempted unauthorized operation - resync required",
+			userID, roleStr)
 
 		// Enhanced security logging for unauthorized operations
 		if userRole == RoleReader {
@@ -2744,16 +2750,16 @@ func (s *DiagramSession) logEnhancedStateCorrection(userID string, reason string
 		}
 
 	case "operation_failed":
-		slogging.Get().Warn("STATE CORRECTION [OPERATION_FAILED]: User %s (%s role) operation failed - sent %d cell corrections, %d deletions (total cells: %d)",
-			userID, roleStr, correctionsSent, deletionsSent, totalCells)
+		slogging.Get().Warn("STATE CORRECTION [OPERATION_FAILED]: User %s (%s role) operation failed - resync required",
+			userID, roleStr)
 
 	case "out_of_order_sequence", "duplicate_message", "message_gap":
-		slogging.Get().Warn("STATE CORRECTION [SYNC_ISSUE]: User %s (%s role) sync issue (%s) - sent %d cell corrections, %d deletions (total cells: %d)",
-			userID, roleStr, reason, correctionsSent, deletionsSent, totalCells)
+		slogging.Get().Warn("STATE CORRECTION [SYNC_ISSUE]: User %s (%s role) sync issue (%s) - resync required",
+			userID, roleStr, reason)
 
 	default:
-		slogging.Get().Warn("STATE CORRECTION [%s]: User %s (%s role) - sent %d cell corrections, %d deletions (total cells: %d)",
-			strings.ToUpper(reason), userID, roleStr, correctionsSent, deletionsSent, totalCells)
+		slogging.Get().Warn("STATE CORRECTION [%s]: User %s (%s role) - resync required",
+			strings.ToUpper(reason), userID, roleStr)
 	}
 }
 
@@ -2838,35 +2844,19 @@ func (s *DiagramSession) sendResyncRecommendation(userID, issueType string) {
 
 // applyHistoryState applies a historical state to the diagram (for undo)
 func (s *DiagramSession) applyHistoryState(state map[string]*Cell) error {
-	// Get current diagram
-	diagram, err := DiagramStore.Get(s.DiagramID)
-	if err != nil {
-		return fmt.Errorf("failed to get diagram: %w", err)
-	}
-
-	// Clear existing cells and apply historical state
-	diagram.Cells = []DfdDiagram_Cells_Item{}
-
-	// Create converter for cell transformations
-	converter := NewCellConverter()
-
-	// Convert historical state back to diagram cells
+	// Convert state map to Cell slice for centralized update
+	cells := make([]Cell, 0, len(state))
 	for _, cell := range state {
-		// Convert Cell to DfdDiagram_Cells_Item
-		cellUnion, err := converter.ConvertCellToUnionItem(*cell)
-		if err != nil {
-			slogging.Get().Info("Warning: failed to convert cell %s: %v", cell.Id.String(), err)
-			continue
-		}
-		diagram.Cells = append(diagram.Cells, cellUnion)
+		cells = append(cells, *cell)
 	}
 
-	// Update modification time
-	now := time.Now().UTC()
-	diagram.ModifiedAt = now
+	// Use centralized update function
+	_, err := s.Hub.UpdateDiagramCells(s.DiagramID, cells, "websocket", "")
+	if err != nil {
+		return fmt.Errorf("failed to update diagram via centralized function: %w", err)
+	}
 
-	// Save updated diagram
-	return DiagramStore.Update(s.DiagramID, diagram)
+	return nil
 }
 
 // applyHistoryOperation applies a historical operation to the diagram (for redo)
@@ -3459,9 +3449,23 @@ func (s *DiagramSession) validateAddOperation(diagram *DfdDiagram, currentState 
 	diagram.Cells = append(diagram.Cells, cellItem)
 	result.StateChanged = true
 
-	// Save changes
-	if err := DiagramStore.Update(s.DiagramID, *diagram); err != nil {
-		slogging.Get().Info("Failed to save diagram after add operation: %v", err)
+	// Use centralized update function to save changes
+	saveConverter := NewCellConverter()
+	cells := make([]Cell, len(diagram.Cells))
+	for i, cellItem := range diagram.Cells {
+		if cell, err := saveConverter.ConvertUnionItemToCell(cellItem); err == nil {
+			cells[i] = cell
+		} else {
+			slogging.Get().Info("Warning: failed to convert cell during save: %v", err)
+			result.Valid = false
+			result.Reason = "save_failed"
+			return result
+		}
+	}
+
+	_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, cells, "websocket", "")
+	if saveErr != nil {
+		slogging.Get().Info("Failed to save diagram after add operation: %v", saveErr)
 		result.Valid = false
 		result.Reason = "save_failed"
 		return result
@@ -3530,9 +3534,23 @@ func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentSta
 
 	result.StateChanged = true
 
-	// Save changes
-	if err := DiagramStore.Update(s.DiagramID, *diagram); err != nil {
-		slogging.Get().Info("Failed to save diagram after update operation: %v", err)
+	// Use centralized update function to save changes
+	saveConverter := NewCellConverter()
+	cells := make([]Cell, len(diagram.Cells))
+	for i, cellItem := range diagram.Cells {
+		if cell, err := saveConverter.ConvertUnionItemToCell(cellItem); err == nil {
+			cells[i] = cell
+		} else {
+			slogging.Get().Info("Warning: failed to convert cell during save: %v", err)
+			result.Valid = false
+			result.Reason = "save_failed"
+			return result
+		}
+	}
+
+	_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, cells, "websocket", "")
+	if saveErr != nil {
+		slogging.Get().Info("Failed to save diagram after update operation: %v", saveErr)
 		result.Valid = false
 		result.Reason = "save_failed"
 		return result
@@ -3573,9 +3591,23 @@ func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentSta
 	result.StateChanged = found
 
 	if found {
-		// Save changes
-		if err := DiagramStore.Update(s.DiagramID, *diagram); err != nil {
-			slogging.Get().Info("Failed to save diagram after remove operation: %v", err)
+		// Use centralized update function to save changes
+		saveConverter := NewCellConverter()
+		cells := make([]Cell, len(diagram.Cells))
+		for i, cellItem := range diagram.Cells {
+			if cell, err := saveConverter.ConvertUnionItemToCell(cellItem); err == nil {
+				cells[i] = cell
+			} else {
+				slogging.Get().Info("Warning: failed to convert cell during save: %v", err)
+				result.Valid = false
+				result.Reason = "save_failed"
+				return result
+			}
+		}
+
+		_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, cells, "websocket", "")
+		if saveErr != nil {
+			slogging.Get().Info("Failed to save diagram after remove operation: %v", saveErr)
 			result.Valid = false
 			result.Reason = "save_failed"
 			return result
@@ -3850,74 +3882,13 @@ func (c *WebSocketClient) ReadPump() {
 }
 
 // applyDiagramOperation applies a diagram operation to the stored diagram
+// Note: This function is currently unused according to linter warnings
 func applyDiagramOperation(diagramID string, op DiagramOperation) error {
-	// Get the diagram from the store
-	diagram, err := DiagramStore.Get(diagramID)
-	if err != nil {
-		return err
-	}
-
-	// Ensure cells array exists (no longer need to check since Cells is not a pointer)
-	if diagram.Cells == nil {
-		diagram.Cells = []DfdDiagram_Cells_Item{}
-	}
-
-	// Update diagram based on operation type
-	switch op.Type {
-	case "add":
-		// Add a new component
-		if op.Component != nil {
-			// Convert Cell to DfdDiagram_Cells_Item using conversion utility
-			converter := NewCellConverter()
-			cellItem, err := converter.ConvertCellToUnionItem(*op.Component)
-			if err != nil {
-				return fmt.Errorf("failed to convert cell: %w", err)
-			}
-			diagram.Cells = append(diagram.Cells, cellItem)
-		}
-	case "update":
-		// Update an existing cell
-		converter := NewCellConverter()
-		for i := range diagram.Cells {
-			cellItem := &diagram.Cells[i]
-			// Convert to Cell to check ID
-			if cell, err := converter.ConvertUnionItemToCell(*cellItem); err == nil {
-				if cell.Id.String() == op.ComponentID {
-					// Update existing cell with new properties from op.Component
-					if op.Component != nil {
-						// Replace the entire cell with the updated version
-						if updatedCellItem, err := converter.ConvertCellToUnionItem(*op.Component); err == nil {
-							diagram.Cells[i] = updatedCellItem
-						}
-					}
-					break
-				}
-			}
-		}
-	case "remove":
-		// Remove a cell
-		converter := NewCellConverter()
-		for i, cellItem := range diagram.Cells {
-			// Convert to Cell to check ID
-			if cell, err := converter.ConvertUnionItemToCell(cellItem); err == nil {
-				if cell.Id.String() == op.ComponentID {
-					// Remove by replacing with last element and truncating
-					lastIndex := len(diagram.Cells) - 1
-					if i != lastIndex {
-						diagram.Cells[i] = diagram.Cells[lastIndex]
-					}
-					diagram.Cells = diagram.Cells[:lastIndex]
-					break
-				}
-			}
-		}
-	}
-
-	// Update modification time
-	diagram.ModifiedAt = time.Now().UTC()
-
-	// Save changes
-	return DiagramStore.Update(diagramID, diagram)
+	// Since this function is unused and the validation functions (validateAddOperation, etc.)
+	// already handle individual cell operations with proper centralized updates,
+	// we'll deprecate this function to avoid complexity.
+	// If needed in the future, it should be refactored to use the centralized UpdateDiagram function.
+	return fmt.Errorf("applyDiagramOperation is deprecated - use CellOperationProcessor instead")
 }
 
 // WritePump pumps messages from hub to WebSocket
