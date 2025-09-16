@@ -915,17 +915,18 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 	var name, diagramType string
 	var cellsJSON []byte
 	var createdAt, modifiedAt time.Time
+	var updateVector int64
 
 	var svgImageBytes []byte
 
 	query := `
-		SELECT id, threat_model_id, name, type, cells, svg_image, created_at, modified_at
+		SELECT id, threat_model_id, name, type, cells, svg_image, update_vector, created_at, modified_at
 		FROM diagrams 
 		WHERE id = $1`
 
 	err := s.db.QueryRow(query, id).Scan(
 		&diagramUuid, &threatModelId, &name, &diagramType,
-		&cellsJSON, &svgImageBytes, &createdAt, &modifiedAt,
+		&cellsJSON, &svgImageBytes, &updateVector, &createdAt, &modifiedAt,
 	)
 
 	if err != nil {
@@ -955,21 +956,31 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 		diagType = DfdDiagramType(diagramType)
 	}
 
-	// Handle svg_image
-	var svgImagePtr *[]byte
+	// Handle svg_image - create struct with Image and UpdateVector
+	var svgImagePtr *struct {
+		Image        *[]byte `json:"image,omitempty"`
+		UpdateVector *int64  `json:"update_vector,omitempty"`
+	}
 	if svgImageBytes != nil {
-		svgImagePtr = &svgImageBytes
+		svgImagePtr = &struct {
+			Image        *[]byte `json:"image,omitempty"`
+			UpdateVector *int64  `json:"update_vector,omitempty"`
+		}{
+			Image:        &svgImageBytes,
+			UpdateVector: &updateVector,
+		}
 	}
 
 	diagram = DfdDiagram{
-		Id:         &diagramUuid,
-		Name:       name,
-		Type:       diagType,
-		Cells:      cells,
-		Metadata:   &metadata,
-		SvgImage:   svgImagePtr,
-		CreatedAt:  createdAt,
-		ModifiedAt: modifiedAt,
+		Id:           &diagramUuid,
+		Name:         name,
+		Type:         diagType,
+		Cells:        cells,
+		Metadata:     &metadata,
+		SvgImage:     svgImagePtr,
+		UpdateVector: &updateVector,
+		CreatedAt:    createdAt,
+		ModifiedAt:   modifiedAt,
 	}
 
 	// Store threat model ID in context for later use
@@ -1008,19 +1019,25 @@ func (s *DiagramDatabaseStore) CreateWithThreatModel(item DfdDiagram, threatMode
 		return item, fmt.Errorf("invalid threat model ID format: %w", err)
 	}
 
-	// Handle svg_image
+	// Handle svg_image - extract Image field from the struct
 	var svgImageBytes []byte
-	if item.SvgImage != nil {
-		svgImageBytes = *item.SvgImage
+	if item.SvgImage != nil && item.SvgImage.Image != nil {
+		svgImageBytes = *item.SvgImage.Image
+	}
+
+	// Get update_vector (default to 0 for new diagrams)
+	updateVector := int64(0)
+	if item.UpdateVector != nil {
+		updateVector = *item.UpdateVector
 	}
 
 	query := `
-		INSERT INTO diagrams (id, threat_model_id, name, type, cells, svg_image, created_at, modified_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+		INSERT INTO diagrams (id, threat_model_id, name, type, cells, svg_image, update_vector, created_at, modified_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	_, err = s.db.Exec(query,
 		id, threatModelUUID, item.Name, string(item.Type),
-		cellsJSON, svgImageBytes, item.CreatedAt, item.ModifiedAt,
+		cellsJSON, svgImageBytes, updateVector, item.CreatedAt, item.ModifiedAt,
 	)
 	if err != nil {
 		return item, fmt.Errorf("failed to insert diagram: %w", err)
@@ -1047,20 +1064,26 @@ func (s *DiagramDatabaseStore) Update(id string, item DfdDiagram) error {
 		return fmt.Errorf("failed to marshal cells: %w", err)
 	}
 
-	// Handle svg_image
+	// Handle svg_image - extract Image field from the struct
 	var svgImageBytes []byte
-	if item.SvgImage != nil {
-		svgImageBytes = *item.SvgImage
+	if item.SvgImage != nil && item.SvgImage.Image != nil {
+		svgImageBytes = *item.SvgImage.Image
+	}
+
+	// Get update_vector (should be provided by caller)
+	updateVector := int64(0)
+	if item.UpdateVector != nil {
+		updateVector = *item.UpdateVector
 	}
 
 	query := `
 		UPDATE diagrams 
-		SET name = $2, type = $3, cells = $4, svg_image = $5, modified_at = $6
+		SET name = $2, type = $3, cells = $4, svg_image = $5, update_vector = $6, modified_at = $7
 		WHERE id = $1`
 
 	result, err := s.db.Exec(query,
 		id, item.Name, string(item.Type),
-		cellsJSON, svgImageBytes, item.ModifiedAt,
+		cellsJSON, svgImageBytes, updateVector, item.ModifiedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update diagram: %w", err)

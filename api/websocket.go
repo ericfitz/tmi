@@ -228,6 +228,99 @@ func NewWebSocketHubForTests() *WebSocketHub {
 	}, 30*time.Second) // Short timeout for tests
 }
 
+// UpdateDiagramCellsResult contains the result of a centralized diagram update
+type UpdateDiagramCellsResult struct {
+	UpdatedDiagram DfdDiagram
+	PreviousVector int64
+	NewVector      int64
+}
+
+// UpdateDiagramCells provides centralized diagram cell updates with version control and WebSocket notification
+// This function:
+// 1. Handles all diagram cell modifications
+// 2. Auto-increments update_vector on any cells[] changes
+// 3. Notifies WebSocket sessions when updates come from REST API
+// 4. Serves as single source of truth for all diagram modifications
+func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []Cell, updateSource string, excludeUserID string) (*UpdateDiagramCellsResult, error) {
+	// Get the current diagram
+	currentDiagram, err := DiagramStore.Get(diagramID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get diagram %s: %w", diagramID, err)
+	}
+
+	// Store previous update vector
+	previousVector := int64(0)
+	if currentDiagram.UpdateVector != nil {
+		previousVector = *currentDiagram.UpdateVector
+	}
+
+	// Convert []Cell to []DfdDiagram_Cells_Item using CellConverter
+	converter := NewCellConverter()
+	unionItems := make([]DfdDiagram_Cells_Item, len(newCells))
+	for i, cell := range newCells {
+		unionItem, err := converter.ConvertCellToUnionItem(cell)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert cell %d: %w", i, err)
+		}
+		unionItems[i] = unionItem
+	}
+
+	// Create updated diagram with new cells and incremented update vector
+	updatedDiagram := currentDiagram
+	updatedDiagram.Cells = unionItems
+
+	// Increment update vector
+	newVector := previousVector + 1
+	updatedDiagram.UpdateVector = &newVector
+
+	// Update timestamps (pass pointer for WithTimestamps interface)
+	updatedDiagram = *UpdateTimestamps(&updatedDiagram, false)
+
+	// Save to database
+	if err := DiagramStore.Update(diagramID, updatedDiagram); err != nil {
+		return nil, fmt.Errorf("failed to update diagram %s: %w", diagramID, err)
+	}
+
+	// Notify WebSocket clients if this update came from REST API
+	if updateSource == "rest_api" {
+		h.notifyWebSocketClientsOfUpdate(diagramID, newVector, excludeUserID)
+	}
+
+	return &UpdateDiagramCellsResult{
+		UpdatedDiagram: updatedDiagram,
+		PreviousVector: previousVector,
+		NewVector:      newVector,
+	}, nil
+}
+
+// notifyWebSocketClientsOfUpdate sends state correction messages to active WebSocket sessions
+// to trigger client resync when diagram is updated via REST API
+func (h *WebSocketHub) notifyWebSocketClientsOfUpdate(diagramID string, newUpdateVector int64, excludeUserID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	session, exists := h.Diagrams[diagramID]
+	if !exists {
+		// No active WebSocket session for this diagram
+		return
+	}
+
+	// Create state correction message with update_vector (without cells per user requirement)
+	correctionMsg := StateCorrectionMessage{
+		MessageType: "state_correction",
+		Cells:       []Cell{}, // Empty cells array - clients will resync via REST API
+	}
+
+	// Send correction to all connected clients except the excluded user
+	for client := range session.Clients {
+		if client.UserID != excludeUserID {
+			session.sendToClient(client, correctionMsg)
+			slogging.Get().Debug("Sent state correction due to REST API update - diagram: %s, user: %s, update_vector: %d",
+				diagramID, client.UserID, newUpdateVector)
+		}
+	}
+}
+
 // buildWebSocketURL constructs the absolute WebSocket URL from request context
 func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_types.UUID, diagramID string, sessionID string) string {
 	// Get config information from the context
@@ -3552,8 +3645,13 @@ func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, userID string
 	s.OperationHistory.mutex.Lock()
 	defer s.OperationHistory.mutex.Unlock()
 
+	var sequenceNumber uint64
+	if msg.SequenceNumber != nil {
+		sequenceNumber = *msg.SequenceNumber
+	}
+
 	entry := &HistoryEntry{
-		SequenceNumber: *msg.SequenceNumber,
+		SequenceNumber: sequenceNumber,
 		OperationID:    msg.OperationID,
 		UserID:         userID,
 		Timestamp:      time.Now().UTC(),
