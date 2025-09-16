@@ -3850,9 +3850,9 @@ func (c *WebSocketClient) ReadPump() {
 			// Check for message size limit error (code 1009)
 			if websocket.IsCloseError(err, websocket.CloseMessageTooBig) {
 				if c.Session != nil {
-					logging.Get().Info("WebSocket message too large in session %s for user %s (limit: 64KB): %v", c.Session.ID, c.UserID, err)
+					slogging.Get().Info("WebSocket message too large in session %s for user %s (limit: 64KB): %v", c.Session.ID, c.UserID, err)
 				} else {
-					logging.Get().Info("WebSocket message too large (no session) for user %s (limit: 64KB): %v", c.UserID, err)
+					slogging.Get().Info("WebSocket message too large (no session) for user %s (limit: 64KB): %v", c.UserID, err)
 				}
 			} else if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				if c.Session != nil {
