@@ -94,6 +94,9 @@ type responseWriter struct {
 func (w *responseWriter) Write(data []byte) (int, error) {
 	// Write to both the original response and our buffer
 	w.body.Write(data)
+	// NOTE: This method must pass through all response data unchanged to maintain
+	// application functionality. XSS protection is handled at the logging layer
+	// (see logResponseDetails function where html.EscapeString is applied).
 	return w.ResponseWriter.Write(data)
 }
 
