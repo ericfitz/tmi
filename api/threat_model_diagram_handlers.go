@@ -200,7 +200,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		ModifiedAt: now,
 		Cells:      cells,
 		Metadata:   &metadata,
-		Image:      &struct {
+		Image: &struct {
 			Svg          *[]byte `json:"svg,omitempty"`
 			UpdateVector *int64  `json:"update_vector,omitempty"`
 		}{}, // Initialize empty image struct instead of nil
@@ -220,7 +220,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		return
 	}
 
-	// No need to manually manage diagrams array anymore - 
+	// No need to manually manage diagrams array anymore -
 	// ThreatModelStore now dynamically loads diagrams from DiagramStore
 
 	// Set the Location header
@@ -541,7 +541,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 		return
 	}
 
-	// No need to manually manage diagrams array anymore - 
+	// No need to manually manage diagrams array anymore -
 	// ThreatModelStore now dynamically loads diagrams from DiagramStore
 
 	c.Status(http.StatusNoContent)

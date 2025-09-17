@@ -449,11 +449,11 @@ func Recoverer() gin.HandlerFunc {
 				n := runtime.Stack(buf, false)
 				stackTrace := string(buf[:n])
 
-				// Log error with stack trace
-				logger.Error("Panic recovered: %v\nStack trace:\n%s", err, stackTrace)
+				// Log error with stack trace (use marker to prevent leakage in responses)
+				logger.Error("Panic recovered: %v\n--- STACK_TRACE_START ---\n%s", err, stackTrace)
 
-				// Return error to client
-				c.AbortWithStatus(500)
+				// Return safe error to client (no stack trace information)
+				c.JSON(500, gin.H{"error": "Internal server error"})
 			}
 		}()
 		c.Next()

@@ -861,7 +861,7 @@ func (s *ThreatModelDatabaseStore) loadDiagramsDynamically(threatModelId string)
 			// Skip missing diagrams but continue with others
 			continue
 		}
-		
+
 		// Ensure backward compatibility for existing diagrams
 		if diagram.Image == nil {
 			diagram.Image = &struct {

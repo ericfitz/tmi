@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"os"
 	"strings"
 	"time"
 
@@ -167,85 +166,34 @@ func logResponseDetails(c *gin.Context, logger *ContextLogger, config RequestRes
 		}
 
 		// Filter out stack traces from response bodies for security
-		bodyStr = FilterStackTraceFromResponseBody(bodyStr, status)
+		bodyStr = truncateBeforeStackTraceMarkers(bodyStr)
 
 		logger.Debug("RESPONSE Body: %s", html.EscapeString(bodyStr))
 	}
 }
 
-// FilterStackTraceFromResponseBody filters out stack trace information from response bodies
-// to prevent sensitive information disclosure in logs
-func FilterStackTraceFromResponseBody(body string, statusCode int) string {
-	// Only filter error responses (4xx and 5xx)
-	if statusCode < 400 {
-		return body
-	}
-
+// truncateBeforeStackTraceMarkers removes stack trace information from response bodies
+// by truncating at stack trace markers to prevent disclosure in logs
+func truncateBeforeStackTraceMarkers(body string) string {
 	if body == "" {
 		return body
 	}
 
-	// Common stack trace indicators
-	stackTraceIndicators := []string{
-		"goroutine",
-		"runtime/debug.Stack",
-		"runtime.gopanic",
-		".go:",
-		"panic(",
-		"PANIC",
-		"/usr/local/go/src/",
-		"github.com/",
+	// Look for stack trace markers and truncate before them
+	stackTraceMarkers := []string{
+		"--- STACK_TRACE_START ---",
+		"\nStack trace:",
+		"goroutine ",
 	}
 
-	// Check if this looks like it contains a stack trace
-	hasStackTrace := false
-	for _, indicator := range stackTraceIndicators {
-		if strings.Contains(body, indicator) {
-			hasStackTrace = true
-			break
+	for _, marker := range stackTraceMarkers {
+		if idx := strings.Index(body, marker); idx != -1 {
+			return strings.TrimSpace(body[:idx])
 		}
 	}
 
-	if !hasStackTrace {
-		return body
-	}
-
-	// In debug mode, show partial stack trace
-	if strings.ToLower(os.Getenv("LOG_LEVEL")) == "debug" {
-		// Truncate stack traces but keep some info for debugging
-		lines := strings.Split(body, "\n")
-		filtered := []string{}
-		stackLineCount := 0
-		maxStackLines := 3
-
-		for _, line := range lines {
-			// Check if this line looks like a stack trace line
-			isStackLine := false
-			for _, indicator := range stackTraceIndicators {
-				if strings.Contains(line, indicator) {
-					isStackLine = true
-					break
-				}
-			}
-
-			if isStackLine {
-				if stackLineCount < maxStackLines {
-					filtered = append(filtered, line)
-					stackLineCount++
-				} else if stackLineCount == maxStackLines {
-					filtered = append(filtered, "... [stack trace truncated for security] ...")
-					stackLineCount++
-				}
-			} else {
-				filtered = append(filtered, line)
-			}
-		}
-
-		return strings.Join(filtered, "\n")
-	}
-
-	// In production, completely redact stack trace information
-	return "[Error details redacted for security. Check server logs for full information.]"
+	// No stack trace markers found, return original body
+	return body
 }
 
 // DefaultRequestResponseConfig returns a sensible default configuration

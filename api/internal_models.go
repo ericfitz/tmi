@@ -10,15 +10,15 @@ import (
 // It stores diagram/threat/document IDs instead of full objects for single source of truth
 type ThreatModelInternal struct {
 	// Core fields
-	Id                     *openapi_types.UUID `json:"id,omitempty"`
-	Name                   string              `json:"name"`
-	Description            *string             `json:"description,omitempty"`
-	Owner                  string              `json:"owner"`
-	ThreatModelFramework   string              `json:"threat_model_framework"`
-	CreatedAt              *time.Time          `json:"created_at,omitempty"`
-	ModifiedAt             *time.Time          `json:"modified_at,omitempty"`
-	CreatedBy              *string             `json:"created_by,omitempty"`
-	IssueUrl               *string             `json:"issue_url,omitempty"`
+	Id                   *openapi_types.UUID `json:"id,omitempty"`
+	Name                 string              `json:"name"`
+	Description          *string             `json:"description,omitempty"`
+	Owner                string              `json:"owner"`
+	ThreatModelFramework string              `json:"threat_model_framework"`
+	CreatedAt            *time.Time          `json:"created_at,omitempty"`
+	ModifiedAt           *time.Time          `json:"modified_at,omitempty"`
+	CreatedBy            *string             `json:"created_by,omitempty"`
+	IssueUrl             *string             `json:"issue_url,omitempty"`
 
 	// Authorization (stored directly since it's small)
 	Authorization []Authorization `json:"authorization"`
@@ -57,7 +57,7 @@ func (tm *ThreatModelInternal) ToThreatModel() (*ThreatModel, error) {
 				// Skip missing diagrams but log the error
 				continue
 			}
-			
+
 			// Ensure backward compatibility for existing diagrams
 			if diagram.Image == nil {
 				diagram.Image = &struct {

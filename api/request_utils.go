@@ -230,9 +230,11 @@ func HandleRequestError(c *gin.Context, err error) {
 
 		c.JSON(reqErr.Status, response)
 	} else {
+		// Truncate error message before any stack trace markers
+		errorMsg := truncateBeforeStackTrace(err.Error())
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Internal server error: " + err.Error(),
+			ErrorDescription: "Internal server error: " + errorMsg,
 		})
 	}
 }
@@ -374,4 +376,28 @@ func blacklistTokenIfAvailable(c *gin.Context, tokenStr string, userName string)
 	// In a full implementation, this would integrate with the token blacklist service
 	// For now, we log the action and continue with the authentication error response
 	slogging.Get().WithContext(c).Warn("Token blacklist integration not yet fully implemented - user %s should log out and log back in", userName)
+}
+
+// truncateBeforeStackTrace removes stack trace information from error messages
+// by truncating at stack trace markers to prevent disclosure in HTTP responses
+func truncateBeforeStackTrace(errMsg string) string {
+	if errMsg == "" {
+		return "Unknown error"
+	}
+
+	// Look for stack trace markers and truncate before them
+	stackTraceMarkers := []string{
+		"--- STACK_TRACE_START ---",
+		"\nStack trace:",
+		"goroutine ",
+	}
+
+	for _, marker := range stackTraceMarkers {
+		if idx := strings.Index(errMsg, marker); idx != -1 {
+			return strings.TrimSpace(errMsg[:idx])
+		}
+	}
+
+	// No stack trace markers found, return original message
+	return errMsg
 }
