@@ -102,12 +102,13 @@ func logRequestDetails(c *gin.Context, logger *ContextLogger, config RequestResp
 	req := c.Request
 
 	// Build request info
-	requestInfo := fmt.Sprintf("REQUEST %s %s", req.Method, req.URL.Path)
+	escapedPath := html.EscapeString(req.URL.Path)
+	requestInfo := fmt.Sprintf("REQUEST %s %s", req.Method, escapedPath)
 	if req.URL.RawQuery != "" {
 		if config.RedactTokens {
-			requestInfo += "?" + RedactSensitiveInfo(req.URL.RawQuery)
+			requestInfo += "?" + RedactSensitiveInfo(html.EscapeString(req.URL.RawQuery))
 		} else {
-			requestInfo += "?" + req.URL.RawQuery
+			requestInfo += "?" + html.EscapeString(req.URL.RawQuery)
 		}
 	}
 
