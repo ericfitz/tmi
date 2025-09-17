@@ -11,8 +11,18 @@ import (
 func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, error) {
 	var zero T
 
+	// Preprocess operations to handle special cases like base64 SVG decoding
+	processedOperations, err := preprocessPatchOperations(operations)
+	if err != nil {
+		return zero, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_format",
+			Message: "Failed to preprocess patch operations: " + err.Error(),
+		}
+	}
+
 	// Convert operations to RFC6902 JSON Patch format
-	patchBytes, err := convertOperationsToJSONPatch(operations)
+	patchBytes, err := convertOperationsToJSONPatch(processedOperations)
 	if err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
