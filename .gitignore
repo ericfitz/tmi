@@ -26,6 +26,8 @@
 !cmd/**
 !docs/
 !docs/**
+!internal/
+!internal/**
 !postman/
 !postman/**
 !scripts/
