@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/base64"
+	"fmt"
+	"unicode/utf8"
 )
 
 // preprocessPatchOperations handles special cases in patch operations before applying them
@@ -17,8 +19,14 @@ func preprocessPatchOperations(operations []PatchOperation) ([]PatchOperation, e
 				// Decode base64 SVG string to bytes
 				svgBytes, err := base64.StdEncoding.DecodeString(svgString)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("failed to decode base64 SVG data: %w", err)
 				}
+
+				// Validate that the decoded bytes are valid UTF-8
+				if !utf8.Valid(svgBytes) {
+					return nil, fmt.Errorf("SVG data contains invalid UTF-8 sequences")
+				}
+
 				// Set the value to the decoded bytes
 				processedOp.Value = svgBytes
 			}
