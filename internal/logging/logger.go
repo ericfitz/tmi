@@ -449,10 +449,14 @@ func Recoverer() gin.HandlerFunc {
 				n := runtime.Stack(buf, false)
 				stackTrace := string(buf[:n])
 
-				// Log error with stack trace (use marker to prevent leakage in responses)
+				// SECURITY: Log error with stack trace using marker to prevent leakage in responses.
+				// The "--- STACK_TRACE_START ---" marker allows truncateBeforeStackTrace() functions
+				// to identify and remove stack traces from any error messages that might be exposed.
 				logger.Error("Panic recovered: %v\n--- STACK_TRACE_START ---\n%s", err, stackTrace)
 
-				// Return safe error to client (no stack trace information)
+				// SECURITY: Return safe, generic error to client with no stack trace information.
+				// This prevents disclosure of internal implementation details (CWE-209) while
+				// preserving detailed information in server logs for debugging.
 				c.JSON(500, gin.H{"error": "Internal server error"})
 			}
 		}()

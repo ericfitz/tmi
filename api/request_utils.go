@@ -230,7 +230,10 @@ func HandleRequestError(c *gin.Context, err error) {
 
 		c.JSON(reqErr.Status, response)
 	} else {
-		// Truncate error message before any stack trace markers
+		// SECURITY: Truncate error message before any stack trace markers to prevent
+		// information disclosure in HTTP responses (defense against CWE-209).
+		// This ensures that any unexpected errors with stack traces are safely handled
+		// before being sent to external clients.
 		errorMsg := truncateBeforeStackTrace(err.Error())
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
@@ -379,7 +382,14 @@ func blacklistTokenIfAvailable(c *gin.Context, tokenStr string, userName string)
 }
 
 // truncateBeforeStackTrace removes stack trace information from error messages
-// by truncating at stack trace markers to prevent disclosure in HTTP responses
+// by truncating at stack trace markers to prevent disclosure in HTTP responses.
+//
+// SECURITY: This function is a critical security control that prevents stack trace
+// information exposure in HTTP error responses. It works in conjunction with:
+// - Panic recovery middleware that tags stack traces with markers
+// - Error handling paths that use this function before sending responses
+// - Response logging that filters stack traces from captured data
+// This provides defense-in-depth against CWE-209 (Information Exposure Through Stack Traces).
 func truncateBeforeStackTrace(errMsg string) string {
 	if errMsg == "" {
 		return "Unknown error"
