@@ -59,6 +59,7 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 - Lint: `make lint` (runs golangci-lint)
 - Generate API: `make generate-api` (uses oapi-codegen with config from oapi-codegen-config.yml)
 - Development: `make dev-start` (starts full dev environment with DB and Redis)
+- Secure Development: `make dev-start-secure` (starts server using existing secure containers)
 - Dev DB only: `make infra-db-start` (starts PostgreSQL container)
 - Dev Redis only: `make infra-redis-start` (starts Redis container)
 - Clean all: `make clean-all` (comprehensive cleanup of processes, containers, and files)
@@ -71,7 +72,8 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 - Security scan: `make containers-security-scan` (scans containers for vulnerabilities using Docker Scout)
 - Security report: `make containers-security-report` (generates comprehensive security report)
 - Secure build: `make containers-secure-build` (builds containers with vulnerability patches)
-- Secure development: `make containers-secure-dev` (starts development with secure containers)
+- Secure development: `make containers-secure-dev` (builds and starts secure containers, no server)
+- Start server with secure containers: `make dev-start-secure` (starts server using existing secure containers)
 - Full security workflow: `make containers-secure` (builds secure containers and generates reports)
 
 ### OpenAPI Schema Management

@@ -788,11 +788,37 @@ containers-security-report: containers-security-scan
 	@echo "4. Review detailed scan results in security-reports/" >> security-reports/security-summary.md
 	$(call log_success,Security report generated: security-reports/security-summary.md)
 
-# Start development environment with secure containers
+# Start development environment with secure containers (builds secure containers first)
 containers-secure-dev:
 	$(call log_info,Starting development environment with secure containers...)
 	@./scripts/make-containers-dev-local-secure.sh
 	$(call log_success,Secure development environment started)
+
+# Start server using existing secure containers (no rebuild)
+dev-start-secure:
+	@CONFIG_FILE=config/dev-environment-secure.yml; \
+	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
+	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
+	echo -e "$(BLUE)[INFO]$(NC) Starting development server with secure containers: Secure Development Environment Configuration"; \
+	if ! docker ps --format "{{.Names}}" | grep -q "^tmi-postgresql-secure$$"; then \
+		echo -e "$(RED)[ERROR]$(NC) Secure PostgreSQL container not running. Run 'make containers-secure-dev' first."; \
+		exit 1; \
+	fi; \
+	if ! docker ps --format "{{.Names}}" | grep -q "^tmi-redis-secure$$"; then \
+		echo -e "$(RED)[ERROR]$(NC) Secure Redis container not running. Run 'make containers-secure-dev' first."; \
+		exit 1; \
+	fi; \
+	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
+	go build -o bin/check-db cmd/check-db/main.go && \
+	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate && \
+	eval $$(uv run scripts/yaml-to-make.py config/dev-environment-secure.yml | grep '^SERVER_CONFIG_FILE := ' | sed 's/SERVER_CONFIG_FILE := /SERVER_CONFIG_FILE=/'); \
+	if [ ! -f "$$SERVER_CONFIG_FILE" ]; then \
+		echo -e "$(BLUE)[INFO]$(NC) Generating development configuration..."; \
+		go run cmd/server/main.go --generate-config || { echo "Error: Failed to generate config files"; exit 1; }; \
+	fi && \
+	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) server-start
+	@eval $$(uv run scripts/yaml-to-make.py config/dev-environment-secure.yml | grep '^SERVER_PORT := ' | sed 's/SERVER_PORT := /SERVER_PORT=/'); \
+	echo -e "$(GREEN)[SUCCESS]$(NC) Development server started on port $$SERVER_PORT using secure containers"
 
 # Shorthand for all container security operations
 containers-secure: containers-secure-build containers-security-report
@@ -977,6 +1003,7 @@ help:
 	@echo "  test-unit              - Run unit tests"
 	@echo "  test-integration       - Run integration tests with full setup"
 	@echo "  dev-start              - Start development environment"
+	@echo "  dev-start-secure       - Start server using existing secure containers"
 	@echo "  dev-clean              - Clean development environment"
 	@echo ""
 	@echo "Container Security (Docker Scout Integration):"

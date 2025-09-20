@@ -14,8 +14,8 @@ REDIS_HOST_PORT="6379"
 REDIS_CONTAINER_PORT="6379"
 PG_DATA_HOST_DIR="/Users/efitz/Projects/tmi/pgsql-data-vol"
 PG_CONTAINER_DATA_DIR="/bitnami/postgresql/data" # Bitnami PostgreSQL's data directory
-PG_USER="postgres"
-PG_PASSWORD="postgres"
+PG_USER="tmi_dev"
+PG_PASSWORD="dev123"
 
 # Security configuration
 SECURITY_SCAN_ENABLED=true
@@ -166,6 +166,7 @@ docker run -d \
   -v "${PG_DATA_HOST_DIR}:${PG_CONTAINER_DATA_DIR}" \
   -e "POSTGRESQL_USERNAME=${PG_USER}" \
   -e "POSTGRESQL_PASSWORD=${PG_PASSWORD}" \
+  -e "POSTGRESQL_DATABASE=tmi_dev" \
   --restart=unless-stopped \
   "${PG_IMAGE}"
 
@@ -270,6 +271,7 @@ log_success "--- Setup Complete! ---"
 echo "You can now connect to PostgreSQL at localhost:${PG_HOST_PORT}"
 echo "  User: ${PG_USER}"
 echo "  Password: ${PG_PASSWORD}"
+echo "  Database: tmi_dev"
 echo "You can now connect to Redis at localhost:${REDIS_HOST_PORT}"
 echo "  No password required."
 
