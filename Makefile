@@ -725,6 +725,79 @@ oauth-stub-status:
 
 
 # ============================================================================
+# CONTAINER SECURITY AND BUILD MANAGEMENT
+# ============================================================================
+
+.PHONY: containers-secure containers-secure-build containers-security-scan containers-security-report
+
+# Build secure containers with vulnerability patching
+containers-secure-build:
+	$(call log_info,Building secure containers with vulnerability patching...)
+	@./scripts/build-secure-containers.sh
+	$(call log_success,Secure containers built successfully)
+
+# Run security scan on existing containers
+containers-security-scan:
+	$(call log_info,Running security scans on container images...)
+	@if ! command -v docker scout >/dev/null 2>&1; then \
+		$(call log_error,Docker Scout not available. Please install Docker Scout CLI); \
+		exit 1; \
+	fi
+	@mkdir -p security-reports
+	@echo "Scanning bitnami/postgresql:latest..."
+	@docker scout cves bitnami/postgresql:latest --only-severity critical,high > security-reports/postgresql-scan.txt 2>&1 || true
+	@echo "Scanning bitnami/redis:latest..."
+	@docker scout cves bitnami/redis:latest --only-severity critical,high > security-reports/redis-scan.txt 2>&1 || true
+	@if [ -f "Dockerfile.dev" ]; then \
+		echo "Building and scanning application image..."; \
+		docker build -f Dockerfile.dev -t tmi-temp-scan:latest . >/dev/null 2>&1 || true; \
+		docker scout cves tmi-temp-scan:latest --only-severity critical,high > security-reports/application-scan.txt 2>&1 || true; \
+		docker rmi tmi-temp-scan:latest >/dev/null 2>&1 || true; \
+	fi
+	$(call log_success,Security scans completed. Reports in security-reports/)
+
+# Generate comprehensive security report
+containers-security-report: containers-security-scan
+	$(call log_info,Generating container security report...)
+	@mkdir -p security-reports
+	@echo "# TMI Container Security Report" > security-reports/security-summary.md
+	@echo "" >> security-reports/security-summary.md
+	@echo "**Generated:** $$(date)" >> security-reports/security-summary.md
+	@echo "**Scanner:** Docker Scout" >> security-reports/security-summary.md
+	@echo "" >> security-reports/security-summary.md
+	@echo "## Vulnerability Summary" >> security-reports/security-summary.md
+	@echo "" >> security-reports/security-summary.md
+	@echo "| Image | Critical | High | Status |" >> security-reports/security-summary.md
+	@echo "|-------|----------|------|--------|" >> security-reports/security-summary.md
+	@for scan in postgresql redis application; do \
+		if [ -f "security-reports/$$scan-scan.txt" ]; then \
+			critical=$$(grep -c "CRITICAL" "security-reports/$$scan-scan.txt" 2>/dev/null || echo "0"); \
+			high=$$(grep -c "HIGH" "security-reports/$$scan-scan.txt" 2>/dev/null || echo "0"); \
+			status="✅ Good"; \
+			if [ "$$critical" -gt "0" ]; then status="❌ Critical Issues"; \
+			elif [ "$$high" -gt "3" ]; then status="⚠️ High Issues"; fi; \
+			echo "| $$scan | $$critical | $$high | $$status |" >> security-reports/security-summary.md; \
+		fi; \
+	done
+	@echo "" >> security-reports/security-summary.md
+	@echo "## Recommendations" >> security-reports/security-summary.md
+	@echo "" >> security-reports/security-summary.md
+	@echo "1. Use \`make containers-secure-build\` to build patched containers" >> security-reports/security-summary.md
+	@echo "2. Regularly update base images" >> security-reports/security-summary.md
+	@echo "3. Implement runtime security monitoring" >> security-reports/security-summary.md
+	@echo "4. Review detailed scan results in security-reports/" >> security-reports/security-summary.md
+	$(call log_success,Security report generated: security-reports/security-summary.md)
+
+# Start development environment with secure containers
+containers-secure-dev:
+	$(call log_info,Starting development environment with secure containers...)
+	@./scripts/make-containers-dev-local-secure.sh
+	$(call log_success,Secure development environment started)
+
+# Shorthand for all container security operations
+containers-secure: containers-secure-build containers-security-report
+
+# ============================================================================
 # BACKWARD COMPATIBILITY ALIASES
 # ============================================================================
 
@@ -905,6 +978,13 @@ help:
 	@echo "  test-integration       - Run integration tests with full setup"
 	@echo "  dev-start              - Start development environment"
 	@echo "  dev-clean              - Clean development environment"
+	@echo ""
+	@echo "Container Security (Docker Scout Integration):"
+	@echo "  containers-secure-build      - Build secure containers with vulnerability patching"
+	@echo "  containers-security-scan     - Scan existing containers for vulnerabilities"
+	@echo "  containers-security-report   - Generate comprehensive security report"
+	@echo "  containers-secure-dev        - Start development with secure containers"
+	@echo "  containers-secure            - Run full security build and report"
 	@echo ""
 	@echo "Atomic Components (building blocks):"
 	@echo "  infra-db-start         - Start PostgreSQL container"

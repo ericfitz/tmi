@@ -66,6 +66,14 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 - Stop observability: `make observability-stop` (stops monitoring services), `make obs-stop` (alias)
 - Clean observability: `make observability-clean` (removes monitoring data), `make obs-clean` (alias)
 
+### Container Security (Docker Scout Integration)
+
+- Security scan: `make containers-security-scan` (scans containers for vulnerabilities using Docker Scout)
+- Security report: `make containers-security-report` (generates comprehensive security report)
+- Secure build: `make containers-secure-build` (builds containers with vulnerability patches)
+- Secure development: `make containers-secure-dev` (starts development with secure containers)
+- Full security workflow: `make containers-secure` (builds secure containers and generates reports)
+
 ### OpenAPI Schema Management
 
 - JSON Patcher Tool: `python3 scripts/patch-json.py` - Utility for making precise modifications to OpenAPI specification
