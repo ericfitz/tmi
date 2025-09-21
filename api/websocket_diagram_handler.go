@@ -36,7 +36,10 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 	}
 
 	// Use the existing applyOperation logic from DiagramSession
-	session.applyOperation(client, msg)
+	if session.applyOperation(client, msg) {
+		// Broadcast the operation to all other clients
+		session.broadcastToOthers(client, msg)
+	}
 
 	processingTime := time.Since(startTime)
 	slogging.Get().Debug("Completed diagram operation processing - Session: %s, User: %s, Duration: %v",
