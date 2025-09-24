@@ -15,7 +15,7 @@ type FallbackLogger struct {
 }
 
 // Debug logs debug level messages
-func (l *FallbackLogger) Debug(format string, args ...interface{}) {
+func (l *FallbackLogger) Debug(format string, args ...any) {
 	var message string
 	if len(args) > 0 {
 		message = fmt.Sprintf(format, args...)
@@ -26,7 +26,7 @@ func (l *FallbackLogger) Debug(format string, args ...interface{}) {
 }
 
 // Info logs info level messages
-func (l *FallbackLogger) Info(format string, args ...interface{}) {
+func (l *FallbackLogger) Info(format string, args ...any) {
 	var message string
 	if len(args) > 0 {
 		message = fmt.Sprintf(format, args...)
@@ -37,7 +37,7 @@ func (l *FallbackLogger) Info(format string, args ...interface{}) {
 }
 
 // Warn logs warning level messages
-func (l *FallbackLogger) Warn(format string, args ...interface{}) {
+func (l *FallbackLogger) Warn(format string, args ...any) {
 	var message string
 	if len(args) > 0 {
 		message = fmt.Sprintf(format, args...)
@@ -48,7 +48,7 @@ func (l *FallbackLogger) Warn(format string, args ...interface{}) {
 }
 
 // Error logs error level messages
-func (l *FallbackLogger) Error(format string, args ...interface{}) {
+func (l *FallbackLogger) Error(format string, args ...any) {
 	var message string
 	if len(args) > 0 {
 		message = fmt.Sprintf(format, args...)
@@ -70,7 +70,7 @@ func NewFallbackLogger() SimpleLogger {
 
 // GinContextLike defines a minimal interface for contexts that can be used with the logger
 type GinContextLike interface {
-	Get(key string) (interface{}, bool)
+	Get(key any) (any, bool)
 	GetHeader(key string) string
 	ClientIP() string
 }
@@ -149,7 +149,7 @@ func (cl *ContextLogger) formatContextMessage(msg string) string {
 }
 
 // Debug logs a debug-level message with context (compatibility method)
-func (cl *ContextLogger) Debug(format string, args ...interface{}) {
+func (cl *ContextLogger) Debug(format string, args ...any) {
 	if cl.logger.level > LogLevelDebug {
 		return
 	}
@@ -165,7 +165,7 @@ func (cl *ContextLogger) Debug(format string, args ...interface{}) {
 }
 
 // Info logs an info-level message with context (compatibility method)
-func (cl *ContextLogger) Info(format string, args ...interface{}) {
+func (cl *ContextLogger) Info(format string, args ...any) {
 	if cl.logger.level > LogLevelInfo {
 		return
 	}
@@ -181,7 +181,7 @@ func (cl *ContextLogger) Info(format string, args ...interface{}) {
 }
 
 // Warn logs a warning-level message with context (compatibility method)
-func (cl *ContextLogger) Warn(format string, args ...interface{}) {
+func (cl *ContextLogger) Warn(format string, args ...any) {
 	if cl.logger.level > LogLevelWarn {
 		return
 	}
@@ -197,7 +197,7 @@ func (cl *ContextLogger) Warn(format string, args ...interface{}) {
 }
 
 // Error logs an error-level message with context (compatibility method)
-func (cl *ContextLogger) Error(format string, args ...interface{}) {
+func (cl *ContextLogger) Error(format string, args ...any) {
 	if cl.logger.level > LogLevelError {
 		return
 	}

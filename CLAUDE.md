@@ -388,12 +388,12 @@ make dev-start                   # Start server first
 
 **CRITICAL: Never use the standard `log` package. Always use structured logging.**
 
-- **ALWAYS** use `github.com/ericfitz/tmi/internal/logging` for all logging operations
+- **ALWAYS** use `github.com/ericfitz/tmi/internal/slogging` for all logging operations
 - **NEVER** import or use the standard `log` package (`"log"`) in any Go code
-- Use `logging.Get()` for global logging or `logging.Get().WithContext(c)` for request-scoped logging
+- Use `slogging.Get()` for global logging or `slogging.Get().WithContext(c)` for request-scoped logging
 - Available log levels: `Debug()`, `Info()`, `Warn()`, `Error()`
 - Structured logging provides request context (request ID, user, IP), consistent formatting, and log rotation
-- For main functions that need to exit on fatal errors, use `logging.Get().Error()` followed by `os.Exit(1)` instead of `log.Fatalf()`
+- For main functions that need to exit on fatal errors, use `slogging.Get().Error()` followed by `os.Exit(1)` instead of `log.Fatalf()`
 
 ### OpenAPI Integration
 
