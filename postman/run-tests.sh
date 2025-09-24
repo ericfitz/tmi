@@ -201,10 +201,10 @@ echo "Output: $OUTPUT_FILE"
 echo "Log: $LOG_FILE"
 echo ""
 
-# Check if comprehensive collection exists, fallback to original
+# Check if comprehensive collection exists, fallback to legacy
 if [ ! -f "$COLLECTION_FILE" ]; then
-    echo "⚠️ Comprehensive collection not found, using original collection"
-    COLLECTION_FILE="$SCRIPT_DIR/tmi-postman-collection.json"
+    echo "⚠️ Comprehensive collection not found, using legacy collection"
+    COLLECTION_FILE="$SCRIPT_DIR/legacy/tmi-postman-collection.json"
 fi
 
 # Copy test data factory and auth helper to make them available 

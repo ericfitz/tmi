@@ -99,7 +99,7 @@
                   "pm.collectionVariables.set('token_diana', pm.environment.get('token_diana'));",
                   "",
                   "// Set default active user to alice",
-                  "pm.collectionVariables.set('access_token', pm.environment.get('token_alice'));",
+                  "pm.collectionVariables.set('token_alice', pm.environment.get('token_alice'));",
                   "pm.collectionVariables.set('currentUser', 'alice');",
                   "",
                   "console.log('\u2705 Authentication tokens configured for all users');"
@@ -160,7 +160,7 @@
                 "exec": [
                   "// Switch to Alice's token",
                   "const aliceToken = pm.collectionVariables.get('token_alice');",
-                  "pm.collectionVariables.set('access_token', aliceToken);",
+                  "pm.collectionVariables.set('token_alice', aliceToken);",
                   "pm.collectionVariables.set('currentUser', 'alice');",
                   "console.log('\ud83d\udd04 Switched to Alice (Owner)');"
                 ]
@@ -176,7 +176,7 @@
                   "});",
                   "",
                   "pm.test('Alice authentication successful', function () {",
-                  "    const token = pm.collectionVariables.get('access_token');",
+                  "    const token = pm.collectionVariables.get('token_' + pm.collectionVariables.get('currentUser') || 'token_alice');",
                   "    pm.expect(token).to.be.a('string');",
                   "    pm.expect(token.length).to.be.above(10);",
                   "});",
@@ -194,7 +194,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{access_token}}",
+                "value": "Bearer {{token_alice}}",
                 "type": "text"
               }
             ],
@@ -220,7 +220,7 @@
                 "exec": [
                   "// Switch to Bob's token",
                   "const bobToken = pm.collectionVariables.get('token_bob');",
-                  "pm.collectionVariables.set('access_token', bobToken);",
+                  "pm.collectionVariables.set('token_bob', bobToken);",
                   "pm.collectionVariables.set('currentUser', 'bob');",
                   "console.log('\ud83d\udd04 Switched to Bob (Writer)');"
                 ]
@@ -275,7 +275,7 @@
                 "exec": [
                   "// Switch to Charlie's token",
                   "const charlieToken = pm.collectionVariables.get('token_charlie');",
-                  "pm.collectionVariables.set('access_token', charlieToken);",
+                  "pm.collectionVariables.set('token_charlie', charlieToken);",
                   "pm.collectionVariables.set('currentUser', 'charlie');",
                   "console.log('\ud83d\udd04 Switched to Charlie (Reader)');"
                 ]
@@ -1595,14 +1595,14 @@
     "bearer": [
       {
         "key": "token",
-        "value": "{{access_token}}",
+        "value": "{{token_alice}}",
         "type": "string"
       }
     ]
   },
   "variable": [
     {
-      "key": "access_token",
+      "key": "token_alice",
       "value": "",
       "type": "string"
     },
