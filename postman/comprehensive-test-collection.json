@@ -681,91 +681,6 @@
           }
         },
         {
-          "name": "Create Threat Model - Unauthorized (401)",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Generate valid threat model data",
-                  "// Load TMITestDataFactory inline",
-                  "class TMITestDataFactory {",
-                  "    constructor() {",
-                  "        this.timestamp = new Date().toISOString();",
-                  "        this.testRunId = Date.now();",
-                  "    }",
-                  "    ",
-                  "    generateUUID() {",
-                  "        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
-                  "            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
-                  "            return v.toString(16);",
-                  "        });",
-                  "    }",
-                  "    ",
-                  "    validThreatModel(options = {}) {",
-                  "        options = options || {};",
-                  "        return {",
-                  "            name: options.name || 'Test Threat Model ' + this.testRunId,",
-                  "            description: options.description || 'A comprehensive threat model for testing purposes',",
-                  "            threat_model_framework: options.framework || 'STRIDE',",
-                  "            issue_url: options.issueUrl || 'https://github.com/example/project/issues/123'",
-                  "        };",
-                  "    }",
-                  "}",
-                  "",
-                  "const factory = new TMITestDataFactory();",
-                  "const threatModel = factory.validThreatModel();",
-                  "pm.collectionVariables.set('threatModelData', JSON.stringify(threatModel));"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 401', function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});",
-                  "",
-                  "pm.test('Error indicates authentication required', function () {",
-                  "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.exist;",
-                  "    pm.expect(responseData.message).to.include('token');",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{{threatModelData}}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/threat_models",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "threat_models"
-              ]
-            },
-            "description": "Test threat model creation without authentication"
-          },
-          "auth": {
-            "type": "noauth"
-          }
-        },
-        {
           "name": "Get Threat Model - Success (200)",
           "event": [
             {
@@ -930,6 +845,745 @@
               ]
             },
             "description": "Try to get non-existent threat model"
+          }
+        },
+        {
+          "name": "List Threat Models - Success (200)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Ensure Alice is the active user",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is array of threat models', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.be.an('array');",
+                  "    ",
+                  "    // Should have at least Alice's threat model",
+                  "    pm.expect(responseData.length).to.be.at.least(1);",
+                  "});",
+                  "",
+                  "pm.test('Threat models have required fields', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    if (responseData.length > 0) {",
+                  "        const tm = responseData[0];",
+                  "        pm.expect(tm).to.have.property('id');",
+                  "        pm.expect(tm).to.have.property('name');",
+                  "        pm.expect(tm).to.have.property('created_at');",
+                  "        pm.expect(tm).to.have.property('modified_at');",
+                  "        pm.expect(tm).to.have.property('owner');",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
+            },
+            "description": "List all threat models accessible by Alice"
+          }
+        },
+        {
+          "name": "List Threat Models - With Pagination (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response respects limit parameter', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.be.an('array');",
+                  "    pm.expect(responseData.length).to.be.at.most(5);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models?limit=5&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "5"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Test threat models listing with pagination"
+          }
+        },
+        {
+          "name": "Update Threat Model - Success (200)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Ensure Alice is the active user",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "// Generate updated threat model data",
+                  "class TMITestDataFactory {",
+                  "    constructor() {",
+                  "        this.timestamp = new Date().toISOString();",
+                  "        this.testRunId = Date.now();",
+                  "    }",
+                  "    ",
+                  "    validThreatModel(options = {}) {",
+                  "        options = options || {};",
+                  "        return {",
+                  "            name: options.name || 'Test Threat Model ' + this.testRunId,",
+                  "            description: options.description || 'A comprehensive threat model for testing purposes',",
+                  "            threat_model_framework: options.framework || 'STRIDE',",
+                  "            issue_url: options.issueUrl || 'https://github.com/example/project/issues/123'",
+                  "        };",
+                  "    }",
+                  "}",
+                  "",
+                  "const factory = new TMITestDataFactory();",
+                  "const updatedThreatModel = factory.validThreatModel({",
+                  "    name: `Updated Threat Model ${Date.now()}`,",
+                  "    description: 'This threat model has been updated via PUT request',",
+                  "    framework: 'PASTA'",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('updatedThreatModelData', JSON.stringify(updatedThreatModel));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Updated threat model has correct data', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    const originalData = JSON.parse(pm.collectionVariables.get('updatedThreatModelData'));",
+                  "    ",
+                  "    pm.expect(responseData.name).to.equal(originalData.name);",
+                  "    pm.expect(responseData.description).to.equal(originalData.description);",
+                  "    pm.expect(responseData.threat_model_framework).to.equal(originalData.threat_model_framework);",
+                  "});",
+                  "",
+                  "pm.test('Modified timestamp is updated', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.modified_at).to.exist;",
+                  "    pm.expect(new Date(responseData.modified_at)).to.be.at.most(new Date());",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{updatedThreatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
+            },
+            "description": "Update Alice's threat model with PUT request"
+          }
+        },
+        {
+          "name": "Update Threat Model - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (unauthorized user)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('diana');",
+                  "}",
+                  "",
+                  "// Use same update data",
+                  "const updatedData = JSON.parse(pm.collectionVariables.get('updatedThreatModelData') || '{}');",
+                  "if (Object.keys(updatedData).length === 0) {",
+                  "    // Fallback data if not set",
+                  "    const fallbackData = {",
+                  "        name: 'Unauthorized Update Attempt',",
+                  "        description: 'This should be rejected',",
+                  "        threat_model_framework: 'STRIDE'",
+                  "    };",
+                  "    pm.collectionVariables.set('updatedThreatModelData', JSON.stringify(fallbackData));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 403', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('forbidden');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{updatedThreatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
+            },
+            "description": "Try to update Alice's threat model as unauthorized user Diana"
+          }
+        },
+        {
+          "name": "Update Threat Model - Not Found (404)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch back to Alice",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates resource not found', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('not_found');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{updatedThreatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "00000000-0000-0000-0000-000000000000"
+              ]
+            },
+            "description": "Try to update non-existent threat model"
+          }
+        },
+        {
+          "name": "Patch Threat Model - Success (200)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Ensure Alice is the active user",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "// Generate JSON patch operations",
+                  "const patchOps = [",
+                  "    {",
+                  "        op: 'replace',",
+                  "        path: '/description',",
+                  "        value: `Patched description at ${new Date().toISOString()}`",
+                  "    },",
+                  "    {",
+                  "        op: 'replace',",
+                  "        path: '/threat_model_framework',",
+                  "        value: 'LINDDUN'",
+                  "    }",
+                  "];",
+                  "",
+                  "pm.collectionVariables.set('patchOps', JSON.stringify(patchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Patch operations applied correctly', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    const patchOps = JSON.parse(pm.collectionVariables.get('patchOps'));",
+                  "    ",
+                  "    pm.expect(responseData.description).to.include('Patched description at');",
+                  "    pm.expect(responseData.threat_model_framework).to.equal('LINDDUN');",
+                  "});",
+                  "",
+                  "pm.test('Other fields preserved', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.id).to.exist;",
+                  "    pm.expect(responseData.name).to.exist;",
+                  "    pm.expect(responseData.owner).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{patchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
+            },
+            "description": "Patch Alice's threat model with JSON patch operations"
+          }
+        },
+        {
+          "name": "Patch Threat Model - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (unauthorized user)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('diana');",
+                  "}",
+                  "",
+                  "// Simple patch operation",
+                  "const patchOps = [",
+                  "    {",
+                  "        op: 'replace',",
+                  "        path: '/description',",
+                  "        value: 'Unauthorized patch attempt'",
+                  "    }",
+                  "];",
+                  "",
+                  "pm.collectionVariables.set('forbiddenPatchOps', JSON.stringify(patchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 403', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('forbidden');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{forbiddenPatchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
+            },
+            "description": "Try to patch Alice's threat model as unauthorized user Diana"
+          }
+        },
+        {
+          "name": "Patch Threat Model - Invalid Operations (400)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch back to Alice",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "// Invalid patch operations",
+                  "const invalidPatchOps = [",
+                  "    {",
+                  "        op: 'invalid_operation',",
+                  "        path: '/description',",
+                  "        value: 'This should fail'",
+                  "    }",
+                  "];",
+                  "",
+                  "pm.collectionVariables.set('invalidPatchOps', JSON.stringify(invalidPatchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates invalid patch operations', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "    pm.expect(responseData.error_description).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{invalidPatchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
+            },
+            "description": "Test patch with invalid operations"
+          }
+        },
+        {
+          "name": "Delete Threat Model - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (unauthorized user)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('diana');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 403', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('forbidden');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
+            },
+            "description": "Try to delete Alice's threat model as unauthorized user Diana"
+          }
+        },
+        {
+          "name": "Delete Threat Model - Not Found (404)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch back to Alice",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates resource not found', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('not_found');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "00000000-0000-0000-0000-000000000000"
+              ]
+            },
+            "description": "Try to delete non-existent threat model"
+          }
+        },
+        {
+          "name": "Delete Threat Model - Success (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test('Response body is empty', function () {",
+                  "    pm.expect(pm.response.text()).to.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
+            },
+            "description": "Delete Alice's threat model successfully"
           }
         }
       ],

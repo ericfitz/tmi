@@ -112,6 +112,44 @@ if ! curl -s http://127.0.0.1:8080/ >/dev/null 2>&1; then
     exit 1
 fi
 
+# First run unauthorized (401) tests before any authentication
+echo ""
+echo "🔒 Running unauthorized (401) tests first..."
+UNAUTHORIZED_COLLECTION="$SCRIPT_DIR/unauthorized-tests-collection.json"
+UNAUTHORIZED_OUTPUT="$OUTPUT_DIR/unauthorized-results-$TIMESTAMP.json"
+
+if [ -f "$UNAUTHORIZED_COLLECTION" ]; then
+    echo "Running unauthorized tests without authentication..."
+    if [ ! -z "$HTML_REPORTER" ]; then
+        newman run "$UNAUTHORIZED_COLLECTION" \
+            --env-var "baseUrl=http://127.0.0.1:8080" \
+            --reporters cli,json,htmlextra \
+            --reporter-json-export "$UNAUTHORIZED_OUTPUT" \
+            --reporter-htmlextra-export "$OUTPUT_DIR/unauthorized-report-$TIMESTAMP.html" \
+            --timeout-request 10000 \
+            --delay-request 200 \
+            --ignore-redirects
+    else
+        newman run "$UNAUTHORIZED_COLLECTION" \
+            --env-var "baseUrl=http://127.0.0.1:8080" \
+            --reporters cli,json \
+            --reporter-json-export "$UNAUTHORIZED_OUTPUT" \
+            --timeout-request 10000 \
+            --delay-request 200 \
+            --ignore-redirects
+    fi
+    
+    UNAUTHORIZED_EXIT_CODE=$?
+    if [ $UNAUTHORIZED_EXIT_CODE -eq 0 ]; then
+        echo "✅ Unauthorized tests completed successfully"
+    else
+        echo "❌ Unauthorized tests failed (exit code: $UNAUTHORIZED_EXIT_CODE)"
+        echo "Continuing with authenticated tests..."
+    fi
+else
+    echo "⚠️ Unauthorized test collection not found at $UNAUTHORIZED_COLLECTION"
+fi
+
 # Pre-authenticate test users and store JWT tokens
 echo ""
 echo "🔑 Pre-authenticating test users..."
@@ -216,8 +254,21 @@ TEST_EXIT_CODE=${PIPESTATUS[0]}
 echo ""
 echo "=== Test Summary ==="
 
-# Parse results with jq if available
+# Parse unauthorized test results first
+if command -v jq &> /dev/null && [ -f "$UNAUTHORIZED_OUTPUT" ]; then
+    echo "🔒 Unauthorized Tests (401):"
+    UNAUTH_REQUESTS=$(jq '.run.stats.requests.total' "$UNAUTHORIZED_OUTPUT")
+    UNAUTH_FAILED_REQUESTS=$(jq '.run.stats.requests.failed' "$UNAUTHORIZED_OUTPUT") 
+    UNAUTH_ASSERTIONS=$(jq '.run.stats.assertions.total' "$UNAUTHORIZED_OUTPUT")
+    UNAUTH_FAILED_ASSERTIONS=$(jq '.run.stats.assertions.failed' "$UNAUTHORIZED_OUTPUT")
+    echo "   Requests: $UNAUTH_REQUESTS, Failed: $UNAUTH_FAILED_REQUESTS"
+    echo "   Assertions: $UNAUTH_ASSERTIONS, Failed: $UNAUTH_FAILED_ASSERTIONS"
+    echo ""
+fi
+
+# Parse authenticated test results
 if command -v jq &> /dev/null && [ -f "$OUTPUT_FILE" ]; then
+    echo "🔑 Authenticated Tests:"
     TOTAL_REQUESTS=$(jq '.run.stats.requests.total' "$OUTPUT_FILE")
     FAILED_REQUESTS=$(jq '.run.stats.requests.failed' "$OUTPUT_FILE") 
     TOTAL_ASSERTIONS=$(jq '.run.stats.assertions.total' "$OUTPUT_FILE")
