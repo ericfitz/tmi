@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Enhanced Container Build Script with Docker Scout Security Scanning and Patching
-# This script builds secure container images with automated vulnerability patching
+# Container Build Script with Docker Scout Security Scanning and Patching
+# This script builds container images with automated vulnerability patching
 
 set -e           # Exit immediately if a command exits with a non-zero status
 set -o pipefail  # Exit if any command in a pipeline fails
@@ -13,9 +13,9 @@ BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo 'development')"
 
 # Container Configuration
-PG_CONTAINER_NAME="tmi-postgresql-secure"
-REDIS_CONTAINER_NAME="tmi-redis-secure"
-APP_CONTAINER_NAME="tmi-app-secure"
+PG_CONTAINER_NAME="tmi-postgresql"
+REDIS_CONTAINER_NAME="tmi-redis"
+APP_CONTAINER_NAME="tmi-app"
 REGISTRY_PREFIX="${REGISTRY_PREFIX:-tmi}"
 
 # Vulnerability thresholds
@@ -102,14 +102,14 @@ scan_image_vulnerabilities() {
 
 # Function to build and scan PostgreSQL container
 build_postgresql_secure() {
-    log_info "Building secure PostgreSQL container..."
+    log_info "Building PostgreSQL container..."
     
     # Update scan date in Dockerfile
-    sed "s/AUTO_GENERATED/${BUILD_DATE}/g" "${PROJECT_ROOT}/Dockerfile.postgres.secure" > "${PROJECT_ROOT}/Dockerfile.postgres.secure.tmp"
+    sed "s/AUTO_GENERATED/${BUILD_DATE}/g" "${PROJECT_ROOT}/Dockerfile.postgres" > "${PROJECT_ROOT}/Dockerfile.postgres.tmp"
     
     # Build the container
     docker build \
-        -f "${PROJECT_ROOT}/Dockerfile.postgres.secure.tmp" \
+        -f "${PROJECT_ROOT}/Dockerfile.postgres.tmp" \
         -t "${REGISTRY_PREFIX}/${PG_CONTAINER_NAME}:latest" \
         -t "${REGISTRY_PREFIX}/${PG_CONTAINER_NAME}:${GIT_COMMIT}" \
         --build-arg BUILD_DATE="${BUILD_DATE}" \
@@ -117,7 +117,7 @@ build_postgresql_secure() {
         "${PROJECT_ROOT}"
     
     # Clean up temporary file
-    rm -f "${PROJECT_ROOT}/Dockerfile.postgres.secure.tmp"
+    rm -f "${PROJECT_ROOT}/Dockerfile.postgres.tmp"
     
     # Scan for vulnerabilities
     if scan_image_vulnerabilities "${REGISTRY_PREFIX}/${PG_CONTAINER_NAME}:latest" "${SECURITY_SCAN_OUTPUT_DIR}/postgresql-scan"; then
@@ -130,14 +130,14 @@ build_postgresql_secure() {
 
 # Function to build and scan Redis container
 build_redis_secure() {
-    log_info "Building secure Redis container..."
+    log_info "Building Redis container..."
     
     # Update scan date in Dockerfile
-    sed "s/AUTO_GENERATED/${BUILD_DATE}/g" "${PROJECT_ROOT}/Dockerfile.redis.secure" > "${PROJECT_ROOT}/Dockerfile.redis.secure.tmp"
+    sed "s/AUTO_GENERATED/${BUILD_DATE}/g" "${PROJECT_ROOT}/Dockerfile.redis" > "${PROJECT_ROOT}/Dockerfile.redis.tmp"
     
     # Build the container
     docker build \
-        -f "${PROJECT_ROOT}/Dockerfile.redis.secure.tmp" \
+        -f "${PROJECT_ROOT}/Dockerfile.redis.tmp" \
         -t "${REGISTRY_PREFIX}/${REDIS_CONTAINER_NAME}:latest" \
         -t "${REGISTRY_PREFIX}/${REDIS_CONTAINER_NAME}:${GIT_COMMIT}" \
         --build-arg BUILD_DATE="${BUILD_DATE}" \
@@ -145,7 +145,7 @@ build_redis_secure() {
         "${PROJECT_ROOT}"
     
     # Clean up temporary file
-    rm -f "${PROJECT_ROOT}/Dockerfile.redis.secure.tmp"
+    rm -f "${PROJECT_ROOT}/Dockerfile.redis.tmp"
     
     # Scan for vulnerabilities
     if scan_image_vulnerabilities "${REGISTRY_PREFIX}/${REDIS_CONTAINER_NAME}:latest" "${SECURITY_SCAN_OUTPUT_DIR}/redis-scan"; then
@@ -158,14 +158,14 @@ build_redis_secure() {
 
 # Function to build and scan application container
 build_application_secure() {
-    log_info "Building secure application container..."
+    log_info "Building application container..."
     
     # Update scan date in Dockerfile
-    sed "s/AUTO_GENERATED/${BUILD_DATE}/g" "${PROJECT_ROOT}/Dockerfile.dev.secure" > "${PROJECT_ROOT}/Dockerfile.dev.secure.tmp"
+    sed "s/AUTO_GENERATED/${BUILD_DATE}/g" "${PROJECT_ROOT}/Dockerfile.dev" > "${PROJECT_ROOT}/Dockerfile.dev.tmp"
     
     # Build the container
     docker build \
-        -f "${PROJECT_ROOT}/Dockerfile.dev.secure.tmp" \
+        -f "${PROJECT_ROOT}/Dockerfile.dev.tmp" \
         -t "${REGISTRY_PREFIX}/${APP_CONTAINER_NAME}:latest" \
         -t "${REGISTRY_PREFIX}/${APP_CONTAINER_NAME}:${GIT_COMMIT}" \
         --build-arg BUILD_DATE="${BUILD_DATE}" \
@@ -173,7 +173,7 @@ build_application_secure() {
         "${PROJECT_ROOT}"
     
     # Clean up temporary file
-    rm -f "${PROJECT_ROOT}/Dockerfile.dev.secure.tmp"
+    rm -f "${PROJECT_ROOT}/Dockerfile.dev.tmp"
     
     # Scan for vulnerabilities
     if scan_image_vulnerabilities "${REGISTRY_PREFIX}/${APP_CONTAINER_NAME}:latest" "${SECURITY_SCAN_OUTPUT_DIR}/application-scan"; then
@@ -255,7 +255,7 @@ cleanup_old_images() {
 
 # Main execution
 main() {
-    echo "--- TMI Secure Container Build Script ---"
+    echo "--- TMI Container Build Script ---"
     echo "Build Date: ${BUILD_DATE}"
     echo "Git Commit: ${GIT_COMMIT}"
     echo ""

@@ -728,13 +728,13 @@ oauth-stub-status:
 # CONTAINER SECURITY AND BUILD MANAGEMENT
 # ============================================================================
 
-.PHONY: containers-secure containers-secure-build containers-security-scan containers-security-report
+.PHONY: containers-build containers-security-scan containers-security-report
 
-# Build secure containers with vulnerability patching
-containers-secure-build:
-	$(call log_info,Building secure containers with vulnerability patching...)
-	@./scripts/build-secure-containers.sh
-	$(call log_success,Secure containers built successfully)
+# Build containers with vulnerability patching
+containers-build:
+	$(call log_info,Building containers with vulnerability patching...)
+	@./scripts/build-containers.sh
+	$(call log_success,Containers built successfully)
 
 # Run security scan on existing containers
 containers-security-scan:
@@ -782,30 +782,30 @@ containers-security-report: containers-security-scan
 	@echo "" >> security-reports/security-summary.md
 	@echo "## Recommendations" >> security-reports/security-summary.md
 	@echo "" >> security-reports/security-summary.md
-	@echo "1. Use \`make containers-secure-build\` to build patched containers" >> security-reports/security-summary.md
+	@echo "1. Use \`make containers-build\` to build patched containers" >> security-reports/security-summary.md
 	@echo "2. Regularly update base images" >> security-reports/security-summary.md
 	@echo "3. Implement runtime security monitoring" >> security-reports/security-summary.md
 	@echo "4. Review detailed scan results in security-reports/" >> security-reports/security-summary.md
 	$(call log_success,Security report generated: security-reports/security-summary.md)
 
-# Start development environment with secure containers (builds secure containers first)
-containers-secure-dev:
-	$(call log_info,Starting development environment with secure containers...)
-	@./scripts/make-containers-dev-local-secure.sh
-	$(call log_success,Secure development environment started)
+# Start development environment with containers (builds containers first)
+containers-dev:
+	$(call log_info,Starting development environment with containers...)
+	@./scripts/make-containers-dev-local.sh
+	$(call log_success,Development environment started)
 
-# Start server using existing secure containers (no rebuild)
-dev-start-secure:
+# Start server using existing containers (no rebuild)
+dev-start-containers:
 	@CONFIG_FILE=config/dev-environment-secure.yml; \
 	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
 	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
-	echo -e "$(BLUE)[INFO]$(NC) Starting development server with secure containers: Secure Development Environment Configuration"; \
-	if ! docker ps --format "{{.Names}}" | grep -q "^tmi-postgresql-secure$$"; then \
-		echo -e "$(RED)[ERROR]$(NC) Secure PostgreSQL container not running. Run 'make containers-secure-dev' first."; \
+	echo -e "$(BLUE)[INFO]$(NC) Starting development server with containers: Container-based Development Environment Configuration"; \
+	if ! docker ps --format "{{.Names}}" | grep -q "^tmi-postgresql$$"; then \
+		echo -e "$(RED)[ERROR]$(NC) PostgreSQL container not running. Run 'make containers-dev' first."; \
 		exit 1; \
 	fi; \
-	if ! docker ps --format "{{.Names}}" | grep -q "^tmi-redis-secure$$"; then \
-		echo -e "$(RED)[ERROR]$(NC) Secure Redis container not running. Run 'make containers-secure-dev' first."; \
+	if ! docker ps --format "{{.Names}}" | grep -q "^tmi-redis$$"; then \
+		echo -e "$(RED)[ERROR]$(NC) Redis container not running. Run 'make containers-dev' first."; \
 		exit 1; \
 	fi; \
 	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
@@ -818,10 +818,10 @@ dev-start-secure:
 	fi && \
 	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) server-start
 	@eval $$(uv run scripts/yaml-to-make.py config/dev-environment-secure.yml | grep '^SERVER_PORT := ' | sed 's/SERVER_PORT := /SERVER_PORT=/'); \
-	echo -e "$(GREEN)[SUCCESS]$(NC) Development server started on port $$SERVER_PORT using secure containers"
+	echo -e "$(GREEN)[SUCCESS]$(NC) Development server started on port $$SERVER_PORT using containers"
 
-# Shorthand for all container security operations
-containers-secure: containers-secure-build containers-security-report
+# Shorthand for all container operations
+containers-all: containers-build containers-security-report
 
 # ============================================================================
 # BACKWARD COMPATIBILITY ALIASES
@@ -1003,15 +1003,15 @@ help:
 	@echo "  test-unit              - Run unit tests"
 	@echo "  test-integration       - Run integration tests with full setup"
 	@echo "  dev-start              - Start development environment"
-	@echo "  dev-start-secure       - Start server using existing secure containers"
+	@echo "  dev-start-containers   - Start server using existing containers"
 	@echo "  dev-clean              - Clean development environment"
 	@echo ""
-	@echo "Container Security (Docker Scout Integration):"
-	@echo "  containers-secure-build      - Build secure containers with vulnerability patching"
+	@echo "Container Management (Docker Scout Integration):"
+	@echo "  containers-build             - Build containers with vulnerability patching"
 	@echo "  containers-security-scan     - Scan existing containers for vulnerabilities"
 	@echo "  containers-security-report   - Generate comprehensive security report"
-	@echo "  containers-secure-dev        - Start development with secure containers"
-	@echo "  containers-secure            - Run full security build and report"
+	@echo "  containers-dev               - Start development with containers"
+	@echo "  containers-all               - Run full container build and report"
 	@echo ""
 	@echo "Atomic Components (building blocks):"
 	@echo "  infra-db-start         - Start PostgreSQL container"

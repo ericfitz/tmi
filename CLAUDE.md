@@ -67,14 +67,14 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 - Stop observability: `make observability-stop` (stops monitoring services), `make obs-stop` (alias)
 - Clean observability: `make observability-clean` (removes monitoring data), `make obs-clean` (alias)
 
-### Container Security (Docker Scout Integration)
+### Container Management (Docker Scout Integration)
 
 - Security scan: `make containers-security-scan` (scans containers for vulnerabilities using Docker Scout)
 - Security report: `make containers-security-report` (generates comprehensive security report)
-- Secure build: `make containers-secure-build` (builds containers with vulnerability patches)
-- Secure development: `make containers-secure-dev` (builds and starts secure containers, no server)
-- Start server with secure containers: `make dev-start-secure` (starts server using existing secure containers)
-- Full security workflow: `make containers-secure` (builds secure containers and generates reports)
+- Build containers: `make containers-build` (builds containers with vulnerability patches)
+- Container development: `make containers-dev` (builds and starts containers, no server)
+- Start server with containers: `make dev-start-containers` (starts server using existing containers)
+- Full container workflow: `make containers-all` (builds containers and generates reports)
 
 ### OpenAPI Schema Management
 
