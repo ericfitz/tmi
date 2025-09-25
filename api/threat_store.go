@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
 )
 
@@ -110,9 +111,9 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 	logger := slogging.Get()
 	logger.Debug("Creating threat: %s in threat model: %s", threat.Name, threat.ThreatModelId)
 
-	// Generate ID if not provided
+	// Generate UUIDv7 ID if not provided (for better index locality)
 	if threat.Id == nil {
-		id := uuid.New()
+		id := uuidgen.MustNewForEntity(uuidgen.EntityTypeThreat)
 		threat.Id = &id
 	}
 

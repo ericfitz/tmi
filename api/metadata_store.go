@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
 )
 
@@ -109,7 +110,7 @@ func (s *DatabaseMetadataStore) Create(ctx context.Context, entityType, entityID
 			modified_at = EXCLUDED.modified_at
 	`
 
-	id := uuid.New()
+	id := uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata)
 	_, err = s.db.ExecContext(ctx, query,
 		id,
 		entityType,
@@ -469,7 +470,7 @@ func (s *DatabaseMetadataStore) BulkCreate(ctx context.Context, entityType, enti
 	now := time.Now().UTC()
 
 	for i, meta := range metadata {
-		id := uuid.New()
+		id := uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata)
 		_, err = stmt.ExecContext(ctx,
 			id,
 			entityType,

@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // ThreatSubResourceHandler provides handlers for threat sub-resource operations
@@ -287,9 +287,9 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 	// Set threat model ID from URL (override any value in body)
 	threat.ThreatModelId = &threatModelUUID
 
-	// Generate UUID if not provided
+	// Generate UUIDv7 if not provided (for better index locality)
 	if threat.Id == nil {
-		id := uuid.New()
+		id := uuidgen.MustNewForEntity(uuidgen.EntityTypeThreat)
 		threat.Id = &id
 	}
 
@@ -525,9 +525,9 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 		// Set threat model ID from URL
 		threat.ThreatModelId = &threatModelUUID
 
-		// Generate UUID if not provided
+		// Generate UUIDv7 if not provided (for better index locality)
 		if threat.Id == nil {
-			id := uuid.New()
+			id := uuidgen.MustNewForEntity(uuidgen.EntityTypeThreat)
 			threat.Id = &id
 		}
 	}
