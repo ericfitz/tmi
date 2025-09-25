@@ -1,0 +1,364 @@
+{
+  "info": {
+    "name": "TMI Complete Metadata Tests",
+    "description": "Complete metadata testing for all entity types",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080"
+    },
+    {
+      "key": "oauthStubUrl", 
+      "value": "http://127.0.0.1:8079"
+    },
+    {
+      "key": "testUser",
+      "value": "metadata-test-{{$randomInt}}"
+    },
+    {
+      "key": "threatModelId",
+      "value": ""
+    },
+    {
+      "key": "threatId", 
+      "value": ""
+    },
+    {
+      "key": "documentId",
+      "value": ""
+    },
+    {
+      "key": "diagramId",
+      "value": ""
+    },
+    {
+      "key": "sourceId",
+      "value": ""
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Load test data factory",
+          "if (typeof TMITestDataFactory === 'undefined') {",
+          "    eval(pm.globals.get('TMITestDataFactory'));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Setup Test Resources",
+      "item": [
+        {
+          "name": "Authenticate",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/oauth2/authorize?idp=test&login_hint={{testUser}}&client_callback={{oauthStubUrl}}&scope=openid",
+              "host": ["{{baseUrl}}"],
+              "path": ["oauth2", "authorize"],
+              "query": [
+                {"key": "idp", "value": "test"},
+                {"key": "login_hint", "value": "{{testUser}}"},
+                {"key": "client_callback", "value": "{{oauthStubUrl}}"},
+                {"key": "scope", "value": "openid"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(() => {}, 2000);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{oauthStubUrl}}/creds?userid={{testUser}}",
+              "host": ["{{oauthStubUrl}}"],
+              "path": ["creds"],
+              "query": [{"key": "userid", "value": "{{testUser}}"}]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', jsonData.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Threat Model",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\\n  \\\"name\\\": \\\"Metadata Test Threat Model {{$randomInt}}\\\",\\n  \\\"description\\\": \\\"For metadata testing\\\",\\n  \\\"threat_model_framework\\\": \\\"STRIDE\\\"\\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('threatModelId', jsonData.id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Threat Model Metadata",
+      "item": [
+        {
+          "name": "Create Threat Model Metadata - Success (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\\n  \\\"key\\\": \\\"test_key\\\",\\n  \\\"value\\\": \\\"test_value\\\"\\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "metadata"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Metadata created', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.key).to.equal('test_key');",
+                  "    pm.expect(jsonData.value).to.equal('test_value');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Threat Model Metadata - Success (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "metadata"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Metadata list returned', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Specific Metadata Key - Success (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata/test_key",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "metadata", "test_key"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Specific metadata returned', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.value).to.equal('test_value');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Metadata Key - Success (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\\n  \\\"value\\\": \\\"updated_value\\\"\\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata/test_key",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "metadata", "test_key"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Metadata updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.value).to.equal('updated_value');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Metadata Key - Success (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata/test_key",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "metadata", "test_key"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test('Response body is empty', function () {",
+                  "    pm.expect(pm.response.text()).to.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bulk Create Metadata - Success (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\\n  {\\\"key\\\": \\\"bulk_key_1\\\", \\\"value\\\": \\\"bulk_value_1\\\"},\\n  {\\\"key\\\": \\\"bulk_key_2\\\", \\\"value\\\": \\\"bulk_value_2\\\"},\\n  {\\\"key\\\": \\\"bulk_key_3\\\", \\\"value\\\": \\\"bulk_value_3\\\"}\\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "metadata", "bulk"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Bulk metadata created', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "    pm.expect(jsonData.length).to.equal(3);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -251,6 +251,56 @@ fi
 # Capture exit code
 TEST_EXIT_CODE=${PIPESTATUS[0]}
 
+# Run new collections if they exist
+echo ""
+echo "🔄 Running additional test collections..."
+NEW_COLLECTIONS=(
+    "discovery-complete-tests-collection.json"
+    "oauth-complete-flow-collection.json"
+    "document-crud-tests-collection.json" 
+    "source-crud-tests-collection.json"
+    "complete-metadata-tests-collection.json"
+    "advanced-error-scenarios-collection.json"
+)
+
+for collection in "${NEW_COLLECTIONS[@]}"; do
+    if [ -f "$SCRIPT_DIR/$collection" ]; then
+        echo "Running $collection..."
+        COLLECTION_OUTPUT="$OUTPUT_DIR/$(basename "$collection" .json)-results-$TIMESTAMP.json"
+        
+        if [ ! -z "$HTML_REPORTER" ]; then
+            newman run "$SCRIPT_DIR/$collection" \
+                --env-var "baseUrl=http://127.0.0.1:8080" \
+                --env-var "oauthStubUrl=http://127.0.0.1:8079" \
+                --reporters cli,json,htmlextra \
+                --reporter-json-export "$COLLECTION_OUTPUT" \
+                --reporter-htmlextra-export "$OUTPUT_DIR/$(basename "$collection" .json)-report-$TIMESTAMP.html" \
+                --timeout-request 10000 \
+                --delay-request 200 \
+                --ignore-redirects \
+                2>&1 | tee -a "$LOG_FILE"
+        else
+            newman run "$SCRIPT_DIR/$collection" \
+                --env-var "baseUrl=http://127.0.0.1:8080" \
+                --env-var "oauthStubUrl=http://127.0.0.1:8079" \
+                --reporters cli,json \
+                --reporter-json-export "$COLLECTION_OUTPUT" \
+                --timeout-request 10000 \
+                --delay-request 200 \
+                --ignore-redirects \
+                2>&1 | tee -a "$LOG_FILE"
+        fi
+        
+        # Update exit code if any collection fails
+        COLLECTION_EXIT_CODE=${PIPESTATUS[0]}
+        if [ $COLLECTION_EXIT_CODE -ne 0 ]; then
+            TEST_EXIT_CODE=$COLLECTION_EXIT_CODE
+        fi
+    else
+        echo "⚠️ Collection not found: $collection"
+    fi
+done
+
 echo ""
 echo "=== Test Summary ==="
 

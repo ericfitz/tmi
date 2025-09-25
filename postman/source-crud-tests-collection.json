@@ -1,0 +1,1098 @@
+{
+  "info": {
+    "name": "TMI Sources CRUD Tests",
+    "description": "Complete Sources CRUD testing with comprehensive status code coverage",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080"
+    },
+    {
+      "key": "oauthStubUrl", 
+      "value": "http://127.0.0.1:8079"
+    },
+    {
+      "key": "testUser",
+      "value": "source-test-{{$randomInt}}"
+    },
+    {
+      "key": "threatModelId",
+      "value": ""
+    },
+    {
+      "key": "sourceId",
+      "value": ""
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Load test data factory and multi-user auth",
+          "if (typeof TMITestDataFactory === 'undefined') {",
+          "    eval(pm.globals.get('TMITestDataFactory'));",
+          "}",
+          "if (typeof TMIMultiUserAuth === 'undefined') {",
+          "    eval(pm.globals.get('TMIMultiUserAuth'));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Authenticate Test User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/oauth2/authorize?idp=test&login_hint={{testUser}}&client_callback={{oauthStubUrl}}&scope=openid",
+              "host": ["{{baseUrl}}"],
+              "path": ["oauth2", "authorize"],
+              "query": [
+                {"key": "idp", "value": "test"},
+                {"key": "login_hint", "value": "{{testUser}}"},
+                {"key": "client_callback", "value": "{{oauthStubUrl}}"},
+                {"key": "scope", "value": "openid"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Wait for OAuth flow",
+                  "setTimeout(() => {}, 2000);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Access Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{oauthStubUrl}}/creds?userid={{testUser}}",
+              "host": ["{{oauthStubUrl}}"],
+              "path": ["creds"],
+              "query": [
+                {"key": "userid", "value": "{{testUser}}"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', jsonData.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Test Threat Model",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Source Test Threat Model {{$randomInt}}\",\n  \"description\": \"Threat model for source testing\",\n  \"threat_model_framework\": \"STRIDE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Threat model created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('threatModelId', jsonData.id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Source CRUD Operations",
+      "item": [
+        {
+          "name": "Create Source - Success (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Source {{$randomInt}}\",\n  \"type\": \"git\",\n  \"url\": \"https://github.com/example/test-repo-{{$randomInt}}.git\",\n  \"description\": \"A test source for comprehensive API testing\",\n  \"parameters\": {\n    \"refType\": \"branch\",\n    \"refValue\": \"main\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has source data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    pm.expect(jsonData.name).to.exist;",
+                  "    pm.expect(jsonData.type).to.exist;",
+                  "    pm.expect(jsonData.url).to.exist;",
+                  "    pm.collectionVariables.set('sourceId', jsonData.id);",
+                  "});",
+                  "",
+                  "pm.test('Source has valid UUID', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;",
+                  "    pm.expect(jsonData.id).to.match(uuidRegex);",
+                  "});",
+                  "",
+                  "pm.test('Source type is valid', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const validTypes = ['git', 'svn', 'mercurial', 'other'];",
+                  "    pm.expect(validTypes).to.include(jsonData.type);",
+                  "});",
+                  "",
+                  "pm.test('Parameters are included', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.parameters).to.exist;",
+                  "    pm.expect(jsonData.parameters.refType).to.exist;",
+                  "    pm.expect(jsonData.parameters.refValue).to.exist;",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Source - Missing URL (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"description\": \"Missing url field\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error message mentions url field', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('url');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Source - Invalid URL (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"url\": \"not-a-valid-url\",\n  \"description\": \"Invalid URL format\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error message mentions URL validation', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('url');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Source - Invalid Type (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"invalid-type\",\n  \"url\": \"https://github.com/example/test.git\",\n  \"description\": \"Invalid source type\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error message mentions type validation', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('type');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Source - Invalid Parameters (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"url\": \"https://github.com/example/test.git\",\n  \"parameters\": {\n    \"refType\": \"invalid-ref\",\n    \"refValue\": \"main\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error message mentions parameter validation', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.match(/(parameter|reftype)/);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Source - No Auth (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"url\": \"https://github.com/example/test.git\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions authentication', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('unauthorized');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Source - Invalid Threat Model (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"url\": \"https://github.com/example/test.git\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000/sources",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "00000000-0000-0000-0000-000000000000", "sources"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions not found', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Source Retrieval",
+      "item": [
+        {
+          "name": "List Sources - Success (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is array of sources', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "    if (jsonData.length > 0) {",
+                  "        pm.expect(jsonData[0]).to.have.property('id');",
+                  "        pm.expect(jsonData[0]).to.have.property('name');",
+                  "        pm.expect(jsonData[0]).to.have.property('type');",
+                  "        pm.expect(jsonData[0]).to.have.property('url');",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Contains created source', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const sourceId = pm.collectionVariables.get('sourceId');",
+                  "    const found = jsonData.find(source => source.id === sourceId);",
+                  "    pm.expect(found).to.exist;",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Specific Source - Success (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has correct source', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const sourceId = pm.collectionVariables.get('sourceId');",
+                  "    pm.expect(jsonData.id).to.equal(sourceId);",
+                  "    pm.expect(jsonData.name).to.exist;",
+                  "    pm.expect(jsonData.type).to.exist;",
+                  "    pm.expect(jsonData.url).to.exist;",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Source - Not Found (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/00000000-0000-0000-0000-000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "00000000-0000-0000-0000-000000000000"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions not found', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Source - No Auth (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions authentication', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('unauthorized');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Source Updates",
+      "item": [
+        {
+          "name": "Update Source - Success (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Test Source {{$randomInt}}\",\n  \"type\": \"git\",\n  \"url\": \"https://github.com/example/updated-repo-{{$randomInt}}.git\",\n  \"description\": \"Updated description for comprehensive testing\",\n  \"parameters\": {\n    \"refType\": \"tag\",\n    \"refValue\": \"v2.0\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Source was updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.name).to.include('Updated');",
+                  "    pm.expect(jsonData.url).to.include('updated');",
+                  "    pm.expect(jsonData.parameters.refType).to.equal('tag');",
+                  "    pm.expect(jsonData.parameters.refValue).to.equal('v2.0');",
+                  "});",
+                  "",
+                  "pm.test('Source ID unchanged', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const sourceId = pm.collectionVariables.get('sourceId');",
+                  "    pm.expect(jsonData.id).to.equal(sourceId);",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Source - Invalid Data (400)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Source\",\n  \"type\": \"invalid-type\",\n  \"url\": \"not-a-valid-url\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions validation failure', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.match(/(type|url|validation|invalid)/);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Source - Not Found (404)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Source\",\n  \"type\": \"git\",\n  \"url\": \"https://github.com/example/updated.git\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/00000000-0000-0000-0000-000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "00000000-0000-0000-0000-000000000000"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions not found', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Source Deletion",
+      "item": [
+        {
+          "name": "Delete Source - Success (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test('Response body is empty', function () {",
+                  "    pm.expect(pm.response.text()).to.be.empty;",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Source - Not Found (404)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/00000000-0000-0000-0000-000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "00000000-0000-0000-0000-000000000000"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions not found', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Source - No Auth (401)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions authentication', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('unauthorized');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Source Deleted (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Deleted source returns 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error confirms source not found', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Bulk Source Operations",
+      "item": [
+        {
+          "name": "Bulk Create Sources - Success (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"name\": \"Bulk Source 1 {{$randomInt}}\",\n    \"type\": \"git\",\n    \"url\": \"https://github.com/example/bulk1-{{$randomInt}}.git\",\n    \"description\": \"First bulk source\",\n    \"parameters\": {\n      \"refType\": \"branch\",\n      \"refValue\": \"main\"\n    }\n  },\n  {\n    \"name\": \"Bulk Source 2 {{$randomInt}}\",\n    \"type\": \"svn\",\n    \"url\": \"https://svn.example.com/bulk2-{{$randomInt}}\",\n    \"description\": \"Second bulk source\",\n    \"parameters\": {\n      \"refType\": \"tag\",\n      \"refValue\": \"v1.0\"\n    }\n  },\n  {\n    \"name\": \"Bulk Source 3 {{$randomInt}}\",\n    \"type\": \"mercurial\",\n    \"url\": \"https://hg.example.com/bulk3-{{$randomInt}}\",\n    \"description\": \"Third bulk source\",\n    \"parameters\": {\n      \"refType\": \"commit\",\n      \"refValue\": \"abc123\"\n    }\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "bulk"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has created sources', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "    pm.expect(jsonData.length).to.equal(3);",
+                  "    ",
+                  "    jsonData.forEach(source => {",
+                  "        pm.expect(source.id).to.exist;",
+                  "        pm.expect(source.name).to.exist;",
+                  "        pm.expect(source.type).to.exist;",
+                  "        pm.expect(source.url).to.exist;",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('All sources have valid UUIDs', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;",
+                  "    ",
+                  "    jsonData.forEach(source => {",
+                  "        pm.expect(source.id).to.match(uuidRegex);",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Sources have different types', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const types = jsonData.map(s => s.type);",
+                  "    pm.expect(types).to.include('git');",
+                  "    pm.expect(types).to.include('svn');",
+                  "    pm.expect(types).to.include('mercurial');",
+                  "});",
+                  "",
+                  "pm.test('Response time is reasonable for bulk operation', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bulk Create - Invalid Data (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"name\": \"Valid Source\",\n    \"type\": \"git\",\n    \"url\": \"https://github.com/example/valid.git\"\n  },\n  {\n    \"name\": \"Invalid Source\",\n    \"type\": \"invalid-type\",\n    \"url\": \"not-a-valid-url\"\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "bulk"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions validation failure', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.match(/(validation|invalid|type|url)/);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bulk Create - No Auth (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"name\": \"Test Source\",\n    \"type\": \"git\",\n    \"url\": \"https://github.com/example/test.git\"\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{threatModelId}}", "sources", "bulk"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions authentication', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('unauthorized');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

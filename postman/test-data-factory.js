@@ -440,6 +440,191 @@ class TMITestDataFactory {
     }
 
     // ========================================
+    // DOCUMENT TEST DATA
+    // ========================================
+
+    validDocument(options = {}) {
+        return {
+            name: options.name || `Test Document ${this.testRunId}`,
+            url: options.url || `https://example.com/documents/test-${this.testRunId}.pdf`,
+            description: options.description || "A test document for comprehensive API testing",
+            ...options.additional
+        };
+    }
+
+    invalidDocumentData() {
+        return {
+            // Missing required 'name' field - should trigger 400
+            missing_name: {
+                url: "https://example.com/test.pdf",
+                description: "Missing name field"
+            },
+            // Missing required 'url' field - should trigger 400
+            missing_url: {
+                name: "Test Document",
+                description: "Missing url field"
+            },
+            // Empty name - should trigger 400
+            empty_name: {
+                name: "",
+                url: "https://example.com/test.pdf"
+            },
+            // Name too long (> 256 chars) - should trigger 400
+            name_too_long: {
+                name: "x".repeat(257),
+                url: "https://example.com/test.pdf"
+            },
+            // URL too long (> 1024 chars) - should trigger 400
+            url_too_long: {
+                name: "Valid Name",
+                url: "https://example.com/" + "x".repeat(1024)
+            },
+            // Invalid URL format - should trigger 400
+            invalid_url: {
+                name: "Valid Name", 
+                url: "not-a-valid-url"
+            },
+            // Description too long (> 1024 chars) - should trigger 400
+            description_too_long: {
+                name: "Valid Name",
+                url: "https://example.com/test.pdf",
+                description: "x".repeat(1025)
+            },
+            // Invalid characters in name - should trigger 400
+            invalid_name_chars: {
+                name: "Test<script>alert('xss')</script>",
+                url: "https://example.com/test.pdf"
+            },
+            // Wrong data types - should trigger 400
+            wrong_types: {
+                name: 123, // should be string
+                url: true, // should be string
+                description: [] // should be string
+            }
+        };
+    }
+
+    generateDocumentList(count = 5, options = {}) {
+        const documents = [];
+        for (let i = 0; i < count; i++) {
+            documents.push(this.validDocument({
+                name: `Bulk Document ${i + 1} - ${this.testRunId}`,
+                url: `https://example.com/documents/bulk-${i + 1}-${this.testRunId}.pdf`,
+                description: `Generated document ${i + 1} for bulk operations testing`,
+                ...options
+            }));
+        }
+        return documents;
+    }
+
+    // ========================================  
+    // SOURCE TEST DATA
+    // ========================================
+
+    validSource(options = {}) {
+        return {
+            name: options.name || `Test Source ${this.testRunId}`,
+            type: options.type || "git",
+            url: options.url || `https://github.com/example/test-repo-${this.testRunId}.git`,
+            description: options.description || "A test source for comprehensive API testing",
+            parameters: options.parameters || {
+                refType: "branch",
+                refValue: "main"
+            },
+            ...options.additional
+        };
+    }
+
+    invalidSourceData() {
+        return {
+            // Missing required 'url' field - should trigger 400
+            missing_url: {
+                name: "Test Source",
+                type: "git",
+                description: "Missing url field"
+            },
+            // Invalid URL format - should trigger 400
+            invalid_url: {
+                name: "Test Source",
+                type: "git",
+                url: "not-a-valid-url"
+            },
+            // Invalid type - should trigger 400
+            invalid_type: {
+                name: "Valid Name",
+                url: "https://github.com/example/test.git",
+                type: "invalid-type"
+            },
+            // Name too long (> 256 chars) - should trigger 400
+            name_too_long: {
+                name: "x".repeat(257),
+                type: "git",
+                url: "https://github.com/example/test.git"
+            },
+            // URL too long (> 1024 chars) - should trigger 400
+            url_too_long: {
+                name: "Valid Name",
+                type: "git",
+                url: "https://github.com/" + "x".repeat(1024)
+            },
+            // Description too long (> 1024 chars) - should trigger 400
+            description_too_long: {
+                name: "Valid Name",
+                type: "git",
+                url: "https://github.com/example/test.git",
+                description: "x".repeat(1025)
+            },
+            // Invalid parameters - should trigger 400
+            invalid_parameters: {
+                name: "Valid Name",
+                type: "git",
+                url: "https://github.com/example/test.git",
+                parameters: {
+                    refType: "invalid-ref",
+                    refValue: "main"
+                }
+            },
+            // Missing required parameter fields - should trigger 400
+            missing_param_fields: {
+                name: "Valid Name", 
+                type: "git",
+                url: "https://github.com/example/test.git",
+                parameters: {
+                    refType: "branch"
+                    // missing refValue
+                }
+            },
+            // Wrong data types - should trigger 400
+            wrong_types: {
+                name: 123, // should be string
+                type: true, // should be string
+                url: [], // should be string
+                description: {} // should be string
+            }
+        };
+    }
+
+    generateSourceList(count = 5, options = {}) {
+        const sources = [];
+        const types = ["git", "svn", "mercurial", "other"];
+        const refTypes = ["branch", "tag", "commit"];
+        for (let i = 0; i < count; i++) {
+            sources.push(this.validSource({
+                name: `Bulk Source ${i + 1} - ${this.testRunId}`,
+                type: this.randomChoice(types),
+                url: `https://github.com/example/bulk-${i + 1}-${this.testRunId}.git`,
+                description: `Generated source ${i + 1} for bulk operations testing`,
+                parameters: {
+                    refType: this.randomChoice(refTypes),
+                    refValue: i % 2 === 0 ? "main" : `v${i}.0`
+                },
+                ...options
+            }));
+        }
+        return sources;
+    }
+
+    // ========================================
     // TEST SCENARIO GENERATORS
     // ========================================
 
