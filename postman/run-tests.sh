@@ -157,7 +157,24 @@ echo "🔑 Pre-authenticating test users..."
 # Function to authenticate a user and extract JWT token
 authenticate_user() {
     local username="$1"
-    echo "Authenticating $username..." >&2
+    echo "Checking existing token for $username..." >&2
+    
+    # First, check if we already have a valid token in the OAuth stub
+    local existing_token_response=$(curl -s "http://127.0.0.1:8079/creds?userid=$username" 2>/dev/null)
+    local existing_token=$(echo "$existing_token_response" | jq -r '.access_token' 2>/dev/null)
+    
+    # Check if token exists and is valid (basic validation - not expired)
+    if [ "$existing_token" != "null" ] && [ "$existing_token" != "" ] && [ "$existing_token" != "undefined" ]; then
+        # Basic JWT token validation (check if it has 3 parts)
+        local token_parts_count=$(echo "$existing_token" | tr -cd '.' | wc -c)
+        if [ "$token_parts_count" -eq 2 ]; then
+            echo "✅ Using existing cached token for $username" >&2
+            printf "%s" "$existing_token"
+            return 0
+        fi
+    fi
+    
+    echo "🔄 No valid cached token found, authenticating $username..." >&2
     
     # Trigger OAuth flow with login_hint
     curl -sL "http://127.0.0.1:8080/oauth2/authorize?idp=test&login_hint=$username&client_callback=http://127.0.0.1:8079/&scope=openid" >/dev/null
@@ -170,7 +187,7 @@ authenticate_user() {
     local token=$(echo "$token_response" | jq -r '.access_token' 2>/dev/null)
     
     if [ "$token" != "null" ] && [ "$token" != "" ]; then
-        echo "✅ Token retrieved for $username" >&2
+        echo "✅ New token retrieved for $username" >&2
         printf "%s" "$token"
     else
         echo "❌ Failed to retrieve token for $username" >&2
@@ -272,6 +289,10 @@ for collection in "${NEW_COLLECTIONS[@]}"; do
             newman run "$SCRIPT_DIR/$collection" \
                 --env-var "baseUrl=http://127.0.0.1:8080" \
                 --env-var "oauthStubUrl=http://127.0.0.1:8079" \
+                --env-var "token_alice=$TOKEN_ALICE" \
+                --env-var "token_bob=$TOKEN_BOB" \
+                --env-var "token_charlie=$TOKEN_CHARLIE" \
+                --env-var "token_diana=$TOKEN_DIANA" \
                 --reporters cli,json,htmlextra \
                 --reporter-json-export "$COLLECTION_OUTPUT" \
                 --reporter-htmlextra-export "$OUTPUT_DIR/$(basename "$collection" .json)-report-$TIMESTAMP.html" \
@@ -283,6 +304,10 @@ for collection in "${NEW_COLLECTIONS[@]}"; do
             newman run "$SCRIPT_DIR/$collection" \
                 --env-var "baseUrl=http://127.0.0.1:8080" \
                 --env-var "oauthStubUrl=http://127.0.0.1:8079" \
+                --env-var "token_alice=$TOKEN_ALICE" \
+                --env-var "token_bob=$TOKEN_BOB" \
+                --env-var "token_charlie=$TOKEN_CHARLIE" \
+                --env-var "token_diana=$TOKEN_DIANA" \
                 --reporters cli,json \
                 --reporter-json-export "$COLLECTION_OUTPUT" \
                 --timeout-request 10000 \

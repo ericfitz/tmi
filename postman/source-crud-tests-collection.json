@@ -47,67 +47,28 @@
       }
     }
   ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Use pre-authenticated token from environment",
+          "const aliceToken = pm.environment.get('token_alice');",
+          "if (aliceToken) {",
+          "    pm.collectionVariables.set('accessToken', aliceToken);",
+          "    console.log('✅ Using pre-authenticated token for alice');",
+          "} else {",
+          "    console.error('❌ No pre-authenticated token found for alice');",
+          "}"
+        ]
+      }
+    }
+  ],
   "item": [
     {
       "name": "Setup",
       "item": [
-        {
-          "name": "Authenticate Test User",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/oauth2/authorize?idp=test&login_hint={{testUser}}&client_callback={{oauthStubUrl}}&scope=openid",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "authorize"],
-              "query": [
-                {"key": "idp", "value": "test"},
-                {"key": "login_hint", "value": "{{testUser}}"},
-                {"key": "client_callback", "value": "{{oauthStubUrl}}"},
-                {"key": "scope", "value": "openid"}
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Wait for OAuth flow",
-                  "setTimeout(() => {}, 2000);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Access Token",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{oauthStubUrl}}/creds?userid={{testUser}}",
-              "host": ["{{oauthStubUrl}}"],
-              "path": ["creds"],
-              "query": [
-                {"key": "userid", "value": "{{testUser}}"}
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const jsonData = pm.response.json();",
-                  "pm.collectionVariables.set('accessToken', jsonData.access_token);"
-                ]
-              }
-            }
-          ]
-        },
         {
           "name": "Create Test Threat Model",
           "request": {

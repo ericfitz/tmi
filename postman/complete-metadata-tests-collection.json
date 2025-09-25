@@ -10,7 +10,7 @@
       "value": "http://127.0.0.1:8080"
     },
     {
-      "key": "oauthStubUrl", 
+      "key": "oauthStubUrl",
       "value": "http://127.0.0.1:8079"
     },
     {
@@ -22,7 +22,7 @@
       "value": ""
     },
     {
-      "key": "threatId", 
+      "key": "threatId",
       "value": ""
     },
     {
@@ -51,6 +51,15 @@
           "// Load test data factory",
           "if (typeof TMITestDataFactory === 'undefined') {",
           "    eval(pm.globals.get('TMITestDataFactory'));",
+          "}",
+          "",
+          "// Use pre-authenticated token from environment",
+          "const aliceToken = pm.environment.get('token_alice');",
+          "if (aliceToken) {",
+          "    pm.collectionVariables.set('accessToken', aliceToken);",
+          "    console.log('\u2705 Using pre-authenticated token for alice');",
+          "} else {",
+          "    console.error('\u274c No pre-authenticated token found for alice');",
           "}"
         ]
       }
@@ -61,66 +70,18 @@
       "name": "Setup Test Resources",
       "item": [
         {
-          "name": "Authenticate",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/oauth2/authorize?idp=test&login_hint={{testUser}}&client_callback={{oauthStubUrl}}&scope=openid",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "authorize"],
-              "query": [
-                {"key": "idp", "value": "test"},
-                {"key": "login_hint", "value": "{{testUser}}"},
-                {"key": "client_callback", "value": "{{oauthStubUrl}}"},
-                {"key": "scope", "value": "openid"}
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "setTimeout(() => {}, 2000);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Token",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{oauthStubUrl}}/creds?userid={{testUser}}",
-              "host": ["{{oauthStubUrl}}"],
-              "path": ["creds"],
-              "query": [{"key": "userid", "value": "{{testUser}}"}]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const jsonData = pm.response.json();",
-                  "pm.collectionVariables.set('accessToken', jsonData.access_token);"
-                ]
-              }
-            }
-          ]
-        },
-        {
           "name": "Create Threat Model",
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
-              {"key": "Content-Type", "value": "application/json"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -128,8 +89,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
             }
           },
           "event": [
@@ -155,8 +120,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
-              {"key": "Content-Type", "value": "application/json"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -164,8 +135,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "metadata"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "metadata"
+              ]
             }
           },
           "event": [
@@ -193,12 +170,21 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "metadata"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "metadata"
+              ]
             }
           },
           "event": [
@@ -225,12 +211,22 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata/test_key",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "metadata", "test_key"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "metadata",
+                "test_key"
+              ]
             }
           },
           "event": [
@@ -257,8 +253,14 @@
           "request": {
             "method": "PUT",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
-              {"key": "Content-Type", "value": "application/json"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -266,8 +268,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata/test_key",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "metadata", "test_key"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "metadata",
+                "test_key"
+              ]
             }
           },
           "event": [
@@ -294,12 +303,22 @@
           "request": {
             "method": "DELETE",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata/test_key",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "metadata", "test_key"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "metadata",
+                "test_key"
+              ]
             }
           },
           "event": [
@@ -325,8 +344,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
-              {"key": "Content-Type", "value": "application/json"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -334,8 +359,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata/bulk",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "metadata", "bulk"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "metadata",
+                "bulk"
+              ]
             }
           },
           "event": [
