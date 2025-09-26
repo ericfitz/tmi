@@ -78,7 +78,7 @@ start-database:
 		echo -e "$(BLUE)[INFO]$(NC) Creating new PostgreSQL container..."; \
 		docker run -d \
 			--name $$CONTAINER \
-			-p $$PORT:5432 \
+			-p 127.0.0.1:$$PORT:5432 \
 			-e POSTGRES_USER=$$USER \
 			-e POSTGRES_PASSWORD=$$PASSWORD \
 			-e POSTGRES_DB=$$DATABASE \
@@ -115,7 +115,7 @@ start-redis:
 		echo -e "$(BLUE)[INFO]$(NC) Creating new Redis container..."; \
 		docker run -d \
 			--name $$CONTAINER \
-			-p $$PORT:6379 \
+			-p 127.0.0.1:$$PORT:6379 \
 			$$IMAGE; \
 	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
 		echo -e "$(BLUE)[INFO]$(NC) Starting existing Redis container..."; \
@@ -197,7 +197,7 @@ check-database:
 
 wait-database:
 	$(call log_info,"Waiting for database to be ready...")
-	@timeout=$${TIMEOUTS_DB_READY:-30}; \
+	@timeout=$${TIMEOUTS_DB_READY:-300}; \
 	CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
 	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
 	USER="$(INFRASTRUCTURE_POSTGRES_USER)"; \
@@ -212,7 +212,7 @@ wait-database:
 		timeout=$$((timeout - 2)); \
 	done; \
 	if [ $$timeout -le 0 ]; then \
-		echo -e "$(RED)[ERROR]$(NC) Database failed to start within 30 seconds"; \
+		echo -e "$(RED)[ERROR]$(NC) Database failed to start within 300 seconds"; \
 		exit 1; \
 	fi
 
@@ -284,7 +284,7 @@ stop-server:
 
 wait-process:
 	$(call log_info,"Waiting for server to be ready on port $(SERVER_PORT)")
-	@timeout=$${TIMEOUTS_SERVER_READY:-30}; \
+	@timeout=$${TIMEOUTS_SERVER_READY:-300}; \
 	PORT="$(SERVER_PORT)"; \
 	if [ -z "$$PORT" ]; then PORT="8080"; fi; \
 	while [ $$timeout -gt 0 ]; do \
@@ -297,7 +297,7 @@ wait-process:
 		timeout=$$((timeout - 2)); \
 	done; \
 	if [ $$timeout -le 0 ]; then \
-		$(call log_error,"Server failed to start within 30 seconds"); \
+		$(call log_error,"Server failed to start within 300 seconds"); \
 		exit 1; \
 	fi
 
