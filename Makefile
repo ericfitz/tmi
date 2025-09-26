@@ -58,9 +58,9 @@ endif
 # ATOMIC COMPONENTS - Infrastructure Management
 # ============================================================================
 
-.PHONY: infra-db-start infra-db-stop infra-db-clean infra-redis-start infra-redis-stop infra-redis-clean
+.PHONY: start-database stop-database clean-database start-redis stop-redis clean-redis
 
-infra-db-start:
+start-database:
 	$(call log_info,Starting PostgreSQL container...)
 	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
 	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
@@ -73,7 +73,7 @@ infra-db-start:
 	DATABASE="$(INFRASTRUCTURE_POSTGRES_DATABASE)"; \
 	if [ -z "$$DATABASE" ]; then DATABASE="tmi_dev"; fi; \
 	IMAGE="$(INFRASTRUCTURE_POSTGRES_IMAGE)"; \
-	if [ -z "$$IMAGE" ]; then IMAGE="postgres:14-alpine"; fi; \
+	if [ -z "$$IMAGE" ]; then IMAGE="tmi/tmi-postgresql:latest"; fi; \
 	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
 		echo -e "$(BLUE)[INFO]$(NC) Creating new PostgreSQL container..."; \
 		docker run -d \
@@ -89,28 +89,28 @@ infra-db-start:
 	fi; \
 	echo "✅ PostgreSQL container is running on port $$PORT"
 
-infra-db-stop:
+stop-database:
 	$(call log_info,Stopping PostgreSQL container...)
 	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
 	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
 	docker stop $$CONTAINER 2>/dev/null || true
 	$(call log_success,"PostgreSQL container stopped")
 
-infra-db-clean:
+clean-database:
 	$(call log_warning,"Removing PostgreSQL container and data...")
 	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
 	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
 	docker rm -f $$CONTAINER 2>/dev/null || true
 	$(call log_success,"PostgreSQL container and data removed")
 
-infra-redis-start:
+start-redis:
 	$(call log_info,Starting Redis container...)
 	@CONTAINER="$(INFRASTRUCTURE_REDIS_CONTAINER)"; \
 	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-redis"; fi; \
 	PORT="$(INFRASTRUCTURE_REDIS_PORT)"; \
 	if [ -z "$$PORT" ]; then PORT="6379"; fi; \
 	IMAGE="$(INFRASTRUCTURE_REDIS_IMAGE)"; \
-	if [ -z "$$IMAGE" ]; then IMAGE="redis:7-alpine"; fi; \
+	if [ -z "$$IMAGE" ]; then IMAGE="tmi/tmi-redis:latest"; fi; \
 	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
 		echo -e "$(BLUE)[INFO]$(NC) Creating new Redis container..."; \
 		docker run -d \
@@ -123,14 +123,14 @@ infra-redis-start:
 	fi; \
 	echo "✅ Redis container is running on port $$PORT"
 
-infra-redis-stop:
+stop-redis:
 	$(call log_info,Stopping Redis container...)
 	@CONTAINER="$(INFRASTRUCTURE_REDIS_CONTAINER)"; \
 	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-redis"; fi; \
 	docker stop $$CONTAINER 2>/dev/null || true
 	$(call log_success,"Redis container stopped")
 
-infra-redis-clean:
+clean-redis:
 	$(call log_warning,"Removing Redis container and data...")
 	@CONTAINER="$(INFRASTRUCTURE_REDIS_CONTAINER)"; \
 	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-redis"; fi; \
@@ -142,7 +142,7 @@ infra-redis-clean:
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-clean generate-api gen-api
+.PHONY: build-server build-migrate clean-build generate-api
 
 build-server:
 	$(call log_info,Building server binary...)
@@ -154,7 +154,7 @@ build-migrate:
 	@go build -o bin/migrate github.com/ericfitz/tmi/cmd/migrate
 	$(call log_success,"Migration tool built: bin/migrate")
 
-build-clean:
+clean-build:
 	$(call log_info,"Cleaning build artifacts...")
 	@rm -rf ./bin/*
 	@rm -f check-db migrate
@@ -172,9 +172,9 @@ gen-api: generate-api
 # ATOMIC COMPONENTS - Database Operations
 # ============================================================================
 
-.PHONY: db-migrate db-check db-wait
+.PHONY: migrate-database check-database wait-database
 
-db-migrate:
+migrate-database:
 	$(call log_info,"Running database migrations...")
 	@if [ -f "./bin/migrate" ]; then \
 		./bin/migrate up; \
@@ -185,7 +185,7 @@ db-migrate:
 	fi
 	$(call log_success,"Database migrations completed")
 
-db-check:
+check-database:
 	$(call log_info,"Checking database migration status...")
 	@if [ -f "./bin/check-db" ]; then \
 		./bin/check-db; \
@@ -195,7 +195,7 @@ db-check:
 		cd cmd/check-db && go run main.go; \
 	fi
 
-db-wait:
+wait-database:
 	$(call log_info,"Waiting for database to be ready...")
 	@timeout=$${TIMEOUTS_DB_READY:-30}; \
 	CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
@@ -220,9 +220,9 @@ db-wait:
 # ATOMIC COMPONENTS - Process Management
 # ============================================================================
 
-.PHONY: process-stop process-wait server-start server-stop
+.PHONY: stop-process wait-process start-server stop-server
 
-process-stop:
+stop-process:
 	$(call log_info,"Killing processes on port $(SERVER_PORT)")
 	@PORT="$(SERVER_PORT)"; \
 	if [ -z "$$PORT" ]; then PORT="8080"; fi; \
@@ -243,7 +243,7 @@ process-stop:
 		echo "No processes found listening on port $$PORT"; \
 	fi
 
-server-start:
+start-server:
 	$(call log_info,"Starting server on port $(SERVER_PORT)")
 	@# Build server first to ensure latest code
 	@$(MAKE) build-server
@@ -264,7 +264,7 @@ server-start:
 	echo $$! > .server.pid
 	$(call log_success,"Server started with PID: $$(cat .server.pid)")
 
-server-stop:
+stop-server:
 	$(call log_info,"Stopping server...")
 	@if [ -f .server.pid ]; then \
 		PID=$$(cat .server.pid); \
@@ -279,10 +279,10 @@ server-stop:
 		fi; \
 		rm -f .server.pid; \
 	fi
-	@$(MAKE) process-stop
+	@$(MAKE) stop-process
 	$(call log_success,"Server stopped")
 
-process-wait:
+wait-process:
 	$(call log_info,"Waiting for server to be ready on port $(SERVER_PORT)")
 	@timeout=$${TIMEOUTS_SERVER_READY:-30}; \
 	PORT="$(SERVER_PORT)"; \
@@ -306,9 +306,9 @@ process-wait:
 # ATOMIC COMPONENTS - Test Execution
 # ============================================================================
 
-.PHONY: test-unit-execute test-integration-execute
+.PHONY: execute-tests-unit execute-tests-integration
 
-test-unit-execute:
+execute-tests-unit:
 	$(call log_info,"Executing unit tests...")
 	@if [ -n "$(TEST_PATTERN)" ] && [ "$(TEST_PATTERN)" != "" ]; then \
 		echo "Running specific unit test: $(TEST_PATTERN)"; \
@@ -329,7 +329,7 @@ test-unit-execute:
 	eval $$TEST_CMD
 	$(call log_success,"Unit tests completed")
 
-test-integration-execute:
+execute-tests-integration:
 	$(call log_info,"Executing integration tests...")
 	@TEST_EXIT_CODE=0; \
 	$(ENVIRONMENT_TMI_LOGGING_IS_TEST)=true \
@@ -358,7 +358,7 @@ test-integration-execute:
 # ATOMIC COMPONENTS - Cleanup Operations
 # ============================================================================
 
-.PHONY: clean-files clean-containers clean-processes clean-all
+.PHONY: clean-files clean-containers clean-process clean-everything
 
 clean-files:
 	$(call log_info,"Cleaning up files...")
@@ -399,7 +399,7 @@ clean-containers:
 	fi
 	$(call log_success,"Container cleanup completed")
 
-clean-processes:
+clean-process:
 	$(call log_info,"Cleaning up processes...")
 	@# Kill server using PID file first (if available)
 	@if [ -f .server.pid ]; then \
@@ -456,13 +456,13 @@ clean-processes:
 	fi
 	$(call log_success,"Process cleanup completed")
 
-clean-all: clean-processes clean-containers clean-files
+clean-everything: clean-process clean-containers clean-files
 
 # ============================================================================
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-api dev-start dev-clean test-coverage
+.PHONY: test-unit test-integration test-api start-dev clean-dev test-coverage
 
 # Unit Testing - Fast tests with no external dependencies
 test-unit:
@@ -479,16 +479,16 @@ test-integration:
 	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
 	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
 	echo -e "$(BLUE)[INFO]$(NC) Starting integration tests with configuration: Integration Testing Configuration"; \
-	trap 'CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all' EXIT; \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
+	trap 'CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) clean-everything' EXIT; \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) clean-everything && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) start-database && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) start-redis && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) wait-database && \
 	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) build-server && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) server-start && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) process-wait && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) test-integration-execute
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) start-server && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) wait-process && \
+	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) execute-tests-integration
 
 # API Testing - Comprehensive Postman/Newman test suite
 test-api:
@@ -504,27 +504,27 @@ test-api:
 	@cd postman && ./run-tests.sh
 
 # Development Environment - Start local dev environment
-dev-start:
+start-dev:
 	@CONFIG_FILE=config/dev-environment.yml; \
 	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
 	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
 	echo -e "$(BLUE)[INFO]$(NC) Starting development environment: Development Environment Configuration"; \
-	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
-	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start && \
-	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) start-database && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) start-redis && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) wait-database && \
 	go build -o bin/check-db cmd/check-db/main.go && \
-	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate && \
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	eval $$(uv run scripts/yaml-to-make.py config/dev-environment.yml | grep '^SERVER_CONFIG_FILE := ' | sed 's/SERVER_CONFIG_FILE := /SERVER_CONFIG_FILE=/'); \
 	if [ ! -f "$$SERVER_CONFIG_FILE" ]; then \
 		echo -e "$(BLUE)[INFO]$(NC) Generating development configuration..."; \
 		go run cmd/server/main.go --generate-config || { echo "Error: Failed to generate config files"; exit 1; }; \
 	fi && \
-	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) server-start
+	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	@eval $$(uv run scripts/yaml-to-make.py config/dev-environment.yml | grep '^SERVER_PORT := ' | sed 's/SERVER_PORT := /SERVER_PORT=/'); \
 	echo -e "$(GREEN)[SUCCESS]$(NC) Development environment started on port $$SERVER_PORT"
 
 # Development Environment Cleanup
-dev-clean:
+clean-dev:
 	@CONFIG_FILE=config/dev-environment.yml; \
 	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
 	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
@@ -537,25 +537,25 @@ test-coverage:
 	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
 	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
 	echo -e "$(BLUE)[INFO]$(NC) Generating coverage reports: Coverage Report Configuration"; \
-	trap 'CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all' EXIT; \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) clean-all && \
+	trap 'CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) clean-everything' EXIT; \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) clean-everything && \
 	COVERAGE_DIRECTORY=$$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^COVERAGE_DIRECTORY := ' | sed 's/COVERAGE_DIRECTORY := //'); \
 	mkdir -p $$COVERAGE_DIRECTORY && \
 	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) test-coverage-unit && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) infra-db-start && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) infra-redis-start && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) start-database && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) start-redis && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) wait-database && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) test-coverage-integration && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) coverage-merge && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) coverage-reports
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) merge-coverage && \
+	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) generate-coverage
 
 
 # ============================================================================
 # SPECIALIZED ATOMIC COMPONENTS - Coverage
 # ============================================================================
 
-.PHONY: test-coverage-unit test-coverage-integration coverage-merge coverage-reports
+.PHONY: test-coverage-unit test-coverage-integration merge-coverage generate-coverage
 
 test-coverage-unit:
 	$(call log_info,"Running unit tests with coverage...")
@@ -589,7 +589,7 @@ test-coverage-integration:
 		-v
 	$(call log_success,"Integration test coverage completed")
 
-coverage-merge:
+merge-coverage:
 	$(call log_info,"Merging coverage profiles...")
 	@if ! command -v gocovmerge >/dev/null 2>&1; then \
 		$(call log_info,"Installing gocovmerge..."); \
@@ -601,7 +601,7 @@ coverage-merge:
 		> "$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)"
 	$(call log_success,"Coverage profiles merged")
 
-coverage-reports:
+generate-coverage:
 	$(call log_info,"Generating coverage reports...")
 	@mkdir -p coverage_html
 	@if [ "$(OUTPUT_HTML_ENABLED)" = "true" ]; then \
@@ -627,8 +627,8 @@ coverage-reports:
 
 
 # OAuth Stub - Development tool for OAuth callback testing
-.PHONY: oauth-stub-start oauth-stub-stop oauth-stub-kill oauth-stub-status
-oauth-stub-start:
+.PHONY: start-oauth-stub stop-oauth-stub kill-oauth-stub check-oauth-stub
+start-oauth-stub:
 	$(call log_info,"Starting OAuth callback stub on port 8079...")
 	@if pgrep -f "oauth-client-callback-stub.py" > /dev/null; then \
 		echo -e "$(YELLOW)[WARNING]$(NC) OAuth stub is already running"; \
@@ -648,7 +648,7 @@ oauth-stub-start:
 		fi; \
 	fi
 
-oauth-stub-stop:
+stop-oauth-stub:
 	$(call log_info,"Stopping OAuth callback stub...")
 	@# Step 1: Send magic exit URL
 	@echo -e "$(BLUE)[INFO]$(NC) Sending graceful shutdown request..."
@@ -684,7 +684,7 @@ oauth-stub-stop:
 		echo -e "$(RED)[ERROR]$(NC) Failed to stop all processes on port 8079: $$PIDS"; \
 	fi
 
-oauth-stub-kill:
+kill-oauth-stub:
 	$(call log_info,"Force killing anything on port 8079...")
 	@PIDS=$$(lsof -ti :8079 2>/dev/null || true); \
 	if [ -n "$$PIDS" ]; then \
@@ -700,7 +700,7 @@ oauth-stub-kill:
 	fi
 	@rm -f .oauth-stub.pid
 
-oauth-stub-status:
+check-oauth-stub:
 	@if [ -f .oauth-stub.pid ]; then \
 		PID=$$(cat .oauth-stub.pid); \
 		if kill -0 $$PID 2>/dev/null; then \
@@ -728,16 +728,16 @@ oauth-stub-status:
 # CONTAINER SECURITY AND BUILD MANAGEMENT
 # ============================================================================
 
-.PHONY: containers-build containers-security-scan containers-security-report
+.PHONY: build-containers scan-containers report-containers
 
 # Build containers with vulnerability patching
-containers-build:
+build-containers:
 	$(call log_info,Building containers with vulnerability patching...)
 	@./scripts/build-containers.sh
 	$(call log_success,Containers built successfully)
 
 # Run security scan on existing containers
-containers-security-scan:
+scan-containers:
 	$(call log_info,Running security scans on container images...)
 	@if ! command -v docker scout >/dev/null 2>&1; then \
 		$(call log_error,Docker Scout not available. Please install Docker Scout CLI); \
@@ -757,7 +757,7 @@ containers-security-scan:
 	$(call log_success,Security scans completed. Reports in security-reports/)
 
 # Generate comprehensive security report
-containers-security-report: containers-security-scan
+report-containers: scan-containers
 	$(call log_info,Generating container security report...)
 	@mkdir -p security-reports
 	@echo "# TMI Container Security Report" > security-reports/security-summary.md
@@ -789,73 +789,100 @@ containers-security-report: containers-security-scan
 	$(call log_success,Security report generated: security-reports/security-summary.md)
 
 # Start development environment with containers (builds containers first)
-containers-dev:
+start-containers-environment:
 	$(call log_info,Starting development environment with containers...)
 	@./scripts/make-containers-dev-local.sh
 	$(call log_success,Development environment started)
 
 # Start server using existing containers (no rebuild)
-dev-start-containers:
+start-dev-existing:
 	@CONFIG_FILE=config/dev-environment-secure.yml; \
 	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
 	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
 	echo -e "$(BLUE)[INFO]$(NC) Starting development server with containers: Container-based Development Environment Configuration"; \
 	if ! docker ps --format "{{.Names}}" | grep -q "^tmi-postgresql$$"; then \
-		echo -e "$(RED)[ERROR]$(NC) PostgreSQL container not running. Run 'make containers-dev' first."; \
+		echo -e "$(RED)[ERROR]$(NC) PostgreSQL container not running. Run 'make start-containers-environment' first."; \
 		exit 1; \
 	fi; \
 	if ! docker ps --format "{{.Names}}" | grep -q "^tmi-redis$$"; then \
-		echo -e "$(RED)[ERROR]$(NC) Redis container not running. Run 'make containers-dev' first."; \
+		echo -e "$(RED)[ERROR]$(NC) Redis container not running. Run 'make start-containers-environment' first."; \
 		exit 1; \
 	fi; \
-	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) db-wait && \
+	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) wait-database && \
 	go build -o bin/check-db cmd/check-db/main.go && \
-	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) db-migrate && \
+	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	eval $$(uv run scripts/yaml-to-make.py config/dev-environment-secure.yml | grep '^SERVER_CONFIG_FILE := ' | sed 's/SERVER_CONFIG_FILE := /SERVER_CONFIG_FILE=/'); \
 	if [ ! -f "$$SERVER_CONFIG_FILE" ]; then \
 		echo -e "$(BLUE)[INFO]$(NC) Generating development configuration..."; \
 		go run cmd/server/main.go --generate-config || { echo "Error: Failed to generate config files"; exit 1; }; \
 	fi && \
-	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) server-start
+	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	@eval $$(uv run scripts/yaml-to-make.py config/dev-environment-secure.yml | grep '^SERVER_PORT := ' | sed 's/SERVER_PORT := /SERVER_PORT=/'); \
 	echo -e "$(GREEN)[SUCCESS]$(NC) Development server started on port $$SERVER_PORT using containers"
 
 # Shorthand for all container operations
-containers-all: containers-build containers-security-report
+build-containers-all: build-containers report-containers
+
+# ============================================================================
+# DISTROLESS CONTAINER MANAGEMENT
+# ============================================================================
+
 
 # ============================================================================
 # BACKWARD COMPATIBILITY ALIASES
 # ============================================================================
 
-.PHONY: build build-all test lint clean dev prod
+.PHONY: build build-all build-everything test lint clean dev prod infra-db-start infra-redis-start db-migrate dev-start containers-build
 
 # Keep backward compatibility with existing commands
 build: build-server
-build-all: build-server
+build-all: build-server  # Deprecated: use build-everything
+build-everything: build-server
 test: test-unit
 lint:
 	@golangci-lint run
-clean: build-clean
-dev: dev-start
-prod: dev-start  # For now, prod is same as dev
+clean: clean-build
+dev: start-dev
+prod: start-dev  # For now, prod is same as dev
+
+# Deprecated aliases for commonly used targets (will show warning)
+infra-db-start:
+	@echo "⚠️  WARNING: 'infra-db-start' is deprecated. Use 'start-database' instead."
+	@$(MAKE) start-database
+
+infra-redis-start:
+	@echo "⚠️  WARNING: 'infra-redis-start' is deprecated. Use 'start-redis' instead."
+	@$(MAKE) start-redis
+
+db-migrate:
+	@echo "⚠️  WARNING: 'db-migrate' is deprecated. Use 'migrate-database' instead."
+	@$(MAKE) migrate-database
+
+dev-start:
+	@echo "⚠️  WARNING: 'dev-start' is deprecated. Use 'start-dev' instead."
+	@$(MAKE) start-dev
+
+containers-build:
+	@echo "⚠️  WARNING: 'containers-build' is deprecated. Use 'build-containers' instead."
+	@$(MAKE) build-containers
 
 
 # ============================================================================
 # WEBSOCKET TEST HARNESS
 # ============================================================================
 
-.PHONY: wstest-build wstest wstest-monitor wstest-clean
+.PHONY: build-wstest wstest monitor-wstest clean-wstest
 
-wstest-build:
+build-wstest:
 	$(call log_info,Building WebSocket test harness...)
 	@cd ws-test-harness && go mod tidy && go build -o ws-test-harness
 	$(call log_success,WebSocket test harness built successfully)
 
-wstest: wstest-build
+wstest: build-wstest
 	$(call log_info,Starting WebSocket test with 3 terminals...)
 	@# Check if server is running
 	@if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then \
-		$(call log_error,Server not running. Please run 'make dev-start' first); \
+		$(call log_error,Server not running. Please run 'make start-dev' first); \
 		exit 1; \
 	fi
 	@# Terminal 1: Host (alice)
@@ -895,19 +922,19 @@ wstest: wstest-build
 		echo "Participant (charlie) running in background, see ws-test-harness/charlie.log"; \
 	fi
 	$(call log_success,WebSocket test started with 3 terminals)
-	@echo "Watch the terminals for WebSocket activity. Use 'make wstest-clean' to stop all instances."
+	@echo "Watch the terminals for WebSocket activity. Use 'make clean-wstest' to stop all instances."
 
-wstest-monitor: wstest-build
+monitor-wstest: build-wstest
 	$(call log_info,Starting WebSocket monitor...)
 	@# Check if server is running
 	@if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then \
-		$(call log_error,Server not running. Please run 'make dev-start' first); \
+		$(call log_error,Server not running. Please run 'make start-dev' first); \
 		exit 1; \
 	fi
 	@# Run monitor in foreground
 	@cd ws-test-harness && ./ws-test-harness --user monitor
 
-wstest-clean:
+clean-wstest:
 	$(call log_info,Stopping all WebSocket test harness instances...)
 	@# Kill all ws-test-harness processes
 	@if pgrep -f "ws-test-harness" > /dev/null 2>&1; then \
@@ -1002,30 +1029,31 @@ help:
 	@echo "  status                 - Check status of all services"
 	@echo "  test-unit              - Run unit tests"
 	@echo "  test-integration       - Run integration tests with full setup"
-	@echo "  dev-start              - Start development environment"
-	@echo "  dev-start-containers   - Start server using existing containers"
-	@echo "  dev-clean              - Clean development environment"
+	@echo "  start-dev              - Start development environment"
+	@echo "  start-dev-existing     - Start server using existing containers"
+	@echo "  clean-dev              - Clean development environment"
 	@echo ""
 	@echo "Container Management (Docker Scout Integration):"
-	@echo "  containers-build             - Build containers with vulnerability patching"
-	@echo "  containers-security-scan     - Scan existing containers for vulnerabilities"
-	@echo "  containers-security-report   - Generate comprehensive security report"
-	@echo "  containers-dev               - Start development with containers"
-	@echo "  containers-all               - Run full container build and report"
+	@echo "  build-containers             - Build containers with vulnerability patching"
+	@echo "  scan-containers              - Scan existing containers for vulnerabilities"
+	@echo "  report-containers            - Generate comprehensive security report"
+	@echo "  start-containers-environment - Start development with containers"
+	@echo "  build-containers-all         - Run full container build and report"
+	@echo ""
 	@echo ""
 	@echo "Atomic Components (building blocks):"
-	@echo "  infra-db-start         - Start PostgreSQL container"
-	@echo "  infra-redis-start      - Start Redis container"
+	@echo "  start-database         - Start PostgreSQL container"
+	@echo "  start-redis            - Start Redis container"
 	@echo "  build-server           - Build server binary"
-	@echo "  db-migrate             - Run database migrations"
-	@echo "  server-start           - Start server"
-	@echo "  clean-all              - Clean up everything"
+	@echo "  migrate-database       - Run database migrations"
+	@echo "  start-server           - Start server"
+	@echo "  clean-everything       - Clean up everything"
 	@echo ""
 	@echo "WebSocket Testing:"
-	@echo "  wstest-build           - Build WebSocket test harness"
+	@echo "  build-wstest           - Build WebSocket test harness"
 	@echo "  wstest                 - Run WebSocket test with 3 terminals (alice, bob, charlie)"
-	@echo "  wstest-monitor         - Run WebSocket test harness with user 'monitor'"
-	@echo "  wstest-clean           - Stop all running WebSocket test instances"
+	@echo "  monitor-wstest         - Run WebSocket test harness with user 'monitor'"
+	@echo "  clean-wstest           - Stop all running WebSocket test instances"
 	@echo ""
 	@echo "Validation Targets:"
 	@echo "  validate-openapi       - Validate OpenAPI specification"

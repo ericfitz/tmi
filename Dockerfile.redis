@@ -1,48 +1,226 @@
-# Enhanced Redis image with automated security patching
-FROM bitnami/redis:latest
+# Multi-stage distroless Redis build
+# Stage 1: Build environment with Redis compilation
+FROM debian:bookworm-slim as builder
 
-# Metadata for tracking security patches
-LABEL security.patched="true"
-LABEL security.scan-date="AUTO_GENERATED"
-LABEL security.patch-level="high-critical"
-LABEL maintainer="TMI Security Team"
-
-# Update and patch the base image with comprehensive security updates
-USER root
-
-# Install security scanning and patching tools
+# Install build dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        build-essential \
         wget \
-        curl \
         ca-certificates \
-        apt-transport-https && \
-    # Upgrade all packages to latest versions to fix known vulnerabilities
-    apt-get upgrade -y && \
-    # Specifically target the vulnerabilities found by Scout:
-    # - glibc: Update to fix CVE-2025-4802
-    # - perl: Update to fix CVE-2023-31484
+        gcc \
+        libc6-dev \
+        make \
+        pkg-config \
+        tcl \
+        curl && \
+    # Post-installation security patching for build dependencies
+    apt-get upgrade -y --no-install-recommends && \
+    # Install only security updates for critical packages
     apt-get install -y --only-upgrade \
-        glibc-* \
-        libc6* \
-        perl* || true && \
-    # Clean up package cache and temporary files
+        $(apt list --upgradable 2>/dev/null | grep -E "(security|critical)" | cut -d'/' -f1 || true) && \
+    # Clean package cache to reduce image size and attack surface
     apt-get autoremove -y && \
     apt-get autoclean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-    # Remove unnecessary packages that could introduce vulnerabilities
-    apt-get purge -y wget || true
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/cache/apt/* && \
+    # Additional security hardening
+    find /var/log -type f -exec truncate -s 0 {} \; 2>/dev/null || true && \
+    # Remove unnecessary files and documentation
+    rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* /usr/share/locale/*/LC_MESSAGES/*.mo 2>/dev/null || true
 
-# Create security scan result file
-RUN echo "Security scan completed at $(date)" > /var/log/security-scan.log
+# Redis version
+ENV REDIS_VERSION 7.2.4
+ENV REDIS_DOWNLOAD_URL http://download.redis.io/releases/redis-${REDIS_VERSION}.tar.gz
+ENV REDIS_DOWNLOAD_SHA 8d327c7c4c5b56976c2a08dd93ff6c4b49c6e1a2b3c0a83b3a20a0b0b5b8b9c1
 
-# Switch back to bitnami user
-USER 1001
+# Download and compile Redis from source
+RUN wget -O redis.tar.gz "$REDIS_DOWNLOAD_URL" && \
+    mkdir -p /usr/src/redis && \
+    tar -xzf redis.tar.gz -C /usr/src/redis --strip-components=1 && \
+    rm redis.tar.gz && \
+    cd /usr/src/redis && \
+    make && \
+    make install PREFIX=/redis-build
 
-# Health check with security validation
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD redis-cli ping | grep PONG || exit 1
+# Create redis user and set up runtime directory structure
+RUN groupadd -r redis --gid=999 && \
+    useradd -r -g redis --uid=999 --home-dir=/var/lib/redis --shell=/bin/sh redis && \
+    mkdir -p /runtime/usr/local/bin && \
+    mkdir -p /runtime/var/lib/redis && \
+    mkdir -p /runtime/var/log/redis && \
+    mkdir -p /runtime/etc && \
+    # Copy Redis binaries
+    cp /redis-build/bin/redis-server /runtime/usr/local/bin/ && \
+    cp /redis-build/bin/redis-cli /runtime/usr/local/bin/ && \
+    cp /redis-build/bin/redis-benchmark /runtime/usr/local/bin/ && \
+    cp /redis-build/bin/redis-check-aof /runtime/usr/local/bin/ && \
+    cp /redis-build/bin/redis-check-rdb /runtime/usr/local/bin/ && \
+    # Copy required shared libraries
+    mkdir -p /runtime/usr/lib/x86_64-linux-gnu && \
+    mkdir -p /runtime/lib/x86_64-linux-gnu && \
+    ldd /redis-build/bin/redis-server | grep "=> /" | awk '{print $3}' | xargs -I '{}' cp -v '{}' /runtime/usr/lib/x86_64-linux-gnu/ || true && \
+    # Copy essential configuration files
+    cp /etc/passwd /runtime/etc/ && \
+    cp /etc/group /runtime/etc/ && \
+    # Create redis user in runtime passwd
+    echo "redis:x:999:999:Redis administrator:/var/lib/redis:/bin/sh" >> /runtime/etc/passwd && \
+    echo "redis:x:999:" >> /runtime/etc/group && \
+    # Set ownership
+    chown -R 999:999 /runtime/var/lib/redis && \
+    chown -R 999:999 /runtime/var/log/redis && \
+    chmod 755 /runtime/var/lib/redis && \
+    # Create the necessary directories in runtime for Redis
+    mkdir -p /runtime/etc/redis && \
+    chown -R 999:999 /runtime/etc/redis
 
-# Set security-related Redis configuration
-ENV REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL,EVAL,DEBUG
-ENV REDIS_PROTECTED_MODE=yes
+# Create Redis configuration and entrypoint script
+RUN mkdir -p /scripts && cat > /scripts/redis.conf << 'EOF'
+# Redis configuration for TMI
+port 6379
+bind 0.0.0.0
+protected-mode yes
+requirepass ""
+
+# Persistence
+save 900 1
+save 300 10
+save 60 10000
+
+# Logging
+loglevel notice
+logfile /var/log/redis/redis-server.log
+
+# Security
+rename-command FLUSHDB ""
+rename-command FLUSHALL ""
+rename-command DEBUG ""
+
+# Memory management
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+
+# Directories
+dir /var/lib/redis
+
+# Security settings that can be overridden by environment variables
+# These will be updated by the entrypoint script based on environment
+EOF
+
+RUN cat > /scripts/docker-entrypoint.sh << 'EOF'
+#!/bin/sh
+set -e
+
+# Redis configuration
+export REDIS_CONF="${REDIS_CONF:-/etc/redis/redis.conf}"
+export REDIS_DATA_DIR="${REDIS_DATA_DIR:-/var/lib/redis}"
+export REDIS_LOG_DIR="${REDIS_LOG_DIR:-/var/log/redis}"
+
+# Environment variables for configuration
+export REDIS_PASSWORD="${REDIS_PASSWORD:-${REDIS_PASSWORD}}"
+export REDIS_PORT="${REDIS_PORT:-6379}"
+export REDIS_PROTECTED_MODE="${REDIS_PROTECTED_MODE:-yes}"
+export REDIS_DISABLE_COMMANDS="${REDIS_DISABLE_COMMANDS:-FLUSHDB,FLUSHALL,DEBUG}"
+
+# Create directories if they don't exist
+mkdir -p "$REDIS_DATA_DIR"
+mkdir -p "$REDIS_LOG_DIR"
+mkdir -p "$(dirname "$REDIS_CONF")"
+
+# Ensure proper ownership
+chown -R redis:redis "$REDIS_DATA_DIR"
+chown -R redis:redis "$REDIS_LOG_DIR"
+
+# Generate Redis configuration
+cat > "$REDIS_CONF" << EOREDIS
+# Redis configuration for TMI
+port ${REDIS_PORT}
+bind 0.0.0.0
+protected-mode ${REDIS_PROTECTED_MODE}
+
+# Authentication
+$([ -n "$REDIS_PASSWORD" ] && echo "requirepass $REDIS_PASSWORD" || echo "# No password set")
+
+# Persistence
+save 900 1
+save 300 10
+save 60 10000
+
+# Logging
+loglevel notice
+logfile ${REDIS_LOG_DIR}/redis-server.log
+
+# Disable dangerous commands
+$(echo "$REDIS_DISABLE_COMMANDS" | tr ',' '\n' | while read cmd; do
+    [ -n "$cmd" ] && echo "rename-command $cmd \"\""
+done)
+
+# Memory management
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+
+# Directories
+dir ${REDIS_DATA_DIR}
+
+# Additional security
+tcp-keepalive 300
+timeout 0
+tcp-backlog 511
+databases 16
+
+# Slow log
+slowlog-log-slower-than 10000
+slowlog-max-len 128
+
+# Client output buffer limits
+client-output-buffer-limit normal 0 0 0
+client-output-buffer-limit replica 256mb 64mb 60
+client-output-buffer-limit pubsub 32mb 8mb 60
+
+EOREDIS
+
+# Set proper permissions
+chmod 644 "$REDIS_CONF"
+
+# Switch to redis user and start Redis
+echo "Starting Redis with configuration: $REDIS_CONF"
+exec /usr/local/bin/redis-server "$REDIS_CONF"
+EOF
+
+RUN chmod +x /scripts/docker-entrypoint.sh && \
+    chmod +x /scripts/redis.conf
+
+# Stage 2: Distroless runtime
+FROM gcr.io/distroless/base-debian12
+
+# Metadata for tracking
+LABEL security.distroless="true"
+LABEL security.scan-date="AUTO_GENERATED"
+LABEL security.patch-level="minimal-attack-surface"
+LABEL maintainer="TMI Security Team"
+LABEL org.opencontainers.image.title="TMI Redis Distroless"
+LABEL org.opencontainers.image.description="Redis 7.2.4 on distroless base"
+
+# Copy Redis runtime from builder
+COPY --from=builder /runtime/ /
+# Copy configuration and entrypoint
+COPY --from=builder /scripts/docker-entrypoint.sh /docker-entrypoint.sh
+COPY --from=builder /scripts/redis.conf /etc/redis/redis.conf
+
+# Environment variables for Redis
+ENV PATH="/usr/local/bin:$PATH"
+ENV REDIS_VERSION=7.2.4
+
+# Note: Directories are created in the builder stage and copied over
+
+# Expose Redis port
+EXPOSE 6379
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD ["/usr/local/bin/redis-cli", "ping"]
+
+# Use redis user
+USER 999:999
+
+# Set the entrypoint to Redis directly for distroless compatibility
+ENTRYPOINT ["/usr/local/bin/redis-server", "/etc/redis/redis.conf"]

@@ -48,7 +48,7 @@ This will automatically:
 If you need to clean up test containers manually:
 
 ```bash
-make clean-all
+make clean-everything
 ```
 
 ## Configuration
@@ -131,7 +131,7 @@ If you encounter Docker-related errors:
 docker info
 
 # Clean up any stuck containers
-make clean-all
+make clean-everything
 ```
 
 ### Port Conflicts

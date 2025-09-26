@@ -13,7 +13,7 @@ PG_CONTAINER_PORT="5432"
 REDIS_HOST_PORT="6379"
 REDIS_CONTAINER_PORT="6379"
 PG_DATA_HOST_DIR="/Users/efitz/Projects/tmi/pgsql-data-vol"
-PG_CONTAINER_DATA_DIR="/bitnami/postgresql/data" # Bitnami PostgreSQL's data directory
+PG_CONTAINER_DATA_DIR="/var/lib/postgresql/data" # Chainguard PostgreSQL's data directory
 PG_USER="tmi_dev"
 PG_PASSWORD="dev123"
 

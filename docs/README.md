@@ -1,63 +1,72 @@
 # TMI Documentation
 
-This directory contains comprehensive documentation for the TMI (Threat Modeling Interface) project. The documents are organized by functional area and provide detailed guidance for developers, operators, and users.
+This directory contains comprehensive documentation for the TMI (Threat Modeling Interface) project, organized by audience and purpose.
 
-## Implementation Plans
+## Directory Structure
 
-### [ADMIN_INTERFACE_IMPLEMENTATION_PLAN.md](ADMIN_INTERFACE_IMPLEMENTATION_PLAN.md)
+### 📋 [agent/](agent/) - AI Agent Context Documentation
+Documentation primarily intended to give context to AI agents working on the TMI project.
 
-Detailed 5-phase implementation plan for adding an admin web interface to TMI. Covers session management, system configuration viewing, authentication mechanisms, security considerations, and timeline with deliverables for building a secure admin dashboard.
+### 🛠️ [developer/](developer/) - Development Documentation  
+Everything developers need to build, test, and integrate with the TMI server.
 
-## Client Integration Guides
+### 🚀 [operator/](operator/) - Operations Documentation
+Deployment, operations, and troubleshooting guidance for running TMI in production.
 
-### [OAUTH_INTEGRATION.md](OAUTH_INTEGRATION.md)
+### 📖 [reference/](reference/) - Reference Materials & Architecture
+Pure reference materials, specifications, and architectural documentation.
 
-Web application integration guide for OAuth authentication with multiple providers (Google, GitHub, Microsoft). Includes provider configuration, token exchange patterns, security best practices, and troubleshooting for client applications.
+## Getting Started by Role
 
-## Testing & Quality Assurance
+### For Developers
+Start with [developer/setup/development-setup.md](developer/setup/development-setup.md) for local development environment setup.
 
-### [COVERAGE_REPORTING.md](COVERAGE_REPORTING.md)
+### For DevOps/SREs
+Begin with [operator/deployment/deployment-guide.md](operator/deployment/deployment-guide.md) for production deployment.
 
-Guide for generating comprehensive test coverage reports including unit and integration tests. Covers coverage thresholds, report formats (HTML/text), CI/CD integration, and testing best practices with automated coverage analysis tools.
+### For Integration Teams
+Review [developer/integration/client-integration-guide.md](developer/integration/client-integration-guide.md) for client integration patterns.
 
-### [INTEGRATION_TESTING.md](INTEGRATION_TESTING.md)
+### For AI Agents
+Context and instructions are available in the [agent/](agent/) directory.
 
-Comprehensive guide for running integration tests with real PostgreSQL and Redis databases. Includes automated setup/cleanup, testing methodology, database verification patterns, and best practices for testing API endpoints with authentication.
+## Documentation Conventions
 
-## Database Documentation
+- **File Naming**: All documentation uses `kebab-case.md` naming convention
+- **Cross-References**: Links are maintained between related documents
+- **Audience-Focused**: Each directory serves a specific audience with clear purpose
+- **Comprehensive Coverage**: Every aspect of TMI development and operations is documented
 
-### [POSTGRESQL_DATABASE_OPS.md](POSTGRESQL_DATABASE_OPS.md)
+## Quick Reference
 
-Complete PostgreSQL operations guide covering deployment, migration management, schema validation, performance optimization, backup/recovery procedures, and operational commands with troubleshooting for database administration.
+### Core Setup Documents
+- [Development Environment Setup](developer/setup/development-setup.md)
+- [OAuth Integration Guide](developer/setup/oauth-integration.md)
+- [Deployment Guide](operator/deployment/deployment-guide.md)
 
-### [POSTGRESQL_DATABASE_SCHEMA.md](POSTGRESQL_DATABASE_SCHEMA.md)
+### Testing & Quality
+- [Integration Testing](developer/testing/integration-testing.md)
+- [Coverage Reporting](developer/testing/coverage-reporting.md)
+- [WebSocket Testing](developer/testing/websocket-testing.md)
 
-Detailed database schema documentation with entity relationships, table definitions, migration history, constraints, and design patterns. Includes comprehensive indexing strategy and data integrity rules for the TMI platform.
+### Client Integration
+- [Client Integration Guide](developer/integration/client-integration-guide.md)
+- [OAuth Client Integration](developer/integration/client-oauth-integration.md)
+- [Collaborative Editing](developer/integration/collaborative-editing-plan.md)
 
-### [REDIS_SCHEMA.md](REDIS_SCHEMA.md)
+### Operations & Database
+- [Database Operations](operator/database/postgresql-operations.md)
+- [Database Schema](operator/database/postgresql-schema.md)
+- [Redis Schema](operator/database/redis-schema.md)
 
-Redis key patterns, data structures, and caching strategies for TMI. Covers authentication/session management, performance monitoring, TTL strategies, cache invalidation patterns, and security considerations for the Redis caching layer.
+## Contributing to Documentation
 
-## Observability & Operations
+When adding new documentation:
 
-### [observability/README.md](observability/README.md)
+1. Choose the appropriate directory based on primary audience
+2. Use descriptive, hyphenated filenames
+3. Include comprehensive README updates
+4. Add cross-references to related documents
+5. Follow the established directory structure
 
-Overview of TMI's OpenTelemetry-based observability implementation. Covers distributed tracing, metrics collection, structured logging, security filtering, architecture overview, and getting started guide for monitoring and performance analysis.
-
-### [observability/performance-tuning.md](observability/performance-tuning.md)
-
-Performance optimization guide for OpenTelemetry implementation. Includes sampling optimization, batch processing tuning, memory management, network optimization, database performance, and automated optimization strategies with monitoring dashboards.
-
-### [observability/runbooks/incident-response.md](observability/runbooks/incident-response.md)
-
-Step-by-step incident response procedures for TMI application issues. Covers service availability problems, performance degradation, database issues, security incidents, escalation procedures, and post-incident analysis with monitoring tools and commands.
-
-### [observability/runbooks/performance-issues.md](observability/runbooks/performance-issues.md)
-
-Specific runbook for diagnosing and resolving performance issues including high response times, CPU/memory usage, database performance problems, cache issues, network latency, and goroutine leaks with optimization strategies.
-
-## Historical Documents
-
-### [Prompts to generate a collaborative editing ws api.md](Prompts%20to%20generate%20a%20collaborative%20editing%20ws%20api.md)
-
-Historical documentation showing the iterative prompt engineering process used to develop the collaborative editing implementation plan. Contains the actual prompts and evolution of requirements that shaped the WebSocket API design and implementation strategy.
+For questions about documentation organization or to suggest improvements, please create an issue in the project repository.

@@ -21,7 +21,7 @@ This directory contains scripts that are actively used by the refactored build s
 ### Development Utilities
 
 - **`patch-json.py`** - Precise JSON modification utility for OpenAPI specs
-- **`oauth-client-callback-stub.py`** - Universal OAuth callback handler supporting both Authorization Code and Implicit flows for development testing. Use `make oauth-stub-start` to run.
+- **`oauth-client-callback-stub.py`** - Universal OAuth callback handler supporting both Authorization Code and Implicit flows for development testing. Use `make start-oauth-stub` to run.
   - **Features**: OAuth callback capture, credential persistence, user-specific credential retrieval
   - **Endpoints**: `GET /` (OAuth callback), `GET /latest` (latest credentials), `GET /creds?userid=<id>` (user-specific credentials)
   - **Persistence**: Saves credentials to `$TMP/<user-id>.json` files for later retrieval
@@ -54,7 +54,7 @@ Most build operations now use the refactored Makefile:
 ```bash
 make test-unit                 # Instead of old shell scripts
 make test-integration         # Replaces start-integration-tests.sh
-make dev-start                # Replaces start-dev.sh
+make start-dev                # Replaces start-dev.sh
 ```
 
 ### For Development Analysis
@@ -67,7 +67,7 @@ python3 scripts/patch-json.py -s shared/api-specs/tmi-openapi.json -p "$.compone
 
 # OAuth callback stub for development
 
-make oauth-stub-start # Start OAuth callback handler
+make start-oauth-stub # Start OAuth callback handler
 make oauth-stub-status # Check if running
 make oauth-stub-stop # Stop gracefully
 

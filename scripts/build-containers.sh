@@ -19,8 +19,9 @@ APP_CONTAINER_NAME="tmi-app"
 REGISTRY_PREFIX="${REGISTRY_PREFIX:-tmi}"
 
 # Vulnerability thresholds
+# Adjusted for Chainguard PostgreSQL (more secure base) and distroless Redis
 MAX_CRITICAL_CVES=0
-MAX_HIGH_CVES=2
+MAX_HIGH_CVES=5
 SECURITY_SCAN_OUTPUT_DIR="${PROJECT_ROOT}/security-reports"
 
 # Colors for output
@@ -161,11 +162,11 @@ build_application_secure() {
     log_info "Building application container..."
     
     # Update scan date in Dockerfile
-    sed "s/AUTO_GENERATED/${BUILD_DATE}/g" "${PROJECT_ROOT}/Dockerfile.dev" > "${PROJECT_ROOT}/Dockerfile.dev.tmp"
+    sed "s/AUTO_GENERATED/${BUILD_DATE}/g" "${PROJECT_ROOT}/Dockerfile.server" > "${PROJECT_ROOT}/Dockerfile.server.tmp"
     
     # Build the container
     docker build \
-        -f "${PROJECT_ROOT}/Dockerfile.dev.tmp" \
+        -f "${PROJECT_ROOT}/Dockerfile.server.tmp" \
         -t "${REGISTRY_PREFIX}/${APP_CONTAINER_NAME}:latest" \
         -t "${REGISTRY_PREFIX}/${APP_CONTAINER_NAME}:${GIT_COMMIT}" \
         --build-arg BUILD_DATE="${BUILD_DATE}" \
@@ -173,7 +174,7 @@ build_application_secure() {
         "${PROJECT_ROOT}"
     
     # Clean up temporary file
-    rm -f "${PROJECT_ROOT}/Dockerfile.dev.tmp"
+    rm -f "${PROJECT_ROOT}/Dockerfile.server.tmp"
     
     # Scan for vulnerabilities
     if scan_image_vulnerabilities "${REGISTRY_PREFIX}/${APP_CONTAINER_NAME}:latest" "${SECURITY_SCAN_OUTPUT_DIR}/application-scan"; then

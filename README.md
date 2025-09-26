@@ -14,32 +14,25 @@ TMI (Threat Modeling Improved) is a server based web application enabling collab
 
 The associated Angular/Typescript front-end web application is called [TMI-UX](https://github.com/ericfitz/tmi-ux).
 
-## Getting Started
+## Quick Start
+
+For detailed setup instructions, see [Development Setup Guide](docs/developer/setup/development-setup.md).
 
 ### Prerequisites
 
 - Go 1.24+
-- golangci-lint (for linting)
-- git
-- make
-- Docker Desktop (to run the database & redis containers)
+- Docker Desktop (for database & Redis containers)
+- Make (for build automation)
 
 ### Installation
 
 ```bash
 git clone https://github.com/ericfitz/tmi.git
 cd tmi
-go mod download
+make start-dev
 ```
 
-### Running the server
-
-```bash
-make build-server
-make dev
-```
-
-The server will start on port 8080 by default. The first time you run it, it has to download, create, and start the database and redis containers. This might time out on slow machines; run it again if so. Subsequent runs will not require this.
+The complete development environment (server + database + Redis) will start automatically on port 8080.
 
 ## Project Structure
 
@@ -81,41 +74,32 @@ This pattern is used for all entity types (diagrams, threat models, threats) and
 - Atomic updates
 - Support for filtering and queries
 
-## Development
+## Documentation
 
-### Building
+Comprehensive documentation is organized by audience:
 
-```bash
-make build-server
-```
+### 📖 For Developers
+- **[Setup Guide](docs/developer/setup/development-setup.md)** - Local development environment
+- **[Testing Guide](docs/developer/testing/integration-testing.md)** - Testing procedures
+- **[Client Integration](docs/developer/integration/client-integration-guide.md)** - API and WebSocket integration
 
-### Testing
+### 🚀 For Operations Teams  
+- **[Deployment Guide](docs/operator/deployment/deployment-guide.md)** - Production deployment
+- **[Database Operations](docs/operator/database/postgresql-operations.md)** - Database management
+- **[Container Security](docs/operator/deployment/container-security.md)** - Secure containerization
 
-```bash
-make test-unit
-```
+### 📋 Complete Documentation Index
+See **[docs/README.md](docs/README.md)** for the complete documentation catalog organized by role and topic.
 
-Run a specific test:
-
-```bash
-make test-unit name=TestGetDiagrams
-```
-
-### Linting
+## Development Commands
 
 ```bash
-make lint
+make start-dev          # Start complete dev environment
+make build-server       # Build production binary
+make test-unit          # Run unit tests
+make test-integration   # Run integration tests
+make lint               # Run code linting
 ```
-
-### Generating API code
-
-```bash
-make generate-api
-```
-
-## API Documentation
-
-See [tmi-api-v1_0.md](tmi-api-v1_0.md) for detailed API documentation.
 
 ## Configuration
 

@@ -1,58 +1,28 @@
-# Enhanced PostgreSQL image with automated security patching
-FROM bitnami/postgresql:latest
+# Chainguard PostgreSQL build
+FROM cgr.dev/chainguard/postgres:latest
 
-# Metadata for tracking security patches
-LABEL security.patched="true"
+# Metadata for tracking
+LABEL security.base="chainguard"
 LABEL security.scan-date="AUTO_GENERATED"
-LABEL security.patch-level="high-critical"
+LABEL security.patch-level="minimal-attack-surface"
 LABEL maintainer="TMI Security Team"
+LABEL org.opencontainers.image.title="TMI PostgreSQL Chainguard"
+LABEL org.opencontainers.image.description="PostgreSQL on Chainguard secure base"
 
-# Update and patch the base image with comprehensive security updates
-USER root
+# Environment variables for PostgreSQL
+ENV PGDATA=/var/lib/postgresql/data
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
 
-# Install security scanning and patching tools
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        wget \
-        curl \
-        gnupg2 \
-        ca-certificates \
-        apt-transport-https \
-        software-properties-common && \
-    # Upgrade all packages to latest versions to fix known vulnerabilities
-    apt-get upgrade -y && \
-    # Specifically target the vulnerabilities found by Scout:
-    # - libxml2: Update to fix CVE-2025-49796, CVE-2025-49794, CVE-2025-6021
-    # - glibc: Update to fix CVE-2025-4802  
-    # - perl: Update to fix CVE-2023-31484
-    # - libxslt: Update to fix CVE-2025-7424
-    # - sqlite3: Update to fix CVE-2025-6965
-    apt-get install -y --only-upgrade \
-        libxml2 \
-        libxml2-dev \
-        glibc-* \
-        libc6* \
-        perl* \
-        libxslt* \
-        sqlite3* || true && \
-    # Clean up package cache and temporary files
-    apt-get autoremove -y && \
-    apt-get autoclean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-    # Remove unnecessary packages that could introduce vulnerabilities
-    apt-get purge -y wget gnupg2 software-properties-common || true
+# Expose PostgreSQL port
+EXPOSE 5432
 
-# Create security scan result file
-RUN echo "Security scan completed at $(date)" > /var/log/security-scan.log
-
-# Switch back to bitnami user
-USER 1001
-
-# Health check with security validation
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD pg_isready -U $POSTGRESQL_USERNAME -d $POSTGRESQL_DATABASE || exit 1
+    CMD ["pg_isready", "-U", "postgres", "-d", "postgres"]
 
-# Set security-related environment variables
-ENV POSTGRESQL_LOG_STATEMENT=all
-ENV POSTGRESQL_LOG_MIN_DURATION_STATEMENT=1000
-ENV POSTGRESQL_SHARED_PRELOAD_LIBRARIES=pg_stat_statements
+# Use postgres user (Chainguard images already have proper user setup)
+USER postgres
+
+# Chainguard PostgreSQL images come with built-in entrypoint
+# No custom entrypoint needed as Chainguard provides secure defaults

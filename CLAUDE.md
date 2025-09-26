@@ -8,7 +8,6 @@ This repository contains API documentation and Go implementation for a Collabora
 
 ## Key Files
 
-- docs/TMI-API-v1_0.md - API documentation in Markdown
 - shared/api-specs/tmi-openapi.json - OpenAPI specification
 - api/store.go - Generic typed map storage implementation
 - api/server.go - Main API server with WebSocket support
@@ -58,22 +57,22 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 - Build: `make build-server` (creates bin/server executable)
 - Lint: `make lint` (runs golangci-lint)
 - Generate API: `make generate-api` (uses oapi-codegen with config from oapi-codegen-config.yml)
-- Development: `make dev-start` (starts full dev environment with DB and Redis)
-- Secure Development: `make dev-start-secure` (starts server using existing secure containers)
-- Dev DB only: `make infra-db-start` (starts PostgreSQL container)
-- Dev Redis only: `make infra-redis-start` (starts Redis container)
-- Clean all: `make clean-all` (comprehensive cleanup of processes, containers, and files)
+- Development: `make start-dev` (starts full dev environment with DB and Redis)
+- Secure Development: `make start-dev-secure` (starts server using existing secure containers)
+- Dev DB only: `make start-database` (starts PostgreSQL container)
+- Dev Redis only: `make start-redis` (starts Redis container)
+- Clean all: `make clean-everything` (comprehensive cleanup of processes, containers, and files)
 - Observability: `make observability-start` (starts OpenTelemetry monitoring stack), `make obs-start` (alias)
 - Stop observability: `make observability-stop` (stops monitoring services), `make obs-stop` (alias)
 - Clean observability: `make observability-clean` (removes monitoring data), `make obs-clean` (alias)
 
 ### Container Management (Docker Scout Integration)
 
-- Security scan: `make containers-security-scan` (scans containers for vulnerabilities using Docker Scout)
-- Security report: `make containers-security-report` (generates comprehensive security report)
-- Build containers: `make containers-build` (builds containers with vulnerability patches)
+- Security scan: `make scan-containers` (scans containers for vulnerabilities using Docker Scout)
+- Security report: `make report-containers` (generates comprehensive security report)
+- Build containers: `make build-containers` (builds containers with vulnerability patches)
 - Container development: `make containers-dev` (builds and starts containers, no server)
-- Start server with containers: `make dev-start-containers` (starts server using existing containers)
+- Start server with containers: `make start-dev-existing` (starts server using existing containers)
 - Full container workflow: `make containers-all` (builds containers and generates reports)
 
 ### OpenAPI Schema Management
@@ -86,7 +85,7 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 
 ### OAuth Callback Stub
 
-- **OAuth Development Tool**: `make oauth-stub-start` or `uv run scripts/oauth-client-callback-stub.py --port 8079` - Universal OAuth callback handler supporting both Authorization Code and Implicit flows
+- **OAuth Development Tool**: `make start-oauth-stub` or `uv run scripts/oauth-client-callback-stub.py --port 8079` - Universal OAuth callback handler supporting both Authorization Code and Implicit flows
 
   - **Location**: `scripts/oauth-client-callback-stub.py` (standalone Python script)
   - **Purpose**: Captures OAuth credentials from TMI server supporting both OAuth2 Authorization Code Flow and Implicit Flow
@@ -101,7 +100,7 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
     - Startup cleanup of temporary credential files
   - **Logging**: Comprehensive structured logging to `/tmp/oauth-stub.log` with RFC3339 timestamps and dual console output
   - **Make Commands**:
-    - `make oauth-stub-start` - Start OAuth stub on port 8079
+    - `make start-oauth-stub` - Start OAuth stub on port 8079
     - `make oauth-stub-stop` - Stop OAuth stub gracefully
     - `make oauth-stub-status` - Check if OAuth stub is running
   - **API Routes**:
@@ -141,7 +140,7 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 
     ```bash
     # Start OAuth callback stub
-    make oauth-stub-start
+    make start-oauth-stub
 
     # Initiate OAuth flow with callback stub and login_hint
     curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_callback=http://localhost:8079/"
@@ -188,7 +187,7 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
     - Supports multiple concurrent instances for multi-user testing
     - 30-second timeout to prevent runaway processes
   - **Make Commands**:
-    - `make wstest-build` - Build the test harness binary
+    - `make build-wstest` - Build the test harness binary
     - `make wstest` - Launch 3-terminal test (alice as host, bob & charlie as participants)
     - `make wstest-clean` - Stop all running test harness instances
   - **Direct Usage**:
@@ -216,7 +215,7 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 
     ```bash
     # Basic collaboration test
-    make dev-start  # Ensure server is running
+    make start-dev  # Ensure server is running
     make wstest     # Launches alice (host), bob, and charlie (participants)
     # Watch the terminals for WebSocket activity
     make wstest-clean  # Clean up when done
@@ -240,7 +239,7 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 **MANDATORY: Always use Make targets - NEVER run commands directly**
 
 - ❌ **NEVER run**: `go run`, `go test`, `./bin/server`, `docker run`, `docker exec`
-- ✅ **ALWAYS use**: `make dev-start`, `make test-unit`, `make test-integration`, `make build-server`
+- ✅ **ALWAYS use**: `make start-dev`, `make test-unit`, `make test-integration`, `make build-server`
 - **Reason**: Make targets provide consistent, repeatable configurations with proper environment setup
 
 **Examples of FORBIDDEN practices:**
@@ -254,13 +253,13 @@ docker exec tmi-postgresql psql -U postgres
 docker run -d postgres:13
 
 # ✅ DO THESE INSTEAD:
-make dev-start
+make start-dev
 make test-unit
 make test-integration
-make infra-db-start
+make start-database
 ```
 
-**Container Management**: Use `make infra-db-start`, `make infra-redis-start`, `make dev-start` for all container operations.
+**Container Management**: Use `make start-database`, `make start-redis`, `make start-dev` for all container operations.
 
 ### Testing Commands
 
@@ -273,7 +272,7 @@ make infra-db-start
   - Options: `make test-unit count1=true passfail=true`
 - Integration tests: `make test-integration` (requires database, runs with automatic setup/cleanup)
   - Specific test: `make test-integration name=TestName`
-  - Cleanup only: `make clean-all`
+  - Cleanup only: `make clean-everything`
 
 #### Testing Examples
 
@@ -288,7 +287,7 @@ make test-unit name=TestStore_CRUD              # Run one unit test
 make test-integration name=TestDatabaseIntegration  # Run one integration test
 
 # API testing (requires server)
-make dev-start                   # Start server first
+make start-dev                   # Start server first
 
 ## Go Style Guidelines
 
@@ -329,7 +328,7 @@ make dev-start                   # Start server first
 - `auth/` - Authentication service with OAuth, JWT, and RBAC
 - `cmd/` - Command-line executables (server, migrate, check-db)
 - `internal/` - Internal packages (logging, dbschema)
-- `docs/` - API documentation and architectural diagrams
+- `docs/` - Comprehensive documentation organized by audience (developer, operator, agent, reference)
 - `scripts/` - Development setup scripts
 
 ### WebSocket Architecture
@@ -354,6 +353,21 @@ make dev-start                   # Start server first
 - Development scripts handle container management automatically
 - Server runs on port 8080 by default with configurable TLS support
 
+## Documentation Organization
+
+The `docs/` directory is organized by audience for easy navigation:
+
+- **`docs/developer/`** - Development setup, testing, and client integration guides
+- **`docs/operator/`** - Deployment, database operations, and monitoring documentation  
+- **`docs/agent/`** - AI agent context and visual architecture references
+- **`docs/reference/`** - Technical specifications, schemas, and API documentation
+
+Key developer documentation:
+- Development setup: `docs/developer/setup/development-setup.md`
+- Integration testing: `docs/developer/testing/integration-testing.md`
+- Client integration: `docs/developer/integration/client-integration-guide.md`
+- OAuth setup: `docs/developer/setup/oauth-integration.md`
+
 ## User Preferences
 
 - After changing any file, run `make lint` and fix any issues caused by the change
@@ -374,7 +388,7 @@ make dev-start                   # Start server first
 - Unit tests: Use `make test-unit` or `make test-unit name=TestName`
 - Integration tests: Use `make test-integration` or `make test-integration name=TestName`
 - Never create ad hoc `go test` commands - they will miss configuration settings and dependencies
-- Never create ad hoc commands to run the server - use `make dev-start` or other make targets
+- Never create ad hoc commands to run the server - use `make start-dev` or other make targets
 - All testing must go through make targets to ensure proper environment setup
 
 ## Test Philosophy
@@ -436,7 +450,7 @@ JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
 
 - Always use a normal oauth login flow with the "test" provider when performing any development or testing task that requires authentication
 - The oauth-client-callback-stub can receive callbacks from the test oauth provider with the token, and you can retrieve the token from the oauth-client-callback-stub with a REST api call.
-    - start stub: make oauth-stub-start
+    - start stub: make start-oauth-stub
     - stop stub: make oauth-stub-stop
     - get JWT:
         - start the stub

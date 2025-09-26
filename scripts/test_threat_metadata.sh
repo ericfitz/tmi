@@ -7,7 +7,7 @@ echo "Testing threat metadata operations..."
 
 # First, start the dev environment if not already running
 echo "Starting dev environment..."
-make dev-start > /dev/null 2>&1 || echo "Dev environment already running"
+make start-dev > /dev/null 2>&1 || echo "Dev environment already running"
 
 # Wait for server to be ready
 sleep 3

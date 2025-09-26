@@ -128,7 +128,7 @@ The TMI implementation supports multiple OAuth flows (auth/handlers.go line 1342
 
 ```bash
 # Start OAuth callback stub
-make oauth-stub-start
+make start-oauth-stub
 
 # Initiate implicit flow with test provider
 curl "http://localhost:8080/oauth2/authorize?idp=test&response_type=token&login_hint=alice&client_callback=http://localhost:8079/"

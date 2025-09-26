@@ -109,7 +109,7 @@ npm install -g newman newman-reporter-htmlextra
 npm install -g jq bc
 
 # Start TMI development server
-make dev-start
+make start-dev
 ```
 
 ### Run Complete Test Suite
@@ -234,7 +234,7 @@ if (typeof tmiAuth !== 'undefined') {
 #### Authentication Failures
 ```bash
 # Ensure OAuth stub is running
-make oauth-stub-start
+make start-oauth-stub
 
 # Check stub status  
 curl http://127.0.0.1:8079/latest

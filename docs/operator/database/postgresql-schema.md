@@ -512,9 +512,9 @@ The TMI project provides comprehensive database migration and management tools:
 
 **Make Targets:**
 
-- `make infra-db-start` - Start development database with automatic migrations
-- `make infra-db-stop` - Stop database (preserves data)  
-- `make infra-db-clean` - Remove database and data (destructive)
+- `make start-database` - Start development database with automatic migrations
+- `make stop-database` - Stop database (preserves data)  
+- `make clean-database` - Remove database and data (destructive)
 - `make reset-database` - Interactive database reset with confirmation
 
 **Environment Variables:**

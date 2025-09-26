@@ -9,8 +9,8 @@ set -e
 cleanup() {
     echo "🧹 Cleaning up..."
     cd "$PROJECT_ROOT" 2>/dev/null || true
-    if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]" 2>/dev/null; then
-        make oauth-stub-stop 2>/dev/null || true
+    if make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]" 2>/dev/null; then
+        make stop-oauth-stub 2>/dev/null || true
         sleep 2  # Brief wait for cleanup
     fi
 }
@@ -34,7 +34,7 @@ mkdir -p "$OUTPUT_DIR"
 # Check current OAuth stub status first
 echo "Checking current OAuth stub status..."
 cd "$PROJECT_ROOT"
-if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]"; then
+if make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]"; then
     echo "✅ OAuth stub is already running and healthy, keeping it..."
     # Test that it's actually responding
     if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then
@@ -42,19 +42,19 @@ if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]"; then
         OAUTH_STUB_ALREADY_RUNNING=true
     else
         echo "⚠️ OAuth stub is running but not responding, restarting..."
-        make oauth-stub-stop 2>/dev/null || true
+        make stop-oauth-stub 2>/dev/null || true
         sleep 5  # Wait for graceful shutdown
         OAUTH_STUB_ALREADY_RUNNING=false
     fi
-elif make oauth-stub-status 2>&1 | grep -q "\[WARNING\].*running"; then
+elif make check-oauth-stub 2>&1 | grep -q "\[WARNING\].*running"; then
     echo "OAuth stub is running without PID file, stopping it..."
-    make oauth-stub-stop 2>/dev/null || true
+    make stop-oauth-stub 2>/dev/null || true
     sleep 5  # Wait for graceful shutdown
     
     # If still running, force kill
-    if make oauth-stub-status 2>&1 | grep -q "\[WARNING\].*running"; then
+    if make check-oauth-stub 2>&1 | grep -q "\[WARNING\].*running"; then
         echo "OAuth stub still running, force killing..."
-        make oauth-stub-kill || true
+        make kill-oauth-stub || true
         sleep 5  # Wait for force kill to complete
     fi
     OAUTH_STUB_ALREADY_RUNNING=false
@@ -67,7 +67,7 @@ fi
 if [ "$OAUTH_STUB_ALREADY_RUNNING" != "true" ]; then
     echo "Starting OAuth stub..."
     cd "$PROJECT_ROOT"
-    if make oauth-stub-start; then
+    if make start-oauth-stub; then
         sleep 5  # Wait for startup to complete
         echo "✅ OAuth stub start command completed"
     else
@@ -81,12 +81,12 @@ fi
 
 # Verify stub is running using make target
 echo "Verifying OAuth stub status..."
-if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]"; then
+if make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]"; then
     echo "✅ OAuth stub is ready"
 else
     echo "❌ OAuth stub failed to start properly"
     echo "Status check result:"
-    make oauth-stub-status
+    make check-oauth-stub
     exit 1
 fi
 
@@ -108,7 +108,7 @@ fi
 echo "Checking TMI server..."
 if ! curl -s http://127.0.0.1:8080/ >/dev/null 2>&1; then
     echo "ERROR: TMI server is not running on port 8080"
-    echo "Please run: make dev-start"
+    echo "Please run: make start-dev"
     exit 1
 fi
 
@@ -391,8 +391,8 @@ echo ""
 # Stop OAuth stub (will also be called by cleanup trap)
 echo "Stopping OAuth stub..."
 cd "$PROJECT_ROOT"
-if make oauth-stub-status 2>&1 | grep -q "\[SUCCESS\]"; then
-    make oauth-stub-stop || true
+if make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]"; then
+    make stop-oauth-stub || true
     sleep 5  # Wait for graceful shutdown
 fi
 
