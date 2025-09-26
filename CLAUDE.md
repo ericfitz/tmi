@@ -8,7 +8,7 @@ This repository contains API documentation and Go implementation for a Collabora
 
 ## Key Files
 
-- shared/api-specs/tmi-openapi.json - OpenAPI specification
+- docs/reference/apis/tmi-openapi.json - OpenAPI specification
 - api/store.go - Generic typed map storage implementation
 - api/server.go - Main API server with WebSocket support
 - api/websocket.go - WebSocket hub for real-time collaboration
@@ -78,7 +78,7 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 ### OpenAPI Schema Management
 
 - JSON Patcher Tool: `python3 scripts/patch-json.py` - Utility for making precise modifications to OpenAPI specification
-  - Patch schema: `python3 scripts/patch-json.py -s shared/api-specs/tmi-openapi.json -p "$.components.schemas.SchemaName" -f patch.json`
+  - Patch schema: `python3 scripts/patch-json.py -s docs/reference/apis/tmi-openapi.json -p "$.components.schemas.SchemaName" -f patch.json`
   - Creates automatic backups and validates JSON structure
   - Useful for implementing Input/Output schema separation or other targeted schema modifications
 - Validate OpenAPI: `make validate-openapi [file=path/to/spec.json]` (validates OpenAPI specification with comprehensive JSON syntax and detailed analysis)
@@ -358,7 +358,7 @@ make start-dev                   # Start server first
 The `docs/` directory is organized by audience for easy navigation:
 
 - **`docs/developer/`** - Development setup, testing, and client integration guides
-- **`docs/operator/`** - Deployment, database operations, and monitoring documentation  
+- **`docs/operator/`** - Deployment, database operations, and monitoring documentation
 - **`docs/agent/`** - AI agent context and visual architecture references
 - **`docs/reference/`** - Technical specifications, schemas, and API documentation
 
@@ -411,7 +411,7 @@ Key developer documentation:
 
 ### OpenAPI Integration
 
-- API code generated from shared/api-specs/tmi-openapi.json using oapi-codegen v2
+- API code generated from docs/reference/apis/tmi-openapi.json using oapi-codegen v2
 - OpenAPI validation middleware clears security schemes (auth handled by JWT middleware)
 - Generated types in api/api.go include Echo server handlers and embedded spec
 - Config file: oapi-codegen-config.yml

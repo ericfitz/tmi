@@ -9,6 +9,7 @@ Complete API reference documentation including OpenAPI specifications, endpoint 
 ## API Categories
 
 ### REST API
+
 - **OpenAPI 3.0 Specification**: Complete API specification in OpenAPI format
 - **Endpoint Documentation**: Detailed HTTP endpoint reference
 - **Authentication**: OAuth and JWT authentication specifications
@@ -16,6 +17,7 @@ Complete API reference documentation including OpenAPI specifications, endpoint 
 - **Request/Response Examples**: Working examples for all endpoints
 
 ### WebSocket API
+
 - **Real-time Protocol**: WebSocket message protocol specification
 - **Collaboration API**: Multi-user collaboration message formats
 - **Connection Management**: WebSocket connection lifecycle documentation
@@ -23,6 +25,7 @@ Complete API reference documentation including OpenAPI specifications, endpoint 
 - **Error Handling**: WebSocket error and recovery procedures
 
 ### Authentication API
+
 - **OAuth 2.0 Integration**: OAuth provider integration specifications
 - **JWT Token Management**: Token lifecycle and validation
 - **Authorization Patterns**: Role-based access control (RBAC)
@@ -32,19 +35,24 @@ Complete API reference documentation including OpenAPI specifications, endpoint 
 ## TMI REST API Overview
 
 ### Base URL Structure
+
 ```
 Development: http://localhost:8080
 Production:  https://api.tmi.example.com
 ```
 
 ### Authentication
+
 All API requests require JWT authentication via Bearer token:
+
 ```http
 Authorization: Bearer <jwt_token>
 ```
 
 ### Content Type
+
 All requests and responses use JSON:
+
 ```http
 Content-Type: application/json
 ```
@@ -52,6 +60,7 @@ Content-Type: application/json
 ## Core API Endpoints
 
 ### Authentication Endpoints
+
 ```http
 # OAuth provider discovery
 GET /oauth2/providers
@@ -70,6 +79,7 @@ POST /oauth2/logout
 ```
 
 ### Threat Model Management
+
 ```http
 # List threat models
 GET /threat_models
@@ -98,6 +108,7 @@ PUT /threat_models/{id}/permissions
 ```
 
 ### Diagram Management
+
 ```http
 # List diagrams in threat model
 GET /threat_models/{threat_model_id}/diagrams
@@ -118,6 +129,7 @@ DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}
 ```
 
 ### Collaboration Management
+
 ```http
 # List active collaboration sessions
 GET /collaboration/sessions
@@ -136,6 +148,7 @@ DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate
 ```
 
 ### Threat Management
+
 ```http
 # List threats in threat model
 GET /threat_models/{threat_model_id}/threats
@@ -158,6 +171,7 @@ DELETE /threat_models/{threat_model_id}/threats/{threat_id}
 ## WebSocket API Specification
 
 ### Connection URL
+
 ```
 ws://localhost:8080/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws?token={jwt_token}
 ```
@@ -165,6 +179,7 @@ ws://localhost:8080/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws?tok
 ### Message Protocol
 
 #### Outgoing Messages (Client → Server)
+
 ```json
 // Diagram operation
 {
@@ -222,6 +237,7 @@ ws://localhost:8080/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws?tok
 ```
 
 #### Incoming Messages (Server → Client)
+
 ```json
 // Diagram operation from other users
 {
@@ -282,6 +298,7 @@ ws://localhost:8080/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws?tok
 ## Response Formats
 
 ### Success Response
+
 ```json
 {
   "success": true,
@@ -302,6 +319,7 @@ ws://localhost:8080/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws?tok
 ```
 
 ### Error Response
+
 ```json
 {
   "success": false,
@@ -324,12 +342,14 @@ ws://localhost:8080/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws?tok
 ## HTTP Status Codes
 
 ### Success Codes
+
 - **200 OK**: Request successful, resource returned
 - **201 Created**: Resource created successfully
 - **202 Accepted**: Request accepted for processing
 - **204 No Content**: Request successful, no response body
 
 ### Client Error Codes
+
 - **400 Bad Request**: Invalid request format or parameters
 - **401 Unauthorized**: Authentication required or invalid
 - **403 Forbidden**: Insufficient permissions for requested operation
@@ -339,6 +359,7 @@ ws://localhost:8080/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws?tok
 - **429 Too Many Requests**: Rate limit exceeded
 
 ### Server Error Codes
+
 - **500 Internal Server Error**: Unexpected server error
 - **502 Bad Gateway**: Upstream service error
 - **503 Service Unavailable**: Service temporarily unavailable
@@ -347,6 +368,7 @@ ws://localhost:8080/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws?tok
 ## Authentication Flow
 
 ### OAuth 2.0 Implicit Flow
+
 ```mermaid
 sequenceDiagram
     participant Client
@@ -361,6 +383,7 @@ sequenceDiagram
 ```
 
 ### JWT Token Structure
+
 ```json
 {
   "header": {
@@ -385,6 +408,7 @@ sequenceDiagram
 ## Rate Limiting
 
 ### Rate Limit Headers
+
 ```http
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 75
@@ -393,6 +417,7 @@ X-RateLimit-Window: 3600
 ```
 
 ### Rate Limit Response (429)
+
 ```json
 {
   "success": false,
@@ -411,10 +436,12 @@ X-RateLimit-Window: 3600
 ## OpenAPI Specification
 
 ### Specification Location
+
 - **Development**: `http://localhost:8080/openapi.json`
-- **Documentation**: `shared/api-specs/tmi-openapi.json`
+- **Documentation**: `docs/reference/apis/tmi-openapi.json`
 
 ### OpenAPI Features
+
 - **Complete API Coverage**: All endpoints documented with examples
 - **Schema Validation**: Request/response validation with JSON Schema
 - **Authentication Documentation**: OAuth and JWT authentication flows
@@ -424,37 +451,36 @@ X-RateLimit-Window: 3600
 ## Client Integration Examples
 
 ### JavaScript/TypeScript
+
 ```javascript
 // Basic API client setup
 const tmiClient = new TMIClient({
-  baseUrl: 'https://api.tmi.example.com',
-  authToken: jwtToken
+  baseUrl: "https://api.tmi.example.com",
+  authToken: jwtToken,
 });
 
 // List threat models
 const threatModels = await tmiClient.threatModels.list({
   limit: 20,
-  search: 'web application'
+  search: "web application",
 });
 
 // Create collaboration session
-const session = await tmiClient.collaboration.create(
-  threatModelId, 
-  diagramId
-);
+const session = await tmiClient.collaboration.create(threatModelId, diagramId);
 
 // Connect to WebSocket
 const wsClient = new TMIWebSocketClient({
   url: session.websocket_url,
-  token: jwtToken
+  token: jwtToken,
 });
 
-wsClient.on('diagram_operation', (operation) => {
+wsClient.on("diagram_operation", (operation) => {
   // Handle remote diagram updates
 });
 ```
 
 ### Python
+
 ```python
 # TMI API client
 import requests
@@ -466,12 +492,12 @@ class TMIClient:
             'Authorization': f'Bearer {auth_token}',
             'Content-Type': 'application/json'
         }
-    
+
     def list_threat_models(self, limit=20, search=None):
         params = {'limit': limit}
         if search:
             params['search'] = search
-        
+
         response = requests.get(
             f'{self.base_url}/threat_models',
             headers=self.headers,
@@ -481,6 +507,7 @@ class TMIClient:
 ```
 
 ### cURL Examples
+
 ```bash
 # List threat models
 curl -H "Authorization: Bearer $JWT_TOKEN" \
@@ -502,6 +529,7 @@ curl -X PUT \
 ## API Testing
 
 ### Postman Collections
+
 - **Complete API Coverage**: All endpoints with examples
 - **Environment Variables**: Development and production environments
 - **Authentication Setup**: Automated OAuth token management
@@ -509,6 +537,7 @@ curl -X PUT \
 - **Collection Running**: Automated test execution
 
 ### Integration Testing
+
 - **Database Integration**: Tests with real database
 - **Authentication Testing**: OAuth flow validation
 - **WebSocket Testing**: Real-time collaboration testing
@@ -518,14 +547,17 @@ curl -X PUT \
 ## Related Documentation
 
 ### Implementation Guidance
+
 - [Client Integration Guide](../../developer/integration/client-integration-guide.md) - Using these APIs
 - [OAuth Integration](../../developer/setup/oauth-integration.md) - Authentication setup
 
 ### Testing and Quality
+
 - [API Testing](../../developer/testing/api-integration-tests.md) - API testing procedures
 - [Postman Testing](../../developer/testing/postman-comprehensive-testing.md) - Postman collection usage
 
 ### Operations and Deployment
+
 - [Deployment Guide](../../operator/deployment/deployment-guide.md) - API deployment
 - [Database Schema](../schemas/) - Data structures used by APIs
 

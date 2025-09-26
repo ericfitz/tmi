@@ -61,8 +61,8 @@ make start-dev                # Replaces start-dev.sh
 
 ```bash
 python3 scripts/analyze_endpoints.py
-python3 scripts/validate_openapi.py shared/api-specs/tmi-openapi.json
-python3 scripts/patch-json.py -s shared/api-specs/tmi-openapi.json -p "$.components.schemas"
+python3 scripts/validate_openapi.py docs/reference/apis/tmi-openapi.json
+python3 scripts/patch-json.py -s docs/reference/apis/tmi-openapi.json -p "$.components.schemas"
 ```
 
 # OAuth callback stub for development

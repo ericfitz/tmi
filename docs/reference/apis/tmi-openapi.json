@@ -125,7 +125,7 @@
           },
           "api": {
             "version": "1.0",
-            "specification": "https://github.com/ericfitz/tmi/blob/main/shared/api-specs/tmi-openapi.json"
+            "specification": "https://github.com/ericfitz/tmi/blob/main/docs/reference/apis/tmi-openapi.json"
           },
           "operator": {
             "name": "Example Organization",

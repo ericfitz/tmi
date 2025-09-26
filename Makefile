@@ -162,7 +162,7 @@ clean-build:
 
 generate-api:
 	$(call log_info,"Generating API code from OpenAPI specification...")
-	@oapi-codegen -config oapi-codegen-config.yml shared/api-specs/tmi-openapi.json
+	@oapi-codegen -config oapi-codegen-config.yml docs/reference/apis/tmi-openapi.json
 	$(call log_success,"API code generated: api/api.go")
 
 # Legacy alias for generate-api
@@ -721,7 +721,43 @@ check-oauth-stub:
 		fi; \
 	fi
 
- \
+# ============================================================================
+# CATS FUZZING - API Security Testing
+# ============================================================================
+
+.PHONY: cats-fuzz
+cats-fuzz:
+	$(call log_info,"Running CATS API fuzzing with OAuth authentication...")
+	@if ! command -v cats >/dev/null 2>&1; then \
+		$(call log_error,"CATS tool not found. Please install it first."); \
+		$(call log_info,"See: https://github.com/Endava/cats"); \
+		exit 1; \
+	fi
+	@./scripts/run-cats-fuzz.sh
+
+cats-fuzz-user:
+	$(call log_info,"Running CATS API fuzzing with custom user...")
+	@if [ -z "$(USER)" ]; then \
+		$(call log_error,"Please specify USER variable: make cats-fuzz-user USER=alice"); \
+		exit 1; \
+	fi
+	@./scripts/run-cats-fuzz.sh -u "$(USER)"
+
+cats-fuzz-server:
+	$(call log_info,"Running CATS API fuzzing against custom server...")
+	@if [ -z "$(SERVER)" ]; then \
+		$(call log_error,"Please specify SERVER variable: make cats-fuzz-server SERVER=http://localhost:8080"); \
+		exit 1; \
+	fi
+	@./scripts/run-cats-fuzz.sh -s "$(SERVER)"
+
+cats-fuzz-custom:
+	$(call log_info,"Running CATS API fuzzing with custom user and server...")
+	@if [ -z "$(USER)" ] || [ -z "$(SERVER)" ]; then \
+		$(call log_error,"Please specify USER and SERVER variables: make cats-fuzz-custom USER=alice SERVER=http://localhost:8080"); \
+		exit 1; \
+	fi
+	@./scripts/run-cats-fuzz.sh -u "$(USER)" -s "$(SERVER)"
 
 
 # ============================================================================
@@ -954,12 +990,12 @@ clean-wstest:
 
 validate-openapi:
 	$(call log_info,Validating OpenAPI specification...)
-	@uv run scripts/validate_openapi.py shared/api-specs/tmi-openapi.json
+	@uv run scripts/validate_openapi.py docs/reference/apis/tmi-openapi.json
 	$(call log_success,OpenAPI specification is valid)
 
 validate-asyncapi:
 	$(call log_info,Validating AsyncAPI specification...)
-	@uv run scripts/validate_asyncapi.py shared/api-specs/tmi-asyncapi.yml
+	@uv run scripts/validate_asyncapi.py docs/reference/apis/tmi-asyncapi.yml
 	$(call log_success,AsyncAPI specification is valid)
 
 # ============================================================================

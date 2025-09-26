@@ -163,7 +163,7 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 			Version       string `json:"version"`
 		}{
 			Version:       "1.0.0",
-			Specification: "https://github.com/ericfitz/tmi/blob/main/shared/api-specs/tmi-openapi.json",
+			Specification: "https://github.com/ericfitz/tmi/blob/main/docs/reference/apis/tmi-openapi.json",
 		},
 	}
 

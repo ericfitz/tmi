@@ -39,7 +39,7 @@ The complete development environment (server + database + Redis) will start auto
 - `api/` - API types and handlers
 - `cmd/server/` - Server entry point and configuration
 - `tmi-api-v1_0.md` - API documentation
-- `shared/api-specs/tmi-openapi.json` - OpenAPI specification
+- `docs/reference/apis/tmi-openapi.json` - OpenAPI specification
 
 ## Architecture
 
@@ -79,16 +79,19 @@ This pattern is used for all entity types (diagrams, threat models, threats) and
 Comprehensive documentation is organized by audience:
 
 ### 📖 For Developers
+
 - **[Setup Guide](docs/developer/setup/development-setup.md)** - Local development environment
 - **[Testing Guide](docs/developer/testing/integration-testing.md)** - Testing procedures
 - **[Client Integration](docs/developer/integration/client-integration-guide.md)** - API and WebSocket integration
 
-### 🚀 For Operations Teams  
+### 🚀 For Operations Teams
+
 - **[Deployment Guide](docs/operator/deployment/deployment-guide.md)** - Production deployment
 - **[Database Operations](docs/operator/database/postgresql-operations.md)** - Database management
 - **[Container Security](docs/operator/deployment/container-security.md)** - Secure containerization
 
 ### 📋 Complete Documentation Index
+
 See **[docs/README.md](docs/README.md)** for the complete documentation catalog organized by role and topic.
 
 ## Development Commands

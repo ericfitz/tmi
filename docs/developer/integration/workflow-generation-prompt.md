@@ -1,6 +1,6 @@
 # WORKFLOW GENERATION PROMPT
 
-You are a coding agent tasked with analyzing this OpenAPI 3.0 specification JSON file shared/api-specs/tmi-openapi.json
+You are a coding agent tasked with analyzing this OpenAPI 3.0 specification JSON file docs/reference/apis/tmi-openapi.json
 
 The spec defines hierarchical objects, such as "diagram" objects as children of "threat_model" objects. Most APIs require OAuth authentication/authorization (some are public and don't require authentication or authorization). We support the "implicit" OAuth flow.
 
