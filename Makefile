@@ -1008,47 +1008,54 @@ status:
 	@echo "TMI Service Status Check"
 	@echo "========================"
 	@echo ""
-	@printf "%-1s %-22s %-6s %-12s %s\n" "S" "SERVICE" "PORT" "STATUS" "PROCESS"
-	@printf "%-1s %-22s %-6s %-12s %s\n" "-" "----------------------" "------" "------------" "-------------------------"
-	@# Check Service (port 8080)
-	@SERVICE_PID=$$(lsof -ti :8080 2>/dev/null | head -1 || true); \
+	@printf "%-1s %-23s %-6s %-13s %s\n" "S" "SERVICE" "PORT" "STATUS" "PROCESS"
+	@printf "%-1s %-23s %-6s %-13s %s\n" "-" "-----------------------" "------" "-------------" "----------------------------"
+	@# Check Service (port 8080) - look for actual server process
+	@SERVICE_PID=""; \
+	for pid in $$(lsof -ti :8080 2>/dev/null || true); do \
+		PROC_CMD=$$(ps -p $$pid -o args= 2>/dev/null | head -1 || true); \
+		if echo "$$PROC_CMD" | grep -q "bin/server\|server.*--config"; then \
+			SERVICE_PID=$$pid; \
+			break; \
+		fi; \
+	done; \
 	if [ -n "$$SERVICE_PID" ]; then \
 		SERVICE_NAME=$$(ps -p $$SERVICE_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-22s %-6s %-12s $$SERVICE_PID ($$SERVICE_NAME)\n" "Service" "8080" "Running"; \
+		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s $$SERVICE_PID ($$SERVICE_NAME)\n" "Service" "8080" "Running"; \
 	else \
-		printf "\033[0;31m✗\033[0m %-22s %-6s %-12s %s\n" "Service" "8080" "Stopped" "-"; \
+		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %s\n" "Service" "8080" "Stopped" "-"; \
 	fi
 	@# Check Database (port 5432)
 	@DB_PID=$$(lsof -ti :5432 2>/dev/null | head -1 || true); \
 	if [ -n "$$DB_PID" ]; then \
 		DB_NAME=$$(ps -p $$DB_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-22s %-6s %-12s $$DB_PID ($$DB_NAME)\n" "Database" "5432" "Running"; \
+		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s $$DB_PID ($$DB_NAME)\n" "Database" "5432" "Running"; \
 	else \
-		printf "\033[0;31m✗\033[0m %-22s %-6s %-12s %s\n" "Database" "5432" "Stopped" "-"; \
+		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %s\n" "Database" "5432" "Stopped" "-"; \
 	fi
 	@# Check Redis (port 6379)
 	@REDIS_PID=$$(lsof -ti :6379 2>/dev/null | head -1 || true); \
 	if [ -n "$$REDIS_PID" ]; then \
 		REDIS_NAME=$$(ps -p $$REDIS_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-22s %-6s %-12s $$REDIS_PID ($$REDIS_NAME)\n" "Redis" "6379" "Running"; \
+		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s $$REDIS_PID ($$REDIS_NAME)\n" "Redis" "6379" "Running"; \
 	else \
-		printf "\033[0;31m✗\033[0m %-22s %-6s %-12s %s\n" "Redis" "6379" "Stopped" "-"; \
+		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %s\n" "Redis" "6379" "Stopped" "-"; \
 	fi
 	@# Check Application (port 4200)
 	@APP_PID=$$(lsof -ti :4200 2>/dev/null | head -1 || true); \
 	if [ -n "$$APP_PID" ]; then \
 		APP_NAME=$$(ps -p $$APP_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-22s %-6s %-12s $$APP_PID ($$APP_NAME)\n" "Application" "4200" "Running"; \
+		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s $$APP_PID ($$APP_NAME)\n" "Application" "4200" "Running"; \
 	else \
-		printf "\033[0;31m✗\033[0m %-22s %-6s %-12s %s\n" "Application" "4200" "Stopped" "-"; \
+		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %s\n" "Application" "4200" "Stopped" "-"; \
 	fi
 	@# Check OAuth Stub (port 8079) - optional
 	@OAUTH_PID=$$(lsof -ti :8079 2>/dev/null | head -1 || true); \
 	if [ -n "$$OAUTH_PID" ]; then \
 		OAUTH_NAME=$$(ps -p $$OAUTH_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-22s %-6s %-12s $$OAUTH_PID ($$OAUTH_NAME)\n" "OAuth Stub" "8079" "Running"; \
+		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s $$OAUTH_PID ($$OAUTH_NAME)\n" "OAuth Stub" "8079" "Running"; \
 	else \
-		printf "\033[1;33m⚬\033[0m %-22s %-6s %-12s %s\n" "OAuth Stub (Optional)" "8079" "Not running"; \
+		printf "\033[1;33m⚬\033[0m %-23s %-6s %-13s %s\n" "OAuth Stub (Optional)" "8079" "Not running"; \
 	fi
 	@echo ""
 
