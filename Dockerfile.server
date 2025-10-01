@@ -1,30 +1,11 @@
-# Enhanced TMI application image with automated security patching
-FROM golang:1.25.1-alpine
+# Multi-stage distroless TMI application build
+# Stage 1: Build environment
+FROM golang:1.25.1 AS builder
 
-# Metadata for tracking security patches
-LABEL security.patched="true"
+# Metadata for tracking
 LABEL security.scan-date="AUTO_GENERATED"
 LABEL security.patch-level="high-critical"
 LABEL maintainer="TMI Security Team"
-
-# Update and patch the base image with comprehensive security updates
-RUN apk update && \
-    apk upgrade && \
-    # Install security tools and CA certificates
-    apk add --no-cache \
-        git \
-        ca-certificates \
-        curl \
-        wget \
-        openssl && \
-    # Clean up package cache
-    rm -rf /var/cache/apk/*
-
-# Install Docker Scout CLI for runtime security scanning
-RUN curl -sSfL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
-
-# Create non-root user for security
-RUN adduser -D -s /bin/sh tmiuser
 
 # Set working directory
 WORKDIR /app
@@ -39,7 +20,7 @@ RUN go mod download && \
 # Copy source code
 COPY . .
 
-# Build the application with security flags
+# Build the application with security flags (CGO disabled for static binary)
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-s -w -X github.com/ericfitz/tmi/api.VersionMajor=0 -X github.com/ericfitz/tmi/api.VersionMinor=9 -X github.com/ericfitz/tmi/api.VersionPatch=0 -X github.com/ericfitz/tmi/api.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'development') -X github.com/ericfitz/tmi/api.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -trimpath \
@@ -47,18 +28,29 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o server \
     ./cmd/server
 
-# Change ownership to non-root user
-RUN chown -R tmiuser:tmiuser /app
+# Stage 2: Distroless runtime
+FROM gcr.io/distroless/static-debian12:latest
 
-# Switch to non-root user
-USER tmiuser
+# Metadata for tracking security patches
+LABEL security.distroless="true"
+LABEL security.scan-date="AUTO_GENERATED"
+LABEL security.patch-level="minimal-attack-surface"
+LABEL maintainer="TMI Security Team"
+LABEL org.opencontainers.image.title="TMI Server Distroless"
+LABEL org.opencontainers.image.description="TMI Server on distroless base"
+LABEL org.opencontainers.image.name="tmi/tmi-server"
+
+# Copy binary from builder
+COPY --from=builder /app/server /server
+
+# Copy any required static files (migrations, etc.)
+COPY --from=builder /app/auth/migrations /auth/migrations
+
+# Set working directory
+WORKDIR /
 
 # Expose port 8080
 EXPOSE 8080
-
-# Health check with security validation
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
 
 # Set secure environment variables
 ENV ENV=development
@@ -67,5 +59,11 @@ ENV SERVER_PORT=8080
 ENV SERVER_INTERFACE=0.0.0.0
 ENV GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
 
-# Run the application as non-root user
-CMD ["./server"]
+# Note: Distroless doesn't support HEALTHCHECK with curl
+# Health checks should be done externally via Kubernetes/Docker probes
+
+# Run as non-root user (distroless runs as nonroot by default)
+USER nonroot:nonroot
+
+# Run the application
+ENTRYPOINT ["/server"]

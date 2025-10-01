@@ -917,7 +917,7 @@ build-wstest:
 wstest: build-wstest
 	$(call log_info,Starting WebSocket test with 3 terminals...)
 	@# Check if server is running
-	@if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then \
+	@if ! curl -s http://localhost:8080 > /dev/null 2>&1; then \
 		$(call log_error,Server not running. Please run 'make start-dev' first); \
 		exit 1; \
 	fi
@@ -963,7 +963,7 @@ wstest: build-wstest
 monitor-wstest: build-wstest
 	$(call log_info,Starting WebSocket monitor...)
 	@# Check if server is running
-	@if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then \
+	@if ! curl -s http://localhost:8080 > /dev/null 2>&1; then \
 		$(call log_error,Server not running. Please run 'make start-dev' first); \
 		exit 1; \
 	fi
@@ -1008,8 +1008,8 @@ status:
 	@echo "TMI Service Status Check"
 	@echo "========================"
 	@echo ""
-	@printf "%-1s %-23s %-6s %-13s %s\n" "S" "SERVICE" "PORT" "STATUS" "PROCESS"
-	@printf "%-1s %-23s %-6s %-13s %s\n" "-" "-----------------------" "------" "-------------" "----------------------------"
+	@printf "%-1s %-23s %-6s %-13s %-35s %s\n" "S" "SERVICE" "PORT" "STATUS" "PROCESS" "CHANGE STATE"
+	@printf "%-1s %-23s %-6s %-13s %-35s %s\n" "-" "-----------------------" "------" "-------------" "-----------------------------------" "--------------------"
 	@# Check Service (port 8080) - look for actual server process
 	@SERVICE_PID=""; \
 	for pid in $$(lsof -ti :8080 2>/dev/null || true); do \
@@ -1021,41 +1021,41 @@ status:
 	done; \
 	if [ -n "$$SERVICE_PID" ]; then \
 		SERVICE_NAME=$$(ps -p $$SERVICE_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s $$SERVICE_PID ($$SERVICE_NAME)\n" "Service" "8080" "Running"; \
+		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Running" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
 	else \
-		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %s\n" "Service" "8080" "Stopped" "-"; \
+		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Stopped" "-" "make start-server"; \
 	fi
-	@# Check Database (port 5432)
-	@DB_PID=$$(lsof -ti :5432 2>/dev/null | head -1 || true); \
-	if [ -n "$$DB_PID" ]; then \
-		DB_NAME=$$(ps -p $$DB_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s $$DB_PID ($$DB_NAME)\n" "Database" "5432" "Running"; \
+	@# Check Database (port 5432) - check for Docker container
+	@DB_CONTAINER=$$(docker ps --filter "publish=5432" --filter "status=running" --format "{{.Names}}" 2>/dev/null | head -1 || true); \
+	if [ -n "$$DB_CONTAINER" ]; then \
+		DB_IMAGE=$$(docker ps --filter "name=$$DB_CONTAINER" --format "{{.Image}}" 2>/dev/null | head -1 || echo "unknown"); \
+		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Database" "5432" "Running" "container: $$DB_CONTAINER" "make stop-database"; \
 	else \
-		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %s\n" "Database" "5432" "Stopped" "-"; \
+		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Database" "5432" "Stopped" "-" "make start-database"; \
 	fi
-	@# Check Redis (port 6379)
-	@REDIS_PID=$$(lsof -ti :6379 2>/dev/null | head -1 || true); \
-	if [ -n "$$REDIS_PID" ]; then \
-		REDIS_NAME=$$(ps -p $$REDIS_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s $$REDIS_PID ($$REDIS_NAME)\n" "Redis" "6379" "Running"; \
+	@# Check Redis (port 6379) - check for Docker container
+	@REDIS_CONTAINER=$$(docker ps --filter "publish=6379" --filter "status=running" --format "{{.Names}}" 2>/dev/null | head -1 || true); \
+	if [ -n "$$REDIS_CONTAINER" ]; then \
+		REDIS_IMAGE=$$(docker ps --filter "name=$$REDIS_CONTAINER" --format "{{.Image}}" 2>/dev/null | head -1 || echo "unknown"); \
+		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Redis" "6379" "Running" "container: $$REDIS_CONTAINER" "make stop-redis"; \
 	else \
-		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %s\n" "Redis" "6379" "Stopped" "-"; \
+		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Redis" "6379" "Stopped" "-" "make start-redis"; \
 	fi
 	@# Check Application (port 4200)
 	@APP_PID=$$(lsof -ti :4200 2>/dev/null | head -1 || true); \
 	if [ -n "$$APP_PID" ]; then \
 		APP_NAME=$$(ps -p $$APP_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s $$APP_PID ($$APP_NAME)\n" "Application" "4200" "Running"; \
+		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Application" "4200" "Running" "$$APP_PID ($$APP_NAME)" "-"; \
 	else \
-		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %s\n" "Application" "4200" "Stopped" "-"; \
+		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Application" "4200" "Stopped" "-" "-"; \
 	fi
 	@# Check OAuth Stub (port 8079) - optional
 	@OAUTH_PID=$$(lsof -ti :8079 2>/dev/null | head -1 || true); \
 	if [ -n "$$OAUTH_PID" ]; then \
 		OAUTH_NAME=$$(ps -p $$OAUTH_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s $$OAUTH_PID ($$OAUTH_NAME)\n" "OAuth Stub" "8079" "Running"; \
+		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "OAuth Stub" "8079" "Running" "$$OAUTH_PID ($$OAUTH_NAME)" "make stop-oauth-stub"; \
 	else \
-		printf "\033[1;33m⚬\033[0m %-23s %-6s %-13s %s\n" "OAuth Stub (Optional)" "8079" "Not running"; \
+		printf "\033[1;33m⚬\033[0m %-23s %-6s %-13s %-35s %s\n" "OAuth Stub (Optional)" "8079" "Not running" "-" "make start-oauth-stub"; \
 	fi
 	@echo ""
 

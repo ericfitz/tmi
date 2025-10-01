@@ -1,6 +1,6 @@
 # Multi-stage distroless Redis build
 # Stage 1: Build environment with Redis compilation
-FROM debian:bookworm-slim as builder
+FROM debian:bookworm-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && \
@@ -78,7 +78,7 @@ RUN mkdir -p /scripts && cat > /scripts/redis.conf << 'EOF'
 # Redis configuration for TMI
 port 6379
 bind 0.0.0.0
-protected-mode yes
+protected-mode no
 requirepass ""
 
 # Persistence

@@ -246,7 +246,7 @@ This directory contains system monitoring, logging, alerting, and performance an
 
 ```bash
 # Check service health
-curl https://tmi.example.com/version
+curl https://tmi.example.com:8080
 
 # Database health
 psql -h db-host -U user -d tmi -c "SELECT 1"
@@ -254,25 +254,3 @@ psql -h db-host -U user -d tmi -c "SELECT 1"
 # Cache health
 redis-cli -h redis-host ping
 ```
-
-### Metrics Collection Setup
-
-```bash
-# Start monitoring stack
-docker-compose -f monitoring-stack.yml up -d
-
-# Verify metrics collection
-curl http://prometheus:9090/metrics
-```
-
-### Log Analysis Setup
-
-```bash
-# Check log aggregation
-curl http://elasticsearch:9200/_cluster/health
-
-# Query recent logs
-curl "http://elasticsearch:9200/tmi-logs/_search?q=*"
-```
-
-For detailed monitoring setup procedures and troubleshooting guides, see the monitoring documentation files and related operational guides.

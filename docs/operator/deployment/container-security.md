@@ -266,9 +266,9 @@ container-security:
 2. **Secure Container Deployment**
    ```bash
    # Use secure container images
-   docker run tmi/tmi-postgresql-secure:latest
-   docker run tmi/tmi-redis-secure:latest
-   docker run tmi/tmi-app-secure:latest
+   docker run tmi/tmi-postgresql:latest
+   docker run tmi/tmi-redis:latest
+   docker run tmi/tmi-server:latest
    ```
 
 3. **Runtime Monitoring**

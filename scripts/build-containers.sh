@@ -15,7 +15,7 @@ GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo 'development')"
 # Container Configuration
 PG_CONTAINER_NAME="tmi-postgresql"
 REDIS_CONTAINER_NAME="tmi-redis"
-APP_CONTAINER_NAME="tmi-app"
+APP_CONTAINER_NAME="tmi-server"
 REGISTRY_PREFIX="${REGISTRY_PREFIX:-tmi}"
 
 # Vulnerability thresholds
