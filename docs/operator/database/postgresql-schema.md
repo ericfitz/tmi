@@ -506,7 +506,7 @@ The TMI project provides comprehensive database migration and management tools:
 
 **Docker Configuration:**
 
-- Custom PostgreSQL image: `Dockerfile.postgres` (Bitnami base with security updates)
+- Custom PostgreSQL image: `Dockerfile.postgres` (Chainguard base with security updates)
 - Development container: `tmi-postgresql` (port 5432)
 - Integration testing: `tmi-integration-postgres` (port 5433)
 

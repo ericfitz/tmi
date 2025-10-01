@@ -84,25 +84,9 @@ if [ -f "scripts/build-containers.sh" ]; then
         exit 1
     fi
 else
-    log_warning "Container build script not found. Building images with existing Dockerfiles..."
-    
-    # Build PostgreSQL image if Dockerfile exists
-    if [ -f "Dockerfile.postgres" ]; then
-        log_info "Building PostgreSQL image..."
-        docker build -f Dockerfile.postgres -t "$PG_IMAGE" .
-    else
-        log_warning "Using Chainguard PostgreSQL image (not patched)"
-        PG_IMAGE="cgr.dev/chainguard/postgres:latest"
-    fi
-
-    # Build Redis image if Dockerfile exists
-    if [ -f "Dockerfile.redis" ]; then
-        log_info "Building Redis image..."
-        docker build -f Dockerfile.redis -t "$REDIS_IMAGE" .
-    else
-        log_warning "Using distroless Redis image (not patched)"
-        REDIS_IMAGE="gcr.io/distroless/base-debian12:latest"
-    fi
+    log_error "Container build script not found. Cannot build secure containers."
+    log_error "Please ensure scripts/build-containers.sh exists or run 'make build-containers' first."
+    exit 1
 fi
 
 # --- Security Scanning (if enabled) ---

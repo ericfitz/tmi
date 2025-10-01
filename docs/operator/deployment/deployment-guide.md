@@ -104,16 +104,15 @@ GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o tmi-server-windows-amd64.
 ### Docker Build (Don't use this at this time)
 
 ```dockerfile
-# Dockerfile
-FROM golang:1.21-alpine AS builder
+# Dockerfile (Distroless-based secure build)
+FROM golang:1.21 AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -ldflags="-w -s" -o tmi-server cmd/server/main.go
+RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o tmi-server cmd/server/main.go
 
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates tzdata
+FROM gcr.io/distroless/static-debian12:latest
 WORKDIR /root/
 COPY --from=builder /app/tmi-server .
 COPY --from=builder /app/auth/migrations ./auth/migrations
@@ -375,7 +374,7 @@ docker run -d \
   --name redis \
   -p 6379:6379 \
   -v redis_data:/data \
-  redis:7-alpine redis-server --appendonly yes
+  tmi/tmi-redis:latest redis-server --appendonly yes
 ```
 
 ### Redis Configuration
@@ -517,7 +516,7 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    image: tmi/tmi-redis:latest
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
