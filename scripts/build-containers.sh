@@ -208,16 +208,16 @@ EOF
     for container in postgresql redis application; do
         local scan_file="${SECURITY_SCAN_OUTPUT_DIR}/${container}-scan.txt"
         if [ -f "${scan_file}" ]; then
-            local critical_count=$(grep -c "CRITICAL" "${scan_file}" 2>/dev/null || echo "0")
-            local high_count=$(grep -c "HIGH" "${scan_file}" 2>/dev/null || echo "0")
+            local critical_count=$( (grep -c "CRITICAL" "${scan_file}" 2>/dev/null || echo "0") | tail -1 | tr -d '\n\r ' )
+            local high_count=$( (grep -c "HIGH" "${scan_file}" 2>/dev/null || echo "0") | tail -1 | tr -d '\n\r ' )
             local status="✅ PASS"
-            
-            if [ "${critical_count}" -gt "${MAX_CRITICAL_CVES}" ]; then
+
+            if [ "${critical_count}" -gt "${MAX_CRITICAL_CVES}" ] 2>/dev/null; then
                 status="❌ FAIL"
-            elif [ "${high_count}" -gt "${MAX_HIGH_CVES}" ]; then
+            elif [ "${high_count}" -gt "${MAX_HIGH_CVES}" ] 2>/dev/null; then
                 status="⚠️ WARNING"
             fi
-            
+
             echo "| ${container} | ${status} | ${critical_count} | ${high_count} |" >> "${summary_file}"
         fi
     done

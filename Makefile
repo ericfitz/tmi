@@ -807,11 +807,11 @@ report-containers: scan-containers
 	@echo "|-------|----------|------|--------|" >> security-reports/security-summary.md
 	@for scan in postgresql redis application; do \
 		if [ -f "security-reports/$$scan-scan.txt" ]; then \
-			critical=$$(grep -c "CRITICAL" "security-reports/$$scan-scan.txt" 2>/dev/null || echo "0"); \
-			high=$$(grep -c "HIGH" "security-reports/$$scan-scan.txt" 2>/dev/null || echo "0"); \
+			critical=$$( (grep -c "CRITICAL" "security-reports/$$scan-scan.txt" 2>/dev/null || echo "0") | tail -1 | tr -d '\n\r ' ); \
+			high=$$( (grep -c "HIGH" "security-reports/$$scan-scan.txt" 2>/dev/null || echo "0") | tail -1 | tr -d '\n\r ' ); \
 			status="✅ Good"; \
-			if [ "$$critical" -gt "0" ]; then status="❌ Critical Issues"; \
-			elif [ "$$high" -gt "3" ]; then status="⚠️ High Issues"; fi; \
+			if [ "$$critical" -gt "0" ] 2>/dev/null; then status="❌ Critical Issues"; \
+			elif [ "$$high" -gt "3" ] 2>/dev/null; then status="⚠️ High Issues"; fi; \
 			echo "| $$scan | $$critical | $$high | $$status |" >> security-reports/security-summary.md; \
 		fi; \
 	done
