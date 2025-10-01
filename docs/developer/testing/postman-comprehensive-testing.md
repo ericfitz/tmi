@@ -344,7 +344,7 @@ newman run --export-globals globals.json --export-environment env.json
 ## 📚 References
 
 - [TMI API Documentation](../docs/TMI-API-v1_0.md)
-- [OpenAPI Specification](../docs/reference/apis/tmi-openapi.json)
+- [OpenAPI Specification](../../reference/apis/tmi-openapi.json)
 - [Newman Documentation](https://learning.postman.com/docs/running-collections/using-newman-cli/)
 - [Postman Testing Guide](https://learning.postman.com/docs/writing-scripts/test-scripts/)
 

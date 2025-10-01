@@ -23,4 +23,4 @@ Output format: JSON with top-level keys as object names, sub-keys as methods, va
 
 Ensure completeness for all paths, parameters, and auth in the spec.
 
-Write the json file to the shared/api-specs/ directory.
+Write the json file to the docs/reference/apis/ directory.

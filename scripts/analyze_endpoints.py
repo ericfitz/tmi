@@ -49,7 +49,7 @@ class EndpointAnalyzer:
         self.project_root = Path(project_root)
         self.api_dir = self.project_root / "api"
         self.openapi_spec_path = (
-            self.project_root / "shared" / "api-specs" / "tmi-openapi.json"
+            self.project_root / "docs" / "reference" / "apis" / "tmi-openapi.json"
         )
         self.endpoints: Dict[Tuple[str, str], EndpointInfo] = {}
 
@@ -613,10 +613,10 @@ def main():
     else:
         # Try to find project root
         current_dir = Path.cwd()
-        if (current_dir / "shared" / "api-specs" / "tmi-openapi.json").exists():
+        if (current_dir / "docs" / "reference" / "apis" / "tmi-openapi.json").exists():
             project_root = str(current_dir)
         elif (
-            current_dir.parent / "shared" / "api-specs" / "tmi-openapi.json"
+            current_dir.parent / "docs" / "reference" / "apis" / "tmi-openapi.json"
         ).exists():
             project_root = str(current_dir.parent)
         else:
