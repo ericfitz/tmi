@@ -91,17 +91,17 @@ else
         log_info "Building PostgreSQL image..."
         docker build -f Dockerfile.postgres -t "$PG_IMAGE" .
     else
-        log_warning "Using original PostgreSQL image (not patched)"
-        PG_IMAGE="bitnami/postgresql:latest"
+        log_warning "Using Chainguard PostgreSQL image (not patched)"
+        PG_IMAGE="cgr.dev/chainguard/postgres:latest"
     fi
-    
+
     # Build Redis image if Dockerfile exists
     if [ -f "Dockerfile.redis" ]; then
         log_info "Building Redis image..."
         docker build -f Dockerfile.redis -t "$REDIS_IMAGE" .
     else
-        log_warning "Using original Redis image (not patched)"
-        REDIS_IMAGE="bitnami/redis:latest"
+        log_warning "Using distroless Redis image (not patched)"
+        REDIS_IMAGE="gcr.io/distroless/base-debian12:latest"
     fi
 fi
 

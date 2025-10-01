@@ -780,10 +780,10 @@ scan-containers:
 		exit 1; \
 	fi
 	@mkdir -p security-reports
-	@echo "Scanning bitnami/postgresql:latest..."
-	@docker scout cves bitnami/postgresql:latest --only-severity critical,high > security-reports/postgresql-scan.txt 2>&1 || true
-	@echo "Scanning bitnami/redis:latest..."
-	@docker scout cves bitnami/redis:latest --only-severity critical,high > security-reports/redis-scan.txt 2>&1 || true
+	@echo "Scanning cgr.dev/chainguard/postgres:latest..."
+	@docker scout cves cgr.dev/chainguard/postgres:latest --only-severity critical,high > security-reports/postgresql-scan.txt 2>&1 || true
+	@echo "Scanning tmi/tmi-redis:latest..."
+	@docker scout cves tmi/tmi-redis:latest --only-severity critical,high > security-reports/redis-scan.txt 2>&1 || true
 	@if [ -f "Dockerfile.dev" ]; then \
 		echo "Building and scanning application image..."; \
 		docker build -f Dockerfile.dev -t tmi-temp-scan:latest . >/dev/null 2>&1 || true; \

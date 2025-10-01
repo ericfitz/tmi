@@ -71,7 +71,7 @@ The project includes security-enhanced Dockerfiles:
 
 ```bash
 # Scan specific image
-docker scout cves bitnami/postgresql:latest --only-severity critical,high
+docker scout cves cgr.dev/chainguard/postgres:latest --only-severity critical,high
 
 # Scan with custom output
 docker scout cves my-image:latest --format sarif --output security.sarif
@@ -296,13 +296,13 @@ docker scout version
 
 ```bash
 # Check for available updates
-docker scout recommendations bitnami/postgresql:latest
+docker scout recommendations cgr.dev/chainguard/postgres:latest
 
 # Build with latest patches
 ./scripts/build-secure-containers.sh postgresql
 
 # Verify improvement
-docker scout cves tmi/tmi-postgresql-secure:latest
+docker scout cves tmi/tmi-postgresql:latest
 ```
 
 #### 3. Build Failures Due to Security Policies
