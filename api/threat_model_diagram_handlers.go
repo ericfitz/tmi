@@ -191,15 +191,17 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	now := time.Now().UTC()
 	cells := []DfdDiagram_Cells_Item{}
 	metadata := []Metadata{}
+	initialUpdateVector := int64(0)
 
 	// Create DfdDiagram directly for the store
 	d := DfdDiagram{
-		Name:       request.Name,
-		Type:       DfdDiagramType(request.Type),
-		CreatedAt:  now,
-		ModifiedAt: now,
-		Cells:      cells,
-		Metadata:   &metadata,
+		Name:         request.Name,
+		Type:         DfdDiagramType(request.Type),
+		CreatedAt:    now,
+		ModifiedAt:   now,
+		UpdateVector: &initialUpdateVector,
+		Cells:        cells,
+		Metadata:     &metadata,
 		Image: &struct {
 			Svg          *[]byte `json:"svg,omitempty"`
 			UpdateVector *int64  `json:"update_vector,omitempty"`
