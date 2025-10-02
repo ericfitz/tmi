@@ -146,7 +146,19 @@ clean-redis:
 
 build-server:
 	$(call log_info,Building server binary...)
-	@go build -tags="dev" -o bin/server github.com/ericfitz/tmi/cmd/server
+	@# Update version (increment patch)
+	@./scripts/update-version.sh --build
+	@# Read version components
+	@MAJOR=$$(jq -r '.major' .version); \
+	MINOR=$$(jq -r '.minor' .version); \
+	PATCH=$$(jq -r '.patch' .version); \
+	go build -tags="dev" \
+		-ldflags "-X github.com/ericfitz/tmi/api.VersionMajor=$$MAJOR \
+		          -X github.com/ericfitz/tmi/api.VersionMinor=$$MINOR \
+		          -X github.com/ericfitz/tmi/api.VersionPatch=$$PATCH \
+		          -X github.com/ericfitz/tmi/api.GitCommit=$(COMMIT) \
+		          -X github.com/ericfitz/tmi/api.BuildDate=$(BUILD_DATE)" \
+		-o bin/server github.com/ericfitz/tmi/cmd/server
 	$(call log_success,"Server binary built: bin/server")
 
 build-migrate:

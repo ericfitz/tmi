@@ -51,10 +51,21 @@ When working with JSON files **larger than 100KB** or requiring complex manipula
 
 For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to prevent memory issues and ensure responsive performance.
 
+## Automatic Versioning
+
+TMI uses automatic semantic versioning (0.MINOR.PATCH):
+- **Build**: `make build-server` increments patch version (0.9.0 → 0.9.1)
+- **Commit**: Pre-commit hook increments minor version, resets patch (0.9.3 → 0.10.0)
+- **Version file**: `.version` (JSON) tracks current state
+- **Script**: `scripts/update-version.sh --build` or `--commit`
+- **Documentation**: See `docs/developer/setup/automatic-versioning.md`
+
+The major version remains at 0 during initial development. Version updates are fully automated—no manual intervention required.
+
 ## Commands
 
 - List targets: `make list-targets` (lists all available make targets)
-- Build: `make build-server` (creates bin/server executable)
+- Build: `make build-server` (creates bin/server executable, auto-increments patch version)
 - Lint: `make lint` (runs golangci-lint)
 - Generate API: `make generate-api` (uses oapi-codegen with config from oapi-codegen-config.yml)
 - Development: `make start-dev` (starts full dev environment with DB and Redis)
