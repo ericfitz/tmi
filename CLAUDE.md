@@ -75,6 +75,27 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 - Start server with containers: `make start-dev-existing` (starts server using existing containers)
 - Full container workflow: `make containers-all` (builds containers and generates reports)
 
+### SBOM Generation (Software Bill of Materials)
+
+TMI uses two complementary tools for comprehensive SBOM generation:
+
+#### cyclonedx-gomod (Go Components)
+- Generate Go app SBOM: `make generate-sbom` (creates JSON + XML for server application)
+- Generate all Go SBOMs: `make generate-sbom-all` (app + module dependencies)
+- Build with SBOM: `make build-with-sbom` (builds server binary + generates SBOM)
+- Check tool: `make check-cyclonedx` (verifies cyclonedx-gomod is installed)
+- Install: `brew install cyclonedx/cyclonedx/cyclonedx-gomod` or `go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest`
+
+#### Syft (Container Images)
+- Automatically used during: `make build-containers` (scans all container images)
+- Scans PostgreSQL (Chainguard base), Redis (distroless base), Server (distroless base) containers
+- Check tool: `make check-syft` (verifies Syft is installed)
+- Install: `brew install syft` or `curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin`
+
+**Output Location**: `security-reports/sbom/` (CycloneDX JSON + XML formats)
+**Container Integration**: SBOMs automatically generated during `make build-containers`
+**Formats**: CycloneDX 1.6 specification for all SBOMs (consistent across both tools)
+
 ### OpenAPI Schema Management
 
 - JSON Patcher Tool: `python3 scripts/patch-json.py` - Utility for making precise modifications to OpenAPI specification

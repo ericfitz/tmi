@@ -62,43 +62,97 @@ check_docker_scout() {
 scan_image_vulnerabilities() {
     local image_name="$1"
     local report_file="$2"
-    
+
     log_info "Scanning ${image_name} for vulnerabilities..."
-    
+
     # Create security reports directory
     mkdir -p "${SECURITY_SCAN_OUTPUT_DIR}"
-    
+
     # Scan for critical and high vulnerabilities
     docker scout cves "${image_name}" \
         --only-severity critical,high \
         --format sarif \
         --output "${report_file}.sarif" || true
-    
+
     # Get human-readable summary
     docker scout cves "${image_name}" \
         --only-severity critical,high > "${report_file}.txt" || true
-    
+
     # Count vulnerabilities
     local critical_count=$(docker scout cves "${image_name}" --only-severity critical --format sarif 2>/dev/null | jq -r '.runs[0].results | length' 2>/dev/null || echo "0")
     local high_count=$(docker scout cves "${image_name}" --only-severity high --format sarif 2>/dev/null | jq -r '.runs[0].results | length' 2>/dev/null || echo "0")
-    
+
     # Default to 0 if jq fails
     critical_count=${critical_count:-0}
     high_count=${high_count:-0}
-    
+
     log_info "Found ${critical_count} critical and ${high_count} high severity vulnerabilities"
-    
+
     # Check against thresholds
     if [ "${critical_count}" -gt "${MAX_CRITICAL_CVES}" ]; then
         log_error "Image ${image_name} has ${critical_count} critical vulnerabilities (max allowed: ${MAX_CRITICAL_CVES})"
         return 1
     fi
-    
+
     if [ "${high_count}" -gt "${MAX_HIGH_CVES}" ]; then
         log_warning "Image ${image_name} has ${high_count} high severity vulnerabilities (max recommended: ${MAX_HIGH_CVES})"
     fi
-    
+
     return 0
+}
+
+# Function to generate SBOM for container image using Syft
+generate_container_sbom() {
+    local image_name="$1"
+    local sbom_prefix="$2"
+
+    log_info "Generating SBOM for ${image_name}..."
+
+    # Check if Syft is available
+    if ! command -v syft >/dev/null 2>&1; then
+        log_warning "Syft not installed, skipping container SBOM generation"
+        log_info "Install: brew install syft"
+        return 0
+    fi
+
+    mkdir -p "${SECURITY_SCAN_OUTPUT_DIR}/sbom"
+
+    # Generate CycloneDX JSON format
+    if syft "${image_name}" -o cyclonedx-json="${SECURITY_SCAN_OUTPUT_DIR}/sbom/${sbom_prefix}-sbom.json" 2>/dev/null; then
+        log_success "SBOM JSON generated: ${sbom_prefix}-sbom.json"
+    else
+        log_warning "SBOM JSON generation failed for ${image_name}"
+    fi
+
+    # Generate CycloneDX XML format
+    if syft "${image_name}" -o cyclonedx-xml="${SECURITY_SCAN_OUTPUT_DIR}/sbom/${sbom_prefix}-sbom.xml" 2>/dev/null; then
+        log_success "SBOM XML generated: ${sbom_prefix}-sbom.xml"
+    else
+        log_warning "SBOM XML generation failed for ${image_name}"
+    fi
+}
+
+# Function to generate SBOM for Go application using cyclonedx-gomod
+generate_go_application_sbom() {
+    log_info "Generating SBOM for Go application..."
+
+    # Check if cyclonedx-gomod is available
+    if ! command -v cyclonedx-gomod >/dev/null 2>&1; then
+        log_warning "cyclonedx-gomod not installed, skipping Go application SBOM"
+        log_info "Install: brew install cyclonedx/cyclonedx/cyclonedx-gomod"
+        return 0
+    fi
+
+    mkdir -p "${SECURITY_SCAN_OUTPUT_DIR}/sbom"
+
+    # Generate for Go application
+    if cyclonedx-gomod app -json -output "${SECURITY_SCAN_OUTPUT_DIR}/sbom/tmi-server-${GIT_COMMIT}-sbom.json" -main cmd/server 2>/dev/null; then
+        log_success "Go application SBOM generated: tmi-server-${GIT_COMMIT}-sbom.json"
+    fi
+
+    if cyclonedx-gomod app -output "${SECURITY_SCAN_OUTPUT_DIR}/sbom/tmi-server-${GIT_COMMIT}-sbom.xml" -main cmd/server 2>/dev/null; then
+        log_success "Go application SBOM generated: tmi-server-${GIT_COMMIT}-sbom.xml"
+    fi
 }
 
 # Function to build and scan PostgreSQL container
@@ -127,6 +181,9 @@ build_postgresql_secure() {
         log_error "PostgreSQL container failed security scan"
         return 1
     fi
+
+    # Generate SBOM for container
+    generate_container_sbom "${REGISTRY_PREFIX}/${PG_CONTAINER_NAME}:latest" "tmi-postgresql-${GIT_COMMIT}"
 }
 
 # Function to build and scan Redis container
@@ -155,6 +212,9 @@ build_redis_secure() {
         log_error "Redis container failed security scan"
         return 1
     fi
+
+    # Generate SBOM for container
+    generate_container_sbom "${REGISTRY_PREFIX}/${REDIS_CONTAINER_NAME}:latest" "tmi-redis-${GIT_COMMIT}"
 }
 
 # Function to build and scan application container
@@ -183,6 +243,12 @@ build_application_secure() {
         log_error "Application container failed security scan"
         return 1
     fi
+
+    # Generate SBOM for Go application
+    generate_go_application_sbom
+
+    # Generate SBOM for container image
+    generate_container_sbom "${REGISTRY_PREFIX}/${APP_CONTAINER_NAME}:latest" "tmi-server-${GIT_COMMIT}-container"
 }
 
 # Function to generate security report summary
@@ -232,8 +298,42 @@ EOF
 ## Detailed Reports
 
 - PostgreSQL: [SARIF](postgresql-scan.sarif) | [Text](postgresql-scan.txt)
-- Redis: [SARIF](redis-scan.sarif) | [Text](redis-scan.txt)  
+- Redis: [SARIF](redis-scan.sarif) | [Text](redis-scan.txt)
 - Application: [SARIF](application-scan.sarif) | [Text](application-scan.txt)
+
+## Software Bill of Materials (SBOM)
+
+### Go Application SBOMs (cyclonedx-gomod)
+| Component | JSON | XML |
+|-----------|------|-----|
+EOF
+
+    # Add Go application SBOM if exists
+    if [ -f "${SECURITY_SCAN_OUTPUT_DIR}/sbom/tmi-server-${GIT_COMMIT}-sbom.json" ]; then
+        echo "| Go Application | [JSON](sbom/tmi-server-${GIT_COMMIT}-sbom.json) | [XML](sbom/tmi-server-${GIT_COMMIT}-sbom.xml) |" >> "${summary_file}"
+    fi
+
+    cat >> "${summary_file}" << EOF
+
+### Container Image SBOMs (Syft - CycloneDX)
+| Container | JSON | XML |
+|-----------|------|-----|
+EOF
+
+    # Add container SBOMs if they exist
+    for container in postgresql redis; do
+        local sbom_json="${SECURITY_SCAN_OUTPUT_DIR}/sbom/tmi-${container}-${GIT_COMMIT}-sbom.json"
+        if [ -f "${sbom_json}" ]; then
+            echo "| ${container} | [JSON](sbom/tmi-${container}-${GIT_COMMIT}-sbom.json) | [XML](sbom/tmi-${container}-${GIT_COMMIT}-sbom.xml) |" >> "${summary_file}"
+        fi
+    done
+
+    # Add server container SBOM
+    if [ -f "${SECURITY_SCAN_OUTPUT_DIR}/sbom/tmi-server-${GIT_COMMIT}-container-sbom.json" ]; then
+        echo "| Server Container | [JSON](sbom/tmi-server-${GIT_COMMIT}-container-sbom.json) | [XML](sbom/tmi-server-${GIT_COMMIT}-container-sbom.xml) |" >> "${summary_file}"
+    fi
+
+    cat >> "${summary_file}" << EOF
 
 ## Next Steps
 
@@ -241,6 +341,7 @@ EOF
 2. Update base images if new patches are available
 3. Consider implementing additional security controls
 4. Schedule regular re-scans
+5. Review SBOMs for license compliance and dependency tracking
 
 EOF
 

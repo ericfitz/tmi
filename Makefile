@@ -983,6 +983,61 @@ clean-wstest:
 	@rm -f ws-test-harness/*.log 2>/dev/null || true
 
 # ============================================================================
+# SBOM GENERATION - Software Bill of Materials
+# ============================================================================
+
+.PHONY: check-cyclonedx check-syft generate-sbom generate-sbom-all build-with-sbom build-server-sbom
+
+# Check for cyclonedx-gomod (Go components)
+check-cyclonedx:
+	@if ! command -v cyclonedx-gomod >/dev/null 2>&1; then \
+		$(call log_error,cyclonedx-gomod not found); \
+		echo ""; \
+		$(call log_info,Install using:); \
+		echo "  Homebrew: brew install cyclonedx/cyclonedx/cyclonedx-gomod"; \
+		echo "  Go:       go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest"; \
+		exit 1; \
+	fi
+	@$(call log_success,cyclonedx-gomod is available)
+
+# Check for Syft (container images)
+check-syft:
+	@if ! command -v syft >/dev/null 2>&1; then \
+		$(call log_error,Syft not found); \
+		echo ""; \
+		$(call log_info,Install using:); \
+		echo "  Homebrew: brew install syft"; \
+		echo "  Script:   curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin"; \
+		exit 1; \
+	fi
+	@$(call log_success,Syft is available)
+
+# Generate SBOM for Go application only
+generate-sbom: check-cyclonedx
+	$(call log_info,Generating SBOM for Go application...)
+	@mkdir -p security-reports/sbom
+	@cyclonedx-gomod app -json -output security-reports/sbom/tmi-server-$(VERSION)-sbom.json -main cmd/server
+	@cyclonedx-gomod app -output security-reports/sbom/tmi-server-$(VERSION)-sbom.xml -main cmd/server
+	$(call log_success,SBOM generated: security-reports/sbom/tmi-server-$(VERSION)-sbom.json)
+	$(call log_success,SBOM generated: security-reports/sbom/tmi-server-$(VERSION)-sbom.xml)
+
+# Generate all SBOMs (Go app + modules)
+generate-sbom-all: check-cyclonedx
+	$(call log_info,Generating all Go SBOMs...)
+	@mkdir -p security-reports/sbom
+	@cyclonedx-gomod app -json -output security-reports/sbom/tmi-server-$(VERSION)-sbom.json -main cmd/server
+	@cyclonedx-gomod app -output security-reports/sbom/tmi-server-$(VERSION)-sbom.xml -main cmd/server
+	@cyclonedx-gomod mod -json -output security-reports/sbom/tmi-module-$(VERSION)-sbom.json
+	@cyclonedx-gomod mod -output security-reports/sbom/tmi-module-$(VERSION)-sbom.xml
+	$(call log_success,All Go SBOMs generated in security-reports/sbom/)
+
+# Build server with SBOM
+build-with-sbom: build-server generate-sbom
+
+# Alias for build-with-sbom
+build-server-sbom: build-with-sbom
+
+# ============================================================================
 # VALIDATION TARGETS
 # ============================================================================
 
@@ -1083,6 +1138,13 @@ help:
 	@echo "  start-containers-environment - Start development with containers"
 	@echo "  build-containers-all         - Run full container build and report"
 	@echo ""
+	@echo "SBOM Generation (Software Bill of Materials):"
+	@echo "  generate-sbom                - Generate SBOM for Go application (cyclonedx-gomod)"
+	@echo "  generate-sbom-all            - Generate all Go SBOMs (app + modules)"
+	@echo "  build-with-sbom              - Build server and generate SBOM"
+	@echo "  build-server-sbom            - Alias for build-with-sbom"
+	@echo "  check-cyclonedx              - Verify cyclonedx-gomod is installed"
+	@echo "  check-syft                   - Verify Syft is installed"
 	@echo ""
 	@echo "Atomic Components (building blocks):"
 	@echo "  start-database         - Start PostgreSQL container"

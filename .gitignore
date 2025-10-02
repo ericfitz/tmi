@@ -51,6 +51,8 @@ config-development.yml
 config-production.yml
 coverage/
 coverage_html/
+security-reports/
+security-reports/**
 .venv/
 .venv/**
 **/bin/**
