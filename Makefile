@@ -1108,8 +1108,8 @@ status:
 	else \
 		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Redis" "6379" "Stopped" "-" "make start-redis"; \
 	fi
-	@# Check Application (port 4200)
-	@APP_PID=$$(lsof -ti :4200 2>/dev/null | head -1 || true); \
+	@# Check Application (port 4200) - look for listening process (LISTEN state)
+	@APP_PID=$$(lsof -sTCP:LISTEN -ti :4200 2>/dev/null | head -1 || true); \
 	if [ -n "$$APP_PID" ]; then \
 		APP_NAME=$$(ps -p $$APP_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
 		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Application" "4200" "Running" "$$APP_PID ($$APP_NAME)" "-"; \
