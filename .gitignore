@@ -76,3 +76,4 @@ ws-test-harness/*.log
 .claude/settings.local.json
 postman/test-results
 postman/test-results/**
+scripts/configure-heroku-env.sh
