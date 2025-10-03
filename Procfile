@@ -1,1 +1,1 @@
-web: bin/tmiserver --config=config-production.yml
+web: bin/server --config=config-production.yml
