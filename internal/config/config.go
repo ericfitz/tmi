@@ -3,10 +3,8 @@ package config
 import (
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"reflect"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -22,21 +20,20 @@ type Config struct {
 	Auth      AuthConfig      `yaml:"auth"`
 	WebSocket WebSocketConfig `yaml:"websocket"`
 	Logging   LoggingConfig   `yaml:"logging"`
-	Admin     AdminConfig     `yaml:"admin"`
 }
 
 // ServerConfig holds HTTP server configuration
 type ServerConfig struct {
-	Port                string        `yaml:"port" env:"TMI_SERVER_PORT"`
-	Interface           string        `yaml:"interface" env:"TMI_SERVER_INTERFACE"`
-	ReadTimeout         time.Duration `yaml:"read_timeout" env:"TMI_SERVER_READ_TIMEOUT"`
-	WriteTimeout        time.Duration `yaml:"write_timeout" env:"TMI_SERVER_WRITE_TIMEOUT"`
-	IdleTimeout         time.Duration `yaml:"idle_timeout" env:"TMI_SERVER_IDLE_TIMEOUT"`
-	TLSEnabled          bool          `yaml:"tls_enabled" env:"TMI_TLS_ENABLED"`
-	TLSCertFile         string        `yaml:"tls_cert_file" env:"TMI_TLS_CERT_FILE"`
-	TLSKeyFile          string        `yaml:"tls_key_file" env:"TMI_TLS_KEY_FILE"`
-	TLSSubjectName      string        `yaml:"tls_subject_name" env:"TMI_TLS_SUBJECT_NAME"`
-	HTTPToHTTPSRedirect bool          `yaml:"http_to_https_redirect" env:"TMI_TLS_HTTP_REDIRECT"`
+	Port                string        `yaml:"port" env:"SERVER_PORT"`
+	Interface           string        `yaml:"interface" env:"SERVER_INTERFACE"`
+	ReadTimeout         time.Duration `yaml:"read_timeout" env:"SERVER_READ_TIMEOUT"`
+	WriteTimeout        time.Duration `yaml:"write_timeout" env:"SERVER_WRITE_TIMEOUT"`
+	IdleTimeout         time.Duration `yaml:"idle_timeout" env:"SERVER_IDLE_TIMEOUT"`
+	TLSEnabled          bool          `yaml:"tls_enabled" env:"SERVER_TLS_ENABLED"`
+	TLSCertFile         string        `yaml:"tls_cert_file" env:"SERVER_TLS_CERT_FILE"`
+	TLSKeyFile          string        `yaml:"tls_key_file" env:"SERVER_TLS_KEY_FILE"`
+	TLSSubjectName      string        `yaml:"tls_subject_name" env:"SERVER_TLS_SUBJECT_NAME"`
+	HTTPToHTTPSRedirect bool          `yaml:"http_to_https_redirect" env:"SERVER_HTTP_TO_HTTPS_REDIRECT"`
 }
 
 // DatabaseConfig holds database configuration
@@ -47,20 +44,20 @@ type DatabaseConfig struct {
 
 // PostgresConfig holds PostgreSQL configuration
 type PostgresConfig struct {
-	Host     string `yaml:"host" env:"TMI_DATABASE_POSTGRES_HOST"`
-	Port     string `yaml:"port" env:"TMI_DATABASE_POSTGRES_PORT"`
-	User     string `yaml:"user" env:"TMI_DATABASE_POSTGRES_USER"`
-	Password string `yaml:"password" env:"TMI_DATABASE_POSTGRES_PASSWORD"`
-	Database string `yaml:"database" env:"TMI_DATABASE_POSTGRES_DATABASE"`
-	SSLMode  string `yaml:"sslmode" env:"TMI_DATABASE_POSTGRES_SSLMODE"`
+	Host     string `yaml:"host" env:"POSTGRES_HOST"`
+	Port     string `yaml:"port" env:"POSTGRES_PORT"`
+	User     string `yaml:"user" env:"POSTGRES_USER"`
+	Password string `yaml:"password" env:"POSTGRES_PASSWORD"`
+	Database string `yaml:"database" env:"POSTGRES_DATABASE"`
+	SSLMode  string `yaml:"sslmode" env:"POSTGRES_SSL_MODE"`
 }
 
 // RedisConfig holds Redis configuration
 type RedisConfig struct {
-	Host     string `yaml:"host" env:"TMI_DATABASE_REDIS_HOST"`
-	Port     string `yaml:"port" env:"TMI_DATABASE_REDIS_PORT"`
-	Password string `yaml:"password" env:"TMI_DATABASE_REDIS_PASSWORD"`
-	DB       int    `yaml:"db" env:"TMI_DATABASE_REDIS_DB"`
+	Host     string `yaml:"host" env:"REDIS_HOST"`
+	Port     string `yaml:"port" env:"REDIS_PORT"`
+	Password string `yaml:"password" env:"REDIS_PASSWORD"`
+	DB       int    `yaml:"db" env:"REDIS_DB"`
 }
 
 // AuthConfig holds authentication configuration
@@ -71,14 +68,14 @@ type AuthConfig struct {
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
-	Secret            string `yaml:"secret" env:"TMI_AUTH_JWT_SECRET"`
-	ExpirationSeconds int    `yaml:"expiration_seconds" env:"TMI_AUTH_JWT_EXPIRATION_SECONDS"`
-	SigningMethod     string `yaml:"signing_method" env:"TMI_AUTH_JWT_SIGNING_METHOD"`
+	Secret            string `yaml:"secret" env:"JWT_SECRET"`
+	ExpirationSeconds int    `yaml:"expiration_seconds" env:"JWT_EXPIRATION_SECONDS"`
+	SigningMethod     string `yaml:"signing_method" env:"JWT_SIGNING_METHOD"`
 }
 
 // OAuthConfig holds OAuth configuration
 type OAuthConfig struct {
-	CallbackURL string                         `yaml:"callback_url" env:"TMI_AUTH_OAUTH_CALLBACK_URL"`
+	CallbackURL string                         `yaml:"callback_url" env:"OAUTH_CALLBACK_URL"`
 	Providers   map[string]OAuthProviderConfig `yaml:"providers"`
 }
 
@@ -109,56 +106,25 @@ type OAuthProviderConfig struct {
 
 // LoggingConfig holds logging configuration
 type LoggingConfig struct {
-	Level            string `yaml:"level" env:"TMI_LOGGING_LEVEL"`
-	IsDev            bool   `yaml:"is_dev" env:"TMI_LOGGING_IS_DEV"`
-	IsTest           bool   `yaml:"is_test" env:"TMI_LOGGING_IS_TEST"`
-	LogDir           string `yaml:"log_dir" env:"TMI_LOGGING_LOG_DIR"`
-	MaxAgeDays       int    `yaml:"max_age_days" env:"TMI_LOGGING_MAX_AGE_DAYS"`
-	MaxSizeMB        int    `yaml:"max_size_mb" env:"TMI_LOGGING_MAX_SIZE_MB"`
-	MaxBackups       int    `yaml:"max_backups" env:"TMI_LOGGING_MAX_BACKUPS"`
-	AlsoLogToConsole bool   `yaml:"also_log_to_console" env:"TMI_LOGGING_ALSO_LOG_TO_CONSOLE"`
+	Level            string `yaml:"level" env:"LOGGING_LEVEL"`
+	IsDev            bool   `yaml:"is_dev" env:"LOGGING_IS_DEV"`
+	IsTest           bool   `yaml:"is_test" env:"LOGGING_IS_TEST"`
+	LogDir           string `yaml:"log_dir" env:"LOGGING_LOG_DIR"`
+	MaxAgeDays       int    `yaml:"max_age_days" env:"LOGGING_MAX_AGE_DAYS"`
+	MaxSizeMB        int    `yaml:"max_size_mb" env:"LOGGING_MAX_SIZE_MB"`
+	MaxBackups       int    `yaml:"max_backups" env:"LOGGING_MAX_BACKUPS"`
+	AlsoLogToConsole bool   `yaml:"also_log_to_console" env:"LOGGING_ALSO_LOG_TO_CONSOLE"`
 	// Enhanced debug logging options
-	LogAPIRequests              bool `yaml:"log_api_requests" env:"TMI_LOGGING_LOG_API_REQUESTS"`
-	LogAPIResponses             bool `yaml:"log_api_responses" env:"TMI_LOGGING_LOG_API_RESPONSES"`
-	LogWebSocketMsg             bool `yaml:"log_websocket_messages" env:"TMI_LOGGING_LOG_WEBSOCKET_MESSAGES"`
-	RedactAuthTokens            bool `yaml:"redact_auth_tokens" env:"TMI_LOGGING_REDACT_AUTH_TOKENS"`
-	SuppressUnauthenticatedLogs bool `yaml:"suppress_unauthenticated_logs" env:"TMI_LOGGING_SUPPRESS_UNAUTH_LOGS"`
+	LogAPIRequests              bool `yaml:"log_api_requests" env:"LOGGING_LOG_API_REQUESTS"`
+	LogAPIResponses             bool `yaml:"log_api_responses" env:"LOGGING_LOG_API_RESPONSES"`
+	LogWebSocketMsg             bool `yaml:"log_websocket_messages" env:"LOGGING_LOG_WEBSOCKET_MESSAGES"`
+	RedactAuthTokens            bool `yaml:"redact_auth_tokens" env:"LOGGING_REDACT_AUTH_TOKENS"`
+	SuppressUnauthenticatedLogs bool `yaml:"suppress_unauthenticated_logs" env:"LOGGING_SUPPRESS_UNAUTH_LOGS"`
 }
 
 // WebSocketConfig holds WebSocket timeout configuration
 type WebSocketConfig struct {
-	InactivityTimeoutSeconds int `yaml:"inactivity_timeout_seconds" env:"TMI_WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS"`
-}
-
-// AdminConfig holds admin interface configuration
-type AdminConfig struct {
-	Enabled    bool                `yaml:"enabled" env:"TMI_ADMIN_ENABLED"`
-	PathPrefix string              `yaml:"path_prefix" env:"TMI_ADMIN_PATH_PREFIX"`
-	Users      AdminUsersConfig    `yaml:"users"`
-	Session    AdminSessionConfig  `yaml:"session"`
-	Security   AdminSecurityConfig `yaml:"security"`
-}
-
-// AdminUsersConfig holds admin user configuration
-type AdminUsersConfig struct {
-	PrimaryEmail     string   `yaml:"primary_email" env:"TMI_ADMIN_USERS_PRIMARY_EMAIL"`
-	AdditionalEmails []string `yaml:"additional_emails" env:"TMI_ADMIN_USERS_ADDITIONAL_EMAILS"`
-	AutoPromoteFirst bool     `yaml:"auto_promote_first" env:"TMI_ADMIN_USERS_AUTO_PROMOTE_FIRST"`
-}
-
-// AdminSessionConfig holds admin session configuration
-type AdminSessionConfig struct {
-	TimeoutMinutes   int  `yaml:"timeout_minutes" env:"TMI_ADMIN_SESSION_TIMEOUT_MINUTES"`
-	ReauthRequired   bool `yaml:"reauth_required" env:"TMI_ADMIN_SESSION_REAUTH_REQUIRED"`
-	ExtendOnActivity bool `yaml:"extend_on_activity" env:"TMI_ADMIN_SESSION_EXTEND_ON_ACTIVITY"`
-}
-
-// AdminSecurityConfig holds admin security configuration
-type AdminSecurityConfig struct {
-	RequireMFA       bool     `yaml:"require_mfa" env:"TMI_ADMIN_SECURITY_REQUIRE_MFA"`
-	AuditLogging     bool     `yaml:"audit_logging" env:"TMI_ADMIN_SECURITY_AUDIT_LOGGING"`
-	RateLimitEnabled bool     `yaml:"rate_limit_enabled" env:"TMI_ADMIN_SECURITY_RATE_LIMIT_ENABLED"`
-	IPAllowlist      []string `yaml:"ip_allowlist" env:"TMI_ADMIN_SECURITY_IP_ALLOWLIST"`
+	InactivityTimeoutSeconds int `yaml:"inactivity_timeout_seconds" env:"WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS"`
 }
 
 // Load loads configuration from YAML file with environment variable overrides
@@ -245,26 +211,6 @@ func getDefaultConfig() *Config {
 			MaxBackups:                  10,
 			AlsoLogToConsole:            true,
 			SuppressUnauthenticatedLogs: true,
-		},
-		Admin: AdminConfig{
-			Enabled:    false,
-			PathPrefix: "/admin",
-			Users: AdminUsersConfig{
-				PrimaryEmail:     "",
-				AdditionalEmails: []string{},
-				AutoPromoteFirst: false,
-			},
-			Session: AdminSessionConfig{
-				TimeoutMinutes:   240,
-				ReauthRequired:   true,
-				ExtendOnActivity: true,
-			},
-			Security: AdminSecurityConfig{
-				RequireMFA:       false,
-				AuditLogging:     true,
-				RateLimitEnabled: true,
-				IPAllowlist:      []string{},
-			},
 		},
 	}
 }
@@ -440,7 +386,7 @@ func overrideOAuthProviders(mapField reflect.Value) error {
 		provider := providerValue.Interface().(OAuthProviderConfig)
 
 		// Override provider-specific environment variables
-		envPrefix := fmt.Sprintf("TMI_AUTH_OAUTH_PROVIDERS_%s_", strings.ToUpper(providerID))
+		envPrefix := fmt.Sprintf("OAUTH_PROVIDERS_%s_", strings.ToUpper(providerID))
 
 		if val := os.Getenv(envPrefix + "ENABLED"); val != "" {
 			provider.Enabled = val == "true"
@@ -570,69 +516,7 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("websocket inactivity timeout must be at least 15 seconds")
 	}
 
-	// Validate admin configuration
-	if err := c.validateAdminConfig(); err != nil {
-		return err
-	}
-
 	return nil
-}
-
-// validateAdminConfig validates admin-specific configuration
-func (c *Config) validateAdminConfig() error {
-	// If admin is disabled, no further validation needed
-	if !c.Admin.Enabled {
-		return nil
-	}
-
-	// If admin is enabled, primary email is required
-	if c.Admin.Users.PrimaryEmail == "" {
-		return fmt.Errorf("admin primary email is required when admin interface is enabled")
-	}
-
-	// Validate primary email format
-	if !isValidEmail(c.Admin.Users.PrimaryEmail) {
-		return fmt.Errorf("invalid primary admin email format: %s", c.Admin.Users.PrimaryEmail)
-	}
-
-	// Validate additional emails
-	for _, email := range c.Admin.Users.AdditionalEmails {
-		if !isValidEmail(email) {
-			return fmt.Errorf("invalid additional admin email format: %s", email)
-		}
-	}
-
-	// Validate session timeout
-	if c.Admin.Session.TimeoutMinutes < 5 {
-		return fmt.Errorf("admin session timeout must be at least 5 minutes")
-	}
-
-	// Validate IP allowlist format
-	for _, ip := range c.Admin.Security.IPAllowlist {
-		if !isValidIPOrCIDR(ip) {
-			return fmt.Errorf("invalid IP/CIDR in admin allowlist: %s", ip)
-		}
-	}
-
-	return nil
-}
-
-// isValidEmail validates email address format
-func isValidEmail(email string) bool {
-	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	return emailRegex.MatchString(email)
-}
-
-// isValidIPOrCIDR validates IP address or CIDR notation
-func isValidIPOrCIDR(ipStr string) bool {
-	// Check if it's a valid IP address
-	if net.ParseIP(ipStr) != nil {
-		return true
-	}
-
-	// Check if it's a valid CIDR
-	_, _, err := net.ParseCIDR(ipStr)
-	return err == nil
 }
 
 // IsTestMode returns true if running in test mode
@@ -673,33 +557,6 @@ func (c *Config) GetOAuthProvider(providerID string) (OAuthProviderConfig, bool)
 		return OAuthProviderConfig{}, false
 	}
 	return provider, true
-}
-
-// Admin helper methods
-
-// IsAdminEnabled returns true if admin interface is enabled
-func (c *Config) IsAdminEnabled() bool {
-	return c.Admin.Enabled
-}
-
-// IsUserAdmin checks if the given email is configured as an admin
-func (c *Config) IsUserAdmin(email string) bool {
-	if email == c.Admin.Users.PrimaryEmail {
-		return true
-	}
-
-	for _, adminEmail := range c.Admin.Users.AdditionalEmails {
-		if email == adminEmail {
-			return true
-		}
-	}
-
-	return false
-}
-
-// GetAdminTimeout returns the admin session timeout duration
-func (c *Config) GetAdminTimeout() time.Duration {
-	return time.Duration(c.Admin.Session.TimeoutMinutes) * time.Minute
 }
 
 // GetWebSocketInactivityTimeout returns the websocket inactivity timeout duration
