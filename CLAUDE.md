@@ -65,7 +65,7 @@ The major version remains at 0 during initial development. Version updates are f
 ## Commands
 
 - List targets: `make list-targets` (lists all available make targets)
-- Build: `make build-server` (creates bin/server executable, auto-increments patch version)
+- Build: `make build-server` (creates bin/tmiserver executable, auto-increments patch version)
 - Lint: `make lint` (runs golangci-lint)
 - Generate API: `make generate-api` (uses oapi-codegen with config from oapi-codegen-config.yml)
 - Development: `make start-dev` (starts full dev environment with DB and Redis)
@@ -93,7 +93,7 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 #### cyclonedx-gomod (Go Components)
 - Generate Go app SBOM: `make generate-sbom` (creates JSON + XML for server application)
 - Generate all Go SBOMs: `make generate-sbom-all` (app + module dependencies)
-- Build with SBOM: `make build-with-sbom` (builds server binary + generates SBOM)
+- Build with SBOM: `make build-with-sbom` (builds tmiserver binary + generates SBOM)
 - Check tool: `make check-cyclonedx` (verifies cyclonedx-gomod is installed)
 - Install: `brew install cyclonedx/cyclonedx/cyclonedx-gomod` or `go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest`
 
@@ -270,7 +270,7 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 
 **MANDATORY: Always use Make targets - NEVER run commands directly**
 
-- ❌ **NEVER run**: `go run`, `go test`, `./bin/server`, `docker run`, `docker exec`
+- ❌ **NEVER run**: `go run`, `go test`, `./bin/tmiserver`, `docker run`, `docker exec`
 - ✅ **ALWAYS use**: `make start-dev`, `make test-unit`, `make test-integration`, `make build-server`
 - **Reason**: Make targets provide consistent, repeatable configurations with proper environment setup
 
@@ -280,7 +280,7 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 # ❌ DON'T DO THESE:
 go run cmd/server/main.go --config=config-development.yml
 go test ./api/...
-./bin/server --config=config-development.yml
+./bin/tmiserver --config=config-development.yml
 docker exec tmi-postgresql psql -U postgres
 docker run -d postgres:13
 

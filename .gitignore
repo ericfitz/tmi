@@ -58,7 +58,7 @@ security-reports/**
 .venv/**
 **/bin/**
 migrate
-/server
+/tmiserver
 check-db
 .config.*.mk
 test.mk

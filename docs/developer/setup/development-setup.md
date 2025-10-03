@@ -81,7 +81,7 @@ For production, use:
 make build-server
 
 # Deploy with production config
-./bin/server --config=config-production.yml
+./bin/tmiserver --config=config-production.yml
 ```
 
 Set production environment variables:

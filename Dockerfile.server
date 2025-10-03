@@ -25,7 +25,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-s -w -X github.com/ericfitz/tmi/api.VersionMajor=0 -X github.com/ericfitz/tmi/api.VersionMinor=9 -X github.com/ericfitz/tmi/api.VersionPatch=0 -X github.com/ericfitz/tmi/api.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'development') -X github.com/ericfitz/tmi/api.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -trimpath \
     -buildmode=exe \
-    -o server \
+    -o tmiserver \
     ./cmd/server
 
 # Stage 2: Distroless runtime
@@ -41,7 +41,7 @@ LABEL org.opencontainers.image.description="TMI Server on distroless base"
 LABEL org.opencontainers.image.name="tmi/tmi-server"
 
 # Copy binary from builder
-COPY --from=builder /app/server /server
+COPY --from=builder /app/tmiserver /tmiserver
 
 # Copy any required static files (migrations, etc.)
 COPY --from=builder /app/auth/migrations /auth/migrations
@@ -66,4 +66,4 @@ ENV GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
 USER nonroot:nonroot
 
 # Run the application
-ENTRYPOINT ["/server"]
+ENTRYPOINT ["/tmiserver"]

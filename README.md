@@ -115,7 +115,7 @@ Server configuration can be set via environment variables or using a `.env` file
 You can also specify a custom .env file with:
 
 ```bash
-./bin/server --env=/path/to/custom.env
+./bin/tmiserver --env=/path/to/custom.env
 ```
 
 Available configuration options:

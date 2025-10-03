@@ -112,7 +112,7 @@ If you need to build without incrementing the version (not recommended):
 
 ```bash
 # Build directly with go
-go build -o bin/server ./cmd/server
+go build -o bin/tmiserver ./cmd/server
 ```
 
 ## Version Information at Runtime

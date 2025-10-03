@@ -158,8 +158,8 @@ build-server:
 		          -X github.com/ericfitz/tmi/api.VersionPatch=$$PATCH \
 		          -X github.com/ericfitz/tmi/api.GitCommit=$(COMMIT) \
 		          -X github.com/ericfitz/tmi/api.BuildDate=$(BUILD_DATE)" \
-		-o bin/server github.com/ericfitz/tmi/cmd/server
-	$(call log_success,"Server binary built: bin/server")
+		-o bin/tmiserver github.com/ericfitz/tmi/cmd/server
+	$(call log_success,"Server binary built: bin/tmiserver")
 
 build-migrate:
 	$(call log_info,Building migration tool...)
@@ -265,7 +265,7 @@ start-server:
 	CONFIG_FILE="$(SERVER_CONFIG_FILE)"; \
 	if [ -z "$$CONFIG_FILE" ]; then CONFIG_FILE="config-development.yml"; fi; \
 	BINARY="$(SERVER_BINARY)"; \
-	if [ -z "$$BINARY" ]; then BINARY="bin/server"; fi; \
+	if [ -z "$$BINARY" ]; then BINARY="bin/tmiserver"; fi; \
 	if [ -n "$(SERVER_TAGS)" ]; then \
 		echo "Starting server with build tags: $(SERVER_TAGS)"; \
 		echo "Building server with tags: $(SERVER_TAGS)"; \
@@ -426,8 +426,8 @@ clean-process:
 		fi; \
 		rm -f .server.pid; \
 	fi
-	@# Kill any remaining server processes (bin/server)
-	@SERVER_PIDS=$$(ps aux | grep '[b]in/server' | awk '{print $$2}' || true); \
+	@# Kill any remaining server processes (bin/tmiserver)
+	@SERVER_PIDS=$$(ps aux | grep '[b]in/tmiserver' | awk '{print $$2}' || true); \
 	if [ -n "$$SERVER_PIDS" ]; then \
 		for PID in $$SERVER_PIDS; do \
 			echo -e "$(BLUE)[INFO]$(NC) Killing server process: $$PID"; \
@@ -1081,7 +1081,7 @@ status:
 	@SERVICE_PID=""; \
 	for pid in $$(lsof -ti :8080 2>/dev/null || true); do \
 		PROC_CMD=$$(ps -p $$pid -o args= 2>/dev/null | head -1 || true); \
-		if echo "$$PROC_CMD" | grep -q "bin/server\|server.*--config"; then \
+		if echo "$$PROC_CMD" | grep -q "bin/tmiserver\|tmiserver.*--config"; then \
 			SERVICE_PID=$$pid; \
 			break; \
 		fi; \
