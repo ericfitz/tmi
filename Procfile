@@ -1,1 +1,1 @@
-web: TMI_SERVER_PORT=$PORT bin/server
+web: SERVER_PORT=$PORT bin/server

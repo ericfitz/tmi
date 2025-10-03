@@ -324,10 +324,10 @@ execute-tests-unit:
 	$(call log_info,"Executing unit tests...")
 	@if [ -n "$(TEST_PATTERN)" ] && [ "$(TEST_PATTERN)" != "" ]; then \
 		echo "Running specific unit test: $(TEST_PATTERN)"; \
-		TEST_CMD="$(ENVIRONMENT_TMI_LOGGING_IS_TEST)=true go test -short ./... -run $(TEST_PATTERN) -v"; \
+		TEST_CMD="$(ENVIRONMENT_LOGGING_IS_TEST)=true go test -short ./... -run $(TEST_PATTERN) -v"; \
 	else \
 		echo "Running all unit tests..."; \
-		TEST_CMD="$(ENVIRONMENT_TMI_LOGGING_IS_TEST)=true go test -short ./..."; \
+		TEST_CMD="$(ENVIRONMENT_LOGGING_IS_TEST)=true go test -short ./..."; \
 	fi; \
 	if [ "$(TEST_COUNT1)" = "true" ]; then \
 		TEST_CMD="$$TEST_CMD --count=1"; \
@@ -344,7 +344,7 @@ execute-tests-unit:
 execute-tests-integration:
 	$(call log_info,"Executing integration tests...")
 	@TEST_EXIT_CODE=0; \
-	$(ENVIRONMENT_TMI_LOGGING_IS_TEST)=true \
+	$(ENVIRONMENT_LOGGING_IS_TEST)=true \
 	TEST_DB_HOST=localhost \
 	TEST_DB_PORT=$(INFRASTRUCTURE_POSTGRES_PORT) \
 	TEST_DB_USER=$(INFRASTRUCTURE_POSTGRES_USER) \
@@ -482,7 +482,7 @@ test-unit:
 	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
 	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
 	echo -e "$(BLUE)[INFO]$(NC) Starting unit tests..."; \
-	TMI_LOGGING_IS_TEST=true go test -short ./... -v; \
+	LOGGING_IS_TEST=true go test -short ./... -v; \
 	rm -f .config.tmp.mk integration-test.log server.log logs/server.log .server.pid
 
 # Integration Testing - Full environment with database and server
@@ -571,7 +571,7 @@ test-coverage:
 
 test-coverage-unit:
 	$(call log_info,"Running unit tests with coverage...")
-	@$(ENVIRONMENT_TMI_LOGGING_IS_TEST)=true go test \
+	@$(ENVIRONMENT_LOGGING_IS_TEST)=true go test \
 		-coverprofile="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" \
 		-covermode=$(COVERAGE_MODE) \
 		-coverpkg=./... \
@@ -583,14 +583,14 @@ test-coverage-unit:
 
 test-coverage-integration:
 	$(call log_info,"Running integration tests with coverage...")
-	@$(ENVIRONMENT_TMI_LOGGING_IS_TEST)=true \
-	TMI_POSTGRES_HOST=localhost \
-	TMI_POSTGRES_PORT=$(INFRASTRUCTURE_POSTGRES_PORT) \
-	TMI_POSTGRES_USER=$(INFRASTRUCTURE_POSTGRES_USER) \
-	TMI_POSTGRES_PASSWORD=$(INFRASTRUCTURE_POSTGRES_PASSWORD) \
-	TMI_POSTGRES_DATABASE=$(INFRASTRUCTURE_POSTGRES_DATABASE) \
-	TMI_REDIS_HOST=localhost \
-	TMI_REDIS_PORT=$(INFRASTRUCTURE_REDIS_PORT) \
+	@$(ENVIRONMENT_LOGGING_IS_TEST)=true \
+	POSTGRES_HOST=localhost \
+	POSTGRES_PORT=$(INFRASTRUCTURE_POSTGRES_PORT) \
+	POSTGRES_USER=$(INFRASTRUCTURE_POSTGRES_USER) \
+	POSTGRES_PASSWORD=$(INFRASTRUCTURE_POSTGRES_PASSWORD) \
+	POSTGRES_DATABASE=$(INFRASTRUCTURE_POSTGRES_DATABASE) \
+	REDIS_HOST=localhost \
+	REDIS_PORT=$(INFRASTRUCTURE_REDIS_PORT) \
 	go test \
 		-coverprofile="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" \
 		-covermode=$(COVERAGE_MODE) \

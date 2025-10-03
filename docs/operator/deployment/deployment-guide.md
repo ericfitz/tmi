@@ -167,18 +167,18 @@ database:
     host: "postgres"
     port: "5432"
     user: "tmi_user"
-    password: "" # Set via TMI_DATABASE_POSTGRES_PASSWORD
+    password: "" # Set via POSTGRES_PASSWORD
     database: "tmi"
     sslmode: "require"
   redis:
     host: "redis"
     port: "6379"
-    password: "" # Set via TMI_DATABASE_REDIS_PASSWORD
+    password: "" # Set via REDIS_PASSWORD
     db: 0
 
 auth:
   jwt:
-    secret: "" # REQUIRED: Set via TMI_AUTH_JWT_SECRET
+    secret: "" # REQUIRED: Set via JWT_SECRET
     expiration_seconds: 3600
     signing_method: "HS256"
   oauth:
@@ -186,12 +186,12 @@ auth:
     providers:
       google:
         enabled: true
-        client_id: "" # Set via TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID
-        client_secret: "" # Set via TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET
+        client_id: "" # Set via OAUTH_PROVIDERS_GOOGLE_CLIENT_ID
+        client_secret: "" # Set via OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET
       github:
         enabled: true
-        client_id: "" # Set via TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID
-        client_secret: "" # Set via TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET
+        client_id: "" # Set via OAUTH_PROVIDERS_GITHUB_CLIENT_ID
+        client_secret: "" # Set via OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET
       microsoft:
         enabled: false
 
@@ -207,43 +207,43 @@ logging:
 
 ### Environment Variables
 
-All configuration values can be overridden with environment variables using the `TMI_` prefix:
+All configuration values can be overridden with environment variables:
 
-| Environment Variable                            | Description                          | Default                                 |
-| ----------------------------------------------- | ------------------------------------ | --------------------------------------- |
-| `TMI_SERVER_PORT`                               | HTTP server port                     | `8080`                                  |
-| `TMI_SERVER_INTERFACE`                          | Interface to bind to                 | `0.0.0.0`                               |
-| `TMI_TLS_ENABLED`                               | Enable HTTPS                         | `false`                                 |
-| `TMI_TLS_CERT_FILE`                             | TLS certificate file path            | ``                                      |
-| `TMI_TLS_KEY_FILE`                              | TLS private key file path            | ``                                      |
-| `TMI_DATABASE_POSTGRES_HOST`                    | PostgreSQL host                      | `localhost`                             |
-| `TMI_DATABASE_POSTGRES_PORT`                    | PostgreSQL port                      | `5432`                                  |
-| `TMI_DATABASE_POSTGRES_USER`                    | PostgreSQL username                  | `postgres`                              |
-| `TMI_DATABASE_POSTGRES_PASSWORD`                | PostgreSQL password                  | ``                                      |
-| `TMI_DATABASE_POSTGRES_DATABASE`                | PostgreSQL database name             | `tmi`                                   |
-| `TMI_DATABASE_POSTGRES_SSLMODE`                 | PostgreSQL SSL mode                  | `disable`                               |
-| `TMI_DATABASE_REDIS_HOST`                       | Redis host                           | `localhost`                             |
-| `TMI_DATABASE_REDIS_PORT`                       | Redis port                           | `6379`                                  |
-| `TMI_DATABASE_REDIS_PASSWORD`                   | Redis password                       | ``                                      |
-| `TMI_DATABASE_REDIS_DB`                         | Redis database number                | `0`                                     |
-| `TMI_AUTH_JWT_SECRET`                           | **REQUIRED** JWT signing secret      | ``                                      |
-| `TMI_AUTH_JWT_EXPIRATION_SECONDS`               | JWT token lifetime                   | `3600`                                  |
-| `TMI_AUTH_OAUTH_CALLBACK_URL`                   | OAuth callback URL                   | `http://localhost:8080/oauth2/callback` |
-| `TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_ENABLED`       | Enable Google OAuth                  | `true`                                  |
-| `TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID`     | Google OAuth client ID               | ``                                      |
-| `TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET` | Google OAuth client secret           | ``                                      |
-| `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_ENABLED`       | Enable GitHub OAuth                  | `true`                                  |
-| `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID`     | GitHub OAuth client ID               | ``                                      |
-| `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET` | GitHub OAuth client secret           | ``                                      |
-| `TMI_LOGGING_LEVEL`                             | Log level (debug, info, warn, error) | `info`                                  |
-| `TMI_LOGGING_IS_DEV`                            | Development mode                     | `false`                                 |
+| Environment Variable                      | Description                          | Default                                 |
+| ----------------------------------------- | ------------------------------------ | --------------------------------------- |
+| `SERVER_PORT`                             | HTTP server port                     | `8080`                                  |
+| `SERVER_INTERFACE`                        | Interface to bind to                 | `0.0.0.0`                               |
+| `SERVER_TLS_ENABLED`                      | Enable HTTPS                         | `false`                                 |
+| `SERVER_TLS_CERT_FILE`                    | TLS certificate file path            | ``                                      |
+| `SERVER_TLS_KEY_FILE`                     | TLS private key file path            | ``                                      |
+| `POSTGRES_HOST`                           | PostgreSQL host                      | `localhost`                             |
+| `POSTGRES_PORT`                           | PostgreSQL port                      | `5432`                                  |
+| `POSTGRES_USER`                           | PostgreSQL username                  | `postgres`                              |
+| `POSTGRES_PASSWORD`                       | PostgreSQL password                  | ``                                      |
+| `POSTGRES_DATABASE`                       | PostgreSQL database name             | `tmi`                                   |
+| `POSTGRES_SSL_MODE`                       | PostgreSQL SSL mode                  | `disable`                               |
+| `REDIS_HOST`                              | Redis host                           | `localhost`                             |
+| `REDIS_PORT`                              | Redis port                           | `6379`                                  |
+| `REDIS_PASSWORD`                          | Redis password                       | ``                                      |
+| `REDIS_DB`                                | Redis database number                | `0`                                     |
+| `JWT_SECRET`                              | **REQUIRED** JWT signing secret      | ``                                      |
+| `JWT_EXPIRATION_SECONDS`                  | JWT token lifetime                   | `3600`                                  |
+| `OAUTH_CALLBACK_URL`                      | OAuth callback URL                   | `http://localhost:8080/oauth2/callback` |
+| `OAUTH_PROVIDERS_GOOGLE_ENABLED`          | Enable Google OAuth                  | `true`                                  |
+| `OAUTH_PROVIDERS_GOOGLE_CLIENT_ID`        | Google OAuth client ID               | ``                                      |
+| `OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET`    | Google OAuth client secret           | ``                                      |
+| `OAUTH_PROVIDERS_GITHUB_ENABLED`          | Enable GitHub OAuth                  | `true`                                  |
+| `OAUTH_PROVIDERS_GITHUB_CLIENT_ID`        | GitHub OAuth client ID               | ``                                      |
+| `OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET`    | GitHub OAuth client secret           | ``                                      |
+| `LOGGING_LEVEL`                           | Log level (debug, info, warn, error) | `info`                                  |
+| `LOGGING_IS_DEV`                          | Development mode                     | `false`                                 |
 
 ### Required Configuration
 
 **Minimum required configuration for production:**
 
-1. **JWT Secret**: `TMI_AUTH_JWT_SECRET` - Use a cryptographically secure random string (32+ characters)
-2. **Database Password**: `TMI_DATABASE_POSTGRES_PASSWORD`
+1. **JWT Secret**: `JWT_SECRET` - Use a cryptographically secure random string (32+ characters)
+2. **Database Password**: `POSTGRES_PASSWORD`
 3. **OAuth Credentials**: At least one OAuth provider must be configured with client ID and secret
 4. **TLS Certificates**: For production HTTPS deployments
 
@@ -431,10 +431,10 @@ WorkingDirectory=/opt/tmi
 ExecStart=/opt/tmi/tmi-server --config=/etc/tmi/production.yml
 Restart=always
 RestartSec=5
-Environment=TMI_AUTH_JWT_SECRET=your-secure-jwt-secret
-Environment=TMI_DATABASE_POSTGRES_PASSWORD=your-db-password
-Environment=TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID=your-google-client-id
-Environment=TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET=your-google-secret
+Environment=JWT_SECRET=your-secure-jwt-secret
+Environment=POSTGRES_PASSWORD=your-db-password
+Environment=OAUTH_PROVIDERS_GOOGLE_CLIENT_ID=your-google-client-id
+Environment=OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET=your-google-secret
 
 # Security settings
 NoNewPrivileges=true
@@ -491,13 +491,13 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - TMI_DATABASE_POSTGRES_HOST=postgres
-      - TMI_DATABASE_POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - TMI_DATABASE_REDIS_HOST=redis
-      - TMI_AUTH_JWT_SECRET=${JWT_SECRET}
-      - TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - TMI_AUTH_OAUTH_CALLBACK_URL=https://tmi.example.com/oauth2/callback
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_HOST=redis
+      - JWT_SECRET=${JWT_SECRET}
+      - OAUTH_PROVIDERS_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - OAUTH_CALLBACK_URL=https://tmi.example.com/oauth2/callback
     depends_on:
       - postgres
       - redis
@@ -572,10 +572,10 @@ metadata:
   name: tmi-config
   namespace: tmi
 data:
-  TMI_DATABASE_POSTGRES_HOST: "postgres"
-  TMI_DATABASE_REDIS_HOST: "redis"
-  TMI_AUTH_OAUTH_CALLBACK_URL: "https://tmi.example.com/oauth2/callback"
-  TMI_LOGGING_LEVEL: "info"
+  POSTGRES_HOST: "postgres"
+  REDIS_HOST: "redis"
+  OAUTH_CALLBACK_URL: "https://tmi.example.com/oauth2/callback"
+  LOGGING_LEVEL: "info"
 ```
 
 `secrets.yml`:
@@ -588,10 +588,10 @@ metadata:
   namespace: tmi
 type: Opaque
 data:
-  TMI_AUTH_JWT_SECRET: <base64-encoded-jwt-secret>
-  TMI_DATABASE_POSTGRES_PASSWORD: <base64-encoded-db-password>
-  TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID: <base64-encoded-client-id>
-  TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET: <base64-encoded-client-secret>
+  JWT_SECRET: <base64-encoded-jwt-secret>
+  POSTGRES_PASSWORD: <base64-encoded-db-password>
+  OAUTH_PROVIDERS_GOOGLE_CLIENT_ID: <base64-encoded-client-id>
+  OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET: <base64-encoded-client-secret>
 ```
 
 `deployment.yml`:
@@ -685,7 +685,7 @@ kubectl logs -f deployment/tmi-server -n tmi
 
 ### 2. Network Security
 
-- **HTTPS**: Always use TLS in production (`TMI_TLS_ENABLED=true`)
+- **HTTPS**: Always use TLS in production (`SERVER_TLS_ENABLED=true`)
 - **Firewall**: Restrict access to database and Redis ports
 - **Reverse Proxy**: Consider using nginx/Apache as a reverse proxy with rate limiting
 

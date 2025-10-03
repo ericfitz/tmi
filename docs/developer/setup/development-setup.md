@@ -26,7 +26,7 @@ TMI uses YAML configuration files with environment variable overrides.
 **Environment variables for secrets:**
 
 ```bash
-TMI_DATABASE_POSTGRES_PASSWORD         # Database password (automatically set to 'postgres' for dev)
+POSTGRES_PASSWORD         # Database password (automatically set to 'postgres' for dev)
 ```
 
 **OAuth credentials are stored directly in `config-development.yml` for development convenience.**
@@ -46,7 +46,7 @@ For authentication, configure OAuth applications:
 
 1. Go to GitHub Settings → Developer settings → OAuth Apps
 2. Create new OAuth App with callback: `http://localhost:8080/oauth2/callback`
-3. Set `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID` and `TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET`
+3. Update the OAuth credentials in `config-development.yml`
 
 ## Database Containers
 
@@ -86,8 +86,8 @@ make build-server
 
 Set production environment variables:
 
-- `TMI_AUTH_JWT_SECRET` - Secure random key
-- `TMI_DATABASE_POSTGRES_PASSWORD` - Database password
+- `JWT_SECRET` - Secure random key
+- `POSTGRES_PASSWORD` - Database password
 - OAuth client credentials for your production domain
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for complete production setup instructions.

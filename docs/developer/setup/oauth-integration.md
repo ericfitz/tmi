@@ -344,8 +344,8 @@ google:
   name: "Google"
   enabled: true
   icon: "fa-brands fa-google"
-  client_id: "${TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID}"
-  client_secret: "${TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET}"
+  client_id: "${OAUTH_PROVIDERS_GOOGLE_CLIENT_ID}"
+  client_secret: "${OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET}"
   authorization_url: "https://accounts.google.com/o/oauth2/auth"
   token_url: "https://oauth2.googleapis.com/token"
   userinfo:
@@ -364,8 +364,8 @@ github:
   name: "GitHub"
   enabled: true
   icon: "fa-brands fa-github"
-  client_id: "${TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID}"
-  client_secret: "${TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET}"
+  client_id: "${OAUTH_PROVIDERS_GITHUB_CLIENT_ID}"
+  client_secret: "${OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET}"
   authorization_url: "https://github.com/login/oauth/authorize"
   token_url: "https://github.com/login/oauth/access_token"
   auth_header_format: "token %s"  # GitHub uses "token" instead of "Bearer"
@@ -393,8 +393,8 @@ microsoft:
   name: "Microsoft"
   enabled: true
   icon: "fa-brands fa-microsoft"
-  client_id: "${TMI_AUTH_OAUTH_PROVIDERS_MICROSOFT_CLIENT_ID}"
-  client_secret: "${TMI_AUTH_OAUTH_PROVIDERS_MICROSOFT_CLIENT_SECRET}"
+  client_id: "${OAUTH_PROVIDERS_MICROSOFT_CLIENT_ID}"
+  client_secret: "${OAUTH_PROVIDERS_MICROSOFT_CLIENT_SECRET}"
   authorization_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
   token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token"
   userinfo:
@@ -438,8 +438,8 @@ linkedin:
   name: "LinkedIn"
   enabled: true
   icon: "fa-brands fa-linkedin"
-  client_id: "${TMI_AUTH_OAUTH_PROVIDERS_LINKEDIN_CLIENT_ID}"
-  client_secret: "${TMI_AUTH_OAUTH_PROVIDERS_LINKEDIN_CLIENT_SECRET}"
+  client_id: "${OAUTH_PROVIDERS_LINKEDIN_CLIENT_ID}"
+  client_secret: "${OAUTH_PROVIDERS_LINKEDIN_CLIENT_SECRET}"
   authorization_url: "https://www.linkedin.com/oauth/v2/authorization"
   token_url: "https://www.linkedin.com/oauth/v2/accessToken"
   userinfo:

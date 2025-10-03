@@ -1,14 +1,14 @@
 # TMI Example Configuration File
-# 
+#
 # This file provides an example configuration for the TMI server.
 # Copy this to config-development.yml or config-production.yml and customize.
-# Environment variables can override any value using the TMI_ prefix.
-# 
+# Environment variables can override any value (without any prefix).
+#
 # Examples:
-#   TMI_SERVER_PORT=9090
-#   TMI_DATABASE_POSTGRES_PASSWORD=secret123
-#   TMI_AUTH_JWT_SECRET=your-jwt-secret
-#   TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID=your-google-client-id
+#   SERVER_PORT=9090
+#   POSTGRES_PASSWORD=secret123
+#   JWT_SECRET=your-jwt-secret
+#   OAUTH_PROVIDERS_GOOGLE_CLIENT_ID=your-google-client-id
 #
 
 server:
@@ -50,8 +50,8 @@ auth:
                 name: "GitHub"
                 enabled: false
                 icon: "fa-brands fa-github"
-                client_id: ""       # Set via env var TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID
-                client_secret: ""   # Set via env var TMI_AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET
+                client_id: ""       # Set via env var OAUTH_PROVIDERS_GITHUB_CLIENT_ID
+                client_secret: ""   # Set via env var OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET
                 authorization_url: "https://github.com/login/oauth/authorize"
                 token_url: "https://github.com/login/oauth/access_token"
                 auth_header_format: "token %s"  # GitHub uses "token" instead of "Bearer"
@@ -76,8 +76,8 @@ auth:
                 name: "Google"
                 enabled: false
                 icon: "fa-brands fa-google"
-                client_id: ""       # Set via env var TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID
-                client_secret: ""   # Set via env var TMI_AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET
+                client_id: ""       # Set via env var OAUTH_PROVIDERS_GOOGLE_CLIENT_ID
+                client_secret: ""   # Set via env var OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET
                 authorization_url: "https://accounts.google.com/o/oauth2/auth"
                 token_url: "https://oauth2.googleapis.com/token"
                 userinfo:
@@ -149,7 +149,7 @@ websocket:
     inactivity_timeout_seconds: 300     # WebSocket inactivity timeout (5 minutes)
                                        # Sessions with no activity are cleaned up after this timeout
                                        # Minimum value: 15 seconds
-                                       # Environment override: TMI_WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS
+                                       # Environment override: WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS
 
 logging:
     level: "info"                   # Log level (debug/info/warn/error)

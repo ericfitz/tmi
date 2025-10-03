@@ -92,12 +92,12 @@ Heroku Postgres addon automatically sets `DATABASE_URL`. You need to extract and
 heroku pg:credentials:url DATABASE --app my-tmi-server
 
 # Set individual environment variables
-heroku config:set TMI_POSTGRES_HOST=<host> --app my-tmi-server
-heroku config:set TMI_POSTGRES_PORT=5432 --app my-tmi-server
-heroku config:set TMI_POSTGRES_USER=<user> --app my-tmi-server
-heroku config:set TMI_POSTGRES_PASSWORD=<password> --app my-tmi-server
-heroku config:set TMI_POSTGRES_DATABASE=<database> --app my-tmi-server
-heroku config:set TMI_POSTGRES_SSL_MODE=require --app my-tmi-server
+heroku config:set POSTGRES_HOST=<host> --app my-tmi-server
+heroku config:set POSTGRES_PORT=5432 --app my-tmi-server
+heroku config:set POSTGRES_USER=<user> --app my-tmi-server
+heroku config:set POSTGRES_PASSWORD=<password> --app my-tmi-server
+heroku config:set POSTGRES_DATABASE=<database> --app my-tmi-server
+heroku config:set POSTGRES_SSL_MODE=require --app my-tmi-server
 ```
 
 **OR** use the Heroku Dashboard:
@@ -114,9 +114,9 @@ Similar to Postgres, extract Redis connection details:
 heroku redis:credentials --app my-tmi-server
 
 # Set individual environment variables
-heroku config:set TMI_REDIS_HOST=<host> --app my-tmi-server
-heroku config:set TMI_REDIS_PORT=<port> --app my-tmi-server
-heroku config:set TMI_REDIS_PASSWORD=<password> --app my-tmi-server
+heroku config:set REDIS_HOST=<host> --app my-tmi-server
+heroku config:set REDIS_PORT=<port> --app my-tmi-server
+heroku config:set REDIS_PASSWORD=<password> --app my-tmi-server
 ```
 
 #### JWT Configuration
@@ -128,46 +128,65 @@ Generate a strong secret for JWT signing:
 openssl rand -base64 32
 
 # Set the JWT secret
-heroku config:set TMI_AUTH_JWT_SECRET=<generated-secret> --app my-tmi-server
-heroku config:set TMI_AUTH_JWT_ISSUER=tmi-server --app my-tmi-server
-heroku config:set TMI_AUTH_JWT_ACCESS_TOKEN_TTL=60 --app my-tmi-server
-heroku config:set TMI_AUTH_JWT_REFRESH_TOKEN_TTL=10080 --app my-tmi-server
+heroku config:set JWT_SECRET=<generated-secret> --app my-tmi-server
+heroku config:set JWT_EXPIRATION_SECONDS=3600 --app my-tmi-server
+heroku config:set JWT_SIGNING_METHOD=HS256 --app my-tmi-server
 ```
 
 #### Server Configuration
 
 ```bash
 # Heroku automatically sets PORT, but you can configure interface
-heroku config:set TMI_SERVER_INTERFACE=0.0.0.0 --app my-tmi-server
-heroku config:set TMI_LOGGING_LEVEL=info --app my-tmi-server
-heroku config:set TMI_LOGGING_IS_DEV=false --app my-tmi-server
+heroku config:set SERVER_INTERFACE=0.0.0.0 --app my-tmi-server
+heroku config:set LOGGING_LEVEL=info --app my-tmi-server
+heroku config:set LOGGING_IS_DEV=false --app my-tmi-server
 
 # TLS is handled by Heroku's load balancer
-heroku config:set TMI_SERVER_TLS_ENABLED=false --app my-tmi-server
+heroku config:set SERVER_TLS_ENABLED=false --app my-tmi-server
 ```
 
 ### Complete Environment Variables List
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `TMI_POSTGRES_HOST` | Yes | - | PostgreSQL host from Heroku Postgres |
-| `TMI_POSTGRES_PORT` | No | 5432 | PostgreSQL port |
-| `TMI_POSTGRES_USER` | Yes | - | PostgreSQL user |
-| `TMI_POSTGRES_PASSWORD` | Yes | - | PostgreSQL password |
-| `TMI_POSTGRES_DATABASE` | Yes | - | PostgreSQL database name |
-| `TMI_POSTGRES_SSL_MODE` | No | require | SSL mode (use 'require' for Heroku) |
-| `TMI_REDIS_HOST` | Yes | - | Redis host from Heroku Redis |
-| `TMI_REDIS_PORT` | No | 6379 | Redis port |
-| `TMI_REDIS_PASSWORD` | No | - | Redis password |
-| `TMI_AUTH_JWT_SECRET` | Yes | - | Strong random secret for JWT signing |
-| `TMI_AUTH_JWT_ISSUER` | No | tmi-server | JWT issuer claim |
-| `TMI_AUTH_JWT_ACCESS_TOKEN_TTL` | No | 60 | Access token TTL (minutes) |
-| `TMI_AUTH_JWT_REFRESH_TOKEN_TTL` | No | 10080 | Refresh token TTL (minutes) |
-| `TMI_SERVER_PORT` | No | 8080 | Server port (Heroku sets via $PORT) |
-| `TMI_SERVER_INTERFACE` | No | 0.0.0.0 | Network interface |
-| `TMI_LOGGING_LEVEL` | No | info | Log level (debug/info/warn/error) |
-| `TMI_LOGGING_IS_DEV` | No | false | Development mode |
-| `TMI_SERVER_TLS_ENABLED` | No | false | TLS (Heroku handles this) |
+| `POSTGRES_HOST` | Yes | - | PostgreSQL host from Heroku Postgres |
+| `POSTGRES_PORT` | No | 5432 | PostgreSQL port |
+| `POSTGRES_USER` | Yes | - | PostgreSQL user |
+| `POSTGRES_PASSWORD` | Yes | - | PostgreSQL password |
+| `POSTGRES_DATABASE` | Yes | - | PostgreSQL database name |
+| `POSTGRES_SSL_MODE` | No | require | SSL mode (use 'require' for Heroku) |
+| `REDIS_HOST` | Yes | - | Redis host from Heroku Redis |
+| `REDIS_PORT` | No | 6379 | Redis port |
+| `REDIS_PASSWORD` | No | - | Redis password |
+| `REDIS_DB` | No | 0 | Redis database number |
+| `JWT_SECRET` | Yes | - | Strong random secret for JWT signing |
+| `JWT_EXPIRATION_SECONDS` | No | 3600 | JWT expiration in seconds |
+| `JWT_SIGNING_METHOD` | No | HS256 | JWT signing method |
+| `OAUTH_CALLBACK_URL` | No | - | OAuth callback URL |
+| `SERVER_PORT` | No | 8080 | Server port (Heroku sets via $PORT) |
+| `SERVER_INTERFACE` | No | 0.0.0.0 | Network interface |
+| `SERVER_READ_TIMEOUT` | No | 5s | HTTP read timeout |
+| `SERVER_WRITE_TIMEOUT` | No | 10s | HTTP write timeout |
+| `SERVER_IDLE_TIMEOUT` | No | 60s | HTTP idle timeout |
+| `SERVER_TLS_ENABLED` | No | false | TLS (Heroku handles this) |
+| `SERVER_TLS_CERT_FILE` | No | - | TLS certificate file path |
+| `SERVER_TLS_KEY_FILE` | No | - | TLS key file path |
+| `SERVER_TLS_SUBJECT_NAME` | No | hostname | TLS subject name |
+| `SERVER_HTTP_TO_HTTPS_REDIRECT` | No | true | Redirect HTTP to HTTPS |
+| `LOGGING_LEVEL` | No | info | Log level (debug/info/warn/error) |
+| `LOGGING_IS_DEV` | No | false | Development mode |
+| `LOGGING_IS_TEST` | No | false | Test mode |
+| `LOGGING_LOG_DIR` | No | logs | Log directory path |
+| `LOGGING_MAX_AGE_DAYS` | No | 7 | Maximum log age in days |
+| `LOGGING_MAX_SIZE_MB` | No | 100 | Maximum log file size in MB |
+| `LOGGING_MAX_BACKUPS` | No | 10 | Maximum number of log backups |
+| `LOGGING_ALSO_LOG_TO_CONSOLE` | No | true | Also log to console |
+| `LOGGING_LOG_API_REQUESTS` | No | false | Log API requests |
+| `LOGGING_LOG_API_RESPONSES` | No | false | Log API responses |
+| `LOGGING_LOG_WEBSOCKET_MESSAGES` | No | false | Log WebSocket messages |
+| `LOGGING_REDACT_AUTH_TOKENS` | No | true | Redact auth tokens in logs |
+| `LOGGING_SUPPRESS_UNAUTH_LOGS` | No | true | Suppress unauthenticated logs |
+| `WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS` | No | 300 | WebSocket inactivity timeout in seconds |
 
 ## Required Addons
 
@@ -231,12 +250,12 @@ heroku run bin/migrate version --app my-tmi-server
 heroku pg:credentials:url DATABASE --app my-tmi-server
 
 # Set environment variables locally
-export TMI_POSTGRES_HOST=<host>
-export TMI_POSTGRES_PORT=5432
-export TMI_POSTGRES_USER=<user>
-export TMI_POSTGRES_PASSWORD=<password>
-export TMI_POSTGRES_DATABASE=<database>
-export TMI_POSTGRES_SSL_MODE=require
+export POSTGRES_HOST=<host>
+export POSTGRES_PORT=5432
+export POSTGRES_USER=<user>
+export POSTGRES_PASSWORD=<password>
+export POSTGRES_DATABASE=<database>
+export POSTGRES_SSL_MODE=require
 
 # Run migrations locally against Heroku database
 make build-migrate
@@ -349,24 +368,23 @@ The TMI server reads configuration from environment variables when they're set. 
 
    database:
      postgres:
-       host: "${TMI_POSTGRES_HOST}"
-       port: "${TMI_POSTGRES_PORT}"
-       user: "${TMI_POSTGRES_USER}"
-       password: "${TMI_POSTGRES_PASSWORD}"
-       database: "${TMI_POSTGRES_DATABASE}"
+       host: "${POSTGRES_HOST}"
+       port: "${POSTGRES_PORT}"
+       user: "${POSTGRES_USER}"
+       password: "${POSTGRES_PASSWORD}"
+       database: "${POSTGRES_DATABASE}"
        ssl_mode: "require"
 
    redis:
-     host: "${TMI_REDIS_HOST}"
-     port: "${TMI_REDIS_PORT}"
-     password: "${TMI_REDIS_PASSWORD}"
+     host: "${REDIS_HOST}"
+     port: "${REDIS_PORT}"
+     password: "${REDIS_PASSWORD}"
 
    auth:
      jwt:
-       secret: "${TMI_AUTH_JWT_SECRET}"
-       issuer: "tmi-server"
-       access_token_ttl: 60
-       refresh_token_ttl: 10080
+       secret: "${JWT_SECRET}"
+       expiration_seconds: 3600
+       signing_method: "HS256"
    ```
 
 2. **Update .gitignore** to allow config-production.yml:
@@ -499,7 +517,7 @@ heroku redis:info --app my-tmi-server
 ```bash
 # Heroku sets PORT automatically
 # Ensure your server listens on $PORT
-heroku config:set TMI_SERVER_PORT=$PORT --app my-tmi-server
+heroku config:set SERVER_PORT=$PORT --app my-tmi-server
 
 # Or use 0.0.0.0:$PORT in your code
 ```
@@ -516,7 +534,7 @@ heroku config:set TMI_SERVER_PORT=$PORT --app my-tmi-server
 heroku pg:credentials:url DATABASE --app my-tmi-server
 
 # Update environment variables
-heroku config:set TMI_POSTGRES_HOST=<host> --app my-tmi-server
+heroku config:set POSTGRES_HOST=<host> --app my-tmi-server
 # ... set other variables
 ```
 
@@ -606,11 +624,11 @@ heroku ps:scale web=4 --app my-tmi-server
 
 ## Security Considerations
 
-1. **TLS**: Heroku provides TLS termination at the load balancer. Set `TMI_SERVER_TLS_ENABLED=false`.
+1. **TLS**: Heroku provides TLS termination at the load balancer. Set `SERVER_TLS_ENABLED=false`.
 
 2. **Environment Variables**: Store all secrets in Heroku config vars, never commit them to git.
 
-3. **Database SSL**: Always use `TMI_POSTGRES_SSL_MODE=require` for Heroku Postgres.
+3. **Database SSL**: Always use `POSTGRES_SSL_MODE=require` for Heroku Postgres.
 
 4. **JWT Secret**: Generate a strong random secret:
    ```bash

@@ -53,6 +53,6 @@ func GenerateExampleConfig() error {
 	fmt.Println("2. Edit config-development.yml with your settings")
 	fmt.Println("3. For production, customize config-production.yml")
 	fmt.Println("")
-	fmt.Println("Note: Environment variables can override any YAML setting using TMI_ prefix.")
+	fmt.Println("Note: Environment variables can override any YAML setting (e.g., SERVER_PORT, POSTGRES_HOST).")
 	return nil
 }

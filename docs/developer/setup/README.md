@@ -89,7 +89,7 @@ TMI development environment consists of:
 - `.env.dev` - Environment-specific overrides
 
 ### Environment Variables
-- `TMI_DATABASE_POSTGRES_PASSWORD` - Database password
+- `POSTGRES_PASSWORD` - Database password
 - OAuth client credentials for each provider
 - JWT signing secrets
 

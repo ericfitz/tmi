@@ -28,7 +28,7 @@ var (
 	// Major version number
 	VersionMajor = "0"
 	// Minor version number
-	VersionMinor = "25"
+	VersionMinor = "26"
 	// Patch version number
 	VersionPatch = "0"
 	// GitCommit is the git commit hash from build
@@ -168,8 +168,8 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 	}
 
 	// Add optional operator info if environment variables are set
-	operatorName := os.Getenv("TMI_OPERATOR_NAME")
-	operatorContact := os.Getenv("TMI_OPERATOR_CONTACT")
+	operatorName := os.Getenv("OPERATOR_NAME")
+	operatorContact := os.Getenv("OPERATOR_CONTACT")
 	if operatorName != "" || operatorContact != "" {
 		apiInfo.Operator = struct {
 			Contact string `json:"contact"`
