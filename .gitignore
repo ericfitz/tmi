@@ -44,6 +44,12 @@
 !.claude/agents/*.md
 !.claude/tools/*.json
 
+# heroku
+!.godir
+!app.json
+!Procfile
+
+
 # Explicitly ignore unwanted files and directories
 *.log
 **/logs/**

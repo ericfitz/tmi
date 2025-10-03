@@ -1,0 +1,123 @@
+{
+  "name": "TMI Server",
+  "description": "Collaborative Threat Modeling Interface (TMI) API Server",
+  "repository": "https://github.com/YOUR_USERNAME/tmi",
+  "keywords": ["go", "threat-modeling", "security", "collaboration", "websocket"],
+  "buildpacks": [
+    {
+      "url": "heroku/go"
+    }
+  ],
+  "env": {
+    "GO_INSTALL_PACKAGE_SPEC": {
+      "description": "Specifies which Go package to build (only tmiserver binary)",
+      "value": "github.com/ericfitz/tmi/cmd/server",
+      "required": true
+    },
+    "GOVERSION": {
+      "description": "Go version to use",
+      "value": "go1.24.2",
+      "required": false
+    },
+    "TMI_SERVER_PORT": {
+      "description": "Port the server will listen on (Heroku sets this automatically via $PORT)",
+      "value": "8080",
+      "required": false
+    },
+    "TMI_SERVER_INTERFACE": {
+      "description": "Network interface to bind to",
+      "value": "0.0.0.0",
+      "required": false
+    },
+    "TMI_LOGGING_LEVEL": {
+      "description": "Logging level (debug, info, warn, error)",
+      "value": "info",
+      "required": false
+    },
+    "TMI_LOGGING_IS_DEV": {
+      "description": "Enable development mode logging",
+      "value": "false",
+      "required": false
+    },
+    "TMI_POSTGRES_HOST": {
+      "description": "PostgreSQL database host (use Heroku Postgres addon)",
+      "required": true
+    },
+    "TMI_POSTGRES_PORT": {
+      "description": "PostgreSQL database port",
+      "value": "5432",
+      "required": false
+    },
+    "TMI_POSTGRES_USER": {
+      "description": "PostgreSQL database user",
+      "required": true
+    },
+    "TMI_POSTGRES_PASSWORD": {
+      "description": "PostgreSQL database password",
+      "required": true
+    },
+    "TMI_POSTGRES_DATABASE": {
+      "description": "PostgreSQL database name",
+      "required": true
+    },
+    "TMI_POSTGRES_SSL_MODE": {
+      "description": "PostgreSQL SSL mode (require for Heroku Postgres)",
+      "value": "require",
+      "required": false
+    },
+    "TMI_REDIS_HOST": {
+      "description": "Redis host (use Heroku Redis addon)",
+      "required": true
+    },
+    "TMI_REDIS_PORT": {
+      "description": "Redis port",
+      "value": "6379",
+      "required": false
+    },
+    "TMI_REDIS_PASSWORD": {
+      "description": "Redis password",
+      "required": false
+    },
+    "TMI_AUTH_JWT_SECRET": {
+      "description": "JWT signing secret (use a strong random value)",
+      "generator": "secret",
+      "required": true
+    },
+    "TMI_AUTH_JWT_ISSUER": {
+      "description": "JWT issuer claim",
+      "value": "tmi-server",
+      "required": false
+    },
+    "TMI_AUTH_JWT_ACCESS_TOKEN_TTL": {
+      "description": "Access token TTL in minutes",
+      "value": "60",
+      "required": false
+    },
+    "TMI_AUTH_JWT_REFRESH_TOKEN_TTL": {
+      "description": "Refresh token TTL in minutes",
+      "value": "10080",
+      "required": false
+    },
+    "TMI_SERVER_TLS_ENABLED": {
+      "description": "Enable TLS (Heroku provides TLS at the load balancer)",
+      "value": "false",
+      "required": false
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0",
+      "as": "DATABASE"
+    },
+    {
+      "plan": "heroku-redis:mini",
+      "as": "REDIS"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  }
+}
