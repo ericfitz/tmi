@@ -1,1 +1,1 @@
-web: bin/server --config=config-production.yml
+web: TMI_SERVER_PORT=$PORT bin/server
