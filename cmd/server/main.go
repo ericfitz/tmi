@@ -1028,6 +1028,18 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		c.Next()
 	})
 
+	// Add middleware to provide server configuration to handlers
+	// This must be before routes are registered so config is available to all endpoints
+	r.Use(func(c *gin.Context) {
+		c.Set("tlsEnabled", config.Server.TLSEnabled)
+		c.Set("tlsSubjectName", config.Server.TLSSubjectName)
+		c.Set("serverPort", config.Server.Port)
+		c.Set("isDev", config.Logging.IsDev)
+		c.Set("operatorName", config.Operator.Name)
+		c.Set("operatorContact", config.Operator.Contact)
+		c.Next()
+	})
+
 	// Add OpenAPI validation middleware
 	if openAPIValidator, err := api.SetupOpenAPIValidation(); err != nil {
 		logger.Error("Failed to setup OpenAPI validation middleware: %v", err)
@@ -1138,17 +1150,6 @@ func main() {
 			cfg.Server.Port,
 		))
 	}
-
-	// Add middleware to provide server configuration to handlers
-	r.Use(func(c *gin.Context) {
-		c.Set("tlsEnabled", cfg.Server.TLSEnabled)
-		c.Set("tlsSubjectName", cfg.Server.TLSSubjectName)
-		c.Set("serverPort", cfg.Server.Port)
-		c.Set("isDev", cfg.Logging.IsDev)
-		c.Set("operatorName", cfg.Operator.Name)
-		c.Set("operatorContact", cfg.Operator.Contact)
-		c.Next()
-	})
 
 	// Start WebSocket hub with context for cleanup
 	apiServer.StartWebSocketHub(ctx)
