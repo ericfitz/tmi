@@ -2,11 +2,11 @@ package auth
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"time"
 
 	"github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/envutil"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
@@ -90,49 +90,49 @@ func LoadConfig() (Config, error) {
 	logger := slogging.Get()
 	logger.Info("Loading authentication configuration from environment variables")
 
-	redisDB, err := strconv.Atoi(getEnv("REDIS_DB", "0"))
+	redisDB, err := strconv.Atoi(envutil.Get("REDIS_DB", "0"))
 	if err != nil {
-		logger.Warn("Invalid REDIS_DB value, using default value=%v default=%v", getEnv("REDIS_DB", "0"), 0)
+		logger.Warn("Invalid REDIS_DB value, using default value=%v default=%v", envutil.Get("REDIS_DB", "0"), 0)
 		redisDB = 0
 	}
 
-	jwtExpiration, err := strconv.Atoi(getEnv("JWT_EXPIRATION_SECONDS", "3600"))
+	jwtExpiration, err := strconv.Atoi(envutil.Get("AUTH_JWT_EXPIRATION_SECONDS", envutil.Get("JWT_EXPIRATION_SECONDS", "3600")))
 	if err != nil {
-		logger.Warn("Invalid JWT_EXPIRATION_SECONDS value, using default value=%v default=%v", getEnv("JWT_EXPIRATION_SECONDS", "3600"), 3600)
+		logger.Warn("Invalid JWT_EXPIRATION_SECONDS value, using default value=%v default=%v", envutil.Get("JWT_EXPIRATION_SECONDS", "3600"), 3600)
 		jwtExpiration = 3600
 	}
 
 	config := Config{
 		Postgres: PostgresConfig{
-			Host:     getEnv("POSTGRES_HOST", "localhost"),
-			Port:     getEnv("POSTGRES_PORT", "5432"),
-			User:     getEnv("POSTGRES_USER", "postgres"),
-			Password: getEnv("POSTGRES_PASSWORD", "postgres"),
-			Database: getEnv("POSTGRES_DB", "tmi"),
-			SSLMode:  getEnv("POSTGRES_SSLMODE", "disable"),
+			Host:     envutil.Get("POSTGRES_HOST", "localhost"),
+			Port:     envutil.Get("POSTGRES_PORT", "5432"),
+			User:     envutil.Get("POSTGRES_USER", "postgres"),
+			Password: envutil.Get("POSTGRES_PASSWORD", "postgres"),
+			Database: envutil.Get("POSTGRES_DATABASE", envutil.Get("POSTGRES_DB", "tmi")),
+			SSLMode:  envutil.Get("POSTGRES_SSL_MODE", envutil.Get("POSTGRES_SSLMODE", "disable")),
 		},
 		Redis: RedisConfig{
-			Host:     getEnv("REDIS_HOST", "localhost"),
-			Port:     getEnv("REDIS_PORT", "6379"),
-			Password: getEnv("REDIS_PASSWORD", ""),
+			Host:     envutil.Get("REDIS_HOST", "localhost"),
+			Port:     envutil.Get("REDIS_PORT", "6379"),
+			Password: envutil.Get("REDIS_PASSWORD", ""),
 			DB:       redisDB,
 		},
 		JWT: JWTConfig{
-			Secret:              getEnv("JWT_SECRET", "your-secret-key"),
+			Secret:              envutil.Get("AUTH_JWT_SECRET", envutil.Get("JWT_SECRET", "your-secret-key")),
 			ExpirationSeconds:   jwtExpiration,
-			SigningMethod:       getEnv("JWT_SIGNING_METHOD", "HS256"),
-			KeyID:               getEnv("JWT_KEY_ID", "1"),
-			RSAPrivateKeyPath:   getEnv("JWT_RSA_PRIVATE_KEY_PATH", ""),
-			RSAPublicKeyPath:    getEnv("JWT_RSA_PUBLIC_KEY_PATH", ""),
-			RSAPrivateKey:       getEnv("JWT_RSA_PRIVATE_KEY", ""),
-			RSAPublicKey:        getEnv("JWT_RSA_PUBLIC_KEY", ""),
-			ECDSAPrivateKeyPath: getEnv("JWT_ECDSA_PRIVATE_KEY_PATH", ""),
-			ECDSAPublicKeyPath:  getEnv("JWT_ECDSA_PUBLIC_KEY_PATH", ""),
-			ECDSAPrivateKey:     getEnv("JWT_ECDSA_PRIVATE_KEY", ""),
-			ECDSAPublicKey:      getEnv("JWT_ECDSA_PUBLIC_KEY", ""),
+			SigningMethod:       envutil.Get("AUTH_JWT_SIGNING_METHOD", envutil.Get("JWT_SIGNING_METHOD", "HS256")),
+			KeyID:               envutil.Get("AUTH_JWT_KEY_ID", envutil.Get("JWT_KEY_ID", "1")),
+			RSAPrivateKeyPath:   envutil.Get("AUTH_JWT_RSA_PRIVATE_KEY_PATH", envutil.Get("JWT_RSA_PRIVATE_KEY_PATH", "")),
+			RSAPublicKeyPath:    envutil.Get("AUTH_JWT_RSA_PUBLIC_KEY_PATH", envutil.Get("JWT_RSA_PUBLIC_KEY_PATH", "")),
+			RSAPrivateKey:       envutil.Get("AUTH_JWT_RSA_PRIVATE_KEY", envutil.Get("JWT_RSA_PRIVATE_KEY", "")),
+			RSAPublicKey:        envutil.Get("AUTH_JWT_RSA_PUBLIC_KEY", envutil.Get("JWT_RSA_PUBLIC_KEY", "")),
+			ECDSAPrivateKeyPath: envutil.Get("AUTH_JWT_ECDSA_PRIVATE_KEY_PATH", envutil.Get("JWT_ECDSA_PRIVATE_KEY_PATH", "")),
+			ECDSAPublicKeyPath:  envutil.Get("AUTH_JWT_ECDSA_PUBLIC_KEY_PATH", envutil.Get("JWT_ECDSA_PUBLIC_KEY_PATH", "")),
+			ECDSAPrivateKey:     envutil.Get("AUTH_JWT_ECDSA_PRIVATE_KEY", envutil.Get("JWT_ECDSA_PRIVATE_KEY", "")),
+			ECDSAPublicKey:      envutil.Get("AUTH_JWT_ECDSA_PUBLIC_KEY", envutil.Get("JWT_ECDSA_PUBLIC_KEY", "")),
 		},
 		OAuth: OAuthConfig{
-			CallbackURL: getEnv("OAUTH_CALLBACK_URL", "http://localhost:8080/oauth2/callback"),
+			CallbackURL: envutil.Get("AUTH_OAUTH_CALLBACK_URL", envutil.Get("OAUTH_CALLBACK_URL", "http://localhost:8080/oauth2/callback")),
 			Providers:   loadOAuthProviders(),
 		},
 	}
@@ -170,45 +170,45 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 	providers := make(map[string]OAuthProviderConfig)
 
 	// Google OAuth configuration
-	if getEnv("OAUTH_GOOGLE_ENABLED", "true") == "true" {
+	if envutil.Get("AUTH_OAUTH_PROVIDERS_GOOGLE_ENABLED", envutil.Get("OAUTH_GOOGLE_ENABLED", "true")) == "true" {
 		logger.Debug("Configuring Google OAuth provider")
 		providers["google"] = OAuthProviderConfig{
 			ID:               "google",
 			Name:             "Google",
 			Enabled:          true,
 			Icon:             "fa-brands fa-google",
-			ClientID:         getEnv("OAUTH_GOOGLE_CLIENT_ID", ""),
-			ClientSecret:     getEnv("OAUTH_GOOGLE_CLIENT_SECRET", ""),
-			AuthorizationURL: getEnv("OAUTH_GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/auth"),
-			TokenURL:         getEnv("OAUTH_GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
+			ClientID:         envutil.Get("AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_ID", envutil.Get("OAUTH_GOOGLE_CLIENT_ID", "")),
+			ClientSecret:     envutil.Get("AUTH_OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET", envutil.Get("OAUTH_GOOGLE_CLIENT_SECRET", "")),
+			AuthorizationURL: envutil.Get("AUTH_OAUTH_PROVIDERS_GOOGLE_AUTHORIZATION_URL", envutil.Get("OAUTH_GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/auth")),
+			TokenURL:         envutil.Get("AUTH_OAUTH_PROVIDERS_GOOGLE_TOKEN_URL", envutil.Get("OAUTH_GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token")),
 			UserInfo: []UserInfoEndpoint{
 				{
-					URL:    getEnv("OAUTH_GOOGLE_USERINFO_URL", "https://www.googleapis.com/oauth2/v3/userinfo"),
+					URL:    envutil.Get("AUTH_OAUTH_PROVIDERS_GOOGLE_USERINFO_URL", envutil.Get("OAUTH_GOOGLE_USERINFO_URL", "https://www.googleapis.com/oauth2/v3/userinfo")),
 					Claims: map[string]string{}, // Will use defaults
 				},
 			},
-			Issuer:           getEnv("OAUTH_GOOGLE_ISSUER", "https://accounts.google.com"),
-			JWKSURL:          getEnv("OAUTH_GOOGLE_JWKS_URL", "https://www.googleapis.com/oauth2/v3/certs"),
+			Issuer:           envutil.Get("AUTH_OAUTH_PROVIDERS_GOOGLE_ISSUER", envutil.Get("OAUTH_GOOGLE_ISSUER", "https://accounts.google.com")),
+			JWKSURL:          envutil.Get("AUTH_OAUTH_PROVIDERS_GOOGLE_JWKS_URL", envutil.Get("OAUTH_GOOGLE_JWKS_URL", "https://www.googleapis.com/oauth2/v3/certs")),
 			Scopes:           []string{"openid", "profile", "email"},
 			AdditionalParams: map[string]string{},
 		}
 	}
 
 	// GitHub OAuth configuration
-	if getEnv("OAUTH_GITHUB_ENABLED", "true") == "true" {
+	if envutil.Get("AUTH_OAUTH_PROVIDERS_GITHUB_ENABLED", envutil.Get("OAUTH_GITHUB_ENABLED", "true")) == "true" {
 		logger.Debug("Configuring GitHub OAuth provider")
 		providers["github"] = OAuthProviderConfig{
 			ID:               "github",
 			Name:             "GitHub",
 			Enabled:          true,
 			Icon:             "fa-brands fa-github",
-			ClientID:         getEnv("OAUTH_GITHUB_CLIENT_ID", ""),
-			ClientSecret:     getEnv("OAUTH_GITHUB_CLIENT_SECRET", ""),
-			AuthorizationURL: getEnv("OAUTH_GITHUB_AUTH_URL", "https://github.com/login/oauth/authorize"),
-			TokenURL:         getEnv("OAUTH_GITHUB_TOKEN_URL", "https://github.com/login/oauth/access_token"),
+			ClientID:         envutil.Get("AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_ID", envutil.Get("OAUTH_GITHUB_CLIENT_ID", "")),
+			ClientSecret:     envutil.Get("AUTH_OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET", envutil.Get("OAUTH_GITHUB_CLIENT_SECRET", "")),
+			AuthorizationURL: envutil.Get("AUTH_OAUTH_PROVIDERS_GITHUB_AUTHORIZATION_URL", envutil.Get("OAUTH_GITHUB_AUTH_URL", "https://github.com/login/oauth/authorize")),
+			TokenURL:         envutil.Get("AUTH_OAUTH_PROVIDERS_GITHUB_TOKEN_URL", envutil.Get("OAUTH_GITHUB_TOKEN_URL", "https://github.com/login/oauth/access_token")),
 			UserInfo: []UserInfoEndpoint{
 				{
-					URL: getEnv("OAUTH_GITHUB_USERINFO_URL", "https://api.github.com/user"),
+					URL: envutil.Get("AUTH_OAUTH_PROVIDERS_GITHUB_USERINFO_URL", envutil.Get("OAUTH_GITHUB_USERINFO_URL", "https://api.github.com/user")),
 					Claims: map[string]string{
 						"subject_claim": "id",
 						"name_claim":    "name",
@@ -225,26 +225,26 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 			},
 			Scopes:           []string{"user:email"},
 			AdditionalParams: map[string]string{},
-			AuthHeaderFormat: "token %s",
-			AcceptHeader:     "application/json",
+			AuthHeaderFormat: envutil.Get("AUTH_OAUTH_PROVIDERS_GITHUB_AUTH_HEADER_FORMAT", "token %s"),
+			AcceptHeader:     envutil.Get("AUTH_OAUTH_PROVIDERS_GITHUB_ACCEPT_HEADER", "application/json"),
 		}
 	}
 
 	// Microsoft OAuth configuration
-	if getEnv("OAUTH_MICROSOFT_ENABLED", "true") == "true" {
+	if envutil.Get("AUTH_OAUTH_PROVIDERS_MICROSOFT_ENABLED", envutil.Get("OAUTH_MICROSOFT_ENABLED", "true")) == "true" {
 		logger.Debug("Configuring Microsoft OAuth provider")
 		providers["microsoft"] = OAuthProviderConfig{
 			ID:               "microsoft",
 			Name:             "Microsoft",
 			Enabled:          true,
 			Icon:             "fa-brands fa-microsoft",
-			ClientID:         getEnv("OAUTH_MICROSOFT_CLIENT_ID", ""),
-			ClientSecret:     getEnv("OAUTH_MICROSOFT_CLIENT_SECRET", ""),
-			AuthorizationURL: getEnv("OAUTH_MICROSOFT_AUTH_URL", "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"),
-			TokenURL:         getEnv("OAUTH_MICROSOFT_TOKEN_URL", "https://login.microsoftonline.com/common/oauth2/v2.0/token"),
+			ClientID:         envutil.Get("AUTH_OAUTH_PROVIDERS_MICROSOFT_CLIENT_ID", envutil.Get("OAUTH_MICROSOFT_CLIENT_ID", "")),
+			ClientSecret:     envutil.Get("AUTH_OAUTH_PROVIDERS_MICROSOFT_CLIENT_SECRET", envutil.Get("OAUTH_MICROSOFT_CLIENT_SECRET", "")),
+			AuthorizationURL: envutil.Get("AUTH_OAUTH_PROVIDERS_MICROSOFT_AUTHORIZATION_URL", envutil.Get("OAUTH_MICROSOFT_AUTH_URL", "https://login.microsoftonline.com/common/oauth2/v2.0/authorize")),
+			TokenURL:         envutil.Get("AUTH_OAUTH_PROVIDERS_MICROSOFT_TOKEN_URL", envutil.Get("OAUTH_MICROSOFT_TOKEN_URL", "https://login.microsoftonline.com/common/oauth2/v2.0/token")),
 			UserInfo: []UserInfoEndpoint{
 				{
-					URL: getEnv("OAUTH_MICROSOFT_USERINFO_URL", "https://graph.microsoft.com/v1.0/me"),
+					URL: envutil.Get("AUTH_OAUTH_PROVIDERS_MICROSOFT_USERINFO_URL", envutil.Get("OAUTH_MICROSOFT_USERINFO_URL", "https://graph.microsoft.com/v1.0/me")),
 					Claims: map[string]string{
 						"subject_claim":        "id",
 						"email_claim":          "mail",
@@ -255,8 +255,8 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 					},
 				},
 			},
-			Issuer:           getEnv("OAUTH_MICROSOFT_ISSUER", "https://login.microsoftonline.com/common/v2.0"),
-			JWKSURL:          getEnv("OAUTH_MICROSOFT_JWKS_URL", "https://login.microsoftonline.com/common/discovery/v2.0/keys"),
+			Issuer:           envutil.Get("AUTH_OAUTH_PROVIDERS_MICROSOFT_ISSUER", envutil.Get("OAUTH_MICROSOFT_ISSUER", "https://login.microsoftonline.com/common/v2.0")),
+			JWKSURL:          envutil.Get("AUTH_OAUTH_PROVIDERS_MICROSOFT_JWKS_URL", envutil.Get("OAUTH_MICROSOFT_JWKS_URL", "https://login.microsoftonline.com/common/discovery/v2.0/keys")),
 			Scopes:           []string{"openid", "profile", "email", "User.Read"},
 			AdditionalParams: map[string]string{},
 		}
@@ -275,14 +275,6 @@ func getEnabledProviderIDs(providers map[string]OAuthProviderConfig) []string {
 		}
 	}
 	return enabled
-}
-
-// Helper function to get environment variables with fallback
-func getEnv(key, fallback string) string {
-	if value, exists := os.LookupEnv(key); exists {
-		return value
-	}
-	return fallback
 }
 
 // ValidateConfig validates the configuration
