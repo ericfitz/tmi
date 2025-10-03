@@ -1145,6 +1145,8 @@ func main() {
 		c.Set("tlsSubjectName", cfg.Server.TLSSubjectName)
 		c.Set("serverPort", cfg.Server.Port)
 		c.Set("isDev", cfg.Logging.IsDev)
+		c.Set("operatorName", cfg.Operator.Name)
+		c.Set("operatorContact", cfg.Operator.Contact)
 		c.Next()
 	})
 

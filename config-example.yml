@@ -160,3 +160,7 @@ logging:
     max_size_mb: 100                # Max size of log files in MB
     max_backups: 10                 # Max number of log file backups
     also_log_to_console: true       # Also log to console/stdout
+
+operator:
+    name: ""                        # Operator/maintainer name (set via env var OPERATOR_NAME)
+    contact: ""                     # Operator contact info - email/URL (set via env var OPERATOR_CONTACT)

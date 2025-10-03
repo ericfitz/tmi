@@ -20,6 +20,7 @@ type Config struct {
 	Auth      AuthConfig      `yaml:"auth"`
 	WebSocket WebSocketConfig `yaml:"websocket"`
 	Logging   LoggingConfig   `yaml:"logging"`
+	Operator  OperatorConfig  `yaml:"operator"`
 }
 
 // ServerConfig holds HTTP server configuration
@@ -127,6 +128,12 @@ type WebSocketConfig struct {
 	InactivityTimeoutSeconds int `yaml:"inactivity_timeout_seconds" env:"WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS"`
 }
 
+// OperatorConfig holds operator/maintainer information
+type OperatorConfig struct {
+	Name    string `yaml:"name" env:"OPERATOR_NAME"`
+	Contact string `yaml:"contact" env:"OPERATOR_CONTACT"`
+}
+
 // Load loads configuration from YAML file with environment variable overrides
 func Load(configFile string) (*Config, error) {
 	config := getDefaultConfig()
@@ -211,6 +218,10 @@ func getDefaultConfig() *Config {
 			MaxBackups:                  10,
 			AlsoLogToConsole:            true,
 			SuppressUnauthenticatedLogs: true,
+		},
+		Operator: OperatorConfig{
+			Name:    "",
+			Contact: "",
 		},
 	}
 }

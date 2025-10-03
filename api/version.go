@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -28,7 +27,7 @@ var (
 	// Major version number
 	VersionMajor = "0"
 	// Minor version number
-	VersionMinor = "26"
+	VersionMinor = "27"
 	// Patch version number
 	VersionPatch = "0"
 	// GitCommit is the git commit hash from build
@@ -167,18 +166,23 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 		},
 	}
 
-	// Add optional operator info if environment variables are set
-	operatorName := os.Getenv("OPERATOR_NAME")
-	operatorContact := os.Getenv("OPERATOR_CONTACT")
-	if operatorName != "" || operatorContact != "" {
+	// Add optional operator info from config (stored in context)
+	operatorName, _ := c.Get("operatorName")
+	operatorContact, _ := c.Get("operatorContact")
+
+	// Convert to strings safely
+	nameStr, nameOk := operatorName.(string)
+	contactStr, contactOk := operatorContact.(string)
+
+	if (nameOk && nameStr != "") || (contactOk && contactStr != "") {
 		apiInfo.Operator = struct {
 			Contact string `json:"contact"`
 			Name    string `json:"name"`
 		}{
-			Name:    operatorName,
-			Contact: operatorContact,
+			Name:    nameStr,
+			Contact: contactStr,
 		}
-		logger.Debug("Added operator info: name=%s, contact=%s", operatorName, operatorContact)
+		logger.Debug("Added operator info: name=%s, contact=%s", nameStr, contactStr)
 	}
 
 	// Note: WebSocket information is now documented in AsyncAPI specification
