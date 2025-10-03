@@ -143,6 +143,7 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 			c.Request.URL.Path == "/apple-touch-icon.png" ||
 			c.Request.URL.Path == "/favicon-16x16.png" ||
 			c.Request.URL.Path == "/favicon-32x32.png" ||
+			c.Request.URL.Path == "/favicon-96x96.png" ||
 			c.Request.URL.Path == "/.well-known/openid-configuration" ||
 			c.Request.URL.Path == "/.well-known/oauth-authorization-server" ||
 			c.Request.URL.Path == "/.well-known/jwks.json"
@@ -931,6 +932,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.StaticFile("/apple-touch-icon.png", "./static/apple-touch-icon.png")
 	r.StaticFile("/favicon-16x16.png", "./static/favicon-16x16.png")
 	r.StaticFile("/favicon-32x32.png", "./static/favicon-32x32.png")
+	r.StaticFile("/favicon-96x96.png", "./static/favicon-96x96.png")
 
 	// Security middleware with public path handling
 	r.Use(PublicPathsMiddleware()) // Identify public paths first
