@@ -1,0 +1,16 @@
+# Robots.txt for TMI (Collaborative Threat Modeling Interface)
+# This is a collaborative threat modeling application
+
+User-agent: *
+# Allow only root API info and .well-known discovery endpoints
+# All other endpoints require authentication or are not index-worthy
+Disallow: /oauth2/
+Disallow: /threat_models/
+Disallow: /collaboration/
+Disallow: /api/
+Disallow: /static/
+Allow: /.well-known/
+Allow: /$
+
+# Sitemap - update this URL to match your production domain
+# Sitemap: https://your-domain.com/sitemap.xml

@@ -124,7 +124,6 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 
 		// Public paths that don't require authentication
 		isPublic := c.Request.URL.Path == "/" ||
-			c.Request.URL.Path == "/version" ||
 			c.Request.URL.Path == "/api/server-info" ||
 			c.Request.URL.Path == "/oauth2/callback" ||
 			c.Request.URL.Path == "/oauth2/providers" ||
@@ -132,6 +131,7 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 			c.Request.URL.Path == "/oauth2/authorize" ||
 			strings.HasPrefix(c.Request.URL.Path, "/oauth2/token") ||
 			c.Request.URL.Path == "/oauth2/revoke" ||
+			c.Request.URL.Path == "/robots.txt" ||
 			c.Request.URL.Path == "/site.webmanifest" ||
 			c.Request.URL.Path == "/favicon.ico" ||
 			c.Request.URL.Path == "/favicon.svg" ||
@@ -921,6 +921,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 
 	// Serve static files
 	r.Static("/static", "./static")
+	r.StaticFile("/robots.txt", "./static/robots.txt")
 	r.StaticFile("/favicon.ico", "./static/favicon.ico")
 	r.StaticFile("/site.webmanifest", "./static/site.webmanifest")
 	r.StaticFile("/web-app-manifest-192x192.png", "./static/web-app-manifest-192x192.png")
