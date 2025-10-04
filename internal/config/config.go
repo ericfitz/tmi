@@ -287,8 +287,8 @@ func getDefaultOAuthProviders() map[string]OAuthProviderConfig {
 			Icon:             "fa-brands fa-microsoft",
 			ClientID:         "",
 			ClientSecret:     "",
-			AuthorizationURL: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-			TokenURL:         "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+			AuthorizationURL: "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize",
+			TokenURL:         "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
 			UserInfo: []UserInfoEndpoint{
 				{
 					URL: "https://graph.microsoft.com/v1.0/me",
@@ -302,8 +302,8 @@ func getDefaultOAuthProviders() map[string]OAuthProviderConfig {
 					},
 				},
 			},
-			Issuer:           "https://login.microsoftonline.com/common/v2.0",
-			JWKSURL:          "https://login.microsoftonline.com/common/discovery/v2.0/keys",
+			Issuer:           "https://login.microsoftonline.com/consumers/v2.0",
+			JWKSURL:          "https://login.microsoftonline.com/consumers/discovery/v2.0/keys",
 			Scopes:           []string{"openid", "profile", "email", "User.Read"},
 			AdditionalParams: map[string]string{},
 		},

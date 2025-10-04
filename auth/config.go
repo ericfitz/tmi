@@ -248,8 +248,8 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 			Icon:             "fa-brands fa-microsoft",
 			ClientID:         envutil.Get("OAUTH_PROVIDERS_MICROSOFT_CLIENT_ID", ""),
 			ClientSecret:     envutil.Get("OAUTH_PROVIDERS_MICROSOFT_CLIENT_SECRET", ""),
-			AuthorizationURL: envutil.Get("OAUTH_PROVIDERS_MICROSOFT_AUTHORIZATION_URL", "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"),
-			TokenURL:         envutil.Get("OAUTH_PROVIDERS_MICROSOFT_TOKEN_URL", "https://login.microsoftonline.com/common/oauth2/v2.0/token"),
+			AuthorizationURL: envutil.Get("OAUTH_PROVIDERS_MICROSOFT_AUTHORIZATION_URL", "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"),
+			TokenURL:         envutil.Get("OAUTH_PROVIDERS_MICROSOFT_TOKEN_URL", "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"),
 			UserInfo: []UserInfoEndpoint{
 				{
 					URL: envutil.Get("OAUTH_PROVIDERS_MICROSOFT_USERINFO_URL", "https://graph.microsoft.com/v1.0/me"),
@@ -263,8 +263,8 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 					},
 				},
 			},
-			Issuer:           envutil.Get("OAUTH_PROVIDERS_MICROSOFT_ISSUER", "https://login.microsoftonline.com/common/v2.0"),
-			JWKSURL:          envutil.Get("OAUTH_PROVIDERS_MICROSOFT_JWKS_URL", "https://login.microsoftonline.com/common/discovery/v2.0/keys"),
+			Issuer:           envutil.Get("OAUTH_PROVIDERS_MICROSOFT_ISSUER", "https://login.microsoftonline.com/consumers/v2.0"),
+			JWKSURL:          envutil.Get("OAUTH_PROVIDERS_MICROSOFT_JWKS_URL", "https://login.microsoftonline.com/consumers/discovery/v2.0/keys"),
 			Scopes:           []string{"openid", "profile", "email", "User.Read"},
 			AdditionalParams: map[string]string{},
 		}

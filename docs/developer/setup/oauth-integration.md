@@ -43,7 +43,7 @@ class TMIOAuth {
       },
       microsoft: {
         authUrl:
-          "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+          "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize",
         clientId: "your-microsoft-client-id",
         scopes: "openid profile email User.Read",
       },
@@ -273,25 +273,25 @@ oauth:
       id: "provider_id"
       name: "Display Name"
       enabled: true
-      icon: "fa-brands fa-provider"  # Font Awesome icon class
+      icon: "fa-brands fa-provider" # Font Awesome icon class
       client_id: "your-client-id"
       client_secret: "your-client-secret"
-      
+
       # OAuth endpoints
       authorization_url: "https://provider.com/oauth/authorize"
       token_url: "https://provider.com/oauth/token"
-      
+
       # Optional HTTP headers for API requests
-      auth_header_format: "Bearer %s"  # Default: "Bearer %s"
+      auth_header_format: "Bearer %s" # Default: "Bearer %s"
       accept_header: "application/json" # Default: "application/json"
-      
+
       # UserInfo endpoints and claim mapping
       userinfo:
         - url: "https://api.provider.com/user"
           claims:
-            subject_claim: "id"        # Maps to user ID
-            email_claim: "email"       # Maps to email
-            name_claim: "name"         # Maps to display name
+            subject_claim: "id" # Maps to user ID
+            email_claim: "email" # Maps to email
+            name_claim: "name" # Maps to display name
             # Optional claims:
             given_name_claim: "first_name"
             family_name_claim: "last_name"
@@ -330,7 +330,7 @@ userinfo:
   # Second endpoint - for additional data
   - url: "https://api.provider.com/user/emails"
     claims:
-      email_claim: "[0].address"       # First email in array
+      email_claim: "[0].address" # First email in array
       email_verified_claim: "[0].verified"
 ```
 
@@ -350,7 +350,7 @@ google:
   token_url: "https://oauth2.googleapis.com/token"
   userinfo:
     - url: "https://www.googleapis.com/oauth2/v3/userinfo"
-      claims: {}  # Uses defaults: sub, email, name
+      claims: {} # Uses defaults: sub, email, name
   issuer: "https://accounts.google.com"
   jwks_url: "https://www.googleapis.com/oauth2/v3/certs"
   scopes: ["openid", "profile", "email"]
@@ -368,7 +368,7 @@ github:
   client_secret: "${OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET}"
   authorization_url: "https://github.com/login/oauth/authorize"
   token_url: "https://github.com/login/oauth/access_token"
-  auth_header_format: "token %s"  # GitHub uses "token" instead of "Bearer"
+  auth_header_format: "token %s" # GitHub uses "token" instead of "Bearer"
   accept_header: "application/json"
   userinfo:
     # Primary user info
@@ -380,7 +380,7 @@ github:
     # Email info (GitHub returns array of emails)
     - url: "https://api.github.com/user/emails"
       claims:
-        email_claim: "[0].email"           # First email in array
+        email_claim: "[0].email" # First email in array
         email_verified_claim: "[0].verified"
   scopes: ["user:email"]
 ```
@@ -395,18 +395,18 @@ microsoft:
   icon: "fa-brands fa-microsoft"
   client_id: "${OAUTH_PROVIDERS_MICROSOFT_CLIENT_ID}"
   client_secret: "${OAUTH_PROVIDERS_MICROSOFT_CLIENT_SECRET}"
-  authorization_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
-  token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+  authorization_url: "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"
+  token_url: "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
   userinfo:
     - url: "https://graph.microsoft.com/v1.0/me"
       claims:
         subject_claim: "id"
-        email_claim: "mail"          # Microsoft uses "mail" not "email"
+        email_claim: "mail" # Microsoft uses "mail" not "email"
         name_claim: "displayName"
         given_name_claim: "givenName"
         family_name_claim: "surname"
         email_verified_claim: "true" # Literal - MS accounts always verified
-  issuer: "https://login.microsoftonline.com/common/v2.0"
+  issuer: "https://login.microsoftonline.com/consumers/v2.0"
   jwks_url: "https://login.microsoftonline.com/common/discovery/v2.0/keys"
   scopes: ["openid", "profile", "email", "User.Read"]
 ```
@@ -416,16 +416,19 @@ microsoft:
 To add a new OAuth provider:
 
 1. **Identify the OAuth endpoints**:
+
    - Authorization URL (where users log in)
    - Token URL (where you exchange codes for tokens)
    - UserInfo URL(s) (where you get user data)
 
 2. **Determine the claim mapping**:
+
    - Use the provider's API documentation to find field names
    - Map provider fields to TMI's standard fields
    - Test the API to see the actual response structure
 
 3. **Configure special requirements**:
+
    - Custom auth headers (e.g., GitHub uses "token" instead of "Bearer")
    - Multiple endpoints for complete user data
    - Literal values for fields not provided by the API
@@ -561,6 +564,7 @@ Authorization: Bearer your_access_token
 #### Microsoft Configuration Notes
 
 **Important**: Microsoft uses non-standard field names in their API responses:
+
 - Email is returned as `mail` instead of `email`
 - User ID is returned as `id`
 - Display name is returned as `displayName`
@@ -572,9 +576,9 @@ microsoft:
   userinfo:
     - url: "https://graph.microsoft.com/v1.0/me"
       claims:
-        email_claim: "mail"          # Microsoft-specific field name
-        name_claim: "displayName"    # Microsoft-specific field name
-        subject_claim: "id"          # Microsoft-specific field name
+        email_claim: "mail" # Microsoft-specific field name
+        name_claim: "displayName" # Microsoft-specific field name
+        subject_claim: "id" # Microsoft-specific field name
 ```
 
 #### Microsoft Endpoint Configuration Options
@@ -582,6 +586,7 @@ microsoft:
 Microsoft Azure AD supports different endpoints depending on which types of accounts you want to support. Update your TMI configuration accordingly:
 
 ##### Option 1: All Microsoft Accounts (Work/School + Personal)
+
 ```yaml
 # TMI config-development.yml
 microsoft:
@@ -589,11 +594,14 @@ microsoft:
   token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token"
   issuer: "https://login.microsoftonline.com/common/v2.0"
 ```
+
 **Azure AD App Configuration:**
+
 - In App Manifest: `"signInAudience": "AzureADandPersonalMicrosoftAccount"`
 - In Portal: Select "Accounts in any organizational directory and personal Microsoft accounts"
 
 ##### Option 2: Personal Microsoft Accounts Only
+
 ```yaml
 # TMI config-development.yml
 microsoft:
@@ -601,11 +609,14 @@ microsoft:
   token_url: "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
   issuer: "https://login.microsoftonline.com/consumers/v2.0"
 ```
+
 **Azure AD App Configuration:**
+
 - In App Manifest: `"signInAudience": "PersonalMicrosoftAccount"`
 - In Portal: Select "Personal Microsoft accounts only"
 
 ##### Option 3: Work/School Accounts Only
+
 ```yaml
 # TMI config-development.yml
 microsoft:
@@ -613,11 +624,14 @@ microsoft:
   token_url: "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
   issuer: "https://login.microsoftonline.com/organizations/v2.0"
 ```
+
 **Azure AD App Configuration:**
+
 - In App Manifest: `"signInAudience": "AzureADMultipleOrgs"`
 - In Portal: Select "Accounts in any organizational directory"
 
 ##### Option 4: Specific Azure AD Tenant
+
 ```yaml
 # TMI config-development.yml
 microsoft:
@@ -625,12 +639,15 @@ microsoft:
   token_url: "https://login.microsoftonline.com/{your-tenant-id}/oauth2/v2.0/token"
   issuer: "https://login.microsoftonline.com/{your-tenant-id}/v2.0"
 ```
+
 **Azure AD App Configuration:**
+
 - In App Manifest: `"signInAudience": "AzureADMyOrg"`
 - In Portal: Select "Accounts in this organizational directory only"
 - Replace `{your-tenant-id}` with your actual Azure AD tenant ID (GUID)
 
 **Important Notes:**
+
 - The endpoint type MUST match your Azure AD app's `signInAudience` configuration
 - Using `/common/` with `PersonalMicrosoftAccount` will result in a "userAudience configuration" error
 - The jwks_url can remain as `/common/discovery/v2.0/keys` regardless of the endpoint type
@@ -644,7 +661,7 @@ microsoft:
 3. **"Failed to exchange code"**: Verify redirect_uri matches exactly between OAuth provider and your request
 4. **"Unauthorized"**: Check that Bearer token is included in API requests
 5. **"Token expired"**: Implement token refresh logic
-6. **"The request is not valid for the application's 'userAudience' configuration"** (Microsoft): 
+6. **"The request is not valid for the application's 'userAudience' configuration"** (Microsoft):
    - This error occurs when your Azure AD app's `signInAudience` doesn't match the endpoint type
    - Solution: Either update your Azure AD app's `signInAudience` setting or change the endpoint URLs in your TMI configuration
    - See the Microsoft OAuth Setup section above for the correct endpoint/audience combinations
@@ -656,6 +673,7 @@ microsoft:
 This error usually means the OAuth provider returns the email in a non-standard field. Check the provider's API response:
 
 1. **Test the API manually**:
+
    ```bash
    # Get an access token first, then:
    curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
@@ -667,18 +685,20 @@ This error usually means the OAuth provider returns the email in a non-standard 
    userinfo:
      - url: "https://api.provider.com/user"
        claims:
-         email_claim: "mail"  # If provider uses "mail" instead of "email"
+         email_claim: "mail" # If provider uses "mail" instead of "email"
    ```
 
 #### Debugging Claim Mapping
 
 1. **Enable debug logging** to see the raw API responses:
+
    ```yaml
    logging:
      level: debug
    ```
 
 2. **Common mapping patterns**:
+
    - Nested fields: `"user.profile.email"`
    - Array access: `"emails[0].address"`
    - First array item: `"[0].email"`
@@ -688,8 +708,8 @@ This error usually means the OAuth provider returns the email in a non-standard 
    If an API returns:
    ```json
    [
-     {"email": "user@example.com", "primary": true},
-     {"email": "alt@example.com", "primary": false}
+     { "email": "user@example.com", "primary": true },
+     { "email": "alt@example.com", "primary": false }
    ]
    ```
    Use: `email_claim: "[0].email"`
@@ -708,8 +728,8 @@ accept_header: "application/vnd.github.v3+json"
 ### Debug Mode
 
 Enable debug logging by checking network requests in browser dev tools:
-
-- OAuth authorization request to provider
-- Callback with authorization code
-- Token exchange request to TMI server
-- API requests with Bearer token
+  - OAuth authorization request to provider
+  - Callback with authorization code
+  - Token exchange request to TMI server
+  - API requests with Bearer token
+```

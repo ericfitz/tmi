@@ -12,155 +12,156 @@
 #
 
 server:
-    port: "8080"                    # Server port
-    interface: "0.0.0.0"            # Interface to bind to (0.0.0.0 for all)
-    read_timeout: "5s"              # HTTP read timeout
-    write_timeout: "10s"            # HTTP write timeout  
-    idle_timeout: "1m0s"            # HTTP idle timeout
-    tls_enabled: false              # Enable HTTPS/TLS
-    tls_cert_file: ""               # Path to TLS certificate file
-    tls_key_file: ""                # Path to TLS key file
-    tls_subject_name: "localhost"   # TLS certificate subject name
-    http_to_https_redirect: true    # Redirect HTTP to HTTPS when TLS enabled
+  port: "8080" # Server port
+  interface: "0.0.0.0" # Interface to bind to (0.0.0.0 for all)
+  read_timeout: "5s" # HTTP read timeout
+  write_timeout: "10s" # HTTP write timeout
+  idle_timeout: "1m0s" # HTTP idle timeout
+  tls_enabled: false # Enable HTTPS/TLS
+  tls_cert_file: "" # Path to TLS certificate file
+  tls_key_file: "" # Path to TLS key file
+  tls_subject_name: "localhost" # TLS certificate subject name
+  http_to_https_redirect: true # Redirect HTTP to HTTPS when TLS enabled
 
 database:
-    postgres:
-        host: "localhost"           # PostgreSQL host
-        port: "5432"                # PostgreSQL port
-        user: "postgres"            # PostgreSQL username
-        password: ""                # PostgreSQL password (set via env var)
-        database: "tmi"             # PostgreSQL database name
-        sslmode: "disable"          # SSL mode (disable/require/prefer)
-    redis:
-        host: "localhost"           # Redis host
-        port: "6379"                # Redis port
-        password: ""                # Redis password (if required)
-        db: 0                       # Redis database number
+  postgres:
+    host: "localhost" # PostgreSQL host
+    port: "5432" # PostgreSQL port
+    user: "postgres" # PostgreSQL username
+    password: "" # PostgreSQL password (set via env var)
+    database: "tmi" # PostgreSQL database name
+    sslmode: "disable" # SSL mode (disable/require/prefer)
+  redis:
+    host: "localhost" # Redis host
+    port: "6379" # Redis port
+    password: "" # Redis password (if required)
+    db: 0 # Redis database number
 
 auth:
-    jwt:
-        secret: "CHANGE_ME"         # JWT signing secret (MUST be changed)
-        expiration_seconds: 3600    # JWT token expiration (1 hour)
-        signing_method: "HS256"     # JWT signing method
-    oauth:
-        callback_url: "http://localhost:8080/oauth2/callback"  # OAuth callback URL
-        providers:
-            github:
-                id: "github"
-                name: "GitHub"
-                enabled: false
-                icon: "fa-brands fa-github"
-                client_id: ""       # Set via env var OAUTH_PROVIDERS_GITHUB_CLIENT_ID
-                client_secret: ""   # Set via env var OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET
-                authorization_url: "https://github.com/login/oauth/authorize"
-                token_url: "https://github.com/login/oauth/access_token"
-                auth_header_format: "token %s"  # GitHub uses "token" instead of "Bearer"
-                accept_header: "application/json"
-                userinfo:
-                    - url: "https://api.github.com/user"
-                      claims:
-                          subject_claim: "id"
-                          name_claim: "name"
-                          picture_claim: "avatar_url"
-                    - url: "https://api.github.com/user/emails"
-                      claims:
-                          email_claim: "[0].email"
-                          email_verified_claim: "[0].verified"
-                issuer: ""
-                jwks_url: ""
-                scopes:
-                    - "user:email"
-                additional_params: {}
-            google:
-                id: "google"
-                name: "Google"
-                enabled: false
-                icon: "fa-brands fa-google"
-                client_id: ""       # Set via env var OAUTH_PROVIDERS_GOOGLE_CLIENT_ID
-                client_secret: ""   # Set via env var OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET
-                authorization_url: "https://accounts.google.com/o/oauth2/auth"
-                token_url: "https://oauth2.googleapis.com/token"
-                userinfo:
-                    - url: "https://www.googleapis.com/oauth2/v3/userinfo"
-                      claims: {}  # Will use defaults: sub, email, name
-                issuer: "https://accounts.google.com"
-                jwks_url: "https://www.googleapis.com/oauth2/v3/certs"
-                scopes:
-                    - "openid"
-                    - "profile"
-                    - "email"
-                additional_params: {}
-            microsoft:
-                id: "microsoft"
-                name: "Microsoft"
-                enabled: false      # Disabled by default
-                icon: "fa-brands fa-microsoft"
-                client_id: ""
-                client_secret: ""
-                # Choose endpoints based on your Azure AD app's signInAudience configuration:
-                # For "AzureADandPersonalMicrosoftAccount" (all accounts):
-                authorization_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
-                token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token"
-                # For "PersonalMicrosoftAccount" (personal accounts only):
-                # authorization_url: "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"
-                # token_url: "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
-                # For "AzureADMultipleOrgs" (work/school accounts only):
-                # authorization_url: "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize"
-                # token_url: "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
-                # For "AzureADMyOrg" (specific tenant only):
-                # authorization_url: "https://login.microsoftonline.com/{your-tenant-id}/oauth2/v2.0/authorize"
-                # token_url: "https://login.microsoftonline.com/{your-tenant-id}/oauth2/v2.0/token"
-                userinfo:
-                    - url: "https://graph.microsoft.com/v1.0/me"
-                      claims:
-                          subject_claim: "id"
-                          email_claim: "mail"
-                          name_claim: "displayName"
-                          given_name_claim: "givenName"
-                          family_name_claim: "surname"
-                          email_verified_claim: "true"  # Literal value - Microsoft accounts are always verified
-                issuer: "https://login.microsoftonline.com/common/v2.0"
-                jwks_url: "https://login.microsoftonline.com/common/discovery/v2.0/keys"
-                scopes:
-                    - "openid"
-                    - "profile"
-                    - "email"
-                    - "User.Read"
-                additional_params: {}
-            test:
-                id: "test"
-                name: "Test Provider" 
-                enabled: true       # Enable for configuration testing
-                icon: "flask-vial"
-                client_id: "test-client-id"
-                client_secret: "test-oauth-secret-12345"
-                authorization_url: "http://localhost:8080/oauth2/authorize?idp=test"
-                token_url: "http://localhost:8080/oauth2/token?idp=test"
-                userinfo: []  # Test provider handles this internally
-                issuer: "test-oauth-provider"
-                jwks_url: ""
-                scopes:
-                    - "openid"
-                    - "profile"
-                    - "email"
-                additional_params: {}
+  jwt:
+    secret: "CHANGE_ME" # JWT signing secret (MUST be changed)
+    expiration_seconds: 3600 # JWT token expiration (1 hour)
+    signing_method: "HS256" # JWT signing method
+  oauth:
+    callback_url: "http://localhost:8080/oauth2/callback" # OAuth callback URL
+    providers:
+      github:
+        id: "github"
+        name: "GitHub"
+        enabled: false
+        icon: "fa-brands fa-github"
+        client_id: "" # Set via env var OAUTH_PROVIDERS_GITHUB_CLIENT_ID
+        client_secret: "" # Set via env var OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET
+        authorization_url: "https://github.com/login/oauth/authorize"
+        token_url: "https://github.com/login/oauth/access_token"
+        auth_header_format: "token %s" # GitHub uses "token" instead of "Bearer"
+        accept_header: "application/json"
+        userinfo:
+          - url: "https://api.github.com/user"
+            claims:
+              subject_claim: "id"
+              name_claim: "name"
+              picture_claim: "avatar_url"
+          - url: "https://api.github.com/user/emails"
+            claims:
+              email_claim: "[0].email"
+              email_verified_claim: "[0].verified"
+        issuer: ""
+        jwks_url: ""
+        scopes:
+          - "user:email"
+        additional_params: {}
+      google:
+        id: "google"
+        name: "Google"
+        enabled: false
+        icon: "fa-brands fa-google"
+        client_id: "" # Set via env var OAUTH_PROVIDERS_GOOGLE_CLIENT_ID
+        client_secret: "" # Set via env var OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET
+        authorization_url: "https://accounts.google.com/o/oauth2/auth"
+        token_url: "https://oauth2.googleapis.com/token"
+        userinfo:
+          - url: "https://www.googleapis.com/oauth2/v3/userinfo"
+            claims: {} # Will use defaults: sub, email, name
+        issuer: "https://accounts.google.com"
+        jwks_url: "https://www.googleapis.com/oauth2/v3/certs"
+        scopes:
+          - "openid"
+          - "profile"
+          - "email"
+        additional_params: {}
+      microsoft:
+        id: "microsoft"
+        name: "Microsoft"
+        enabled: false # Disabled by default
+        icon: "fa-brands fa-microsoft"
+        client_id: ""
+        client_secret: ""
+        # Choose endpoints based on your Azure AD app's signInAudience configuration:
+        # For "AzureADandPersonalMicrosoftAccount" (all accounts):
+        # authorization_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+        # token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+        # For "PersonalMicrosoftAccount" (personal accounts only):
+        authorization_url: "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"
+        token_url: "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
+        # For "AzureADMultipleOrgs" (work/school accounts only):
+        # authorization_url: "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize"
+        # token_url: "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
+        # For "AzureADMyOrg" (specific tenant only):
+        # authorization_url: "https://login.microsoftonline.com/{your-tenant-id}/oauth2/v2.0/authorize"
+        # token_url: "https://login.microsoftonline.com/{your-tenant-id}/oauth2/v2.0/token"
+        userinfo:
+          - url: "https://graph.microsoft.com/v1.0/me"
+            claims:
+              subject_claim: "id"
+              email_claim: "mail"
+              name_claim: "displayName"
+              given_name_claim: "givenName"
+              family_name_claim: "surname"
+              email_verified_claim: "true" # Literal value - Microsoft accounts are always verified
+        issuer: "https://login.microsoftonline.com/consumers/v2.0"
+        jwks_url: "https://login.microsoftonline.com/common/discovery/v2.0/keys"
+        scopes:
+          - "openid"
+          - "profile"
+          - "email"
+          - "User.Read"
+        additional_params: {}
+      test:
+        id: "test"
+        name: "Test Provider"
+        enabled: true # Enable for configuration testing
+        icon: "flask-vial"
+        client_id: "test-client-id"
+        client_secret: "test-oauth-secret-12345"
+        authorization_url: "http://localhost:8080/oauth2/authorize?idp=test"
+        token_url: "http://localhost:8080/oauth2/token?idp=test"
+        userinfo: [] # Test provider handles this internally
+        issuer: "test-oauth-provider"
+        jwks_url: ""
+        scopes:
+          - "openid"
+          - "profile"
+          - "email"
+        additional_params: {}
 
 websocket:
-    inactivity_timeout_seconds: 300     # WebSocket inactivity timeout (5 minutes)
-                                       # Sessions with no activity are cleaned up after this timeout
-                                       # Minimum value: 15 seconds
-                                       # Environment override: WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS
+  inactivity_timeout_seconds:
+    300 # WebSocket inactivity timeout (5 minutes)
+    # Sessions with no activity are cleaned up after this timeout
+    # Minimum value: 15 seconds
+    # Environment override: WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS
 
 logging:
-    level: "info"                   # Log level (debug/info/warn/error)
-    is_dev: true                    # Development mode (includes file/line info)
-    is_test: false                  # Test mode (uses in-memory stores)
-    log_dir: "logs"                 # Directory for log files
-    max_age_days: 7                 # Max age of log files in days
-    max_size_mb: 100                # Max size of log files in MB
-    max_backups: 10                 # Max number of log file backups
-    also_log_to_console: true       # Also log to console/stdout
+  level: "info" # Log level (debug/info/warn/error)
+  is_dev: true # Development mode (includes file/line info)
+  is_test: false # Test mode (uses in-memory stores)
+  log_dir: "logs" # Directory for log files
+  max_age_days: 7 # Max age of log files in days
+  max_size_mb: 100 # Max size of log files in MB
+  max_backups: 10 # Max number of log file backups
+  also_log_to_console: true # Also log to console/stdout
 
 operator:
-    name: ""                        # Operator/maintainer name (set via env var OPERATOR_NAME)
-    contact: ""                     # Operator contact info - email/URL (set via env var OPERATOR_CONTACT)
+  name: "" # Operator/maintainer name (set via env var OPERATOR_NAME)
+  contact: "" # Operator contact info - email/URL (set via env var OPERATOR_CONTACT)
