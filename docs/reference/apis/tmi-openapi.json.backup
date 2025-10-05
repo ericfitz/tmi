@@ -3,7 +3,7 @@
   "info": {
     "title": "TMI (Threat Modeling Improved) API",
     "description": "A RESTful API for collaborative threat modeling with full X6 graph library compatibility. This API provides schemas that align with AntV X6 cell object models for seamless integration with modern diagramming libraries. Supports OAuth 2.0 authentication with client callback integration for seamless single-page application authentication flows.",
-    "version": "0.99.1"
+    "version": "1.0.0"
   },
   "externalDocs": {
     "description": "Find more information here",
@@ -704,10 +704,12 @@
           },
           {
             "type": "object",
-            "description": "A diagram node representing an entity, process, store, or boundary. Fully compatible with X6 Node objects using X6's native toJSON/fromJSON format with position and size objects.",
+            "description": "A diagram node representing an entity, process, store, or boundary. Fully compatible with X6 Node objects and supports both X6 native properties (markup, tools) and convenience properties (label, position, size, style) for easier integration.",
             "required": [
-              "position",
-              "size"
+              "x",
+              "y",
+              "width",
+              "height"
             ],
             "properties": {
               "shape": {
@@ -721,43 +723,23 @@
                 ],
                 "description": "Node type determining its visual representation and behavior"
               },
-              "position": {
-                "type": "object",
-                "description": "Node position in X6 format",
-                "properties": {
-                  "x": {
-                    "type": "number",
-                    "description": "X coordinate"
-                  },
-                  "y": {
-                    "type": "number",
-                    "description": "Y coordinate"
-                  }
-                },
-                "required": [
-                  "x",
-                  "y"
-                ]
+              "x": {
+                "type": "number",
+                "description": "X coordinate of the node's position"
               },
-              "size": {
-                "type": "object",
-                "description": "Node size in X6 format",
-                "properties": {
-                  "width": {
-                    "type": "number",
-                    "description": "Width in pixels",
-                    "minimum": 40
-                  },
-                  "height": {
-                    "type": "number",
-                    "description": "Height in pixels",
-                    "minimum": 30
-                  }
-                },
-                "required": [
-                  "width",
-                  "height"
-                ]
+              "y": {
+                "type": "number",
+                "description": "Y coordinate of the node's position"
+              },
+              "width": {
+                "type": "number",
+                "description": "Width of the node in pixels",
+                "minimum": 40
+              },
+              "height": {
+                "type": "number",
+                "description": "Height of the node in pixels",
+                "minimum": 30
               },
               "angle": {
                 "type": "number",
@@ -791,6 +773,44 @@
                 "type": "string",
                 "description": "Convenience property: Simple text label that automatically creates appropriate attrs.text.text structure",
                 "maxLength": 256
+              },
+              "position": {
+                "type": "object",
+                "description": "Convenience property: Position as a single object (alternative to separate x/y properties)",
+                "properties": {
+                  "x": {
+                    "type": "number",
+                    "description": "X coordinate"
+                  },
+                  "y": {
+                    "type": "number",
+                    "description": "Y coordinate"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y"
+                ]
+              },
+              "size": {
+                "type": "object",
+                "description": "Convenience property: Size as a single object (alternative to separate width/height properties)",
+                "properties": {
+                  "width": {
+                    "type": "number",
+                    "description": "Width in pixels",
+                    "minimum": 40
+                  },
+                  "height": {
+                    "type": "number",
+                    "description": "Height in pixels",
+                    "minimum": 30
+                  }
+                },
+                "required": [
+                  "width",
+                  "height"
+                ]
               },
               "style": {
                 "type": "object",
@@ -827,14 +847,10 @@
             "example": {
               "id": "233598D2-8C6D-4A73-AFE1-647081C4F7AA",
               "shape": "process",
-              "position": {
-                "x": 100,
-                "y": 100
-              },
-              "size": {
-                "width": 120,
-                "height": 60
-              },
+              "x": 100,
+              "y": 100,
+              "width": 120,
+              "height": 60,
               "zIndex": 10,
               "visible": true,
               "attrs": {

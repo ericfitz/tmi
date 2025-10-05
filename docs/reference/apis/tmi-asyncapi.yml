@@ -704,56 +704,13 @@ components:
       additionalProperties: false
 
     Cell:
-      type: object
+      oneOf:
+        - $ref: 'tmi-openapi.json#/components/schemas/Node'
+        - $ref: 'tmi-openapi.json#/components/schemas/Edge'
       description: |
-        Represents a diagram cell/component with X6-compatible structure.
-        Cells are the fundamental building blocks of diagrams and can represent
-        processes, data stores, external entities, or data flows.
-      properties:
-        id:
-          type: string
-          format: uuid
-          description: Unique identifier for the cell
-          example: '123e4567-e89b-12d3-a456-426614174000'
-        shape:
-          type: string
-          description: |
-            Shape type of the cell, determines visual representation and behavior.
-            Common values include 'process', 'datastore', 'entity', 'dataflow'.
-          example: process
-        x:
-          type: number
-          description: X coordinate position of the cell on the diagram
-          minimum: 0
-          example: 100
-        y:
-          type: number
-          description: Y coordinate position of the cell on the diagram
-          minimum: 0
-          example: 150
-        width:
-          type: number
-          description: Width of the cell in pixels
-          minimum: 1
-          example: 120
-        height:
-          type: number
-          description: Height of the cell in pixels
-          minimum: 1
-          example: 80
-        label:
-          type: string
-          description: Display label/text for the cell
-          maxLength: 255
-          example: User Authentication Process
-      required:
-        - id
-        - shape
-        - x
-        - y
-        - width
-        - height
-      additionalProperties: true
+        Represents a diagram cell following AntV X6 structure.
+        Cells can be either nodes (process, store, actor, etc.) or edges (connectors).
+        This is a union type that references the full Node and Edge schemas from the OpenAPI spec.
 
     PresenterRequestPayload:
       type: object

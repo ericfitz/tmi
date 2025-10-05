@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -58,6 +57,7 @@ func testPhase1BasicOperations(t *testing.T, suite *SubEntityIntegrationTestSuit
 
 	// Test cell add operation
 	cellID := uuid.New().String()
+	nodeItem, _ := CreateNode(cellID, Process, 100, 150, 120, 80)
 	operation := DiagramOperationMessage{
 		MessageType: "diagram_operation",
 		OperationID: uuid.New().String(),
@@ -67,19 +67,7 @@ func testPhase1BasicOperations(t *testing.T, suite *SubEntityIntegrationTestSuit
 				{
 					ID:        cellID,
 					Operation: "add",
-					Data: &Cell{
-						Id:    uuid.MustParse(cellID),
-						Shape: "process",
-						Data: &Cell_Data{
-							AdditionalProperties: map[string]interface{}{
-								"x":      100.0,
-								"y":      150.0,
-								"width":  120.0,
-								"height": 80.0,
-								"label":  "Test Process",
-							},
-						},
-					},
+					Data:      &nodeItem,
 				},
 			},
 		},
@@ -105,6 +93,7 @@ func testPhase1BasicOperations(t *testing.T, suite *SubEntityIntegrationTestSuit
 	assert.Equal(t, cellID, receivedMsg.Operation.Cells[0].ID)
 
 	// Test cell update operation
+	updatedNode, _ := CreateNode(cellID, Process, 110, 160, 120, 80)
 	updateOperation := DiagramOperationMessage{
 		MessageType: "diagram_operation",
 		OperationID: uuid.New().String(),
@@ -114,16 +103,7 @@ func testPhase1BasicOperations(t *testing.T, suite *SubEntityIntegrationTestSuit
 				{
 					ID:        cellID,
 					Operation: "update",
-					Data: &Cell{
-						Id: uuid.MustParse(cellID),
-						Data: &Cell_Data{
-							AdditionalProperties: map[string]interface{}{
-								"label": "Updated Process",
-								"x":     110.0,
-								"y":     160.0,
-							},
-						},
-					},
+					Data:      &updatedNode,
 				},
 			},
 		},
@@ -275,6 +255,7 @@ func testPerformanceMonitoring(t *testing.T, suite *SubEntityIntegrationTestSuit
 	// Perform some operations to generate metrics
 	for i := 0; i < 3; i++ {
 		cellID := uuid.New().String()
+		perfNode, _ := CreateNode(cellID, Process, 100.0+float32(i*30), 150.0, 120.0, 80.0)
 		operation := DiagramOperationMessage{
 			MessageType: "diagram_operation",
 			OperationID: uuid.New().String(),
@@ -284,19 +265,7 @@ func testPerformanceMonitoring(t *testing.T, suite *SubEntityIntegrationTestSuit
 					{
 						ID:        cellID,
 						Operation: "add",
-						Data: &Cell{
-							Id:    uuid.MustParse(cellID),
-							Shape: "process",
-							Data: &Cell_Data{
-								AdditionalProperties: map[string]interface{}{
-									"x":      100.0 + float64(i*30),
-									"y":      150.0,
-									"width":  120.0,
-									"height": 80.0,
-									"label":  fmt.Sprintf("Perf Test %d", i),
-								},
-							},
-						},
+						Data:      &perfNode,
 					},
 				},
 			},
@@ -352,6 +321,7 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 	t.Run("DiagramOperationMessage", func(t *testing.T) {
 		// Test valid diagram operation message
 		cellID := uuid.New().String()
+		testNode, _ := CreateNode(cellID, Process, 100, 150, 80, 40)
 		msg := DiagramOperationMessage{
 			MessageType: "diagram_operation",
 			OperationID: uuid.New().String(),
@@ -361,16 +331,7 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 					{
 						ID:        cellID,
 						Operation: "add",
-						Data: &Cell{
-							Id:    uuid.MustParse(cellID),
-							Shape: "process",
-							Data: &Cell_Data{
-								AdditionalProperties: map[string]interface{}{
-									"x": 100.0,
-									"y": 150.0,
-								},
-							},
-						},
+						Data:      &testNode,
 					},
 				},
 			},

@@ -92,9 +92,9 @@ func (op CellPatchOperation) Validate() error {
 
 // CellOperation represents a single cell operation (add/update/remove)
 type CellOperation struct {
-	ID        string `json:"id"`
-	Operation string `json:"operation"`
-	Data      *Cell  `json:"data,omitempty"`
+	ID        string                 `json:"id"`
+	Operation string                 `json:"operation"`
+	Data      *DfdDiagram_Cells_Item `json:"data,omitempty"` // Union type: Node | Edge
 }
 
 func (op CellOperation) Validate() error {
@@ -110,8 +110,18 @@ func (op CellOperation) Validate() error {
 		if op.Data == nil {
 			return fmt.Errorf("%s operation requires cell data", op.Operation)
 		}
-		if op.Data.Id.String() != op.ID {
-			return fmt.Errorf("cell data ID (%s) must match operation ID (%s)", op.Data.Id.String(), op.ID)
+		// Extract ID from the union type (Node or Edge)
+		var cellID string
+		if node, err := op.Data.AsNode(); err == nil {
+			cellID = node.Id.String()
+		} else if edge, err := op.Data.AsEdge(); err == nil {
+			cellID = edge.Id.String()
+		} else {
+			return fmt.Errorf("cell data must be either a Node or Edge")
+		}
+
+		if cellID != op.ID {
+			return fmt.Errorf("cell data ID (%s) must match operation ID (%s)", cellID, op.ID)
 		}
 	case "remove":
 		if op.Data != nil {

@@ -325,3 +325,71 @@ func InitializeMockStores() {
 	ThreatModelStore = &MockThreatModelStore{data: make(map[string]ThreatModel)}
 	DiagramStore = &MockDiagramStore{data: make(map[string]DfdDiagram)}
 }
+
+// CreateNode creates a Node union item from basic parameters (test helper)
+func CreateNode(id string, shape NodeShape, x, y, width, height float32) (DfdDiagram_Cells_Item, error) {
+	var item DfdDiagram_Cells_Item
+
+	uuid, err := ParseUUID(id)
+	if err != nil {
+		return item, fmt.Errorf("invalid UUID: %w", err)
+	}
+
+	node := Node{
+		Id:    uuid,
+		Shape: shape,
+		Position: struct {
+			X float32 `json:"x"`
+			Y float32 `json:"y"`
+		}{
+			X: x,
+			Y: y,
+		},
+		Size: struct {
+			Height float32 `json:"height"`
+			Width  float32 `json:"width"`
+		}{
+			Height: height,
+			Width:  width,
+		},
+	}
+
+	if err := item.FromNode(node); err != nil {
+		return item, fmt.Errorf("failed to create node: %w", err)
+	}
+
+	return item, nil
+}
+
+// CreateEdge creates an Edge union item from basic parameters (test helper)
+func CreateEdge(id string, shape EdgeShape, sourceId, targetId string) (DfdDiagram_Cells_Item, error) {
+	var item DfdDiagram_Cells_Item
+
+	uuid, err := ParseUUID(id)
+	if err != nil {
+		return item, fmt.Errorf("invalid UUID: %w", err)
+	}
+
+	sourceUUID, err := ParseUUID(sourceId)
+	if err != nil {
+		return item, fmt.Errorf("invalid source UUID: %w", err)
+	}
+
+	targetUUID, err := ParseUUID(targetId)
+	if err != nil {
+		return item, fmt.Errorf("invalid target UUID: %w", err)
+	}
+
+	edge := Edge{
+		Id:     uuid,
+		Shape:  shape,
+		Source: EdgeTerminal{Cell: sourceUUID},
+		Target: EdgeTerminal{Cell: targetUUID},
+	}
+
+	if err := item.FromEdge(edge); err != nil {
+		return item, fmt.Errorf("failed to create edge: %w", err)
+	}
+
+	return item, nil
+}

@@ -15,7 +15,6 @@ type CellHandler struct {
 	db               *sql.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
-	cellConverter    *CellConverter
 }
 
 // buildWebSocketURL constructs the absolute WebSocket URL from request context
@@ -72,7 +71,6 @@ func NewCellHandler(metadataStore MetadataStore, db *sql.DB, cache *CacheService
 		db:               db,
 		cache:            cache,
 		cacheInvalidator: invalidator,
-		cellConverter:    NewCellConverter(),
 	}
 }
 
@@ -84,7 +82,6 @@ func NewCellHandlerSimple() *CellHandler {
 		db:               nil,
 		cache:            nil,
 		cacheInvalidator: nil,
-		cellConverter:    NewCellConverter(),
 	}
 }
 

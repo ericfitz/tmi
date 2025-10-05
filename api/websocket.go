@@ -17,6 +17,17 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// getCellID extracts the ID from a union type (Node or Edge)
+func getCellID(item *DfdDiagram_Cells_Item) (string, error) {
+	if node, err := item.AsNode(); err == nil {
+		return node.Id.String(), nil
+	}
+	if edge, err := item.AsEdge(); err == nil {
+		return edge.Id.String(), nil
+	}
+	return "", fmt.Errorf("cell is neither Node nor Edge")
+}
+
 // SessionState represents the lifecycle state of a collaboration session
 type SessionState string
 
@@ -98,7 +109,7 @@ type OperationHistory struct {
 	// Operations by sequence number
 	Operations map[uint64]*HistoryEntry
 	// Current diagram state snapshot for conflict detection
-	CurrentState map[string]*Cell
+	CurrentState map[string]*DfdDiagram_Cells_Item
 	// Maximum history entries to keep
 	MaxEntries int
 	// Current position in history for undo/redo (points to last applied operation)
@@ -115,7 +126,7 @@ type HistoryEntry struct {
 	Timestamp      time.Time
 	Operation      CellPatchOperation
 	// State before this operation (for undo)
-	PreviousState map[string]*Cell
+	PreviousState map[string]*DfdDiagram_Cells_Item
 }
 
 // WebSocketClient represents a connected client
@@ -310,21 +321,10 @@ func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagra
 }
 
 // UpdateDiagramCells provides centralized diagram cell updates (convenience wrapper)
-func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []Cell, updateSource string, excludeUserID string) (*UpdateDiagramResult, error) {
+func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []DfdDiagram_Cells_Item, updateSource string, excludeUserID string) (*UpdateDiagramResult, error) {
 	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {
-		// Convert []Cell to []DfdDiagram_Cells_Item using CellConverter
-		converter := NewCellConverter()
-		unionItems := make([]DfdDiagram_Cells_Item, len(newCells))
-		for i, cell := range newCells {
-			unionItem, err := converter.ConvertCellToUnionItem(cell)
-			if err != nil {
-				return diagram, false, fmt.Errorf("failed to convert cell %d: %w", i, err)
-			}
-			unionItems[i] = unionItem
-		}
-
-		// Update cells and request vector increment
-		diagram.Cells = unionItems
+		// No conversion needed - newCells is already the union type
+		diagram.Cells = newCells
 		return diagram, true, nil // true = increment update vector for cell changes
 	}
 
@@ -552,7 +552,7 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 func NewOperationHistory() *OperationHistory {
 	return &OperationHistory{
 		Operations:      make(map[uint64]*HistoryEntry),
-		CurrentState:    make(map[string]*Cell),
+		CurrentState:    make(map[string]*DfdDiagram_Cells_Item),
 		MaxEntries:      100, // Keep last 100 operations
 		CurrentPosition: 0,   // No operations applied yet
 	}
@@ -577,7 +577,7 @@ func (h *OperationHistory) CanRedo() bool {
 }
 
 // GetUndoOperation returns the operation to undo and the previous state
-func (h *OperationHistory) GetUndoOperation() (*HistoryEntry, map[string]*Cell, bool) {
+func (h *OperationHistory) GetUndoOperation() (*HistoryEntry, map[string]*DfdDiagram_Cells_Item, bool) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
@@ -1584,7 +1584,7 @@ type DiagramOperation struct {
 	// Component ID (for update/remove)
 	ComponentID string `json:"component_id,omitempty"`
 	// Component data (for add/update)
-	Component *Cell `json:"component,omitempty"`
+	Component *DfdDiagram_Cells_Item `json:"component,omitempty"` // DEPRECATED
 	// Properties to update (for update)
 	Properties map[string]interface{} `json:"properties,omitempty"`
 }
@@ -1657,13 +1657,18 @@ func validateDiagramOperation(op DiagramOperation) error {
 }
 
 // validateCell performs basic cell validation
-func validateCell(cell *Cell) error {
+func validateCell(cell *DfdDiagram_Cells_Item) error {
 	if cell == nil {
 		return fmt.Errorf("cell cannot be nil")
 	}
 
-	// Validate ID is not empty (check for zero UUID)
-	if cell.Id.String() == "00000000-0000-0000-0000-000000000000" {
+	// Extract ID from union type and validate
+	cellID, err := getCellID(cell)
+	if err != nil {
+		return fmt.Errorf("invalid cell type: %w", err)
+	}
+
+	if cellID == "00000000-0000-0000-0000-000000000000" {
 		return fmt.Errorf("cell ID is required")
 	}
 
@@ -2854,9 +2859,9 @@ func (s *DiagramSession) sendResyncRecommendation(userID, issueType string) {
 }
 
 // applyHistoryState applies a historical state to the diagram (for undo)
-func (s *DiagramSession) applyHistoryState(state map[string]*Cell) error {
-	// Convert state map to Cell slice for centralized update
-	cells := make([]Cell, 0, len(state))
+func (s *DiagramSession) applyHistoryState(state map[string]*DfdDiagram_Cells_Item) error {
+	// Convert state map to slice for centralized update
+	cells := make([]DfdDiagram_Cells_Item, 0, len(state))
 	for _, cell := range state {
 		cells = append(cells, *cell)
 	}
@@ -2961,14 +2966,12 @@ func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message inte
 // CellOperationProcessor processes cell operations with validation and conflict detection
 type CellOperationProcessor struct {
 	diagramStore DiagramStoreInterface
-	converter    *CellConverter
 }
 
 // NewCellOperationProcessor creates a new cell operation processor
 func NewCellOperationProcessor(store DiagramStoreInterface) *CellOperationProcessor {
 	return &CellOperationProcessor{
 		diagramStore: store,
-		converter:    NewCellConverter(),
 	}
 }
 
@@ -2980,11 +2983,19 @@ func (cop *CellOperationProcessor) ProcessCellOperations(diagramID string, opera
 		return nil, fmt.Errorf("failed to get diagram %s: %w", diagramID, err)
 	}
 
-	// Build current state map for conflict detection
-	currentState := make(map[string]*Cell)
-	for _, cellItem := range diagram.Cells {
-		if cell, err := cop.converter.ConvertUnionItemToCell(cellItem); err == nil {
-			currentState[cell.Id.String()] = &cell
+	// Build current state map for conflict detection using union type
+	currentState := make(map[string]*DfdDiagram_Cells_Item)
+	for i := range diagram.Cells {
+		cellItem := &diagram.Cells[i]
+		// Extract ID from union type
+		var itemID string
+		if node, err := cellItem.AsNode(); err == nil {
+			itemID = node.Id.String()
+		} else if edge, err := cellItem.AsEdge(); err == nil {
+			itemID = edge.Id.String()
+		}
+		if itemID != "" {
+			currentState[itemID] = cellItem
 		}
 	}
 
@@ -3004,12 +3015,12 @@ func (cop *CellOperationProcessor) ProcessCellOperations(diagramID string, opera
 }
 
 // processAndValidateCellOperations processes and validates cell operations (extracted from DiagramSession)
-func (cop *CellOperationProcessor) processAndValidateCellOperations(diagram *DfdDiagram, currentState map[string]*Cell, operation CellPatchOperation) *OperationValidationResult {
+func (cop *CellOperationProcessor) processAndValidateCellOperations(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, operation CellPatchOperation) *OperationValidationResult {
 	result := &OperationValidationResult{
 		Valid:         true,
 		StateChanged:  false,
 		CellsModified: make([]string, 0),
-		PreviousState: make(map[string]*Cell),
+		PreviousState: make(map[string]*DfdDiagram_Cells_Item),
 	}
 
 	// Copy current state as previous state
@@ -3074,7 +3085,7 @@ func (cop *CellOperationProcessor) processAndValidateCellOperations(diagram *Dfd
 }
 
 // validateAndProcessCellOperation validates and processes a single cell operation (extracted from DiagramSession)
-func (cop *CellOperationProcessor) validateAndProcessCellOperation(diagram *DfdDiagram, currentState map[string]*Cell, cellOp CellOperation) *OperationValidationResult {
+func (cop *CellOperationProcessor) validateAndProcessCellOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) *OperationValidationResult {
 	result := &OperationValidationResult{Valid: true}
 
 	switch cellOp.Operation {
@@ -3092,7 +3103,7 @@ func (cop *CellOperationProcessor) validateAndProcessCellOperation(diagram *DfdD
 }
 
 // validateAddOperation validates adding a new cell
-func (cop *CellOperationProcessor) validateAddOperation(diagram *DfdDiagram, currentState map[string]*Cell, cellOp CellOperation) *OperationValidationResult {
+func (cop *CellOperationProcessor) validateAddOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) *OperationValidationResult {
 	result := &OperationValidationResult{Valid: true}
 
 	// Check if cell already exists (conflict)
@@ -3111,32 +3122,20 @@ func (cop *CellOperationProcessor) validateAddOperation(diagram *DfdDiagram, cur
 		return result
 	}
 
-	if err := cop.validateCellData(cellOp.Data); err != nil {
-		result.Valid = false
-		result.Reason = "invalid_cell_data"
-		return result
-	}
-
-	// Apply the add operation to diagram
-	cellItem, err := cop.converter.ConvertCellToUnionItem(*cellOp.Data)
-	if err != nil {
-		result.Valid = false
-		result.Reason = "cell_conversion_failed"
-		return result
-	}
-
-	diagram.Cells = append(diagram.Cells, cellItem)
+	// cellOp.Data is already a DfdDiagram_Cells_Item union type (Node | Edge)
+	// No conversion needed - directly append to diagram
+	diagram.Cells = append(diagram.Cells, *cellOp.Data)
 	result.StateChanged = true
 
 	return result
 }
 
 // validateUpdateOperation validates updating an existing cell
-func (cop *CellOperationProcessor) validateUpdateOperation(diagram *DfdDiagram, currentState map[string]*Cell, cellOp CellOperation) *OperationValidationResult {
+func (cop *CellOperationProcessor) validateUpdateOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) *OperationValidationResult {
 	result := &OperationValidationResult{Valid: true}
 
 	// Check if cell exists
-	existingCell, exists := currentState[cellOp.ID]
+	_, exists := currentState[cellOp.ID]
 	if !exists {
 		result.Valid = false
 		result.Reason = "update_nonexistent_cell"
@@ -3152,32 +3151,25 @@ func (cop *CellOperationProcessor) validateUpdateOperation(diagram *DfdDiagram, 
 		return result
 	}
 
-	if err := cop.validateCellData(cellOp.Data); err != nil {
-		result.Valid = false
-		result.Reason = "invalid_cell_data"
-		return result
-	}
-
-	// Check if update actually changes anything
-	stateChanged := cop.detectCellChanges(existingCell, cellOp.Data)
-	if !stateChanged {
-		result.StateChanged = false
-		return result // Valid but no changes
-	}
-
 	// Apply the update operation to diagram
+	// cellOp.Data is already a DfdDiagram_Cells_Item union type (Node | Edge)
 	found := false
 	for i := range diagram.Cells {
 		cellItem := &diagram.Cells[i]
-		if cell, err := cop.converter.ConvertUnionItemToCell(*cellItem); err == nil {
-			if cell.Id.String() == cellOp.ID {
-				// Replace with updated cell
-				if updatedCellItem, err := cop.converter.ConvertCellToUnionItem(*cellOp.Data); err == nil {
-					diagram.Cells[i] = updatedCellItem
-					found = true
-					break
-				}
-			}
+		// Extract ID from union type to find matching cell
+		var itemID string
+		if node, err := cellItem.AsNode(); err == nil {
+			itemID = node.Id.String()
+		} else if edge, err := cellItem.AsEdge(); err == nil {
+			itemID = edge.Id.String()
+		}
+
+		if itemID == cellOp.ID {
+			// Replace with updated cell - no conversion needed
+			diagram.Cells[i] = *cellOp.Data
+			found = true
+			result.StateChanged = true
+			break
 		}
 	}
 
@@ -3188,13 +3180,11 @@ func (cop *CellOperationProcessor) validateUpdateOperation(diagram *DfdDiagram, 
 		return result
 	}
 
-	result.StateChanged = true
-
 	return result
 }
 
 // validateRemoveOperation validates removing a cell
-func (cop *CellOperationProcessor) validateRemoveOperation(diagram *DfdDiagram, currentState map[string]*Cell, cellOp CellOperation) *OperationValidationResult {
+func (cop *CellOperationProcessor) validateRemoveOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) *OperationValidationResult {
 	result := &OperationValidationResult{Valid: true}
 
 	// Check if cell exists
@@ -3206,18 +3196,25 @@ func (cop *CellOperationProcessor) validateRemoveOperation(diagram *DfdDiagram, 
 
 	// Apply the remove operation to diagram
 	found := false
-	for i, cellItem := range diagram.Cells {
-		if cell, err := cop.converter.ConvertUnionItemToCell(cellItem); err == nil {
-			if cell.Id.String() == cellOp.ID {
-				// Remove by replacing with last element and truncating
-				lastIndex := len(diagram.Cells) - 1
-				if i != lastIndex {
-					diagram.Cells[i] = diagram.Cells[lastIndex]
-				}
-				diagram.Cells = diagram.Cells[:lastIndex]
-				found = true
-				break
+	for i := range diagram.Cells {
+		cellItem := &diagram.Cells[i]
+		// Extract ID from union type to find matching cell
+		var itemID string
+		if node, err := cellItem.AsNode(); err == nil {
+			itemID = node.Id.String()
+		} else if edge, err := cellItem.AsEdge(); err == nil {
+			itemID = edge.Id.String()
+		}
+
+		if itemID == cellOp.ID {
+			// Remove by replacing with last element and truncating
+			lastIndex := len(diagram.Cells) - 1
+			if i != lastIndex {
+				diagram.Cells[i] = diagram.Cells[lastIndex]
 			}
+			diagram.Cells = diagram.Cells[:lastIndex]
+			found = true
+			break
 		}
 	}
 
@@ -3226,56 +3223,7 @@ func (cop *CellOperationProcessor) validateRemoveOperation(diagram *DfdDiagram, 
 	return result
 }
 
-// validateCellData validates cell data structure
-func (cop *CellOperationProcessor) validateCellData(cell *Cell) error {
-	if cell == nil {
-		return fmt.Errorf("cell cannot be nil")
-	}
-
-	// Validate ID is not zero UUID
-	if cell.Id.String() == "00000000-0000-0000-0000-000000000000" {
-		return fmt.Errorf("cell ID is required")
-	}
-
-	// Validate required fields
-	if cell.Shape == "" {
-		return fmt.Errorf("cell shape is required")
-	}
-
-	// Basic validation - more detailed validation would be done during conversion
-	return nil
-}
-
-// detectCellChanges compares two cells to determine if there are meaningful changes
-func (cop *CellOperationProcessor) detectCellChanges(existing, updated *Cell) bool {
-	if existing.Id != updated.Id {
-		return true
-	}
-	if existing.Shape != updated.Shape {
-		return true
-	}
-
-	// Compare visibility
-	if (existing.Visible == nil) != (updated.Visible == nil) {
-		return true
-	}
-	if existing.Visible != nil && updated.Visible != nil && *existing.Visible != *updated.Visible {
-		return true
-	}
-
-	// Compare Z-index
-	if (existing.ZIndex == nil) != (updated.ZIndex == nil) {
-		return true
-	}
-	if existing.ZIndex != nil && updated.ZIndex != nil && *existing.ZIndex != *updated.ZIndex {
-		return true
-	}
-
-	// For more detailed comparison, we'd need to convert to specific types (Node/Edge)
-	// and compare their specific properties, but for now we assume any difference
-	// in the Cell struct warrants an update
-	return false
-}
+// validateCellData and detectCellChanges removed - no longer needed with union types
 
 // OperationValidationResult represents the result of operation validation
 type OperationValidationResult struct {
@@ -3285,7 +3233,7 @@ type OperationValidationResult struct {
 	ConflictDetected bool
 	StateChanged     bool
 	CellsModified    []string
-	PreviousState    map[string]*Cell
+	PreviousState    map[string]*DfdDiagram_Cells_Item
 }
 
 // applyOperation applies a diagram operation with validation and conflict detection
@@ -3299,11 +3247,18 @@ func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOper
 	}
 
 	// Build current state map for conflict detection
-	currentState := make(map[string]*Cell)
-	converter := NewCellConverter()
-	for _, cellItem := range diagram.Cells {
-		if cell, err := converter.ConvertUnionItemToCell(cellItem); err == nil {
-			currentState[cell.Id.String()] = &cell
+	currentState := make(map[string]*DfdDiagram_Cells_Item)
+	for i := range diagram.Cells {
+		cellItem := &diagram.Cells[i]
+		// Extract ID from union type
+		var itemID string
+		if node, err := cellItem.AsNode(); err == nil {
+			itemID = node.Id.String()
+		} else if edge, err := cellItem.AsEdge(); err == nil {
+			itemID = edge.Id.String()
+		}
+		if itemID != "" {
+			currentState[itemID] = cellItem
 		}
 	}
 
@@ -3335,12 +3290,12 @@ func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOper
 }
 
 // processAndValidateCellOperations processes and validates cell operations
-func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, currentState map[string]*Cell, operation CellPatchOperation) OperationValidationResult {
+func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, operation CellPatchOperation) OperationValidationResult {
 	result := OperationValidationResult{
 		Valid:         true,
 		StateChanged:  false,
 		CellsModified: make([]string, 0),
-		PreviousState: make(map[string]*Cell),
+		PreviousState: make(map[string]*DfdDiagram_Cells_Item),
 	}
 
 	// Copy current state as previous state
@@ -3405,7 +3360,7 @@ func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, c
 }
 
 // validateAndProcessCellOperation validates and processes a single cell operation
-func (s *DiagramSession) validateAndProcessCellOperation(diagram *DfdDiagram, currentState map[string]*Cell, cellOp CellOperation) OperationValidationResult {
+func (s *DiagramSession) validateAndProcessCellOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) OperationValidationResult {
 	result := OperationValidationResult{Valid: true}
 
 	switch cellOp.Operation {
@@ -3423,7 +3378,7 @@ func (s *DiagramSession) validateAndProcessCellOperation(diagram *DfdDiagram, cu
 }
 
 // validateAddOperation validates adding a new cell
-func (s *DiagramSession) validateAddOperation(diagram *DfdDiagram, currentState map[string]*Cell, cellOp CellOperation) OperationValidationResult {
+func (s *DiagramSession) validateAddOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) OperationValidationResult {
 	result := OperationValidationResult{Valid: true}
 
 	// Check if cell already exists (conflict)
@@ -3442,39 +3397,14 @@ func (s *DiagramSession) validateAddOperation(diagram *DfdDiagram, currentState 
 		return result
 	}
 
-	if err := s.validateCellData(cellOp.Data); err != nil {
-		result.Valid = false
-		result.Reason = "invalid_cell_data"
-		return result
-	}
-
 	// Apply the add operation to diagram
-	converter := NewCellConverter()
-	cellItem, err := converter.ConvertCellToUnionItem(*cellOp.Data)
-	if err != nil {
-		result.Valid = false
-		result.Reason = "cell_conversion_failed"
-		return result
-	}
-
-	diagram.Cells = append(diagram.Cells, cellItem)
+	// cellOp.Data is already a DfdDiagram_Cells_Item union type (Node | Edge)
+	// No conversion needed - directly append to diagram
+	diagram.Cells = append(diagram.Cells, *cellOp.Data)
 	result.StateChanged = true
 
 	// Use centralized update function to save changes
-	saveConverter := NewCellConverter()
-	cells := make([]Cell, len(diagram.Cells))
-	for i, cellItem := range diagram.Cells {
-		if cell, err := saveConverter.ConvertUnionItemToCell(cellItem); err == nil {
-			cells[i] = cell
-		} else {
-			slogging.Get().Info("Warning: failed to convert cell during save: %v", err)
-			result.Valid = false
-			result.Reason = "save_failed"
-			return result
-		}
-	}
-
-	_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, cells, "websocket", "")
+	_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, diagram.Cells, "websocket", "")
 	if saveErr != nil {
 		slogging.Get().Info("Failed to save diagram after add operation: %v", saveErr)
 		result.Valid = false
@@ -3486,11 +3416,11 @@ func (s *DiagramSession) validateAddOperation(diagram *DfdDiagram, currentState 
 }
 
 // validateUpdateOperation validates updating an existing cell
-func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentState map[string]*Cell, cellOp CellOperation) OperationValidationResult {
+func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) OperationValidationResult {
 	result := OperationValidationResult{Valid: true}
 
 	// Check if cell exists
-	existingCell, exists := currentState[cellOp.ID]
+	_, exists := currentState[cellOp.ID]
 	if !exists {
 		result.Valid = false
 		result.Reason = "update_nonexistent_cell"
@@ -3506,33 +3436,25 @@ func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentSta
 		return result
 	}
 
-	if err := s.validateCellData(cellOp.Data); err != nil {
-		result.Valid = false
-		result.Reason = "invalid_cell_data"
-		return result
-	}
-
-	// Check if update actually changes anything
-	stateChanged := s.detectCellChanges(existingCell, cellOp.Data)
-	if !stateChanged {
-		result.StateChanged = false
-		return result // Valid but no changes
-	}
-
 	// Apply the update operation to diagram
-	converter := NewCellConverter()
+	// cellOp.Data is already a DfdDiagram_Cells_Item union type (Node | Edge)
 	found := false
 	for i := range diagram.Cells {
 		cellItem := &diagram.Cells[i]
-		if cell, err := converter.ConvertUnionItemToCell(*cellItem); err == nil {
-			if cell.Id.String() == cellOp.ID {
-				// Replace with updated cell
-				if updatedCellItem, err := converter.ConvertCellToUnionItem(*cellOp.Data); err == nil {
-					diagram.Cells[i] = updatedCellItem
-					found = true
-					break
-				}
-			}
+		// Extract ID from union type to find matching cell
+		var itemID string
+		if node, err := cellItem.AsNode(); err == nil {
+			itemID = node.Id.String()
+		} else if edge, err := cellItem.AsEdge(); err == nil {
+			itemID = edge.Id.String()
+		}
+
+		if itemID == cellOp.ID {
+			// Replace with updated cell - no conversion needed
+			diagram.Cells[i] = *cellOp.Data
+			found = true
+			result.StateChanged = true
+			break
 		}
 	}
 
@@ -3543,23 +3465,8 @@ func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentSta
 		return result
 	}
 
-	result.StateChanged = true
-
 	// Use centralized update function to save changes
-	saveConverter := NewCellConverter()
-	cells := make([]Cell, len(diagram.Cells))
-	for i, cellItem := range diagram.Cells {
-		if cell, err := saveConverter.ConvertUnionItemToCell(cellItem); err == nil {
-			cells[i] = cell
-		} else {
-			slogging.Get().Info("Warning: failed to convert cell during save: %v", err)
-			result.Valid = false
-			result.Reason = "save_failed"
-			return result
-		}
-	}
-
-	_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, cells, "websocket", "")
+	_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, diagram.Cells, "websocket", "")
 	if saveErr != nil {
 		slogging.Get().Info("Failed to save diagram after update operation: %v", saveErr)
 		result.Valid = false
@@ -3571,7 +3478,7 @@ func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentSta
 }
 
 // validateRemoveOperation validates removing a cell
-func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentState map[string]*Cell, cellOp CellOperation) OperationValidationResult {
+func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) OperationValidationResult {
 	result := OperationValidationResult{Valid: true}
 
 	// Check if cell exists
@@ -3582,20 +3489,26 @@ func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentSta
 	}
 
 	// Apply the remove operation to diagram
-	converter := NewCellConverter()
 	found := false
-	for i, cellItem := range diagram.Cells {
-		if cell, err := converter.ConvertUnionItemToCell(cellItem); err == nil {
-			if cell.Id.String() == cellOp.ID {
-				// Remove by replacing with last element and truncating
-				lastIndex := len(diagram.Cells) - 1
-				if i != lastIndex {
-					diagram.Cells[i] = diagram.Cells[lastIndex]
-				}
-				diagram.Cells = diagram.Cells[:lastIndex]
-				found = true
-				break
+	for i := range diagram.Cells {
+		cellItem := &diagram.Cells[i]
+		// Extract ID from union type to find matching cell
+		var itemID string
+		if node, err := cellItem.AsNode(); err == nil {
+			itemID = node.Id.String()
+		} else if edge, err := cellItem.AsEdge(); err == nil {
+			itemID = edge.Id.String()
+		}
+
+		if itemID == cellOp.ID {
+			// Remove by replacing with last element and truncating
+			lastIndex := len(diagram.Cells) - 1
+			if i != lastIndex {
+				diagram.Cells[i] = diagram.Cells[lastIndex]
 			}
+			diagram.Cells = diagram.Cells[:lastIndex]
+			found = true
+			break
 		}
 	}
 
@@ -3603,20 +3516,7 @@ func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentSta
 
 	if found {
 		// Use centralized update function to save changes
-		saveConverter := NewCellConverter()
-		cells := make([]Cell, len(diagram.Cells))
-		for i, cellItem := range diagram.Cells {
-			if cell, err := saveConverter.ConvertUnionItemToCell(cellItem); err == nil {
-				cells[i] = cell
-			} else {
-				slogging.Get().Info("Warning: failed to convert cell during save: %v", err)
-				result.Valid = false
-				result.Reason = "save_failed"
-				return result
-			}
-		}
-
-		_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, cells, "websocket", "")
+		_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, diagram.Cells, "websocket", "")
 		if saveErr != nil {
 			slogging.Get().Info("Failed to save diagram after remove operation: %v", saveErr)
 			result.Valid = false
@@ -3628,59 +3528,8 @@ func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentSta
 	return result
 }
 
-// validateCellData validates cell data structure
-func (s *DiagramSession) validateCellData(cell *Cell) error {
-	if cell == nil {
-		return fmt.Errorf("cell cannot be nil")
-	}
-
-	// Validate ID is not zero UUID
-	if cell.Id.String() == "00000000-0000-0000-0000-000000000000" {
-		return fmt.Errorf("cell ID is required")
-	}
-
-	// Validate required fields
-	if cell.Shape == "" {
-		return fmt.Errorf("cell shape is required")
-	}
-
-	// Basic validation - more detailed validation would be done during conversion
-	return nil
-}
-
-// detectCellChanges compares two cells to determine if there are meaningful changes
-func (s *DiagramSession) detectCellChanges(existing, updated *Cell) bool {
-	if existing.Id != updated.Id {
-		return true
-	}
-	if existing.Shape != updated.Shape {
-		return true
-	}
-
-	// Compare visibility
-	if (existing.Visible == nil) != (updated.Visible == nil) {
-		return true
-	}
-	if existing.Visible != nil && updated.Visible != nil && *existing.Visible != *updated.Visible {
-		return true
-	}
-
-	// Compare Z-index
-	if (existing.ZIndex == nil) != (updated.ZIndex == nil) {
-		return true
-	}
-	if existing.ZIndex != nil && updated.ZIndex != nil && *existing.ZIndex != *updated.ZIndex {
-		return true
-	}
-
-	// For more detailed comparison, we'd need to convert to specific types (Node/Edge)
-	// and compare their specific properties, but for now we assume any difference
-	// in the Cell struct warrants an update
-	return false
-}
-
 // addToHistory adds an operation to the history for conflict resolution
-func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, userID string, previousState, currentState map[string]*Cell) {
+func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, userID string, previousState, currentState map[string]*DfdDiagram_Cells_Item) {
 	if s.OperationHistory == nil {
 		return
 	}

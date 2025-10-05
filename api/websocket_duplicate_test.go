@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestDuplicateCellOperationFiltering tests that duplicate cell operations within a single message are filtered out
@@ -31,29 +30,18 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 	}
 
 	// Build current state map (empty for this test)
-	currentState := make(map[string]*Cell)
+	currentState := make(map[string]*DfdDiagram_Cells_Item)
 
 	t.Run("SingleCellOperation", func(t *testing.T) {
 		cellID := uuid.New().String()
+		singleNode, _ := CreateNode(cellID, Process, 100, 150, 120, 80)
 		operation := CellPatchOperation{
 			Type: "patch",
 			Cells: []CellOperation{
 				{
 					ID:        cellID,
 					Operation: "add",
-					Data: &Cell{
-						Id:    uuid.MustParse(cellID),
-						Shape: "process",
-						Data: &Cell_Data{
-							AdditionalProperties: map[string]interface{}{
-								"x":      100.0,
-								"y":      150.0,
-								"width":  120.0,
-								"height": 80.0,
-								"label":  "Test Process",
-							},
-						},
-					},
+					Data:      &singleNode,
 				},
 			},
 		}
@@ -68,9 +56,10 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 	t.Run("DuplicateCellOperations", func(t *testing.T) {
 		// Reset diagram to empty state
 		testDiagram.Cells = []DfdDiagram_Cells_Item{}
-		currentState = make(map[string]*Cell)
+		currentState = make(map[string]*DfdDiagram_Cells_Item)
 
 		cellID := uuid.New().String()
+		dupNode, _ := CreateNode(cellID, Process, 100, 150, 120, 80)
 
 		// Create 8 identical cell operations (simulating the bug reported)
 		duplicateCells := make([]CellOperation, 8)
@@ -78,19 +67,7 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 			duplicateCells[i] = CellOperation{
 				ID:        cellID,
 				Operation: "add",
-				Data: &Cell{
-					Id:    uuid.MustParse(cellID),
-					Shape: "process",
-					Data: &Cell_Data{
-						AdditionalProperties: map[string]interface{}{
-							"x":      100.0,
-							"y":      150.0,
-							"width":  120.0,
-							"height": 80.0,
-							"label":  "Test Process",
-						},
-					},
-				},
+				Data:      &dupNode,
 			}
 		}
 
@@ -114,10 +91,12 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 	t.Run("MixedDuplicateAndUniqueCells", func(t *testing.T) {
 		// Reset diagram to empty state
 		testDiagram.Cells = []DfdDiagram_Cells_Item{}
-		currentState = make(map[string]*Cell)
+		currentState = make(map[string]*DfdDiagram_Cells_Item)
 
 		cellID1 := uuid.New().String()
 		cellID2 := uuid.New().String()
+		mixedNode1, _ := CreateNode(cellID1, Process, 100, 150, 80, 40)
+		mixedNode2, _ := CreateNode(cellID2, Store, 300, 150, 80, 40)
 
 		operation := CellPatchOperation{
 			Type: "patch",
@@ -126,57 +105,25 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 				{
 					ID:        cellID1,
 					Operation: "add",
-					Data: &Cell{
-						Id:    uuid.MustParse(cellID1),
-						Shape: "process",
-						Data: &Cell_Data{
-							AdditionalProperties: map[string]interface{}{
-								"x": 100.0, "y": 150.0, "label": "Process 1",
-							},
-						},
-					},
+					Data:      &mixedNode1,
 				},
 				// Duplicate of first cell (should be filtered)
 				{
 					ID:        cellID1,
 					Operation: "add",
-					Data: &Cell{
-						Id:    uuid.MustParse(cellID1),
-						Shape: "process",
-						Data: &Cell_Data{
-							AdditionalProperties: map[string]interface{}{
-								"x": 100.0, "y": 150.0, "label": "Process 1",
-							},
-						},
-					},
+					Data:      &mixedNode1,
 				},
 				// Second unique cell
 				{
 					ID:        cellID2,
 					Operation: "add",
-					Data: &Cell{
-						Id:    uuid.MustParse(cellID2),
-						Shape: "store",
-						Data: &Cell_Data{
-							AdditionalProperties: map[string]interface{}{
-								"x": 300.0, "y": 150.0, "label": "Store 1",
-							},
-						},
-					},
+					Data:      &mixedNode2,
 				},
 				// Another duplicate of first cell (should be filtered)
 				{
 					ID:        cellID1,
 					Operation: "add",
-					Data: &Cell{
-						Id:    uuid.MustParse(cellID1),
-						Shape: "process",
-						Data: &Cell_Data{
-							AdditionalProperties: map[string]interface{}{
-								"x": 100.0, "y": 150.0, "label": "Process 1",
-							},
-						},
-					},
+					Data:      &mixedNode1,
 				},
 			},
 		}
@@ -198,53 +145,27 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 	t.Run("DuplicateUpdateOperations", func(t *testing.T) {
 		// First add a cell that we can update
 		cellID := uuid.New().String()
-		cell := &Cell{
-			Id:    uuid.MustParse(cellID),
-			Shape: "process",
-			Data: &Cell_Data{
-				AdditionalProperties: map[string]interface{}{
-					"x": 100.0, "y": 150.0, "label": "Original",
-				},
-			},
-		}
+		originalNode, _ := CreateNode(cellID, Process, 100, 150, 80, 40)
 
 		// Add cell to current state
-		currentState[cellID] = cell
-		converter := NewCellConverter()
-		cellItem, err := converter.ConvertCellToUnionItem(*cell)
-		require.NoError(t, err, "Should convert cell successfully")
-		testDiagram.Cells = []DfdDiagram_Cells_Item{cellItem}
+		currentState[cellID] = &originalNode
+		testDiagram.Cells = []DfdDiagram_Cells_Item{originalNode}
 
 		// Now send duplicate update operations
+		updatedNode, _ := CreateNode(cellID, Process, 200, 250, 80, 40)
 		operation := CellPatchOperation{
 			Type: "patch",
 			Cells: []CellOperation{
 				{
 					ID:        cellID,
 					Operation: "update",
-					Data: &Cell{
-						Id:    uuid.MustParse(cellID),
-						Shape: "process",
-						Data: &Cell_Data{
-							AdditionalProperties: map[string]interface{}{
-								"x": 200.0, "y": 250.0, "label": "Updated",
-							},
-						},
-					},
+					Data:      &updatedNode,
 				},
 				// Duplicate update (should be filtered)
 				{
 					ID:        cellID,
 					Operation: "update",
-					Data: &Cell{
-						Id:    uuid.MustParse(cellID),
-						Shape: "process",
-						Data: &Cell_Data{
-							AdditionalProperties: map[string]interface{}{
-								"x": 200.0, "y": 250.0, "label": "Updated",
-							},
-						},
-					},
+					Data:      &updatedNode,
 				},
 			},
 		}

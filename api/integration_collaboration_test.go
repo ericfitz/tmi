@@ -206,15 +206,12 @@ func (c *CollaborationTestClient) SendOperation(op DiagramOperation) error {
 	// Create a proper DiagramOperationMessage
 	cellID := ""
 	if op.Component != nil {
-		// Check if ID is not zero value
-		zeroUUID := openapi_types.UUID{}
-		if op.Component.Id != zeroUUID {
-			cellID = op.Component.Id.String()
+		// Extract ID from union type
+		if extractedID, err := getCellID(op.Component); err == nil {
+			cellID = extractedID
 		} else if op.Type == "add" {
-			// Generate ID for new cell
-			newID := generateTestUUID(c.t)
-			op.Component.Id = newID
-			cellID = newID.String()
+			// For add operations, generate ID if not present
+			cellID = generateTestUUID(c.t).String()
 		}
 	}
 
@@ -286,12 +283,13 @@ func testWebSocketCollaboration(t *testing.T, suite *SubEntityIntegrationTestSui
 	// Test sending diagram operations
 	t.Run("DiagramOperations", func(t *testing.T) {
 		// Test Add operation
+		// Create a Node for testing
+		newID := generateTestUUID(t).String()
+		nodeItem, _ := CreateNode(newID, Process, 100, 200, 80, 40)
+
 		addOp := DiagramOperation{
-			Type: "add",
-			Component: &Cell{
-				Id:    generateTestUUID(t),
-				Shape: "process", // Use actual shape string instead of constant
-			},
+			Type:      "add",
+			Component: &nodeItem,
 		}
 
 		err := client.SendOperation(addOp)
@@ -369,12 +367,11 @@ func testConcurrentUserCollaboration(t *testing.T, suite *SubEntityIntegrationTe
 	for i, client := range clients {
 		go func(clientIndex int, c *CollaborationTestClient) {
 			for j := 0; j < operationsPerClient; j++ {
+				cellID := generateTestUUID(t).String()
+				concurrentNode, _ := CreateNode(cellID, Process, 100+float32(clientIndex*50), 150+float32(j*50), 80, 40)
 				op := DiagramOperation{
-					Type: "add",
-					Component: &Cell{
-						Id:    generateTestUUID(t),
-						Shape: fmt.Sprintf("process-%d-%d", clientIndex, j),
-					},
+					Type:      "add",
+					Component: &concurrentNode,
 				}
 
 				err := c.SendOperation(op)

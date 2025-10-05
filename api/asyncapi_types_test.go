@@ -14,6 +14,9 @@ func TestDiagramOperationMessage(t *testing.T) {
 	operationID := uuid.New().String()
 
 	t.Run("Valid Message", func(t *testing.T) {
+		// Create a Node for testing
+		nodeItem, _ := CreateNode(cellID, Process, 100, 200, 80, 40)
+
 		msg := DiagramOperationMessage{
 			MessageType: MessageTypeDiagramOperation,
 			OperationID: operationID,
@@ -23,10 +26,7 @@ func TestDiagramOperationMessage(t *testing.T) {
 					{
 						ID:        cellID,
 						Operation: "add",
-						Data: &Cell{
-							Id:    uuid.MustParse(cellID),
-							Shape: "process",
-						},
+						Data:      &nodeItem,
 					},
 				},
 			},
@@ -64,16 +64,16 @@ func TestCellPatchOperation(t *testing.T) {
 	cellID := uuid.New().String()
 
 	t.Run("Valid Patch Operation", func(t *testing.T) {
+		// Create a Node for testing
+		nodeItem, _ := CreateNode(cellID, Process, 100, 200, 80, 40)
+
 		op := CellPatchOperation{
 			Type: "patch",
 			Cells: []CellOperation{
 				{
 					ID:        cellID,
 					Operation: "add",
-					Data: &Cell{
-						Id:    uuid.MustParse(cellID),
-						Shape: "process",
-					},
+					Data:      &nodeItem,
 				},
 			},
 		}
@@ -109,13 +109,13 @@ func TestCellOperation(t *testing.T) {
 	cellID := uuid.New().String()
 
 	t.Run("Valid Add Operation", func(t *testing.T) {
+		// Create a Node for testing
+		nodeItem, _ := CreateNode(cellID, Process, 100, 200, 80, 40)
+
 		op := CellOperation{
 			ID:        cellID,
 			Operation: "add",
-			Data: &Cell{
-				Id:    uuid.MustParse(cellID),
-				Shape: "process",
-			},
+			Data:      &nodeItem,
 		}
 
 		err := op.Validate()
@@ -146,12 +146,13 @@ func TestCellOperation(t *testing.T) {
 	})
 
 	t.Run("Remove Operation With Data", func(t *testing.T) {
+		// Create a Node for testing
+		nodeItem, _ := CreateNode(cellID, Process, 100, 200, 80, 40)
+
 		op := CellOperation{
 			ID:        cellID,
 			Operation: "remove",
-			Data: &Cell{
-				Id: uuid.MustParse(cellID),
-			},
+			Data:      &nodeItem,
 		}
 
 		err := op.Validate()
@@ -162,12 +163,13 @@ func TestCellOperation(t *testing.T) {
 	t.Run("Mismatched Cell ID", func(t *testing.T) {
 		differentID := uuid.New().String()
 
+		// Create a Node with different ID
+		nodeItem, _ := CreateNode(differentID, Process, 100, 200, 80, 40)
+
 		op := CellOperation{
 			ID:        cellID,
 			Operation: "update",
-			Data: &Cell{
-				Id: uuid.MustParse(differentID),
-			},
+			Data:      &nodeItem,
 		}
 
 		err := op.Validate()
@@ -251,6 +253,9 @@ func TestMessageParser(t *testing.T) {
 		cellID := uuid.New().String()
 		operationID := uuid.New().String()
 
+		// Create a Node for testing
+		nodeItem, _ := CreateNode(cellID, Process, 100, 200, 80, 40)
+
 		originalMsg := DiagramOperationMessage{
 			MessageType: MessageTypeDiagramOperation,
 			OperationID: operationID,
@@ -260,10 +265,7 @@ func TestMessageParser(t *testing.T) {
 					{
 						ID:        cellID,
 						Operation: "add",
-						Data: &Cell{
-							Id:    uuid.MustParse(cellID),
-							Shape: "process",
-						},
+						Data:      &nodeItem,
 					},
 				},
 			},
