@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
@@ -909,13 +910,14 @@ func (s *ThreatModelDatabaseStore) saveMetadataTx(tx *sql.Tx, threatModelId stri
 
 	for _, meta := range metadata {
 		query := `
-			INSERT INTO metadata (entity_type, entity_id, key, value, created_at, modified_at)
-			VALUES ('threat_model', $1, $2, $3, $4, $5)
+			INSERT INTO metadata (id, entity_type, entity_id, key, value, created_at, modified_at)
+			VALUES ($1, 'threat_model', $2, $3, $4, $5, $6)
 			ON CONFLICT (entity_type, entity_id, key)
-			DO UPDATE SET value = $3, modified_at = $5`
+			DO UPDATE SET value = EXCLUDED.value, modified_at = EXCLUDED.modified_at`
 
 		now := time.Now().UTC()
-		_, err := tx.Exec(query, threatModelId, meta.Key, meta.Value, now, now)
+		id := uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata)
+		_, err := tx.Exec(query, id, threatModelId, meta.Key, meta.Value, now, now)
 		if err != nil {
 			return err
 		}
