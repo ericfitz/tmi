@@ -2457,6 +2457,25 @@
           "last_activity",
           "permissions"
         ]
+      },
+      "DeletionChallenge": {
+        "type": "object",
+        "description": "Challenge response for user account deletion",
+        "required": [
+          "challenge_text",
+          "expires_at"
+        ],
+        "properties": {
+          "challenge_text": {
+            "type": "string",
+            "description": "The exact challenge string that must be provided to confirm deletion"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the challenge expires (3 minutes from issuance)"
+          }
+        }
       }
     },
     "responses": {
@@ -9485,6 +9504,67 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/users/me": {
+      "delete": {
+        "summary": "Delete authenticated user account and all data",
+        "description": "Two-step deletion process:\n1. First call (no challenge parameter) - Returns challenge string\n2. Second call (with challenge parameter) - Confirms deletion\n\nOwnership behavior:\n- Shared threat models: Transfers ownership to another owner from authorization list\n- Unshared threat models: Deletes completely along with all child resources",
+        "operationId": "deleteUserAccount",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "challenge",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Challenge string from first request (step 2 only). Must match exactly."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Challenge issued (step 1)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionChallenge"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "User deleted successfully (step 2)"
+          },
+          "400": {
+            "description": "Invalid or expired challenge, or challenge provided on first request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - valid JWT token required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }

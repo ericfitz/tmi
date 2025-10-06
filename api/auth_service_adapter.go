@@ -177,3 +177,8 @@ func (a *AuthServiceAdapter) IntrospectToken(c *gin.Context) {
 	logger.Info("[AUTH_SERVICE_ADAPTER] IntrospectToken called - delegating to auth.Handlers")
 	a.handlers.IntrospectToken(c)
 }
+
+// GetService returns the underlying auth service for advanced operations
+func (a *AuthServiceAdapter) GetService() *auth.Service {
+	return a.handlers.Service()
+}

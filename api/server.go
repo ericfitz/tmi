@@ -24,6 +24,7 @@ type Server struct {
 	sourceMetadataHandler      *SourceMetadataHandler
 	threatMetadataHandler      *ThreatMetadataHandler
 	threatModelMetadataHandler *ThreatModelMetadataHandler
+	userDeletionHandler        *UserDeletionHandler
 	// WebSocket hub
 	wsHub *WebSocketHub
 	// Auth handlers (for delegating auth-related methods)
@@ -255,6 +256,11 @@ func (s *Server) EndDiagramCollaborationSession(c *gin.Context, threatModelId op
 // SetAuthService sets the auth service for delegating auth-related methods
 func (s *Server) SetAuthService(authService AuthService) {
 	s.authService = authService
+
+	// Initialize user deletion handler with auth service
+	if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
+		s.userDeletionHandler = NewUserDeletionHandler(authAdapter.GetService())
+	}
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps
@@ -334,6 +340,24 @@ func (s *Server) GetCurrentUser(c *gin.Context) {
 	} else {
 		HandleRequestError(c, ServerError("Auth service not configured"))
 	}
+}
+
+// DeleteUserAccount handles user account deletion (two-step challenge-response)
+func (s *Server) DeleteUserAccount(c *gin.Context, params DeleteUserAccountParams) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] DeleteUserAccount called")
+
+	if s.userDeletionHandler == nil {
+		HandleRequestError(c, ServerError("User deletion service not configured"))
+		return
+	}
+
+	// Convert params to query parameter for handler
+	if params.Challenge != nil {
+		c.Request.URL.RawQuery = fmt.Sprintf("challenge=%s", *params.Challenge)
+	}
+
+	s.userDeletionHandler.DeleteUserAccount(c)
 }
 
 // GetAuthProviders lists OAuth providers
