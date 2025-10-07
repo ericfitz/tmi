@@ -408,6 +408,28 @@ Key developer documentation:
 - Always use make targets for testing - never run `go test` commands directly
 - For database-dependent functionality, also run `make test-integration` to ensure full integration works
 
+## Task Completion Requirements
+
+When completing any task involving code changes, follow this checklist:
+
+1. Run `make lint` and fix any linting issues
+2. Run `make build-server` and fix any build issues
+3. Run relevant tests (`make test-unit` and/or `make test-integration`) and fix any issues
+4. Suggest a conventional commit message
+
+**Conventional Commit Format**:
+- Use the format: `<type>(<scope>): <description>`
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`, `revert`
+- Scope: Optional, indicates the area of change (e.g., `api`, `auth`, `websocket`, `docs`)
+- Description: Brief summary in imperative mood (e.g., "add user deletion endpoint" not "added" or "adds")
+- Examples:
+  - `feat(api): add WebSocket heartbeat mechanism`
+  - `fix(auth): correct JWT token expiration validation`
+  - `docs(readme): update OAuth setup instructions`
+  - `refactor(websocket): simplify hub message broadcasting`
+  - `test(integration): add database connection pooling tests`
+  - `chore(deps): update Echo framework to v4.12.0`
+
 ## Make Command Memories
 
 - `make list-targets` is useful for quickly discovering and reviewing all available make targets in the project
