@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -209,6 +210,17 @@ var upgrader = websocket.Upgrader{
 		allowedOrigins = append(allowedOrigins,
 			"http://"+host,
 			"https://"+host)
+
+		// Add environment-configured allowed origins
+		if envOrigins := os.Getenv("WEBSOCKET_ALLOWED_ORIGINS"); envOrigins != "" {
+			// Split by comma and add each origin
+			for _, envOrigin := range strings.Split(envOrigins, ",") {
+				envOrigin = strings.TrimSpace(envOrigin)
+				if envOrigin != "" {
+					allowedOrigins = append(allowedOrigins, envOrigin)
+				}
+			}
+		}
 
 		// Check if origin matches any allowed origins
 		for _, allowed := range allowedOrigins {

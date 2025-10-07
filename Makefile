@@ -944,6 +944,28 @@ clean: clean-build
 dev: start-dev
 prod: start-dev  # For now, prod is same as dev
 
+# Deploy to Heroku production
+# This target builds the server, commits changes, and deploys to Heroku
+deploy-heroku:
+	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Starting Heroku deployment..."
+	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Building server binary..."
+	@$(MAKE) build-server
+	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Checking git status..."
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Committing changes..."; \
+		git add -A; \
+		git commit -m "chore: Build and deploy to Heroku [skip ci]" || true; \
+	else \
+		echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) No changes to commit"; \
+	fi
+	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Pushing to GitHub main branch..."
+	@git push origin main
+	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Pushing to Heroku..."
+	@git push heroku main
+	@echo "$(COLOR_GREEN)[SUCCESS]$(COLOR_RESET) Deployment complete!"
+	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Checking deployment status..."
+	@heroku releases --app tmi-server | head -3
+
 # Deprecated aliases for commonly used targets (will show warning)
 infra-db-start:
 	@echo "⚠️  WARNING: 'infra-db-start' is deprecated. Use 'start-database' instead."
