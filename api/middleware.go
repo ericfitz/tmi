@@ -258,6 +258,14 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// Skip for collaboration endpoints, they have their own access control
+		// Path pattern: /threat_models/{id}/diagrams/{diagram_id}/collaborate
+		if len(parts) >= 5 && parts[3] == "diagrams" && len(parts) >= 6 && parts[5] == "collaborate" {
+			logger.Debug("Skipping auth check for collaboration endpoint")
+			c.Next()
+			return
+		}
+
 		// Safety check: if ThreatModelStore is not initialized, skip validation
 		if ThreatModelStore == nil {
 			logger.Error("ThreatModelStore is not initialized")
