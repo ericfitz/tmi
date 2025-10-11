@@ -27,7 +27,7 @@ var (
 	// Major version number
 	VersionMajor = "0"
 	// Minor version number
-	VersionMinor = "46"
+	VersionMinor = "47"
 	// Patch version number
 	VersionPatch = "0"
 	// GitCommit is the git commit hash from build
@@ -141,6 +141,16 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 	v := GetVersion()
 	buildString := fmt.Sprintf("%d.%d.%d-%s", v.Major, v.Minor, v.Patch, v.GitCommit)
 
+	// Get API version from embedded OpenAPI specification
+	apiVersion := "unknown"
+	swagger, err := GetSwagger()
+	if err != nil {
+		logger.Error("Failed to load OpenAPI spec: %v", err)
+	} else if swagger != nil && swagger.Info != nil {
+		apiVersion = swagger.Info.Version
+		logger.Debug("Loaded API version from OpenAPI spec: %s", apiVersion)
+	}
+
 	// Create ApiInfo response
 	apiInfo := ApiInfo{
 		Status: struct {
@@ -161,7 +171,7 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 			Specification string `json:"specification"`
 			Version       string `json:"version"`
 		}{
-			Version:       "1.0.0",
+			Version:       apiVersion,
 			Specification: "https://github.com/ericfitz/tmi/blob/main/docs/reference/apis/tmi-openapi.json",
 		},
 	}
