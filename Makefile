@@ -944,6 +944,24 @@ clean: clean-build
 dev: start-dev
 prod: start-dev  # For now, prod is same as dev
 
+# ============================================================================
+# Heroku Configuration
+# ============================================================================
+
+.PHONY: heroku-setup heroku-setup-dry-run
+
+heroku-setup: ## Configure Heroku environment variables interactively
+	$(call log_info,"Starting Heroku environment configuration...")
+	@uv run scripts/setup-heroku-env.py
+
+heroku-setup-dry-run: ## Preview Heroku configuration without applying
+	$(call log_info,"Previewing Heroku configuration (dry-run mode)...")
+	@uv run scripts/setup-heroku-env.py --dry-run
+
+# ============================================================================
+# Heroku Deployment
+# ============================================================================
+
 # Deploy to Heroku production
 # This target builds the server, commits changes, and deploys to Heroku
 deploy-heroku:

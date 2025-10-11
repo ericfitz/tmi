@@ -8,17 +8,52 @@ The TMI server is deployed to Heroku using:
 - **Procfile**: Specifies the command to run the tmiserver binary
 - **.godir**: Tells Heroku to build only the tmiserver package (not other binaries)
 - **app.json**: Defines the Heroku app configuration, environment variables, and required addons
+- **setup-heroku-env.py**: Automated configuration script for environment variables (recommended)
 
 ## Prerequisites
 
 1. **Heroku Account**: Sign up at [heroku.com](https://heroku.com)
 2. **Heroku CLI**: Install from [devcenter.heroku.com/articles/heroku-cli](https://devcenter.heroku.com/articles/heroku-cli)
-3. **GitHub Repository**: Your code must be pushed to a GitHub repository
-4. **Git**: Ensure your local repository is connected to GitHub
+3. **UV (for automated setup)**: Install from [astral.sh/uv](https://astral.sh/uv) - `curl -LsSf https://astral.sh/uv/install.sh | sh`
+4. **GitHub Repository**: Your code must be pushed to a GitHub repository
+5. **Git**: Ensure your local repository is connected to GitHub
 
 ## Quick Start Deployment
 
-### Option 1: Deploy via Heroku Dashboard (Recommended for First Deployment)
+### Recommended: Automated Configuration Script
+
+The fastest way to get started is with the automated configuration script:
+
+```bash
+# 1. Create your Heroku apps
+heroku create my-tmi-server    # Backend API
+heroku create my-tmi-ux        # Frontend (optional)
+
+# 2. Provision addons
+heroku addons:create heroku-postgresql:essential-0 --app my-tmi-server
+heroku addons:create heroku-redis:mini --app my-tmi-server
+
+# 3. Run automated configuration
+make heroku-setup
+
+# 4. Deploy
+git push heroku main
+```
+
+The script will:
+- Automatically extract database and Redis credentials
+- Generate secure JWT secrets
+- Configure WebSocket CORS origins based on your client app
+- Prompt for OAuth provider credentials
+- Apply all configuration with confirmation
+
+**See the [Configuration Methods](#configuration-methods) section below for detailed information.**
+
+---
+
+### Alternative: Manual Heroku Dashboard Deployment
+
+### Option 1: Deploy via Heroku Dashboard (For Manual Setup)
 
 1. **Login to Heroku Dashboard**
    - Navigate to [dashboard.heroku.com](https://dashboard.heroku.com)
@@ -77,9 +112,67 @@ Add this button to your README.md:
 
 Users can click this button to deploy your app directly to Heroku.
 
-## Required Configuration
+## Configuration Methods
 
-### Environment Variables
+You have two options for configuring environment variables:
+
+1. **Automated Configuration Script (Recommended)** - Use the interactive `setup-heroku-env.py` script
+2. **Manual Configuration** - Set variables individually via Heroku CLI or Dashboard
+
+### Option 1: Automated Configuration (Recommended)
+
+The TMI project includes an automated configuration script that handles most of the setup for you:
+
+```bash
+# Interactive mode - prompts for all configuration
+make heroku-setup
+
+# Or run directly with uv
+uv run scripts/setup-heroku-env.py
+
+# Preview configuration without applying (dry-run)
+make heroku-setup-dry-run
+```
+
+**What it does automatically:**
+- Lists and selects Heroku apps (server + client)
+- Detects and extracts PostgreSQL credentials from Heroku Postgres addon
+- Detects and extracts Redis credentials from Heroku Redis addon
+- Generates secure JWT_SECRET
+- Auto-configures OAUTH_CALLBACK_URL from server app URL
+- Auto-configures WEBSOCKET_ALLOWED_ORIGINS from client app URL
+- Prompts for OAuth provider credentials (Google, GitHub, Microsoft)
+- Sets sensible server defaults (logging, TLS, etc.)
+- Offers to provision missing addons
+- Displays configuration summary before applying
+
+**Script features:**
+- `--dry-run` - Preview changes without applying
+- `--non-interactive` - Batch mode for automation
+- `--skip-oauth` - Skip OAuth configuration
+- `--server-app <name>` - Specify server app name
+- `--client-app <name>` - Specify client app name
+- `--help` - Show all available options
+
+**Prerequisites:**
+- Heroku CLI installed and authenticated
+- UV installed (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+- Apps created on Heroku (or script can create them)
+
+**Example workflow:**
+```bash
+# 1. Run the setup script
+make heroku-setup
+
+# 2. Select your server app (e.g., tmi-server)
+# 3. Select your client app (e.g., tmi-ux)
+# 4. Script auto-configures database, Redis, JWT, WebSocket origins
+# 5. Enter OAuth credentials for desired providers
+# 6. Review and confirm configuration
+# 7. Deploy: git push heroku main
+```
+
+### Option 2: Manual Configuration
 
 After creating your app, you must configure these environment variables:
 
@@ -186,6 +279,7 @@ heroku config:set SERVER_TLS_ENABLED=false --app my-tmi-server
 | `LOGGING_LOG_WEBSOCKET_MESSAGES` | No | false | Log WebSocket messages |
 | `LOGGING_REDACT_AUTH_TOKENS` | No | true | Redact auth tokens in logs |
 | `LOGGING_SUPPRESS_UNAUTH_LOGS` | No | true | Suppress unauthenticated logs |
+| `WEBSOCKET_ALLOWED_ORIGINS` | No | - | Comma-separated list of allowed WebSocket origins |
 | `WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS` | No | 300 | WebSocket inactivity timeout in seconds |
 
 ## Required Addons
@@ -413,6 +507,35 @@ web: ./bin/tmiserver --generate-config && ./bin/tmiserver --config=config-produc
 
 ### Initial Deployment
 
+#### Quick Start (Automated)
+
+1. **Create Heroku apps** (if not already created):
+   ```bash
+   heroku create my-tmi-server    # API server
+   heroku create my-tmi-ux        # Frontend client (optional)
+   ```
+
+2. **Run automated configuration**:
+   ```bash
+   make heroku-setup
+   # Follow the interactive prompts to configure your apps
+   ```
+
+3. **Push code and deploy**:
+   ```bash
+   git push heroku main
+   # Database migrations run automatically via release phase
+   ```
+
+4. **Test the deployment**:
+   ```bash
+   curl https://my-tmi-server.herokuapp.com/version
+   ```
+
+#### Manual Steps (Alternative)
+
+If you prefer manual configuration:
+
 1. **Push code to GitHub**:
    ```bash
    git add .
@@ -432,11 +555,12 @@ web: ./bin/tmiserver --generate-config && ./bin/tmiserver --config=config-produc
    heroku addons:create heroku-redis:mini
    ```
 
-4. **Configure environment variables** (see "Required Configuration" section)
+4. **Configure environment variables** (see "Option 2: Manual Configuration" section)
 
-5. **Run database migrations**:
+5. **Deploy**:
    ```bash
-   heroku run bin/migrate up
+   git push heroku main
+   # Database migrations run automatically via release phase
    ```
 
 6. **Test the deployment**:
@@ -599,6 +723,182 @@ heroku ps:scale web=4 --app my-tmi-server
 
 **Note**: WebSocket connections are sticky by default, so multiple dynos work well with the TMI server's WebSocket hub.
 
+## WebSocket Configuration
+
+The TMI server uses WebSockets for real-time collaboration features. Heroku requires specific configuration for WebSocket support:
+
+### Required Configuration Changes
+
+#### 1. Port Binding (Critical)
+
+The Procfile **must** bind to Heroku's dynamically assigned `$PORT` environment variable:
+
+```
+web: SERVER_PORT=$PORT bin/server
+```
+
+**Why this matters**: Heroku's HTTP router requires applications to bind to the port specified by the `$PORT` environment variable. WebSocket connections upgrade from HTTP connections, so proper port binding is essential for WebSocket handshakes to succeed.
+
+#### 2. Environment Variable Prefix Support
+
+The server was updated to support both prefixed (`TMI_*`) and non-prefixed environment variables. Use non-prefixed variables in the Procfile for simplicity:
+
+```bash
+# Procfile uses non-prefixed variable
+SERVER_PORT=$PORT
+
+# app.json and Heroku config can use either:
+heroku config:set SERVER_INTERFACE=0.0.0.0 --app my-tmi-server
+# or
+heroku config:set TMI_SERVER_INTERFACE=0.0.0.0 --app my-tmi-server
+```
+
+#### 3. WebSocket Allowed Origins (Required for CORS)
+
+Configure allowed origins for WebSocket connections to permit cross-origin requests from your frontend application:
+
+```bash
+# Set allowed origins for WebSocket connections (comma-separated list)
+heroku config:set WEBSOCKET_ALLOWED_ORIGINS="https://your-frontend-app.com,https://www.your-frontend-app.com" --app my-tmi-server
+```
+
+**Why this matters**: WebSocket connections from browser-based clients require CORS (Cross-Origin Resource Sharing) configuration. The `WEBSOCKET_ALLOWED_ORIGINS` environment variable specifies which origins are permitted to establish WebSocket connections to your server.
+
+**Format**: Comma-separated list of fully qualified origin URLs
+- Include protocol (https:// or http://)
+- Include all frontend domains that will connect to your API
+- No trailing slashes
+
+**Examples**:
+```bash
+# Single frontend domain
+heroku config:set WEBSOCKET_ALLOWED_ORIGINS="https://myapp.example.com" --app my-tmi-server
+
+# Multiple domains (production + staging)
+heroku config:set WEBSOCKET_ALLOWED_ORIGINS="https://myapp.com,https://staging.myapp.com" --app my-tmi-server
+
+# Multiple domains with www variants
+heroku config:set WEBSOCKET_ALLOWED_ORIGINS="https://myapp.com,https://www.myapp.com,https://staging.myapp.com" --app my-tmi-server
+```
+
+**Note**: The server automatically allows connections from:
+- `http://localhost:*` (development)
+- `http://{server-hostname}` and `https://{server-hostname}` (same-origin)
+
+If you need to allow additional origins (like your frontend application hosted on a different domain), you **must** set `WEBSOCKET_ALLOWED_ORIGINS`.
+
+#### 4. Session Affinity (Optional)
+
+For production deployments with multiple dynos, consider enabling Heroku's session affinity feature:
+
+```bash
+# Check session affinity status
+heroku features:info http-session-affinity --app my-tmi-server
+
+# Enable session affinity (optional, but recommended for multi-dyno WebSocket deployments)
+heroku features:enable http-session-affinity --app my-tmi-server
+```
+
+**Benefits**: Session affinity ensures that WebSocket connections from the same client consistently route to the same dyno, which can improve connection stability and reduce reconnection overhead.
+
+**Documentation**: [Heroku Session Affinity](https://devcenter.heroku.com/articles/session-affinity)
+
+### WebSocket Testing
+
+After deployment, test WebSocket connectivity:
+
+```bash
+# Test WebSocket endpoint (requires authentication token)
+wscat -c "wss://my-tmi-server.herokuapp.com/ws/diagrams/{diagram-id}" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### WebSocket Troubleshooting
+
+#### Connection Upgrades Failing
+
+**Symptom**: WebSocket connections fail with 503 or timeout errors.
+
+**Cause**: Server not binding to `$PORT` correctly.
+
+**Solution**:
+```bash
+# Verify Procfile uses $PORT
+cat Procfile
+# Should show: web: SERVER_PORT=$PORT bin/server
+
+# Check server logs for port binding
+heroku logs --tail --app my-tmi-server | grep -i "port\|websocket"
+```
+
+#### WebSocket Connection Rejected (CORS)
+
+**Symptom**: WebSocket connections fail with "origin not allowed" or 403 Forbidden errors. Browser console shows CORS-related error messages.
+
+**Cause**: Frontend origin not included in `WEBSOCKET_ALLOWED_ORIGINS`.
+
+**Solution**:
+```bash
+# Check current allowed origins
+heroku config:get WEBSOCKET_ALLOWED_ORIGINS --app my-tmi-server
+
+# Add your frontend origin(s)
+heroku config:set WEBSOCKET_ALLOWED_ORIGINS="https://your-frontend.com" --app my-tmi-server
+
+# Check server logs for rejected origins
+heroku logs --tail --app my-tmi-server | grep -i "rejected.*origin"
+```
+
+**Example log message when origin is rejected**:
+```
+Rejected WebSocket connection from origin: https://unauthorized-site.com
+```
+
+#### WebSocket Disconnects with Multiple Dynos
+
+**Symptom**: WebSocket connections disconnect when scaling to multiple dynos.
+
+**Cause**: Load balancer routing WebSocket traffic to different dynos.
+
+**Solution**:
+```bash
+# Enable session affinity
+heroku features:enable http-session-affinity --app my-tmi-server
+
+# Or scale down to single dyno for testing
+heroku ps:scale web=1 --app my-tmi-server
+```
+
+#### Idle Connection Timeouts
+
+**Symptom**: WebSocket connections close after 55 seconds of inactivity.
+
+**Cause**: Heroku's HTTP router terminates idle connections after 55 seconds.
+
+**Solution**: The TMI server implements automatic ping/pong heartbeat messages. Ensure `WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS` is set appropriately:
+
+```bash
+# Set inactivity timeout (default: 300 seconds)
+heroku config:set WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS=300 --app my-tmi-server
+```
+
+The server sends ping frames every 30 seconds by default, which keeps connections alive within Heroku's 55-second timeout window.
+
+### WebSocket Monitoring
+
+Monitor WebSocket connections and activity:
+
+```bash
+# Enable WebSocket message logging (debugging only)
+heroku config:set LOGGING_LOG_WEBSOCKET_MESSAGES=true --app my-tmi-server
+
+# View WebSocket-specific logs
+heroku logs --tail --app my-tmi-server | grep -i websocket
+
+# Disable after debugging (reduces log volume)
+heroku config:set LOGGING_LOG_WEBSOCKET_MESSAGES=false --app my-tmi-server
+```
+
 ## Cost Estimation
 
 ### Minimal Setup
@@ -674,12 +974,22 @@ heroku ps:scale web=4 --app my-tmi-server
 
 ## Additional Resources
 
+### TMI-Specific Tools
+
+- **Automated Configuration Script**: `scripts/setup-heroku-env.py` - Interactive tool for environment setup
+  - Usage: `make heroku-setup` or `uv run scripts/setup-heroku-env.py`
+  - Features: Auto-extraction of credentials, JWT generation, WebSocket CORS configuration
+  - Dry-run mode: `make heroku-setup-dry-run`
+
+### Heroku Documentation
+
 - [Heroku Go Support](https://devcenter.heroku.com/articles/go-support)
 - [Heroku Postgres](https://devcenter.heroku.com/articles/heroku-postgresql)
 - [Heroku Redis](https://devcenter.heroku.com/articles/heroku-redis)
 - [Heroku CLI Reference](https://devcenter.heroku.com/articles/heroku-cli-commands)
 - [Procfile Documentation](https://devcenter.heroku.com/articles/procfile)
 - [app.json Schema](https://devcenter.heroku.com/articles/app-json-schema)
+- [Session Affinity for WebSockets](https://devcenter.heroku.com/articles/session-affinity)
 
 ## Support
 
