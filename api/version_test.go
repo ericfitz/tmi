@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -78,7 +79,10 @@ func TestApiInfoHandler_GetApiInfo(t *testing.T) {
 				assert.Equal(t, "OK", string(apiInfo.Status.Code))
 				assert.Equal(t, "TMI", apiInfo.Service.Name)
 				assert.NotEmpty(t, apiInfo.Service.Build)
-				assert.Equal(t, "1.0.0", apiInfo.Api.Version)
+
+				// Verify API version follows semantic versioning format (e.g., 0.99.1, 1.0.0, 1.2.3-beta)
+				semverPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$`)
+				assert.Regexp(t, semverPattern, apiInfo.Api.Version, "API version should follow semantic versioning format")
 				assert.NotEmpty(t, apiInfo.Api.Specification)
 
 				// Note: WebSocket information is now documented separately in AsyncAPI spec
