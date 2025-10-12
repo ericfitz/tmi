@@ -31,9 +31,14 @@ func TestRFC9728EndpointIntegration(t *testing.T) {
 	// Create auth handlers
 	handlers := auth.NewHandlers(nil, config) // No service needed for this endpoint
 
-	// Create router and register the endpoint
+	// Create server and setup OpenAPI routes
+	server := NewServerForTests()
+	authAdapter := NewAuthServiceAdapter(handlers)
+	server.SetAuthService(authAdapter)
+
+	// Create router and register OpenAPI routes
 	router := gin.New()
-	handlers.RegisterRoutes(router)
+	RegisterHandlers(router, server)
 
 	t.Run("RFC9728_HTTP", func(t *testing.T) {
 		// Test HTTP endpoint

@@ -52,10 +52,8 @@ func InitAuth(router *gin.Engine) error {
 	}
 
 	// Create authentication handlers
-	handlers := NewHandlers(service, config)
-
-	// Register routes
-	handlers.RegisterRoutes(router)
+	// Note: Route registration is handled via OpenAPI specification
+	_ = NewHandlers(service, config)
 
 	// Start background job for periodic cache rebuilding
 	go startCacheRebuildJob(context.Background(), dbManager)

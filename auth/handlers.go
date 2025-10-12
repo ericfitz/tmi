@@ -19,10 +19,15 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// Context key type for login_hint
+// Context key type for context values
 type contextKey string
 
-const userHintContextKey contextKey = "login_hint"
+const (
+	// userHintContextKey is the key for login_hint in context
+	userHintContextKey contextKey = "login_hint"
+	// UserContextKey is the key for the user in the Gin context
+	UserContextKey contextKey = "user"
+)
 
 // Handlers provides HTTP handlers for authentication
 type Handlers struct {
@@ -43,54 +48,9 @@ func (h *Handlers) Service() *Service {
 	return h.service
 }
 
-// RegisterRoutes registers the authentication routes
-func (h *Handlers) RegisterRoutes(router *gin.Engine) {
-	logger := slogging.Get()
-	logger.Info("[AUTH_MODULE] Starting route registration")
-
-	// Register OpenID Connect Discovery endpoints
-	wellKnown := router.Group("/.well-known")
-	{
-		logger.Info("[AUTH_MODULE] Registering route: GET /.well-known/openid-configuration")
-		wellKnown.GET("/openid-configuration", h.GetOpenIDConfiguration)
-		logger.Info("[AUTH_MODULE] Registering route: GET /.well-known/oauth-authorization-server")
-		wellKnown.GET("/oauth-authorization-server", h.GetOAuthAuthorizationServerMetadata)
-		logger.Info("[AUTH_MODULE] Registering route: GET /.well-known/jwks.json")
-		wellKnown.GET("/jwks.json", h.GetJWKS)
-		logger.Info("[AUTH_MODULE] Registering route: GET /.well-known/oauth-protected-resource")
-		wellKnown.GET("/oauth-protected-resource", h.GetOAuthProtectedResourceMetadata)
-	}
-
-	auth := router.Group("/oauth2")
-	{
-		// Note: OAuth2 authorize and token endpoints are now handled by OpenAPI-generated routes
-		// with query parameters instead of path parameters. These routes are registered by the
-		// api.RegisterHandlers() call in the main server setup.
-
-		logger.Info("[AUTH_MODULE] Registering route: GET /oauth2/providers")
-		auth.GET("/providers", h.GetProviders)
-		logger.Info("[AUTH_MODULE] Registering route: GET /oauth2/callback")
-		auth.GET("/callback", h.Callback)
-		logger.Info("[AUTH_MODULE] Registering route: POST /oauth2/refresh")
-		auth.POST("/refresh", h.Refresh)
-		logger.Info("[AUTH_MODULE] Registering route: POST /oauth2/revoke")
-		auth.POST("/revoke", h.Logout)
-		logger.Info("[AUTH_MODULE] Registering route: GET /oauth2/userinfo (with auth middleware)")
-		auth.GET("/userinfo", h.AuthMiddleware().AuthRequired(), h.Me)
-		logger.Info("[AUTH_MODULE] Registering route: POST /oauth2/introspect")
-		auth.POST("/introspect", h.IntrospectToken)
-	}
-
-	logger.Info("[AUTH_MODULE] Registering test provider routes")
-	// Register test provider routes (only in dev/test builds)
-	h.registerTestProviderRoutes(router)
-	logger.Info("[AUTH_MODULE] Route registration completed")
-}
-
-// AuthMiddleware returns the authentication middleware
-func (h *Handlers) AuthMiddleware() *Middleware {
-	return NewMiddleware(h.service)
-}
+// Note: Route registration has been removed. All routes are now registered via OpenAPI
+// specification in api/api.go. The auth handlers are called through the Server's
+// AuthService adapter.
 
 // ProviderInfo contains information about an OAuth provider
 type ProviderInfo struct {
@@ -932,7 +892,7 @@ func (h *Handlers) Logout(c *gin.Context) {
 
 // Me returns the current user
 func (h *Handlers) Me(c *gin.Context) {
-	// First try to get the full user object from Gin context (set by JWT middleware)
+	// Get the full user object from Gin context (set by JWT middleware)
 	userInterface, exists := c.Get(string(UserContextKey))
 	if exists {
 		if user, ok := userInterface.(User); ok {
@@ -941,39 +901,10 @@ func (h *Handlers) Me(c *gin.Context) {
 		}
 	}
 
-	// Fallback: try to get from request context (for auth middleware compatibility)
-	user, err := GetUserFromContext(c.Request.Context())
-	if err == nil {
-		c.JSON(http.StatusOK, user)
-		return
-	}
-
-	// If full user not available, try to get userName from JWT middleware context
-	userNameInterface, exists := c.Get("userName")
-	if !exists {
-		c.Header("WWW-Authenticate", "Bearer")
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not authenticated",
-		})
-		return
-	}
-
-	userName, ok := userNameInterface.(string)
-	if !ok || userName == "" {
-		c.Header("WWW-Authenticate", "Bearer")
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid user context",
-		})
-		return
-	}
-
-	// Return a minimal user object with the available information from JWT
-	c.JSON(http.StatusOK, gin.H{
-		"email":         userName,
-		"name":          userName, // We don't have the full name from JWT, so use email
-		"id":            "",       // We don't have user ID from JWT
-		"authenticated": true,
-		"source":        "jwt",
+	// User not found in context - not authenticated
+	c.Header("WWW-Authenticate", "Bearer")
+	c.JSON(http.StatusUnauthorized, gin.H{
+		"error": "User not authenticated",
 	})
 }
 
