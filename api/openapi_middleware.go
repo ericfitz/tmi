@@ -20,20 +20,36 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 	logger.Error("OPENAPI_VALIDATION_FAILED [%s] %s %s -> %d: %s",
 		requestID, c.Request.Method, c.Request.URL.Path, statusCode, message)
 
-	switch statusCode {
-	case http.StatusBadRequest:
-		if strings.Contains(strings.ToLower(message), "required") {
-			tmiError = InvalidInputError(message)
-		} else if strings.Contains(strings.ToLower(message), "format") ||
-			strings.Contains(strings.ToLower(message), "pattern") {
-			tmiError = InvalidIDError(message)
-		} else {
-			tmiError = InvalidInputError(message)
+	// Check for "no matching operation" errors (route/method not found in OpenAPI spec)
+	messageLower := strings.ToLower(message)
+	if strings.Contains(messageLower, "no matching operation") {
+		// Provide detailed error message explaining what went wrong
+		detailedMessage := fmt.Sprintf(
+			"The endpoint '%s %s' is not defined in the API specification. "+
+				"Check the request method and path (including trailing slashes).",
+			c.Request.Method, c.Request.URL.Path)
+		tmiError = &RequestError{
+			Code:    "not_found",
+			Message: detailedMessage,
+			Status:  http.StatusNotFound,
 		}
-	case http.StatusUnprocessableEntity:
-		tmiError = InvalidInputError(message)
-	default:
-		tmiError = ServerError(message)
+	} else {
+		// Handle other validation errors
+		switch statusCode {
+		case http.StatusBadRequest:
+			if strings.Contains(messageLower, "required") {
+				tmiError = InvalidInputError(message)
+			} else if strings.Contains(messageLower, "format") ||
+				strings.Contains(messageLower, "pattern") {
+				tmiError = InvalidIDError(message)
+			} else {
+				tmiError = InvalidInputError(message)
+			}
+		case http.StatusUnprocessableEntity:
+			tmiError = InvalidInputError(message)
+		default:
+			tmiError = ServerError(message)
+		}
 	}
 
 	// Log the final error being returned to client for debugging
