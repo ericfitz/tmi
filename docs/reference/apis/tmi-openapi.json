@@ -2901,7 +2901,8 @@
                   "token_type_hint": {
                     "type": "string",
                     "description": "Optional hint about the type of token being introspected",
-                    "example": "access_token"
+                    "example": "access_token",
+                    "nullable": true
                   }
                 },
                 "required": [
