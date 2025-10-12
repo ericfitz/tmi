@@ -44,18 +44,9 @@ var TestFixtures struct {
 	Initialized bool
 }
 
-// ResetStores clears all data from the stores
-func ResetStores() {
-	// Note: Database stores require actual database connection to reset
-	// This function is primarily for compatibility with existing test code
-}
-
 // InitTestFixtures initializes test data in stores
 func InitTestFixtures() {
 	// Database stores are initialized by the main application
-
-	// Clear any existing test data first
-	ResetStores()
 
 	// Set up test users for authorization entries
 	TestFixtures.OwnerUser = "test@example.com"

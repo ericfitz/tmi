@@ -293,7 +293,8 @@ func (cw *CacheWarmer) warmThreatsForThreatModel(ctx context.Context, threatMode
 		return nil // Skip warming if cache is not available
 	}
 
-	threats, err := cw.threatStore.ListSimple(ctx, threatModelID, 0, 100) // Warm first 100 threats
+	filter := ThreatFilter{Offset: 0, Limit: 100}
+	threats, err := cw.threatStore.List(ctx, threatModelID, filter) // Warm first 100 threats
 	if err != nil {
 		return fmt.Errorf("failed to list threats: %w", err)
 	}

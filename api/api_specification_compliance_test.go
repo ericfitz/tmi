@@ -13,38 +13,37 @@ import (
 	"github.com/google/uuid"
 )
 
-// BackwardCompatibilityTest ensures existing API endpoints continue to work
-// after the granular API implementation
-type BackwardCompatibilityTest struct {
+// APISpecificationComplianceTest ensures API endpoints comply with the OpenAPI specification
+type APISpecificationComplianceTest struct {
 	router      *gin.Engine
 	testContext context.Context
 	testUser    string
 }
 
-// NewBackwardCompatibilityTest creates a new backward compatibility test suite
-func NewBackwardCompatibilityTest(router *gin.Engine) *BackwardCompatibilityTest {
-	return &BackwardCompatibilityTest{
+// NewAPISpecificationComplianceTest creates a new API specification compliance test suite
+func NewAPISpecificationComplianceTest(router *gin.Engine) *APISpecificationComplianceTest {
+	return &APISpecificationComplianceTest{
 		router:      router,
 		testContext: context.Background(),
-		testUser:    "compatibility_test@example.com",
+		testUser:    "spec_compliance_test@example.com",
 	}
 }
 
-// TestAllExistingEndpoints tests all existing API endpoints for backward compatibility
-func (bct *BackwardCompatibilityTest) TestAllExistingEndpoints(t *testing.T) {
+// TestAllAPIEndpoints tests all API endpoints for specification compliance
+func (act *APISpecificationComplianceTest) TestAllAPIEndpoints(t *testing.T) {
 	// Initialize test fixtures
 	if !SubResourceFixtures.Initialized {
 		InitSubResourceTestFixtures()
 	}
 
-	t.Run("ThreatModelEndpoints", bct.testThreatModelEndpoints)
-	t.Run("DiagramEndpoints", bct.testDiagramEndpoints)
-	t.Run("AuthEndpoints", bct.testAuthEndpoints)
-	t.Run("HealthEndpoints", bct.testHealthEndpoints)
+	t.Run("ThreatModelEndpoints", act.testThreatModelEndpoints)
+	t.Run("DiagramEndpoints", act.testDiagramEndpoints)
+	t.Run("AuthEndpoints", act.testAuthEndpoints)
+	t.Run("HealthEndpoints", act.testHealthEndpoints)
 }
 
 // testThreatModelEndpoints tests existing threat model endpoints
-func (bct *BackwardCompatibilityTest) testThreatModelEndpoints(t *testing.T) {
+func (act *APISpecificationComplianceTest) testThreatModelEndpoints(t *testing.T) {
 	threatModelID := SubResourceFixtures.ThreatModelID
 
 	testCases := []struct {
@@ -75,7 +74,7 @@ func (bct *BackwardCompatibilityTest) testThreatModelEndpoints(t *testing.T) {
 			name:           "CreateThreatModel",
 			method:         "POST",
 			path:           "/threat_models",
-			body:           bct.createTestThreatModelRequest(),
+			body:           act.createTestThreatModelRequest(),
 			expectedStatus: http.StatusCreated,
 			description:    "Create threat model should work",
 		},
@@ -83,7 +82,7 @@ func (bct *BackwardCompatibilityTest) testThreatModelEndpoints(t *testing.T) {
 			name:           "UpdateThreatModel",
 			method:         "PUT",
 			path:           "/threat_models/" + threatModelID,
-			body:           bct.createUpdateThreatModelRequest(),
+			body:           act.createUpdateThreatModelRequest(),
 			expectedStatus: http.StatusOK,
 			description:    "Update threat model should work",
 		},
@@ -91,13 +90,13 @@ func (bct *BackwardCompatibilityTest) testThreatModelEndpoints(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			bct.performRequest(t, tc.method, tc.path, tc.body, tc.expectedStatus, tc.description)
+			act.performRequest(t, tc.method, tc.path, tc.body, tc.expectedStatus, tc.description)
 		})
 	}
 }
 
 // testDiagramEndpoints tests existing diagram endpoints
-func (bct *BackwardCompatibilityTest) testDiagramEndpoints(t *testing.T) {
+func (act *APISpecificationComplianceTest) testDiagramEndpoints(t *testing.T) {
 	threatModelID := SubResourceFixtures.ThreatModelID
 	diagramID := SubResourceFixtures.DiagramID
 
@@ -129,7 +128,7 @@ func (bct *BackwardCompatibilityTest) testDiagramEndpoints(t *testing.T) {
 			name:           "CreateDiagram",
 			method:         "POST",
 			path:           "/threat_models/" + threatModelID + "/diagrams",
-			body:           bct.createTestDiagramRequest(),
+			body:           act.createTestDiagramRequest(),
 			expectedStatus: http.StatusCreated,
 			description:    "Create diagram should work",
 		},
@@ -137,7 +136,7 @@ func (bct *BackwardCompatibilityTest) testDiagramEndpoints(t *testing.T) {
 			name:           "UpdateDiagram",
 			method:         "PUT",
 			path:           "/threat_models/" + threatModelID + "/diagrams/" + diagramID,
-			body:           bct.createUpdateDiagramRequest(),
+			body:           act.createUpdateDiagramRequest(),
 			expectedStatus: http.StatusOK,
 			description:    "Update diagram should work",
 		},
@@ -145,13 +144,13 @@ func (bct *BackwardCompatibilityTest) testDiagramEndpoints(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			bct.performRequest(t, tc.method, tc.path, tc.body, tc.expectedStatus, tc.description)
+			act.performRequest(t, tc.method, tc.path, tc.body, tc.expectedStatus, tc.description)
 		})
 	}
 }
 
 // testAuthEndpoints tests existing authentication endpoints
-func (bct *BackwardCompatibilityTest) testAuthEndpoints(t *testing.T) {
+func (act *APISpecificationComplianceTest) testAuthEndpoints(t *testing.T) {
 	testCases := []struct {
 		name           string
 		method         string
@@ -180,13 +179,13 @@ func (bct *BackwardCompatibilityTest) testAuthEndpoints(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			bct.performRequest(t, tc.method, tc.path, tc.body, tc.expectedStatus, tc.description)
+			act.performRequest(t, tc.method, tc.path, tc.body, tc.expectedStatus, tc.description)
 		})
 	}
 }
 
 // testHealthEndpoints tests health and status endpoints
-func (bct *BackwardCompatibilityTest) testHealthEndpoints(t *testing.T) {
+func (act *APISpecificationComplianceTest) testHealthEndpoints(t *testing.T) {
 	testCases := []struct {
 		name           string
 		method         string
@@ -205,17 +204,17 @@ func (bct *BackwardCompatibilityTest) testHealthEndpoints(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			bct.performRequest(t, tc.method, tc.path, nil, tc.expectedStatus, tc.description)
+			act.performRequest(t, tc.method, tc.path, nil, tc.expectedStatus, tc.description)
 		})
 	}
 }
 
 // TestResponseSchemaCompatibility tests that response schemas haven't changed
-func (bct *BackwardCompatibilityTest) TestResponseSchemaCompatibility(t *testing.T) {
+func (act *APISpecificationComplianceTest) TestResponseSchemaCompatibility(t *testing.T) {
 	threatModelID := SubResourceFixtures.ThreatModelID
 
 	t.Run("ThreatModelResponseSchema", func(t *testing.T) {
-		resp := bct.makeRequest(t, "GET", "/threat_models/"+threatModelID, nil)
+		resp := act.makeRequest(t, "GET", "/threat_models/"+threatModelID, nil)
 		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
@@ -237,7 +236,7 @@ func (bct *BackwardCompatibilityTest) TestResponseSchemaCompatibility(t *testing
 	})
 
 	t.Run("DiagramResponseSchema", func(t *testing.T) {
-		resp := bct.makeRequest(t, "GET", "/threat_models/"+threatModelID+"/diagrams", nil)
+		resp := act.makeRequest(t, "GET", "/threat_models/"+threatModelID+"/diagrams", nil)
 		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
@@ -263,7 +262,7 @@ func (bct *BackwardCompatibilityTest) TestResponseSchemaCompatibility(t *testing
 }
 
 // TestErrorResponseCompatibility tests that error responses haven't changed
-func (bct *BackwardCompatibilityTest) TestErrorResponseCompatibility(t *testing.T) {
+func (act *APISpecificationComplianceTest) TestErrorResponseCompatibility(t *testing.T) {
 	testCases := []struct {
 		name           string
 		method         string
@@ -296,7 +295,7 @@ func (bct *BackwardCompatibilityTest) TestErrorResponseCompatibility(t *testing.
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp := bct.makeRequest(t, tc.method, tc.path, nil)
+			resp := act.makeRequest(t, tc.method, tc.path, nil)
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != tc.expectedStatus {
@@ -320,7 +319,7 @@ func (bct *BackwardCompatibilityTest) TestErrorResponseCompatibility(t *testing.
 }
 
 // TestContentTypeCompatibility tests that content types are handled correctly
-func (bct *BackwardCompatibilityTest) TestContentTypeCompatibility(t *testing.T) {
+func (act *APISpecificationComplianceTest) TestContentTypeCompatibility(t *testing.T) {
 	testCases := []struct {
 		name        string
 		contentType string
@@ -348,7 +347,7 @@ func (bct *BackwardCompatibilityTest) TestContentTypeCompatibility(t *testing.T)
 			req.Header.Set("Accept", tc.accept)
 
 			w := httptest.NewRecorder()
-			bct.router.ServeHTTP(w, req)
+			act.router.ServeHTTP(w, req)
 
 			if w.Code != http.StatusOK {
 				t.Errorf("Expected 200 but got %d for %s", w.Code, tc.description)
@@ -358,7 +357,7 @@ func (bct *BackwardCompatibilityTest) TestContentTypeCompatibility(t *testing.T)
 }
 
 // TestPaginationCompatibility tests that pagination parameters still work
-func (bct *BackwardCompatibilityTest) TestPaginationCompatibility(t *testing.T) {
+func (act *APISpecificationComplianceTest) TestPaginationCompatibility(t *testing.T) {
 	testCases := []struct {
 		name        string
 		path        string
@@ -393,7 +392,7 @@ func (bct *BackwardCompatibilityTest) TestPaginationCompatibility(t *testing.T) 
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp := bct.makeRequest(t, "GET", tc.path+tc.queryParams, nil)
+			resp := act.makeRequest(t, "GET", tc.path+tc.queryParams, nil)
 			defer func() { _ = resp.Body.Close() }()
 
 			// We expect either 200 (success) or 401 (unauthorized)
@@ -406,16 +405,16 @@ func (bct *BackwardCompatibilityTest) TestPaginationCompatibility(t *testing.T) 
 }
 
 // performRequest performs an HTTP request and validates the response
-func (bct *BackwardCompatibilityTest) performRequest(t *testing.T, method, path string, body interface{}, expectedStatus int, description string) {
+func (act *APISpecificationComplianceTest) performRequest(t *testing.T, method, path string, body interface{}, expectedStatus int, description string) {
 	t.Helper()
 
-	resp := bct.makeRequest(t, method, path, body)
+	resp := act.makeRequest(t, method, path, body)
 	defer func() { _ = resp.Body.Close() }()
 
-	// For compatibility testing, we're more lenient with status codes
+	// For specification compliance testing, we're more lenient with status codes
 	// since authorization might not be set up properly in tests
 	if resp.StatusCode != expectedStatus {
-		// If we expected success but got unauthorized, that's acceptable for compatibility testing
+		// If we expected success but got unauthorized, that's acceptable for specification testing
 		if expectedStatus == http.StatusOK && resp.StatusCode == http.StatusUnauthorized {
 			t.Logf("Expected %d but got %d (unauthorized) - endpoint exists and responds correctly", expectedStatus, resp.StatusCode)
 			return
@@ -432,7 +431,7 @@ func (bct *BackwardCompatibilityTest) performRequest(t *testing.T, method, path 
 }
 
 // makeRequest creates and executes an HTTP request
-func (bct *BackwardCompatibilityTest) makeRequest(t *testing.T, method, path string, body interface{}) *http.Response {
+func (act *APISpecificationComplianceTest) makeRequest(t *testing.T, method, path string, body interface{}) *http.Response {
 	t.Helper()
 
 	var reqBody *bytes.Buffer
@@ -454,26 +453,26 @@ func (bct *BackwardCompatibilityTest) makeRequest(t *testing.T, method, path str
 	req.Header.Set("Authorization", "Bearer test-token")
 
 	w := httptest.NewRecorder()
-	bct.router.ServeHTTP(w, req)
+	act.router.ServeHTTP(w, req)
 
 	return w.Result()
 }
 
 // createTestThreatModelRequest creates a test threat model request
-func (bct *BackwardCompatibilityTest) createTestThreatModelRequest() ThreatModel {
+func (act *APISpecificationComplianceTest) createTestThreatModelRequest() ThreatModel {
 	now := time.Now().UTC()
 	threatModelID := uuid.New()
 
 	return ThreatModel{
 		Id:          &threatModelID,
-		Name:        "Backward Compatibility Test Threat Model",
-		Description: stringPointer("Test threat model for backward compatibility"),
+		Name:        "API Specification Compliance Test Threat Model",
+		Description: stringPointer("Test threat model for API specification compliance"),
 		CreatedAt:   &now,
 		ModifiedAt:  &now,
-		Owner:       bct.testUser,
+		Owner:       act.testUser,
 		Authorization: []Authorization{
 			{
-				Subject: bct.testUser,
+				Subject: act.testUser,
 				Role:    RoleOwner,
 			},
 		},
@@ -481,9 +480,9 @@ func (bct *BackwardCompatibilityTest) createTestThreatModelRequest() ThreatModel
 }
 
 // createUpdateThreatModelRequest creates a test threat model update request
-func (bct *BackwardCompatibilityTest) createUpdateThreatModelRequest() ThreatModel {
-	threatModel := bct.createTestThreatModelRequest()
-	threatModel.Name = "Updated Backward Compatibility Test Threat Model"
+func (act *APISpecificationComplianceTest) createUpdateThreatModelRequest() ThreatModel {
+	threatModel := act.createTestThreatModelRequest()
+	threatModel.Name = "Updated API Specification Compliance Test Threat Model"
 	now := time.Now().UTC()
 	threatModel.ModifiedAt = &now
 
@@ -491,13 +490,13 @@ func (bct *BackwardCompatibilityTest) createUpdateThreatModelRequest() ThreatMod
 }
 
 // createTestDiagramRequest creates a test diagram request
-func (bct *BackwardCompatibilityTest) createTestDiagramRequest() DfdDiagram {
+func (act *APISpecificationComplianceTest) createTestDiagramRequest() DfdDiagram {
 	now := time.Now().UTC()
 	diagramID := uuid.New()
 
 	return DfdDiagram{
 		Id:         &diagramID,
-		Name:       "Backward Compatibility Test Diagram",
+		Name:       "API Specification Compliance Test Diagram",
 		CreatedAt:  now,
 		ModifiedAt: now,
 		Type:       DfdDiagramTypeDFD100,
@@ -506,23 +505,23 @@ func (bct *BackwardCompatibilityTest) createTestDiagramRequest() DfdDiagram {
 }
 
 // createUpdateDiagramRequest creates a test diagram update request
-func (bct *BackwardCompatibilityTest) createUpdateDiagramRequest() DfdDiagram {
-	diagram := bct.createTestDiagramRequest()
-	diagram.Name = "Updated Backward Compatibility Test Diagram"
+func (act *APISpecificationComplianceTest) createUpdateDiagramRequest() DfdDiagram {
+	diagram := act.createTestDiagramRequest()
+	diagram.Name = "Updated API Specification Compliance Test Diagram"
 	diagram.ModifiedAt = time.Now().UTC()
 
 	return diagram
 }
 
 // TestWebSocketCompatibility tests WebSocket endpoint compatibility
-func (bct *BackwardCompatibilityTest) TestWebSocketCompatibility(t *testing.T) {
+func (act *APISpecificationComplianceTest) TestWebSocketCompatibility(t *testing.T) {
 	// WebSocket testing would require special setup
 	// For now, we'll test that the WebSocket endpoint responds appropriately to HTTP requests
 
 	threatModelID := SubResourceFixtures.ThreatModelID
 	diagramID := SubResourceFixtures.DiagramID
 
-	resp := bct.makeRequest(t, "GET", "/ws/diagrams/"+diagramID+"?threat_model_id="+threatModelID, nil)
+	resp := act.makeRequest(t, "GET", "/ws/diagrams/"+diagramID+"?threat_model_id="+threatModelID, nil)
 	defer func() { _ = resp.Body.Close() }()
 
 	// WebSocket endpoints typically return 400 or 426 for non-WebSocket requests
@@ -532,7 +531,7 @@ func (bct *BackwardCompatibilityTest) TestWebSocketCompatibility(t *testing.T) {
 }
 
 // TestNewEndpointsDoNotBreakOldOnes ensures new granular endpoints don't interfere
-func (bct *BackwardCompatibilityTest) TestNewEndpointsDoNotBreakOldOnes(t *testing.T) {
+func (act *APISpecificationComplianceTest) TestNewEndpointsDoNotBreakOldOnes(t *testing.T) {
 	threatModelID := SubResourceFixtures.ThreatModelID
 
 	// Test that new sub-resource endpoints don't break existing ones
@@ -545,7 +544,7 @@ func (bct *BackwardCompatibilityTest) TestNewEndpointsDoNotBreakOldOnes(t *testi
 	// First verify new endpoints exist (they should return something, even if unauthorized)
 	for _, endpoint := range newEndpoints {
 		t.Run("NewEndpoint_"+endpoint, func(t *testing.T) {
-			resp := bct.makeRequest(t, "GET", endpoint, nil)
+			resp := act.makeRequest(t, "GET", endpoint, nil)
 			defer func() { _ = resp.Body.Close() }()
 
 			// New endpoints should exist and return a valid HTTP response
@@ -564,12 +563,12 @@ func (bct *BackwardCompatibilityTest) TestNewEndpointsDoNotBreakOldOnes(t *testi
 
 	for _, endpoint := range existingEndpoints {
 		t.Run("ExistingEndpoint_"+endpoint, func(t *testing.T) {
-			resp := bct.makeRequest(t, "GET", endpoint, nil)
+			resp := act.makeRequest(t, "GET", endpoint, nil)
 			defer func() { _ = resp.Body.Close() }()
 
 			// Existing endpoints should not return 404
 			if resp.StatusCode == http.StatusNotFound {
-				t.Errorf("Existing endpoint %s returns 404 - backward compatibility may be broken", endpoint)
+				t.Errorf("Existing endpoint %s returns 404 - API specification compliance may be broken", endpoint)
 			}
 		})
 	}

@@ -256,13 +256,6 @@ func ExtractAuthData(resource interface{}) (AuthorizationData, error) {
 			authData.Authorization = TestFixtures.DiagramAuth
 			return authData, nil
 		}
-	default:
-		// Fallback to test fixtures for compatibility
-		if TestFixtures.Owner != "" {
-			authData.Owner = TestFixtures.Owner
-			authData.Authorization = TestFixtures.ThreatModel.Authorization
-			return authData, nil
-		}
 	}
 
 	// If no data available, return error

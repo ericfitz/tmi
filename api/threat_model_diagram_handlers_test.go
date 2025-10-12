@@ -74,7 +74,7 @@ func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 		handler.GetDiagramCollaborate(c, c.Param("threat_model_id"), c.Param("diagram_id"))
 	})
 	r.POST("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", func(c *gin.Context) {
-		handler.PostDiagramCollaborate(c, c.Param("threat_model_id"), c.Param("diagram_id"))
+		handler.CreateDiagramCollaborate(c, c.Param("threat_model_id"), c.Param("diagram_id"))
 	})
 	r.DELETE("/threat_models/:threat_model_id/diagrams/:diagram_id/collaborate", func(c *gin.Context) {
 		handler.DeleteDiagramCollaborate(c, c.Param("threat_model_id"), c.Param("diagram_id"))
@@ -497,7 +497,6 @@ func TestDiagramNotInThreatModel(t *testing.T) {
 // TestThreatModelDiagramReadWriteDeletePermissions tests access levels for different operations
 func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 	// Reset stores to ensure clean state
-	ResetStores()
 
 	// Create initial router and threat model with diagram
 	ownerRouter := setupThreatModelDiagramRouter() // original owner is test@example.com

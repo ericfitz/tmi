@@ -17,7 +17,6 @@ func TestUpdateThreatModel(t *testing.T) {
 	// Initialize test fixtures
 	InitTestFixtures()
 	// Reset stores to ensure clean state
-	ResetStores()
 	InitTestFixtures()
 
 	// Setup Gin
@@ -82,7 +81,6 @@ func TestUpdateThreatModel(t *testing.T) {
 // when ownership changes
 func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 	// Initialize test fixtures
-	ResetStores()
 	InitTestFixtures()
 
 	// Setup Gin
@@ -165,7 +163,6 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 // TestTMDuplicateSubjectsRejection validates that duplicate subjects are rejected
 func TestTMDuplicateSubjectsRejection(t *testing.T) {
 	// Initialize test fixtures
-	ResetStores()
 	InitTestFixtures()
 
 	// Setup Gin

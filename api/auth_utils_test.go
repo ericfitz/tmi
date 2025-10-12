@@ -721,15 +721,17 @@ func TestExtractAuthData(t *testing.T) {
 		expectError   bool
 	}{
 		{
-			name: "valid test fixtures",
+			name: "valid threat model",
 			setupFixtures: func() {
-				TestFixtures.Owner = "testowner"
-				TestFixtures.ThreatModel.Authorization = []Authorization{
+				// No fixtures needed for typed resources
+			},
+			resource: &ThreatModel{
+				Owner: stringPointer("testowner"),
+				Authorization: []Authorization{
 					{Subject: "user1", Role: RoleReader},
 					{Subject: "user2", Role: RoleWriter},
-				}
+				},
 			},
-			resource:      "dummy",
 			expectedOwner: "testowner",
 			expectedAuth: []Authorization{
 				{Subject: "user1", Role: RoleReader},
@@ -739,10 +741,9 @@ func TestExtractAuthData(t *testing.T) {
 			expectError:  false,
 		},
 		{
-			name: "empty test fixtures",
+			name: "invalid resource type",
 			setupFixtures: func() {
-				TestFixtures.Owner = ""
-				TestFixtures.ThreatModel.Authorization = nil
+				// No fixtures needed
 			},
 			resource:    "dummy",
 			expectError: true,

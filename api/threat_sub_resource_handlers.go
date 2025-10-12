@@ -71,7 +71,11 @@ func (h *ThreatSubResourceHandler) GetThreats(c *gin.Context) {
 		threatModelID, userEmail, offset, limit)
 
 	// Get threats from store (authorization is handled by middleware)
-	threats, err := h.threatStore.ListSimple(c.Request.Context(), threatModelID, offset, limit)
+	filter := ThreatFilter{
+		Offset: offset,
+		Limit:  limit,
+	}
+	threats, err := h.threatStore.List(c.Request.Context(), threatModelID, filter)
 	if err != nil {
 		logger.Error("Failed to retrieve threats: %v", err)
 		HandleRequestError(c, ServerError("Failed to retrieve threats"))

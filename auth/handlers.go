@@ -336,26 +336,26 @@ func (h *Handlers) parseCallbackState(c *gin.Context, state string) (*callbackSt
 	// Delete the state from Redis
 	_ = h.service.dbManager.Redis().Del(ctx, stateKey)
 
-	// Parse the state data (handle both old and new formats)
+	// Parse the state data (structured JSON format)
 	var stateMap map[string]string
-	result := &callbackStateData{}
-
 	if err := json.Unmarshal([]byte(stateDataJSON), &stateMap); err != nil {
-		// Handle legacy format where stateData is just the provider ID
-		result.ProviderID = stateDataJSON
-	} else {
-		// Handle new format with structured data
-		result.ProviderID = stateMap["provider"]
-		result.ResponseType = stateMap["response_type"]
-		if result.ResponseType == "" {
-			result.ResponseType = "code" // Default for backward compatibility
-		}
-		result.ClientCallback = stateMap["client_callback"]
-		result.UserHint = stateMap["login_hint"]
-
-		slogging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, response_type=%s, client_callback=%s, login_hint=%s",
-			result.ProviderID, result.ResponseType, result.ClientCallback, result.UserHint)
+		return nil, fmt.Errorf("invalid state data format: %w", err)
 	}
+
+	result := &callbackStateData{
+		ProviderID:     stateMap["provider"],
+		ResponseType:   stateMap["response_type"],
+		ClientCallback: stateMap["client_callback"],
+		UserHint:       stateMap["login_hint"],
+	}
+
+	// Default to authorization code flow if not specified
+	if result.ResponseType == "" {
+		result.ResponseType = "code"
+	}
+
+	slogging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, response_type=%s, client_callback=%s, login_hint=%s",
+		result.ProviderID, result.ResponseType, result.ClientCallback, result.UserHint)
 
 	return result, nil
 }
@@ -533,7 +533,7 @@ func (h *Handlers) linkProviderToUser(ctx context.Context, userID, providerID st
 	}
 }
 
-// generateAndReturnTokens generates JWT tokens and returns them
+// generateAndReturnTokens generates JWT tokens and redirects to client callback
 func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, user User, userInfo *UserInfo, stateData *callbackStateData) error {
 	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
@@ -544,21 +544,23 @@ func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, 
 		return err
 	}
 
-	// If client callback URL is provided, redirect there with tokens
-	if stateData.ClientCallback != "" {
-		redirectURL, err := buildClientRedirectURL(stateData.ClientCallback, tokenPair, c.Query("state"))
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to build redirect URL: %v", err),
-			})
-			return err
-		}
-		c.Redirect(http.StatusFound, redirectURL)
-		return nil
+	// Require client callback URL
+	if stateData.ClientCallback == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "client_callback URL is required",
+		})
+		return fmt.Errorf("missing client_callback")
 	}
 
-	// Fallback: Return tokens as JSON (legacy behavior)
-	c.JSON(http.StatusOK, tokenPair)
+	redirectURL, err := buildClientRedirectURL(stateData.ClientCallback, tokenPair, c.Query("state"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to build redirect URL: %v", err),
+		})
+		return err
+	}
+
+	c.Redirect(http.StatusFound, redirectURL)
 	return nil
 }
 
@@ -828,59 +830,51 @@ func (h *Handlers) Refresh(c *gin.Context) {
 	c.JSON(http.StatusOK, tokenPair)
 }
 
-// Logout revokes a refresh token or blacklists a JWT token
+// Logout blacklists a JWT token
 func (h *Handlers) Logout(c *gin.Context) {
-	// Try to get JWT token from Authorization header first
+	// Get JWT token from Authorization header
 	authHeader := c.GetHeader("Authorization")
-	if authHeader != "" {
-		// Handle JWT-based logout (new method)
-		parts := strings.Split(authHeader, " ")
-		if len(parts) == 2 && parts[0] == "Bearer" {
-			tokenStr := parts[1]
-
-			// Validate token format and signature using centralized JWT verification
-			claims := jwt.MapClaims{}
-			token, err := h.service.GetKeyManager().VerifyToken(tokenStr, claims)
-			if err == nil && token.Valid {
-				// Try to blacklist the JWT token if blacklist service is available
-				// We'll use the database manager to access Redis for token blacklisting
-				if h.service != nil && h.service.dbManager != nil && h.service.dbManager.Redis() != nil {
-					blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), h.service.GetKeyManager())
-					if err := blacklist.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
-						slogging.Get().WithContext(c).Error("Failed to blacklist JWT token during logout (token prefix: %.10s...): %v", tokenStr, err)
-						c.JSON(http.StatusInternalServerError, gin.H{
-							"error": fmt.Sprintf("Failed to blacklist token: %v", err),
-						})
-						return
-					}
-				}
-
-				c.JSON(http.StatusOK, gin.H{
-					"message": "Logged out successfully",
-				})
-				return
-			}
-		}
-	}
-
-	// Fall back to refresh token-based logout (original method)
-	var req struct {
-		RefreshToken string `json:"refresh_token"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil || req.RefreshToken == "" {
+	if authHeader == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request: missing refresh_token in body or Authorization header",
+			"error": "Missing Authorization header",
 		})
 		return
 	}
 
-	// Revoke the refresh token
-	err := h.service.RevokeToken(c.Request.Context(), req.RefreshToken)
-	if err != nil {
-		slogging.Get().WithContext(c).Error("Failed to revoke refresh token during logout (token prefix: %.10s...): %v", req.RefreshToken, err)
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid Authorization header format",
+		})
+		return
+	}
+
+	tokenStr := parts[1]
+
+	// Validate token format and signature using centralized JWT verification
+	claims := jwt.MapClaims{}
+	token, err := h.service.GetKeyManager().VerifyToken(tokenStr, claims)
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Invalid token",
+		})
+		return
+	}
+
+	// Blacklist the JWT token
+	if h.service == nil || h.service.dbManager == nil || h.service.dbManager.Redis() == nil {
+		slogging.Get().WithContext(c).Error("Token blacklist service not available")
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to revoke token: %v", err),
+			"error": "Logout service not available",
+		})
+		return
+	}
+
+	blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), h.service.GetKeyManager())
+	if err := blacklist.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
+		slogging.Get().WithContext(c).Error("Failed to blacklist JWT token during logout (token prefix: %.10s...): %v", tokenStr, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to blacklist token: %v", err),
 		})
 		return
 	}

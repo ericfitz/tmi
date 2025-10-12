@@ -54,7 +54,8 @@ type TestCacheWarmer struct {
 
 // Override cache-dependent methods to use mock instead
 func (tcw *TestCacheWarmer) warmThreatsForThreatModel(ctx context.Context, threatModelID string) error {
-	threats, err := tcw.threatStore.ListSimple(ctx, threatModelID, 0, 100)
+	filter := ThreatFilter{Offset: 0, Limit: 100}
+	threats, err := tcw.threatStore.List(ctx, threatModelID, filter)
 	if err != nil {
 		return fmt.Errorf("failed to list threats: %w", err)
 	}
@@ -419,7 +420,7 @@ func TestCacheWarmer_WarmThreatsForThreatModel(t *testing.T) {
 			createTestThreatForWarming(),
 		}
 
-		threatStore.On("List", ctx, threatModelID, 0, 100).Return(threats, nil)
+		threatStore.On("List", ctx, threatModelID, ThreatFilter{Offset: 0, Limit: 100}).Return(threats, nil)
 		for _, threat := range threats {
 			cache.On("CacheThreat", ctx, &threat).Return(nil)
 		}
@@ -441,7 +442,7 @@ func TestCacheWarmer_WarmThreatsForThreatModel(t *testing.T) {
 		ctx := context.Background()
 		threatModelID := uuid.New().String()
 
-		threatStore.On("List", ctx, threatModelID, 0, 100).Return([]Threat{}, assert.AnError)
+		threatStore.On("List", ctx, threatModelID, ThreatFilter{Offset: 0, Limit: 100}).Return([]Threat{}, assert.AnError)
 
 		err = warmer.warmThreatsForThreatModel(ctx, threatModelID)
 
@@ -461,7 +462,7 @@ func TestCacheWarmer_WarmThreatsForThreatModel(t *testing.T) {
 		threatModelID := uuid.New().String()
 
 		threats := []Threat{createTestThreatForWarming()}
-		threatStore.On("List", ctx, threatModelID, 0, 100).Return(threats, nil)
+		threatStore.On("List", ctx, threatModelID, ThreatFilter{Offset: 0, Limit: 100}).Return(threats, nil)
 		cache.On("CacheThreat", ctx, &threats[0]).Return(assert.AnError)
 
 		err = warmer.warmThreatsForThreatModel(ctx, threatModelID)
@@ -560,8 +561,8 @@ func TestCacheWarmer_WarmRecentThreatModels_INTEGRATION(t *testing.T) {
 
 		// Mock warming for each threat model (simplified - just threats)
 		threats := []Threat{createTestThreatForWarming()}
-		threatStore.On("List", ctx, threatModelID1, 0, 100).Return(threats, nil)
-		threatStore.On("List", ctx, threatModelID2, 0, 100).Return(threats, nil)
+		threatStore.On("List", ctx, threatModelID1, ThreatFilter{Offset: 0, Limit: 100}).Return(threats, nil)
+		threatStore.On("List", ctx, threatModelID2, ThreatFilter{Offset: 0, Limit: 100}).Return(threats, nil)
 
 		// Mock caching
 		cache.On("CacheThreat", ctx, &threats[0]).Return(nil).Times(2)
@@ -654,7 +655,7 @@ func TestCacheWarmer_WarmOnDemandRequest_INTEGRATION(t *testing.T) {
 		}
 
 		// Mock warming all data for threat model (simplified)
-		threatStore.On("List", ctx, threatModelID, 0, 100).Return([]Threat{}, nil)
+		threatStore.On("List", ctx, threatModelID, ThreatFilter{Offset: 0, Limit: 100}).Return([]Threat{}, nil)
 		documentStore.On("List", ctx, threatModelID, 0, 50).Return([]Document{}, nil)
 		sourceStore.On("List", ctx, threatModelID, 0, 50).Return([]Source{}, nil)
 

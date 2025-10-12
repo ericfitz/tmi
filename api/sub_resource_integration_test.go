@@ -21,7 +21,6 @@ func TestSubResourceIntegration(t *testing.T) {
 
 	// Initialize test fixtures
 	InitTestFixtures()
-	ResetStores()
 	InitTestFixtures()
 
 	// Setup Gin router with middleware

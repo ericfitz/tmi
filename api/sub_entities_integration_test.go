@@ -618,7 +618,6 @@ func createSubEntityTestUserWithToken(t *testing.T, authService *auth.Service) (
 // cleanupSubEntityTestData removes test data from the database
 func (suite *SubEntityIntegrationTestSuite) cleanupSubEntityTestData(t *testing.T) {
 	// Reset the stores to clean up test data
-	ResetStores()
 
 	// Additional cleanup can be added here if needed
 	// For example, cleaning up users, sessions, etc.

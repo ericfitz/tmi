@@ -710,12 +710,6 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	c.JSON(statusCode, collaborationSession)
 }
 
-// PostDiagramCollaborate joins or starts a collaboration session for a diagram within a threat model (DEPRECATED - use CreateDiagramCollaborate)
-func (h *ThreatModelDiagramHandler) PostDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
-	// For backward compatibility, delegate to CreateDiagramCollaborate
-	h.CreateDiagramCollaborate(c, threatModelId, diagramId)
-}
-
 // DeleteDiagramCollaborate leaves a collaboration session for a diagram within a threat model
 func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
 	// Similar to DiagramHandler.DeleteDiagramCollaborate but with threat model access check

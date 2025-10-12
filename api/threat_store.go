@@ -75,8 +75,6 @@ type ThreatStore interface {
 
 	// List operations with filtering, sorting and pagination
 	List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error)
-	// Legacy method for backward compatibility
-	ListSimple(ctx context.Context, threatModelID string, offset, limit int) ([]Threat, error)
 
 	// PATCH operations for granular updates
 	Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error)
@@ -448,15 +446,6 @@ func (s *DatabaseThreatStore) Delete(ctx context.Context, id string) error {
 
 	logger.Debug("Successfully deleted threat: %s", id)
 	return nil
-}
-
-// ListSimple retrieves threats for a threat model with basic pagination (backward compatibility)
-func (s *DatabaseThreatStore) ListSimple(ctx context.Context, threatModelID string, offset, limit int) ([]Threat, error) {
-	filter := ThreatFilter{
-		Offset: offset,
-		Limit:  limit,
-	}
-	return s.List(ctx, threatModelID, filter)
 }
 
 // List retrieves threats for a threat model with advanced filtering, sorting and pagination
@@ -907,7 +896,8 @@ func (s *DatabaseThreatStore) WarmCache(ctx context.Context, threatModelID strin
 	}
 
 	// Load first page of threats
-	threats, err := s.ListSimple(ctx, threatModelID, 0, 50)
+	filter := ThreatFilter{Offset: 0, Limit: 50}
+	threats, err := s.List(ctx, threatModelID, filter)
 	if err != nil {
 		return fmt.Errorf("failed to warm cache: %w", err)
 	}

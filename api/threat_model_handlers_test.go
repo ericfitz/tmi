@@ -476,7 +476,6 @@ func TestNonOwnerCannotChangeOwner(t *testing.T) {
 // TestOwnershipTransferViaPatching tests changing ownership via PATCH operation
 func TestOwnershipTransferViaPatching(t *testing.T) {
 	// Reset stores to ensure clean state
-	ResetStores()
 
 	// Create initial router and threat model
 	originalRouter := setupThreatModelRouter() // original owner is test@example.com
@@ -765,7 +764,6 @@ func TestWriterCannotChangeOwnerOrAuth(t *testing.T) {
 // TestGetThreatModelsAuthorizationFiltering tests that the list endpoint properly filters based on user access
 func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 	// Reset stores to ensure clean state
-	ResetStores()
 
 	// Set up test users
 	ownerUser := "owner@example.com"

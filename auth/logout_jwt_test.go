@@ -74,12 +74,12 @@ func TestLogoutWithJWT(t *testing.T) {
 		assert.Equal(t, "Logged out successfully", response["message"])
 	})
 
-	t.Run("Invalid_JWT_Falls_Back_To_Refresh_Token", func(t *testing.T) {
+	t.Run("Invalid_JWT_Returns_Error", func(t *testing.T) {
 		// Create Gin router
 		r := gin.New()
 		r.POST("/oauth2/revoke", handlers.Logout)
 
-		// Create request with invalid JWT token and no refresh token
+		// Create request with invalid JWT token
 		req := httptest.NewRequest("POST", "/oauth2/revoke", bytes.NewBuffer([]byte("{}")))
 		req.Header.Set("Authorization", "Bearer invalid-token")
 		req.Header.Set("Content-Type", "application/json")
@@ -87,35 +87,35 @@ func TestLogoutWithJWT(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		// Should return 400 Bad Request since no refresh_token provided
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		// Should return 401 Unauthorized for invalid token
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 
 		// Check error message
 		var response map[string]string
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
-		assert.Contains(t, response["error"], "missing refresh_token")
+		assert.Contains(t, response["error"], "Invalid token")
 	})
 
-	t.Run("No_Auth_Header_Requires_Refresh_Token", func(t *testing.T) {
+	t.Run("No_Auth_Header_Returns_Error", func(t *testing.T) {
 		// Create Gin router
 		r := gin.New()
 		r.POST("/oauth2/revoke", handlers.Logout)
 
-		// Create request with no Authorization header and no refresh token
+		// Create request with no Authorization header
 		req := httptest.NewRequest("POST", "/oauth2/revoke", bytes.NewBuffer([]byte("{}")))
 		req.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		// Should return 400 Bad Request
+		// Should return 400 Bad Request for missing Authorization header
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 
 		// Check error message
 		var response map[string]string
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
-		assert.Contains(t, response["error"], "missing refresh_token")
+		assert.Contains(t, response["error"], "Missing Authorization header")
 	})
 }

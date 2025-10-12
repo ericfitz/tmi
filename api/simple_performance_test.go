@@ -13,7 +13,6 @@ import (
 func BenchmarkSubResourceRoutePerformance(b *testing.B) {
 	// Initialize test fixtures
 	InitTestFixtures()
-	ResetStores()
 	InitTestFixtures()
 
 	// Setup Gin router in test mode
