@@ -932,7 +932,16 @@ func (h *Handlers) Logout(c *gin.Context) {
 
 // Me returns the current user
 func (h *Handlers) Me(c *gin.Context) {
-	// First try to get the full user object from context (for auth middleware)
+	// First try to get the full user object from Gin context (set by JWT middleware)
+	userInterface, exists := c.Get(string(UserContextKey))
+	if exists {
+		if user, ok := userInterface.(User); ok {
+			c.JSON(http.StatusOK, user)
+			return
+		}
+	}
+
+	// Fallback: try to get from request context (for auth middleware compatibility)
 	user, err := GetUserFromContext(c.Request.Context())
 	if err == nil {
 		c.JSON(http.StatusOK, user)
