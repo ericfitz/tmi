@@ -3090,16 +3090,39 @@ func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message inte
 	}
 
 	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	totalClients := len(s.Clients)
+	recipientCount := 0
+	skippedSender := false
+
+	slogging.Get().Debug("broadcastToOthers - Session: %s, Sender: %s (%p), Total clients: %d",
+		s.ID, sender.UserID, sender, totalClients)
+
 	for client := range s.Clients {
-		if client != sender {
+		if client == sender {
+			// This is the sender - skip them
+			skippedSender = true
+			slogging.Get().Debug("  ✗ Skipping sender - User: %s, Pointer: %p (matches sender pointer)",
+				client.UserID, client)
+		} else {
+			// This is a recipient - send the message
+			slogging.Get().Debug("  → Sending to recipient - User: %s, Pointer: %p, Channel buffer: %d/%d",
+				client.UserID, client, len(client.Send), cap(client.Send))
+
 			select {
 			case client.Send <- msgBytes:
+				recipientCount++
+				slogging.Get().Debug("    ✓ Message sent successfully to %s", client.UserID)
 			default:
-				slogging.Get().Info("Client send channel full, dropping message")
+				slogging.Get().Warn("    ✗ Client send channel full, dropping message for %s (channel: %d/%d)",
+					client.UserID, len(client.Send), cap(client.Send))
 			}
 		}
 	}
-	s.mu.RUnlock()
+
+	slogging.Get().Info("Broadcast complete - Session: %s, Sender: %s, Recipients: %d, Skipped sender: %v",
+		s.ID, sender.UserID, recipientCount, skippedSender)
 }
 
 // CellOperationProcessor processes cell operations with validation and conflict detection
@@ -3377,11 +3400,14 @@ type OperationValidationResult struct {
 
 // applyOperation applies a diagram operation with validation and conflict detection
 func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOperationMessage) bool {
+	slogging.Get().Debug("applyOperation - Session: %s, User: %s, OperationID: %s, Cell operations: %d",
+		s.ID, client.UserID, msg.OperationID, len(msg.Operation.Cells))
 
 	// Get current diagram state
 	diagram, err := DiagramStore.Get(s.DiagramID)
 	if err != nil {
-		slogging.Get().Info("Failed to get diagram %s: %v", s.DiagramID, err)
+		slogging.Get().Warn("applyOperation FAILED - Session: %s, User: %s, OperationID: %s, Reason: Failed to get diagram: %v",
+			s.ID, client.UserID, msg.OperationID, err)
 		return false
 	}
 
@@ -3401,13 +3427,18 @@ func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOper
 		}
 	}
 
+	slogging.Get().Debug("applyOperation - Session: %s, Current diagram cells: %d, Processing %d cell operations",
+		s.ID, len(currentState), len(msg.Operation.Cells))
+
 	// Process each cell operation
 	result := s.processAndValidateCellOperations(&diagram, currentState, msg.Operation)
 
 	if !result.Valid {
-		slogging.Get().Info("Operation %s validation failed: %s", msg.OperationID, result.Reason)
+		slogging.Get().Info("applyOperation VALIDATION FAILED - Session: %s, User: %s, OperationID: %s, Reason: %s, ConflictDetected: %v, CorrectionNeeded: %v",
+			s.ID, client.UserID, msg.OperationID, result.Reason, result.ConflictDetected, result.CorrectionNeeded)
 
 		if result.CorrectionNeeded {
+			slogging.Get().Info("applyOperation - Sending state correction to %s for cells: %v", client.UserID, result.CellsModified)
 			s.sendStateCorrection(client, result.CellsModified)
 		}
 
@@ -3415,15 +3446,16 @@ func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOper
 	}
 
 	if !result.StateChanged {
-		slogging.Get().Info("Operation %s resulted in no state changes", msg.OperationID)
+		slogging.Get().Info("applyOperation NO STATE CHANGE - Session: %s, User: %s, OperationID: %s, Reason: Operation resulted in no state changes (idempotent or no-op)",
+			s.ID, client.UserID, msg.OperationID)
 		return false // Don't broadcast no-op operations
 	}
 
 	// Update operation history
 	s.addToHistory(msg, client.UserID, result.PreviousState, currentState)
 
-	slogging.Get().Info("Successfully applied operation %s from %s with sequence %d",
-		msg.OperationID, client.UserID, *msg.SequenceNumber)
+	slogging.Get().Info("applyOperation SUCCESS - Session: %s, User: %s, OperationID: %s, SequenceNumber: %d, CellsModified: %d, Will broadcast: true",
+		s.ID, client.UserID, msg.OperationID, *msg.SequenceNumber, len(result.CellsModified))
 
 	return true
 }

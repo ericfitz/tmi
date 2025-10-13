@@ -26,7 +26,7 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 	}()
 
 	startTime := time.Now()
-	slogging.Get().Debug("Processing diagram operation - Session: %s, User: %s", session.ID, client.UserID)
+	slogging.Get().Debug("Processing diagram operation - Session: %s, User: %s, Client pointer: %p", session.ID, client.UserID, client)
 
 	var msg DiagramOperationMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
@@ -35,10 +35,28 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 		return err
 	}
 
+	// Note: DiagramOperationMessage doesn't currently include user identity field,
+	// so we rely on the authenticated client context from the WebSocket connection.
+	// If user attribution is added in the future, validate with validateAndEnforceUserIdentity()
+
 	// Use the existing applyOperation logic from DiagramSession
-	if session.applyOperation(client, msg) {
+	applied := session.applyOperation(client, msg)
+
+	session.mu.RLock()
+	totalClients := len(session.Clients)
+	session.mu.RUnlock()
+
+	slogging.Get().Info("Diagram operation validation result - Session: %s, User: %s, OperationID: %s, Applied: %v, Total clients in session: %d",
+		session.ID, client.UserID, msg.OperationID, applied, totalClients)
+
+	if applied {
 		// Broadcast the operation to all other clients
+		slogging.Get().Info("Broadcasting diagram operation - Session: %s, Sender: %s (%p), OperationID: %s, Recipients: %d",
+			session.ID, client.UserID, client, msg.OperationID, totalClients-1)
 		session.broadcastToOthers(client, msg)
+	} else {
+		slogging.Get().Warn("Diagram operation NOT broadcasted - Session: %s, User: %s, OperationID: %s, Reason: applyOperation returned false (check validation logs)",
+			session.ID, client.UserID, msg.OperationID)
 	}
 
 	processingTime := time.Since(startTime)
