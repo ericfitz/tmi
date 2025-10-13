@@ -787,89 +787,95 @@ func TestCheckResourceAccess(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		setupFixtures  func()
+		setupFixtures  func() interface{}
 		userName       string
 		requiredRole   Role
-		resource       interface{}
 		expectedAccess bool
 		expectError    bool
 	}{
 		{
 			name: "owner has access",
-			setupFixtures: func() {
-				TestFixtures.Owner = "owner1"
-				TestFixtures.ThreatModel.Authorization = []Authorization{
-					{Subject: "user1", Role: RoleReader},
+			setupFixtures: func() interface{} {
+				tm := ThreatModel{
+					Owner: "owner1",
+					Authorization: []Authorization{
+						{Subject: "user1", Role: RoleReader},
+					},
 				}
+				return tm
 			},
 			userName:       "owner1",
 			requiredRole:   RoleReader,
-			resource:       "dummy",
 			expectedAccess: true,
 			expectError:    false,
 		},
 		{
 			name: "user has sufficient role",
-			setupFixtures: func() {
-				TestFixtures.Owner = "owner1"
-				TestFixtures.ThreatModel.Authorization = []Authorization{
-					{Subject: "user1", Role: RoleWriter},
+			setupFixtures: func() interface{} {
+				tm := ThreatModel{
+					Owner: "owner1",
+					Authorization: []Authorization{
+						{Subject: "user1", Role: RoleWriter},
+					},
 				}
+				return tm
 			},
 			userName:       "user1",
 			requiredRole:   RoleReader,
-			resource:       "dummy",
 			expectedAccess: true,
 			expectError:    false,
 		},
 		{
 			name: "user lacks sufficient role",
-			setupFixtures: func() {
-				TestFixtures.Owner = "owner1"
-				TestFixtures.ThreatModel.Authorization = []Authorization{
-					{Subject: "user1", Role: RoleReader},
+			setupFixtures: func() interface{} {
+				tm := ThreatModel{
+					Owner: "owner1",
+					Authorization: []Authorization{
+						{Subject: "user1", Role: RoleReader},
+					},
 				}
+				return tm
 			},
 			userName:       "user1",
 			requiredRole:   RoleWriter,
-			resource:       "dummy",
 			expectedAccess: false,
 			expectError:    false,
 		},
 		{
 			name: "user not in authorization list",
-			setupFixtures: func() {
-				TestFixtures.Owner = "owner1"
-				TestFixtures.ThreatModel.Authorization = []Authorization{
-					{Subject: "user1", Role: RoleReader},
+			setupFixtures: func() interface{} {
+				tm := ThreatModel{
+					Owner: "owner1",
+					Authorization: []Authorization{
+						{Subject: "user1", Role: RoleReader},
+					},
 				}
+				return tm
 			},
 			userName:       "user2",
 			requiredRole:   RoleReader,
-			resource:       "dummy",
 			expectedAccess: false,
 			expectError:    false,
 		},
 		{
 			name: "extraction error",
-			setupFixtures: func() {
-				TestFixtures.Owner = ""
-				TestFixtures.ThreatModel.Authorization = nil
+			setupFixtures: func() interface{} {
+				// Return a string to trigger extraction error
+				return "invalid_resource"
 			},
 			userName:     "user1",
 			requiredRole: RoleReader,
-			resource:     "dummy",
 			expectError:  true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup test fixtures
-			tt.setupFixtures()
+			// Setup test fixtures and get resource
+			resource := tt.setupFixtures()
 
 			// Test the function
-			hasAccess, err := CheckResourceAccess(tt.userName, tt.resource, tt.requiredRole)
+			hasAccess, err := CheckResourceAccess(tt.userName, resource, tt.requiredRole)
 
 			if tt.expectError {
 				require.Error(t, err)
