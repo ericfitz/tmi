@@ -726,7 +726,7 @@ func TestExtractAuthData(t *testing.T) {
 				// No fixtures needed for typed resources
 			},
 			resource: &ThreatModel{
-				Owner: stringPointer("testowner"),
+				Owner: "testowner",
 				Authorization: []Authorization{
 					{Subject: "user1", Role: RoleReader},
 					{Subject: "user2", Role: RoleWriter},
