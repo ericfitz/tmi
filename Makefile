@@ -193,7 +193,7 @@ migrate-database:
 	elif [ -f "./migrate" ]; then \
 		./migrate up; \
 	else \
-		cd cmd/migrate && go run main.go up; \
+		cd cmd/migrate && go run main.go --env ../../.env.dev up; \
 	fi
 	$(call log_success,"Database migrations completed")
 
@@ -478,29 +478,23 @@ clean-everything: clean-process clean-containers clean-files
 
 # Unit Testing - Fast tests with no external dependencies
 test-unit:
-	@CONFIG_FILE=config/test-unit.yml; \
-	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
-	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
-	echo -e "$(BLUE)[INFO]$(NC) Starting unit tests..."; \
-	LOGGING_IS_TEST=true go test -short ./... -v; \
-	rm -f .config.tmp.mk integration-test.log server.log logs/server.log .server.pid
+	$(call log_info,"Running unit tests")
+	@LOGGING_IS_TEST=true go test -short ./... -v
+	@rm -f integration-test.log server.log logs/server.log .server.pid
 
 # Integration Testing - Full environment with database and server
 test-integration:
-	@CONFIG_FILE=config/test-integration.yml; \
-	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
-	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
-	echo -e "$(BLUE)[INFO]$(NC) Starting integration tests with configuration: Integration Testing Configuration"; \
-	trap 'CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) clean-everything' EXIT; \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) clean-everything && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) start-database && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) start-redis && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) build-server && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) start-server && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) wait-process && \
-	CONFIG_FILE=config/test-integration.yml $(MAKE) -f $(MAKEFILE_LIST) execute-tests-integration
+	$(call log_info,"Running integration tests")
+	@trap '$(MAKE) -f $(MAKEFILE_LIST) clean-everything' EXIT; \
+	$(MAKE) -f $(MAKEFILE_LIST) clean-everything && \
+	$(MAKE) -f $(MAKEFILE_LIST) start-database && \
+	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
+	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
+	$(MAKE) -f $(MAKEFILE_LIST) build-server && \
+	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
+	SERVER_CONFIG_FILE=config-test.yaml $(MAKE) -f $(MAKEFILE_LIST) start-server && \
+	$(MAKE) -f $(MAKEFILE_LIST) wait-process && \
+	$(MAKE) -f $(MAKEFILE_LIST) execute-tests-integration
 
 # API Testing - Comprehensive Postman/Newman test suite
 test-api:
@@ -517,50 +511,34 @@ test-api:
 
 # Development Environment - Start local dev environment
 start-dev:
-	@CONFIG_FILE=config/dev-environment.yml; \
-	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
-	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
-	echo -e "$(BLUE)[INFO]$(NC) Starting development environment: Development Environment Configuration"; \
-	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) start-database && \
-	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) start-redis && \
-	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) wait-database && \
+	$(call log_info,"Starting development environment")
+	@$(MAKE) -f $(MAKEFILE_LIST) start-database && \
+	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
+	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
 	go build -o bin/check-db cmd/check-db/main.go && \
-	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
-	eval $$(uv run scripts/yaml-to-make.py config/dev-environment.yml | grep '^SERVER_CONFIG_FILE := ' | sed 's/SERVER_CONFIG_FILE := /SERVER_CONFIG_FILE=/'); \
-	if [ ! -f "$$SERVER_CONFIG_FILE" ]; then \
-		echo -e "$(BLUE)[INFO]$(NC) Generating development configuration..."; \
-		go run cmd/server/main.go --generate-config || { echo "Error: Failed to generate config files"; exit 1; }; \
-	fi && \
-	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
-	@eval $$(uv run scripts/yaml-to-make.py config/dev-environment.yml | grep '^SERVER_PORT := ' | sed 's/SERVER_PORT := /SERVER_PORT=/'); \
-	echo -e "$(GREEN)[SUCCESS]$(NC) Development environment started on port $$SERVER_PORT"
+	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
+	SERVER_CONFIG_FILE=config-development.yaml $(MAKE) -f $(MAKEFILE_LIST) start-server
+	$(call log_success,"Development environment started on port 8080")
 
 # Development Environment Cleanup
 clean-dev:
-	@CONFIG_FILE=config/dev-environment.yml; \
-	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
-	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
-	echo -e "$(BLUE)[INFO]$(NC) Cleaning development environment: Development Environment Configuration"; \
-	CONFIG_FILE=config/dev-environment.yml $(MAKE) -f $(MAKEFILE_LIST) clean-everything
+	$(call log_info,"Cleaning development environment")
+	@$(MAKE) -f $(MAKEFILE_LIST) clean-everything
 
 # Coverage Report Generation - Comprehensive testing with coverage
 test-coverage:
-	@CONFIG_FILE=config/coverage-report.yml; \
-	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
-	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
-	echo -e "$(BLUE)[INFO]$(NC) Generating coverage reports: Coverage Report Configuration"; \
-	trap 'CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) clean-everything' EXIT; \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) clean-everything && \
-	COVERAGE_DIRECTORY=$$(uv run scripts/yaml-to-make.py $$CONFIG_FILE | grep '^COVERAGE_DIRECTORY := ' | sed 's/COVERAGE_DIRECTORY := //'); \
-	mkdir -p $$COVERAGE_DIRECTORY && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) test-coverage-unit && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) start-database && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) start-redis && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) test-coverage-integration && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) merge-coverage && \
-	CONFIG_FILE=config/coverage-report.yml $(MAKE) -f $(MAKEFILE_LIST) generate-coverage
+	$(call log_info,"Generating coverage reports")
+	@trap '$(MAKE) -f $(MAKEFILE_LIST) clean-everything' EXIT; \
+	$(MAKE) -f $(MAKEFILE_LIST) clean-everything && \
+	mkdir -p coverage && \
+	$(MAKE) -f $(MAKEFILE_LIST) test-coverage-unit && \
+	$(MAKE) -f $(MAKEFILE_LIST) start-database && \
+	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
+	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
+	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
+	$(MAKE) -f $(MAKEFILE_LIST) test-coverage-integration && \
+	$(MAKE) -f $(MAKEFILE_LIST) merge-coverage && \
+	$(MAKE) -f $(MAKEFILE_LIST) generate-coverage
 
 
 # ============================================================================
@@ -844,29 +822,20 @@ start-containers-environment:
 
 # Start server using existing containers (no rebuild)
 start-dev-existing:
-	@CONFIG_FILE=config/dev-environment-secure.yml; \
-	echo -e "$(BLUE)[INFO]$(NC) Loading configuration from $$CONFIG_FILE"; \
-	uv run scripts/yaml-to-make.py $$CONFIG_FILE > .config.tmp.mk; \
-	echo -e "$(BLUE)[INFO]$(NC) Starting development server with containers: Container-based Development Environment Configuration"; \
-	if ! docker ps --format "{{.Names}}" | grep -q "^tmi-postgresql$$"; then \
-		echo -e "$(RED)[ERROR]$(NC) PostgreSQL container not running. Run 'make start-containers-environment' first."; \
+	$(call log_info,"Starting development server with existing containers")
+	@if ! docker ps --format "{{.Names}}" | grep -q "^tmi-postgresql$$"; then \
+		echo -e "$(RED)[ERROR]$(NC) PostgreSQL container not running. Run 'make containers-dev' first."; \
 		exit 1; \
 	fi; \
 	if ! docker ps --format "{{.Names}}" | grep -q "^tmi-redis$$"; then \
-		echo -e "$(RED)[ERROR]$(NC) Redis container not running. Run 'make start-containers-environment' first."; \
+		echo -e "$(RED)[ERROR]$(NC) Redis container not running. Run 'make containers-dev' first."; \
 		exit 1; \
 	fi; \
-	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) wait-database && \
+	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
 	go build -o bin/check-db cmd/check-db/main.go && \
-	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
-	eval $$(uv run scripts/yaml-to-make.py config/dev-environment-secure.yml | grep '^SERVER_CONFIG_FILE := ' | sed 's/SERVER_CONFIG_FILE := /SERVER_CONFIG_FILE=/'); \
-	if [ ! -f "$$SERVER_CONFIG_FILE" ]; then \
-		echo -e "$(BLUE)[INFO]$(NC) Generating development configuration..."; \
-		go run cmd/server/main.go --generate-config || { echo "Error: Failed to generate config files"; exit 1; }; \
-	fi && \
-	CONFIG_FILE=config/dev-environment-secure.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
-	@eval $$(uv run scripts/yaml-to-make.py config/dev-environment-secure.yml | grep '^SERVER_PORT := ' | sed 's/SERVER_PORT := /SERVER_PORT=/'); \
-	echo -e "$(GREEN)[SUCCESS]$(NC) Development server started on port $$SERVER_PORT using containers"
+	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
+	SERVER_CONFIG_FILE=config-development.yaml $(MAKE) -f $(MAKEFILE_LIST) start-server
+	$(call log_success,"Development server started on port 8080 using containers")
 
 # Shorthand for all container operations
 build-containers-all: build-containers report-containers
