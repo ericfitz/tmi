@@ -7,12 +7,12 @@
   },
   "externalDocs": {
     "description": "Find more information here",
-    "uri": ""
+    "url": ""
   },
   "servers": [
     {
-      "description": "Local development server",
-      "uri": "http://localhost:8080"
+      "url": "http://localhost:8080",
+      "description": "Local development server"
     }
   ],
   "components": {
@@ -243,6 +243,15 @@
               "binding": "required"
             }
           },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL location of the document",
+            "maxLength": 1024,
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required,url"
+            }
+          },
           "description": {
             "type": "string",
             "description": "Description of document purpose or content",
@@ -256,15 +265,6 @@
             },
             "description": "Key-value pairs for additional document metadata",
             "nullable": true
-          },
-          "uri": {
-            "type": "string",
-            "format": "uri",
-            "description": "URL location of the document",
-            "maxLength": 1024,
-            "x-oapi-codegen-extra-tags": {
-              "binding": "required,url"
-            }
           }
         },
         "required": [
@@ -274,6 +274,7 @@
         "example": {
           "id": "6ba7b810-9dad-11d1-beef-00c04fd430c8",
           "name": "Example Application Design",
+          "url": "https://example.com/design.pdf",
           "description": "Technical design document for the Example application",
           "metadata": [
             {
@@ -284,8 +285,100 @@
               "key": "version",
               "value": "1.2"
             }
-          ],
-          "uri": "https://example.com/design.pdf"
+          ]
+        }
+      },
+      "Source": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the source code reference (UUID)",
+            "maxLength": 36,
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "description": "Name for the source code reference",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the referenced source code",
+            "maxLength": 1024,
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "description": "Source code repository type",
+            "enum": [
+              "git",
+              "svn",
+              "mercurial",
+              "other"
+            ],
+            "maxLength": 16
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to retrieve the referenced source code",
+            "maxLength": 1024
+          },
+          "parameters": {
+            "type": "object",
+            "description": "repo-specific parameters for retrieving the source",
+            "properties": {
+              "refType": {
+                "type": "string",
+                "enum": [
+                  "branch",
+                  "tag",
+                  "commit"
+                ],
+                "description": "Reference type (branch, tag, or commit)",
+                "maxLength": 6
+              },
+              "refValue": {
+                "type": "string",
+                "description": "Reference value (branch name, tag value, or commit id)",
+                "maxLength": 256
+              },
+              "subPath": {
+                "type": "string",
+                "description": "Sub-path within the repository",
+                "maxLength": 256
+              }
+            },
+            "required": [
+              "refType",
+              "refValue"
+            ]
+          },
+          "metadata": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Metadata"
+            },
+            "description": "Key-value pairs for additional source metadata",
+            "nullable": true
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "example": {
+          "id": "6ba7b810-1dad-11d1-8080-00c04fd430c8",
+          "name": "GitHub Repo",
+          "description": "Technical design document for the Example application",
+          "type": "git",
+          "url": "https://github.com/ericfitz/tmi-ux.git",
+          "parameters": {
+            "refType": "branch",
+            "refValue": "main"
+          },
+          "metadata": []
         }
       },
       "BaseDiagram": {
@@ -1056,7 +1149,7 @@
               "sourceCode": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Repository"
+                  "$ref": "#/components/schemas/Source"
                 },
                 "description": "List of source code repositories related to the threat model",
                 "readOnly": true
@@ -1089,6 +1182,7 @@
           "owner": "user@example.com",
           "created_by": "user@example.com",
           "threat_model_framework": "STRIDE",
+          "issue_url": "https://issues.example.com/browse/TM-123",
           "authorization": [
             {
               "subject": "user@example.com",
@@ -1100,6 +1194,7 @@
             {
               "id": "3ba7b810-9dad-11d1-beef-00c04fd430c8",
               "name": "System Architecture Document",
+              "url": "https://docs.example.com/system-architecture.pdf",
               "description": "Technical architecture documentation for the system",
               "metadata": [
                 {
@@ -1110,8 +1205,7 @@
                   "key": "version",
                   "value": "2.1"
                 }
-              ],
-              "uri": "https://docs.example.com/system-architecture.pdf"
+              ]
             }
           ],
           "sourceCode": [
@@ -1120,6 +1214,7 @@
               "name": "GitHub Repo",
               "description": "Source code for the tmi-ux application",
               "type": "git",
+              "url": "https://github.com/ericfitz/tmi-ux.git",
               "parameters": {
                 "refType": "branch",
                 "refValue": "main"
@@ -1133,8 +1228,7 @@
                   "key": "team",
                   "value": "security"
                 }
-              ],
-              "uri": "https://github.com/ericfitz/tmi-ux.git"
+              ]
             }
           ],
           "diagrams": [
@@ -1166,11 +1260,10 @@
               "mitigated": false,
               "status": "Open",
               "threat_type": "Information Disclosure",
-              "metadata": [],
-              "issue_uri": "https://issues.example.com/browse/SEC-456"
+              "issue_url": "https://issues.example.com/browse/SEC-456",
+              "metadata": []
             }
-          ],
-          "issue_uri": "https://issues.example.com/browse/TM-123"
+          ]
         }
       },
       "Threat": {
@@ -1534,6 +1627,12 @@
             "type": "string",
             "description": "The framework used for this threat model"
           },
+          "issue_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to an issue in an issue tracking system",
+            "maxLength": 1024
+          },
           "document_count": {
             "type": "integer",
             "minimum": 0,
@@ -1553,12 +1652,6 @@
             "type": "integer",
             "minimum": 0,
             "description": "Number of threats defined in this threat model"
-          },
-          "issue_uri": {
-            "type": "string",
-            "format": "uri",
-            "description": "URL to an issue in an issue tracking system",
-            "maxLength": 1024
           }
         },
         "required": [
@@ -2134,6 +2227,12 @@
             "type": "string",
             "description": "The framework used for this threat model"
           },
+          "issue_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to an issue in an issue tracking system for this threat model",
+            "maxLength": 1024
+          },
           "authorization": {
             "type": "array",
             "items": {
@@ -2148,12 +2247,6 @@
             },
             "description": "Key-value pairs for additional threat model metadata",
             "nullable": true
-          },
-          "issue_uri": {
-            "type": "string",
-            "format": "uri",
-            "description": "URL to an issue in an issue tracking system for this threat model",
-            "maxLength": 1024
           }
         },
         "required": [
@@ -2182,6 +2275,13 @@
             "type": "string",
             "description": "The framework used for this threat model"
           },
+          "issue_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to an issue in an issue tracking system for this threat model",
+            "maxLength": 1024,
+            "nullable": true
+          },
           "authorization": {
             "type": "array",
             "items": {
@@ -2195,13 +2295,6 @@
               "$ref": "#/components/schemas/Metadata"
             },
             "description": "Key-value pairs for additional threat model metadata",
-            "nullable": true
-          },
-          "issue_uri": {
-            "type": "string",
-            "format": "uri",
-            "description": "URL to an issue in an issue tracking system for this threat model",
-            "maxLength": 1024,
             "nullable": true
           }
         },
@@ -2279,6 +2372,12 @@
             "description": "Type or category of the threat",
             "maxLength": 256
           },
+          "issue_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to an issue in an issue tracking system for this threat",
+            "maxLength": 1024
+          },
           "metadata": {
             "type": "array",
             "items": {
@@ -2286,12 +2385,6 @@
             },
             "description": "Key-value pairs for additional threat metadata",
             "nullable": true
-          },
-          "issue_uri": {
-            "type": "string",
-            "format": "uri",
-            "description": "URL to an issue in an issue tracking system for this threat",
-            "maxLength": 1024
           }
         },
         "required": [
@@ -2382,99 +2475,6 @@
             "format": "date-time",
             "description": "When the challenge expires (3 minutes from issuance)"
           }
-        }
-      },
-      "Repository": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Unique identifier for the source code reference (UUID)",
-            "maxLength": 36,
-            "readOnly": true
-          },
-          "name": {
-            "type": "string",
-            "description": "Name for the source code reference",
-            "maxLength": 256
-          },
-          "description": {
-            "type": "string",
-            "description": "Description of the referenced source code",
-            "maxLength": 1024,
-            "nullable": true
-          },
-          "type": {
-            "type": "string",
-            "description": "Source code repository type",
-            "enum": [
-              "git",
-              "svn",
-              "mercurial",
-              "other"
-            ],
-            "maxLength": 16
-          },
-          "parameters": {
-            "type": "object",
-            "description": "repo-specific parameters for retrieving the source",
-            "properties": {
-              "refType": {
-                "type": "string",
-                "enum": [
-                  "branch",
-                  "tag",
-                  "commit"
-                ],
-                "description": "Reference type (branch, tag, or commit)",
-                "maxLength": 6
-              },
-              "refValue": {
-                "type": "string",
-                "description": "Reference value (branch name, tag value, or commit id)",
-                "maxLength": 256
-              },
-              "subPath": {
-                "type": "string",
-                "description": "Sub-path within the repository",
-                "maxLength": 256
-              }
-            },
-            "required": [
-              "refType",
-              "refValue"
-            ]
-          },
-          "metadata": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Metadata"
-            },
-            "description": "Key-value pairs for additional source metadata",
-            "nullable": true
-          },
-          "uri": {
-            "type": "string",
-            "format": "uri",
-            "description": "URL to retrieve the referenced source code",
-            "maxLength": 1024
-          }
-        },
-        "required": [
-          "url"
-        ],
-        "example": {
-          "id": "6ba7b810-1dad-11d1-8080-00c04fd430c8",
-          "name": "GitHub Repo",
-          "description": "Technical design document for the Example application",
-          "type": "git",
-          "parameters": {
-            "refType": "branch",
-            "refValue": "main"
-          },
-          "metadata": [],
-          "uri": "https://github.com/ericfitz/tmi-ux.git"
         }
       }
     },
@@ -3897,11 +3897,11 @@
                       "owner": "user@example.com",
                       "created_by": "admin@example.com",
                       "threat_model_framework": "STRIDE",
+                      "issue_url": "https://github.com/example/issues/123",
                       "document_count": 3,
                       "source_count": 2,
                       "diagram_count": 1,
-                      "threat_count": 15,
-                      "issue_uri": "https://github.com/example/issues/123"
+                      "threat_count": 15
                     }
                   ],
                   "pagination": {
@@ -6000,6 +6000,7 @@
                         {
                           "id": "550e8400-e29b-41d4-a716-446655440001",
                           "name": "Security Requirements Document",
+                          "url": "https://docs.company.com/security-requirements.pdf",
                           "description": "Detailed security requirements and compliance standards",
                           "metadata": [
                             {
@@ -6010,12 +6011,12 @@
                               "key": "version",
                               "value": "1.2"
                             }
-                          ],
-                          "uri": "https://docs.company.com/security-requirements.pdf"
+                          ]
                         },
                         {
                           "id": "550e8400-e29b-41d4-a716-446655440002",
                           "name": "Architecture Design Document",
+                          "url": "https://docs.company.com/architecture-design.pdf",
                           "description": "System architecture and design specifications",
                           "metadata": [
                             {
@@ -6026,8 +6027,7 @@
                               "key": "version",
                               "value": "2.0"
                             }
-                          ],
-                          "uri": "https://docs.company.com/architecture-design.pdf"
+                          ]
                         }
                       ],
                       "total_count": 5
@@ -6095,6 +6095,7 @@
                   "summary": "Create a new security document",
                   "value": {
                     "name": "Security Requirements Document",
+                    "url": "https://docs.company.com/security-requirements.pdf",
                     "description": "Detailed security requirements and compliance standards",
                     "metadata": [
                       {
@@ -6109,8 +6110,7 @@
                         "key": "owner",
                         "value": "security-team"
                       }
-                    ],
-                    "uri": "https://docs.company.com/security-requirements.pdf"
+                    ]
                   }
                 }
               }
@@ -6131,6 +6131,7 @@
                     "value": {
                       "id": "550e8400-e29b-41d4-a716-446655440001",
                       "name": "Security Requirements Document",
+                      "url": "https://docs.company.com/security-requirements.pdf",
                       "description": "Detailed security requirements and compliance standards",
                       "metadata": [
                         {
@@ -6145,8 +6146,7 @@
                           "key": "owner",
                           "value": "security-team"
                         }
-                      ],
-                      "uri": "https://docs.company.com/security-requirements.pdf"
+                      ]
                     }
                   }
                 }
@@ -6859,6 +6859,7 @@
                   "value": [
                     {
                       "name": "Architecture Document",
+                      "url": "https://docs.company.com/architecture.pdf",
                       "description": "System architecture documentation",
                       "metadata": [
                         {
@@ -6869,11 +6870,11 @@
                           "key": "version",
                           "value": "2.1"
                         }
-                      ],
-                      "uri": "https://docs.company.com/architecture.pdf"
+                      ]
                     },
                     {
                       "name": "Security Requirements",
+                      "url": "https://docs.company.com/security.pdf",
                       "description": "Security requirements and compliance standards",
                       "metadata": [
                         {
@@ -6884,8 +6885,7 @@
                           "key": "department",
                           "value": "security"
                         }
-                      ],
-                      "uri": "https://docs.company.com/security.pdf"
+                      ]
                     }
                   ]
                 }
@@ -6911,6 +6911,7 @@
                       {
                         "id": "550e8400-e29b-41d4-a716-446655440001",
                         "name": "Architecture Document",
+                        "url": "https://docs.company.com/architecture.pdf",
                         "description": "System architecture documentation",
                         "metadata": [
                           {
@@ -6923,12 +6924,12 @@
                           }
                         ],
                         "created_at": "2025-04-06T12:00:00Z",
-                        "modified_at": "2025-04-06T12:00:00Z",
-                        "uri": "https://docs.company.com/architecture.pdf"
+                        "modified_at": "2025-04-06T12:00:00Z"
                       },
                       {
                         "id": "550e8400-e29b-41d4-a716-446655440002",
                         "name": "Security Requirements",
+                        "url": "https://docs.company.com/security.pdf",
                         "description": "Security requirements and compliance standards",
                         "metadata": [
                           {
@@ -6941,8 +6942,7 @@
                           }
                         ],
                         "created_at": "2025-04-06T12:00:00Z",
-                        "modified_at": "2025-04-06T12:00:00Z",
-                        "uri": "https://docs.company.com/security.pdf"
+                        "modified_at": "2025-04-06T12:00:00Z"
                       }
                     ]
                   }
@@ -6968,7 +6968,7 @@
         }
       }
     },
-    "/threat_models/{threat_model_id}/repositories": {
+    "/threat_models/{threat_model_id}/sources": {
       "get": {
         "tags": [
           "Threat Model Sub-Resources"
@@ -7026,7 +7026,7 @@
                     "sources": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Repository"
+                        "$ref": "#/components/schemas/Source"
                       }
                     },
                     "total_count": {
@@ -7047,6 +7047,7 @@
                         {
                           "id": "550e8400-e29b-41d4-a716-446655440010",
                           "name": "Authentication Service",
+                          "url": "https://github.com/company/auth-service",
                           "type": "git",
                           "description": "Core authentication and authorization service",
                           "parameters": {
@@ -7066,12 +7067,12 @@
                               "key": "security_scan",
                               "value": "passed"
                             }
-                          ],
-                          "uri": "https://github.com/company/auth-service"
+                          ]
                         },
                         {
                           "id": "550e8400-e29b-41d4-a716-446655440011",
                           "name": "Database Layer",
+                          "url": "https://github.com/company/db-layer",
                           "type": "git",
                           "description": "Database access layer and ORM implementation",
                           "parameters": {
@@ -7087,8 +7088,7 @@
                               "key": "database",
                               "value": "postgresql"
                             }
-                          ],
-                          "uri": "https://github.com/company/db-layer"
+                          ]
                         }
                       ],
                       "total_count": 3
@@ -7142,7 +7142,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Repository"
+                "$ref": "#/components/schemas/Source"
               }
             }
           }
@@ -7153,7 +7153,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Repository"
+                  "$ref": "#/components/schemas/Source"
                 }
               }
             }
@@ -7176,7 +7176,7 @@
         }
       }
     },
-    "/threat_models/{threat_model_id}/repositories/{repository_id}": {
+    "/threat_models/{threat_model_id}/sources/{source_id}": {
       "get": {
         "tags": [
           "Threat Model Sub-Resources"
@@ -7202,7 +7202,7 @@
             "description": "Unique identifier of the threat model (UUID)"
           },
           {
-            "name": "repository_id",
+            "name": "source_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -7219,7 +7219,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Repository"
+                  "$ref": "#/components/schemas/Source"
                 }
               }
             }
@@ -7263,7 +7263,7 @@
             "description": "Unique identifier of the threat model (UUID)"
           },
           {
-            "name": "repository_id",
+            "name": "source_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -7279,7 +7279,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Repository"
+                "$ref": "#/components/schemas/Source"
               }
             }
           }
@@ -7290,7 +7290,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Repository"
+                  "$ref": "#/components/schemas/Source"
                 }
               }
             }
@@ -7337,7 +7337,7 @@
             "description": "Unique identifier of the threat model (UUID)"
           },
           {
-            "name": "repository_id",
+            "name": "source_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -7367,7 +7367,7 @@
         }
       }
     },
-    "/threat_models/{threat_model_id}/repositories/{repository_id}/metadata": {
+    "/threat_models/{threat_model_id}/sources/{source_id}/metadata": {
       "get": {
         "tags": [
           "Threat Model Sub-Resources"
@@ -7393,7 +7393,7 @@
             "description": "Unique identifier of the threat model (UUID)"
           },
           {
-            "name": "repository_id",
+            "name": "source_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -7457,7 +7457,7 @@
             "description": "Unique identifier of the threat model (UUID)"
           },
           {
-            "name": "repository_id",
+            "name": "source_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -7507,7 +7507,7 @@
         }
       }
     },
-    "/threat_models/{threat_model_id}/repositories/{repository_id}/metadata/{key}": {
+    "/threat_models/{threat_model_id}/sources/{source_id}/metadata/{key}": {
       "get": {
         "tags": [
           "Threat Model Sub-Resources"
@@ -7533,7 +7533,7 @@
             "description": "Unique identifier of the threat model (UUID)"
           },
           {
-            "name": "repository_id",
+            "name": "source_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -7604,7 +7604,7 @@
             "description": "Unique identifier of the threat model (UUID)"
           },
           {
-            "name": "repository_id",
+            "name": "source_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -7697,7 +7697,7 @@
             "description": "Unique identifier of the threat model (UUID)"
           },
           {
-            "name": "repository_id",
+            "name": "source_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -7737,7 +7737,7 @@
         }
       }
     },
-    "/threat_models/{threat_model_id}/repositories/{repository_id}/metadata/bulk": {
+    "/threat_models/{threat_model_id}/sources/{source_id}/metadata/bulk": {
       "post": {
         "tags": [
           "Threat Model Sub-Resources"
@@ -7763,7 +7763,7 @@
             "description": "Unique identifier of the threat model (UUID)"
           },
           {
-            "name": "repository_id",
+            "name": "source_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -7820,7 +7820,7 @@
         }
       }
     },
-    "/threat_models/{threat_model_id}/repositories/bulk": {
+    "/threat_models/{threat_model_id}/sources/bulk": {
       "post": {
         "tags": [
           "Threat Model Sub-Resources"
@@ -7853,7 +7853,7 @@
               "schema": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Repository"
+                  "$ref": "#/components/schemas/Source"
                 },
                 "maxItems": 20,
                 "description": "Array of source references to create"
@@ -7864,6 +7864,7 @@
                   "value": [
                     {
                       "name": "User Authentication Module",
+                      "url": "https://github.com/company/repo/blob/main/oauth2/user.go",
                       "description": "Core user authentication logic",
                       "metadata": [
                         {
@@ -7874,11 +7875,11 @@
                           "key": "maintainer",
                           "value": "security-team"
                         }
-                      ],
-                      "uri": "https://github.com/company/repo/blob/main/oauth2/user.go"
+                      ]
                     },
                     {
                       "name": "Database Connection Pool",
+                      "url": "https://github.com/company/repo/blob/main/db/pool.go",
                       "description": "Database connection management",
                       "metadata": [
                         {
@@ -7889,8 +7890,7 @@
                           "key": "criticality",
                           "value": "high"
                         }
-                      ],
-                      "uri": "https://github.com/company/repo/blob/main/db/pool.go"
+                      ]
                     }
                   ]
                 }
@@ -7906,7 +7906,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Repository"
+                    "$ref": "#/components/schemas/Source"
                   }
                 },
                 "examples": {
@@ -7916,6 +7916,7 @@
                       {
                         "id": "650e8400-e29b-41d4-a716-446655440001",
                         "name": "User Authentication Module",
+                        "url": "https://github.com/company/repo/blob/main/oauth2/user.go",
                         "description": "Core user authentication logic",
                         "metadata": [
                           {
@@ -7928,12 +7929,12 @@
                           }
                         ],
                         "created_at": "2025-04-06T12:00:00Z",
-                        "modified_at": "2025-04-06T12:00:00Z",
-                        "uri": "https://github.com/company/repo/blob/main/oauth2/user.go"
+                        "modified_at": "2025-04-06T12:00:00Z"
                       },
                       {
                         "id": "650e8400-e29b-41d4-a716-446655440002",
                         "name": "Database Connection Pool",
+                        "url": "https://github.com/company/repo/blob/main/db/pool.go",
                         "description": "Database connection management",
                         "metadata": [
                           {
@@ -7946,8 +7947,7 @@
                           }
                         ],
                         "created_at": "2025-04-06T12:00:00Z",
-                        "modified_at": "2025-04-06T12:00:00Z",
-                        "uri": "https://github.com/company/repo/blob/main/db/pool.go"
+                        "modified_at": "2025-04-06T12:00:00Z"
                       }
                     ]
                   }
