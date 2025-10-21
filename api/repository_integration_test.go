@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestSourceIntegration tests the complete CRUD lifecycle for sources
-func TestSourceIntegration(t *testing.T) {
+// TestRepositoryIntegration tests the complete CRUD lifecycle for repositorys
+func TestRepositoryIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -17,38 +17,38 @@ func TestSourceIntegration(t *testing.T) {
 	suite := SetupSubEntityIntegrationTest(t)
 	defer suite.TeardownSubEntityIntegrationTest(t)
 
-	t.Run("POST /threat_models/:threat_model_id/sources", func(t *testing.T) {
-		testSourcePOST(t, suite)
+	t.Run("POST /threat_models/:threat_model_id/repositorys", func(t *testing.T) {
+		testRepositoryPOST(t, suite)
 	})
 
-	t.Run("GET /threat_models/:threat_model_id/sources", func(t *testing.T) {
-		testSourceGETList(t, suite)
+	t.Run("GET /threat_models/:threat_model_id/repositorys", func(t *testing.T) {
+		testRepositoryGETList(t, suite)
 	})
 
-	t.Run("GET /threat_models/:threat_model_id/sources/:source_id", func(t *testing.T) {
-		testSourceGETByID(t, suite)
+	t.Run("GET /threat_models/:threat_model_id/repositorys/:repository_id", func(t *testing.T) {
+		testRepositoryGETByID(t, suite)
 	})
 
-	t.Run("PUT /threat_models/:threat_model_id/sources/:source_id", func(t *testing.T) {
-		testSourcePUT(t, suite)
+	t.Run("PUT /threat_models/:threat_model_id/repositorys/:repository_id", func(t *testing.T) {
+		testRepositoryPUT(t, suite)
 	})
 
-	t.Run("DELETE /threat_models/:threat_model_id/sources/:source_id", func(t *testing.T) {
-		testSourceDELETE(t, suite)
+	t.Run("DELETE /threat_models/:threat_model_id/repositorys/:repository_id", func(t *testing.T) {
+		testRepositoryDELETE(t, suite)
 	})
 
-	t.Run("POST /threat_models/:threat_model_id/sources/bulk", func(t *testing.T) {
-		testSourceBulkCreate(t, suite)
+	t.Run("POST /threat_models/:threat_model_id/repositorys/bulk", func(t *testing.T) {
+		testRepositoryBulkCreate(t, suite)
 	})
 }
 
-// testSourcePOST tests creating sources via POST
-func testSourcePOST(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+// testRepositoryPOST tests creating repositorys via POST
+func testRepositoryPOST(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	// Test data
 	requestBody := map[string]interface{}{
-		"name":        "Integration Test Source",
+		"name":        "Integration Test Repository",
 		"url":         "https://github.com/example/integration-test-repo",
-		"description": "A source created during integration testing",
+		"description": "A repository created during integration testing",
 		"type":        "git",
 		"parameters": map[string]interface{}{
 			"refType":  "branch",
@@ -58,7 +58,7 @@ func testSourcePOST(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	}
 
 	// Make request
-	path := fmt.Sprintf("/threat_models/%s/sources", suite.threatModelID)
+	path := fmt.Sprintf("/threat_models/%s/repositorys", suite.threatModelID)
 	req := suite.makeAuthenticatedRequest("POST", path, requestBody)
 	w := suite.executeRequest(req)
 
@@ -80,33 +80,33 @@ func testSourcePOST(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	assert.Equal(t, expectedParams["refValue"], responseParams["refValue"])
 	assert.Equal(t, expectedParams["subPath"], responseParams["subPath"])
 
-	// Store the source ID for other tests
-	suite.testSourceID = response["id"].(string)
+	// Store the repository ID for other tests
+	suite.testRepositoryID = response["id"].(string)
 }
 
-// testSourceGETList tests retrieving sources list via GET
-func testSourceGETList(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// Ensure we have at least one source
-	if suite.testSourceID == "" {
-		suite.createTestSource(t)
+// testRepositoryGETList tests retrieving repositorys list via GET
+func testRepositoryGETList(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+	// Ensure we have at least one repository
+	if suite.testRepositoryID == "" {
+		suite.createTestRepository(t)
 	}
 
 	// Test GET list
-	path := fmt.Sprintf("/threat_models/%s/sources", suite.threatModelID)
+	path := fmt.Sprintf("/threat_models/%s/repositorys", suite.threatModelID)
 	req := suite.makeAuthenticatedRequest("GET", path, nil)
 	w := suite.executeRequest(req)
 
 	response := suite.assertJSONArrayResponse(t, w, http.StatusOK)
 
 	// Verify response
-	assert.GreaterOrEqual(t, len(response), 1, "Should return at least one source")
+	assert.GreaterOrEqual(t, len(response), 1, "Should return at least one repository")
 
-	// Check the first source in the list
-	source := response[0].(map[string]interface{})
-	assert.NotEmpty(t, source["id"])
-	assert.NotEmpty(t, source["name"])
-	assert.NotEmpty(t, source["url"])
-	assert.NotEmpty(t, source["type"])
+	// Check the first repository in the list
+	repository := response[0].(map[string]interface{})
+	assert.NotEmpty(t, repository["id"])
+	assert.NotEmpty(t, repository["name"])
+	assert.NotEmpty(t, repository["url"])
+	assert.NotEmpty(t, repository["type"])
 
 	// Test pagination
 	req = suite.makeAuthenticatedRequest("GET", path+"?limit=1&offset=0", nil)
@@ -115,22 +115,22 @@ func testSourceGETList(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	assert.LessOrEqual(t, len(paginatedResponse), 1, "Pagination should limit results")
 }
 
-// testSourceGETByID tests retrieving specific source via GET
-func testSourceGETByID(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// Ensure we have a source to get
-	if suite.testSourceID == "" {
-		suite.createTestSource(t)
+// testRepositoryGETByID tests retrieving specific repository via GET
+func testRepositoryGETByID(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+	// Ensure we have a repository to get
+	if suite.testRepositoryID == "" {
+		suite.createTestRepository(t)
 	}
 
 	// Test GET by ID
-	path := fmt.Sprintf("/threat_models/%s/sources/%s", suite.threatModelID, suite.testSourceID)
+	path := fmt.Sprintf("/threat_models/%s/repositorys/%s", suite.threatModelID, suite.testRepositoryID)
 	req := suite.makeAuthenticatedRequest("GET", path, nil)
 	w := suite.executeRequest(req)
 
 	response := suite.assertJSONResponse(t, w, http.StatusOK)
 
 	// Verify response
-	assert.Equal(t, suite.testSourceID, response["id"])
+	assert.Equal(t, suite.testRepositoryID, response["id"])
 	assert.NotEmpty(t, response["name"])
 	assert.NotEmpty(t, response["url"])
 	assert.NotEmpty(t, response["type"])
@@ -144,16 +144,16 @@ func testSourceGETByID(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	}
 }
 
-// testSourcePUT tests updating sources via PUT
-func testSourcePUT(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// Ensure we have a source to update
-	if suite.testSourceID == "" {
-		suite.createTestSource(t)
+// testRepositoryPUT tests updating repositorys via PUT
+func testRepositoryPUT(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+	// Ensure we have a repository to update
+	if suite.testRepositoryID == "" {
+		suite.createTestRepository(t)
 	}
 
-	// Update the source
+	// Update the repository
 	updateBody := map[string]interface{}{
-		"name":        "Updated Integration Test Source",
+		"name":        "Updated Integration Test Repository",
 		"url":         "https://github.com/example/updated-integration-test-repo",
 		"description": "Updated description for integration testing",
 		"type":        "git",
@@ -164,14 +164,14 @@ func testSourcePUT(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 		},
 	}
 
-	path := fmt.Sprintf("/threat_models/%s/sources/%s", suite.threatModelID, suite.testSourceID)
+	path := fmt.Sprintf("/threat_models/%s/repositorys/%s", suite.threatModelID, suite.testRepositoryID)
 	req := suite.makeAuthenticatedRequest("PUT", path, updateBody)
 	w := suite.executeRequest(req)
 
 	response := suite.assertJSONResponse(t, w, http.StatusOK)
 
 	// Verify updates
-	assert.Equal(t, suite.testSourceID, response["id"])
+	assert.Equal(t, suite.testRepositoryID, response["id"])
 	assert.Equal(t, updateBody["name"], response["name"])
 	assert.Equal(t, updateBody["url"], response["url"])
 	assert.Equal(t, updateBody["description"], response["description"])
@@ -186,32 +186,32 @@ func testSourcePUT(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	assert.Equal(t, expectedParams["subPath"], responseParams["subPath"])
 }
 
-// testSourceDELETE tests deleting sources via DELETE
-func testSourceDELETE(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	// Create a source specifically for deletion
-	deleteTestSourceID := suite.createTestSource(t)
+// testRepositoryDELETE tests deleting repositorys via DELETE
+func testRepositoryDELETE(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+	// Create a repository specifically for deletion
+	deleteTestRepositoryID := suite.createTestRepository(t)
 
-	// Delete the source
-	path := fmt.Sprintf("/threat_models/%s/sources/%s", suite.threatModelID, deleteTestSourceID)
+	// Delete the repository
+	path := fmt.Sprintf("/threat_models/%s/repositorys/%s", suite.threatModelID, deleteTestRepositoryID)
 	req := suite.makeAuthenticatedRequest("DELETE", path, nil)
 	w := suite.executeRequest(req)
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
 
-	// Verify the source no longer exists
+	// Verify the repository no longer exists
 	req = suite.makeAuthenticatedRequest("GET", path, nil)
 	w = suite.executeRequest(req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-// testSourceBulkCreate tests bulk creating sources
-func testSourceBulkCreate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
+// testRepositoryBulkCreate tests bulk creating repositorys
+func testRepositoryBulkCreate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	// Test data for bulk create (direct array, no wrapper)
 	requestBody := []map[string]interface{}{
 		{
-			"name":        "Bulk Test Source 1",
+			"name":        "Bulk Test Repository 1",
 			"url":         "https://github.com/example/bulk-repo-1",
-			"description": "First source in bulk create test",
+			"description": "First repository in bulk create test",
 			"type":        "git",
 			"parameters": map[string]interface{}{
 				"refType":  "branch",
@@ -219,9 +219,9 @@ func testSourceBulkCreate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 			},
 		},
 		{
-			"name":        "Bulk Test Source 2",
+			"name":        "Bulk Test Repository 2",
 			"url":         "https://gitlab.com/example/bulk-repo-2",
-			"description": "Second source in bulk create test",
+			"description": "Second repository in bulk create test",
 			"type":        "git",
 			"parameters": map[string]interface{}{
 				"refType":  "tag",
@@ -229,9 +229,9 @@ func testSourceBulkCreate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 			},
 		},
 		{
-			"name":        "Bulk Test Source 3",
+			"name":        "Bulk Test Repository 3",
 			"url":         "https://bitbucket.org/example/bulk-repo-3",
-			"description": "Third source in bulk create test",
+			"description": "Third repository in bulk create test",
 			"type":        "git",
 			"parameters": map[string]interface{}{
 				"refType":  "commit",
@@ -241,28 +241,28 @@ func testSourceBulkCreate(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 	}
 
 	// Make request
-	path := fmt.Sprintf("/threat_models/%s/sources/bulk", suite.threatModelID)
+	path := fmt.Sprintf("/threat_models/%s/repositorys/bulk", suite.threatModelID)
 	req := suite.makeAuthenticatedRequest("POST", path, requestBody)
 	w := suite.executeRequest(req)
 
-	createdSources := suite.assertJSONArrayResponse(t, w, http.StatusCreated)
-	assert.Len(t, createdSources, 3, "Should create 3 sources")
+	createdRepositorys := suite.assertJSONArrayResponse(t, w, http.StatusCreated)
+	assert.Len(t, createdRepositorys, 3, "Should create 3 repositorys")
 
-	// Verify each created source
-	for i, sourceInterface := range createdSources {
-		source := sourceInterface.(map[string]interface{})
-		originalSource := requestBody[i]
+	// Verify each created repository
+	for i, repositoryInterface := range createdRepositorys {
+		repository := repositoryInterface.(map[string]interface{})
+		originalRepository := requestBody[i]
 
-		assert.NotEmpty(t, source["id"], "Each source should have an ID")
-		assert.Equal(t, originalSource["name"], source["name"])
-		assert.Equal(t, originalSource["url"], source["url"])
-		assert.Equal(t, originalSource["description"], source["description"])
-		assert.Equal(t, originalSource["type"], source["type"])
+		assert.NotEmpty(t, repository["id"], "Each repository should have an ID")
+		assert.Equal(t, originalRepository["name"], repository["name"])
+		assert.Equal(t, originalRepository["url"], repository["url"])
+		assert.Equal(t, originalRepository["description"], repository["description"])
+		assert.Equal(t, originalRepository["type"], repository["type"])
 
 		// Verify parameters
-		responseParams, ok := source["parameters"].(map[string]interface{})
+		responseParams, ok := repository["parameters"].(map[string]interface{})
 		assert.True(t, ok, "Parameters should be an object")
-		expectedParams := originalSource["parameters"].(map[string]interface{})
+		expectedParams := originalRepository["parameters"].(map[string]interface{})
 		assert.Equal(t, expectedParams["refType"], responseParams["refType"])
 		assert.Equal(t, expectedParams["refValue"], responseParams["refValue"])
 	}

@@ -227,11 +227,11 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	router.DELETE("/threat_models/:threat_model_id/documents/:document_id/metadata/:key", documentMetadataHandler.DeleteDocumentMetadata)
 
 	// Source metadata routes
-	router.GET("/threat_models/:threat_model_id/sources/:source_id/metadata", sourceMetadataHandler.GetSourceMetadata)
-	router.POST("/threat_models/:threat_model_id/sources/:source_id/metadata", sourceMetadataHandler.CreateSourceMetadata)
-	router.GET("/threat_models/:threat_model_id/sources/:source_id/metadata/:key", sourceMetadataHandler.GetSourceMetadataByKey)
-	router.PUT("/threat_models/:threat_model_id/sources/:source_id/metadata/:key", sourceMetadataHandler.UpdateSourceMetadata)
-	router.DELETE("/threat_models/:threat_model_id/sources/:source_id/metadata/:key", sourceMetadataHandler.DeleteSourceMetadata)
+	router.GET("/threat_models/:threat_model_id/sources/:repository_id/metadata", sourceMetadataHandler.GetSourceMetadata)
+	router.POST("/threat_models/:threat_model_id/sources/:repository_id/metadata", sourceMetadataHandler.CreateSourceMetadata)
+	router.GET("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", sourceMetadataHandler.GetSourceMetadataByKey)
+	router.PUT("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", sourceMetadataHandler.UpdateSourceMetadata)
+	router.DELETE("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", sourceMetadataHandler.DeleteSourceMetadata)
 
 	// Diagram metadata routes
 	router.GET("/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", diagramMetadataHandler.GetThreatModelDiagramMetadata)
@@ -277,9 +277,9 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	// Source sub-resource routes (CRUD operations)
 	router.GET("/threat_models/:threat_model_id/sources", sourceSubResourceHandler.GetSources)
 	router.POST("/threat_models/:threat_model_id/sources", sourceSubResourceHandler.CreateSource)
-	router.GET("/threat_models/:threat_model_id/sources/:source_id", sourceSubResourceHandler.GetSource)
-	router.PUT("/threat_models/:threat_model_id/sources/:source_id", sourceSubResourceHandler.UpdateSource)
-	router.DELETE("/threat_models/:threat_model_id/sources/:source_id", sourceSubResourceHandler.DeleteSource)
+	router.GET("/threat_models/:threat_model_id/sources/:repository_id", sourceSubResourceHandler.GetSource)
+	router.PUT("/threat_models/:threat_model_id/sources/:repository_id", sourceSubResourceHandler.UpdateSource)
+	router.DELETE("/threat_models/:threat_model_id/sources/:repository_id", sourceSubResourceHandler.DeleteSource)
 
 	// Source bulk operations
 	router.POST("/threat_models/:threat_model_id/sources/bulk", sourceSubResourceHandler.BulkCreateSources)

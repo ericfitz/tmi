@@ -133,18 +133,18 @@ func setupTestRouter() *gin.Engine {
 	// Threat Model Sources
 	router.GET("/threat_models/:threat_model_id/sources", notImplementedHandler)
 	router.POST("/threat_models/:threat_model_id/sources", notImplementedHandler)
-	router.GET("/threat_models/:threat_model_id/sources/:source_id", notImplementedHandler)
-	router.PUT("/threat_models/:threat_model_id/sources/:source_id", notImplementedHandler)
-	router.DELETE("/threat_models/:threat_model_id/sources/:source_id", notImplementedHandler)
+	router.GET("/threat_models/:threat_model_id/sources/:repository_id", notImplementedHandler)
+	router.PUT("/threat_models/:threat_model_id/sources/:repository_id", notImplementedHandler)
+	router.DELETE("/threat_models/:threat_model_id/sources/:repository_id", notImplementedHandler)
 	router.POST("/threat_models/:threat_model_id/sources/bulk", notImplementedHandler)
 
 	// Threat Model Source Metadata
-	router.GET("/threat_models/:threat_model_id/sources/:source_id/metadata", notImplementedHandler)
-	router.POST("/threat_models/:threat_model_id/sources/:source_id/metadata", notImplementedHandler)
-	router.GET("/threat_models/:threat_model_id/sources/:source_id/metadata/:key", notImplementedHandler)
-	router.PUT("/threat_models/:threat_model_id/sources/:source_id/metadata/:key", notImplementedHandler)
-	router.DELETE("/threat_models/:threat_model_id/sources/:source_id/metadata/:key", notImplementedHandler)
-	router.POST("/threat_models/:threat_model_id/sources/:source_id/metadata/bulk", notImplementedHandler)
+	router.GET("/threat_models/:threat_model_id/sources/:repository_id/metadata", notImplementedHandler)
+	router.POST("/threat_models/:threat_model_id/sources/:repository_id/metadata", notImplementedHandler)
+	router.GET("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", notImplementedHandler)
+	router.PUT("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", notImplementedHandler)
+	router.DELETE("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", notImplementedHandler)
+	router.POST("/threat_models/:threat_model_id/sources/:repository_id/metadata/bulk", notImplementedHandler)
 
 	// Batch Operations
 	router.POST("/threat_models/:threat_model_id/threats/batch/patch", notImplementedHandler)

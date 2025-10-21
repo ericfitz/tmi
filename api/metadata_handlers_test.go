@@ -721,12 +721,12 @@ func setupSourceMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 	})
 
 	// Register source metadata routes
-	r.GET("/threat_models/:threat_model_id/sources/:source_id/metadata", handler.GetSourceMetadata)
-	r.GET("/threat_models/:threat_model_id/sources/:source_id/metadata/:key", handler.GetSourceMetadataByKey)
-	r.POST("/threat_models/:threat_model_id/sources/:source_id/metadata", handler.CreateSourceMetadata)
-	r.PUT("/threat_models/:threat_model_id/sources/:source_id/metadata/:key", handler.UpdateSourceMetadata)
-	r.DELETE("/threat_models/:threat_model_id/sources/:source_id/metadata/:key", handler.DeleteSourceMetadata)
-	r.POST("/threat_models/:threat_model_id/sources/:source_id/metadata/bulk", handler.BulkCreateSourceMetadata)
+	r.GET("/threat_models/:threat_model_id/sources/:repository_id/metadata", handler.GetSourceMetadata)
+	r.GET("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", handler.GetSourceMetadataByKey)
+	r.POST("/threat_models/:threat_model_id/sources/:repository_id/metadata", handler.CreateSourceMetadata)
+	r.PUT("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", handler.UpdateSourceMetadata)
+	r.DELETE("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", handler.DeleteSourceMetadata)
+	r.POST("/threat_models/:threat_model_id/sources/:repository_id/metadata/bulk", handler.BulkCreateSourceMetadata)
 
 	return r, mockMetadataStore
 }
