@@ -1467,8 +1467,8 @@ type UpdateThreatModelMetadataByKeyJSONBody struct {
 	Value string `json:"value"`
 }
 
-// GetThreatModelSourcesParams defines parameters for GetThreatModelSources.
-type GetThreatModelSourcesParams struct {
+// GetThreatModelRepositoriesParams defines parameters for GetThreatModelRepositories.
+type GetThreatModelRepositoriesParams struct {
 	// Limit Maximum number of sources to return
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -1476,14 +1476,14 @@ type GetThreatModelSourcesParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
-// BulkCreateThreatModelSourcesJSONBody defines parameters for BulkCreateThreatModelSources.
-type BulkCreateThreatModelSourcesJSONBody = []Repository
+// BulkCreateThreatModelRepositoriesJSONBody defines parameters for BulkCreateThreatModelRepositories.
+type BulkCreateThreatModelRepositoriesJSONBody = []Repository
 
-// BulkCreateSourceMetadataJSONBody defines parameters for BulkCreateSourceMetadata.
-type BulkCreateSourceMetadataJSONBody = []Metadata
+// BulkCreateRepositoryMetadataJSONBody defines parameters for BulkCreateRepositoryMetadata.
+type BulkCreateRepositoryMetadataJSONBody = []Metadata
 
-// UpdateSourceMetadataByKeyJSONBody defines parameters for UpdateSourceMetadataByKey.
-type UpdateSourceMetadataByKeyJSONBody struct {
+// UpdateRepositoryMetadataByKeyJSONBody defines parameters for UpdateRepositoryMetadataByKey.
+type UpdateRepositoryMetadataByKeyJSONBody struct {
 	// Value New value for the metadata entry
 	Value string `json:"value"`
 }
@@ -1680,23 +1680,23 @@ type BulkCreateThreatModelMetadataJSONRequestBody = BulkCreateThreatModelMetadat
 // UpdateThreatModelMetadataByKeyJSONRequestBody defines body for UpdateThreatModelMetadataByKey for application/json ContentType.
 type UpdateThreatModelMetadataByKeyJSONRequestBody UpdateThreatModelMetadataByKeyJSONBody
 
-// CreateThreatModelSourceJSONRequestBody defines body for CreateThreatModelSource for application/json ContentType.
-type CreateThreatModelSourceJSONRequestBody = Repository
+// CreateThreatModelRepositoryJSONRequestBody defines body for CreateThreatModelRepository for application/json ContentType.
+type CreateThreatModelRepositoryJSONRequestBody = Repository
 
-// BulkCreateThreatModelSourcesJSONRequestBody defines body for BulkCreateThreatModelSources for application/json ContentType.
-type BulkCreateThreatModelSourcesJSONRequestBody = BulkCreateThreatModelSourcesJSONBody
+// BulkCreateThreatModelRepositoriesJSONRequestBody defines body for BulkCreateThreatModelRepositories for application/json ContentType.
+type BulkCreateThreatModelRepositoriesJSONRequestBody = BulkCreateThreatModelRepositoriesJSONBody
 
-// UpdateThreatModelSourceJSONRequestBody defines body for UpdateThreatModelSource for application/json ContentType.
-type UpdateThreatModelSourceJSONRequestBody = Repository
+// UpdateThreatModelRepositoryJSONRequestBody defines body for UpdateThreatModelRepository for application/json ContentType.
+type UpdateThreatModelRepositoryJSONRequestBody = Repository
 
-// CreateSourceMetadataJSONRequestBody defines body for CreateSourceMetadata for application/json ContentType.
-type CreateSourceMetadataJSONRequestBody = Metadata
+// CreateRepositoryMetadataJSONRequestBody defines body for CreateRepositoryMetadata for application/json ContentType.
+type CreateRepositoryMetadataJSONRequestBody = Metadata
 
-// BulkCreateSourceMetadataJSONRequestBody defines body for BulkCreateSourceMetadata for application/json ContentType.
-type BulkCreateSourceMetadataJSONRequestBody = BulkCreateSourceMetadataJSONBody
+// BulkCreateRepositoryMetadataJSONRequestBody defines body for BulkCreateRepositoryMetadata for application/json ContentType.
+type BulkCreateRepositoryMetadataJSONRequestBody = BulkCreateRepositoryMetadataJSONBody
 
-// UpdateSourceMetadataByKeyJSONRequestBody defines body for UpdateSourceMetadataByKey for application/json ContentType.
-type UpdateSourceMetadataByKeyJSONRequestBody UpdateSourceMetadataByKeyJSONBody
+// UpdateRepositoryMetadataByKeyJSONRequestBody defines body for UpdateRepositoryMetadataByKey for application/json ContentType.
+type UpdateRepositoryMetadataByKeyJSONRequestBody UpdateRepositoryMetadataByKeyJSONBody
 
 // CreateThreatModelThreatJSONRequestBody defines body for CreateThreatModelThreat for application/json ContentType.
 type CreateThreatModelThreatJSONRequestBody = ThreatInput
@@ -2548,40 +2548,40 @@ type ServerInterface interface {
 	UpdateThreatModelMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, key string)
 	// List sources in a threat model
 	// (GET /threat_models/{threat_model_id}/repositories)
-	GetThreatModelSources(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelSourcesParams)
+	GetThreatModelRepositories(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelRepositoriesParams)
 	// Create a new source reference
 	// (POST /threat_models/{threat_model_id}/repositories)
-	CreateThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID)
+	CreateThreatModelRepository(c *gin.Context, threatModelId openapi_types.UUID)
 	// Bulk create sources
 	// (POST /threat_models/{threat_model_id}/repositories/bulk)
-	BulkCreateThreatModelSources(c *gin.Context, threatModelId openapi_types.UUID)
+	BulkCreateThreatModelRepositories(c *gin.Context, threatModelId openapi_types.UUID)
 	// Delete a source reference
 	// (DELETE /threat_models/{threat_model_id}/repositories/{repository_id})
-	DeleteThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID)
+	DeleteThreatModelRepository(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID)
 	// Get a specific source reference
 	// (GET /threat_models/{threat_model_id}/repositories/{repository_id})
-	GetThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID)
+	GetThreatModelRepository(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID)
 	// Update a source reference
 	// (PUT /threat_models/{threat_model_id}/repositories/{repository_id})
-	UpdateThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID)
+	UpdateThreatModelRepository(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID)
 	// Get source metadata
 	// (GET /threat_models/{threat_model_id}/repositories/{repository_id}/metadata)
-	GetSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID)
+	GetRepositoryMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID)
 	// Create source metadata
 	// (POST /threat_models/{threat_model_id}/repositories/{repository_id}/metadata)
-	CreateSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID)
+	CreateRepositoryMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID)
 	// Bulk create source metadata
 	// (POST /threat_models/{threat_model_id}/repositories/{repository_id}/metadata/bulk)
-	BulkCreateSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID)
+	BulkCreateRepositoryMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID)
 	// Delete source metadata by key
 	// (DELETE /threat_models/{threat_model_id}/repositories/{repository_id}/metadata/{key})
-	DeleteSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID, key string)
+	DeleteRepositoryMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID, key string)
 	// Get source metadata by key
 	// (GET /threat_models/{threat_model_id}/repositories/{repository_id}/metadata/{key})
-	GetSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID, key string)
+	GetRepositoryMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID, key string)
 	// Update source metadata by key
 	// (PUT /threat_models/{threat_model_id}/repositories/{repository_id}/metadata/{key})
-	UpdateSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID, key string)
+	UpdateRepositoryMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID, key string)
 	// List threats in a threat model
 	// (GET /threat_models/{threat_model_id}/threats)
 	GetThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelThreatsParams)
@@ -4327,8 +4327,8 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModelMetadataByKey(c *gin.Context
 	siw.Handler.UpdateThreatModelMetadataByKey(c, threatModelId, key)
 }
 
-// GetThreatModelSources operation middleware
-func (siw *ServerInterfaceWrapper) GetThreatModelSources(c *gin.Context) {
+// GetThreatModelRepositories operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModelRepositories(c *gin.Context) {
 
 	var err error
 
@@ -4344,7 +4344,7 @@ func (siw *ServerInterfaceWrapper) GetThreatModelSources(c *gin.Context) {
 	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params GetThreatModelSourcesParams
+	var params GetThreatModelRepositoriesParams
 
 	// ------------- Optional query parameter "limit" -------------
 
@@ -4369,11 +4369,11 @@ func (siw *ServerInterfaceWrapper) GetThreatModelSources(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetThreatModelSources(c, threatModelId, params)
+	siw.Handler.GetThreatModelRepositories(c, threatModelId, params)
 }
 
-// CreateThreatModelSource operation middleware
-func (siw *ServerInterfaceWrapper) CreateThreatModelSource(c *gin.Context) {
+// CreateThreatModelRepository operation middleware
+func (siw *ServerInterfaceWrapper) CreateThreatModelRepository(c *gin.Context) {
 
 	var err error
 
@@ -4395,11 +4395,11 @@ func (siw *ServerInterfaceWrapper) CreateThreatModelSource(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.CreateThreatModelSource(c, threatModelId)
+	siw.Handler.CreateThreatModelRepository(c, threatModelId)
 }
 
-// BulkCreateThreatModelSources operation middleware
-func (siw *ServerInterfaceWrapper) BulkCreateThreatModelSources(c *gin.Context) {
+// BulkCreateThreatModelRepositories operation middleware
+func (siw *ServerInterfaceWrapper) BulkCreateThreatModelRepositories(c *gin.Context) {
 
 	var err error
 
@@ -4421,46 +4421,11 @@ func (siw *ServerInterfaceWrapper) BulkCreateThreatModelSources(c *gin.Context) 
 		}
 	}
 
-	siw.Handler.BulkCreateThreatModelSources(c, threatModelId)
+	siw.Handler.BulkCreateThreatModelRepositories(c, threatModelId)
 }
 
-// DeleteThreatModelSource operation middleware
-func (siw *ServerInterfaceWrapper) DeleteThreatModelSource(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "threat_model_id" -------------
-	var threatModelId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Path parameter "repository_id" -------------
-	var repositoryId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "repository_id", c.Param("repository_id"), &repositoryId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter repository_id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.DeleteThreatModelSource(c, threatModelId, repositoryId)
-}
-
-// GetThreatModelSource operation middleware
-func (siw *ServerInterfaceWrapper) GetThreatModelSource(c *gin.Context) {
+// DeleteThreatModelRepository operation middleware
+func (siw *ServerInterfaceWrapper) DeleteThreatModelRepository(c *gin.Context) {
 
 	var err error
 
@@ -4491,11 +4456,11 @@ func (siw *ServerInterfaceWrapper) GetThreatModelSource(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetThreatModelSource(c, threatModelId, repositoryId)
+	siw.Handler.DeleteThreatModelRepository(c, threatModelId, repositoryId)
 }
 
-// UpdateThreatModelSource operation middleware
-func (siw *ServerInterfaceWrapper) UpdateThreatModelSource(c *gin.Context) {
+// GetThreatModelRepository operation middleware
+func (siw *ServerInterfaceWrapper) GetThreatModelRepository(c *gin.Context) {
 
 	var err error
 
@@ -4526,11 +4491,11 @@ func (siw *ServerInterfaceWrapper) UpdateThreatModelSource(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.UpdateThreatModelSource(c, threatModelId, repositoryId)
+	siw.Handler.GetThreatModelRepository(c, threatModelId, repositoryId)
 }
 
-// GetSourceMetadata operation middleware
-func (siw *ServerInterfaceWrapper) GetSourceMetadata(c *gin.Context) {
+// UpdateThreatModelRepository operation middleware
+func (siw *ServerInterfaceWrapper) UpdateThreatModelRepository(c *gin.Context) {
 
 	var err error
 
@@ -4561,11 +4526,11 @@ func (siw *ServerInterfaceWrapper) GetSourceMetadata(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetSourceMetadata(c, threatModelId, repositoryId)
+	siw.Handler.UpdateThreatModelRepository(c, threatModelId, repositoryId)
 }
 
-// CreateSourceMetadata operation middleware
-func (siw *ServerInterfaceWrapper) CreateSourceMetadata(c *gin.Context) {
+// GetRepositoryMetadata operation middleware
+func (siw *ServerInterfaceWrapper) GetRepositoryMetadata(c *gin.Context) {
 
 	var err error
 
@@ -4596,11 +4561,11 @@ func (siw *ServerInterfaceWrapper) CreateSourceMetadata(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.CreateSourceMetadata(c, threatModelId, repositoryId)
+	siw.Handler.GetRepositoryMetadata(c, threatModelId, repositoryId)
 }
 
-// BulkCreateSourceMetadata operation middleware
-func (siw *ServerInterfaceWrapper) BulkCreateSourceMetadata(c *gin.Context) {
+// CreateRepositoryMetadata operation middleware
+func (siw *ServerInterfaceWrapper) CreateRepositoryMetadata(c *gin.Context) {
 
 	var err error
 
@@ -4631,11 +4596,11 @@ func (siw *ServerInterfaceWrapper) BulkCreateSourceMetadata(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.BulkCreateSourceMetadata(c, threatModelId, repositoryId)
+	siw.Handler.CreateRepositoryMetadata(c, threatModelId, repositoryId)
 }
 
-// DeleteSourceMetadataByKey operation middleware
-func (siw *ServerInterfaceWrapper) DeleteSourceMetadataByKey(c *gin.Context) {
+// BulkCreateRepositoryMetadata operation middleware
+func (siw *ServerInterfaceWrapper) BulkCreateRepositoryMetadata(c *gin.Context) {
 
 	var err error
 
@@ -4657,15 +4622,6 @@ func (siw *ServerInterfaceWrapper) DeleteSourceMetadataByKey(c *gin.Context) {
 		return
 	}
 
-	// ------------- Path parameter "key" -------------
-	var key string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
-		return
-	}
-
 	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4675,11 +4631,11 @@ func (siw *ServerInterfaceWrapper) DeleteSourceMetadataByKey(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.DeleteSourceMetadataByKey(c, threatModelId, repositoryId, key)
+	siw.Handler.BulkCreateRepositoryMetadata(c, threatModelId, repositoryId)
 }
 
-// GetSourceMetadataByKey operation middleware
-func (siw *ServerInterfaceWrapper) GetSourceMetadataByKey(c *gin.Context) {
+// DeleteRepositoryMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) DeleteRepositoryMetadataByKey(c *gin.Context) {
 
 	var err error
 
@@ -4719,11 +4675,11 @@ func (siw *ServerInterfaceWrapper) GetSourceMetadataByKey(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetSourceMetadataByKey(c, threatModelId, repositoryId, key)
+	siw.Handler.DeleteRepositoryMetadataByKey(c, threatModelId, repositoryId, key)
 }
 
-// UpdateSourceMetadataByKey operation middleware
-func (siw *ServerInterfaceWrapper) UpdateSourceMetadataByKey(c *gin.Context) {
+// GetRepositoryMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) GetRepositoryMetadataByKey(c *gin.Context) {
 
 	var err error
 
@@ -4763,7 +4719,51 @@ func (siw *ServerInterfaceWrapper) UpdateSourceMetadataByKey(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.UpdateSourceMetadataByKey(c, threatModelId, repositoryId, key)
+	siw.Handler.GetRepositoryMetadataByKey(c, threatModelId, repositoryId, key)
+}
+
+// UpdateRepositoryMetadataByKey operation middleware
+func (siw *ServerInterfaceWrapper) UpdateRepositoryMetadataByKey(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "threat_model_id" -------------
+	var threatModelId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "threat_model_id", c.Param("threat_model_id"), &threatModelId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter threat_model_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "repository_id" -------------
+	var repositoryId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "repository_id", c.Param("repository_id"), &repositoryId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter repository_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateRepositoryMetadataByKey(c, threatModelId, repositoryId, key)
 }
 
 // GetThreatModelThreats operation middleware
@@ -5588,18 +5588,18 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/metadata/:key", wrapper.DeleteThreatModelMetadataByKey)
 	router.GET(options.BaseURL+"/threat_models/:threat_model_id/metadata/:key", wrapper.GetThreatModelMetadataByKey)
 	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/metadata/:key", wrapper.UpdateThreatModelMetadataByKey)
-	router.GET(options.BaseURL+"/threat_models/:threat_model_id/repositories", wrapper.GetThreatModelSources)
-	router.POST(options.BaseURL+"/threat_models/:threat_model_id/repositories", wrapper.CreateThreatModelSource)
-	router.POST(options.BaseURL+"/threat_models/:threat_model_id/repositories/bulk", wrapper.BulkCreateThreatModelSources)
-	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id", wrapper.DeleteThreatModelSource)
-	router.GET(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id", wrapper.GetThreatModelSource)
-	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id", wrapper.UpdateThreatModelSource)
-	router.GET(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id/metadata", wrapper.GetSourceMetadata)
-	router.POST(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id/metadata", wrapper.CreateSourceMetadata)
-	router.POST(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id/metadata/bulk", wrapper.BulkCreateSourceMetadata)
-	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", wrapper.DeleteSourceMetadataByKey)
-	router.GET(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", wrapper.GetSourceMetadataByKey)
-	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", wrapper.UpdateSourceMetadataByKey)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/repositories", wrapper.GetThreatModelRepositories)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/repositories", wrapper.CreateThreatModelRepository)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/repositories/bulk", wrapper.BulkCreateThreatModelRepositories)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id", wrapper.DeleteThreatModelRepository)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id", wrapper.GetThreatModelRepository)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id", wrapper.UpdateThreatModelRepository)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id/metadata", wrapper.GetRepositoryMetadata)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id/metadata", wrapper.CreateRepositoryMetadata)
+	router.POST(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id/metadata/bulk", wrapper.BulkCreateRepositoryMetadata)
+	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", wrapper.DeleteRepositoryMetadataByKey)
+	router.GET(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", wrapper.GetRepositoryMetadataByKey)
+	router.PUT(options.BaseURL+"/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", wrapper.UpdateRepositoryMetadataByKey)
 	router.GET(options.BaseURL+"/threat_models/:threat_model_id/threats", wrapper.GetThreatModelThreats)
 	router.POST(options.BaseURL+"/threat_models/:threat_model_id/threats", wrapper.CreateThreatModelThreat)
 	router.DELETE(options.BaseURL+"/threat_models/:threat_model_id/threats/batch", wrapper.BatchDeleteThreatModelThreats)
@@ -5906,62 +5906,62 @@ var swaggerSpec = []string{
 	"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",
-	"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",
-	"u114Gjj7jnP/5f7/BgAA//+o+4r4nFUCAA==",
+	"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",
+	"DZx9x7n/cv9/AwAA//+o8B5czlUCAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

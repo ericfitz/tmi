@@ -6975,7 +6975,7 @@
         ],
         "summary": "List sources in a threat model",
         "description": "Returns a paginated list of source code references within the specified threat model",
-        "operationId": "getThreatModelSources",
+        "operationId": "getThreatModelRepositories",
         "security": [
           {
             "bearerAuth": []
@@ -7118,7 +7118,7 @@
         ],
         "summary": "Create a new source reference",
         "description": "Creates a new source code reference within the specified threat model",
-        "operationId": "createThreatModelSource",
+        "operationId": "createThreatModelRepository",
         "security": [
           {
             "bearerAuth": []
@@ -7183,7 +7183,7 @@
         ],
         "summary": "Get a specific source reference",
         "description": "Returns details of a specific source code reference within the threat model",
-        "operationId": "getThreatModelSource",
+        "operationId": "getThreatModelRepository",
         "security": [
           {
             "bearerAuth": []
@@ -7244,7 +7244,7 @@
         ],
         "summary": "Update a source reference",
         "description": "Updates a specific source code reference within the threat model",
-        "operationId": "updateThreatModelSource",
+        "operationId": "updateThreatModelRepository",
         "security": [
           {
             "bearerAuth": []
@@ -7318,7 +7318,7 @@
         ],
         "summary": "Delete a source reference",
         "description": "Deletes a specific source code reference from the threat model",
-        "operationId": "deleteThreatModelSource",
+        "operationId": "deleteThreatModelRepository",
         "security": [
           {
             "bearerAuth": []
@@ -7374,7 +7374,7 @@
         ],
         "summary": "Get source metadata",
         "description": "Returns all metadata key-value pairs for the specified source reference",
-        "operationId": "getSourceMetadata",
+        "operationId": "getRepositoryMetadata",
         "security": [
           {
             "bearerAuth": []
@@ -7438,7 +7438,7 @@
         ],
         "summary": "Create source metadata",
         "description": "Creates new metadata entry for the specified source reference",
-        "operationId": "createSourceMetadata",
+        "operationId": "createRepositoryMetadata",
         "security": [
           {
             "bearerAuth": []
@@ -7514,7 +7514,7 @@
         ],
         "summary": "Get source metadata by key",
         "description": "Returns a specific metadata entry by key for the specified source reference",
-        "operationId": "getSourceMetadataByKey",
+        "operationId": "getRepositoryMetadataByKey",
         "security": [
           {
             "bearerAuth": []
@@ -7585,7 +7585,7 @@
         ],
         "summary": "Update source metadata by key",
         "description": "Updates a specific metadata entry by key for the specified source reference",
-        "operationId": "updateSourceMetadataByKey",
+        "operationId": "updateRepositoryMetadataByKey",
         "security": [
           {
             "bearerAuth": []
@@ -7678,7 +7678,7 @@
         ],
         "summary": "Delete source metadata by key",
         "description": "Deletes a specific metadata entry by key for the specified source reference",
-        "operationId": "deleteSourceMetadataByKey",
+        "operationId": "deleteRepositoryMetadataByKey",
         "security": [
           {
             "bearerAuth": []
@@ -7744,7 +7744,7 @@
         ],
         "summary": "Bulk create source metadata",
         "description": "Creates multiple metadata entries in a single operation for the specified source reference",
-        "operationId": "bulkCreateSourceMetadata",
+        "operationId": "bulkCreateRepositoryMetadata",
         "security": [
           {
             "bearerAuth": []
@@ -7827,7 +7827,7 @@
         ],
         "summary": "Bulk create sources",
         "description": "Creates multiple source references in a single operation for the specified threat model",
-        "operationId": "bulkCreateThreatModelSources",
+        "operationId": "bulkCreateThreatModelRepositories",
         "security": [
           {
             "bearerAuth": []
