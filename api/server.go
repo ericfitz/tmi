@@ -17,11 +17,11 @@ type Server struct {
 	// Handlers
 	threatModelHandler         *ThreatModelHandler
 	documentHandler            *DocumentSubResourceHandler
-	repositoryHandler              *RepositorySubResourceHandler
+	repositoryHandler          *RepositorySubResourceHandler
 	threatHandler              *ThreatSubResourceHandler
 	batchHandler               *BatchHandler
 	documentMetadataHandler    *DocumentMetadataHandler
-	repositoryMetadataHandler      *RepositoryMetadataHandler
+	repositoryMetadataHandler  *RepositoryMetadataHandler
 	threatMetadataHandler      *ThreatMetadataHandler
 	threatModelMetadataHandler *ThreatModelMetadataHandler
 	userDeletionHandler        *UserDeletionHandler
@@ -36,11 +36,11 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 	return &Server{
 		threatModelHandler:         NewThreatModelHandler(),
 		documentHandler:            NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
-		repositoryHandler:              NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
+		repositoryHandler:          NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
 		threatHandler:              NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
 		batchHandler:               NewBatchHandler(GlobalThreatStore, nil, nil, nil),
 		documentMetadataHandler:    NewDocumentMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		repositoryMetadataHandler:      NewRepositoryMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		repositoryMetadataHandler:  NewRepositoryMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		threatMetadataHandler:      NewThreatMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		threatModelMetadataHandler: NewThreatModelMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		wsHub:                      NewWebSocketHub(wsLoggingConfig, inactivityTimeout),

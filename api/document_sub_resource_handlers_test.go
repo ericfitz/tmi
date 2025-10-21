@@ -96,8 +96,8 @@ func TestGetDocuments(t *testing.T) {
 
 		threatModelID := "00000000-0000-0000-0000-000000000001"
 		documents := []Document{
-			{Name: "Test Document 1", Url: "https://example.com/doc1.pdf"},
-			{Name: "Test Document 2", Url: "https://example.com/doc2.pdf"},
+			{Name: "Test Document 1", Uri: stringPointer("https://example.com/doc1.pdf")},
+			{Name: "Test Document 2", Uri: stringPointer("https://example.com/doc2.pdf")},
 		}
 
 		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
@@ -139,7 +139,7 @@ func TestGetDocuments(t *testing.T) {
 
 		threatModelID := "00000000-0000-0000-0000-000000000001"
 		documents := []Document{
-			{Name: "Test Document 1", Url: "https://example.com/doc1.pdf"},
+			{Name: "Test Document 1", Uri: stringPointer("https://example.com/doc1.pdf")},
 		}
 
 		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
@@ -164,7 +164,7 @@ func TestGetDocument(t *testing.T) {
 		threatModelID := "00000000-0000-0000-0000-000000000001"
 		documentID := "00000000-0000-0000-0000-000000000002"
 
-		document := &Document{Name: "Test Document", Url: "https://example.com/doc.pdf"}
+		document := &Document{Name: "Test Document", Uri: stringPointer("https://example.com/doc.pdf")}
 		uuid1, _ := uuid.Parse(documentID)
 		document.Id = &uuid1
 

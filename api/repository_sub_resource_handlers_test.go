@@ -69,7 +69,7 @@ func setupRepositorySubRerepositoryHandler() (*gin.Engine, *MockRepositoryStore)
 	r := gin.New()
 
 	mockRepositoryStore := &MockRepositoryStore{}
-	handler := NewRepositorySubRerepositoryHandler(mockRepositoryStore, nil, nil, nil)
+	handler := NewRepositorySubResourceHandler(mockRepositoryStore, nil, nil, nil)
 
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
@@ -96,8 +96,8 @@ func TestGetRepositorys(t *testing.T) {
 
 		threatModelID := "00000000-0000-0000-0000-000000000001"
 		repositorys := []Repository{
-			{Url: "https://github.com/user/repo1"},
-			{Url: "https://github.com/user/repo2"},
+			{Uri: stringPointer("https://github.com/user/repo1")},
+			{Uri: stringPointer("https://github.com/user/repo2")},
 		}
 
 		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
@@ -141,7 +141,7 @@ func TestGetRepositorys(t *testing.T) {
 
 		threatModelID := "00000000-0000-0000-0000-000000000001"
 		repositorys := []Repository{
-			{Url: "https://github.com/user/repo1"},
+			{Uri: stringPointer("https://github.com/user/repo1")},
 		}
 
 		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
@@ -166,7 +166,7 @@ func TestGetRepository(t *testing.T) {
 		threatModelID := "00000000-0000-0000-0000-000000000001"
 		repositoryID := "00000000-0000-0000-0000-000000000002"
 
-		repository := &Repository{Url: "https://github.com/user/test-repo"}
+		repository := &Repository{Uri: stringPointer("https://github.com/user/test-repo")}
 		uuid1, _ := uuid.Parse(repositoryID)
 		repository.Id = &uuid1
 		repository.Name = stringPtr("Test Repository")

@@ -41,7 +41,7 @@ func createTestThreatModelDB() ThreatModel {
 		Owner:                "test@example.com",
 		CreatedBy:            stringPointer("test@example.com"),
 		ThreatModelFramework: "STRIDE",
-		IssueUrl:             strPtr("https://github.com/test/issues/1"),
+		IssueUri:             strPtr("https://github.com/test/issues/1"),
 		CreatedAt:            func() *time.Time { t := time.Now(); return &t }(),
 		ModifiedAt:           func() *time.Time { t := time.Now(); return &t }(),
 		Authorization: []Authorization{

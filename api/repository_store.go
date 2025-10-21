@@ -63,7 +63,7 @@ func extendedToRepository(extSrc *ExtendedRepository) *Repository {
 // Create creates a new repository with write-through caching
 func (s *DatabaseRepositoryStore) Create(ctx context.Context, repository *Repository, threatModelID string) error {
 	logger := slogging.Get()
-	logger.Debug("Creating repository: %s in threat model: %s", repository.Uri, threatModelID)
+	logger.Debug("Creating repository: %s in threat model: %s", *repository.Uri, threatModelID)
 
 	// Generate ID if not provided
 	if repository.Id == nil {
@@ -215,8 +215,8 @@ func (s *DatabaseRepositoryStore) Get(ctx context.Context, id string) (*Reposito
 	if parametersJSON.Valid {
 		var params struct {
 			RefType  RepositoryParametersRefType `json:"refType"`
-			RefValue string                  `json:"refValue"`
-			SubPath  *string                 `json:"subPath,omitempty"`
+			RefValue string                      `json:"refValue"`
+			SubPath  *string                     `json:"subPath,omitempty"`
 		}
 		if err := json.Unmarshal([]byte(parametersJSON.String), &params); err == nil {
 			extSrc.Parameters = &params
@@ -472,8 +472,8 @@ func (s *DatabaseRepositoryStore) List(ctx context.Context, threatModelID string
 		if parametersJSON.Valid {
 			var params struct {
 				RefType  RepositoryParametersRefType `json:"refType"`
-				RefValue string                  `json:"refValue"`
-				SubPath  *string                 `json:"subPath,omitempty"`
+				RefValue string                      `json:"refValue"`
+				SubPath  *string                     `json:"subPath,omitempty"`
 			}
 			if err := json.Unmarshal([]byte(parametersJSON.String), &params); err == nil {
 				extSrc.Parameters = &params

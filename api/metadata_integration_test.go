@@ -20,7 +20,7 @@ func TestMetadataIntegration(t *testing.T) {
 	// Create sub-entities for metadata testing
 	suite.createTestThreat(t)
 	suite.createTestDocument(t)
-	suite.createTestSource(t)
+	suite.createTestRepository(t)
 	suite.createTestDiagram(t)
 
 	t.Run("ThreatMetadata", func(t *testing.T) {
@@ -104,7 +104,7 @@ func testDocumentMetadata(t *testing.T, suite *SubEntityIntegrationTestSuite) {
 
 // testSourceMetadata tests metadata operations for sources
 func testSourceMetadata(t *testing.T, suite *SubEntityIntegrationTestSuite) {
-	basePath := fmt.Sprintf("/threat_models/%s/sources/%s/metadata", suite.threatModelID, suite.testSourceID)
+	basePath := fmt.Sprintf("/threat_models/%s/repositories/%s/metadata", suite.threatModelID, suite.testRepositoryID)
 
 	t.Run("POST_CreateMetadata", func(t *testing.T) {
 		testCreateMetadata(t, suite, basePath, "source")

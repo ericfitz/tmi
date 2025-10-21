@@ -166,7 +166,7 @@
               "http://localhost:8080"
             ]
           },
-          "jwks_uri": {
+          "jwks_url": {
             "type": "string",
             "format": "uri",
             "description": "URL of the protected resource's JSON Web Key Set",
@@ -214,7 +214,7 @@
           "authorization_servers": [
             "http://localhost:8080"
           ],
-          "jwks_uri": "http://localhost:8080/.well-known/jwks.json",
+          "jwks_url": "http://localhost:8080/.well-known/jwks.json",
           "bearer_methods_supported": [
             "header"
           ],
@@ -269,7 +269,7 @@
         },
         "required": [
           "name",
-          "url"
+          "uri"
         ],
         "example": {
           "id": "6ba7b810-9dad-11d1-beef-00c04fd430c8",
@@ -1053,7 +1053,7 @@
                 "description": "List of documents related to the threat model",
                 "readOnly": true
               },
-              "sourceCode": {
+              "respositories": {
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Repository"
@@ -1114,7 +1114,7 @@
               "uri": "https://docs.example.com/system-architecture.pdf"
             }
           ],
-          "sourceCode": [
+          "repositories": [
             {
               "id": "6ba7b810-1dad-11d1-8080-00c04fd430c8",
               "name": "GitHub Repo",
@@ -1539,10 +1539,10 @@
             "minimum": 0,
             "description": "Number of documents associated with this threat model"
           },
-          "source_count": {
+          "repo_count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Number of source code entries associated with this threat model"
+            "description": "Number of source code repository entries associated with this threat model"
           },
           "diagram_count": {
             "type": "integer",
@@ -1570,7 +1570,7 @@
           "created_by",
           "threat_model_framework",
           "document_count",
-          "source_count",
+          "repo_count",
           "diagram_count",
           "threat_count"
         ]
@@ -2462,7 +2462,7 @@
           }
         },
         "required": [
-          "url"
+          "uri"
         ],
         "example": {
           "id": "6ba7b810-1dad-11d1-8080-00c04fd430c8",
@@ -2524,8 +2524,8 @@
                         "message": "Name is required and cannot be empty"
                       },
                       {
-                        "field": "url",
-                        "message": "URL must be a valid HTTP/HTTPS URL"
+                        "field": "uri",
+                        "message": "URI must be a valid RFC 3986 URI, e.g. an HTTPS URL"
                       }
                     ]
                   }
@@ -3977,7 +3977,7 @@
                   ],
                   "metadata": [],
                   "documents": [],
-                  "sourceCode": [],
+                  "repositories": [],
                   "diagrams": [],
                   "threats": []
                 }

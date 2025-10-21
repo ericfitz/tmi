@@ -34,16 +34,16 @@ func getTestServerURL() string {
 
 // SubEntityIntegrationTestSuite manages database setup and teardown for sub-entity integration tests
 type SubEntityIntegrationTestSuite struct {
-	dbManager      *db.Manager
-	authService    *auth.Service
-	router         *gin.Engine
-	testUser       *auth.User
-	accessToken    string
-	threatModelID  string
-	testThreatID   string
-	testDocumentID string
-	testSourceID   string
-	testDiagramID  string
+	dbManager        *db.Manager
+	authService      *auth.Service
+	router           *gin.Engine
+	testUser         *auth.User
+	accessToken      string
+	threatModelID    string
+	testThreatID     string
+	testDocumentID   string
+	testRepositoryID string
+	testDiagramID    string
 }
 
 // SetupSubEntityIntegrationTest initializes the test environment with a real database
@@ -200,7 +200,7 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	// Register sub-resource handlers for comprehensive testing
 	threatSubResourceHandler := NewThreatSubResourceHandler(GlobalThreatStore, dbManager.Postgres().GetDB(), nil, nil)
 	documentSubResourceHandler := NewDocumentSubResourceHandler(GlobalDocumentStore, dbManager.Postgres().GetDB(), nil, nil)
-	sourceSubResourceHandler := NewSourceSubResourceHandler(GlobalSourceStore, dbManager.Postgres().GetDB(), nil, nil)
+	repositorySubResourceHandler := NewRepositorySubResourceHandler(GlobalRepositoryStore, dbManager.Postgres().GetDB(), nil, nil)
 	batchHandler := NewBatchHandler(GlobalThreatStore, dbManager.Postgres().GetDB(), nil, nil)
 
 	// Register metadata handlers for comprehensive testing (using simple constructors)
@@ -208,7 +208,7 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 
 	threatMetadataHandler := NewThreatMetadataHandler(GlobalMetadataStore, nil, nil, nil)
 	documentMetadataHandler := NewDocumentMetadataHandler(GlobalMetadataStore, nil, nil, nil)
-	sourceMetadataHandler := NewSourceMetadataHandler(GlobalMetadataStore, nil, nil, nil)
+	repositoryMetadataHandler := NewRepositoryMetadataHandler(GlobalMetadataStore, nil, nil, nil)
 	diagramMetadataHandler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
 	threatModelMetadataHandler := NewThreatModelMetadataHandler(GlobalMetadataStore, nil, nil, nil)
 
@@ -226,12 +226,12 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	router.PUT("/threat_models/:threat_model_id/documents/:document_id/metadata/:key", documentMetadataHandler.UpdateDocumentMetadata)
 	router.DELETE("/threat_models/:threat_model_id/documents/:document_id/metadata/:key", documentMetadataHandler.DeleteDocumentMetadata)
 
-	// Source metadata routes
-	router.GET("/threat_models/:threat_model_id/sources/:repository_id/metadata", sourceMetadataHandler.GetSourceMetadata)
-	router.POST("/threat_models/:threat_model_id/sources/:repository_id/metadata", sourceMetadataHandler.CreateSourceMetadata)
-	router.GET("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", sourceMetadataHandler.GetSourceMetadataByKey)
-	router.PUT("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", sourceMetadataHandler.UpdateSourceMetadata)
-	router.DELETE("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", sourceMetadataHandler.DeleteSourceMetadata)
+	// Repository metadata routes
+	router.GET("/threat_models/:threat_model_id/repositories/:repository_id/metadata", repositoryMetadataHandler.GetRepositoryMetadata)
+	router.POST("/threat_models/:threat_model_id/repositories/:repository_id/metadata", repositoryMetadataHandler.CreateRepositoryMetadata)
+	router.GET("/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", repositoryMetadataHandler.GetRepositoryMetadataByKey)
+	router.PUT("/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", repositoryMetadataHandler.UpdateRepositoryMetadata)
+	router.DELETE("/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", repositoryMetadataHandler.DeleteRepositoryMetadata)
 
 	// Diagram metadata routes
 	router.GET("/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", diagramMetadataHandler.GetThreatModelDiagramMetadata)
@@ -274,15 +274,15 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	// Document bulk operations
 	router.POST("/threat_models/:threat_model_id/documents/bulk", documentSubResourceHandler.BulkCreateDocuments)
 
-	// Source sub-resource routes (CRUD operations)
-	router.GET("/threat_models/:threat_model_id/sources", sourceSubResourceHandler.GetSources)
-	router.POST("/threat_models/:threat_model_id/sources", sourceSubResourceHandler.CreateSource)
-	router.GET("/threat_models/:threat_model_id/sources/:repository_id", sourceSubResourceHandler.GetSource)
-	router.PUT("/threat_models/:threat_model_id/sources/:repository_id", sourceSubResourceHandler.UpdateSource)
-	router.DELETE("/threat_models/:threat_model_id/sources/:repository_id", sourceSubResourceHandler.DeleteSource)
+	// Repository sub-resource routes (CRUD operations)
+	router.GET("/threat_models/:threat_model_id/repositories", repositorySubResourceHandler.GetRepositorys)
+	router.POST("/threat_models/:threat_model_id/repositories", repositorySubResourceHandler.CreateRepository)
+	router.GET("/threat_models/:threat_model_id/repositories/:repository_id", repositorySubResourceHandler.GetRepository)
+	router.PUT("/threat_models/:threat_model_id/repositories/:repository_id", repositorySubResourceHandler.UpdateRepository)
+	router.DELETE("/threat_models/:threat_model_id/repositories/:repository_id", repositorySubResourceHandler.DeleteRepository)
 
-	// Source bulk operations
-	router.POST("/threat_models/:threat_model_id/sources/bulk", sourceSubResourceHandler.BulkCreateSources)
+	// Repository bulk operations
+	router.POST("/threat_models/:threat_model_id/repositories/bulk", repositorySubResourceHandler.BulkCreateRepositorys)
 
 	// Sub-entity integration testing: This approach successfully tests the full API hierarchy
 	// following natural creation flows (Threat Model → Sub-entities → Metadata) with
@@ -717,12 +717,12 @@ func (suite *SubEntityIntegrationTestSuite) createTestDocument(t *testing.T) str
 	return documentID
 }
 
-// createTestSource creates a test source for use in other tests
-func (suite *SubEntityIntegrationTestSuite) createTestSource(t *testing.T) string {
+// createTestRepository creates a test repository for use in other tests
+func (suite *SubEntityIntegrationTestSuite) createTestRepository(t *testing.T) string {
 	requestBody := map[string]interface{}{
-		"name":        "Test Integration Source",
-		"url":         "https://github.com/example/test-repo",
-		"description": "A source created during integration testing",
+		"name":        "Test Integration Repository",
+		"uri":         "https://github.com/example/test-repo",
+		"description": "A repository created during integration testing",
 		"type":        "git",
 		"parameters": map[string]interface{}{
 			"refType":  "branch",
@@ -731,14 +731,14 @@ func (suite *SubEntityIntegrationTestSuite) createTestSource(t *testing.T) strin
 		},
 	}
 
-	path := fmt.Sprintf("/threat_models/%s/sources", suite.threatModelID)
+	path := fmt.Sprintf("/threat_models/%s/repositories", suite.threatModelID)
 	req := suite.makeAuthenticatedRequest("POST", path, requestBody)
 	w := suite.executeRequest(req)
 
 	response := suite.assertJSONResponse(t, w, http.StatusCreated)
-	sourceID := response["id"].(string)
-	suite.testSourceID = sourceID
-	return sourceID
+	repositoryID := response["id"].(string)
+	suite.testRepositoryID = repositoryID
+	return repositoryID
 }
 
 // createTestDiagram creates a test diagram for use in other tests

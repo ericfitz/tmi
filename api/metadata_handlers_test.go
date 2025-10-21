@@ -711,7 +711,7 @@ func setupSourceMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 	r := gin.New()
 
 	mockMetadataStore := &MockMetadataStore{}
-	handler := NewSourceMetadataHandler(mockMetadataStore, nil, nil, nil)
+	handler := NewRepositoryMetadataHandler(mockMetadataStore, nil, nil, nil)
 
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
@@ -720,13 +720,13 @@ func setupSourceMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 		c.Next()
 	})
 
-	// Register source metadata routes
-	r.GET("/threat_models/:threat_model_id/sources/:repository_id/metadata", handler.GetSourceMetadata)
-	r.GET("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", handler.GetSourceMetadataByKey)
-	r.POST("/threat_models/:threat_model_id/sources/:repository_id/metadata", handler.CreateSourceMetadata)
-	r.PUT("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", handler.UpdateSourceMetadata)
-	r.DELETE("/threat_models/:threat_model_id/sources/:repository_id/metadata/:key", handler.DeleteSourceMetadata)
-	r.POST("/threat_models/:threat_model_id/sources/:repository_id/metadata/bulk", handler.BulkCreateSourceMetadata)
+	// Register repository metadata routes
+	r.GET("/threat_models/:threat_model_id/repositories/:repository_id/metadata", handler.GetRepositoryMetadata)
+	r.GET("/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", handler.GetRepositoryMetadataByKey)
+	r.POST("/threat_models/:threat_model_id/repositories/:repository_id/metadata", handler.CreateRepositoryMetadata)
+	r.PUT("/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", handler.UpdateRepositoryMetadata)
+	r.DELETE("/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", handler.DeleteRepositoryMetadata)
+	r.POST("/threat_models/:threat_model_id/repositories/:repository_id/metadata/bulk", handler.BulkCreateRepositoryMetadata)
 
 	return r, mockMetadataStore
 }

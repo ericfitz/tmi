@@ -27,12 +27,12 @@ func NewCacheService(redis *db.RedisDB) *CacheService {
 
 // Cache TTL configurations based on the implementation plan
 const (
-	ThreatModelCacheTTL  = 10 * time.Minute // 10-15 minutes for threat models
-	DiagramCacheTTL      = 2 * time.Minute  // 2-3 minutes for diagrams
-	SubResourceCacheTTL  = 5 * time.Minute  // 5-10 minutes for sub-resources
-	AuthCacheTTL         = 15 * time.Minute // 15 minutes for authorization data
-	MetadataCacheTTL     = 7 * time.Minute  // 5-10 minutes for metadata
-	ListCacheTTL         = 5 * time.Minute  // 5 minutes for paginated lists
+	ThreatModelCacheTTL = 10 * time.Minute // 10-15 minutes for threat models
+	DiagramCacheTTL     = 2 * time.Minute  // 2-3 minutes for diagrams
+	SubResourceCacheTTL = 5 * time.Minute  // 5-10 minutes for sub-resources
+	AuthCacheTTL        = 15 * time.Minute // 15 minutes for authorization data
+	MetadataCacheTTL    = 7 * time.Minute  // 5-10 minutes for metadata
+	ListCacheTTL        = 5 * time.Minute  // 5 minutes for paginated lists
 )
 
 // CacheThreat caches an individual threat with write-through strategy

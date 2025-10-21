@@ -38,14 +38,14 @@ type SubResourceTestFixtures struct {
 	Repository2ID string
 
 	// Test metadata
-	ThreatMetadata1   Metadata
-	ThreatMetadata2   Metadata
-	DocumentMetadata1 Metadata
-	DocumentMetadata2 Metadata
-	RepositoryMetadata1   Metadata
-	RepositoryMetadata2   Metadata
-	DiagramMetadata1  Metadata
-	DiagramMetadata2  Metadata
+	ThreatMetadata1     Metadata
+	ThreatMetadata2     Metadata
+	DocumentMetadata1   Metadata
+	DocumentMetadata2   Metadata
+	RepositoryMetadata1 Metadata
+	RepositoryMetadata2 Metadata
+	DiagramMetadata1    Metadata
+	DiagramMetadata2    Metadata
 
 	// Test diagram for cell testing
 	Diagram   DfdDiagram

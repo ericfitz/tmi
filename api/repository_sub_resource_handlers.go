@@ -11,7 +11,7 @@ import (
 
 // RepositorySubResourceHandler provides handlers for repository code sub-resource operations
 type RepositorySubResourceHandler struct {
-	repositoryStore      RepositoryStore
+	repositoryStore  RepositoryStore
 	db               *sql.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
@@ -20,7 +20,7 @@ type RepositorySubResourceHandler struct {
 // NewRepositorySubResourceHandler creates a new repository code sub-resource handler
 func NewRepositorySubResourceHandler(repositoryStore RepositoryStore, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *RepositorySubResourceHandler {
 	return &RepositorySubResourceHandler{
-		repositoryStore:      repositoryStore,
+		repositoryStore:  repositoryStore,
 		db:               db,
 		cache:            cache,
 		cacheInvalidator: invalidator,

@@ -784,57 +784,57 @@ func (s *Server) PostThreatModelsThreatModelIdDocumentsDocumentIdMetadataBulk(c 
 // Threat Model Sources handlers
 func (s *Server) GetThreatModelsThreatModelIdSources(c *gin.Context) {
 	// Use the dedicated source handler with global store
-	handler := api.NewSourceSubResourceHandler(
-		api.GlobalSourceStore,
+	handler := api.NewRepositorySubResourceHandler(
+		api.GlobalRepositoryStore,
 		nil, // db - not needed for current implementation
 		nil, // cache - not needed for current implementation
 		nil, // cacheInvalidator - not needed for current implementation
 	)
-	handler.GetSources(c)
+	handler.GetRepositorys(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSources(c *gin.Context) {
 	// Use the dedicated source handler with global store
-	handler := api.NewSourceSubResourceHandler(
-		api.GlobalSourceStore,
+	handler := api.NewRepositorySubResourceHandler(
+		api.GlobalRepositoryStore,
 		nil, // db - not needed for current implementation
 		nil, // cache - not needed for current implementation
 		nil, // cacheInvalidator - not needed for current implementation
 	)
-	handler.CreateSource(c)
+	handler.CreateRepository(c)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdSourcesSourceId(c *gin.Context) {
 	// Use the dedicated source handler with global store
-	handler := api.NewSourceSubResourceHandler(
-		api.GlobalSourceStore,
+	handler := api.NewRepositorySubResourceHandler(
+		api.GlobalRepositoryStore,
 		nil, // db - not needed for current implementation
 		nil, // cache - not needed for current implementation
 		nil, // cacheInvalidator - not needed for current implementation
 	)
-	handler.GetSource(c)
+	handler.GetRepository(c)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdSourcesSourceId(c *gin.Context) {
 	// Use the dedicated source handler with global store
-	handler := api.NewSourceSubResourceHandler(
-		api.GlobalSourceStore,
+	handler := api.NewRepositorySubResourceHandler(
+		api.GlobalRepositoryStore,
 		nil, // db - not needed for current implementation
 		nil, // cache - not needed for current implementation
 		nil, // cacheInvalidator - not needed for current implementation
 	)
-	handler.UpdateSource(c)
+	handler.UpdateRepository(c)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdSourcesSourceId(c *gin.Context) {
 	// Use the dedicated source handler with global store
-	handler := api.NewSourceSubResourceHandler(
-		api.GlobalSourceStore,
+	handler := api.NewRepositorySubResourceHandler(
+		api.GlobalRepositoryStore,
 		nil, // db - not needed for current implementation
 		nil, // cache - not needed for current implementation
 		nil, // cacheInvalidator - not needed for current implementation
 	)
-	handler.DeleteSource(c)
+	handler.DeleteRepository(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSourcesBulk(c *gin.Context) {
@@ -843,33 +843,33 @@ func (s *Server) PostThreatModelsThreatModelIdSourcesBulk(c *gin.Context) {
 
 // Threat Model Source Metadata handlers
 func (s *Server) GetThreatModelsThreatModelIdSourcesSourceIdMetadata(c *gin.Context) {
-	handler := api.NewSourceMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
-	handler.GetSourceMetadata(c)
+	handler := api.NewRepositoryMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
+	handler.GetRepositoryMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSourcesSourceIdMetadata(c *gin.Context) {
-	handler := api.NewSourceMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
-	handler.CreateSourceMetadata(c)
+	handler := api.NewRepositoryMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
+	handler.CreateRepositoryMetadata(c)
 }
 
 func (s *Server) GetThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gin.Context) {
-	handler := api.NewSourceMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
-	handler.GetSourceMetadataByKey(c)
+	handler := api.NewRepositoryMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
+	handler.GetRepositoryMetadataByKey(c)
 }
 
 func (s *Server) PutThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gin.Context) {
-	handler := api.NewSourceMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
-	handler.UpdateSourceMetadata(c)
+	handler := api.NewRepositoryMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
+	handler.UpdateRepositoryMetadata(c)
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdSourcesSourceIdMetadataKey(c *gin.Context) {
-	handler := api.NewSourceMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
-	handler.DeleteSourceMetadata(c)
+	handler := api.NewRepositoryMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
+	handler.DeleteRepositoryMetadata(c)
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSourcesSourceIdMetadataBulk(c *gin.Context) {
-	handler := api.NewSourceMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
-	handler.BulkCreateSourceMetadata(c)
+	handler := api.NewRepositoryMetadataHandler(api.GlobalMetadataStore, nil, nil, nil)
+	handler.BulkCreateRepositoryMetadata(c)
 }
 
 // Batch Operations handlers

@@ -89,13 +89,13 @@ func (tcw *TestCacheWarmer) warmDocumentsForThreatModel(ctx context.Context, thr
 func (tcw *TestCacheWarmer) warmRepositoriesForThreatModel(ctx context.Context, threatModelID string) error {
 	repositories, err := tcw.repositoryStore.List(ctx, threatModelID, 0, 50)
 	if err != nil {
-		return fmt.Errorf("failed to list sources: %w", err)
+		return fmt.Errorf("failed to list repositories: %w", err)
 	}
 
-	for _, repository := range sources {
-		if source.Id != nil {
+	for _, repository := range repositories {
+		if repository.Id != nil {
 			if err := tcw.mockCache.CacheRepository(ctx, &repository); err != nil {
-				return fmt.Errorf("failed to cache source %s: %w", source.Id.String(), err)
+				return fmt.Errorf("failed to cache repository %s: %w", repository.Id.String(), err)
 			}
 		}
 	}
@@ -199,7 +199,7 @@ func newTestCacheWarmer(db *sql.DB, threatStore ThreatStore, documentStore Docum
 		cache:           nil, // Not used in TestCacheWarmer
 		threatStore:     threatStore,
 		documentStore:   documentStore,
-		repositoryStore:     repositoryStore,
+		repositoryStore: repositoryStore,
 		metadataStore:   metadataStore,
 		warmingEnabled:  true,
 		warmingInterval: 15 * time.Minute,
@@ -522,7 +522,7 @@ func TestCacheWarmer_WarmSourcesForThreatModel(t *testing.T) {
 		}
 
 		repositoryStore.On("List", ctx, threatModelID, 0, 50).Return(repositories, nil)
-		for _, repository := range sources {
+		for _, repository := range repositories {
 			cache.On("CacheRepository", ctx, &repository).Return(nil)
 		}
 
