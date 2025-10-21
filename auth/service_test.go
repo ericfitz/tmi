@@ -55,11 +55,19 @@ func TestTokenValidation(t *testing.T) {
 		JWT: JWTConfig{
 			Secret:            "test-secret-key-for-testing",
 			ExpirationSeconds: 3600,
+			SigningMethod:     "HS256",
 		},
 	}
 
+	// Initialize key manager
+	keyManager, err := NewJWTKeyManager(config.JWT)
+	if err != nil {
+		t.Fatalf("Failed to create key manager: %v", err)
+	}
+
 	service := &Service{
-		config: config,
+		config:     config,
+		keyManager: keyManager,
 	}
 
 	tests := []struct {

@@ -140,7 +140,7 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 		INSERT INTO threats (
 			id, threat_model_id, name, description, severity, 
 			mitigation, threat_type, status, priority, mitigated, 
-			score, issue_url, diagram_id, cell_id, 
+			score, issue_uri, diagram_id, cell_id, 
 			created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
@@ -220,7 +220,7 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
-			   score, issue_url, diagram_id, cell_id, created_at, modified_at
+			   score, issue_uri, diagram_id, cell_id, created_at, modified_at
 		FROM threats 
 		WHERE id = $1
 	`
@@ -677,7 +677,7 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 		INSERT INTO threats (
 			id, threat_model_id, name, description, severity, 
 			mitigation, threat_type, status, priority, mitigated, 
-			score, issue_url, diagram_id, cell_id, created_at, modified_at
+			score, issue_uri, diagram_id, cell_id, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
 		)
@@ -984,7 +984,7 @@ func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter Threat
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
-			   score, issue_url, diagram_id, cell_id, metadata, created_at, modified_at
+			   score, issue_uri, diagram_id, cell_id, metadata, created_at, modified_at
 		FROM threats 
 		WHERE threat_model_id = $1`
 

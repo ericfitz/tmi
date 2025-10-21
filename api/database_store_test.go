@@ -469,17 +469,24 @@ func TestDiagramDatabaseStore_Get(t *testing.T) {
 		testUUID := uuid.MustParse(testID)
 		threatModelUUID := uuid.New()
 
-		// Mock cells and metadata JSON
+		// Mock cells JSON
 		cellsJSON, _ := json.Marshal([]DfdDiagram_Cells_Item{{}})
-		metadataJSON, _ := json.Marshal([]Metadata{{Key: "priority", Value: "high"}})
 
+		// Mock diagram query
 		rows := sqlmock.NewRows([]string{
-			"id", "threat_model_id", "name", "type", "cells", "metadata", "created_at", "modified_at",
+			"id", "threat_model_id", "name", "type", "cells", "svg_image", "image_update_vector", "update_vector", "created_at", "modified_at",
 		}).AddRow(
 			testUUID, threatModelUUID, "Test Diagram", "DFD-1.0.0",
-			cellsJSON, metadataJSON, time.Now(), time.Now(),
+			cellsJSON, nil, nil, int64(1), time.Now(), time.Now(),
 		)
 		mock.ExpectQuery("SELECT (.+) FROM diagrams").WithArgs(testID).WillReturnRows(rows)
+
+		// Mock metadata query
+		metadataRows := sqlmock.NewRows([]string{"key", "value"}).
+			AddRow("priority", "high")
+		mock.ExpectQuery("SELECT key, value FROM metadata").
+			WithArgs("diagram", testID).
+			WillReturnRows(metadataRows)
 
 		result, err := store.Get(testID)
 

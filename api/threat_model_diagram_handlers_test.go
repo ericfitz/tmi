@@ -664,10 +664,11 @@ func TestPostThreatModelDiagramCollaborate(t *testing.T) {
 	// Check that the current user is in the participants list
 	participants, ok := session["participants"].([]interface{})
 	assert.True(t, ok)
-	assert.NotEmpty(t, participants)
-	participant, ok := participants[0].(map[string]interface{})
-	assert.True(t, ok)
-	assert.Equal(t, "test@example.com", participant["user_id"])
+	if assert.NotEmpty(t, participants) {
+		participant, ok := participants[0].(map[string]interface{})
+		assert.True(t, ok)
+		assert.Equal(t, "test@example.com", participant["user_id"])
+	}
 }
 
 // TestDeleteThreatModelDiagramCollaborate tests leaving a collaboration session

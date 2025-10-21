@@ -3,6 +3,8 @@ package api
 import (
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // stringPointer returns a pointer to the string value
@@ -241,7 +243,15 @@ func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 }
 
 func (m *MockThreatModelStore) Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
-	id := item.Id.String()
+	var id string
+	if item.Id != nil {
+		id = item.Id.String()
+	} else {
+		// Generate a new ID if not provided
+		newID := uuid.New()
+		item.Id = &newID
+		id = newID.String()
+	}
 	if idSetter != nil {
 		item = idSetter(item, id)
 	}
@@ -285,7 +295,15 @@ func (m *MockDiagramStore) List(offset, limit int, filter func(DfdDiagram) bool)
 }
 
 func (m *MockDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
-	id := item.Id.String()
+	var id string
+	if item.Id != nil {
+		id = item.Id.String()
+	} else {
+		// Generate a new ID if not provided
+		newID := uuid.New()
+		item.Id = &newID
+		id = newID.String()
+	}
 	if idSetter != nil {
 		item = idSetter(item, id)
 	}

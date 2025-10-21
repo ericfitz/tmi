@@ -70,9 +70,9 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	var createdAt, modifiedAt time.Time
 
 	query := `
-		SELECT id, name, description, owner_email, created_by, 
-		       threat_model_framework, issue_url, created_at, modified_at
-		FROM threat_models 
+		SELECT id, name, description, owner_email, created_by,
+		       threat_model_framework, issue_uri, created_at, modified_at
+		FROM threat_models
 		WHERE id = $1`
 
 	slogging.Get().GetSlogger().Debug("Executing query", "query", query)
@@ -173,7 +173,7 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 
 	query := `
 		SELECT id, name, description, owner_email, created_by,
-		       threat_model_framework, issue_url, created_at, modified_at
+		       threat_model_framework, issue_uri, created_at, modified_at
 		FROM threat_models 
 		ORDER BY created_at DESC`
 
@@ -257,7 +257,7 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 
 	query := `
 		SELECT id, name, description, owner_email, created_by,
-		       threat_model_framework, issue_url, created_at, modified_at
+		       threat_model_framework, issue_uri, created_at, modified_at
 		FROM threat_models 
 		ORDER BY created_at DESC`
 
@@ -420,7 +420,7 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 	// Insert threat model
 	query := `
 		INSERT INTO threat_models (id, name, description, owner_email, created_by, 
-		                          threat_model_framework, issue_url, created_at, modified_at)
+		                          threat_model_framework, issue_uri, created_at, modified_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	_, err = tx.Exec(query,
@@ -660,7 +660,7 @@ func (s *ThreatModelDatabaseStore) loadThreatMetadata(threatId string) ([]Metada
 func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, error) {
 	query := `
 		SELECT id, name, description, severity, mitigation, diagram_id, cell_id, 
-		       priority, mitigated, status, threat_type, score, issue_url,
+		       priority, mitigated, status, threat_type, score, issue_uri,
 		       created_at, modified_at
 		FROM threats 
 		WHERE threat_model_id = $1`
