@@ -102,8 +102,8 @@ func (s *DatabaseRepositoryStore) Create(ctx context.Context, repository *Reposi
 
 	// Insert into database
 	query := `
-		INSERT INTO repositorys (
-			id, threat_model_id, name, url, description, type, parameters, created_at, modified_at
+		INSERT INTO repositories (
+			id, threat_model_id, name, uri, description, type, parameters, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9
 		)
@@ -173,8 +173,8 @@ func (s *DatabaseRepositoryStore) Get(ctx context.Context, id string) (*Reposito
 	logger.Debug("Cache miss for repository %s, querying database", id)
 
 	query := `
-		SELECT id, threat_model_id, name, url, description, type, parameters, created_at, modified_at
-		FROM repositorys 
+		SELECT id, threat_model_id, name, uri, description, type, parameters, created_at, modified_at
+		FROM repositories 
 		WHERE id = $1
 	`
 
@@ -280,8 +280,8 @@ func (s *DatabaseRepositoryStore) Update(ctx context.Context, repository *Reposi
 	}
 
 	query := `
-		UPDATE repositorys SET
-			name = $2, uri= $3, description = $4, type = $5, parameters = $6, modified_at = $7
+		UPDATE repositories SET
+			name = $2, uri = $3, description = $4, type = $5, parameters = $6, modified_at = $7
 		WHERE id = $1 AND threat_model_id = $8
 	`
 
@@ -345,7 +345,7 @@ func (s *DatabaseRepositoryStore) Delete(ctx context.Context, id string) error {
 	// Get the threat model ID from database for cache invalidation
 	// We need this since the Repository struct doesn't contain the threat_model_id field
 	var threatModelID uuid.UUID
-	query := `SELECT threat_model_id FROM repositorys WHERE id = $1`
+	query := `SELECT threat_model_id FROM repositories WHERE id = $1`
 	err := s.db.QueryRowContext(ctx, query, id).Scan(&threatModelID)
 	if err != nil {
 		logger.Error("Failed to get threat model ID for repository %s: %v", id, err)
@@ -353,7 +353,7 @@ func (s *DatabaseRepositoryStore) Delete(ctx context.Context, id string) error {
 	}
 
 	// Delete from database
-	deleteQuery := `DELETE FROM repositorys WHERE id = $1`
+	deleteQuery := `DELETE FROM repositories WHERE id = $1`
 	result, err := s.db.ExecContext(ctx, deleteQuery, id)
 	if err != nil {
 		logger.Error("Failed to delete repository from database: %v", err)
@@ -418,8 +418,8 @@ func (s *DatabaseRepositoryStore) List(ctx context.Context, threatModelID string
 	logger.Debug("Cache miss for repository list, querying database")
 
 	query := `
-		SELECT id, threat_model_id, name, url, description, type, parameters, created_at, modified_at
-		FROM repositorys 
+		SELECT id, threat_model_id, name, uri, description, type, parameters, created_at, modified_at
+		FROM repositories 
 		WHERE threat_model_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
@@ -541,8 +541,8 @@ func (s *DatabaseRepositoryStore) BulkCreate(ctx context.Context, repositorys []
 	}()
 
 	query := `
-		INSERT INTO repositorys (
-			id, threat_model_id, name, url, description, type, parameters, created_at, modified_at
+		INSERT INTO repositories (
+			id, threat_model_id, name, uri, description, type, parameters, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9
 		)
