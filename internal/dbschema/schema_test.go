@@ -19,7 +19,7 @@ func TestGetExpectedSchema(t *testing.T) {
 		"schema_migrations",
 		"refresh_tokens",
 		"documents",
-		"sources",
+		"repositories",
 		"metadata",
 		"collaboration_sessions",
 		"session_participants",

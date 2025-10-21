@@ -144,7 +144,7 @@ func (s *DatabaseRepositoryStore) Create(ctx context.Context, repository *Reposi
 			OperationType: "create",
 			Strategy:      InvalidateImmediately,
 		}
-		if invErr := s.cacheInvalidator.InvalidateSubRerepositoryChange(ctx, event); invErr != nil {
+		if invErr := s.cacheInvalidator.InvalidateSubResourceChange(ctx, event); invErr != nil {
 			logger.Error("Failed to invalidate caches after repository creation: %v", invErr)
 		}
 	}
@@ -328,7 +328,7 @@ func (s *DatabaseRepositoryStore) Update(ctx context.Context, repository *Reposi
 			OperationType: "update",
 			Strategy:      InvalidateImmediately,
 		}
-		if invErr := s.cacheInvalidator.InvalidateSubRerepositoryChange(ctx, event); invErr != nil {
+		if invErr := s.cacheInvalidator.InvalidateSubResourceChange(ctx, event); invErr != nil {
 			logger.Error("Failed to invalidate caches after repository update: %v", invErr)
 		}
 	}
@@ -387,7 +387,7 @@ func (s *DatabaseRepositoryStore) Delete(ctx context.Context, id string) error {
 			OperationType: "delete",
 			Strategy:      InvalidateImmediately,
 		}
-		if invErr := s.cacheInvalidator.InvalidateSubRerepositoryChange(ctx, event); invErr != nil {
+		if invErr := s.cacheInvalidator.InvalidateSubResourceChange(ctx, event); invErr != nil {
 			logger.Error("Failed to invalidate caches after repository deletion: %v", invErr)
 		}
 	}

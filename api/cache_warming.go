@@ -79,7 +79,7 @@ func NewCacheWarmer(
 	cache *CacheService,
 	threatStore ThreatStore,
 	documentStore DocumentStore,
-	sourceStore SourceStore,
+	repositoryStore RepositoryStore,
 	metadataStore MetadataStore,
 ) *CacheWarmer {
 	return &CacheWarmer{
@@ -87,7 +87,7 @@ func NewCacheWarmer(
 		cache:           cache,
 		threatStore:     threatStore,
 		documentStore:   documentStore,
-		sourceStore:     sourceStore,
+		repositoryStore: repositoryStore,
 		metadataStore:   metadataStore,
 		warmingEnabled:  true,
 		warmingInterval: 15 * time.Minute, // Default warming interval
@@ -340,15 +340,15 @@ func (cw *CacheWarmer) warmSourcesForThreatModel(ctx context.Context, threatMode
 		return nil // Skip warming if cache is not available
 	}
 
-	sources, err := cw.sourceStore.List(ctx, threatModelID, 0, 50) // Warm first 50 sources
+	repositories, err := cw.repositoryStore.List(ctx, threatModelID, 0, 50) // Warm first 50 repositories
 	if err != nil {
-		return fmt.Errorf("failed to list sources: %w", err)
+		return fmt.Errorf("failed to list repositories: %w", err)
 	}
 
-	for _, source := range sources {
-		if source.Id != nil {
-			if err := cw.cache.CacheSource(ctx, &source); err != nil {
-				return fmt.Errorf("failed to cache source %s: %w", source.Id.String(), err)
+	for _, repository := range repositories {
+		if repository.Id != nil {
+			if err := cw.cache.CacheRepository(ctx, &repository); err != nil {
+				return fmt.Errorf("failed to cache repository %s: %w", repository.Id.String(), err)
 			}
 		}
 	}
@@ -462,8 +462,8 @@ func (cw *CacheWarmer) WarmOnDemandRequest(ctx context.Context, request WarmingR
 		return cw.warmSpecificThreat(ctx, request.EntityID)
 	case "document":
 		return cw.warmSpecificDocument(ctx, request.EntityID)
-	case "source":
-		return cw.warmSpecificSource(ctx, request.EntityID)
+	case "repository":
+		return cw.warmSpecificRepository(ctx, request.EntityID)
 	case "auth":
 		return cw.warmAuthDataForThreatModel(ctx, request.ThreatModelID)
 	default:
@@ -501,19 +501,19 @@ func (cw *CacheWarmer) warmSpecificDocument(ctx context.Context, documentID stri
 	return cw.cache.CacheDocument(ctx, document)
 }
 
-// warmSpecificSource warms cache with a specific source
-func (cw *CacheWarmer) warmSpecificSource(ctx context.Context, sourceID string) error {
+// warmSpecificRepository warms cache with a specific repository
+func (cw *CacheWarmer) warmSpecificRepository(ctx context.Context, repositoryID string) error {
 	// Check if cache service is available
 	if cw.cache == nil {
 		return nil // Skip warming if cache is not available
 	}
 
-	source, err := cw.sourceStore.Get(ctx, sourceID)
+	repository, err := cw.repositoryStore.Get(ctx, repositoryID)
 	if err != nil {
-		return fmt.Errorf("failed to get source %s: %w", sourceID, err)
+		return fmt.Errorf("failed to get repository %s: %w", repositoryID, err)
 	}
 
-	return cw.cache.CacheSource(ctx, source)
+	return cw.cache.CacheRepository(ctx, repository)
 }
 
 // SetWarmingInterval configures the proactive warming interval

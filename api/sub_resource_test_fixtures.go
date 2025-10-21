@@ -31,19 +31,19 @@ type SubResourceTestFixtures struct {
 	Document2   Document
 	Document2ID string
 
-	// Test sources
-	Source1   Source
-	Source1ID string
-	Source2   Source
-	Source2ID string
+	// Test repositories
+	Repository1   Repository
+	Repository1ID string
+	Repository2   Repository
+	Repository2ID string
 
 	// Test metadata
 	ThreatMetadata1   Metadata
 	ThreatMetadata2   Metadata
 	DocumentMetadata1 Metadata
 	DocumentMetadata2 Metadata
-	SourceMetadata1   Metadata
-	SourceMetadata2   Metadata
+	RepositoryMetadata1   Metadata
+	RepositoryMetadata2   Metadata
 	DiagramMetadata1  Metadata
 	DiagramMetadata2  Metadata
 
@@ -139,36 +139,36 @@ func InitSubResourceTestFixtures() {
 		Id:          &doc1UUID,
 		Name:        "Security Requirements Document",
 		Description: stringPointer("Detailed security requirements and compliance standards"),
-		Url:         "https://docs.internal.com/security-requirements",
+		Uri:         stringPointer("https://docs.internal.com/security-requirements"),
 	}
 
 	SubResourceFixtures.Document2 = Document{
 		Id:          &doc2UUID,
 		Name:        "Architecture Design Document",
 		Description: stringPointer("System architecture and design specifications"),
-		Url:         "https://docs.internal.com/architecture-design",
+		Uri:         stringPointer("https://docs.internal.com/architecture-design"),
 	}
 
-	// Create test sources
-	source1UUID := uuid.New()
-	source2UUID := uuid.New()
-	SubResourceFixtures.Source1ID = source1UUID.String()
-	SubResourceFixtures.Source2ID = source2UUID.String()
+	// Create test repositories
+	repository1UUID := uuid.New()
+	repository2UUID := uuid.New()
+	SubResourceFixtures.Repository1ID = repository1UUID.String()
+	SubResourceFixtures.Repository2ID = repository2UUID.String()
 
 	gitType := Git
-	SubResourceFixtures.Source1 = Repository{
-		Id:          &source1UUID,
+	SubResourceFixtures.Repository1 = Repository{
+		Id:          &repository1UUID,
 		Name:        stringPointer("Authentication Service"),
 		Description: stringPointer("Core authentication and authorization service"),
-		Url:         "https://github.com/company/auth-service",
+		Uri:         stringPointer("https://github.com/company/auth-service"),
 		Type:        &gitType,
 	}
 
-	SubResourceFixtures.Source2 = Repository{
-		Id:          &source2UUID,
+	SubResourceFixtures.Repository2 = Repository{
+		Id:          &repository2UUID,
 		Name:        stringPointer("Database Layer"),
 		Description: stringPointer("Database access layer and ORM implementation"),
-		Url:         "https://github.com/company/db-layer",
+		Uri:         stringPointer("https://github.com/company/db-layer"),
 		Type:        &gitType,
 	}
 
@@ -193,12 +193,12 @@ func InitSubResourceTestFixtures() {
 		Value: "1.2",
 	}
 
-	SubResourceFixtures.SourceMetadata1 = Metadata{
+	SubResourceFixtures.RepositoryMetadata1 = Metadata{
 		Key:   "language",
 		Value: "go",
 	}
 
-	SubResourceFixtures.SourceMetadata2 = Metadata{
+	SubResourceFixtures.RepositoryMetadata2 = Metadata{
 		Key:   "coverage",
 		Value: "85%",
 	}
@@ -287,21 +287,21 @@ func CreateTestDocumentWithMetadata(metadata []Metadata) Document {
 		Id:          &docUUID,
 		Name:        "Test Document",
 		Description: stringPointer("A test document for unit testing"),
-		Url:         "https://test.example.com/doc",
+		Uri:         stringPointer("https://test.example.com/doc"),
 		Metadata:    &metadata,
 	}
 }
 
-// CreateTestSourceWithMetadata creates a source with associated metadata for testing
-func CreateTestSourceWithMetadata(metadata []Metadata) Source {
-	sourceUUID := uuid.New()
+// CreateTestRepositoryWithMetadata creates a repository with associated metadata for testing
+func CreateTestRepositoryWithMetadata(metadata []Metadata) Repository {
+	repositoryUUID := uuid.New()
 
 	gitType := Git
 	return Repository{
-		Id:          &sourceUUID,
-		Name:        stringPointer("Test Source"),
-		Description: stringPointer("A test source for unit testing"),
-		Url:         "https://github.com/test/repo",
+		Id:          &repositoryUUID,
+		Name:        stringPointer("Test Repository"),
+		Description: stringPointer("A test repository for unit testing"),
+		Uri:         stringPointer("https://github.com/test/repo"),
 		Type:        &gitType,
 		Metadata:    &metadata,
 	}
@@ -338,19 +338,19 @@ func AssertThreatEqual(t1, t2 Threat) bool {
 func AssertDocumentEqual(d1, d2 Document) bool {
 	return d1.Name == d2.Name &&
 		compareStringPointers(d1.Description, d2.Description) &&
-		d1.Url == d2.Url
+		compareStringPointers(d1.Uri, d2.Uri)
 }
 
-// AssertSourceEqual compares two sources for testing equality
-func AssertSourceEqual(s1, s2 Source) bool {
-	return compareStringPointers(s1.Name, s2.Name) &&
-		compareStringPointers(s1.Description, s2.Description) &&
-		s1.Url == s2.Url &&
-		compareSourceTypes(s1.Type, s2.Type)
+// AssertRepositoryEqual compares two repositories for testing equality
+func AssertRepositoryEqual(r1, r2 Repository) bool {
+	return compareStringPointers(r1.Name, r2.Name) &&
+		compareStringPointers(r1.Description, r2.Description) &&
+		compareStringPointers(r1.Uri, r2.Uri) &&
+		compareRepositoryTypes(r1.Type, r2.Type)
 }
 
-// compareSourceTypes compares two SourceType pointers
-func compareSourceTypes(t1, t2 *SourceType) bool {
+// compareRepositoryTypes compares two RepositoryType pointers
+func compareRepositoryTypes(t1, t2 *RepositoryType) bool {
 	if t1 == nil && t2 == nil {
 		return true
 	}

@@ -744,72 +744,72 @@ func (s *Server) UpdateThreatModelMetadataByKey(c *gin.Context, threatModelId op
 // GetThreatModelSources lists sources
 func (s *Server) GetThreatModelSources(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelSourcesParams) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
-	s.repositoryHandler.GetSources(c)
+	s.repositoryHandler.GetRepositorys(c)
 }
 
 // CreateThreatModelSource creates a source
 func (s *Server) CreateThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
-	s.repositoryHandler.CreateSource(c)
+	s.repositoryHandler.CreateRepository(c)
 }
 
 // BulkCreateThreatModelSources bulk creates sources
 func (s *Server) BulkCreateThreatModelSources(c *gin.Context, threatModelId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
-	s.repositoryHandler.BulkCreateSources(c)
+	s.repositoryHandler.BulkCreateRepositorys(c)
 }
 
 // DeleteThreatModelSource deletes a source
 func (s *Server) DeleteThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "source_id", Value: sourceId.String()})
-	s.repositoryHandler.DeleteSource(c)
+	s.repositoryHandler.DeleteRepository(c)
 }
 
 // GetThreatModelSource gets a source
 func (s *Server) GetThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "source_id", Value: sourceId.String()})
-	s.repositoryHandler.GetSource(c)
+	s.repositoryHandler.GetRepository(c)
 }
 
 // UpdateThreatModelSource updates a source
 func (s *Server) UpdateThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "source_id", Value: sourceId.String()})
-	s.repositoryHandler.UpdateSource(c)
+	s.repositoryHandler.UpdateRepository(c)
 }
 
 // Source Metadata Methods - Placeholder implementations
 
 // GetSourceMetadata gets source metadata
 func (s *Server) GetSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
-	s.repositoryMetadataHandler.GetSourceMetadata(c)
+	s.repositoryMetadataHandler.GetRepositoryMetadata(c)
 }
 
 // CreateSourceMetadata creates source metadata
 func (s *Server) CreateSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
-	s.repositoryMetadataHandler.CreateSourceMetadata(c)
+	s.repositoryMetadataHandler.CreateRepositoryMetadata(c)
 }
 
 // BulkCreateSourceMetadata bulk creates source metadata
 func (s *Server) BulkCreateSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
-	s.repositoryMetadataHandler.BulkCreateSourceMetadata(c)
+	s.repositoryMetadataHandler.BulkCreateRepositoryMetadata(c)
 }
 
 // DeleteSourceMetadataByKey deletes source metadata by key
 func (s *Server) DeleteSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) {
-	s.repositoryMetadataHandler.DeleteSourceMetadata(c)
+	s.repositoryMetadataHandler.DeleteRepositoryMetadata(c)
 }
 
 // GetSourceMetadataByKey gets source metadata by key
 func (s *Server) GetSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) {
-	s.repositoryMetadataHandler.GetSourceMetadataByKey(c)
+	s.repositoryMetadataHandler.GetRepositoryMetadataByKey(c)
 }
 
 // UpdateSourceMetadataByKey updates source metadata by key
 func (s *Server) UpdateSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) {
-	s.repositoryMetadataHandler.UpdateSourceMetadata(c)
+	s.repositoryMetadataHandler.UpdateRepositoryMetadata(c)
 }
 
 // Threat Methods - Placeholder implementations

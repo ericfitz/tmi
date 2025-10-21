@@ -9,17 +9,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// RepositorySubRerepositoryHandler provides handlers for repository code sub-rerepository operations
-type RepositorySubRerepositoryHandler struct {
+// RepositorySubResourceHandler provides handlers for repository code sub-resource operations
+type RepositorySubResourceHandler struct {
 	repositoryStore      RepositoryStore
 	db               *sql.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
 }
 
-// NewRepositorySubRerepositoryHandler creates a new repository code sub-rerepository handler
-func NewRepositorySubRerepositoryHandler(repositoryStore RepositoryStore, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *RepositorySubRerepositoryHandler {
-	return &RepositorySubRerepositoryHandler{
+// NewRepositorySubResourceHandler creates a new repository code sub-resource handler
+func NewRepositorySubResourceHandler(repositoryStore RepositoryStore, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *RepositorySubResourceHandler {
+	return &RepositorySubResourceHandler{
 		repositoryStore:      repositoryStore,
 		db:               db,
 		cache:            cache,
@@ -29,7 +29,7 @@ func NewRepositorySubRerepositoryHandler(repositoryStore RepositoryStore, db *sq
 
 // GetRepositorys retrieves all repository code references for a threat model with pagination
 // GET /threat_models/{threat_model_id}/repositorys
-func (h *RepositorySubRerepositoryHandler) GetRepositorys(c *gin.Context) {
+func (h *RepositorySubResourceHandler) GetRepositorys(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetRepositorys - retrieving repository code references for threat model")
 
@@ -84,7 +84,7 @@ func (h *RepositorySubRerepositoryHandler) GetRepositorys(c *gin.Context) {
 
 // GetRepository retrieves a specific repository code reference by ID
 // GET /threat_models/{threat_model_id}/repositorys/{repository_id}
-func (h *RepositorySubRerepositoryHandler) GetRepository(c *gin.Context) {
+func (h *RepositorySubResourceHandler) GetRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetRepository - retrieving specific repository code reference")
 
@@ -124,7 +124,7 @@ func (h *RepositorySubRerepositoryHandler) GetRepository(c *gin.Context) {
 
 // CreateRepository creates a new repository code reference in a threat model
 // POST /threat_models/{threat_model_id}/repositorys
-func (h *RepositorySubRerepositoryHandler) CreateRepository(c *gin.Context) {
+func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateRepository - creating new repository code reference")
 
@@ -178,7 +178,7 @@ func (h *RepositorySubRerepositoryHandler) CreateRepository(c *gin.Context) {
 
 // UpdateRepository updates an existing repository code reference
 // PUT /threat_models/{threat_model_id}/repositorys/{repository_id}
-func (h *RepositorySubRerepositoryHandler) UpdateRepository(c *gin.Context) {
+func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateRepository - updating existing repository code reference")
 
@@ -236,7 +236,7 @@ func (h *RepositorySubRerepositoryHandler) UpdateRepository(c *gin.Context) {
 
 // DeleteRepository deletes a repository code reference
 // DELETE /threat_models/{threat_model_id}/repositorys/{repository_id}
-func (h *RepositorySubRerepositoryHandler) DeleteRepository(c *gin.Context) {
+func (h *RepositorySubResourceHandler) DeleteRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteRepository - deleting repository code reference")
 
@@ -275,7 +275,7 @@ func (h *RepositorySubRerepositoryHandler) DeleteRepository(c *gin.Context) {
 
 // BulkCreateRepositorys creates multiple repository code references in a single request
 // POST /threat_models/{threat_model_id}/repositorys/bulk
-func (h *RepositorySubRerepositoryHandler) BulkCreateRepositorys(c *gin.Context) {
+func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateRepositorys - creating multiple repository code references")
 
@@ -319,8 +319,8 @@ func (h *RepositorySubRerepositoryHandler) BulkCreateRepositorys(c *gin.Context)
 
 	// Validate each repository
 	for _, repository := range repositorys {
-		if repository.Url == "" {
-			HandleRequestError(c, InvalidInputError("Repository URL is required for all repository code references"))
+		if repository.Uri == nil || *repository.Uri == "" {
+			HandleRequestError(c, InvalidInputError("Repository URI is required for all repository code references"))
 			return
 		}
 	}

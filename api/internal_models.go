@@ -18,7 +18,7 @@ type ThreatModelInternal struct {
 	CreatedAt            *time.Time          `json:"created_at,omitempty"`
 	ModifiedAt           *time.Time          `json:"modified_at,omitempty"`
 	CreatedBy            *string             `json:"created_by,omitempty"`
-	IssueUrl             *string             `json:"issue_url,omitempty"`
+	IssueUri             *string             `json:"issue_uri,omitempty"`
 
 	// Authorization (stored directly since it's small)
 	Authorization []Authorization `json:"authorization"`
@@ -44,7 +44,7 @@ func (tm *ThreatModelInternal) ToThreatModel() (*ThreatModel, error) {
 		CreatedAt:            tm.CreatedAt,
 		ModifiedAt:           tm.ModifiedAt,
 		CreatedBy:            tm.CreatedBy,
-		IssueUrl:             tm.IssueUrl,
+		IssueUri:             tm.IssueUri,
 		Authorization:        tm.Authorization,
 	}
 
@@ -93,7 +93,7 @@ func (tm *ThreatModelInternal) FromThreatModel(external *ThreatModel) {
 	tm.CreatedAt = external.CreatedAt
 	tm.ModifiedAt = external.ModifiedAt
 	tm.CreatedBy = external.CreatedBy
-	tm.IssueUrl = external.IssueUrl
+	tm.IssueUri = external.IssueUri
 	tm.Authorization = external.Authorization
 
 	// Extract diagram IDs

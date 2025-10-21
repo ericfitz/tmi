@@ -54,7 +54,7 @@ func (h *CacheTestHelper) SetupTestCache(t *testing.T) {
 	// Populate cache with test fixtures
 	h.CacheTestThreat(t, &SubResourceFixtures.Threat1)
 	h.CacheTestDocument(t, &SubResourceFixtures.Document1)
-	h.CacheTestSource(t, &SubResourceFixtures.Source1)
+	h.CacheTestRepository(t, &SubResourceFixtures.Repository1)
 }
 
 // CacheTestThreat caches a threat for testing
@@ -77,13 +77,13 @@ func (h *CacheTestHelper) CacheTestDocument(t *testing.T, document *Document) {
 	}
 }
 
-// CacheTestSource caches a source for testing
-func (h *CacheTestHelper) CacheTestSource(t *testing.T, source *Repository) {
+// CacheTestRepository caches a repository for testing
+func (h *CacheTestHelper) CacheTestRepository(t *testing.T, repository *Repository) {
 	t.Helper()
 
-	err := h.Cache.CacheSource(h.TestContext, source)
+	err := h.Cache.CacheRepository(h.TestContext, repository)
 	if err != nil {
-		t.Errorf("Failed to cache source: %v", err)
+		t.Errorf("Failed to cache repository: %v", err)
 	}
 }
 
@@ -201,46 +201,46 @@ func (h *CacheTestHelper) TestCacheDocumentOperations(t *testing.T, scenarios []
 	}
 }
 
-// TestCacheSourceOperations tests caching operations for sources
-func (h *CacheTestHelper) TestCacheSourceOperations(t *testing.T, scenarios []CacheTestScenario) {
+// TestCacheRepositoryOperations tests caching operations for repositories
+func (h *CacheTestHelper) TestCacheRepositoryOperations(t *testing.T, scenarios []CacheTestScenario) {
 	t.Helper()
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.Description, func(t *testing.T) {
-			sourceID := scenario.EntityID
-			if sourceID == "" {
-				sourceID = uuid.New().String()
+			repositoryID := scenario.EntityID
+			if repositoryID == "" {
+				repositoryID = uuid.New().String()
 			}
 
 			// Clear cache first if testing miss scenario
 			if scenario.ExpectedMiss {
-				h.ClearSourceCache(t, sourceID)
+				h.ClearRepositoryCache(t, repositoryID)
 			}
 
 			// Try to get from cache
-			cachedSource, err := h.Cache.GetCachedSource(h.TestContext, sourceID)
+			cachedRepository, err := h.Cache.GetCachedRepository(h.TestContext, repositoryID)
 
 			if scenario.ExpectedHit {
 				if err != nil {
 					t.Errorf("Expected cache hit but got error: %v", err)
 					return
 				}
-				if cachedSource == nil {
-					t.Errorf("Expected cached source but got nil")
+				if cachedRepository == nil {
+					t.Errorf("Expected cached repository but got nil")
 				}
 			}
 
 			if scenario.ExpectedMiss {
-				if err == nil && cachedSource != nil {
+				if err == nil && cachedRepository != nil {
 					t.Errorf("Expected cache miss but got cached data")
 				}
 			}
 
 			// Test invalidation if requested
-			if scenario.InvalidateAfter && cachedSource != nil {
+			if scenario.InvalidateAfter && cachedRepository != nil {
 				event := InvalidationEvent{
-					EntityType:    "source",
-					EntityID:      sourceID,
+					EntityType:    "repository",
+					EntityID:      repositoryID,
 					ParentType:    "threat_model",
 					ParentID:      scenario.ThreatModelID,
 					OperationType: "update",
@@ -248,7 +248,7 @@ func (h *CacheTestHelper) TestCacheSourceOperations(t *testing.T, scenarios []Ca
 				}
 				err = h.Invalidator.InvalidateSubResourceChange(h.TestContext, event)
 				if err != nil {
-					t.Errorf("Failed to invalidate source cache: %v", err)
+					t.Errorf("Failed to invalidate repository cache: %v", err)
 				}
 			}
 		})
@@ -494,13 +494,13 @@ func (h *CacheTestHelper) ClearDocumentCache(t *testing.T, documentID string) {
 	}
 }
 
-// ClearSourceCache clears source cache for testing
-func (h *CacheTestHelper) ClearSourceCache(t *testing.T, sourceID string) {
+// ClearRepositoryCache clears repository cache for testing
+func (h *CacheTestHelper) ClearRepositoryCache(t *testing.T, repositoryID string) {
 	t.Helper()
-	key := h.KeyBuilder.CacheRepositoryKey(sourceID)
+	key := h.KeyBuilder.CacheRepositoryKey(repositoryID)
 	err := h.RedisClient.Del(h.TestContext, key)
 	if err != nil {
-		t.Errorf("Failed to clear source cache: %v", err)
+		t.Errorf("Failed to clear repository cache: %v", err)
 	}
 }
 

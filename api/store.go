@@ -66,7 +66,7 @@ func InitializeDatabaseStores(db *sql.DB) {
 	ThreatModelStore = NewThreatModelDatabaseStore(db)
 	DiagramStore = NewDiagramDatabaseStore(db)
 	GlobalDocumentStore = NewDatabaseDocumentStore(db, nil, nil)
-	GlobalSourceStore = NewDatabaseSourceStore(db, nil, nil)
+	GlobalRepositoryStore = NewDatabaseRepositoryStore(db, nil, nil)
 	GlobalThreatStore = NewDatabaseThreatStore(db, nil, nil)
 	GlobalMetadataStore = NewDatabaseMetadataStore(db, nil, nil)
 }
