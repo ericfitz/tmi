@@ -323,7 +323,7 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 			HandleRequestError(c, InvalidInputError("Document name is required for all documents"))
 			return
 		}
-		if document.Url == "" {
+		if document.Uri == "" {
 			HandleRequestError(c, InvalidInputError("Document URL is required for all documents"))
 			return
 		}

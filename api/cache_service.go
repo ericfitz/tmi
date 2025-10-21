@@ -11,7 +11,7 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-// CacheService provides caching functionality for sub-resources
+// CacheService provides caching functionality for sub-rerepositorys
 type CacheService struct {
 	redis   *db.RedisDB
 	builder *db.RedisKeyBuilder
@@ -29,7 +29,7 @@ func NewCacheService(redis *db.RedisDB) *CacheService {
 const (
 	ThreatModelCacheTTL = 10 * time.Minute // 10-15 minutes for threat models
 	DiagramCacheTTL     = 2 * time.Minute  // 2-3 minutes for diagrams
-	SubResourceCacheTTL = 5 * time.Minute  // 5-10 minutes for sub-resources
+	SubRerepositoryCacheTTL = 5 * time.Minute  // 5-10 minutes for sub-rerepositorys
 	AuthCacheTTL        = 15 * time.Minute // 15 minutes for authorization data
 	MetadataCacheTTL    = 7 * time.Minute  // 5-10 minutes for metadata
 	ListCacheTTL        = 5 * time.Minute  // 5 minutes for paginated lists
@@ -46,13 +46,13 @@ func (cs *CacheService) CacheThreat(ctx context.Context, threat *Threat) error {
 		return fmt.Errorf("failed to marshal threat: %w", err)
 	}
 
-	err = cs.redis.Set(ctx, key, data, SubResourceCacheTTL)
+	err = cs.redis.Set(ctx, key, data, SubRerepositoryCacheTTL)
 	if err != nil {
 		logger.Error("Failed to cache threat %s: %v", threat.Id, err)
 		return fmt.Errorf("failed to cache threat: %w", err)
 	}
 
-	logger.Debug("Cached threat %s with TTL %v", threat.Id, SubResourceCacheTTL)
+	logger.Debug("Cached threat %s with TTL %v", threat.Id, SubRerepositoryCacheTTL)
 	return nil
 }
 
@@ -93,13 +93,13 @@ func (cs *CacheService) CacheDocument(ctx context.Context, document *Document) e
 		return fmt.Errorf("failed to marshal document: %w", err)
 	}
 
-	err = cs.redis.Set(ctx, key, data, SubResourceCacheTTL)
+	err = cs.redis.Set(ctx, key, data, SubRerepositoryCacheTTL)
 	if err != nil {
 		logger.Error("Failed to cache document %s: %v", document.Id, err)
 		return fmt.Errorf("failed to cache document: %w", err)
 	}
 
-	logger.Debug("Cached document %s with TTL %v", document.Id, SubResourceCacheTTL)
+	logger.Debug("Cached document %s with TTL %v", document.Id, SubRerepositoryCacheTTL)
 	return nil
 }
 
@@ -129,51 +129,51 @@ func (cs *CacheService) GetCachedDocument(ctx context.Context, documentID string
 	return &document, nil
 }
 
-// CacheSource caches a source code entry
-func (cs *CacheService) CacheSource(ctx context.Context, source *Source) error {
+// CacheRepository caches a repository code entry
+func (cs *CacheService) CacheRepository(ctx context.Context, repository *Repository) error {
 	logger := slogging.Get()
-	key := cs.builder.CacheSourceKey(source.Id.String())
+	key := cs.builder.CacheRepositoryKey(repository.Id.String())
 
-	data, err := json.Marshal(source)
+	data, err := json.Marshal(repository)
 	if err != nil {
-		logger.Error("Failed to marshal source for cache: %v", err)
-		return fmt.Errorf("failed to marshal source: %w", err)
+		logger.Error("Failed to marshal repository for cache: %v", err)
+		return fmt.Errorf("failed to marshal repository: %w", err)
 	}
 
-	err = cs.redis.Set(ctx, key, data, SubResourceCacheTTL)
+	err = cs.redis.Set(ctx, key, data, SubRerepositoryCacheTTL)
 	if err != nil {
-		logger.Error("Failed to cache source %s: %v", source.Id, err)
-		return fmt.Errorf("failed to cache source: %w", err)
+		logger.Error("Failed to cache repository %s: %v", repository.Id, err)
+		return fmt.Errorf("failed to cache repository: %w", err)
 	}
 
-	logger.Debug("Cached source %s with TTL %v", source.Id, SubResourceCacheTTL)
+	logger.Debug("Cached repository %s with TTL %v", repository.Id, SubRerepositoryCacheTTL)
 	return nil
 }
 
-// GetCachedSource retrieves a cached source code entry
-func (cs *CacheService) GetCachedSource(ctx context.Context, sourceID string) (*Source, error) {
+// GetCachedRepository retrieves a cached repository code entry
+func (cs *CacheService) GetCachedRepository(ctx context.Context, repositoryID string) (*Repository, error) {
 	logger := slogging.Get()
-	key := cs.builder.CacheSourceKey(sourceID)
+	key := cs.builder.CacheRepositoryKey(repositoryID)
 
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
 		if err == redis.Nil {
-			logger.Debug("Cache miss for source %s", sourceID)
+			logger.Debug("Cache miss for repository %s", repositoryID)
 			return nil, nil // Cache miss
 		}
-		logger.Error("Failed to get cached source %s: %v", sourceID, err)
-		return nil, fmt.Errorf("failed to get cached source: %w", err)
+		logger.Error("Failed to get cached repository %s: %v", repositoryID, err)
+		return nil, fmt.Errorf("failed to get cached repository: %w", err)
 	}
 
-	var source Source
-	err = json.Unmarshal([]byte(data), &source)
+	var repository Repository
+	err = json.Unmarshal([]byte(data), &repository)
 	if err != nil {
-		logger.Error("Failed to unmarshal cached source %s: %v", sourceID, err)
-		return nil, fmt.Errorf("failed to unmarshal cached source: %w", err)
+		logger.Error("Failed to unmarshal cached repository %s: %v", repositoryID, err)
+		return nil, fmt.Errorf("failed to unmarshal cached repository: %w", err)
 	}
 
-	logger.Debug("Cache hit for source %s", sourceID)
-	return &source, nil
+	logger.Debug("Cache hit for repository %s", repositoryID)
+	return &repository, nil
 }
 
 // CacheMetadata caches metadata collection for an entity
@@ -373,8 +373,8 @@ func (cs *CacheService) InvalidateEntity(ctx context.Context, entityType, entity
 		key = cs.builder.CacheThreatKey(entityID)
 	case "document":
 		key = cs.builder.CacheDocumentKey(entityID)
-	case "source":
-		key = cs.builder.CacheSourceKey(entityID)
+	case "repository":
+		key = cs.builder.CacheRepositoryKey(entityID)
 	case "diagram":
 		key = cs.builder.CacheDiagramKey(entityID)
 	case "threat_model":

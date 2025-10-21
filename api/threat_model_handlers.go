@@ -87,7 +87,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 			Owner:                tm.Owner,
 			CreatedBy:            createdBy,
 			ThreatModelFramework: framework,
-			IssueUrl:             tm.IssueUrl,
+			IssueUrl:             tm.IssueUri,
 			// Count fields from database
 			DocumentCount: tmWithCounts.DocumentCount,
 			SourceCount:   tmWithCounts.SourceCount,
@@ -308,7 +308,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		Description:          request.Description,
 		Owner:                request.Owner,
 		ThreatModelFramework: request.ThreatModelFramework,
-		IssueUrl:             request.IssueUrl,
+		IssueUrl:             request.IssueUri,
 		Authorization:        request.Authorization,
 		Metadata:             request.Metadata,
 		// Preserve server-controlled fields

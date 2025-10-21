@@ -425,7 +425,7 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 
 	_, err = tx.Exec(query,
 		id, item.Name, item.Description, item.Owner, item.CreatedBy,
-		framework, item.IssueUrl, item.CreatedAt, item.ModifiedAt,
+		framework, item.IssueUri, item.CreatedAt, item.ModifiedAt,
 	)
 	if err != nil {
 		return item, fmt.Errorf("failed to insert threat model: %w", err)
@@ -478,12 +478,12 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 	query := `
 		UPDATE threat_models 
 		SET name = $2, description = $3, owner_email = $4, created_by = $5,
-		    threat_model_framework = $6, issue_url = $7, modified_at = $8
+		    threat_model_framework = $6, issue_uri= $7, modified_at = $8
 		WHERE id = $1`
 
 	result, err := tx.Exec(query,
 		id, item.Name, item.Description, item.Owner, item.CreatedBy,
-		framework, item.IssueUrl, item.ModifiedAt,
+		framework, item.IssueUri, item.ModifiedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update threat model: %w", err)

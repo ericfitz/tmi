@@ -159,7 +159,7 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 		threat.Priority,
 		threat.Mitigated,
 		threat.Score,
-		threat.IssueUrl,
+		threat.IssueUri,
 		threat.DiagramId,
 		threat.CellId,
 		threat.CreatedAt,
@@ -265,7 +265,7 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 		threat.Mitigation = &mitigation.String
 	}
 	if issueUrl.Valid {
-		threat.IssueUrl = &issueUrl.String
+		threat.IssueUri = &issueUrl.String
 	}
 	if score.Valid {
 		score32 := float32(score.Float64)
@@ -329,7 +329,7 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 		UPDATE threats SET
 			name = $2, description = $3, severity = $4, mitigation = $5,
 			threat_type = $6, status = $7, priority = $8, mitigated = $9,
-			score = $10, issue_url = $11, diagram_id = $12, cell_id = $13,
+			score = $10, issue_uri= $11, diagram_id = $12, cell_id = $13,
 			metadata = $14, modified_at = $15
 		WHERE id = $1
 	`
@@ -345,7 +345,7 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 		threat.Priority,
 		threat.Mitigated,
 		threat.Score,
-		threat.IssueUrl,
+		threat.IssueUri,
 		threat.DiagramId,
 		threat.CellId,
 		metadataJSON,
@@ -739,7 +739,7 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 			threat.Priority,
 			threat.Mitigated,
 			threat.Score,
-			threat.IssueUrl,
+			threat.IssueUri,
 			threat.DiagramId,
 			threat.CellId,
 			threat.CreatedAt,
@@ -796,7 +796,7 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 		UPDATE threats SET
 			name = $2, description = $3, severity = $4, mitigation = $5,
 			threat_type = $6, status = $7, priority = $8, mitigated = $9,
-			score = $10, issue_url = $11, diagram_id = $12, cell_id = $13,
+			score = $10, issue_uri= $11, diagram_id = $12, cell_id = $13,
 			metadata = $14, modified_at = $15
 		WHERE id = $1
 	`
@@ -847,7 +847,7 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 			threat.Priority,
 			threat.Mitigated,
 			threat.Score,
-			threat.IssueUrl,
+			threat.IssueUri,
 			threat.DiagramId,
 			threat.CellId,
 			metadataJSON,
@@ -1226,7 +1226,7 @@ func (s *DatabaseThreatStore) populateNullableFields(threat *Threat, description
 		threat.Mitigation = &mitigation.String
 	}
 	if issueUrl.Valid {
-		threat.IssueUrl = &issueUrl.String
+		threat.IssueUri = &issueUrl.String
 	}
 	if score.Valid {
 		score32 := float32(score.Float64)

@@ -16,12 +16,12 @@ import (
 type Server struct {
 	// Handlers
 	threatModelHandler         *ThreatModelHandler
-	documentHandler            *DocumentSubResourceHandler
-	sourceHandler              *SourceSubResourceHandler
-	threatHandler              *ThreatSubResourceHandler
+	documentHandler            *DocumentSubRerepositoryHandler
+	repositoryHandler              *RepositorySubRerepositoryHandler
+	threatHandler              *ThreatSubRerepositoryHandler
 	batchHandler               *BatchHandler
 	documentMetadataHandler    *DocumentMetadataHandler
-	sourceMetadataHandler      *SourceMetadataHandler
+	repositoryMetadataHandler      *RepositoryMetadataHandler
 	threatMetadataHandler      *ThreatMetadataHandler
 	threatModelMetadataHandler *ThreatModelMetadataHandler
 	userDeletionHandler        *UserDeletionHandler
@@ -35,12 +35,12 @@ type Server struct {
 func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeout time.Duration) *Server {
 	return &Server{
 		threatModelHandler:         NewThreatModelHandler(),
-		documentHandler:            NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
-		sourceHandler:              NewSourceSubResourceHandler(GlobalSourceStore, nil, nil, nil),
-		threatHandler:              NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
+		documentHandler:            NewDocumentSubRerepositoryHandler(GlobalDocumentStore, nil, nil, nil),
+		repositoryHandler:              NewRepositorySubRerepositoryHandler(GlobalRepositoryStore, nil, nil, nil),
+		threatHandler:              NewThreatSubRerepositoryHandler(GlobalThreatStore, nil, nil, nil),
 		batchHandler:               NewBatchHandler(GlobalThreatStore, nil, nil, nil),
 		documentMetadataHandler:    NewDocumentMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		sourceMetadataHandler:      NewSourceMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		repositoryMetadataHandler:      NewRepositoryMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		threatMetadataHandler:      NewThreatMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		threatModelMetadataHandler: NewThreatModelMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		wsHub:                      NewWebSocketHub(wsLoggingConfig, inactivityTimeout),
@@ -744,72 +744,72 @@ func (s *Server) UpdateThreatModelMetadataByKey(c *gin.Context, threatModelId op
 // GetThreatModelSources lists sources
 func (s *Server) GetThreatModelSources(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelSourcesParams) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
-	s.sourceHandler.GetSources(c)
+	s.repositoryHandler.GetSources(c)
 }
 
 // CreateThreatModelSource creates a source
 func (s *Server) CreateThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
-	s.sourceHandler.CreateSource(c)
+	s.repositoryHandler.CreateSource(c)
 }
 
 // BulkCreateThreatModelSources bulk creates sources
 func (s *Server) BulkCreateThreatModelSources(c *gin.Context, threatModelId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
-	s.sourceHandler.BulkCreateSources(c)
+	s.repositoryHandler.BulkCreateSources(c)
 }
 
 // DeleteThreatModelSource deletes a source
 func (s *Server) DeleteThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "source_id", Value: sourceId.String()})
-	s.sourceHandler.DeleteSource(c)
+	s.repositoryHandler.DeleteSource(c)
 }
 
 // GetThreatModelSource gets a source
 func (s *Server) GetThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "source_id", Value: sourceId.String()})
-	s.sourceHandler.GetSource(c)
+	s.repositoryHandler.GetSource(c)
 }
 
 // UpdateThreatModelSource updates a source
 func (s *Server) UpdateThreatModelSource(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "source_id", Value: sourceId.String()})
-	s.sourceHandler.UpdateSource(c)
+	s.repositoryHandler.UpdateSource(c)
 }
 
 // Source Metadata Methods - Placeholder implementations
 
 // GetSourceMetadata gets source metadata
 func (s *Server) GetSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
-	s.sourceMetadataHandler.GetSourceMetadata(c)
+	s.repositoryMetadataHandler.GetSourceMetadata(c)
 }
 
 // CreateSourceMetadata creates source metadata
 func (s *Server) CreateSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
-	s.sourceMetadataHandler.CreateSourceMetadata(c)
+	s.repositoryMetadataHandler.CreateSourceMetadata(c)
 }
 
 // BulkCreateSourceMetadata bulk creates source metadata
 func (s *Server) BulkCreateSourceMetadata(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID) {
-	s.sourceMetadataHandler.BulkCreateSourceMetadata(c)
+	s.repositoryMetadataHandler.BulkCreateSourceMetadata(c)
 }
 
 // DeleteSourceMetadataByKey deletes source metadata by key
 func (s *Server) DeleteSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) {
-	s.sourceMetadataHandler.DeleteSourceMetadata(c)
+	s.repositoryMetadataHandler.DeleteSourceMetadata(c)
 }
 
 // GetSourceMetadataByKey gets source metadata by key
 func (s *Server) GetSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) {
-	s.sourceMetadataHandler.GetSourceMetadataByKey(c)
+	s.repositoryMetadataHandler.GetSourceMetadataByKey(c)
 }
 
 // UpdateSourceMetadataByKey updates source metadata by key
 func (s *Server) UpdateSourceMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, sourceId openapi_types.UUID, key string) {
-	s.sourceMetadataHandler.UpdateSourceMetadata(c)
+	s.repositoryMetadataHandler.UpdateSourceMetadata(c)
 }
 
 // Threat Methods - Placeholder implementations
