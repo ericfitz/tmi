@@ -94,7 +94,7 @@ func (s *DatabaseDocumentStore) Create(ctx context.Context, document *Document, 
 	// Insert into database
 	query := `
 		INSERT INTO documents (
-			id, threat_model_id, name, url, description, created_at, modified_at
+			id, threat_model_id, name, uri, description, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7
 		)
@@ -163,8 +163,8 @@ func (s *DatabaseDocumentStore) Get(ctx context.Context, id string) (*Document, 
 	logger.Debug("Cache miss for document %s, querying database", id)
 
 	query := `
-		SELECT id, threat_model_id, name, url, description, created_at, modified_at
-		FROM documents 
+		SELECT id, threat_model_id, name, uri, description, created_at, modified_at
+		FROM documents
 		WHERE id = $1
 	`
 
@@ -368,8 +368,8 @@ func (s *DatabaseDocumentStore) List(ctx context.Context, threatModelID string, 
 	logger.Debug("Cache miss for document list, querying database")
 
 	query := `
-		SELECT id, threat_model_id, name, url, description, created_at, modified_at
-		FROM documents 
+		SELECT id, threat_model_id, name, uri, description, created_at, modified_at
+		FROM documents
 		WHERE threat_model_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
@@ -473,7 +473,7 @@ func (s *DatabaseDocumentStore) BulkCreate(ctx context.Context, documents []Docu
 
 	query := `
 		INSERT INTO documents (
-			id, threat_model_id, name, url, description, created_at, modified_at
+			id, threat_model_id, name, uri, description, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7
 		)
