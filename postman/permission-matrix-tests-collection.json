@@ -2,10 +2,10 @@
   "name": "5. Multi-User Permission Testing",
   "item": [
     {
-      "name": "Setup Permission Test Resources",
+      "name": "Setup Permission Test Rerepositories",
       "item": [
         {
-          "name": "Create Bob's Threat Model", 
+          "name": "Create Bob's Threat Model",
           "event": [
             {
               "listen": "prerequest",
@@ -64,8 +64,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
             },
             "description": "Create threat model as Bob for permission testing"
           }
@@ -94,7 +98,7 @@
               }
             },
             {
-              "listen": "test", 
+              "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
@@ -125,14 +129,20 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/authorization",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "authorization"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}",
+                "authorization"
+              ]
             },
             "description": "Grant Charlie reader access to Alice's threat model"
           }
         }
       ],
-      "description": "Setup resources for comprehensive permission testing"
+      "description": "Setup rerepositories for comprehensive permission testing"
     },
     {
       "name": "Owner Access Tests (Alice)",
@@ -175,8 +185,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
             },
             "description": "Alice reads her own threat model"
           }
@@ -221,7 +236,7 @@
             "method": "PATCH",
             "header": [
               {
-                "key": "Content-Type", 
+                "key": "Content-Type",
                 "value": "application/json"
               }
             ],
@@ -231,8 +246,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
             },
             "description": "Alice modifies her own threat model"
           }
@@ -241,7 +261,7 @@
       "description": "Test owner permissions (full access)"
     },
     {
-      "name": "Reader Access Tests (Charlie)", 
+      "name": "Reader Access Tests (Charlie)",
       "item": [
         {
           "name": "Reader Read Access - Success (200)",
@@ -281,8 +301,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
             },
             "description": "Charlie reads Alice's threat model (granted reader access)"
           }
@@ -295,7 +320,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Generate patch attempt", 
+                  "// Generate patch attempt",
                   "const patchOps = [{",
                   "    op: 'replace',",
                   "    path: '/description',",
@@ -339,8 +364,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
             },
             "description": "Charlie attempts to modify Alice's threat model (should fail)"
           }
@@ -372,8 +402,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
             },
             "description": "Charlie attempts to delete Alice's threat model (should fail)"
           }
@@ -423,8 +458,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
             },
             "description": "Diana attempts to read Alice's threat model (no permissions)"
           }
@@ -479,8 +519,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
             },
             "description": "Diana attempts to modify Alice's threat model (no permissions)"
           }
@@ -511,7 +556,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Cannot access other user resources without permission (403)', function () {",
+                  "pm.test('Cannot access other user rerepositories without permission (403)', function () {",
                   "    pm.response.to.have.status(403);",
                   "});",
                   "",
@@ -528,8 +573,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{bobThreatModelId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{bobThreatModelId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{bobThreatModelId}}"
+              ]
             },
             "description": "Alice attempts to access Bob's threat model without permission"
           }
@@ -538,7 +588,7 @@
       "description": "Test cross-user resource access permissions"
     },
     {
-      "name": "Cleanup Permission Test Resources",
+      "name": "Cleanup Permission Test Rerepositories",
       "item": [
         {
           "name": "Delete Bob's Threat Model",
@@ -576,14 +626,19 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{bobThreatModelId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{bobThreatModelId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{bobThreatModelId}}"
+              ]
             },
             "description": "Bob deletes his threat model"
           }
         }
       ],
-      "description": "Clean up resources created during permission testing"
+      "description": "Clean up rerepositories created during permission testing"
     }
   ],
   "description": "Comprehensive multi-user permission matrix testing covering owner, writer, reader, and no-access scenarios"

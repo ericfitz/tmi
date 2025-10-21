@@ -68,8 +68,14 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "metadata"
+          ]
         },
         "description": "Create metadata entry for threat model"
       }
@@ -124,8 +130,14 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "metadata"
+          ]
         },
         "description": "Test metadata creation with missing key"
       }
@@ -179,8 +191,14 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "metadata"
+          ]
         },
         "description": "Test metadata creation with empty values"
       }
@@ -219,8 +237,14 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "metadata"
+          ]
         },
         "description": "Get all metadata for threat model"
       }
@@ -258,8 +282,15 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/{{testMetadataKey}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "{{testMetadataKey}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "metadata",
+            "{{testMetadataKey}}"
+          ]
         },
         "description": "Get specific metadata entry by key"
       }
@@ -289,8 +320,15 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/nonexistent-key",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "nonexistent-key"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "metadata",
+            "nonexistent-key"
+          ]
         },
         "description": "Try to get non-existent metadata key"
       }
@@ -345,8 +383,15 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/{{testMetadataKey}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "{{testMetadataKey}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "metadata",
+            "{{testMetadataKey}}"
+          ]
         },
         "description": "Update metadata value by key"
       }
@@ -409,8 +454,15 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/bulk",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "bulk"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "metadata",
+            "bulk"
+          ]
         },
         "description": "Create multiple metadata entries in bulk"
       }
@@ -439,8 +491,15 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/{{testMetadataKey}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "{{testMetadataKey}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "metadata",
+            "{{testMetadataKey}}"
+          ]
         },
         "description": "Delete metadata entry by key"
       }
@@ -470,8 +529,15 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/{{testMetadataKey}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "{{testMetadataKey}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "metadata",
+            "{{testMetadataKey}}"
+          ]
         },
         "description": "Verify metadata was actually deleted"
       }

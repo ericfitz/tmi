@@ -24,7 +24,7 @@
           "pm.collectionVariables.unset('token_diana');",
           "pm.collectionVariables.unset('access_token');",
           "",
-          "console.log('🔒 All authentication tokens cleared for 401 testing');"
+          "console.log('\ud83d\udd12 All authentication tokens cleared for 401 testing');"
         ]
       }
     }

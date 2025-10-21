@@ -10,7 +10,7 @@
       "value": "http://127.0.0.1:8080"
     },
     {
-      "key": "oauthStubUrl", 
+      "key": "oauthStubUrl",
       "value": "http://127.0.0.1:8079"
     },
     {
@@ -31,8 +31,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
-              {"key": "Content-Type", "value": "application/json-patch+json"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -40,8 +46,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "00000000-0000-0000-0000-000000000000"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "00000000-0000-0000-0000-000000000000"
+              ]
             }
           },
           "event": [
@@ -73,8 +84,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
-              {"key": "Content-Type", "value": "application/json"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -82,8 +99,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000/diagrams/00000000-0000-0000-0000-000000000001/collaborate",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "00000000-0000-0000-0000-000000000000", "diagrams", "00000000-0000-0000-0000-000000000001", "collaborate"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "00000000-0000-0000-0000-000000000000",
+                "diagrams",
+                "00000000-0000-0000-0000-000000000001",
+                "collaborate"
+              ]
             }
           },
           "event": [
@@ -115,8 +140,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
-              {"key": "Content-Type", "value": "application/json"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -124,8 +155,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
             }
           },
           "event": [

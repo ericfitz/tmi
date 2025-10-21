@@ -10,7 +10,7 @@
       "value": "http://127.0.0.1:8080"
     },
     {
-      "key": "oauthStubUrl", 
+      "key": "oauthStubUrl",
       "value": "http://127.0.0.1:8079"
     },
     {
@@ -55,8 +55,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/oauth2/providers",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "providers"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "providers"
+              ]
             }
           },
           "event": [
@@ -97,19 +102,36 @@
       "name": "OAuth Authorization",
       "item": [
         {
-          "name": "OAuth Authorize - Valid Redirect", 
+          "name": "OAuth Authorize - Valid Redirect",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/oauth2/authorize?idp=test&login_hint={{testUser}}&client_callback={{oauthStubUrl}}&scope=openid",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "authorize"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "authorize"
+              ],
               "query": [
-                {"key": "idp", "value": "test"},
-                {"key": "login_hint", "value": "{{testUser}}"},
-                {"key": "client_callback", "value": "{{oauthStubUrl}}"},
-                {"key": "scope", "value": "openid"}
+                {
+                  "key": "idp",
+                  "value": "test"
+                },
+                {
+                  "key": "login_hint",
+                  "value": "{{testUser}}"
+                },
+                {
+                  "key": "client_callback",
+                  "value": "{{oauthStubUrl}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid"
+                }
               ]
             }
           },
@@ -141,15 +163,26 @@
         {
           "name": "OAuth Authorize - Missing IDP (400)",
           "request": {
-            "method": "GET", 
+            "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/oauth2/authorize?login_hint={{testUser}}&client_callback={{oauthStubUrl}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "authorize"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "authorize"
+              ],
               "query": [
-                {"key": "login_hint", "value": "{{testUser}}"},
-                {"key": "client_callback", "value": "{{oauthStubUrl}}"}
+                {
+                  "key": "login_hint",
+                  "value": "{{testUser}}"
+                },
+                {
+                  "key": "client_callback",
+                  "value": "{{oauthStubUrl}}"
+                }
               ]
             }
           },
@@ -179,12 +212,26 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/oauth2/authorize?idp=nonexistent&login_hint={{testUser}}&client_callback={{oauthStubUrl}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "authorize"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "authorize"
+              ],
               "query": [
-                {"key": "idp", "value": "nonexistent"},
-                {"key": "login_hint", "value": "{{testUser}}"},
-                {"key": "client_callback", "value": "{{oauthStubUrl}}"}
+                {
+                  "key": "idp",
+                  "value": "nonexistent"
+                },
+                {
+                  "key": "login_hint",
+                  "value": "{{testUser}}"
+                },
+                {
+                  "key": "client_callback",
+                  "value": "{{oauthStubUrl}}"
+                }
               ]
             }
           },
@@ -219,10 +266,17 @@
             "header": [],
             "url": {
               "raw": "{{oauthStubUrl}}/creds?userid={{testUser}}",
-              "host": ["{{oauthStubUrl}}"],
-              "path": ["creds"],
+              "host": [
+                "{{oauthStubUrl}}"
+              ],
+              "path": [
+                "creds"
+              ],
               "query": [
-                {"key": "userid", "value": "{{testUser}}"}
+                {
+                  "key": "userid",
+                  "value": "{{testUser}}"
+                }
               ]
             }
           },
@@ -244,7 +298,7 @@
                   "",
                   "pm.test('Response has refresh token', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.refresh_token).to.exist;", 
+                  "    pm.expect(jsonData.refresh_token).to.exist;",
                   "    pm.collectionVariables.set('refreshToken', jsonData.refresh_token);",
                   "});",
                   "",
@@ -283,8 +337,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/oauth2/introspect",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "introspect"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "introspect"
+              ]
             }
           },
           "event": [
@@ -331,15 +390,20 @@
               "mode": "urlencoded",
               "urlencoded": [
                 {
-                  "key": "token", 
+                  "key": "token",
                   "value": "invalid.token.here"
                 }
               ]
             },
             "url": {
               "raw": "{{baseUrl}}/oauth2/introspect",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "introspect"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "introspect"
+              ]
             }
           },
           "event": [
@@ -377,8 +441,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/oauth2/introspect",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "introspect"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "introspect"
+              ]
             }
           },
           "event": [
@@ -417,8 +486,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/oauth2/userinfo",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "userinfo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "userinfo"
+              ]
             }
           },
           "event": [
@@ -459,8 +533,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/oauth2/userinfo",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "userinfo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "userinfo"
+              ]
             }
           },
           "event": [
@@ -494,8 +573,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/oauth2/userinfo",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "userinfo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "userinfo"
+              ]
             }
           },
           "event": [
@@ -547,8 +631,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/oauth2/revoke",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "revoke"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "revoke"
+              ]
             }
           },
           "event": [
@@ -594,8 +683,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/oauth2/revoke",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "revoke"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "revoke"
+              ]
             }
           },
           "event": [
@@ -629,8 +723,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/oauth2/userinfo",
-              "host": ["{{baseUrl}}"],
-              "path": ["oauth2", "userinfo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth2",
+                "userinfo"
+              ]
             }
           },
           "event": [

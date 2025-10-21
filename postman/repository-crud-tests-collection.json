@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "TMI Sources CRUD Tests",
-    "description": "Complete Sources CRUD testing with comprehensive status code coverage",
+    "name": "TMI Repository CRUD Tests",
+    "description": "Complete Repository CRUD testing with comprehensive status code coverage",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -10,7 +10,7 @@
       "value": "http://127.0.0.1:8080"
     },
     {
-      "key": "oauthStubUrl", 
+      "key": "oauthStubUrl",
       "value": "http://127.0.0.1:8079"
     },
     {
@@ -36,30 +36,13 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "// Load test data factory and multi-user auth",
-          "if (typeof TMITestDataFactory === 'undefined') {",
-          "    eval(pm.globals.get('TMITestDataFactory'));",
-          "}",
-          "if (typeof TMIMultiUserAuth === 'undefined') {",
-          "    eval(pm.globals.get('TMIMultiUserAuth'));",
-          "}"
-        ]
-      }
-    }
-  ],
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
           "// Use pre-authenticated token from environment",
           "const aliceToken = pm.environment.get('token_alice');",
           "if (aliceToken) {",
           "    pm.collectionVariables.set('accessToken', aliceToken);",
-          "    console.log('✅ Using pre-authenticated token for alice');",
+          "    console.log('\u2705 Using pre-authenticated token for alice');",
           "} else {",
-          "    console.error('❌ No pre-authenticated token found for alice');",
+          "    console.error('\u274c No pre-authenticated token found for alice');",
           "}"
         ]
       }
@@ -89,8 +72,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
             }
           },
           "event": [
@@ -116,7 +103,7 @@
       "name": "Source CRUD Operations",
       "item": [
         {
-          "name": "Create Source - Success (201)",
+          "name": "Create Repository - Success (201)",
           "request": {
             "method": "POST",
             "header": [
@@ -131,12 +118,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Test Source {{$randomInt}}\",\n  \"type\": \"git\",\n  \"url\": \"https://github.com/example/test-repo-{{$randomInt}}.git\",\n  \"description\": \"A test source for comprehensive API testing\",\n  \"parameters\": {\n    \"refType\": \"branch\",\n    \"refValue\": \"main\"\n  }\n}"
+              "raw": "{\n  \"name\": \"Test Repository {{$randomInt}}\",\n  \"type\": \"git\",\n  \"uri\": \"https://github.com/example/test-repo-{{$randomInt}}.git\",\n  \"description\": \"A test source for comprehensive API testing\",\n  \"parameters\": {\n    \"refType\": \"branch\",\n    \"refValue\": \"main\"\n  }\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories"
+              ]
             }
           },
           "event": [
@@ -186,7 +179,7 @@
           ]
         },
         {
-          "name": "Create Source - Missing URL (400)",
+          "name": "Create Repository - Missing URL (400)",
           "request": {
             "method": "POST",
             "header": [
@@ -204,9 +197,15 @@
               "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"description\": \"Missing url field\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories"
+              ]
             }
           },
           "event": [
@@ -229,7 +228,7 @@
           ]
         },
         {
-          "name": "Create Source - Invalid URL (400)",
+          "name": "Create Repository - Invalid URL (400)",
           "request": {
             "method": "POST",
             "header": [
@@ -247,9 +246,15 @@
               "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"url\": \"not-a-valid-url\",\n  \"description\": \"Invalid URL format\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories"
+              ]
             }
           },
           "event": [
@@ -272,7 +277,7 @@
           ]
         },
         {
-          "name": "Create Source - Invalid Type (400)",
+          "name": "Create Repository - Invalid Type (400)",
           "request": {
             "method": "POST",
             "header": [
@@ -287,12 +292,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"invalid-type\",\n  \"url\": \"https://github.com/example/test.git\",\n  \"description\": \"Invalid source type\"\n}"
+              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"invalid-type\",\n  \"uri\": \"https://github.com/example/test.git\",\n  \"description\": \"Invalid source type\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories"
+              ]
             }
           },
           "event": [
@@ -315,7 +326,7 @@
           ]
         },
         {
-          "name": "Create Source - Invalid Parameters (400)",
+          "name": "Create Repository - Invalid Parameters (400)",
           "request": {
             "method": "POST",
             "header": [
@@ -330,12 +341,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"url\": \"https://github.com/example/test.git\",\n  \"parameters\": {\n    \"refType\": \"invalid-ref\",\n    \"refValue\": \"main\"\n  }\n}"
+              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"uri\": \"https://github.com/example/test.git\",\n  \"parameters\": {\n    \"refType\": \"invalid-ref\",\n    \"refValue\": \"main\"\n  }\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories"
+              ]
             }
           },
           "event": [
@@ -358,7 +375,7 @@
           ]
         },
         {
-          "name": "Create Source - No Auth (401)",
+          "name": "Create Repository - No Auth (401)",
           "request": {
             "method": "POST",
             "header": [
@@ -369,12 +386,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"url\": \"https://github.com/example/test.git\"\n}"
+              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"uri\": \"https://github.com/example/test.git\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories"
+              ]
             }
           },
           "event": [
@@ -397,7 +420,7 @@
           ]
         },
         {
-          "name": "Create Source - Invalid Threat Model (404)",
+          "name": "Create Repository - Invalid Threat Model (404)",
           "request": {
             "method": "POST",
             "header": [
@@ -412,12 +435,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"url\": \"https://github.com/example/test.git\"\n}"
+              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"uri\": \"https://github.com/example/test.git\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000/sources",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "00000000-0000-0000-0000-000000000000", "sources"]
+              "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000/repositories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "00000000-0000-0000-0000-000000000000",
+                "repositories"
+              ]
             }
           },
           "event": [
@@ -455,9 +484,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories"
+              ]
             }
           },
           "event": [
@@ -470,7 +505,7 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test('Response is array of sources', function () {",
+                  "pm.test('Response is array of repositories', function () {",
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData).to.be.an('array');",
                   "    if (jsonData.length > 0) {",
@@ -497,7 +532,7 @@
           ]
         },
         {
-          "name": "Get Specific Source - Success (200)",
+          "name": "Get Specific Repository - Success (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -507,9 +542,16 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/{{sourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "{{sourceId}}"
+              ]
             }
           },
           "event": [
@@ -540,7 +582,7 @@
           ]
         },
         {
-          "name": "Get Source - Not Found (404)",
+          "name": "Get Repository - Not Found (404)",
           "request": {
             "method": "GET",
             "header": [
@@ -550,9 +592,16 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/00000000-0000-0000-0000-000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "00000000-0000-0000-0000-000000000000"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/00000000-0000-0000-0000-000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "00000000-0000-0000-0000-000000000000"
+              ]
             }
           },
           "event": [
@@ -575,14 +624,21 @@
           ]
         },
         {
-          "name": "Get Source - No Auth (401)",
+          "name": "Get Repository - No Auth (401)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/{{sourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "{{sourceId}}"
+              ]
             }
           },
           "event": [
@@ -610,7 +666,7 @@
       "name": "Source Updates",
       "item": [
         {
-          "name": "Update Source - Success (200)",
+          "name": "Update Repository - Success (200)",
           "request": {
             "method": "PUT",
             "header": [
@@ -625,12 +681,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Updated Test Source {{$randomInt}}\",\n  \"type\": \"git\",\n  \"url\": \"https://github.com/example/updated-repo-{{$randomInt}}.git\",\n  \"description\": \"Updated description for comprehensive testing\",\n  \"parameters\": {\n    \"refType\": \"tag\",\n    \"refValue\": \"v2.0\"\n  }\n}"
+              "raw": "{\n  \"name\": \"Updated Test Repository {{$randomInt}}\",\n  \"type\": \"git\",\n  \"uri\": \"https://github.com/example/updated-repo-{{$randomInt}}.git\",\n  \"description\": \"Updated description for comprehensive testing\",\n  \"parameters\": {\n    \"refType\": \"tag\",\n    \"refValue\": \"v2.0\"\n  }\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/{{sourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "{{sourceId}}"
+              ]
             }
           },
           "event": [
@@ -666,7 +729,7 @@
           ]
         },
         {
-          "name": "Update Source - Invalid Data (400)",
+          "name": "Update Repository - Invalid Data (400)",
           "request": {
             "method": "PUT",
             "header": [
@@ -684,9 +747,16 @@
               "raw": "{\n  \"name\": \"Updated Source\",\n  \"type\": \"invalid-type\",\n  \"url\": \"not-a-valid-url\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/{{sourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "{{sourceId}}"
+              ]
             }
           },
           "event": [
@@ -709,7 +779,7 @@
           ]
         },
         {
-          "name": "Update Source - Not Found (404)",
+          "name": "Update Repository - Not Found (404)",
           "request": {
             "method": "PUT",
             "header": [
@@ -724,12 +794,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Updated Source\",\n  \"type\": \"git\",\n  \"url\": \"https://github.com/example/updated.git\"\n}"
+              "raw": "{\n  \"name\": \"Updated Source\",\n  \"type\": \"git\",\n  \"uri\": \"https://github.com/example/updated.git\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/00000000-0000-0000-0000-000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "00000000-0000-0000-0000-000000000000"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/00000000-0000-0000-0000-000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "00000000-0000-0000-0000-000000000000"
+              ]
             }
           },
           "event": [
@@ -757,7 +834,7 @@
       "name": "Source Deletion",
       "item": [
         {
-          "name": "Delete Source - Success (204)",
+          "name": "Delete Repository - Success (204)",
           "request": {
             "method": "DELETE",
             "header": [
@@ -767,9 +844,16 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/{{sourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "{{sourceId}}"
+              ]
             }
           },
           "event": [
@@ -795,7 +879,7 @@
           ]
         },
         {
-          "name": "Delete Source - Not Found (404)",
+          "name": "Delete Repository - Not Found (404)",
           "request": {
             "method": "DELETE",
             "header": [
@@ -805,9 +889,16 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/00000000-0000-0000-0000-000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "00000000-0000-0000-0000-000000000000"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/00000000-0000-0000-0000-000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "00000000-0000-0000-0000-000000000000"
+              ]
             }
           },
           "event": [
@@ -830,14 +921,21 @@
           ]
         },
         {
-          "name": "Delete Source - No Auth (401)",
+          "name": "Delete Repository - No Auth (401)",
           "request": {
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/{{sourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "{{sourceId}}"
+              ]
             }
           },
           "event": [
@@ -860,7 +958,7 @@
           ]
         },
         {
-          "name": "Verify Source Deleted (404)",
+          "name": "Verify Repository Deleted (404)",
           "request": {
             "method": "GET",
             "header": [
@@ -870,9 +968,16 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/{{sourceId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "{{sourceId}}"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/{{sourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "{{sourceId}}"
+              ]
             }
           },
           "event": [
@@ -897,7 +1002,7 @@
       ]
     },
     {
-      "name": "Bulk Source Operations",
+      "name": "Bulk Repository Operations",
       "item": [
         {
           "name": "Bulk Create Sources - Success (201)",
@@ -915,12 +1020,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "[\n  {\n    \"name\": \"Bulk Source 1 {{$randomInt}}\",\n    \"type\": \"git\",\n    \"url\": \"https://github.com/example/bulk1-{{$randomInt}}.git\",\n    \"description\": \"First bulk source\",\n    \"parameters\": {\n      \"refType\": \"branch\",\n      \"refValue\": \"main\"\n    }\n  },\n  {\n    \"name\": \"Bulk Source 2 {{$randomInt}}\",\n    \"type\": \"svn\",\n    \"url\": \"https://svn.example.com/bulk2-{{$randomInt}}\",\n    \"description\": \"Second bulk source\",\n    \"parameters\": {\n      \"refType\": \"tag\",\n      \"refValue\": \"v1.0\"\n    }\n  },\n  {\n    \"name\": \"Bulk Source 3 {{$randomInt}}\",\n    \"type\": \"mercurial\",\n    \"url\": \"https://hg.example.com/bulk3-{{$randomInt}}\",\n    \"description\": \"Third bulk source\",\n    \"parameters\": {\n      \"refType\": \"commit\",\n      \"refValue\": \"abc123\"\n    }\n  }\n]"
+              "raw": "[\n  {\n    \"name\": \"Bulk Repository 1 {{$randomInt}}\",\n    \"type\": \"git\",\n    \"uri\": \"https://github.com/example/bulk1-{{$randomInt}}.git\",\n    \"description\": \"First bulk source\",\n    \"parameters\": {\n      \"refType\": \"branch\",\n      \"refValue\": \"main\"\n    }\n  },\n  {\n    \"name\": \"Bulk Repository 2 {{$randomInt}}\",\n    \"type\": \"svn\",\n    \"uri\": \"https://svn.example.com/bulk2-{{$randomInt}}\",\n    \"description\": \"Second bulk source\",\n    \"parameters\": {\n      \"refType\": \"tag\",\n      \"refValue\": \"v1.0\"\n    }\n  },\n  {\n    \"name\": \"Bulk Repository 3 {{$randomInt}}\",\n    \"type\": \"mercurial\",\n    \"uri\": \"https://hg.example.com/bulk3-{{$randomInt}}\",\n    \"description\": \"Third bulk source\",\n    \"parameters\": {\n      \"refType\": \"commit\",\n      \"refValue\": \"abc123\"\n    }\n  }\n]"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/bulk",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "bulk"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "bulk"
+              ]
             }
           },
           "event": [
@@ -933,7 +1045,7 @@
                   "    pm.response.to.have.status(201);",
                   "});",
                   "",
-                  "pm.test('Response has created sources', function () {",
+                  "pm.test('Response has created repositories', function () {",
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData).to.be.an('array');",
                   "    pm.expect(jsonData.length).to.equal(3);",
@@ -946,7 +1058,7 @@
                   "    });",
                   "});",
                   "",
-                  "pm.test('All sources have valid UUIDs', function () {",
+                  "pm.test('All repositories have valid UUIDs', function () {",
                   "    const jsonData = pm.response.json();",
                   "    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;",
                   "    ",
@@ -987,12 +1099,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "[\n  {\n    \"name\": \"Valid Source\",\n    \"type\": \"git\",\n    \"url\": \"https://github.com/example/valid.git\"\n  },\n  {\n    \"name\": \"Invalid Source\",\n    \"type\": \"invalid-type\",\n    \"url\": \"not-a-valid-url\"\n  }\n]"
+              "raw": "[\n  {\n    \"name\": \"Valid Source\",\n    \"type\": \"git\",\n    \"uri\": \"https://github.com/example/valid.git\"\n  },\n  {\n    \"name\": \"Invalid Source\",\n    \"type\": \"invalid-type\",\n    \"url\": \"not-a-valid-url\"\n  }\n]"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/bulk",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "bulk"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "bulk"
+              ]
             }
           },
           "event": [
@@ -1026,12 +1145,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "[\n  {\n    \"name\": \"Test Source\",\n    \"type\": \"git\",\n    \"url\": \"https://github.com/example/test.git\"\n  }\n]"
+              "raw": "[\n  {\n    \"name\": \"Test Source\",\n    \"type\": \"git\",\n    \"uri\": \"https://github.com/example/test.git\"\n  }\n]"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/sources/bulk",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "sources", "bulk"]
+              "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "repositories",
+                "bulk"
+              ]
             }
           },
           "event": [

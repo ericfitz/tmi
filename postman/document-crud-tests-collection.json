@@ -10,7 +10,7 @@
       "value": "http://127.0.0.1:8080"
     },
     {
-      "key": "oauthStubUrl", 
+      "key": "oauthStubUrl",
       "value": "http://127.0.0.1:8079"
     },
     {
@@ -36,30 +36,13 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "// Load test data factory and multi-user auth",
-          "if (typeof TMITestDataFactory === 'undefined') {",
-          "    eval(pm.globals.get('TMITestDataFactory'));",
-          "}",
-          "if (typeof TMIMultiUserAuth === 'undefined') {",
-          "    eval(pm.globals.get('TMIMultiUserAuth'));",
-          "}"
-        ]
-      }
-    }
-  ],
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
           "// Use pre-authenticated token from environment",
           "const aliceToken = pm.environment.get('token_alice');",
           "if (aliceToken) {",
           "    pm.collectionVariables.set('accessToken', aliceToken);",
-          "    console.log('✅ Using pre-authenticated token for alice');",
+          "    console.log('\u2705 Using pre-authenticated token for alice');",
           "} else {",
-          "    console.error('❌ No pre-authenticated token found for alice');",
+          "    console.error('\u274c No pre-authenticated token found for alice');",
           "}"
         ]
       }
@@ -89,8 +72,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
             }
           },
           "event": [
@@ -131,12 +118,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Test Document {{$randomInt}}\",\n  \"url\": \"https://example.com/documents/test-{{$randomInt}}.pdf\",\n  \"description\": \"A test document for comprehensive API testing\"\n}"
+              "raw": "{\n  \"name\": \"Test Document {{$randomInt}}\",\n  \"uri\": \"https://example.com/documents/test-{{$randomInt}}.pdf\",\n  \"description\": \"A test document for comprehensive API testing\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents"
+              ]
             }
           },
           "event": [
@@ -187,12 +180,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"url\": \"https://example.com/test.pdf\",\n  \"description\": \"Missing name field\"\n}"
+              "raw": "{\n  \"uri\": \"https://example.com/test.pdf\",\n  \"description\": \"Missing name field\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents"
+              ]
             }
           },
           "event": [
@@ -234,8 +233,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents"
+              ]
             }
           },
           "event": [
@@ -277,8 +282,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents"
+              ]
             }
           },
           "event": [
@@ -312,12 +323,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Test Document\",\n  \"url\": \"https://example.com/test.pdf\"\n}"
+              "raw": "{\n  \"name\": \"Test Document\",\n  \"uri\": \"https://example.com/test.pdf\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents"
+              ]
             }
           },
           "event": [
@@ -355,12 +372,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Test Document\",\n  \"url\": \"https://example.com/test.pdf\"\n}"
+              "raw": "{\n  \"name\": \"Test Document\",\n  \"uri\": \"https://example.com/test.pdf\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000/documents",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "00000000-0000-0000-0000-000000000000", "documents"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "00000000-0000-0000-0000-000000000000",
+                "documents"
+              ]
             }
           },
           "event": [
@@ -399,8 +422,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents"
+              ]
             }
           },
           "event": [
@@ -450,8 +479,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/{{documentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "{{documentId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "{{documentId}}"
+              ]
             }
           },
           "event": [
@@ -492,8 +528,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/00000000-0000-0000-0000-000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "00000000-0000-0000-0000-000000000000"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "00000000-0000-0000-0000-000000000000"
+              ]
             }
           },
           "event": [
@@ -522,8 +565,15 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/{{documentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "{{documentId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "{{documentId}}"
+              ]
             }
           },
           "event": [
@@ -566,12 +616,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Updated Test Document {{$randomInt}}\",\n  \"url\": \"https://example.com/documents/updated-{{$randomInt}}.pdf\",\n  \"description\": \"Updated description for comprehensive testing\"\n}"
+              "raw": "{\n  \"name\": \"Updated Test Document {{$randomInt}}\",\n  \"uri\": \"https://example.com/documents/updated-{{$randomInt}}.pdf\",\n  \"description\": \"Updated description for comprehensive testing\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/{{documentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "{{documentId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "{{documentId}}"
+              ]
             }
           },
           "event": [
@@ -624,8 +681,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/{{documentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "{{documentId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "{{documentId}}"
+              ]
             }
           },
           "event": [
@@ -663,12 +727,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Updated Document\",\n  \"url\": \"https://example.com/updated.pdf\"\n}"
+              "raw": "{\n  \"name\": \"Updated Document\",\n  \"uri\": \"https://example.com/updated.pdf\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/00000000-0000-0000-0000-000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "00000000-0000-0000-0000-000000000000"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "00000000-0000-0000-0000-000000000000"
+              ]
             }
           },
           "event": [
@@ -707,8 +778,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/{{documentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "{{documentId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "{{documentId}}"
+              ]
             }
           },
           "event": [
@@ -745,8 +823,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/00000000-0000-0000-0000-000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "00000000-0000-0000-0000-000000000000"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "00000000-0000-0000-0000-000000000000"
+              ]
             }
           },
           "event": [
@@ -775,8 +860,15 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/{{documentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "{{documentId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "{{documentId}}"
+              ]
             }
           },
           "event": [
@@ -810,8 +902,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/{{documentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "{{documentId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "{{documentId}}"
+              ]
             }
           },
           "event": [
@@ -854,12 +953,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "[\n  {\n    \"name\": \"Bulk Document 1 {{$randomInt}}\",\n    \"url\": \"https://example.com/bulk1-{{$randomInt}}.pdf\",\n    \"description\": \"First bulk document\"\n  },\n  {\n    \"name\": \"Bulk Document 2 {{$randomInt}}\",\n    \"url\": \"https://example.com/bulk2-{{$randomInt}}.pdf\",\n    \"description\": \"Second bulk document\"\n  },\n  {\n    \"name\": \"Bulk Document 3 {{$randomInt}}\",\n    \"url\": \"https://example.com/bulk3-{{$randomInt}}.pdf\",\n    \"description\": \"Third bulk document\"\n  }\n]"
+              "raw": "[\n  {\n    \"name\": \"Bulk Document 1 {{$randomInt}}\",\n    \"uri\": \"https://example.com/bulk1-{{$randomInt}}.pdf\",\n    \"description\": \"First bulk document\"\n  },\n  {\n    \"name\": \"Bulk Document 2 {{$randomInt}}\",\n    \"uri\": \"https://example.com/bulk2-{{$randomInt}}.pdf\",\n    \"description\": \"Second bulk document\"\n  },\n  {\n    \"name\": \"Bulk Document 3 {{$randomInt}}\",\n    \"uri\": \"https://example.com/bulk3-{{$randomInt}}.pdf\",\n    \"description\": \"Third bulk document\"\n  }\n]"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/bulk",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "bulk"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "bulk"
+              ]
             }
           },
           "event": [
@@ -917,12 +1023,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "[\n  {\n    \"name\": \"Valid Document\",\n    \"url\": \"https://example.com/valid.pdf\"\n  },\n  {\n    \"name\": \"\",\n    \"url\": \"invalid-url\"\n  }\n]"
+              "raw": "[\n  {\n    \"name\": \"Valid Document\",\n    \"uri\": \"https://example.com/valid.pdf\"\n  },\n  {\n    \"name\": \"\",\n    \"url\": \"invalid-url\"\n  }\n]"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/bulk",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "bulk"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "bulk"
+              ]
             }
           },
           "event": [
@@ -956,12 +1069,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "[\n  {\n    \"name\": \"Test Document\",\n    \"url\": \"https://example.com/test.pdf\"\n  }\n]"
+              "raw": "[\n  {\n    \"name\": \"Test Document\",\n    \"uri\": \"https://example.com/test.pdf\"\n  }\n]"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/bulk",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{threatModelId}}", "documents", "bulk"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{threatModelId}}",
+                "documents",
+                "bulk"
+              ]
             }
           },
           "event": [

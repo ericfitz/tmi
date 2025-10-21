@@ -83,8 +83,15 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/bulk",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "bulk"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats",
+            "bulk"
+          ]
         },
         "description": "Create multiple threats in a single bulk operation"
       }
@@ -156,8 +163,15 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/bulk",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "bulk"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats",
+            "bulk"
+          ]
         },
         "description": "Test bulk create with invalid data entries"
       }
@@ -235,8 +249,15 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/bulk",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "bulk"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats",
+            "bulk"
+          ]
         },
         "description": "Update multiple threats in a single bulk operation"
       }
@@ -325,8 +346,16 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/batch/patch",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "batch", "patch"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats",
+            "batch",
+            "patch"
+          ]
         },
         "description": "Apply JSON patch operations to multiple threats"
       }
@@ -392,8 +421,15 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/batch",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "batch"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats",
+            "batch"
+          ]
         },
         "description": "Delete multiple threats in a single batch operation"
       }
@@ -464,8 +500,15 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/documents/bulk",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "documents", "bulk"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "documents",
+            "bulk"
+          ]
         },
         "description": "Create multiple documents in a single bulk operation"
       }
@@ -483,7 +526,7 @@
               "const bulkSources = [];",
               "for (let i = 1; i <= 3; i++) {",
               "    bulkSources.push(factory.validSource({",
-              "        name: `Bulk Source ${i} - ${Date.now()}`,",
+              "        name: `Bulk Repository ${i} - ${Date.now()}`,",
               "        description: `Bulk created source number ${i}`,",
               "        url: `https://github.com/example/repo-${i}`,",
               "        ref: {",
@@ -506,13 +549,13 @@
               "    pm.response.to.have.status(201);",
               "});",
               "",
-              "pm.test('Response is array of created sources', function () {",
+              "pm.test('Response is array of created repositories', function () {",
               "    const responseData = pm.response.json();",
               "    pm.expect(responseData).to.be.an('array');",
               "    pm.expect(responseData).to.have.lengthOf(3);",
               "});",
               "",
-              "pm.test('All sources have correct data', function () {",
+              "pm.test('All repositories have correct data', function () {",
               "    const responseData = pm.response.json();",
               "    const originalData = JSON.parse(pm.collectionVariables.get('bulkSourcesData'));",
               "    ",
@@ -541,11 +584,18 @@
           "raw": "{{bulkSourcesData}}"
         },
         "url": {
-          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/sources/bulk",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "sources", "bulk"]
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/repositories/bulk",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "repositories",
+            "bulk"
+          ]
         },
-        "description": "Create multiple sources in a single bulk operation"
+        "description": "Create multiple repositories in a single bulk operation"
       }
     },
     {
@@ -614,8 +664,15 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/bulk",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "bulk"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats",
+            "bulk"
+          ]
         },
         "description": "Test performance with larger bulk operation (20 items)"
       }

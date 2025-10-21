@@ -21,8 +21,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/.well-known/openid-configuration",
-              "host": ["{{baseUrl}}"],
-              "path": [".well-known", "openid-configuration"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ".well-known",
+                "openid-configuration"
+              ]
             }
           },
           "event": [
@@ -59,8 +64,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/.well-known/oauth-authorization-server",
-              "host": ["{{baseUrl}}"],
-              "path": [".well-known", "oauth-authorization-server"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ".well-known",
+                "oauth-authorization-server"
+              ]
             }
           },
           "event": [
@@ -95,8 +105,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/.well-known/jwks.json",
-              "host": ["{{baseUrl}}"],
-              "path": [".well-known", "jwks.json"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ".well-known",
+                "jwks.json"
+              ]
             }
           },
           "event": [
@@ -130,8 +145,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/.well-known/oauth-protected-resource",
-              "host": ["{{baseUrl}}"],
-              "path": [".well-known", "oauth-protected-resource"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ".well-known",
+                "oauth-protected-resource"
+              ]
             }
           },
           "event": [
@@ -164,8 +184,12 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/",
-              "host": ["{{baseUrl}}"],
-              "path": [""]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
             }
           },
           "event": [
@@ -198,8 +222,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/.well-known/nonexistent",
-              "host": ["{{baseUrl}}"],
-              "path": [".well-known", "nonexistent"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ".well-known",
+                "nonexistent"
+              ]
             }
           },
           "event": [
@@ -233,12 +262,17 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"invalid\": \"request\"}"
+              "raw": "{\n  \"invalid\": \"request\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/.well-known/openid-configuration",
-              "host": ["{{baseUrl}}"],
-              "path": [".well-known", "openid-configuration"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ".well-known",
+                "openid-configuration"
+              ]
             }
           },
           "event": [

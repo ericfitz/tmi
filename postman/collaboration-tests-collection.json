@@ -2,7 +2,7 @@
   "name": "7. Collaboration Session Tests",
   "item": [
     {
-      "name": "Setup Collaboration Test Resources",
+      "name": "Setup Collaboration Test Rerepositories",
       "item": [
         {
           "name": "Create Test Diagram for Collaboration",
@@ -61,14 +61,20 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}",
+                "diagrams"
+              ]
             },
             "description": "Create diagram for collaboration testing"
           }
         }
       ],
-      "description": "Setup resources needed for collaboration testing"
+      "description": "Setup rerepositories needed for collaboration testing"
     },
     {
       "name": "Collaboration Session Management",
@@ -140,8 +146,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}",
+                "diagrams",
+                "{{collaborationDiagramId}}",
+                "collaborate"
+              ]
             },
             "description": "Start a new collaboration session"
           }
@@ -196,8 +210,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}",
+                "diagrams",
+                "{{collaborationDiagramId}}",
+                "collaborate"
+              ]
             },
             "description": "Try to start duplicate collaboration session"
           }
@@ -237,8 +259,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}",
+                "diagrams",
+                "{{collaborationDiagramId}}",
+                "collaborate"
+              ]
             },
             "description": "Get current collaboration session information"
           }
@@ -277,8 +307,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/collaboration/sessions",
-              "host": ["{{baseUrl}}"],
-              "path": ["collaboration", "sessions"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "collaboration",
+                "sessions"
+              ]
             },
             "description": "List all active collaboration sessions"
           }
@@ -334,8 +369,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}",
+                "diagrams",
+                "{{collaborationDiagramId}}",
+                "collaborate"
+              ]
             },
             "description": "Bob accesses the collaboration session he was invited to"
           }
@@ -377,8 +420,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}",
+                "diagrams",
+                "{{collaborationDiagramId}}",
+                "collaborate"
+              ]
             },
             "description": "Diana tries to access collaboration session she wasn't invited to"
           }
@@ -450,8 +501,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}",
+                "diagrams",
+                "{{collaborationDiagramId}}",
+                "collaborate"
+              ]
             },
             "description": "Update collaboration session participants"
           }
@@ -480,8 +539,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}",
+                "diagrams",
+                "{{collaborationDiagramId}}",
+                "collaborate"
+              ]
             },
             "description": "End the collaboration session"
           }
@@ -511,8 +578,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{collaborationDiagramId}}", "collaborate"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}",
+                "diagrams",
+                "{{collaborationDiagramId}}",
+                "collaborate"
+              ]
             },
             "description": "Verify collaboration session was properly ended"
           }

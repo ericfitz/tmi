@@ -83,8 +83,14 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats"
+          ]
         },
         "description": "Create a threat with valid data"
       }
@@ -140,8 +146,14 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats"
+          ]
         },
         "description": "Test threat creation with missing required fields"
       }
@@ -199,8 +211,14 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats"
+          ]
         },
         "description": "Test threat creation with invalid enum values"
       }
@@ -218,7 +236,7 @@
               "    name: 'Test Threat',",
               "    threat_type: 'Spoofing',",
               "    severity: 'High',",
-              "    priority: 'High',", 
+              "    priority: 'High',",
               "    status: 'Open',",
               "    mitigated: false,",
               "    score: 15 // Invalid: must be 0-10",
@@ -249,7 +267,7 @@
         "method": "POST",
         "header": [
           {
-            "key": "Content-Type", 
+            "key": "Content-Type",
             "value": "application/json"
           }
         ],
@@ -259,8 +277,14 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats"
+          ]
         },
         "description": "Test threat creation with invalid score range"
       }
@@ -279,7 +303,7 @@
               "    threat_type: true, // should be string",
               "    severity: 456, // should be string",
               "    priority: [], // should be string",
-              "    status: {}, // should be string", 
+              "    status: {}, // should be string",
               "    mitigated: 'true', // should be boolean",
               "    score: 'high' // should be number",
               "};",
@@ -319,8 +343,14 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats"
+          ]
         },
         "description": "Test threat creation with wrong data types"
       }
@@ -366,13 +396,19 @@
           }
         ],
         "body": {
-          "mode": "raw", 
+          "mode": "raw",
           "raw": "{{validThreatData}}"
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000/threats",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "00000000-0000-0000-0000-000000000000", "threats"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "00000000-0000-0000-0000-000000000000",
+            "threats"
+          ]
         },
         "description": "Test threat creation with nonexistent threat model"
       }
@@ -412,8 +448,15 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{aliceThreatId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{aliceThreatId}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats",
+            "{{aliceThreatId}}"
+          ]
         },
         "description": "Get threat that Alice owns"
       }
@@ -474,14 +517,21 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{aliceThreatId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{aliceThreatId}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats",
+            "{{aliceThreatId}}"
+          ]
         },
         "description": "Update threat with valid data"
       }
     },
     {
-      "name": "Patch Threat - Success (200)", 
+      "name": "Patch Threat - Success (200)",
       "event": [
         {
           "listen": "prerequest",
@@ -538,8 +588,15 @@
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{aliceThreatId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{aliceThreatId}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats",
+            "{{aliceThreatId}}"
+          ]
         },
         "description": "Apply JSON patch to threat"
       }
@@ -568,8 +625,15 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{aliceThreatId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{aliceThreatId}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "threat_models",
+            "{{aliceThreatModelId}}",
+            "threats",
+            "{{aliceThreatId}}"
+          ]
         },
         "description": "Delete the threat"
       }
