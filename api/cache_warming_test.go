@@ -15,7 +15,7 @@ import (
 )
 
 // Mock stores for cache warming testing - these mocks are defined in other test files
-// We reuse the existing MockThreatStore, MockDocumentStore, MockSourceStore, and MockMetadataStore
+// We reuse the existing MockThreatStore, MockDocumentStore, MockRepositoryStore, and MockMetadataStore
 
 type MockCacheServiceWarming struct {
 	mock.Mock
@@ -31,7 +31,7 @@ func (m *MockCacheServiceWarming) CacheDocument(ctx context.Context, document *D
 	return args.Error(0)
 }
 
-func (m *MockCacheServiceWarming) CacheSource(ctx context.Context, source *Source) error {
+func (m *MockCacheServiceWarming) CacheRepository(ctx context.Context, source *Repository) error {
 	args := m.Called(ctx, source)
 	return args.Error(0)
 }
@@ -86,15 +86,15 @@ func (tcw *TestCacheWarmer) warmDocumentsForThreatModel(ctx context.Context, thr
 	return nil
 }
 
-func (tcw *TestCacheWarmer) warmSourcesForThreatModel(ctx context.Context, threatModelID string) error {
-	sources, err := tcw.sourceStore.List(ctx, threatModelID, 0, 50)
+func (tcw *TestCacheWarmer) warmRepositoriesForThreatModel(ctx context.Context, threatModelID string) error {
+	repositories, err := tcw.repositoryStore.List(ctx, threatModelID, 0, 50)
 	if err != nil {
 		return fmt.Errorf("failed to list sources: %w", err)
 	}
 
-	for _, source := range sources {
+	for _, repository := range sources {
 		if source.Id != nil {
-			if err := tcw.mockCache.CacheSource(ctx, &source); err != nil {
+			if err := tcw.mockCache.CacheRepository(ctx, &repository); err != nil {
 				return fmt.Errorf("failed to cache source %s: %w", source.Id.String(), err)
 			}
 		}
@@ -118,12 +118,12 @@ func (tcw *TestCacheWarmer) warmSpecificDocument(ctx context.Context, documentID
 	return tcw.mockCache.CacheDocument(ctx, document)
 }
 
-func (tcw *TestCacheWarmer) warmSpecificSource(ctx context.Context, sourceID string) error {
-	source, err := tcw.sourceStore.Get(ctx, sourceID)
+func (tcw *TestCacheWarmer) warmSpecificRepository(ctx context.Context, repositoryID string) error {
+	source, err := tcw.repositoryStore.Get(ctx, repositoryID)
 	if err != nil {
-		return fmt.Errorf("failed to get source %s: %w", sourceID, err)
+		return fmt.Errorf("failed to get source %s: %w", repositoryID, err)
 	}
-	return tcw.mockCache.CacheSource(ctx, source)
+	return tcw.mockCache.CacheRepository(ctx, source)
 }
 
 func (tcw *TestCacheWarmer) warmAuthDataForThreatModel(ctx context.Context, threatModelID string) error {
@@ -160,7 +160,7 @@ func (tcw *TestCacheWarmer) WarmThreatModelData(ctx context.Context, threatModel
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := tcw.warmSourcesForThreatModel(ctx, threatModelID); err != nil {
+		if err := tcw.warmRepositoriesForThreatModel(ctx, threatModelID); err != nil {
 			errorChan <- fmt.Errorf("failed to warm sources: %w", err)
 		}
 	}()
@@ -191,7 +191,7 @@ func (tcw *TestCacheWarmer) WarmThreatModelData(ctx context.Context, threatModel
 }
 
 // newTestCacheWarmer creates a test cache warmer instance with mocks
-func newTestCacheWarmer(db *sql.DB, threatStore ThreatStore, documentStore DocumentStore, sourceStore SourceStore, metadataStore MetadataStore) (*TestCacheWarmer, *MockCacheServiceWarming) {
+func newTestCacheWarmer(db *sql.DB, threatStore ThreatStore, documentStore DocumentStore, repositoryStore RepositoryStore, metadataStore MetadataStore) (*TestCacheWarmer, *MockCacheServiceWarming) {
 	mockCache := &MockCacheServiceWarming{}
 	// For testing, we create the CacheWarmer without the real cache service
 	warmer := &CacheWarmer{
@@ -199,7 +199,7 @@ func newTestCacheWarmer(db *sql.DB, threatStore ThreatStore, documentStore Docum
 		cache:           nil, // Not used in TestCacheWarmer
 		threatStore:     threatStore,
 		documentStore:   documentStore,
-		sourceStore:     sourceStore,
+		repositoryStore:     repositoryStore,
 		metadataStore:   metadataStore,
 		warmingEnabled:  true,
 		warmingInterval: 15 * time.Minute,
@@ -234,15 +234,15 @@ func createTestDocumentForWarming() Document {
 	return Document{
 		Id:   &id,
 		Name: "Test Document",
-		Url:  "https://example.com/doc",
+		Uri:  stringPointer("https://example.com/doc"),
 	}
 }
 
-func createTestSourceForWarming() Source {
+func createTestRepositoryForWarming() Repository {
 	id := uuid.New()
-	return Source{
+	return Repository{
 		Id:  &id,
-		Url: "https://github.com/example/repo",
+		Uri: stringPointer("https://github.com/example/repo"),
 	}
 }
 
@@ -254,10 +254,10 @@ func TestNewCacheWarmer(t *testing.T) {
 
 	threatStore := &MockThreatStore{}
 	documentStore := &MockDocumentStore{}
-	sourceStore := &MockSourceStore{}
+	repositoryStore := &MockRepositoryStore{}
 	metadataStore := &MockMetadataStore{}
 
-	warmer, _ := newTestCacheWarmer(db, threatStore, documentStore, sourceStore, metadataStore)
+	warmer, _ := newTestCacheWarmer(db, threatStore, documentStore, repositoryStore, metadataStore)
 
 	assert.NotNil(t, warmer)
 	assert.Equal(t, db, warmer.db)
@@ -385,20 +385,20 @@ func TestCacheWarmer_WarmSpecificEntities(t *testing.T) {
 		assert.NoError(t, err)
 		defer func() { _ = db.Close() }()
 
-		sourceStore := &MockSourceStore{}
-		warmer, cache := newTestCacheWarmer(db, nil, nil, sourceStore, nil)
+		repositoryStore := &MockRepositoryStore{}
+		warmer, cache := newTestCacheWarmer(db, nil, nil, repositoryStore, nil)
 		ctx := context.Background()
 
-		testSource := createTestSourceForWarming()
-		sourceID := testSource.Id.String()
+		testRepository := createTestRepositoryForWarming()
+		repositoryID := testRepository.Id.String()
 
-		sourceStore.On("Get", ctx, sourceID).Return(&testSource, nil)
-		cache.On("CacheSource", ctx, &testSource).Return(nil)
+		repositoryStore.On("Get", ctx, repositoryID).Return(&testRepository, nil)
+		cache.On("CacheRepository", ctx, &testRepository).Return(nil)
 
-		err = warmer.warmSpecificSource(ctx, sourceID)
+		err = warmer.warmSpecificRepository(ctx, repositoryID)
 
 		assert.NoError(t, err)
-		sourceStore.AssertExpectations(t)
+		repositoryStore.AssertExpectations(t)
 		cache.AssertExpectations(t)
 	})
 }
@@ -511,25 +511,25 @@ func TestCacheWarmer_WarmSourcesForThreatModel(t *testing.T) {
 		assert.NoError(t, err)
 		defer func() { _ = db.Close() }()
 
-		sourceStore := &MockSourceStore{}
-		warmer, cache := newTestCacheWarmer(db, nil, nil, sourceStore, nil)
+		repositoryStore := &MockRepositoryStore{}
+		warmer, cache := newTestCacheWarmer(db, nil, nil, repositoryStore, nil)
 		ctx := context.Background()
 		threatModelID := uuid.New().String()
 
-		sources := []Source{
-			createTestSourceForWarming(),
-			createTestSourceForWarming(),
+		repositories := []Repository{
+			createTestRepositoryForWarming(),
+			createTestRepositoryForWarming(),
 		}
 
-		sourceStore.On("List", ctx, threatModelID, 0, 50).Return(sources, nil)
-		for _, source := range sources {
-			cache.On("CacheSource", ctx, &source).Return(nil)
+		repositoryStore.On("List", ctx, threatModelID, 0, 50).Return(repositories, nil)
+		for _, repository := range sources {
+			cache.On("CacheRepository", ctx, &repository).Return(nil)
 		}
 
-		err = warmer.warmSourcesForThreatModel(ctx, threatModelID)
+		err = warmer.warmRepositoriesForThreatModel(ctx, threatModelID)
 
 		assert.NoError(t, err)
-		sourceStore.AssertExpectations(t)
+		repositoryStore.AssertExpectations(t)
 		cache.AssertExpectations(t)
 	})
 }
@@ -546,8 +546,8 @@ func TestCacheWarmer_WarmRecentThreatModels_INTEGRATION(t *testing.T) {
 
 		threatStore := &MockThreatStore{}
 		documentStore := &MockDocumentStore{}
-		sourceStore := &MockSourceStore{}
-		warmer, cache := newTestCacheWarmer(db, threatStore, documentStore, sourceStore, nil)
+		repositoryStore := &MockRepositoryStore{}
+		warmer, cache := newTestCacheWarmer(db, threatStore, documentStore, repositoryStore, nil)
 		ctx := context.Background()
 
 		threatModelID1 := uuid.New().String()
@@ -570,8 +570,8 @@ func TestCacheWarmer_WarmRecentThreatModels_INTEGRATION(t *testing.T) {
 		// Mock documents and sources (empty lists for simplicity)
 		documentStore.On("List", ctx, threatModelID1, 0, 50).Return([]Document{}, nil)
 		documentStore.On("List", ctx, threatModelID2, 0, 50).Return([]Document{}, nil)
-		sourceStore.On("List", ctx, threatModelID1, 0, 50).Return([]Source{}, nil)
-		sourceStore.On("List", ctx, threatModelID2, 0, 50).Return([]Source{}, nil)
+		repositoryStore.On("List", ctx, threatModelID1, 0, 50).Return([]Repository{}, nil)
+		repositoryStore.On("List", ctx, threatModelID2, 0, 50).Return([]Repository{}, nil)
 
 		// Mock auth data query
 		mock.ExpectQuery("SELECT owner_email, created_by").
@@ -607,7 +607,7 @@ func TestCacheWarmer_WarmRecentThreatModels_INTEGRATION(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 		threatStore.AssertExpectations(t)
 		documentStore.AssertExpectations(t)
-		sourceStore.AssertExpectations(t)
+		repositoryStore.AssertExpectations(t)
 		cache.AssertExpectations(t)
 	})
 
@@ -642,8 +642,8 @@ func TestCacheWarmer_WarmOnDemandRequest_INTEGRATION(t *testing.T) {
 
 		threatStore := &MockThreatStore{}
 		documentStore := &MockDocumentStore{}
-		sourceStore := &MockSourceStore{}
-		warmer, _ := newTestCacheWarmer(db, threatStore, documentStore, sourceStore, nil)
+		repositoryStore := &MockRepositoryStore{}
+		warmer, _ := newTestCacheWarmer(db, threatStore, documentStore, repositoryStore, nil)
 		ctx := context.Background()
 
 		threatModelID := uuid.New().String()
@@ -657,14 +657,14 @@ func TestCacheWarmer_WarmOnDemandRequest_INTEGRATION(t *testing.T) {
 		// Mock warming all data for threat model (simplified)
 		threatStore.On("List", ctx, threatModelID, ThreatFilter{Offset: 0, Limit: 100}).Return([]Threat{}, nil)
 		documentStore.On("List", ctx, threatModelID, 0, 50).Return([]Document{}, nil)
-		sourceStore.On("List", ctx, threatModelID, 0, 50).Return([]Source{}, nil)
+		repositoryStore.On("List", ctx, threatModelID, 0, 50).Return([]Repository{}, nil)
 
 		err = warmer.WarmOnDemandRequest(ctx, request)
 
 		assert.NoError(t, err)
 		threatStore.AssertExpectations(t)
 		documentStore.AssertExpectations(t)
-		sourceStore.AssertExpectations(t)
+		repositoryStore.AssertExpectations(t)
 	})
 
 	t.Run("SpecificThreatRequest", func(t *testing.T) {

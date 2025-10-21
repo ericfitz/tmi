@@ -116,8 +116,8 @@ var ValidationConfigs = map[string]ValidationConfig{
 			if doc.Name == "" {
 				return InvalidInputError("Document name is required")
 			}
-			if doc.Url == "" {
-				return InvalidInputError("Document URL is required")
+			if doc.Uri == nil || *doc.Uri == "" {
+				return InvalidInputError("Document URI is required")
 			}
 			return nil
 		}),
@@ -139,49 +139,49 @@ var ValidationConfigs = map[string]ValidationConfig{
 			if doc.Name == "" {
 				return InvalidInputError("Document name is required")
 			}
-			if doc.Url == "" {
-				return InvalidInputError("Document URL is required")
+			if doc.Uri == nil || *doc.Uri == "" {
+				return InvalidInputError("Document URI is required")
 			}
 			return nil
 		}),
 		Operation: "PUT",
 	},
 
-	// Source endpoints
-	"source_create": {
+	// Repository endpoints
+	"repository_create": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
 		}), func(data interface{}) error {
-			// Validate required fields for sources
-			source, ok := data.(*Source)
+			// Validate required fields for repositories
+			repository, ok := data.(*Repository)
 			if !ok {
-				return InvalidInputError("Invalid data type for source validation")
+				return InvalidInputError("Invalid data type for repository validation")
 			}
-			if source.Url == "" {
-				return InvalidInputError("Source URL is required")
+			if repository.Uri == nil || *repository.Uri == "" {
+				return InvalidInputError("Repository URI is required")
 			}
 			return nil
 		}),
 		Operation: "POST",
 	},
 
-	"source_update": {
+	"repository_update": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
 		}), func(data interface{}) error {
-			// Validate required fields for sources
-			source, ok := data.(*Source)
+			// Validate required fields for repositories
+			repository, ok := data.(*Repository)
 			if !ok {
-				return InvalidInputError("Invalid data type for source validation")
+				return InvalidInputError("Invalid data type for repository validation")
 			}
-			if source.Url == "" {
-				return InvalidInputError("Source URL is required")
+			if repository.Uri == nil || *repository.Uri == "" {
+				return InvalidInputError("Repository URI is required")
 			}
 			return nil
 		}),

@@ -208,7 +208,7 @@ func TestThreatModelDatabaseStore_Create(t *testing.T) {
 		mock.ExpectExec("INSERT INTO threat_models").
 			WithArgs(
 				sqlmock.AnyArg(), testModel.Name, testModel.Description, testModel.Owner, testModel.CreatedBy,
-				"STRIDE", testModel.IssueUrl, testModel.CreatedAt, testModel.ModifiedAt,
+				"STRIDE", testModel.IssueUri, testModel.CreatedAt, testModel.ModifiedAt,
 				0, 0, 0, 0,
 			).
 			WillReturnResult(sqlmock.NewResult(1, 1))
@@ -298,7 +298,7 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 		mock.ExpectExec("UPDATE threat_models").
 			WithArgs(
 				testID, testModel.Name, testModel.Description, testModel.Owner, testModel.CreatedBy,
-				"STRIDE", testModel.IssueUrl, testModel.ModifiedAt,
+				"STRIDE", testModel.IssueUri, testModel.ModifiedAt,
 			).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 

@@ -908,7 +908,7 @@ build-all: build-server  # Deprecated: use build-everything
 build-everything: build-server
 test: test-unit
 lint:
-	@golangci-lint run
+	@$(HOME)/go/bin/golangci-lint run
 clean: clean-build
 dev: start-dev
 prod: start-dev  # For now, prod is same as dev

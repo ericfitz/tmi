@@ -145,12 +145,12 @@ func (cs *TestCacheService) GetCachedDocument(ctx context.Context, documentID st
 	return &document, nil
 }
 
-func (cs *TestCacheService) CacheSource(ctx context.Context, source *Source) error {
+func (cs *TestCacheService) CacheRepository(ctx context.Context, source *Repository) error {
 	if source.Id == nil {
 		return assert.AnError
 	}
 
-	key := cs.builder.CacheSourceKey(source.Id.String())
+	key := cs.builder.CacheRepositoryKey(source.Id.String())
 	data, err := json.Marshal(source)
 	if err != nil {
 		return err
@@ -159,20 +159,20 @@ func (cs *TestCacheService) CacheSource(ctx context.Context, source *Source) err
 	return cs.redis.Set(ctx, key, data, SubResourceCacheTTL)
 }
 
-func (cs *TestCacheService) GetCachedSource(ctx context.Context, sourceID string) (*Source, error) {
-	key := cs.builder.CacheSourceKey(sourceID)
+func (cs *TestCacheService) GetCachedRepository(ctx context.Context, sourceID string) (*Repository, error) {
+	key := cs.builder.CacheRepositoryKey(sourceID)
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
 		return nil, err
 	}
 
-	var source Source
-	err = json.Unmarshal([]byte(data), &source)
+	var repository Repository
+	err = json.Unmarshal([]byte(data), &repository)
 	if err != nil {
 		return nil, err
 	}
 
-	return &source, nil
+	return &repository, nil
 }
 
 func (cs *TestCacheService) CacheMetadata(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
@@ -214,7 +214,7 @@ func (cs *TestCacheService) InvalidateEntity(ctx context.Context, entityType, en
 			return err
 		}
 	case "source":
-		key := cs.builder.CacheSourceKey(entityID)
+		key := cs.builder.CacheRepositoryKey(entityID)
 		if err := cs.redis.Del(ctx, key); err != nil {
 			return err
 		}
@@ -359,7 +359,7 @@ func TestCacheService_CacheDocument(t *testing.T) {
 		document := &Document{
 			Id:   &docID,
 			Name: "Test Document",
-			Url:  "https://example.com/doc",
+			Uri:  stringPointer("https://example.com/doc"),
 		}
 
 		expectedKey := cs.builder.CacheDocumentKey(docID.String())
@@ -380,7 +380,7 @@ func TestCacheService_CacheDocument(t *testing.T) {
 		docID := uuid.New()
 		document := &Document{
 			Id:  &docID,
-			Url: "https://example.com/doc",
+			Uri: stringPointer("https://example.com/doc"),
 		}
 
 		expectedKey := cs.builder.CacheDocumentKey(docID.String())
@@ -405,7 +405,7 @@ func TestCacheService_GetCachedDocument(t *testing.T) {
 		document := &Document{
 			Id:   mustParseUUID(docID),
 			Name: "Cached Document",
-			Url:  "https://example.com/cached-doc",
+			Uri:  stringPointer("https://example.com/cached-doc"),
 		}
 
 		expectedKey := cs.builder.CacheDocumentKey(docID)
@@ -418,57 +418,57 @@ func TestCacheService_GetCachedDocument(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, document.Name, result.Name)
-		assert.Equal(t, document.Url, result.Url)
+		assert.Equal(t, *document.Uri, *result.Uri)
 		mockRedis.AssertExpectations(t)
 	})
 }
 
-// TestCacheService_CacheSource tests source code caching functionality
-func TestCacheService_CacheSource(t *testing.T) {
+// TestCacheService_CacheRepository tests source code caching functionality
+func TestCacheService_CacheRepository(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
 		sourceID := uuid.New()
-		source := &Source{
+		repository := &Repository{
 			Id:  &sourceID,
-			Url: "https://github.com/user/repo",
+			Uri: stringPointer("https://github.com/user/repo"),
 		}
 
-		expectedKey := cs.builder.CacheSourceKey(sourceID.String())
-		expectedData, _ := json.Marshal(source)
+		expectedKey := cs.builder.CacheRepositoryKey(sourceID.String())
+		expectedData, _ := json.Marshal(repository)
 
 		mockRedis.On("Set", ctx, expectedKey, expectedData, SubResourceCacheTTL).Return(nil)
 
-		err := cs.CacheSource(ctx, source)
+		err := cs.CacheRepository(ctx, repository)
 
 		assert.NoError(t, err)
 		mockRedis.AssertExpectations(t)
 	})
 }
 
-// TestCacheService_GetCachedSource tests source retrieval from cache
-func TestCacheService_GetCachedSource(t *testing.T) {
+// TestCacheService_GetCachedRepository tests source retrieval from cache
+func TestCacheService_GetCachedRepository(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
 		sourceID := "00000000-0000-0000-0000-000000000001"
-		source := &Source{
+		repository := &Repository{
 			Id:  mustParseUUID(sourceID),
-			Url: "https://github.com/cached/repo",
+			Uri: stringPointer("https://github.com/cached/repo"),
 		}
 
-		expectedKey := cs.builder.CacheSourceKey(sourceID)
-		sourceData, _ := json.Marshal(source)
+		expectedKey := cs.builder.CacheRepositoryKey(sourceID)
+		repositoryData, _ := json.Marshal(repository)
 
-		mockRedis.On("Get", ctx, expectedKey).Return(string(sourceData), nil)
+		mockRedis.On("Get", ctx, expectedKey).Return(string(repositoryData), nil)
 
-		result, err := cs.GetCachedSource(ctx, sourceID)
+		result, err := cs.GetCachedRepository(ctx, sourceID)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, source.Url, result.Url)
+		assert.Equal(t, *repository.Uri, *result.Uri)
 		mockRedis.AssertExpectations(t)
 	})
 }
