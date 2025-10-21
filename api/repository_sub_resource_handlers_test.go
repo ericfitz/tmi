@@ -96,8 +96,8 @@ func TestGetRepositorys(t *testing.T) {
 
 		threatModelID := "00000000-0000-0000-0000-000000000001"
 		repositorys := []Repository{
-			{Uri: stringPointer("https://github.com/user/repo1")},
-			{Uri: stringPointer("https://github.com/user/repo2")},
+			{Uri: "https://github.com/user/repo1"},
+			{Uri: "https://github.com/user/repo2"},
 		}
 
 		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
@@ -141,7 +141,7 @@ func TestGetRepositorys(t *testing.T) {
 
 		threatModelID := "00000000-0000-0000-0000-000000000001"
 		repositorys := []Repository{
-			{Uri: stringPointer("https://github.com/user/repo1")},
+			{Uri: "https://github.com/user/repo1"},
 		}
 
 		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
@@ -166,7 +166,7 @@ func TestGetRepository(t *testing.T) {
 		threatModelID := "00000000-0000-0000-0000-000000000001"
 		repositoryID := "00000000-0000-0000-0000-000000000002"
 
-		repository := &Repository{Uri: stringPointer("https://github.com/user/test-repo")}
+		repository := &Repository{Uri: "https://github.com/user/test-repo"}
 		uuid1, _ := uuid.Parse(repositoryID)
 		repository.Id = &uuid1
 		repository.Name = stringPtr("Test Repository")
@@ -430,12 +430,12 @@ func TestBulkCreateRepositorys(t *testing.T) {
 			{
 				"name":        "Bulk Repository 1",
 				"description": "First bulk repository",
-				"url":         "https://github.com/user/bulk1",
+				"uri":         "https://github.com/user/bulk1",
 			},
 			{
 				"name":        "Bulk Repository 2",
 				"description": "Second bulk repository",
-				"url":         "https://github.com/user/bulk2",
+				"uri":         "https://github.com/user/bulk2",
 			},
 		}
 

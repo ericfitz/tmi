@@ -1053,7 +1053,7 @@
                 "description": "List of documents related to the threat model",
                 "readOnly": true
               },
-              "respositories": {
+              "repositories": {
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Repository"

@@ -319,7 +319,7 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 
 	// Validate each repository
 	for _, repository := range repositorys {
-		if repository.Uri == nil || *repository.Uri == "" {
+		if repository.Uri == "" {
 			HandleRequestError(c, InvalidInputError("Repository URI is required for all repository code references"))
 			return
 		}

@@ -139,14 +139,14 @@ func InitSubResourceTestFixtures() {
 		Id:          &doc1UUID,
 		Name:        "Security Requirements Document",
 		Description: stringPointer("Detailed security requirements and compliance standards"),
-		Uri:         stringPointer("https://docs.internal.com/security-requirements"),
+		Uri:         "https://docs.internal.com/security-requirements",
 	}
 
 	SubResourceFixtures.Document2 = Document{
 		Id:          &doc2UUID,
 		Name:        "Architecture Design Document",
 		Description: stringPointer("System architecture and design specifications"),
-		Uri:         stringPointer("https://docs.internal.com/architecture-design"),
+		Uri:         "https://docs.internal.com/architecture-design",
 	}
 
 	// Create test repositories
@@ -160,7 +160,7 @@ func InitSubResourceTestFixtures() {
 		Id:          &repository1UUID,
 		Name:        stringPointer("Authentication Service"),
 		Description: stringPointer("Core authentication and authorization service"),
-		Uri:         stringPointer("https://github.com/company/auth-service"),
+		Uri:         "https://github.com/company/auth-service",
 		Type:        &gitType,
 	}
 
@@ -168,7 +168,7 @@ func InitSubResourceTestFixtures() {
 		Id:          &repository2UUID,
 		Name:        stringPointer("Database Layer"),
 		Description: stringPointer("Database access layer and ORM implementation"),
-		Uri:         stringPointer("https://github.com/company/db-layer"),
+		Uri:         "https://github.com/company/db-layer",
 		Type:        &gitType,
 	}
 
@@ -287,7 +287,7 @@ func CreateTestDocumentWithMetadata(metadata []Metadata) Document {
 		Id:          &docUUID,
 		Name:        "Test Document",
 		Description: stringPointer("A test document for unit testing"),
-		Uri:         stringPointer("https://test.example.com/doc"),
+		Uri:         "https://test.example.com/doc",
 		Metadata:    &metadata,
 	}
 }
@@ -301,7 +301,7 @@ func CreateTestRepositoryWithMetadata(metadata []Metadata) Repository {
 		Id:          &repositoryUUID,
 		Name:        stringPointer("Test Repository"),
 		Description: stringPointer("A test repository for unit testing"),
-		Uri:         stringPointer("https://github.com/test/repo"),
+		Uri:         "https://github.com/test/repo",
 		Type:        &gitType,
 		Metadata:    &metadata,
 	}
@@ -338,14 +338,14 @@ func AssertThreatEqual(t1, t2 Threat) bool {
 func AssertDocumentEqual(d1, d2 Document) bool {
 	return d1.Name == d2.Name &&
 		compareStringPointers(d1.Description, d2.Description) &&
-		compareStringPointers(d1.Uri, d2.Uri)
+		d1.Uri == d2.Uri
 }
 
 // AssertRepositoryEqual compares two repositories for testing equality
 func AssertRepositoryEqual(r1, r2 Repository) bool {
 	return compareStringPointers(r1.Name, r2.Name) &&
 		compareStringPointers(r1.Description, r2.Description) &&
-		compareStringPointers(r1.Uri, r2.Uri) &&
+		r1.Uri == r2.Uri &&
 		compareRepositoryTypes(r1.Type, r2.Type)
 }
 

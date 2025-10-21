@@ -234,7 +234,7 @@ func createTestDocumentForWarming() Document {
 	return Document{
 		Id:   &id,
 		Name: "Test Document",
-		Uri:  stringPointer("https://example.com/doc"),
+		Uri:  "https://example.com/doc",
 	}
 }
 
@@ -242,7 +242,7 @@ func createTestRepositoryForWarming() Repository {
 	id := uuid.New()
 	return Repository{
 		Id:  &id,
-		Uri: stringPointer("https://github.com/example/repo"),
+		Uri: "https://github.com/example/repo",
 	}
 }
 

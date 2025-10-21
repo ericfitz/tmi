@@ -63,7 +63,7 @@ func extendedToRepository(extSrc *ExtendedRepository) *Repository {
 // Create creates a new repository with write-through caching
 func (s *DatabaseRepositoryStore) Create(ctx context.Context, repository *Repository, threatModelID string) error {
 	logger := slogging.Get()
-	logger.Debug("Creating repository: %s in threat model: %s", *repository.Uri, threatModelID)
+	logger.Debug("Creating repository: %s in threat model: %s", repository.Uri, threatModelID)
 
 	// Generate ID if not provided
 	if repository.Id == nil {

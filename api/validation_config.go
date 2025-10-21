@@ -116,7 +116,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 			if doc.Name == "" {
 				return InvalidInputError("Document name is required")
 			}
-			if doc.Uri == nil || *doc.Uri == "" {
+			if doc.Uri == "" {
 				return InvalidInputError("Document URI is required")
 			}
 			return nil
@@ -139,7 +139,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 			if doc.Name == "" {
 				return InvalidInputError("Document name is required")
 			}
-			if doc.Uri == nil || *doc.Uri == "" {
+			if doc.Uri == "" {
 				return InvalidInputError("Document URI is required")
 			}
 			return nil
@@ -160,7 +160,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 			if !ok {
 				return InvalidInputError("Invalid data type for repository validation")
 			}
-			if repository.Uri == nil || *repository.Uri == "" {
+			if repository.Uri == "" {
 				return InvalidInputError("Repository URI is required")
 			}
 			return nil
@@ -180,7 +180,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 			if !ok {
 				return InvalidInputError("Invalid data type for repository validation")
 			}
-			if repository.Uri == nil || *repository.Uri == "" {
+			if repository.Uri == "" {
 				return InvalidInputError("Repository URI is required")
 			}
 			return nil

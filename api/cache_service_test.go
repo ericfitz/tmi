@@ -359,7 +359,7 @@ func TestCacheService_CacheDocument(t *testing.T) {
 		document := &Document{
 			Id:   &docID,
 			Name: "Test Document",
-			Uri:  stringPointer("https://example.com/doc"),
+			Uri:  "https://example.com/doc",
 		}
 
 		expectedKey := cs.builder.CacheDocumentKey(docID.String())
@@ -380,7 +380,7 @@ func TestCacheService_CacheDocument(t *testing.T) {
 		docID := uuid.New()
 		document := &Document{
 			Id:  &docID,
-			Uri: stringPointer("https://example.com/doc"),
+			Uri: "https://example.com/doc",
 		}
 
 		expectedKey := cs.builder.CacheDocumentKey(docID.String())
@@ -405,7 +405,7 @@ func TestCacheService_GetCachedDocument(t *testing.T) {
 		document := &Document{
 			Id:   mustParseUUID(docID),
 			Name: "Cached Document",
-			Uri:  stringPointer("https://example.com/cached-doc"),
+			Uri:  "https://example.com/cached-doc",
 		}
 
 		expectedKey := cs.builder.CacheDocumentKey(docID)
@@ -418,7 +418,7 @@ func TestCacheService_GetCachedDocument(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, document.Name, result.Name)
-		assert.Equal(t, *document.Uri, *result.Uri)
+		assert.Equal(t, document.Uri, result.Uri)
 		mockRedis.AssertExpectations(t)
 	})
 }
@@ -432,7 +432,7 @@ func TestCacheService_CacheRepository(t *testing.T) {
 		sourceID := uuid.New()
 		repository := &Repository{
 			Id:  &sourceID,
-			Uri: stringPointer("https://github.com/user/repo"),
+			Uri: "https://github.com/user/repo",
 		}
 
 		expectedKey := cs.builder.CacheRepositoryKey(sourceID.String())
@@ -456,7 +456,7 @@ func TestCacheService_GetCachedRepository(t *testing.T) {
 		sourceID := "00000000-0000-0000-0000-000000000001"
 		repository := &Repository{
 			Id:  mustParseUUID(sourceID),
-			Uri: stringPointer("https://github.com/cached/repo"),
+			Uri: "https://github.com/cached/repo",
 		}
 
 		expectedKey := cs.builder.CacheRepositoryKey(sourceID)
@@ -468,7 +468,7 @@ func TestCacheService_GetCachedRepository(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, *repository.Uri, *result.Uri)
+		assert.Equal(t, repository.Uri, result.Uri)
 		mockRedis.AssertExpectations(t)
 	})
 }

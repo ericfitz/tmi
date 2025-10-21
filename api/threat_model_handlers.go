@@ -90,7 +90,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 			IssueUri:             tm.IssueUri,
 			// Count fields from database
 			DocumentCount: tmWithCounts.DocumentCount,
-			SourceCount:   tmWithCounts.SourceCount,
+			RepoCount:     tmWithCounts.SourceCount,
 			DiagramCount:  tmWithCounts.DiagramCount,
 			ThreatCount:   tmWithCounts.ThreatCount,
 		})
@@ -316,10 +316,10 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		ModifiedAt: func() *time.Time { now := time.Now().UTC(); return &now }(),
 		CreatedBy:  tm.CreatedBy,
 		// Preserve sub-entity arrays (managed separately)
-		Diagrams:   tm.Diagrams,
-		Documents:  tm.Documents,
-		Threats:    tm.Threats,
-		SourceCode: tm.SourceCode,
+		Diagrams:     tm.Diagrams,
+		Documents:    tm.Documents,
+		Threats:      tm.Threats,
+		Repositories: tm.Repositories,
 	}
 
 	// Check if user has write access to the threat model
