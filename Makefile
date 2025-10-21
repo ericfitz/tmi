@@ -263,7 +263,7 @@ start-server:
 	if [ -z "$$LOG_FILE" ]; then LOG_FILE="logs/server.log"; fi; \
 	mkdir -p "$$(dirname "$$LOG_FILE")"; \
 	CONFIG_FILE="$(SERVER_CONFIG_FILE)"; \
-	if [ -z "$$CONFIG_FILE" ]; then CONFIG_FILE="config-development.yml"; fi; \
+	if [ -z "$$CONFIG_FILE" ]; then CONFIG_FILE="config-development.yaml"; fi; \
 	BINARY="$(SERVER_BINARY)"; \
 	if [ -z "$$BINARY" ]; then BINARY="bin/tmiserver"; fi; \
 	if [ -n "$(SERVER_TAGS)" ]; then \
