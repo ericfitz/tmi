@@ -78,7 +78,7 @@ func (h *CacheTestHelper) CacheTestDocument(t *testing.T, document *Document) {
 }
 
 // CacheTestSource caches a source for testing
-func (h *CacheTestHelper) CacheTestSource(t *testing.T, source *Source) {
+func (h *CacheTestHelper) CacheTestSource(t *testing.T, source *Repository) {
 	t.Helper()
 
 	err := h.Cache.CacheSource(h.TestContext, source)
@@ -497,7 +497,7 @@ func (h *CacheTestHelper) ClearDocumentCache(t *testing.T, documentID string) {
 // ClearSourceCache clears source cache for testing
 func (h *CacheTestHelper) ClearSourceCache(t *testing.T, sourceID string) {
 	t.Helper()
-	key := h.KeyBuilder.CacheSourceKey(sourceID)
+	key := h.KeyBuilder.CacheRepositoryKey(sourceID)
 	err := h.RedisClient.Del(h.TestContext, key)
 	if err != nil {
 		t.Errorf("Failed to clear source cache: %v", err)

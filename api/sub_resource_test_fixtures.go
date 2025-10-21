@@ -156,7 +156,7 @@ func InitSubResourceTestFixtures() {
 	SubResourceFixtures.Source2ID = source2UUID.String()
 
 	gitType := Git
-	SubResourceFixtures.Source1 = Source{
+	SubResourceFixtures.Source1 = Repository{
 		Id:          &source1UUID,
 		Name:        stringPointer("Authentication Service"),
 		Description: stringPointer("Core authentication and authorization service"),
@@ -164,7 +164,7 @@ func InitSubResourceTestFixtures() {
 		Type:        &gitType,
 	}
 
-	SubResourceFixtures.Source2 = Source{
+	SubResourceFixtures.Source2 = Repository{
 		Id:          &source2UUID,
 		Name:        stringPointer("Database Layer"),
 		Description: stringPointer("Database access layer and ORM implementation"),
@@ -297,7 +297,7 @@ func CreateTestSourceWithMetadata(metadata []Metadata) Source {
 	sourceUUID := uuid.New()
 
 	gitType := Git
-	return Source{
+	return Repository{
 		Id:          &sourceUUID,
 		Name:        stringPointer("Test Source"),
 		Description: stringPointer("A test source for unit testing"),

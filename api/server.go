@@ -16,9 +16,9 @@ import (
 type Server struct {
 	// Handlers
 	threatModelHandler         *ThreatModelHandler
-	documentHandler            *DocumentSubRerepositoryHandler
-	repositoryHandler              *RepositorySubRerepositoryHandler
-	threatHandler              *ThreatSubRerepositoryHandler
+	documentHandler            *DocumentSubResourceHandler
+	repositoryHandler              *RepositorySubResourceHandler
+	threatHandler              *ThreatSubResourceHandler
 	batchHandler               *BatchHandler
 	documentMetadataHandler    *DocumentMetadataHandler
 	repositoryMetadataHandler      *RepositoryMetadataHandler
@@ -35,9 +35,9 @@ type Server struct {
 func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeout time.Duration) *Server {
 	return &Server{
 		threatModelHandler:         NewThreatModelHandler(),
-		documentHandler:            NewDocumentSubRerepositoryHandler(GlobalDocumentStore, nil, nil, nil),
-		repositoryHandler:              NewRepositorySubRerepositoryHandler(GlobalRepositoryStore, nil, nil, nil),
-		threatHandler:              NewThreatSubRerepositoryHandler(GlobalThreatStore, nil, nil, nil),
+		documentHandler:            NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
+		repositoryHandler:              NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
+		threatHandler:              NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
 		batchHandler:               NewBatchHandler(GlobalThreatStore, nil, nil, nil),
 		documentMetadataHandler:    NewDocumentMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		repositoryMetadataHandler:      NewRepositoryMetadataHandler(GlobalMetadataStore, nil, nil, nil),

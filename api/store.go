@@ -57,7 +57,7 @@ type DiagramStoreInterface interface {
 var ThreatModelStore ThreatModelStoreInterface
 var DiagramStore DiagramStoreInterface
 var GlobalDocumentStore DocumentStore
-var GlobalSourceStore SourceStore
+var GlobalRepositoryStore RepositoryStore
 var GlobalThreatStore ThreatStore
 var GlobalMetadataStore MetadataStore
 

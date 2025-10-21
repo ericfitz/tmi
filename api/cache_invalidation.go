@@ -392,7 +392,7 @@ func (ci *CacheInvalidator) GetInvalidationPattern(entityType, entityID, parentT
 	case "document":
 		patterns = append(patterns, ci.builder.CacheDocumentKey(entityID))
 	case "source":
-		patterns = append(patterns, ci.builder.CacheSourceKey(entityID))
+		patterns = append(patterns, ci.builder.CacheRepositoryKey(entityID))
 	case "diagram":
 		patterns = append(patterns, ci.builder.CacheDiagramKey(entityID))
 	case "threat_model":

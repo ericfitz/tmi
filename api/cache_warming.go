@@ -16,7 +16,7 @@ type CacheWarmer struct {
 	cache             *CacheService
 	threatStore       ThreatStore
 	documentStore     DocumentStore
-	sourceStore       SourceStore
+	repositoryStore   RepositoryStore
 	metadataStore     MetadataStore
 	warmingEnabled    bool
 	warmingInterval   time.Duration
