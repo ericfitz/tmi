@@ -324,6 +324,7 @@ func (h *CacheTestHelper) TestCacheAuthOperations(t *testing.T, threatModelID st
 	authData := GetTestAuthorizationData("valid_multi_user")
 	if authData == nil {
 		t.Fatal("Failed to get test authorization data")
+		return
 	}
 
 	// Cache authorization data

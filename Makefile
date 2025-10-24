@@ -263,7 +263,7 @@ start-server:
 	if [ -z "$$LOG_FILE" ]; then LOG_FILE="logs/server.log"; fi; \
 	mkdir -p "$$(dirname "$$LOG_FILE")"; \
 	CONFIG_FILE="$(SERVER_CONFIG_FILE)"; \
-	if [ -z "$$CONFIG_FILE" ]; then CONFIG_FILE="config-development.yaml"; fi; \
+	if [ -z "$$CONFIG_FILE" ]; then CONFIG_FILE="config-development.yml"; fi; \
 	BINARY="$(SERVER_BINARY)"; \
 	if [ -z "$$BINARY" ]; then BINARY="bin/tmiserver"; fi; \
 	if [ -n "$(SERVER_TAGS)" ]; then \
@@ -517,7 +517,7 @@ start-dev:
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
 	go build -o bin/check-db cmd/check-db/main.go && \
 	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
-	SERVER_CONFIG_FILE=config-development.yaml $(MAKE) -f $(MAKEFILE_LIST) start-server
+	SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development environment started on port 8080")
 
 # Development Environment Cleanup
@@ -834,7 +834,7 @@ start-dev-existing:
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
 	go build -o bin/check-db cmd/check-db/main.go && \
 	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
-	SERVER_CONFIG_FILE=config-development.yaml $(MAKE) -f $(MAKEFILE_LIST) start-server
+	SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development server started on port 8080 using containers")
 
 # Shorthand for all container operations
