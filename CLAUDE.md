@@ -321,6 +321,17 @@ make test-integration name=TestDatabaseIntegration  # Run one integration test
 # API testing (requires server)
 make start-dev                   # Start server first
 
+### Heroku Operations
+
+- **Database Reset**: `make heroku-reset-db` - Drop and recreate Heroku database schema (DESTRUCTIVE)
+  - Script location: `scripts/heroku-reset-database.sh`
+  - Documentation: `docs/operator/heroku-database-reset.md`
+  - **WARNING**: Deletes all data - requires manual "yes" confirmation
+  - Use cases: Schema out of sync, migration errors, clean deployment testing
+  - Performs three steps: Drop schema → Run migrations → Verify schema
+  - Verifies critical columns (e.g., `issue_uri` in `threat_models`)
+  - Post-reset: Users must re-authenticate via OAuth
+
 ## Go Style Guidelines
 
 - Format code with `gofmt`
