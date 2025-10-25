@@ -4,6 +4,7 @@
 DROP INDEX IF EXISTS idx_metadata_threat_models;
 DROP INDEX IF EXISTS idx_metadata_diagrams;
 DROP INDEX IF EXISTS idx_metadata_sources;
+DROP INDEX IF EXISTS idx_metadata_notes;
 DROP INDEX IF EXISTS idx_metadata_documents;
 DROP INDEX IF EXISTS idx_metadata_threats;
 DROP INDEX IF EXISTS idx_metadata_entity_type_modified_at;
@@ -29,6 +30,16 @@ DROP INDEX IF EXISTS idx_sources_type;
 DROP INDEX IF EXISTS idx_sources_name;
 DROP INDEX IF EXISTS idx_sources_threat_model_id;
 DROP TABLE IF EXISTS sources;
+
+-- Drop notes table
+DROP INDEX IF EXISTS idx_notes_owner_via_threat_model;
+DROP INDEX IF EXISTS idx_notes_threat_model_modified_at;
+DROP INDEX IF EXISTS idx_notes_threat_model_created_at;
+DROP INDEX IF EXISTS idx_notes_modified_at;
+DROP INDEX IF EXISTS idx_notes_created_at;
+DROP INDEX IF EXISTS idx_notes_name;
+DROP INDEX IF EXISTS idx_notes_threat_model_id;
+DROP TABLE IF EXISTS notes;
 
 -- Drop documents table
 DROP INDEX IF EXISTS idx_documents_owner_via_threat_model;

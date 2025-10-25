@@ -129,6 +129,53 @@ func (cs *CacheService) GetCachedDocument(ctx context.Context, documentID string
 	return &document, nil
 }
 
+// CacheNote caches a note
+func (cs *CacheService) CacheNote(ctx context.Context, note *Note) error {
+	logger := slogging.Get()
+	key := cs.builder.CacheNoteKey(note.Id.String())
+
+	data, err := json.Marshal(note)
+	if err != nil {
+		logger.Error("Failed to marshal note for cache: %v", err)
+		return fmt.Errorf("failed to marshal note: %w", err)
+	}
+
+	err = cs.redis.Set(ctx, key, data, SubResourceCacheTTL)
+	if err != nil {
+		logger.Error("Failed to cache note %s: %v", note.Id, err)
+		return fmt.Errorf("failed to cache note: %w", err)
+	}
+
+	logger.Debug("Cached note %s with TTL %v", note.Id, SubResourceCacheTTL)
+	return nil
+}
+
+// GetCachedNote retrieves a cached note
+func (cs *CacheService) GetCachedNote(ctx context.Context, noteID string) (*Note, error) {
+	logger := slogging.Get()
+	key := cs.builder.CacheNoteKey(noteID)
+
+	data, err := cs.redis.Get(ctx, key)
+	if err != nil {
+		if err == redis.Nil {
+			logger.Debug("Cache miss for note %s", noteID)
+			return nil, nil // Cache miss
+		}
+		logger.Error("Failed to get cached note %s: %v", noteID, err)
+		return nil, fmt.Errorf("failed to get cached note: %w", err)
+	}
+
+	var note Note
+	err = json.Unmarshal([]byte(data), &note)
+	if err != nil {
+		logger.Error("Failed to unmarshal cached note %s: %v", noteID, err)
+		return nil, fmt.Errorf("failed to unmarshal cached note: %w", err)
+	}
+
+	logger.Debug("Cache hit for note %s", noteID)
+	return &note, nil
+}
+
 // CacheRepository caches a repository code entry
 func (cs *CacheService) CacheRepository(ctx context.Context, repository *Repository) error {
 	logger := slogging.Get()

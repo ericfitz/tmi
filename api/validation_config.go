@@ -147,6 +147,53 @@ var ValidationConfigs = map[string]ValidationConfig{
 		Operation: "PUT",
 	},
 
+	// Note endpoints
+	"note_create": {
+		ProhibitedFields: []string{
+			"id", "created_at", "modified_at",
+		},
+		CustomValidators: append(CommonValidators.GetValidators([]string{
+			"uuid_fields", "no_html_injection", "string_length",
+		}), func(data interface{}) error {
+			// Validate required fields for notes
+			note, ok := data.(*Note)
+			if !ok {
+				return InvalidInputError("Invalid data type for note validation")
+			}
+			if note.Name == "" {
+				return InvalidInputError("Note name is required")
+			}
+			if note.Content == "" {
+				return InvalidInputError("Note content is required")
+			}
+			return nil
+		}),
+		Operation: "POST",
+	},
+
+	"note_update": {
+		ProhibitedFields: []string{
+			"id", "created_at", "modified_at",
+		},
+		CustomValidators: append(CommonValidators.GetValidators([]string{
+			"uuid_fields", "no_html_injection", "string_length",
+		}), func(data interface{}) error {
+			// Validate required fields for notes
+			note, ok := data.(*Note)
+			if !ok {
+				return InvalidInputError("Invalid data type for note validation")
+			}
+			if note.Name == "" {
+				return InvalidInputError("Note name is required")
+			}
+			if note.Content == "" {
+				return InvalidInputError("Note content is required")
+			}
+			return nil
+		}),
+		Operation: "PUT",
+	},
+
 	// Repository endpoints
 	"repository_create": {
 		ProhibitedFields: []string{

@@ -31,6 +31,7 @@ type ThreatModelWithCounts struct {
 	SourceCount   int
 	DiagramCount  int
 	ThreatCount   int
+	NoteCount     int
 }
 
 type ThreatModelStoreInterface interface {
@@ -57,6 +58,7 @@ type DiagramStoreInterface interface {
 var ThreatModelStore ThreatModelStoreInterface
 var DiagramStore DiagramStoreInterface
 var GlobalDocumentStore DocumentStore
+var GlobalNoteStore NoteStore
 var GlobalRepositoryStore RepositoryStore
 var GlobalThreatStore ThreatStore
 var GlobalMetadataStore MetadataStore
@@ -66,6 +68,7 @@ func InitializeDatabaseStores(db *sql.DB) {
 	ThreatModelStore = NewThreatModelDatabaseStore(db)
 	DiagramStore = NewDiagramDatabaseStore(db)
 	GlobalDocumentStore = NewDatabaseDocumentStore(db, nil, nil)
+	GlobalNoteStore = NewDatabaseNoteStore(db, nil, nil)
 	GlobalRepositoryStore = NewDatabaseRepositoryStore(db, nil, nil)
 	GlobalThreatStore = NewDatabaseThreatStore(db, nil, nil)
 	GlobalMetadataStore = NewDatabaseMetadataStore(db, nil, nil)

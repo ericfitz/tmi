@@ -90,6 +90,11 @@ func (b *RedisKeyBuilder) CacheDocumentKey(docID string) string {
 	return fmt.Sprintf("cache:document:%s", docID)
 }
 
+// CacheNoteKey builds a note cache key
+func (b *RedisKeyBuilder) CacheNoteKey(noteID string) string {
+	return fmt.Sprintf("cache:note:%s", noteID)
+}
+
 // CacheRepositoryKey builds a source code cache key
 func (b *RedisKeyBuilder) CacheRepositoryKey(sourceID string) string {
 	return fmt.Sprintf("cache:repository:%s", sourceID)

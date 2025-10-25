@@ -17,10 +17,12 @@ type Server struct {
 	// Handlers
 	threatModelHandler         *ThreatModelHandler
 	documentHandler            *DocumentSubResourceHandler
+	noteHandler                *NoteSubResourceHandler
 	repositoryHandler          *RepositorySubResourceHandler
 	threatHandler              *ThreatSubResourceHandler
 	batchHandler               *BatchHandler
 	documentMetadataHandler    *DocumentMetadataHandler
+	noteMetadataHandler        *NoteMetadataHandler
 	repositoryMetadataHandler  *RepositoryMetadataHandler
 	threatMetadataHandler      *ThreatMetadataHandler
 	threatModelMetadataHandler *ThreatModelMetadataHandler
@@ -36,10 +38,12 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 	return &Server{
 		threatModelHandler:         NewThreatModelHandler(),
 		documentHandler:            NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
+		noteHandler:                NewNoteSubResourceHandler(GlobalNoteStore, nil, nil, nil),
 		repositoryHandler:          NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
 		threatHandler:              NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
 		batchHandler:               NewBatchHandler(GlobalThreatStore, nil, nil, nil),
 		documentMetadataHandler:    NewDocumentMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		noteMetadataHandler:        NewNoteMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		repositoryMetadataHandler:  NewRepositoryMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		threatMetadataHandler:      NewThreatMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		threatModelMetadataHandler: NewThreatModelMetadataHandler(GlobalMetadataStore, nil, nil, nil),
@@ -705,6 +709,73 @@ func (s *Server) GetDocumentMetadataByKey(c *gin.Context, threatModelId openapi_
 // UpdateDocumentMetadataByKey updates document metadata by key
 func (s *Server) UpdateDocumentMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) {
 	s.documentMetadataHandler.UpdateDocumentMetadata(c)
+}
+
+// Note Methods - Implementations
+
+// GetThreatModelNotes lists notes
+func (s *Server) GetThreatModelNotes(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelNotesParams) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.noteHandler.GetNotes(c)
+}
+
+// CreateThreatModelNote creates a note
+func (s *Server) CreateThreatModelNote(c *gin.Context, threatModelId openapi_types.UUID) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.noteHandler.CreateNote(c)
+}
+
+// DeleteThreatModelNote deletes a note
+func (s *Server) DeleteThreatModelNote(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "note_id", Value: noteId.String()})
+	s.noteHandler.DeleteNote(c)
+}
+
+// GetThreatModelNote gets a note
+func (s *Server) GetThreatModelNote(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "note_id", Value: noteId.String()})
+	s.noteHandler.GetNote(c)
+}
+
+// UpdateThreatModelNote updates a note
+func (s *Server) UpdateThreatModelNote(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "note_id", Value: noteId.String()})
+	s.noteHandler.UpdateNote(c)
+}
+
+// Note Metadata Methods - Implementations
+
+// GetNoteMetadata gets note metadata
+func (s *Server) GetNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
+	s.noteMetadataHandler.GetNoteMetadata(c)
+}
+
+// CreateNoteMetadata creates note metadata
+func (s *Server) CreateNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
+	s.noteMetadataHandler.CreateNoteMetadata(c)
+}
+
+// BulkUpdateNoteMetadata bulk updates note metadata
+func (s *Server) BulkUpdateNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
+	s.noteMetadataHandler.BulkCreateNoteMetadata(c)
+}
+
+// DeleteNoteMetadataByKey deletes note metadata by key
+func (s *Server) DeleteNoteMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID, key string) {
+	s.noteMetadataHandler.DeleteNoteMetadata(c)
+}
+
+// GetNoteMetadataByKey gets note metadata by key
+func (s *Server) GetNoteMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID, key string) {
+	s.noteMetadataHandler.GetNoteMetadataByKey(c)
+}
+
+// UpdateNoteMetadataByKey updates note metadata by key
+func (s *Server) UpdateNoteMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID, key string) {
+	s.noteMetadataHandler.UpdateNoteMetadata(c)
 }
 
 // Threat Model Metadata Methods - Placeholder implementations
