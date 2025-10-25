@@ -351,3 +351,80 @@ func (h *NoteMetadataHandler) BulkCreateNoteMetadata(c *gin.Context) {
 	logger.Debug("Successfully bulk created %d metadata entries for note %s", len(metadataList), noteID)
 	c.JSON(http.StatusCreated, createdMetadata)
 }
+
+// BulkUpdateNoteMetadata updates multiple metadata entries in a single request
+// PUT /threat_models/{threat_model_id}/notes/{note_id}/metadata/bulk
+func (h *NoteMetadataHandler) BulkUpdateNoteMetadata(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("BulkUpdateNoteMetadata - updating multiple metadata entries")
+
+	// Extract note ID from URL
+	noteID := c.Param("note_id")
+	if noteID == "" {
+		HandleRequestError(c, InvalidIDError("Missing note ID"))
+		return
+	}
+
+	// Validate note ID format
+	if _, err := ParseUUID(noteID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid note ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userEmail, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse and validate request body using OpenAPI validation
+	var metadataList []Metadata
+	if err := c.ShouldBindJSON(&metadataList); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Validate bulk metadata
+	if len(metadataList) == 0 {
+		HandleRequestError(c, InvalidInputError("No metadata entries provided"))
+		return
+	}
+
+	if len(metadataList) > 20 {
+		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+		return
+	}
+
+	// Check for duplicate keys within the request
+	keyMap := make(map[string]bool)
+	for _, metadata := range metadataList {
+		if keyMap[metadata.Key] {
+			HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
+			return
+		}
+		keyMap[metadata.Key] = true
+	}
+
+	logger.Debug("Bulk updating %d metadata entries for note %s (user: %s)",
+		len(metadataList), noteID, userEmail)
+
+	// Update metadata entries in store
+	if err := h.metadataStore.BulkUpdate(c.Request.Context(), "note", noteID, metadataList); err != nil {
+		logger.Error("Failed to bulk update note metadata for %s: %v", noteID, err)
+		HandleRequestError(c, ServerError("Failed to update metadata entries"))
+		return
+	}
+
+	// Retrieve the updated metadata to return with timestamps
+	updatedMetadata, err := h.metadataStore.List(c.Request.Context(), "note", noteID)
+	if err != nil {
+		// Log error but still return success since update succeeded
+		logger.Error("Failed to retrieve updated metadata: %v", err)
+		c.JSON(http.StatusOK, metadataList)
+		return
+	}
+
+	logger.Debug("Successfully bulk updated %d metadata entries for note %s", len(metadataList), noteID)
+	c.JSON(http.StatusOK, updatedMetadata)
+}

@@ -351,3 +351,81 @@ func (h *ThreatModelMetadataHandler) BulkCreateThreatModelMetadata(c *gin.Contex
 	logger.Debug("Successfully bulk created %d metadata entries for threat model %s", len(metadataList), threatModelID)
 	c.JSON(http.StatusCreated, createdMetadata)
 }
+
+// BulkUpdateThreatModelMetadata updates multiple metadata entries in a single request
+// PUT /threat_models/{threat_model_id}/metadata/bulk
+func (h *ThreatModelMetadataHandler) BulkUpdateThreatModelMetadata(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("BulkUpdateThreatModelMetadata - updating multiple metadata entries")
+
+	// Extract parameters from URL
+	threatmodelid := c.Param("threat_model_id")
+
+	if threatmodelid == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model id ID"))
+		return
+	}
+
+	// Validate threat model id ID format
+	if _, err := ParseUUID(threatmodelid); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model id ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userEmail, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse and validate request body using OpenAPI validation
+	var metadataList []Metadata
+	if err := c.ShouldBindJSON(&metadataList); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Validate bulk metadata
+	if len(metadataList) == 0 {
+		HandleRequestError(c, InvalidInputError("No metadata entries provided"))
+		return
+	}
+
+	if len(metadataList) > 20 {
+		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+		return
+	}
+
+	// Check for duplicate keys within the request
+	keyMap := make(map[string]bool)
+	for _, metadata := range metadataList {
+		if keyMap[metadata.Key] {
+			HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
+			return
+		}
+		keyMap[metadata.Key] = true
+	}
+
+	logger.Debug("Bulk updating %d metadata entries for threat_model %s (user: %s)",
+		len(metadataList), threatmodelid, userEmail)
+
+	// Update metadata entries in store
+	if err := h.metadataStore.BulkUpdate(c.Request.Context(), "threat_model", threatmodelid, metadataList); err != nil {
+		logger.Error("Failed to bulk update threat_model metadata for %s: %v", threatmodelid, err)
+		HandleRequestError(c, ServerError("Failed to update metadata entries"))
+		return
+	}
+
+	// Retrieve the updated metadata to return with timestamps
+	updatedMetadata, err := h.metadataStore.List(c.Request.Context(), "threat_model", threatmodelid)
+	if err != nil {
+		// Log error but still return success since update succeeded
+		logger.Error("Failed to retrieve updated metadata: %v", err)
+		c.JSON(http.StatusOK, metadataList)
+		return
+	}
+
+	logger.Debug("Successfully bulk updated %d metadata entries for threat_model %s", len(metadataList), threatmodelid)
+	c.JSON(http.StatusOK, updatedMetadata)
+}

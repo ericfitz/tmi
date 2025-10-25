@@ -351,3 +351,93 @@ func (h *DocumentMetadataHandler) BulkCreateDocumentMetadata(c *gin.Context) {
 	logger.Debug("Successfully bulk created %d metadata entries for document %s", len(metadataList), documentID)
 	c.JSON(http.StatusCreated, createdMetadata)
 }
+
+// BulkUpdateDocumentMetadata updates multiple metadata entries in a single request
+// PUT /threat_models/{threat_model_id}/documents/{document_id}/metadata/bulk
+func (h *DocumentMetadataHandler) BulkUpdateDocumentMetadata(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("BulkUpdateDocumentMetadata - updating multiple metadata entries")
+
+	// Extract parameters from URL
+	threatmodelid := c.Param("threat_model_id")
+	documentid := c.Param("document_id")
+
+	if threatmodelid == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model id ID"))
+		return
+	}
+
+	// Validate threat model id ID format
+	if _, err := ParseUUID(threatmodelid); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model id ID format, must be a valid UUID"))
+		return
+	}
+
+	if documentid == "" {
+		HandleRequestError(c, InvalidIDError("Missing document id ID"))
+		return
+	}
+
+	// Validate document id ID format
+	if _, err := ParseUUID(documentid); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid document id ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userEmail, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse and validate request body using OpenAPI validation
+	var metadataList []Metadata
+	if err := c.ShouldBindJSON(&metadataList); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Validate bulk metadata
+	if len(metadataList) == 0 {
+		HandleRequestError(c, InvalidInputError("No metadata entries provided"))
+		return
+	}
+
+	if len(metadataList) > 20 {
+		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+		return
+	}
+
+	// Check for duplicate keys within the request
+	keyMap := make(map[string]bool)
+	for _, metadata := range metadataList {
+		if keyMap[metadata.Key] {
+			HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
+			return
+		}
+		keyMap[metadata.Key] = true
+	}
+
+	logger.Debug("Bulk updating %d metadata entries for document %s in threat model id %s (user: %s)",
+		len(metadataList), documentid, threatmodelid, userEmail)
+
+	// Update metadata entries in store
+	if err := h.metadataStore.BulkUpdate(c.Request.Context(), "document", documentid, metadataList); err != nil {
+		logger.Error("Failed to bulk update document metadata for %s: %v", documentid, err)
+		HandleRequestError(c, ServerError("Failed to update metadata entries"))
+		return
+	}
+
+	// Retrieve the updated metadata to return with timestamps
+	updatedMetadata, err := h.metadataStore.List(c.Request.Context(), "document", documentid)
+	if err != nil {
+		// Log error but still return success since update succeeded
+		logger.Error("Failed to retrieve updated metadata: %v", err)
+		c.JSON(http.StatusOK, metadataList)
+		return
+	}
+
+	logger.Debug("Successfully bulk updated %d metadata entries for document %s", len(metadataList), documentid)
+	c.JSON(http.StatusOK, updatedMetadata)
+}

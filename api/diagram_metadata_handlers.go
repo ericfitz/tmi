@@ -933,6 +933,83 @@ func (h *DiagramMetadataHandler) BulkCreateDirectDiagramMetadata(c *gin.Context)
 	c.JSON(http.StatusCreated, createdMetadata)
 }
 
+// BulkUpdateDirectDiagramMetadata updates multiple metadata entries for a diagram via direct route
+// PUT /diagrams/{id}/metadata/bulk
+func (h *DiagramMetadataHandler) BulkUpdateDirectDiagramMetadata(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("BulkUpdateDirectDiagramMetadata - updating multiple metadata entries")
+
+	// Extract diagram ID from URL
+	diagramID := c.Param("id")
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+
+	// Validate diagram ID format
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userEmail, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse and validate request body using OpenAPI validation
+	var metadataList []Metadata
+	if err := c.ShouldBindJSON(&metadataList); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Validate bulk metadata
+	if len(metadataList) == 0 {
+		HandleRequestError(c, InvalidInputError("No metadata entries provided"))
+		return
+	}
+
+	if len(metadataList) > 20 {
+		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+		return
+	}
+
+	// Check for duplicate keys within the request
+	keyMap := make(map[string]bool)
+	for _, metadata := range metadataList {
+		if keyMap[metadata.Key] {
+			HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
+			return
+		}
+		keyMap[metadata.Key] = true
+	}
+
+	logger.Debug("Bulk updating %d metadata entries for diagram %s (user: %s)",
+		len(metadataList), diagramID, userEmail)
+
+	// Update metadata entries in store
+	if err := h.metadataStore.BulkUpdate(c.Request.Context(), "diagram", diagramID, metadataList); err != nil {
+		logger.Error("Failed to bulk update diagram metadata for %s: %v", diagramID, err)
+		HandleRequestError(c, ServerError("Failed to update metadata entries"))
+		return
+	}
+
+	// Retrieve the updated metadata to return with timestamps
+	updatedMetadata, err := h.metadataStore.List(c.Request.Context(), "diagram", diagramID)
+	if err != nil {
+		// Log error but still return success since update succeeded
+		logger.Error("Failed to retrieve updated metadata: %v", err)
+		c.JSON(http.StatusOK, metadataList)
+		return
+	}
+
+	logger.Debug("Successfully bulk updated %d metadata entries for diagram %s", len(metadataList), diagramID)
+	c.JSON(http.StatusOK, updatedMetadata)
+}
+
 // BulkCreateThreatModelDiagramMetadata creates multiple metadata entries for a diagram within a threat model
 // POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/bulk
 func (h *DiagramMetadataHandler) BulkCreateThreatModelDiagramMetadata(c *gin.Context) {
@@ -1018,4 +1095,91 @@ func (h *DiagramMetadataHandler) BulkCreateThreatModelDiagramMetadata(c *gin.Con
 
 	logger.Debug("Successfully bulk created %d metadata entries for diagram %s", len(metadataList), diagramID)
 	c.JSON(http.StatusCreated, createdMetadata)
+}
+
+// BulkUpdateThreatModelDiagramMetadata updates multiple metadata entries for a diagram within a threat model
+// PUT /threat_models/{threat_model_id}/diagrams/{diagram_id}/metadata/bulk
+func (h *DiagramMetadataHandler) BulkUpdateThreatModelDiagramMetadata(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("BulkUpdateThreatModelDiagramMetadata - updating multiple metadata entries for diagram in threat model")
+
+	// Extract threat model ID and diagram ID from URL
+	threatModelID := c.Param("threat_model_id")
+	diagramID := c.Param("diagram_id")
+
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+	if diagramID == "" {
+		HandleRequestError(c, InvalidIDError("Missing diagram ID"))
+		return
+	}
+
+	// Validate threat model ID and diagram ID formats
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+	if _, err := ParseUUID(diagramID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid diagram ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userEmail, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse and validate request body using OpenAPI validation
+	var metadataList []Metadata
+	if err := c.ShouldBindJSON(&metadataList); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Validate bulk metadata
+	if len(metadataList) == 0 {
+		HandleRequestError(c, InvalidInputError("No metadata entries provided"))
+		return
+	}
+
+	if len(metadataList) > 20 {
+		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+		return
+	}
+
+	// Check for duplicate keys within the request
+	keyMap := make(map[string]bool)
+	for _, metadata := range metadataList {
+		if keyMap[metadata.Key] {
+			HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
+			return
+		}
+		keyMap[metadata.Key] = true
+	}
+
+	logger.Debug("Bulk updating %d metadata entries for diagram %s in threat model %s (user: %s)",
+		len(metadataList), diagramID, threatModelID, userEmail)
+
+	// Update metadata entries in store
+	if err := h.metadataStore.BulkUpdate(c.Request.Context(), "diagram", diagramID, metadataList); err != nil {
+		logger.Error("Failed to bulk update diagram metadata for %s: %v", diagramID, err)
+		HandleRequestError(c, ServerError("Failed to update metadata entries"))
+		return
+	}
+
+	// Retrieve the updated metadata to return with timestamps
+	updatedMetadata, err := h.metadataStore.List(c.Request.Context(), "diagram", diagramID)
+	if err != nil {
+		// Log error but still return success since update succeeded
+		logger.Error("Failed to retrieve updated metadata: %v", err)
+		c.JSON(http.StatusOK, metadataList)
+		return
+	}
+
+	logger.Debug("Successfully bulk updated %d metadata entries for diagram %s", len(metadataList), diagramID)
+	c.JSON(http.StatusOK, updatedMetadata)
 }
