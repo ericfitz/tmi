@@ -3,7 +3,7 @@
   "info": {
     "title": "TMI (Threat Modeling Improved) API",
     "description": "A RESTful API for collaborative threat modeling with full X6 graph library compatibility. This API provides schemas that align with AntV X6 cell object models for seamless integration with modern diagramming libraries. Supports OAuth 2.0 authentication with client callback integration for seamless single-page application authentication flows.",
-    "version": "0.101.0"
+    "version": "0.102.0"
   },
   "externalDocs": {
     "description": "Find more information here",
@@ -1076,6 +1076,14 @@
                 },
                 "description": "List of threats within the threat model",
                 "readOnly": true
+              },
+              "notes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Note"
+                },
+                "description": "List of notes associated with the threat model",
+                "readOnly": true
               }
             }
           }
@@ -1170,7 +1178,21 @@
               "issue_uri": "https://issues.example.com/browse/SEC-456"
             }
           ],
-          "issue_uri": "https://issues.example.com/browse/TM-123"
+          "issue_uri": "https://issues.example.com/browse/TM-123",
+          "notes": [
+            {
+              "id": "6ba7b810-9dad-11d1-beef-00c04fd430c8",
+              "name": "Security Considerations",
+              "content": "# Security Notes\n\n- Consider authentication requirements\n- Review encryption needs",
+              "description": "Important security considerations for the threat model",
+              "metadata": [
+                {
+                  "key": "priority",
+                  "value": "high"
+                }
+              ]
+            }
+          ]
         }
       },
       "Threat": {
