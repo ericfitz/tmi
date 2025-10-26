@@ -189,6 +189,13 @@ func main() {
 
 	slogging.Get().GetSlogger().Info("Login successful", "access_token_prefix", tokens.AccessToken[:20])
 
+	// Ensure user is created in database by calling /users/me
+	// This is critical because user creation happens on first authenticated request
+	if err := ensureUserExists(config, tokens); err != nil {
+		slogging.Get().GetSlogger().Error("Failed to ensure user exists in database", "error", err)
+		os.Exit(1)
+	}
+
 	if config.IsHost {
 		err = runHostMode(ctx, config, tokens)
 	} else {
@@ -325,6 +332,50 @@ func performOAuthLogin(ctx context.Context, config Config) (*AuthTokens, error) 
 	case <-time.After(30 * time.Second):
 		return nil, fmt.Errorf("OAuth callback timeout")
 	}
+}
+
+func ensureUserExists(config Config, tokens *AuthTokens) error {
+	// Call /users/me endpoint to trigger user creation in the database
+	// This is necessary because TMI creates users on first authenticated request
+	url := fmt.Sprintf("%s/users/me", config.ServerURL)
+
+	slogging.Get().GetSlogger().Debug("Ensuring user exists", "url", url)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to call /users/me: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		slogging.Get().GetSlogger().Error("Failed to retrieve user info",
+			"status_code", resp.StatusCode,
+			"status", resp.Status,
+			"body", string(respBody))
+		return fmt.Errorf("failed to get user info, status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	// Parse user info for logging
+	var userInfo map[string]interface{}
+	if err := json.Unmarshal(respBody, &userInfo); err == nil {
+		slogging.Get().GetSlogger().Info("User confirmed in database",
+			"user_id", userInfo["user_id"],
+			"email", userInfo["email"],
+			"name", userInfo["name"])
+	} else {
+		slogging.Get().GetSlogger().Info("User confirmed in database (raw response)", "body", string(respBody))
+	}
+
+	return nil
 }
 
 func startCallbackServer(ctx context.Context, handler *OAuthCallbackHandler) (net.Listener, error) {
@@ -531,13 +582,19 @@ func createThreatModel(config Config, tokens *AuthTokens, participants []string)
 	respBody, _ := io.ReadAll(resp.Body)
 	slogging.Get().GetSlogger().Debug("CreateThreatModel API response", "status_code", resp.StatusCode, "status", resp.Status)
 	if resp.StatusCode != http.StatusCreated {
-		slogging.Get().GetSlogger().Debug("CreateThreatModel API error response", "body", string(respBody))
-		return nil, fmt.Errorf("failed with status %d", resp.StatusCode)
+		slogging.Get().GetSlogger().Error("CreateThreatModel API failed",
+			"status_code", resp.StatusCode,
+			"status", resp.Status,
+			"body", string(respBody))
+		return nil, fmt.Errorf("failed with status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var threatModel ThreatModel
 	if err := json.Unmarshal(respBody, &threatModel); err != nil {
-		return nil, err
+		slogging.Get().GetSlogger().Error("Failed to parse threat model response",
+			"error", err,
+			"body", string(respBody))
+		return nil, fmt.Errorf("failed to parse threat model response: %w", err)
 	}
 
 	return &threatModel, nil
@@ -571,13 +628,19 @@ func createDiagram(config Config, tokens *AuthTokens, threatModelID string) (*Di
 	respBody, _ := io.ReadAll(resp.Body)
 	slogging.Get().GetSlogger().Debug("CreateDiagram API response", "status_code", resp.StatusCode, "status", resp.Status)
 	if resp.StatusCode != http.StatusCreated {
-		slogging.Get().GetSlogger().Debug("CreateDiagram API error response", "body", string(respBody))
-		return nil, fmt.Errorf("failed with status %d", resp.StatusCode)
+		slogging.Get().GetSlogger().Error("CreateDiagram API failed",
+			"status_code", resp.StatusCode,
+			"status", resp.Status,
+			"body", string(respBody))
+		return nil, fmt.Errorf("failed with status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var diagram Diagram
 	if err := json.Unmarshal(respBody, &diagram); err != nil {
-		return nil, err
+		slogging.Get().GetSlogger().Error("Failed to parse diagram response",
+			"error", err,
+			"body", string(respBody))
+		return nil, fmt.Errorf("failed to parse diagram response: %w", err)
 	}
 
 	return &diagram, nil
@@ -645,13 +708,19 @@ func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSess
 	respBody, _ := io.ReadAll(resp.Body)
 	slogging.Get().GetSlogger().Debug("FindAvailableSession API response", "status_code", resp.StatusCode, "status", resp.Status)
 	if resp.StatusCode != http.StatusOK {
-		slogging.Get().GetSlogger().Debug("FindAvailableSession API error response", "body", string(respBody))
-		return nil, "", "", fmt.Errorf("failed with status %d", resp.StatusCode)
+		slogging.Get().GetSlogger().Error("FindAvailableSession API failed",
+			"status_code", resp.StatusCode,
+			"status", resp.Status,
+			"body", string(respBody))
+		return nil, "", "", fmt.Errorf("failed with status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	// Parse the response as an array of collaboration sessions
 	var sessions []CollaborationSession
 	if err := json.Unmarshal(respBody, &sessions); err != nil {
+		slogging.Get().GetSlogger().Error("Failed to parse collaboration sessions response",
+			"error", err,
+			"body", string(respBody))
 		return nil, "", "", fmt.Errorf("failed to parse sessions response: %w", err)
 	}
 
