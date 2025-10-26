@@ -3870,15 +3870,6 @@
             "description": "Pagination offset"
           },
           {
-            "name": "sort",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "default": "created_at:desc"
-            },
-            "description": "Sort order (e.g., created_at:desc, name:asc)"
-          },
-          {
             "name": "owner",
             "in": "query",
             "schema": {
@@ -3903,12 +3894,12 @@
             "description": "Filter by threat model description (partial match)"
           },
           {
-            "name": "issue_url",
+            "name": "issue_uri",
             "in": "query",
             "schema": {
               "type": "string"
             },
-            "description": "Filter by issue URL (partial match)"
+            "description": "Filter by issue URI (partial match)"
           },
           {
             "name": "created_after",
@@ -3953,21 +3944,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/PaginatedResponse"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/TMListItem"
-                          }
-                        }
-                      }
-                    }
-                  ]
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TMListItem"
+                  }
                 },
                 "example": {
                   "data": [
@@ -4549,23 +4529,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "threats": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Threat"
-                      }
-                    },
-                    "total_count": {
-                      "type": "integer",
-                      "description": "Total number of threats in the threat model"
-                    }
-                  },
-                  "required": [
-                    "threats",
-                    "total_count"
-                  ]
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Threat"
+                  }
                 },
                 "examples": {
                   "threatList": {
@@ -6057,23 +6024,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "documents": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Document"
-                      }
-                    },
-                    "total_count": {
-                      "type": "integer",
-                      "description": "Total number of documents in the threat model"
-                    }
-                  },
-                  "required": [
-                    "documents",
-                    "total_count"
-                  ]
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Document"
+                  }
                 },
                 "examples": {
                   "documentList": {
@@ -7104,23 +7058,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "sources": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Repository"
-                      }
-                    },
-                    "total_count": {
-                      "type": "integer",
-                      "description": "Total number of sources in the threat model"
-                    }
-                  },
-                  "required": [
-                    "sources",
-                    "total_count"
-                  ]
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Repository"
+                  }
                 },
                 "examples": {
                   "sourceList": {
@@ -9706,23 +9647,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "notes": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Note"
-                      }
-                    },
-                    "total_count": {
-                      "type": "integer",
-                      "description": "Total number of notes in the threat model"
-                    }
-                  },
-                  "required": [
-                    "notes",
-                    "total_count"
-                  ]
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Note"
+                  }
                 }
               }
             }
