@@ -67,18 +67,74 @@ type CollaborationSession struct {
 	HostEmail      string    `json:"host_email"`
 }
 
+// WebSocketMessage represents the base structure for all AsyncAPI messages
 type WebSocketMessage struct {
-	MessageType string      `json:"message_type"`
-	User        *User       `json:"user,omitempty"`
-	OperationID string      `json:"operation_id,omitempty"`
-	Operation   interface{} `json:"operation,omitempty"`
-	Timestamp   string      `json:"timestamp,omitempty"`
+	MessageType string `json:"message_type"`
 }
 
+// User represents user information matching AsyncAPI spec
 type User struct {
 	UserID      string `json:"user_id"`
 	Email       string `json:"email"`
 	DisplayName string `json:"displayName"`
+}
+
+// CurrentPresenterMessage matches AsyncAPI CurrentPresenterPayload
+type CurrentPresenterMessage struct {
+	MessageType      string `json:"message_type"`
+	CurrentPresenter User   `json:"current_presenter"`
+}
+
+// ParticipantsUpdateMessage matches AsyncAPI ParticipantsUpdatePayload
+type ParticipantsUpdateMessage struct {
+	MessageType      string        `json:"message_type"`
+	Participants     []Participant `json:"participants"`
+	Host             string        `json:"host"`
+	CurrentPresenter string        `json:"current_presenter"`
+}
+
+type Participant struct {
+	User         User   `json:"user"`
+	Permissions  string `json:"permissions"`
+	LastActivity string `json:"last_activity"`
+}
+
+// ParticipantJoinedMessage matches AsyncAPI ParticipantJoinedPayload
+type ParticipantJoinedMessage struct {
+	MessageType string `json:"message_type"`
+	JoinedUser  User   `json:"joined_user"`
+	Timestamp   string `json:"timestamp"`
+}
+
+// ParticipantLeftMessage matches AsyncAPI ParticipantLeftPayload
+type ParticipantLeftMessage struct {
+	MessageType   string `json:"message_type"`
+	DepartedUser  User   `json:"departed_user"`
+	Timestamp     string `json:"timestamp"`
+}
+
+// DiagramOperationMessage matches AsyncAPI DiagramOperationPayload
+type DiagramOperationMessage struct {
+	MessageType    string      `json:"message_type"`
+	InitiatingUser User        `json:"initiating_user"`
+	OperationID    string      `json:"operation_id"`
+	SequenceNumber *uint64     `json:"sequence_number,omitempty"`
+	Operation      interface{} `json:"operation"`
+}
+
+// ErrorMessage matches AsyncAPI ErrorPayload
+type ErrorMessage struct {
+	MessageType string `json:"message_type"`
+	Error       string `json:"error"`
+	Message     string `json:"message"`
+	Code        string `json:"code,omitempty"`
+	Timestamp   string `json:"timestamp"`
+}
+
+// StateCorrectionMessage matches AsyncAPI StateCorrectionPayload
+type StateCorrectionMessage struct {
+	MessageType  string `json:"message_type"`
+	UpdateVector *int64 `json:"update_vector"`
 }
 
 func main() {
@@ -649,14 +705,101 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 				return
 			}
 
-			slogging.Get().GetSlogger().Debug("Received WebSocket message", "type", messageType, "timestamp", time.Now().Format("15:04:05.000"))
+			timestamp := time.Now().Format("15:04:05.000")
+			slogging.Get().GetSlogger().Debug("Received WebSocket message", "type", messageType, "timestamp", timestamp)
 
-			// Try to pretty-print JSON
+			// Parse the message to determine its type
+			var baseMsg WebSocketMessage
+			if err := json.Unmarshal(message, &baseMsg); err != nil {
+				slogging.Get().GetSlogger().Warn("Failed to parse message type", "error", err, "raw_message", string(message))
+				continue
+			}
+
+			// Handle different message types according to AsyncAPI spec
+			switch baseMsg.MessageType {
+			case "current_presenter":
+				var msg CurrentPresenterMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Current Presenter",
+						"user_id", msg.CurrentPresenter.UserID,
+						"email", msg.CurrentPresenter.Email,
+						"display_name", msg.CurrentPresenter.DisplayName)
+				}
+
+			case "participants_update":
+				var msg ParticipantsUpdateMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Participants Update",
+						"participant_count", len(msg.Participants),
+						"host", msg.Host,
+						"current_presenter", msg.CurrentPresenter)
+					for i, p := range msg.Participants {
+						slogging.Get().GetSlogger().Debug("Participant",
+							"index", i,
+							"user_id", p.User.UserID,
+							"email", p.User.Email,
+							"permissions", p.Permissions,
+							"last_activity", p.LastActivity)
+					}
+				}
+
+			case "participant_joined":
+				var msg ParticipantJoinedMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Participant Joined",
+						"user_id", msg.JoinedUser.UserID,
+						"email", msg.JoinedUser.Email,
+						"display_name", msg.JoinedUser.DisplayName,
+						"timestamp", msg.Timestamp)
+				}
+
+			case "participant_left":
+				var msg ParticipantLeftMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Participant Left",
+						"user_id", msg.DepartedUser.UserID,
+						"email", msg.DepartedUser.Email,
+						"display_name", msg.DepartedUser.DisplayName,
+						"timestamp", msg.Timestamp)
+				}
+
+			case "diagram_operation":
+				var msg DiagramOperationMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Diagram Operation",
+						"operation_id", msg.OperationID,
+						"initiating_user", msg.InitiatingUser.Email,
+						"sequence_number", msg.SequenceNumber)
+				}
+
+			case "state_correction":
+				var msg StateCorrectionMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("State Correction",
+						"update_vector", msg.UpdateVector)
+				}
+
+			case "error":
+				var msg ErrorMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Error("WebSocket Error Message",
+						"error", msg.Error,
+						"message", msg.Message,
+						"code", msg.Code,
+						"timestamp", msg.Timestamp)
+				}
+
+			default:
+				// For unknown message types, pretty-print the entire JSON
+				slogging.Get().GetSlogger().Debug("Unknown message type", "message_type", baseMsg.MessageType)
+			}
+
+			// Always log the full JSON for debugging purposes
 			var prettyJSON bytes.Buffer
 			if err := json.Indent(&prettyJSON, message, "", "  "); err == nil {
-				slogging.Get().GetSlogger().Debug("WebSocket message content", "json", prettyJSON.String())
+				slogging.Get().GetSlogger().Debug("Full message JSON", "json", prettyJSON.String())
 			} else {
-				slogging.Get().GetSlogger().Debug("WebSocket message content (raw)", "message", string(message))
+				slogging.Get().GetSlogger().Debug("Full message JSON (raw)", "message", string(message))
 			}
 		}
 	}()
