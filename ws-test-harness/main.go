@@ -57,14 +57,31 @@ type Diagram struct {
 	Type          string `json:"type"`
 }
 
+// CollaborationSession matches the OpenAPI CollaborationSession schema
 type CollaborationSession struct {
-	ID             string    `json:"id"`
-	CreatedAt      time.Time `json:"created_at"`
-	LastActivity   time.Time `json:"last_activity"`
-	DiagramVersion int       `json:"diagram_version"`
-	ActiveClients  int       `json:"active_clients"`
-	HostID         string    `json:"host_id"`
-	HostEmail      string    `json:"host_email"`
+	SessionID       string                   `json:"session_id"`
+	Host            string                   `json:"host"`
+	Presenter       string                   `json:"presenter"`
+	ThreatModelID   string                   `json:"threat_model_id"`
+	ThreatModelName string                   `json:"threat_model_name"`
+	DiagramID       string                   `json:"diagram_id"`
+	DiagramName     string                   `json:"diagram_name"`
+	Participants    []CollaborationParticipant `json:"participants"`
+	WebSocketURL    string                   `json:"websocket_url"`
+}
+
+// CollaborationParticipant matches the OpenAPI Participant schema
+type CollaborationParticipant struct {
+	User         CollaborationUser `json:"user"`
+	LastActivity string            `json:"last_activity"`
+	Permissions  string            `json:"permissions"`
+}
+
+// CollaborationUser matches the OpenAPI User schema
+type CollaborationUser struct {
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+	Name   string `json:"name"`
 }
 
 // WebSocketMessage represents the base structure for all AsyncAPI messages
@@ -412,7 +429,7 @@ func runHostMode(ctx context.Context, config Config, tokens *AuthTokens) error {
 	if err != nil {
 		return fmt.Errorf("failed to start collaboration session: %w", err)
 	}
-	slogging.Get().GetSlogger().Info("Started collaboration session", "id", session.ID)
+	slogging.Get().GetSlogger().Info("Started collaboration session", "session_id", session.SessionID)
 
 	// Connect to WebSocket
 	return connectToWebSocket(ctx, config, tokens, threatModel.ID, diagram.ID)
@@ -436,7 +453,7 @@ func runParticipantMode(ctx context.Context, config Config, tokens *AuthTokens) 
 				continue
 			}
 			if session != nil {
-				slogging.Get().GetSlogger().Info("Found collaboration session", "session_id", session.ID, "host", session.HostEmail)
+				slogging.Get().GetSlogger().Info("Found collaboration session", "session_id", session.SessionID, "host", session.Host)
 
 				// Connect to WebSocket - if it disconnects, we'll return here and continue polling
 				err = connectToWebSocket(ctx, config, tokens, threatModelID, diagramID)
@@ -586,15 +603,23 @@ func startCollaborationSession(config Config, tokens *AuthTokens, threatModelID,
 
 	respBody, _ := io.ReadAll(resp.Body)
 	slogging.Get().GetSlogger().Debug("StartCollaborationSession API response", "status_code", resp.StatusCode, "status", resp.Status)
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+
+	// Per OpenAPI spec, only 201 indicates successful creation
+	if resp.StatusCode != http.StatusCreated {
 		slogging.Get().GetSlogger().Debug("StartCollaborationSession API error response", "body", string(respBody))
-		return nil, fmt.Errorf("failed with status %d", resp.StatusCode)
+		return nil, fmt.Errorf("failed with status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var session CollaborationSession
 	if err := json.Unmarshal(respBody, &session); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse collaboration session response: %w", err)
 	}
+
+	slogging.Get().GetSlogger().Info("Collaboration session created",
+		"session_id", session.SessionID,
+		"host", session.Host,
+		"presenter", session.Presenter,
+		"websocket_url", session.WebSocketURL)
 
 	return &session, nil
 }
@@ -625,24 +650,7 @@ func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSess
 	}
 
 	// Parse the response as an array of collaboration sessions
-	var sessions []struct {
-		SessionID       string `json:"session_id"`
-		Host            string `json:"host"`
-		Presenter       string `json:"presenter"`
-		ThreatModelID   string `json:"threat_model_id"`
-		ThreatModelName string `json:"threat_model_name"`
-		DiagramID       string `json:"diagram_id"`
-		DiagramName     string `json:"diagram_name"`
-		WebSocketURL    string `json:"websocket_url"`
-		Participants    []struct {
-			UserID      string `json:"user_id"`
-			Email       string `json:"email"`
-			DisplayName string `json:"displayName"`
-			Role        string `json:"role"`
-			IsHost      bool   `json:"is_host"`
-			IsPresenter bool   `json:"is_presenter"`
-		} `json:"participants"`
-	}
+	var sessions []CollaborationSession
 	if err := json.Unmarshal(respBody, &sessions); err != nil {
 		return nil, "", "", fmt.Errorf("failed to parse sessions response: %w", err)
 	}
@@ -651,16 +659,15 @@ func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSess
 	if len(sessions) > 0 {
 		session := sessions[0]
 		slogging.Get().GetSlogger().Debug("Found active sessions", "count", len(sessions))
+		slogging.Get().GetSlogger().Info("Selected session details",
+			"session_id", session.SessionID,
+			"host", session.Host,
+			"presenter", session.Presenter,
+			"threat_model", session.ThreatModelName,
+			"diagram", session.DiagramName,
+			"participants", len(session.Participants))
 
-		// Convert to CollaborationSession format (matching the existing structure)
-		collabSession := &CollaborationSession{
-			ID:            session.SessionID,
-			HostID:        session.Host,
-			HostEmail:     session.Host,
-			ActiveClients: len(session.Participants),
-		}
-
-		return collabSession, session.ThreatModelID, session.DiagramID, nil
+		return &session, session.ThreatModelID, session.DiagramID, nil
 	}
 
 	return nil, "", "", nil
