@@ -436,6 +436,21 @@ func (h *WebSocketHub) GetSession(diagramID string) *DiagramSession {
 	return nil
 }
 
+// HasActiveSession checks if there is an active collaboration session for a diagram
+func (h *WebSocketHub) HasActiveSession(diagramID string) bool {
+	session := h.GetSession(diagramID)
+	if session == nil {
+		return false
+	}
+
+	session.mu.RLock()
+	defer session.mu.RUnlock()
+
+	// Only block if session is in active state
+	// Allow operations if session is terminating or terminated
+	return session.State == SessionStateActive
+}
+
 // CreateSession creates a new collaboration session if none exists, returns error if one already exists
 func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hostUserID string) (*DiagramSession, error) {
 	h.mu.Lock()

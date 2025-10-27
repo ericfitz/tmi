@@ -112,7 +112,7 @@ func TestThreatModelRoleBasedAccess(t *testing.T) {
 	readerRouter.Use(ThreatModelMiddleware())
 
 	// Add handlers
-	handler := NewThreatModelHandler()
+	handler := NewThreatModelHandler(NewWebSocketHubForTests())
 	for _, r := range []*gin.Engine{ownerRouter, writerRouter, readerRouter} {
 		r.GET("/threat_models/:threat_model_id", handler.GetThreatModelByID)
 		r.DELETE("/threat_models/:threat_model_id", handler.DeleteThreatModel)
@@ -197,7 +197,7 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 	ownerRouter.Use(ThreatModelMiddleware())
 
 	// Add handlers
-	handler := NewThreatModelHandler()
+	handler := NewThreatModelHandler(NewWebSocketHubForTests())
 	ownerRouter.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 	ownerRouter.PATCH("/threat_models/:threat_model_id", handler.PatchThreatModel)
 	ownerRouter.GET("/threat_models/:threat_model_id", handler.GetThreatModelByID)

@@ -36,7 +36,7 @@ func setupThreatModelValidationRouter() *gin.Engine {
 	router.Use(ThreatModelMiddleware())
 
 	// Register handlers
-	handler := NewThreatModelHandler()
+	handler := NewThreatModelHandler(NewWebSocketHubForTests())
 	router.POST("/threat_models", handler.CreateThreatModel)
 	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 	router.PATCH("/threat_models/:threat_model_id", handler.PatchThreatModel)

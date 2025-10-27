@@ -13,12 +13,15 @@ import (
 
 // ThreatModelHandler provides handlers for threat model operations
 type ThreatModelHandler struct {
-	// Could add dependencies like logger, metrics, etc.
+	// WebSocket hub for collaboration sessions
+	wsHub *WebSocketHub
 }
 
 // NewThreatModelHandler creates a new threat model handler
-func NewThreatModelHandler() *ThreatModelHandler {
-	return &ThreatModelHandler{}
+func NewThreatModelHandler(wsHub *WebSocketHub) *ThreatModelHandler {
+	return &ThreatModelHandler{
+		wsHub: wsHub,
+	}
 }
 
 // GetThreatModels returns a list of threat models
@@ -546,6 +549,18 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	if !hasOwnerAccess {
 		HandleRequestError(c, ForbiddenError("Only the owner can delete a threat model"))
 		return
+	}
+
+	// Check if any diagrams in this threat model have active collaboration sessions
+	if tm.Diagrams != nil {
+		for _, diagUnion := range *tm.Diagrams {
+			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+				if h.wsHub.HasActiveSession(dfdDiag.Id.String()) {
+					HandleRequestError(c, ConflictError("Cannot delete threat model while a diagram has an active collaboration session. Please end all collaboration sessions first."))
+					return
+				}
+			}
+		}
 	}
 
 	// Delete from store

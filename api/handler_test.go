@@ -30,7 +30,7 @@ func TestUpdateThreatModel(t *testing.T) {
 	})
 
 	// Register handler
-	handler := NewThreatModelHandler()
+	handler := NewThreatModelHandler(NewWebSocketHubForTests())
 	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 
 	// Create a simplified update payload - note: we don't include 'id' as it's read-only
@@ -94,7 +94,7 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 	})
 
 	// Register handler
-	handler := NewThreatModelHandler()
+	handler := NewThreatModelHandler(NewWebSocketHubForTests())
 	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 
 	// Get the current threat model
@@ -176,7 +176,7 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 	})
 
 	// Register handler
-	handler := NewThreatModelHandler()
+	handler := NewThreatModelHandler(NewWebSocketHubForTests())
 	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 
 	// Create an update payload with duplicate subjects - note: we don't include 'id' as it's read-only

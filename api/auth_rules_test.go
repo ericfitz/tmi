@@ -29,7 +29,7 @@ func TestOwnerCanChangeOwner(t *testing.T) {
 
 	// Add middleware and handler
 	router.Use(ThreatModelMiddleware())
-	handler := NewThreatModelHandler()
+	handler := NewThreatModelHandler(NewWebSocketHubForTests())
 	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 
 	// Get the existing threat model
@@ -117,7 +117,7 @@ func TestWriterCannotChangeOwner(t *testing.T) {
 
 	// Add middleware and handler
 	router.Use(ThreatModelMiddleware())
-	handler := NewThreatModelHandler()
+	handler := NewThreatModelHandler(NewWebSocketHubForTests())
 	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 
 	// Get the existing threat model

@@ -37,7 +37,7 @@ func setupThreatModelRouterWithUser(userName string) *gin.Engine {
 	r.Use(ThreatModelMiddleware())
 
 	// Register threat model routes
-	handler := NewThreatModelHandler()
+	handler := NewThreatModelHandler(NewWebSocketHubForTests())
 	r.GET("/threat_models", handler.GetThreatModels)
 	r.POST("/threat_models", handler.CreateThreatModel)
 	r.GET("/threat_models/:threat_model_id", handler.GetThreatModelByID)
@@ -895,7 +895,7 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 		c.Next()
 	})
 
-	handler := NewThreatModelHandler()
+	handler := NewThreatModelHandler(NewWebSocketHubForTests())
 	unauthRouter.GET("/threat_models", handler.GetThreatModels)
 
 	listReq5, _ := http.NewRequest("GET", "/threat_models", nil)

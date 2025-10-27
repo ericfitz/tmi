@@ -347,6 +347,12 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 		return
 	}
 
+	// Check if there is an active collaboration session
+	if h.wsHub.HasActiveSession(diagramId) {
+		HandleRequestError(c, ConflictError("Cannot modify diagram while collaboration session is active. Please end the collaboration session first."))
+		return
+	}
+
 	// Get existing diagram
 	existingDiagram, err := DiagramStore.Get(diagramId)
 	if err != nil {
@@ -443,6 +449,12 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 		return
 	}
 
+	// Check if there is an active collaboration session
+	if h.wsHub.HasActiveSession(diagramId) {
+		HandleRequestError(c, ConflictError("Cannot modify diagram while collaboration session is active. Please end the collaboration session first."))
+		return
+	}
+
 	// Get existing diagram
 	existingDiagram, err := DiagramStore.Get(diagramId)
 	if err != nil {
@@ -534,6 +546,12 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 
 	if !diagramFound {
 		HandleRequestError(c, NotFoundError("Diagram not found in this threat model"))
+		return
+	}
+
+	// Check if there is an active collaboration session
+	if h.wsHub.HasActiveSession(diagramId) {
+		HandleRequestError(c, ConflictError("Cannot delete diagram while collaboration session is active. Please end the collaboration session first."))
 		return
 	}
 

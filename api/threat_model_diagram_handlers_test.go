@@ -42,7 +42,7 @@ func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 	r.Use(ThreatModelMiddleware())
 
 	// Register threat model routes
-	tmHandler := NewThreatModelHandler()
+	tmHandler := NewThreatModelHandler(NewWebSocketHubForTests())
 	r.GET("/threat_models", tmHandler.GetThreatModels)
 	r.POST("/threat_models", tmHandler.CreateThreatModel)
 	r.GET("/threat_models/:threat_model_id", tmHandler.GetThreatModelByID)
@@ -711,7 +711,7 @@ func TestDeleteThreatModelDiagramCollaborateImmediateDisconnection(t *testing.T)
 	r.Use(ThreatModelMiddleware())
 
 	// Create handlers
-	tmHandler := NewThreatModelHandler()
+	tmHandler := NewThreatModelHandler(NewWebSocketHubForTests())
 	diagramHandler := NewThreatModelDiagramHandler(wsHub)
 
 	// Register all routes needed for the test

@@ -295,6 +295,15 @@ func UnauthorizedError(message string) *RequestError {
 	}
 }
 
+// ConflictError creates a RequestError for resource conflicts
+func ConflictError(message string) *RequestError {
+	return &RequestError{
+		Status:  http.StatusConflict,
+		Code:    "conflict",
+		Message: message,
+	}
+}
+
 // NotFoundErrorWithDetails creates a RequestError for resource not found with additional context
 func NotFoundErrorWithDetails(message string, code string, context map[string]interface{}, suggestion string) *RequestError {
 	return &RequestError{

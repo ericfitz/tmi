@@ -35,8 +35,9 @@ type Server struct {
 
 // NewServer creates a new API server instance
 func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeout time.Duration) *Server {
+	wsHub := NewWebSocketHub(wsLoggingConfig, inactivityTimeout)
 	return &Server{
-		threatModelHandler:         NewThreatModelHandler(),
+		threatModelHandler:         NewThreatModelHandler(wsHub),
 		documentHandler:            NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
 		noteHandler:                NewNoteSubResourceHandler(GlobalNoteStore, nil, nil, nil),
 		repositoryHandler:          NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
@@ -47,7 +48,7 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 		repositoryMetadataHandler:  NewRepositoryMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		threatMetadataHandler:      NewThreatMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		threatModelMetadataHandler: NewThreatModelMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		wsHub:                      NewWebSocketHub(wsLoggingConfig, inactivityTimeout),
+		wsHub:                      wsHub,
 		// authService will be set separately via SetAuthService
 	}
 }

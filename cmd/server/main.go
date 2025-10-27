@@ -428,32 +428,32 @@ func DevUserInfoHandler() gin.HandlerFunc {
 }
 
 func (s *Server) GetThreatModels(c *gin.Context) {
-	threatModelHandler := api.NewThreatModelHandler()
+	threatModelHandler := api.NewThreatModelHandler(s.apiServer.GetWebSocketHub())
 	threatModelHandler.GetThreatModels(c)
 }
 
 func (s *Server) PostThreatModels(c *gin.Context) {
-	threatModelHandler := api.NewThreatModelHandler()
+	threatModelHandler := api.NewThreatModelHandler(s.apiServer.GetWebSocketHub())
 	threatModelHandler.CreateThreatModel(c)
 }
 
 func (s *Server) GetThreatModelsId(c *gin.Context) {
-	threatModelHandler := api.NewThreatModelHandler()
+	threatModelHandler := api.NewThreatModelHandler(s.apiServer.GetWebSocketHub())
 	threatModelHandler.GetThreatModelByID(c)
 }
 
 func (s *Server) PutThreatModelsId(c *gin.Context) {
-	threatModelHandler := api.NewThreatModelHandler()
+	threatModelHandler := api.NewThreatModelHandler(s.apiServer.GetWebSocketHub())
 	threatModelHandler.UpdateThreatModel(c)
 }
 
 func (s *Server) PatchThreatModelsId(c *gin.Context) {
-	threatModelHandler := api.NewThreatModelHandler()
+	threatModelHandler := api.NewThreatModelHandler(s.apiServer.GetWebSocketHub())
 	threatModelHandler.PatchThreatModel(c)
 }
 
 func (s *Server) DeleteThreatModelsId(c *gin.Context) {
-	threatModelHandler := api.NewThreatModelHandler()
+	threatModelHandler := api.NewThreatModelHandler(s.apiServer.GetWebSocketHub())
 	threatModelHandler.DeleteThreatModel(c)
 }
 
