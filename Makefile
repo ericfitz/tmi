@@ -528,7 +528,7 @@ start-dev-0:
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
 	go build -o bin/check-db cmd/check-db/main.go && \
 	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
-	TMI_SERVER_INTERFACE=0.0.0.0 SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
+	SERVER_INTERFACE=0.0.0.0 SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development environment started on 0.0.0.0:8080")
 
 # Development Environment Cleanup
