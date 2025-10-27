@@ -39,9 +39,10 @@ type AuthTokens struct {
 }
 
 type OAuthCallbackHandler struct {
-	tokens    chan AuthTokens
-	errorChan chan error
-	port      int
+	tokens      chan AuthTokens
+	errorChan   chan error
+	port        int
+	callbackURL string
 }
 
 type ThreatModel struct {
@@ -265,6 +266,7 @@ func performOAuthLogin(ctx context.Context, config Config) (*AuthTokens, error) 
 	// Get the callback URL
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
 	callbackURL := fmt.Sprintf("http://localhost:%s/callback", port)
+	callbackHandler.callbackURL = callbackURL
 
 	// Build OAuth authorization URL
 	authURL, err := url.Parse(config.ServerURL + "/oauth2/authorize")
@@ -279,43 +281,82 @@ func performOAuthLogin(ctx context.Context, config Config) (*AuthTokens, error) 
 	query.Set("scope", "openid email profile")
 	authURL.RawQuery = query.Encode()
 
+	slogging.Get().GetSlogger().Info("Starting OAuth authorization flow",
+		"server_url", config.ServerURL,
+		"user_hint", config.UserHint,
+		"callback_url", callbackURL)
 	slogging.Get().GetSlogger().Debug("OAuth authorization request", "url", authURL.String())
 
 	// Make the OAuth authorization request
 	// Don't follow redirects automatically since we need the callback to go to our server
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			slogging.Get().GetSlogger().Debug("Redirect detected", "from", req.URL.String(), "to", via[0].URL.String())
 			return http.ErrUseLastResponse
 		},
 	}
 
 	resp, err := client.Get(authURL.String())
 	if err != nil {
+		slogging.Get().GetSlogger().Error("OAuth authorization request failed", "error", err, "url", authURL.String())
 		return nil, fmt.Errorf("OAuth authorization request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	slogging.Get().GetSlogger().Debug("OAuth authorization response", "status_code", resp.StatusCode, "status", resp.Status)
+	slogging.Get().GetSlogger().Info("OAuth authorization response received",
+		"status_code", resp.StatusCode,
+		"status", resp.Status)
 
 	// OAuth should redirect to our callback
-	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusSeeOther {
+	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusSeeOther || resp.StatusCode == http.StatusMovedPermanently {
 		// Get the redirect location
 		redirectURL := resp.Header.Get("Location")
-		slogging.Get().GetSlogger().Debug("OAuth redirect", "location", redirectURL)
+		slogging.Get().GetSlogger().Info("OAuth server returned redirect",
+			"redirect_url", redirectURL,
+			"status_code", resp.StatusCode)
 
-		// The test OAuth provider might redirect directly with tokens in the fragment
-		// We need to follow this redirect ourselves
-		if redirectURL != "" {
-			redirectResp, err := http.Get(redirectURL)
+		// Parse the redirect URL to check if it's our callback
+		parsedRedirect, err := url.Parse(redirectURL)
+		if err != nil {
+			slogging.Get().GetSlogger().Error("Failed to parse redirect URL", "error", err, "url", redirectURL)
+			return nil, fmt.Errorf("failed to parse redirect URL: %w", err)
+		}
+
+		slogging.Get().GetSlogger().Info("Parsed redirect URL",
+			"host", parsedRedirect.Host,
+			"path", parsedRedirect.Path,
+			"query", parsedRedirect.RawQuery,
+			"fragment", parsedRedirect.Fragment)
+
+		// Check if this is a redirect to our callback server
+		if strings.Contains(parsedRedirect.Host, "localhost") && strings.Contains(redirectURL, "/callback") {
+			slogging.Get().GetSlogger().Info("Redirect is to our callback server - OAuth flow initiated successfully")
+			// The redirect will trigger our callback server automatically when followed by a browser
+			// But we're in a headless HTTP client, so we need to manually trigger the callback
+			// by making a GET request to our own callback server
+			slogging.Get().GetSlogger().Info("Manually triggering callback", "callback_url", redirectURL)
+
+			// Make request to our own callback server
+			callbackResp, err := http.Get(redirectURL)
 			if err != nil {
-				slogging.Get().GetSlogger().Warn("Error following OAuth redirect", "error", err)
-			} else {
-				redirectResp.Body.Close()
+				slogging.Get().GetSlogger().Error("Failed to trigger callback", "error", err, "url", redirectURL)
+				return nil, fmt.Errorf("failed to trigger callback: %w", err)
 			}
+			defer callbackResp.Body.Close()
+
+			slogging.Get().GetSlogger().Info("Callback triggered",
+				"status_code", callbackResp.StatusCode,
+				"status", callbackResp.Status)
+		} else {
+			slogging.Get().GetSlogger().Warn("Redirect is not to our callback server",
+				"redirect_host", parsedRedirect.Host,
+				"expected_callback", callbackURL)
 		}
 	} else {
 		body, _ := io.ReadAll(resp.Body)
-		slogging.Get().GetSlogger().Debug("OAuth unexpected response", "body", string(body))
+		slogging.Get().GetSlogger().Error("Unexpected OAuth response",
+			"status_code", resp.StatusCode,
+			"body", string(body))
 		return nil, fmt.Errorf("Expected redirect, got status %d", resp.StatusCode)
 	}
 
@@ -335,9 +376,9 @@ func performOAuthLogin(ctx context.Context, config Config) (*AuthTokens, error) 
 }
 
 func ensureUserExists(config Config, tokens *AuthTokens) error {
-	// Call /users/me endpoint to trigger user creation in the database
+	// Call /oauth2/userinfo endpoint to trigger user creation in the database
 	// This is necessary because TMI creates users on first authenticated request
-	url := fmt.Sprintf("%s/users/me", config.ServerURL)
+	url := fmt.Sprintf("%s/oauth2/userinfo", config.ServerURL)
 
 	slogging.Get().GetSlogger().Debug("Ensuring user exists", "url", url)
 
@@ -378,6 +419,83 @@ func ensureUserExists(config Config, tokens *AuthTokens) error {
 	return nil
 }
 
+func exchangeCodeForTokens(code string, redirectURI string) (*AuthTokens, error) {
+	// For the TMI test OAuth provider, exchange the authorization code for tokens
+	// The test provider's /oauth2/token endpoint handles this exchange
+
+	slogging.Get().GetSlogger().Info("Exchanging authorization code for tokens", "code", code, "redirect_uri", redirectURI)
+
+	// Parse server URL from config (we need to get it from somewhere)
+	// For now, we'll use localhost:8080 as that's the standard dev server
+	serverURL := "http://localhost:8080"
+
+	tokenURL := fmt.Sprintf("%s/oauth2/token", serverURL)
+
+	// Prepare token exchange request as JSON (TMI server expects JSON, not form-encoded)
+	tokenRequest := map[string]string{
+		"grant_type":   "authorization_code",
+		"code":         code,
+		"redirect_uri": redirectURI,
+	}
+
+	requestBody, err := json.Marshal(tokenRequest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal token request: %w", err)
+	}
+
+	slogging.Get().GetSlogger().Debug("Token exchange request",
+		"url", tokenURL,
+		"grant_type", "authorization_code",
+		"code", code)
+
+	req, err := http.NewRequest("POST", tokenURL, bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create token request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("token exchange request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+
+	slogging.Get().GetSlogger().Debug("Token exchange response",
+		"status_code", resp.StatusCode,
+		"body", string(respBody))
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("token exchange failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	// Parse token response
+	var tokenResponse struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		TokenType    string `json:"token_type"`
+		ExpiresIn    int    `json:"expires_in"`
+	}
+
+	if err := json.Unmarshal(respBody, &tokenResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse token response: %w", err)
+	}
+
+	slogging.Get().GetSlogger().Info("Token exchange successful",
+		"token_type", tokenResponse.TokenType,
+		"expires_in", tokenResponse.ExpiresIn)
+
+	return &AuthTokens{
+		AccessToken:  tokenResponse.AccessToken,
+		RefreshToken: tokenResponse.RefreshToken,
+		TokenType:    tokenResponse.TokenType,
+		ExpiresIn:    fmt.Sprintf("%d", tokenResponse.ExpiresIn),
+	}, nil
+}
+
 func startCallbackServer(ctx context.Context, handler *OAuthCallbackHandler) (net.Listener, error) {
 	// Start on a random port
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -387,11 +505,20 @@ func startCallbackServer(ctx context.Context, handler *OAuthCallbackHandler) (ne
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		slogging.Get().GetSlogger().Debug("OAuth callback received", "method", r.Method, "url", r.URL.String())
+		slogging.Get().GetSlogger().Info("=== OAuth callback received ===",
+			"method", r.Method,
+			"url", r.URL.String(),
+			"remote_addr", r.RemoteAddr)
 
 		// Log all query parameters
+		slogging.Get().GetSlogger().Info("OAuth callback query parameters", "count", len(r.URL.Query()))
 		for k, v := range r.URL.Query() {
-			slogging.Get().GetSlogger().Debug("OAuth callback parameter", "key", k, "value", strings.Join(v, ", "))
+			slogging.Get().GetSlogger().Info("OAuth callback parameter", "key", k, "value", strings.Join(v, ", "))
+		}
+
+		// Log fragment if present (though HTTP doesn't typically see fragments)
+		if r.URL.Fragment != "" {
+			slogging.Get().GetSlogger().Info("OAuth callback fragment", "fragment", r.URL.Fragment)
 		}
 
 		// Check for implicit flow tokens
@@ -418,13 +545,37 @@ func startCallbackServer(ctx context.Context, handler *OAuthCallbackHandler) (ne
 
 		// Check for authorization code flow
 		code := r.URL.Query().Get("code")
+		state := r.URL.Query().Get("state")
 		if code != "" {
-			// Authorization code flow - would need to exchange code for tokens
-			slogging.Get().GetSlogger().Debug("Detected authorization code flow OAuth response")
-			// For now, we'll error as the test provider uses implicit flow
-			handler.errorChan <- fmt.Errorf("authorization code flow not implemented (received code: %s)", code)
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Authorization code flow not supported"))
+			// Authorization code flow - exchange code for tokens
+			slogging.Get().GetSlogger().Info("Detected authorization code flow OAuth response",
+				"code", code,
+				"state", state)
+
+			// For the TMI test provider, exchange the authorization code for tokens
+			// The test provider uses a special endpoint for token exchange
+			tokenResp, err := exchangeCodeForTokens(code, handler.callbackURL)
+			if err != nil {
+				slogging.Get().GetSlogger().Error("Failed to exchange code for tokens", "error", err, "code", code)
+				go func() {
+					handler.errorChan <- fmt.Errorf("failed to exchange code for tokens: %w", err)
+				}()
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(fmt.Sprintf("Failed to exchange code for tokens: %v", err)))
+				return
+			}
+
+			slogging.Get().GetSlogger().Info("Successfully exchanged code for tokens",
+				"access_token_prefix", tokenResp.AccessToken[:min(20, len(tokenResp.AccessToken))],
+				"token_type", tokenResp.TokenType)
+
+			// Send tokens to channel
+			go func() {
+				handler.tokens <- *tokenResp
+			}()
+
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("OAuth authorization code exchange successful. You can close this window."))
 			return
 		}
 
