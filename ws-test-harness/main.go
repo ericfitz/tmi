@@ -60,15 +60,15 @@ type Diagram struct {
 
 // CollaborationSession matches the OpenAPI CollaborationSession schema
 type CollaborationSession struct {
-	SessionID       string                   `json:"session_id"`
-	Host            string                   `json:"host"`
-	Presenter       string                   `json:"presenter"`
-	ThreatModelID   string                   `json:"threat_model_id"`
-	ThreatModelName string                   `json:"threat_model_name"`
-	DiagramID       string                   `json:"diagram_id"`
-	DiagramName     string                   `json:"diagram_name"`
+	SessionID       string                     `json:"session_id"`
+	Host            string                     `json:"host"`
+	Presenter       string                     `json:"presenter"`
+	ThreatModelID   string                     `json:"threat_model_id"`
+	ThreatModelName string                     `json:"threat_model_name"`
+	DiagramID       string                     `json:"diagram_id"`
+	DiagramName     string                     `json:"diagram_name"`
 	Participants    []CollaborationParticipant `json:"participants"`
-	WebSocketURL    string                   `json:"websocket_url"`
+	WebSocketURL    string                     `json:"websocket_url"`
 }
 
 // CollaborationParticipant matches the OpenAPI Participant schema
@@ -126,9 +126,9 @@ type ParticipantJoinedMessage struct {
 
 // ParticipantLeftMessage matches AsyncAPI ParticipantLeftPayload
 type ParticipantLeftMessage struct {
-	MessageType   string `json:"message_type"`
-	DepartedUser  User   `json:"departed_user"`
-	Timestamp     string `json:"timestamp"`
+	MessageType  string `json:"message_type"`
+	DepartedUser User   `json:"departed_user"`
+	Timestamp    string `json:"timestamp"`
 }
 
 // DiagramOperationMessage matches AsyncAPI DiagramOperationPayload
@@ -153,6 +153,61 @@ type ErrorMessage struct {
 type StateCorrectionMessage struct {
 	MessageType  string `json:"message_type"`
 	UpdateVector *int64 `json:"update_vector"`
+}
+
+// PresenterCursorMessage matches AsyncAPI PresenterCursorPayload
+type PresenterCursorMessage struct {
+	MessageType    string `json:"message_type"`
+	CursorPosition struct {
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
+	} `json:"cursor_position"`
+}
+
+// PresenterSelectionMessage matches AsyncAPI PresenterSelectionPayload
+type PresenterSelectionMessage struct {
+	MessageType   string   `json:"message_type"`
+	SelectedCells []string `json:"selected_cells"`
+}
+
+// PresenterRequestMessage matches AsyncAPI PresenterRequestPayload
+type PresenterRequestMessage struct {
+	MessageType string `json:"message_type"`
+}
+
+// PresenterDeniedMessage matches AsyncAPI PresenterDeniedPayload
+type PresenterDeniedMessage struct {
+	MessageType      string `json:"message_type"`
+	CurrentPresenter User   `json:"current_presenter"`
+}
+
+// ChangePresenterMessage matches AsyncAPI ChangePresenterPayload
+type ChangePresenterMessage struct {
+	MessageType    string `json:"message_type"`
+	InitiatingUser User   `json:"initiating_user"`
+	NewPresenter   User   `json:"new_presenter"`
+}
+
+// AuthorizationDeniedMessage matches AsyncAPI AuthorizationDeniedPayload
+type AuthorizationDeniedMessage struct {
+	MessageType         string `json:"message_type"`
+	OriginalOperationID string `json:"original_operation_id"`
+	Reason              string `json:"reason"`
+}
+
+// ResyncResponseMessage matches AsyncAPI ResyncResponsePayload
+type ResyncResponseMessage struct {
+	MessageType   string `json:"message_type"`
+	Method        string `json:"method"`
+	DiagramID     string `json:"diagram_id"`
+	ThreatModelID string `json:"threat_model_id,omitempty"`
+}
+
+// HistoryOperationMessage matches AsyncAPI HistoryOperationPayload
+type HistoryOperationMessage struct {
+	MessageType   string `json:"message_type"`
+	OperationType string `json:"operation_type"`
+	Message       string `json:"message"`
 }
 
 func main() {
@@ -1014,6 +1069,70 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 						"message", msg.Message,
 						"code", msg.Code,
 						"timestamp", msg.Timestamp)
+				}
+
+			case "presenter_cursor":
+				var msg PresenterCursorMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Presenter Cursor",
+						"x", msg.CursorPosition.X,
+						"y", msg.CursorPosition.Y)
+				}
+
+			case "presenter_selection":
+				var msg PresenterSelectionMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Presenter Selection",
+						"selected_cells", msg.SelectedCells,
+						"count", len(msg.SelectedCells))
+				}
+
+			case "presenter_request":
+				var msg PresenterRequestMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Presenter Request received")
+				}
+
+			case "presenter_denied":
+				var msg PresenterDeniedMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Presenter Request Denied",
+						"current_presenter_email", msg.CurrentPresenter.Email,
+						"current_presenter_name", msg.CurrentPresenter.DisplayName)
+				}
+
+			case "change_presenter":
+				var msg ChangePresenterMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Presenter Changed",
+						"initiating_user", msg.InitiatingUser.Email,
+						"new_presenter", msg.NewPresenter.Email,
+						"new_presenter_name", msg.NewPresenter.DisplayName)
+				}
+
+			case "authorization_denied":
+				var msg AuthorizationDeniedMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Warn("Authorization Denied",
+						"operation_id", msg.OriginalOperationID,
+						"reason", msg.Reason)
+				}
+
+			case "resync_response":
+				var msg ResyncResponseMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Resync Response",
+						"method", msg.Method,
+						"diagram_id", msg.DiagramID,
+						"threat_model_id", msg.ThreatModelID)
+				}
+
+			case "history_operation":
+				var msg HistoryOperationMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("History Operation",
+						"operation_type", msg.OperationType,
+						"message", msg.Message)
 				}
 
 			default:

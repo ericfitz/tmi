@@ -71,7 +71,7 @@ test.mk
 .venv/
 .vscode/
 api/api.test
-ws-test-harness/ws-test-harness
+ws-test-harness/wstest
 ws-test-harness/*.log
 .claude/settings.local.json
 postman/test-results
