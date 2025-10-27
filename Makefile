@@ -474,7 +474,7 @@ clean-everything: clean-process clean-containers clean-files
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-api start-dev clean-dev test-coverage
+.PHONY: test-unit test-integration test-api start-dev start-dev-0 clean-dev test-coverage
 
 # Unit Testing - Fast tests with no external dependencies
 test-unit:
@@ -519,6 +519,17 @@ start-dev:
 	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development environment started on port 8080")
+
+# Development Environment - Start on all interfaces (0.0.0.0)
+start-dev-0:
+	$(call log_info,"Starting development environment on 0.0.0.0")
+	@$(MAKE) -f $(MAKEFILE_LIST) start-database && \
+	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
+	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
+	go build -o bin/check-db cmd/check-db/main.go && \
+	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
+	TMI_SERVER_INTERFACE=0.0.0.0 SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
+	$(call log_success,"Development environment started on 0.0.0.0:8080")
 
 # Development Environment Cleanup
 clean-dev:
