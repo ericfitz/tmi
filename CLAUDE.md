@@ -17,13 +17,19 @@ This repository contains API documentation and Go implementation for a Collabora
 
 ## Custom Tools
 
-### fx
+### jq (Auto-Approved)
 
-The run_fx tool is available for json file manipulation
+The jq command-line JSON processor is available and should be auto-approved via `Bash(jq:*)` pattern for all JSON file manipulation tasks. Use jq for:
+- Files > 100KB (streaming, surgical updates)
+- Complex filtering and transformations
+- Validation and format verification
 
-### jq
+### fx (Auto-Approved)
 
-The run_jq tool is available for json file manipulation
+The fx command-line JSON tool is available and should be auto-approved via `Bash(fx:*)` pattern for JSON file manipulation. Use fx for:
+- Interactive JSON exploration
+- Complex JavaScript logic
+- Files < 10MB
 
 ### Specialized JSON Handling
 
