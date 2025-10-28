@@ -518,6 +518,15 @@ func (m ParticipantsUpdateMessage) Validate() error {
 	return nil
 }
 
+// parseAndValidate is a helper that unmarshals data into a message and validates it
+func parseAndValidate[T AsyncMessage](data []byte, msgType string) (AsyncMessage, error) {
+	var msg T
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return nil, fmt.Errorf("failed to parse %s message: %w", msgType, err)
+	}
+	return msg, msg.Validate()
+}
+
 // Message Parser utility to parse incoming WebSocket messages
 func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 	// First, parse to determine message type
@@ -532,110 +541,35 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 	// Parse into specific message type
 	switch base.MessageType {
 	case MessageTypeDiagramOperation:
-		var msg DiagramOperationMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse diagram operation message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[DiagramOperationMessage](data, "diagram operation")
 	case MessageTypePresenterRequest:
-		var msg PresenterRequestMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse presenter request message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[PresenterRequestMessage](data, "presenter request")
 	case MessageTypeChangePresenter:
-		var msg ChangePresenterMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse change presenter message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[ChangePresenterMessage](data, "change presenter")
 	case MessageTypeRemoveParticipant:
-		var msg RemoveParticipantMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse remove participant message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[RemoveParticipantMessage](data, "remove participant")
 	case MessageTypePresenterCursor:
-		var msg PresenterCursorMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse presenter cursor message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[PresenterCursorMessage](data, "presenter cursor")
 	case MessageTypePresenterSelection:
-		var msg PresenterSelectionMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse presenter selection message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[PresenterSelectionMessage](data, "presenter selection")
 	case MessageTypeResyncRequest:
-		var msg ResyncRequestMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse resync request message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[ResyncRequestMessage](data, "resync request")
 	case MessageTypeResyncResponse:
-		var msg ResyncResponseMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse resync response message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[ResyncResponseMessage](data, "resync response")
 	case MessageTypeUndoRequest:
-		var msg UndoRequestMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse undo request message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[UndoRequestMessage](data, "undo request")
 	case MessageTypeRedoRequest:
-		var msg RedoRequestMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse redo request message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[RedoRequestMessage](data, "redo request")
 	case MessageTypeParticipantsUpdate:
-		var msg ParticipantsUpdateMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse participants update message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[ParticipantsUpdateMessage](data, "participants update")
 	case MessageTypeParticipantJoined:
-		var msg ParticipantJoinedMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse participant joined message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[ParticipantJoinedMessage](data, "participant joined")
 	case MessageTypeParticipantLeft:
-		var msg ParticipantLeftMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse participant left message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[ParticipantLeftMessage](data, "participant left")
 	case MessageTypeError:
-		var msg ErrorMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse error message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[ErrorMessage](data, "error")
 	case MessageTypeOperationRejected:
-		var msg OperationRejectedMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			return nil, fmt.Errorf("failed to parse operation_rejected message: %w", err)
-		}
-		return msg, msg.Validate()
-
+		return parseAndValidate[OperationRejectedMessage](data, "operation_rejected")
 	default:
 		return nil, fmt.Errorf("unsupported message type: %s", base.MessageType)
 	}
