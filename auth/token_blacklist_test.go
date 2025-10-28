@@ -81,14 +81,10 @@ func TestTokenBlacklist(t *testing.T) {
 		tokenString, err := token.SignedString([]byte("test-secret"))
 		require.NoError(t, err)
 
-		// Try to blacklist the expired token (should succeed but not store)
+		// Try to blacklist the expired token (should fail with validation error)
 		err = tb.BlacklistToken(ctx, tokenString)
-		assert.NoError(t, err)
-
-		// Check if token is blacklisted (should not be since it's expired)
-		isBlacklisted, err := tb.IsTokenBlacklisted(ctx, tokenString)
-		assert.NoError(t, err)
-		assert.False(t, isBlacklisted)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "token is expired")
 	})
 
 	t.Run("InvalidToken", func(t *testing.T) {

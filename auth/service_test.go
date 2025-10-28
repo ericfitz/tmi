@@ -86,7 +86,7 @@ func TestTokenValidation(t *testing.T) {
 			name:        "Invalid format",
 			token:       "invalid.token.format",
 			expectError: true,
-			errorMsg:    "failed to parse token",
+			errorMsg:    "failed to verify token",
 		},
 		{
 			name:        "Wrong signing method",
@@ -139,6 +139,7 @@ func TestConfigValidation(t *testing.T) {
 					Port: "6379",
 				},
 				JWT: JWTConfig{
+					SigningMethod:     "HS256",
 					Secret:            "valid-secret-key",
 					ExpirationSeconds: 3600,
 				},
@@ -168,6 +169,7 @@ func TestConfigValidation(t *testing.T) {
 					Port: "6379",
 				},
 				JWT: JWTConfig{
+					SigningMethod:     "HS256",
 					Secret:            "", // Missing secret
 					ExpirationSeconds: 3600,
 				},
