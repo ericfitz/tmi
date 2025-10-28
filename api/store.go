@@ -60,6 +60,7 @@ var DiagramStore DiagramStoreInterface
 var GlobalDocumentStore DocumentStore
 var GlobalNoteStore NoteStore
 var GlobalRepositoryStore RepositoryStore
+var GlobalAssetStore AssetStore
 var GlobalThreatStore ThreatStore
 var GlobalMetadataStore MetadataStore
 
@@ -70,6 +71,7 @@ func InitializeDatabaseStores(db *sql.DB) {
 	GlobalDocumentStore = NewDatabaseDocumentStore(db, nil, nil)
 	GlobalNoteStore = NewDatabaseNoteStore(db, nil, nil)
 	GlobalRepositoryStore = NewDatabaseRepositoryStore(db, nil, nil)
+	GlobalAssetStore = NewDatabaseAssetStore(db, nil, nil)
 	GlobalThreatStore = NewDatabaseThreatStore(db, nil, nil)
 	GlobalMetadataStore = NewDatabaseMetadataStore(db, nil, nil)
 }

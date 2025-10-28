@@ -223,6 +223,53 @@ func (cs *CacheService) GetCachedRepository(ctx context.Context, repositoryID st
 	return &repository, nil
 }
 
+// CacheAsset caches an asset
+func (cs *CacheService) CacheAsset(ctx context.Context, asset *Asset) error {
+	logger := slogging.Get()
+	key := cs.builder.CacheAssetKey(asset.Id.String())
+
+	data, err := json.Marshal(asset)
+	if err != nil {
+		logger.Error("Failed to marshal asset for cache: %v", err)
+		return fmt.Errorf("failed to marshal asset: %w", err)
+	}
+
+	err = cs.redis.Set(ctx, key, data, SubResourceCacheTTL)
+	if err != nil {
+		logger.Error("Failed to cache asset %s: %v", asset.Id.String(), err)
+		return fmt.Errorf("failed to cache asset: %w", err)
+	}
+
+	logger.Debug("Cached asset %s with TTL %v", asset.Id.String(), SubResourceCacheTTL)
+	return nil
+}
+
+// GetCachedAsset retrieves a cached asset
+func (cs *CacheService) GetCachedAsset(ctx context.Context, assetID string) (*Asset, error) {
+	logger := slogging.Get()
+	key := cs.builder.CacheAssetKey(assetID)
+
+	data, err := cs.redis.Get(ctx, key)
+	if err != nil {
+		if err == redis.Nil {
+			logger.Debug("Cache miss for asset %s", assetID)
+			return nil, nil // Cache miss
+		}
+		logger.Error("Failed to get cached asset %s: %v", assetID, err)
+		return nil, fmt.Errorf("failed to get cached asset: %w", err)
+	}
+
+	var asset Asset
+	err = json.Unmarshal([]byte(data), &asset)
+	if err != nil {
+		logger.Error("Failed to unmarshal cached asset %s: %v", assetID, err)
+		return nil, fmt.Errorf("failed to unmarshal cached asset: %w", err)
+	}
+
+	logger.Debug("Cache hit for asset %s", assetID)
+	return &asset, nil
+}
+
 // CacheMetadata caches metadata collection for an entity
 func (cs *CacheService) CacheMetadata(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
 	logger := slogging.Get()
@@ -422,6 +469,8 @@ func (cs *CacheService) InvalidateEntity(ctx context.Context, entityType, entity
 		key = cs.builder.CacheDocumentKey(entityID)
 	case "repository":
 		key = cs.builder.CacheRepositoryKey(entityID)
+	case "asset":
+		key = cs.builder.CacheAssetKey(entityID)
 	case "diagram":
 		key = cs.builder.CacheDiagramKey(entityID)
 	case "threat_model":

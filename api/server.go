@@ -19,11 +19,13 @@ type Server struct {
 	documentHandler            *DocumentSubResourceHandler
 	noteHandler                *NoteSubResourceHandler
 	repositoryHandler          *RepositorySubResourceHandler
+	assetHandler               *AssetSubResourceHandler
 	threatHandler              *ThreatSubResourceHandler
 	batchHandler               *BatchHandler
 	documentMetadataHandler    *DocumentMetadataHandler
 	noteMetadataHandler        *NoteMetadataHandler
 	repositoryMetadataHandler  *RepositoryMetadataHandler
+	assetMetadataHandler       *AssetMetadataHandler
 	threatMetadataHandler      *ThreatMetadataHandler
 	threatModelMetadataHandler *ThreatModelMetadataHandler
 	userDeletionHandler        *UserDeletionHandler
@@ -41,11 +43,13 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 		documentHandler:            NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
 		noteHandler:                NewNoteSubResourceHandler(GlobalNoteStore, nil, nil, nil),
 		repositoryHandler:          NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
+		assetHandler:               NewAssetSubResourceHandler(GlobalAssetStore, nil, nil, nil),
 		threatHandler:              NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
 		batchHandler:               NewBatchHandler(GlobalThreatStore, nil, nil, nil),
 		documentMetadataHandler:    NewDocumentMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		noteMetadataHandler:        NewNoteMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		repositoryMetadataHandler:  NewRepositoryMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		assetMetadataHandler:       NewAssetMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		threatMetadataHandler:      NewThreatMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		threatModelMetadataHandler: NewThreatModelMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		wsHub:                      wsHub,
@@ -882,6 +886,79 @@ func (s *Server) GetRepositoryMetadataByKey(c *gin.Context, threatModelId openap
 // UpdateRepositoryMetadataByKey updates repository metadata by key
 func (s *Server) UpdateRepositoryMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID, key string) {
 	s.repositoryMetadataHandler.UpdateRepositoryMetadata(c)
+}
+
+// Asset Methods
+
+// GetThreatModelAssets lists assets
+func (s *Server) GetThreatModelAssets(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelAssetsParams) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.assetHandler.GetAssets(c)
+}
+
+// CreateThreatModelAsset creates an asset
+func (s *Server) CreateThreatModelAsset(c *gin.Context, threatModelId openapi_types.UUID) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.assetHandler.CreateAsset(c)
+}
+
+// BulkCreateThreatModelAssets bulk creates assets
+func (s *Server) BulkCreateThreatModelAssets(c *gin.Context, threatModelId openapi_types.UUID) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.assetHandler.BulkCreateAssets(c)
+}
+
+// DeleteThreatModelAsset deletes an asset
+func (s *Server) DeleteThreatModelAsset(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "asset_id", Value: assetId.String()})
+	s.assetHandler.DeleteAsset(c)
+}
+
+// GetThreatModelAsset gets an asset
+func (s *Server) GetThreatModelAsset(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "asset_id", Value: assetId.String()})
+	s.assetHandler.GetAsset(c)
+}
+
+// UpdateThreatModelAsset updates an asset
+func (s *Server) UpdateThreatModelAsset(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "asset_id", Value: assetId.String()})
+	s.assetHandler.UpdateAsset(c)
+}
+
+// Asset Metadata Methods
+
+// GetThreatModelAssetMetadata gets asset metadata
+func (s *Server) GetThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
+	s.assetMetadataHandler.GetAssetMetadata(c)
+}
+
+// CreateThreatModelAssetMetadata creates asset metadata
+func (s *Server) CreateThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
+	s.assetMetadataHandler.CreateAssetMetadata(c)
+}
+
+// BulkCreateThreatModelAssetMetadata bulk creates asset metadata
+func (s *Server) BulkCreateThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
+	s.assetMetadataHandler.BulkCreateAssetMetadata(c)
+}
+
+// DeleteThreatModelAssetMetadata deletes asset metadata by key
+func (s *Server) DeleteThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID, key string) {
+	s.assetMetadataHandler.DeleteAssetMetadata(c)
+}
+
+// GetThreatModelAssetMetadataByKey gets asset metadata by key
+func (s *Server) GetThreatModelAssetMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID, key string) {
+	s.assetMetadataHandler.GetAssetMetadataByKey(c)
+}
+
+// UpdateThreatModelAssetMetadata updates asset metadata by key
+func (s *Server) UpdateThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID, key string) {
+	s.assetMetadataHandler.UpdateAssetMetadata(c)
 }
 
 // Threat Methods - Placeholder implementations

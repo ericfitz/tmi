@@ -100,6 +100,11 @@ func (b *RedisKeyBuilder) CacheRepositoryKey(sourceID string) string {
 	return fmt.Sprintf("cache:repository:%s", sourceID)
 }
 
+// CacheAssetKey builds an asset cache key
+func (b *RedisKeyBuilder) CacheAssetKey(assetID string) string {
+	return fmt.Sprintf("cache:asset:%s", assetID)
+}
+
 // CacheMetadataKey builds a metadata collection cache key
 func (b *RedisKeyBuilder) CacheMetadataKey(entityType, entityID string) string {
 	return fmt.Sprintf("cache:metadata:%s:%s", entityType, entityID)

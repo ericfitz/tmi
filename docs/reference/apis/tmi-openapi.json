@@ -302,7 +302,9 @@
           "name": {
             "type": "string",
             "description": "Name of the diagram",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$",
+            "minLength": 1
           },
           "type": {
             "type": "string",
@@ -1524,7 +1526,9 @@
           "name": {
             "type": "string",
             "description": "Name of the threat model",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$",
+            "minLength": 1
           },
           "description": {
             "type": "string",
@@ -2238,7 +2242,9 @@
           "name": {
             "type": "string",
             "description": "Name of the threat",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$",
+            "minLength": 1
           },
           "description": {
             "type": "string",
@@ -2419,7 +2425,9 @@
           "name": {
             "type": "string",
             "description": "Name for the source code reference",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$",
+            "minLength": 1
           },
           "description": {
             "type": "string",
@@ -2558,6 +2566,162 @@
               "value": "high"
             }
           ]
+        }
+      },
+      "Asset": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the asset (UUID)",
+            "maxLength": 36,
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "description": "Asset name",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$",
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required"
+            }
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the asset",
+            "maxLength": 1024,
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of asset",
+            "enum": [
+              "data",
+              "hardware",
+              "software",
+              "infrastructure",
+              "service",
+              "personnel"
+            ],
+            "maxLength": 64,
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required"
+            }
+          },
+          "criticality": {
+            "type": "string",
+            "description": "Criticality level of the asset",
+            "maxLength": 128,
+            "nullable": true
+          },
+          "classification": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Classification tags for the asset",
+            "maxItems": 50,
+            "nullable": true
+          },
+          "sensitivity": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Sensitivity labels for the asset",
+            "maxItems": 50,
+            "nullable": true
+          },
+          "metadata": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Metadata"
+            },
+            "description": "Key-value pairs for additional asset metadata",
+            "nullable": true
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "example": {
+          "id": "6ba7b810-9dad-11d1-beef-00c04fd430c8",
+          "name": "Customer Database",
+          "description": "Primary database containing customer information",
+          "type": "data",
+          "criticality": "high",
+          "classification": [
+            "confidential",
+            "regulated"
+          ],
+          "sensitivity": [
+            "pii",
+            "financial"
+          ],
+          "metadata": [
+            {
+              "key": "data_retention",
+              "value": "7_years"
+            }
+          ]
+        }
+      },
+      "ExtendedAsset": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Asset"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "threat_model_id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "ID of the threat model this asset belongs to",
+                "maxLength": 36
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Creation timestamp (ISO3339)",
+                "maxLength": 36
+              },
+              "modified_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Last modification timestamp (ISO3339)",
+                "maxLength": 36
+              }
+            },
+            "required": [
+              "threat_model_id",
+              "created_at",
+              "modified_at"
+            ]
+          }
+        ],
+        "example": {
+          "id": "6ba7b810-9dad-11d1-beef-00c04fd430c8",
+          "name": "Customer Database",
+          "description": "Primary database containing customer information",
+          "type": "data",
+          "criticality": "high",
+          "classification": [
+            "confidential",
+            "regulated"
+          ],
+          "sensitivity": [
+            "pii",
+            "financial"
+          ],
+          "threat_model_id": "6ba7b810-9dad-11d1-beef-00c04fd430c7",
+          "created_at": "2024-01-15T10:30:00Z",
+          "modified_at": "2024-01-15T10:30:00Z"
         }
       }
     },
@@ -10347,6 +10511,851 @@
         "responses": {
           "200": {
             "description": "Metadata entries updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/threat_models/{threat_model_id}/assets": {
+      "get": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "List assets in a threat model",
+        "description": "Returns a paginated list of assets within the specified threat model",
+        "operationId": "getThreatModelAssets",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "description": "Maximum number of assets to return"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Number of assets to skip"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of assets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Asset"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Create a new asset",
+        "description": "Creates a new asset within the specified threat model",
+        "operationId": "createThreatModelAsset",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Asset"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Asset created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/threat_models/{threat_model_id}/assets/bulk": {
+      "post": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Bulk create assets",
+        "description": "Creates multiple assets within the specified threat model (maximum 50 per request)",
+        "operationId": "bulkCreateThreatModelAssets",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Asset"
+                },
+                "maxItems": 50
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Assets created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Asset"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/threat_models/{threat_model_id}/assets/{asset_id}": {
+      "get": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Get a specific asset",
+        "description": "Returns a single asset by its ID",
+        "operationId": "getThreatModelAsset",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the asset (UUID)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Asset details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Update an asset",
+        "description": "Updates an existing asset within the specified threat model",
+        "operationId": "updateThreatModelAsset",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the asset (UUID)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Asset"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Asset updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Delete an asset",
+        "description": "Deletes an asset from the specified threat model",
+        "operationId": "deleteThreatModelAsset",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the asset (UUID)"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Asset deleted successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/threat_models/{threat_model_id}/assets/{asset_id}/metadata": {
+      "get": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Get all metadata for an asset",
+        "description": "Returns all metadata key-value pairs for the specified asset",
+        "operationId": "getThreatModelAssetMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the asset (UUID)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Asset metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Add metadata to an asset",
+        "description": "Adds a new metadata key-value pair to the specified asset",
+        "operationId": "createThreatModelAssetMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the asset (UUID)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Metadata"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Metadata created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Metadata"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/threat_models/{threat_model_id}/assets/{asset_id}/metadata/{key}": {
+      "get": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Get specific metadata for an asset",
+        "description": "Returns a single metadata value by its key",
+        "operationId": "getThreatModelAssetMetadataByKey",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the asset (UUID)"
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Metadata key"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metadata value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Metadata"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Update asset metadata",
+        "description": "Updates an existing metadata value by its key",
+        "operationId": "updateThreatModelAssetMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the asset (UUID)"
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Metadata key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Metadata"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Metadata"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Delete asset metadata",
+        "description": "Deletes a metadata key-value pair from the specified asset",
+        "operationId": "deleteThreatModelAssetMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the asset (UUID)"
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Metadata key"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Metadata deleted successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/threat_models/{threat_model_id}/assets/{asset_id}/metadata/bulk": {
+      "post": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Bulk create asset metadata",
+        "description": "Creates multiple metadata key-value pairs for the specified asset",
+        "operationId": "bulkCreateThreatModelAssetMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the asset (UUID)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Metadata created successfully",
             "content": {
               "application/json": {
                 "schema": {

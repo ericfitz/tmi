@@ -310,6 +310,83 @@ var ValidationConfigs = map[string]ValidationConfig{
 		Operation:        "PUT",
 	},
 
+	// Asset validation configurations
+	"asset_create": {
+		ProhibitedFields: []string{
+			"id", "created_at", "modified_at",
+		},
+		CustomValidators: append(CommonValidators.GetValidators([]string{
+			"uuid_fields", "no_html_injection", "string_length",
+		}), func(data interface{}) error {
+			// Validate required fields for assets
+			asset, ok := data.(*Asset)
+			if !ok {
+				return InvalidInputError("Invalid data type for asset validation")
+			}
+			if asset.Name == "" {
+				return InvalidInputError("Asset name is required")
+			}
+			if asset.Type == "" {
+				return InvalidInputError("Asset type is required")
+			}
+			// Validate asset type enum
+			validTypes := map[AssetType]bool{
+				"data": true, "hardware": true, "software": true,
+				"infrastructure": true, "service": true, "personnel": true,
+			}
+			if !validTypes[asset.Type] {
+				return InvalidInputError("Invalid asset type, must be one of: data, hardware, software, infrastructure, service, personnel")
+			}
+			// Validate array field lengths
+			if asset.Classification != nil && len(*asset.Classification) > 50 {
+				return InvalidInputError("Asset classification array exceeds maximum of 50 items")
+			}
+			if asset.Sensitivity != nil && len(*asset.Sensitivity) > 50 {
+				return InvalidInputError("Asset sensitivity array exceeds maximum of 50 items")
+			}
+			return nil
+		}),
+		Operation: "POST",
+	},
+
+	"asset_update": {
+		ProhibitedFields: []string{
+			"id", "created_at", "modified_at",
+		},
+		CustomValidators: append(CommonValidators.GetValidators([]string{
+			"uuid_fields", "no_html_injection", "string_length",
+		}), func(data interface{}) error {
+			// Validate required fields for assets
+			asset, ok := data.(*Asset)
+			if !ok {
+				return InvalidInputError("Invalid data type for asset validation")
+			}
+			if asset.Name == "" {
+				return InvalidInputError("Asset name is required")
+			}
+			if asset.Type == "" {
+				return InvalidInputError("Asset type is required")
+			}
+			// Validate asset type enum
+			validTypes := map[AssetType]bool{
+				"data": true, "hardware": true, "software": true,
+				"infrastructure": true, "service": true, "personnel": true,
+			}
+			if !validTypes[asset.Type] {
+				return InvalidInputError("Invalid asset type, must be one of: data, hardware, software, infrastructure, service, personnel")
+			}
+			// Validate array field lengths
+			if asset.Classification != nil && len(*asset.Classification) > 50 {
+				return InvalidInputError("Asset classification array exceeds maximum of 50 items")
+			}
+			if asset.Sensitivity != nil && len(*asset.Sensitivity) > 50 {
+				return InvalidInputError("Asset sensitivity array exceeds maximum of 50 items")
+			}
+			return nil
+		}),
+		Operation: "PUT",
+	},
+
 	// Batch operations
 	"batch_patch": {
 		ProhibitedFields: []string{},
