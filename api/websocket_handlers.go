@@ -99,5 +99,8 @@ func (r *MessageRouter) RouteMessage(session *DiagramSession, client *WebSocketC
 		return nil
 	}
 
-	return handler.HandleMessage(session, client, message)
+	slogging.Get().Debug("[TRACE-BROADCAST] Routing to handler for message_type=%s, handler type: %T", baseMsg.MessageType, handler)
+	err := handler.HandleMessage(session, client, message)
+	slogging.Get().Debug("[TRACE-BROADCAST] Handler returned - message_type=%s, error=%v", baseMsg.MessageType, err)
+	return err
 }

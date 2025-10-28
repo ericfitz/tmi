@@ -27,7 +27,8 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 	}()
 
 	startTime := time.Now()
-	slogging.Get().Debug("Processing diagram operation - Session: %s, User: %s, Client pointer: %p", session.ID, client.UserID, client)
+	slogging.Get().Debug("[TRACE-BROADCAST] DiagramOperationHandler.HandleMessage ENTRY - Session: %s, User: %s, Client pointer: %p, Message size: %d bytes",
+		session.ID, client.UserID, client, len(message))
 
 	var msg DiagramOperationMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
@@ -35,6 +36,9 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 			session.ID, client.UserID, err)
 		return err
 	}
+
+	slogging.Get().Debug("[TRACE-BROADCAST] Parsed diagram operation - Session: %s, User: %s, OperationID: %s, OperationType: %s, CellCount: %d",
+		session.ID, client.UserID, msg.OperationID, msg.Operation.Type, len(msg.Operation.Cells))
 
 	// Note: DiagramOperationMessage doesn't currently include user identity field,
 	// so we rely on the authenticated client context from the WebSocket connection.
@@ -86,7 +90,7 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 	// Determine if operation should be applied
 	applied := validationResult.Valid && validationResult.StateChanged
 
-	slogging.Get().Info("Diagram operation validation result - Session: %s, User: %s, OperationID: %s, Valid: %v, StateChanged: %v, Applied: %v, Total clients: %d",
+	slogging.Get().Info("[TRACE-BROADCAST] Diagram operation validation result - Session: %s, User: %s, OperationID: %s, Valid: %v, StateChanged: %v, Applied: %v, Total clients: %d",
 		session.ID, client.UserID, msg.OperationID, validationResult.Valid, validationResult.StateChanged, applied, totalClients)
 
 	if applied {
@@ -94,9 +98,11 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 		session.addToHistory(msg, client.UserID, validationResult.PreviousState, currentState)
 
 		// Broadcast the operation to all other clients
-		slogging.Get().Info("Broadcasting diagram operation - Session: %s, Sender: %s (%p), OperationID: %s, Recipients: %d",
-			session.ID, client.UserID, client, msg.OperationID, totalClients-1)
+		slogging.Get().Info("[TRACE-BROADCAST] *** CALLING broadcastToOthers *** - Session: %s, Sender: %s (%p), OperationID: %s, Total clients: %d, Expected recipients: %d",
+			session.ID, client.UserID, client, msg.OperationID, totalClients, totalClients-1)
 		session.broadcastToOthers(client, msg)
+		slogging.Get().Info("[TRACE-BROADCAST] *** RETURNED from broadcastToOthers *** - Session: %s, OperationID: %s",
+			session.ID, msg.OperationID)
 	} else {
 		// Send rejection notification to originator
 		var rejectionReason, rejectionMessage string

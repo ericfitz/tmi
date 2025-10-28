@@ -3152,11 +3152,16 @@ func (s *DiagramSession) broadcastMessage(message interface{}) {
 
 // broadcastToOthers broadcasts a message to all clients except the sender
 func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message interface{}) {
+	slogging.Get().Info("[TRACE-BROADCAST] broadcastToOthers ENTRY - Session: %s, Sender: %s (%p), Message type: %T",
+		s.ID, sender.UserID, sender, message)
+
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
-		slogging.Get().Info("Error marshaling message: %v", err)
+		slogging.Get().Error("[TRACE-BROADCAST] Error marshaling message: %v", err)
 		return
 	}
+
+	slogging.Get().Info("[TRACE-BROADCAST] Message marshaled successfully - Size: %d bytes", len(msgBytes))
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -3165,32 +3170,35 @@ func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message inte
 	recipientCount := 0
 	skippedSender := false
 
-	slogging.Get().Debug("broadcastToOthers - Session: %s, Sender: %s (%p), Total clients: %d",
+	slogging.Get().Info("[TRACE-BROADCAST] broadcastToOthers - Session: %s, Sender: %s (%p), Total clients: %d",
 		s.ID, sender.UserID, sender, totalClients)
 
 	for client := range s.Clients {
+		slogging.Get().Debug("[TRACE-BROADCAST] Checking client - User: %s, Pointer: %p, Is sender? %v",
+			client.UserID, client, client == sender)
+
 		if client == sender {
 			// This is the sender - skip them
 			skippedSender = true
-			slogging.Get().Debug("  ✗ Skipping sender - User: %s, Pointer: %p (matches sender pointer)",
+			slogging.Get().Info("[TRACE-BROADCAST]   ✗ Skipping sender - User: %s, Pointer: %p (matches sender pointer)",
 				client.UserID, client)
 		} else {
 			// This is a recipient - send the message
-			slogging.Get().Debug("  → Sending to recipient - User: %s, Pointer: %p, Channel buffer: %d/%d",
+			slogging.Get().Info("[TRACE-BROADCAST]   → Attempting to send to recipient - User: %s, Pointer: %p, Channel buffer: %d/%d",
 				client.UserID, client, len(client.Send), cap(client.Send))
 
 			select {
 			case client.Send <- msgBytes:
 				recipientCount++
-				slogging.Get().Debug("    ✓ Message sent successfully to %s", client.UserID)
+				slogging.Get().Info("[TRACE-BROADCAST]     ✓✓✓ Message SUCCESSFULLY QUEUED to channel for %s ✓✓✓", client.UserID)
 			default:
-				slogging.Get().Warn("    ✗ Client send channel full, dropping message for %s (channel: %d/%d)",
+				slogging.Get().Error("[TRACE-BROADCAST]     ✗✗✗ Client send channel FULL - DROPPING MESSAGE for %s (channel: %d/%d) ✗✗✗",
 					client.UserID, len(client.Send), cap(client.Send))
 			}
 		}
 	}
 
-	slogging.Get().Info("Broadcast complete - Session: %s, Sender: %s, Recipients: %d, Skipped sender: %v",
+	slogging.Get().Info("[TRACE-BROADCAST] Broadcast complete - Session: %s, Sender: %s, Recipients: %d, Skipped sender: %v",
 		s.ID, sender.UserID, recipientCount, skippedSender)
 }
 
@@ -4019,18 +4027,22 @@ func (c *WebSocketClient) WritePump() {
 	for {
 		select {
 		case message, ok := <-c.Send:
+			slogging.Get().Info("[TRACE-BROADCAST] WritePump: Received message from channel - User: %s, OK: %v, Length: %d bytes",
+				c.UserID, ok, len(message))
+
 			if err := c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-				slogging.Get().Info("Error setting write deadline: %v", err)
+				slogging.Get().Error("[TRACE-BROADCAST] WritePump: Error setting write deadline: %v", err)
 				return
 			}
 			if !ok {
 				// Hub closed the channel
+				slogging.Get().Info("[TRACE-BROADCAST] WritePump: Channel closed for user %s", c.UserID)
 				if err := c.Conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
 					slogging.Get().Info("Error writing close message: %v", err)
 				}
 				return
 			}
-			slogging.Get().Debug("WritePump: Sending message to client %s - length: %d", c.UserID, len(message))
+			slogging.Get().Info("[TRACE-BROADCAST] WritePump: About to write message to WebSocket - User: %s, Length: %d", c.UserID, len(message))
 
 			// Log outbound WebSocket message
 			if c.Session != nil && c.Hub != nil {
@@ -4046,19 +4058,24 @@ func (c *WebSocketClient) WritePump() {
 
 			w, err := c.Conn.NextWriter(websocket.TextMessage)
 			if err != nil {
+				slogging.Get().Error("[TRACE-BROADCAST] WritePump: Error getting NextWriter for user %s: %v", c.UserID, err)
 				return
 			}
-			if _, err := w.Write(message); err != nil {
-				slogging.Get().Info("Error writing message: %v", err)
+			bytesWritten, err := w.Write(message)
+			if err != nil {
+				slogging.Get().Error("[TRACE-BROADCAST] WritePump: Error writing message for user %s: %v", c.UserID, err)
 				return
 			}
+			slogging.Get().Info("[TRACE-BROADCAST] WritePump: Wrote %d bytes to writer for user %s", bytesWritten, c.UserID)
 
 			// Don't try to batch messages - it causes issues with JSON parsing
 			// Each WebSocket message should be sent separately
 
 			if err := w.Close(); err != nil {
+				slogging.Get().Error("[TRACE-BROADCAST] WritePump: Error closing writer for user %s: %v", c.UserID, err)
 				return
 			}
+			slogging.Get().Info("[TRACE-BROADCAST] ✓✓✓ WritePump: Message SUCCESSFULLY SENT to WebSocket for user %s ✓✓✓", c.UserID)
 		case <-ticker.C:
 			if err := c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
 				slogging.Get().Info("Error setting write deadline for ping: %v", err)
