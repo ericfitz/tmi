@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"runtime/debug"
 	"time"
 
@@ -50,24 +51,99 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 	slogging.Get().Debug("Assigned sequence number - Session: %s, User: %s, OperationID: %s, SequenceNumber: %d",
 		session.ID, client.UserID, msg.OperationID, sequenceNumber)
 
-	// Use the existing applyOperation logic from DiagramSession
-	applied := session.applyOperation(client, msg)
+	// Get current diagram state before validation to extract rejection details
+	diagram, err := DiagramStore.Get(session.DiagramID)
+	if err != nil {
+		slogging.Get().Error("Failed to get diagram before operation validation - Session: %s, User: %s, OperationID: %s, Error: %v",
+			session.ID, client.UserID, msg.OperationID, err)
+		session.sendOperationRejected(client, msg.OperationID, msg.SequenceNumber, "diagram_not_found",
+			"Target diagram could not be retrieved", nil, nil, true)
+		return err
+	}
+
+	// Build current state map for detailed rejection feedback
+	currentState := make(map[string]*DfdDiagram_Cells_Item)
+	for i := range diagram.Cells {
+		cellItem := &diagram.Cells[i]
+		var itemID string
+		if node, err := cellItem.AsNode(); err == nil {
+			itemID = node.Id.String()
+		} else if edge, err := cellItem.AsEdge(); err == nil {
+			itemID = edge.Id.String()
+		}
+		if itemID != "" {
+			currentState[itemID] = cellItem
+		}
+	}
+
+	// Process and validate cell operations to get detailed rejection reason
+	validationResult := session.processAndValidateCellOperations(&diagram, currentState, msg.Operation)
 
 	session.mu.RLock()
 	totalClients := len(session.Clients)
 	session.mu.RUnlock()
 
-	slogging.Get().Info("Diagram operation validation result - Session: %s, User: %s, OperationID: %s, Applied: %v, Total clients in session: %d",
-		session.ID, client.UserID, msg.OperationID, applied, totalClients)
+	// Determine if operation should be applied
+	applied := validationResult.Valid && validationResult.StateChanged
+
+	slogging.Get().Info("Diagram operation validation result - Session: %s, User: %s, OperationID: %s, Valid: %v, StateChanged: %v, Applied: %v, Total clients: %d",
+		session.ID, client.UserID, msg.OperationID, validationResult.Valid, validationResult.StateChanged, applied, totalClients)
 
 	if applied {
+		// Update operation history
+		session.addToHistory(msg, client.UserID, validationResult.PreviousState, currentState)
+
 		// Broadcast the operation to all other clients
 		slogging.Get().Info("Broadcasting diagram operation - Session: %s, Sender: %s (%p), OperationID: %s, Recipients: %d",
 			session.ID, client.UserID, client, msg.OperationID, totalClients-1)
 		session.broadcastToOthers(client, msg)
 	} else {
-		slogging.Get().Warn("Diagram operation NOT broadcasted - Session: %s, User: %s, OperationID: %s, Reason: applyOperation returned false (check validation logs)",
-			session.ID, client.UserID, msg.OperationID)
+		// Send rejection notification to originator
+		var rejectionReason, rejectionMessage string
+		var detailsPtr *string
+		requiresResync := false
+
+		if !validationResult.Valid {
+			rejectionReason = validationResult.Reason
+			rejectionMessage = fmt.Sprintf("Operation validation failed: %s", validationResult.Reason)
+
+			// Add more specific messages based on reason
+			switch validationResult.Reason {
+			case "conflict_detected":
+				rejectionMessage = fmt.Sprintf("Operation conflicts with current diagram state for cells: %v", validationResult.CellsModified)
+				requiresResync = true
+			case "invalid_operation_type":
+				details := fmt.Sprintf("Operation type must be 'patch', got: %s", msg.Operation.Type)
+				detailsPtr = &details
+				rejectionMessage = "Invalid operation type"
+			case "empty_operation":
+				rejectionMessage = "Operation contains no cell operations"
+			case "validation_failed":
+				if len(validationResult.CellsModified) > 0 {
+					rejectionMessage = fmt.Sprintf("Cell validation failed for: %v", validationResult.CellsModified)
+				}
+			}
+
+			if validationResult.ConflictDetected {
+				requiresResync = true
+			}
+		} else if !validationResult.StateChanged {
+			rejectionReason = "no_state_change"
+			rejectionMessage = "Operation resulted in no state changes (idempotent or no-op)"
+			requiresResync = false
+		}
+
+		slogging.Get().Warn("Diagram operation REJECTED - Session: %s, User: %s, OperationID: %s, Reason: %s, RequiresResync: %v, AffectedCells: %v",
+			session.ID, client.UserID, msg.OperationID, rejectionReason, requiresResync, validationResult.CellsModified)
+
+		session.sendOperationRejected(client, msg.OperationID, msg.SequenceNumber, rejectionReason,
+			rejectionMessage, detailsPtr, validationResult.CellsModified, requiresResync)
+
+		// Still send state correction if needed (for conflicts)
+		if validationResult.CorrectionNeeded {
+			slogging.Get().Info("Sending additional state correction to %s for cells: %v", client.UserID, validationResult.CellsModified)
+			session.sendStateCorrection(client, validationResult.CellsModified)
+		}
 	}
 
 	processingTime := time.Since(startTime)

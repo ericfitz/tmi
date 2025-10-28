@@ -2881,6 +2881,26 @@ func (s *DiagramSession) sendAuthorizationDenied(client *WebSocketClient, operat
 	}
 }
 
+// sendOperationRejected sends an operation_rejected message to the originating client
+func (s *DiagramSession) sendOperationRejected(client *WebSocketClient, operationID string, sequenceNumber *uint64, reason string, message string, details *string, affectedCells []string, requiresResync bool) {
+	rejectionMsg := OperationRejectedMessage{
+		MessageType:    MessageTypeOperationRejected,
+		OperationID:    operationID,
+		SequenceNumber: sequenceNumber,
+		Reason:         reason,
+		Message:        message,
+		Details:        details,
+		AffectedCells:  affectedCells,
+		RequiresResync: requiresResync,
+		Timestamp:      time.Now().UTC(),
+	}
+
+	s.sendToClient(client, rejectionMsg)
+
+	slogging.Get().Info("Sent operation_rejected to %s - Session: %s, OperationID: %s, Reason: %s, RequiresResync: %v, AffectedCells: %v",
+		client.UserID, s.ID, operationID, reason, requiresResync, affectedCells)
+}
+
 // sendStateCorrection sends the current state of specified cells to correct client state
 func (s *DiagramSession) sendStateCorrection(client *WebSocketClient, affectedCellIDs []string) {
 	s.sendStateCorrectionWithReason(client, affectedCellIDs, "operation_failed")

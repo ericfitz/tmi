@@ -39,6 +39,7 @@ const (
 	MessageTypeParticipantLeft    MessageType = "participant_left"
 	MessageTypeParticipantsUpdate MessageType = "participants_update"
 	MessageTypeError              MessageType = "error"
+	MessageTypeOperationRejected  MessageType = "operation_rejected"
 )
 
 // AsyncMessage is the base interface for all WebSocket messages
@@ -628,6 +629,13 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 		}
 		return msg, msg.Validate()
 
+	case MessageTypeOperationRejected:
+		var msg OperationRejectedMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, fmt.Errorf("failed to parse operation_rejected message: %w", err)
+		}
+		return msg, msg.Validate()
+
 	default:
 		return nil, fmt.Errorf("unsupported message type: %s", base.MessageType)
 	}
@@ -688,6 +696,54 @@ func (m ErrorMessage) Validate() error {
 	}
 	if m.Error == "" {
 		return fmt.Errorf("error is required")
+	}
+	if m.Message == "" {
+		return fmt.Errorf("message is required")
+	}
+	return nil
+}
+
+// OperationRejectedMessage represents a notification sent exclusively to the
+// operation originator when their diagram operation is rejected
+type OperationRejectedMessage struct {
+	MessageType    MessageType `json:"message_type"`
+	OperationID    string      `json:"operation_id"`
+	SequenceNumber *uint64     `json:"sequence_number,omitempty"` // May be assigned before rejection
+	Reason         string      `json:"reason"`                    // Structured reason code
+	Message        string      `json:"message"`                   // Human-readable description
+	Details        *string     `json:"details,omitempty"`         // Optional technical details
+	AffectedCells  []string    `json:"affected_cells,omitempty"`  // Cell IDs affected
+	RequiresResync bool        `json:"requires_resync"`           // Whether client should resync
+	Timestamp      time.Time   `json:"timestamp"`
+}
+
+func (m OperationRejectedMessage) GetMessageType() MessageType { return m.MessageType }
+
+func (m OperationRejectedMessage) Validate() error {
+	if m.MessageType != MessageTypeOperationRejected {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeOperationRejected, m.MessageType)
+	}
+	if m.OperationID == "" {
+		return fmt.Errorf("operation_id is required")
+	}
+	if _, err := uuid.Parse(m.OperationID); err != nil {
+		return fmt.Errorf("operation_id must be a valid UUID: %w", err)
+	}
+	if m.Reason == "" {
+		return fmt.Errorf("reason is required")
+	}
+	// Validate reason code against known values
+	validReasons := map[string]bool{
+		"validation_failed":      true,
+		"conflict_detected":      true,
+		"no_state_change":        true,
+		"diagram_not_found":      true,
+		"permission_denied":      true,
+		"invalid_operation_type": true,
+		"empty_operation":        true,
+	}
+	if !validReasons[m.Reason] {
+		return fmt.Errorf("invalid reason code: %s", m.Reason)
 	}
 	if m.Message == "" {
 		return fmt.Errorf("message is required")

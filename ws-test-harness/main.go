@@ -149,6 +149,19 @@ type ErrorMessage struct {
 	Timestamp   string `json:"timestamp"`
 }
 
+// OperationRejectedMessage matches AsyncAPI OperationRejectedPayload
+type OperationRejectedMessage struct {
+	MessageType    string   `json:"message_type"`
+	OperationID    string   `json:"operation_id"`
+	SequenceNumber *uint64  `json:"sequence_number,omitempty"`
+	Reason         string   `json:"reason"`
+	Message        string   `json:"message"`
+	Details        *string  `json:"details,omitempty"`
+	AffectedCells  []string `json:"affected_cells,omitempty"`
+	RequiresResync bool     `json:"requires_resync"`
+	Timestamp      string   `json:"timestamp"`
+}
+
 // StateCorrectionMessage matches AsyncAPI StateCorrectionPayload
 type StateCorrectionMessage struct {
 	MessageType  string `json:"message_type"`
@@ -1068,6 +1081,20 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 						"error", msg.Error,
 						"message", msg.Message,
 						"code", msg.Code,
+						"timestamp", msg.Timestamp)
+				}
+
+			case "operation_rejected":
+				var msg OperationRejectedMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Warn("Operation Rejected",
+						"operation_id", msg.OperationID,
+						"sequence_number", msg.SequenceNumber,
+						"reason", msg.Reason,
+						"message", msg.Message,
+						"details", msg.Details,
+						"affected_cells", msg.AffectedCells,
+						"requires_resync", msg.RequiresResync,
 						"timestamp", msg.Timestamp)
 				}
 

@@ -102,6 +102,8 @@ channels:
         $ref: '#/components/messages/RemoveParticipantMessage'
       errorMessage:
         $ref: '#/components/messages/ErrorMessage'
+      operationRejectedMessage:
+        $ref: '#/components/messages/OperationRejectedMessage'
 
 operations:
   sendDiagramOperation:
@@ -155,6 +157,7 @@ operations:
       - $ref: '#/components/messages/ParticipantJoinedMessage'
       - $ref: '#/components/messages/ParticipantLeftMessage'
       - $ref: '#/components/messages/ErrorMessage'
+      - $ref: '#/components/messages/OperationRejectedMessage'
 
 components:
   parameters:
@@ -634,6 +637,66 @@ components:
             details:
               new_session_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
             timestamp: '2024-01-15T14:35:00Z'
+
+    OperationRejectedMessage:
+      name: OperationRejectedMessage
+      title: Operation Rejected Message
+      summary: Notification sent to operation originator when operation is rejected
+      description: |
+        Sent exclusively to the client that originated a diagram operation when
+        the server rejects the operation due to validation failure, conflicts,
+        or other reasons. This provides explicit feedback to the originating
+        client that their operation was not applied or broadcast.
+
+        **Key behaviors:**
+        - Only sent to the originating client (never broadcast to others)
+        - Includes the original operation_id for correlation
+        - Provides structured reason codes for programmatic handling
+        - May include the sequence number if one was assigned before rejection
+
+        **Reason codes:**
+        - `validation_failed`: Operation structure or data failed validation
+        - `conflict_detected`: Operation conflicts with current diagram state
+        - `no_state_change`: Operation would result in no actual state change (idempotent no-op)
+        - `diagram_not_found`: Target diagram no longer exists
+        - `permission_denied`: User lacks permission for this operation
+        - `invalid_operation_type`: Operation type is not recognized
+        - `empty_operation`: Operation contains no cell operations
+      payload:
+        $ref: '#/components/schemas/OperationRejectedPayload'
+      examples:
+        - name: ConflictDetected
+          summary: Operation rejected due to concurrent modification conflict
+          payload:
+            message_type: operation_rejected
+            operation_id: 123e4567-e89b-12d3-a456-426614174000
+            sequence_number: 12345
+            reason: conflict_detected
+            message: Cell 'cell-uuid-1' was modified by another user before your operation could be applied
+            affected_cells:
+              - cell-uuid-1
+            requires_resync: true
+            timestamp: '2024-01-15T14:30:00Z'
+        - name: ValidationFailed
+          summary: Operation rejected due to invalid data
+          payload:
+            message_type: operation_rejected
+            operation_id: 789e4567-e89b-12d3-a456-426614174999
+            reason: validation_failed
+            message: Cell operation validation failed - cell ID mismatch
+            details: "cell data ID (cell-uuid-1) must match operation ID (cell-uuid-2)"
+            requires_resync: false
+            timestamp: '2024-01-15T14:32:00Z'
+        - name: NoStateChange
+          summary: Operation rejected because it would result in no state change
+          payload:
+            message_type: operation_rejected
+            operation_id: 456e4567-e89b-12d3-a456-426614174333
+            sequence_number: 12346
+            reason: no_state_change
+            message: Operation resulted in no state changes (idempotent or no-op)
+            requires_resync: false
+            timestamp: '2024-01-15T14:33:00Z'
 
     ParticipantsUpdateMessage:
       name: ParticipantsUpdateMessage
@@ -1200,6 +1263,75 @@ components:
         - message_type
         - error
         - message
+        - timestamp
+      additionalProperties: false
+
+    OperationRejectedPayload:
+      type: object
+      description: |
+        Notification payload sent exclusively to the operation originator when
+        their diagram operation is rejected. Provides structured feedback about
+        why the operation was not applied or broadcast.
+      properties:
+        message_type:
+          const: operation_rejected
+        operation_id:
+          type: string
+          format: uuid
+          description: Client-generated operation ID from the rejected operation
+          example: 123e4567-e89b-12d3-a456-426614174000
+        sequence_number:
+          type: integer
+          description: Server-assigned sequence number (if assigned before rejection)
+          minimum: 1
+          example: 12345
+        reason:
+          type: string
+          description: Structured reason code for the rejection
+          enum:
+            - validation_failed
+            - conflict_detected
+            - no_state_change
+            - diagram_not_found
+            - permission_denied
+            - invalid_operation_type
+            - empty_operation
+          example: conflict_detected
+        message:
+          type: string
+          description: Human-readable description of the rejection
+          example: Cell 'cell-uuid-1' was modified by another user before your operation could be applied
+        details:
+          type: string
+          description: Optional additional technical details about the rejection
+          example: "cell data ID (cell-uuid-1) must match operation ID (cell-uuid-2)"
+        affected_cells:
+          type: array
+          description: List of cell IDs affected by the rejected operation
+          items:
+            type: string
+            format: uuid
+          example:
+            - cell-uuid-1
+            - cell-uuid-2
+        requires_resync:
+          type: boolean
+          description: |
+            Indicates whether the client should perform a full state resync.
+            - true: Conflict detected, client state may be out of sync (send resync_request)
+            - false: Validation or no-op, client state is likely still valid
+          example: true
+        timestamp:
+          type: string
+          format: date-time
+          description: UTC timestamp when the operation was rejected
+          example: '2024-01-15T14:30:00Z'
+      required:
+        - message_type
+        - operation_id
+        - reason
+        - message
+        - requires_resync
         - timestamp
       additionalProperties: false
 
