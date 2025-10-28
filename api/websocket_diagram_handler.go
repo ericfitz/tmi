@@ -39,6 +39,17 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 	// so we rely on the authenticated client context from the WebSocket connection.
 	// If user attribution is added in the future, validate with validateAndEnforceUserIdentity()
 
+	// Assign sequence number for operation tracking
+	session.mu.Lock()
+	sequenceNumber := session.NextSequenceNumber
+	session.NextSequenceNumber++
+	session.mu.Unlock()
+
+	msg.SequenceNumber = &sequenceNumber
+
+	slogging.Get().Debug("Assigned sequence number - Session: %s, User: %s, OperationID: %s, SequenceNumber: %d",
+		session.ID, client.UserID, msg.OperationID, sequenceNumber)
+
 	// Use the existing applyOperation logic from DiagramSession
 	applied := session.applyOperation(client, msg)
 
