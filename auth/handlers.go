@@ -512,6 +512,46 @@ func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, userInfo
 			})
 			return User{}, err
 		}
+	} else {
+		// User exists - update profile with fresh OAuth data on each login
+		updateNeeded := false
+
+		if name != "" && user.Name != name {
+			user.Name = name
+			updateNeeded = true
+		}
+		if userInfo.GivenName != "" && user.GivenName != userInfo.GivenName {
+			user.GivenName = userInfo.GivenName
+			updateNeeded = true
+		}
+		if userInfo.FamilyName != "" && user.FamilyName != userInfo.FamilyName {
+			user.FamilyName = userInfo.FamilyName
+			updateNeeded = true
+		}
+		if userInfo.Picture != "" && user.Picture != userInfo.Picture {
+			user.Picture = userInfo.Picture
+			updateNeeded = true
+		}
+		if userInfo.Locale != "" && user.Locale != userInfo.Locale {
+			user.Locale = userInfo.Locale
+			updateNeeded = true
+		}
+
+		// Always update last login and email verification status
+		user.LastLogin = time.Now()
+		user.ModifiedAt = time.Now()
+		if userInfo.EmailVerified {
+			user.EmailVerified = true
+			updateNeeded = true
+		}
+
+		if updateNeeded {
+			err = h.service.UpdateUser(ctx, user)
+			if err != nil {
+				// Log error but don't fail the login - user can still authenticate with stale data
+				slogging.Get().WithContext(c).Error("Failed to update user profile during login: %v", err)
+			}
+		}
 	}
 
 	return user, nil
