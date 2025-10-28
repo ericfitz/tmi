@@ -70,7 +70,6 @@ The major version remains at 0 during initial development. Version updates are f
 - Generate API: `make generate-api` (uses oapi-codegen with config from oapi-codegen-config.yml)
 - Development: `make start-dev` (starts full dev environment with DB and Redis on localhost)
 - Development (all interfaces): `make start-dev-0` (starts full dev environment on 0.0.0.0 for external access)
-- Secure Development: `make start-dev-secure` (starts server using existing secure containers)
 - Dev DB only: `make start-database` (starts PostgreSQL container)
 - Dev Redis only: `make start-redis` (starts Redis container)
 - Clean all: `make clean-everything` (comprehensive cleanup of processes, containers, and files)
@@ -84,7 +83,6 @@ The major version remains at 0 during initial development. Version updates are f
 - Security report: `make report-containers` (generates comprehensive security report)
 - Build containers: `make build-containers` (builds containers with vulnerability patches)
 - Container development: `make containers-dev` (builds and starts containers, no server)
-- Start server with containers: `make start-dev-existing` (starts server using existing containers)
 - Full container workflow: `make containers-all` (builds containers and generates reports)
 
 ### SBOM Generation (Software Bill of Materials)

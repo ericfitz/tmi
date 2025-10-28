@@ -257,8 +257,6 @@ stop-process:
 
 start-server:
 	$(call log_info,"Starting server on port $(SERVER_PORT)")
-	@# Build server first to ensure latest code
-	@$(MAKE) build-server
 	@LOG_FILE="$(SERVER_LOG_FILE)"; \
 	if [ -z "$$LOG_FILE" ]; then LOG_FILE="logs/server.log"; fi; \
 	mkdir -p "$$(dirname "$$LOG_FILE")"; \
@@ -490,7 +488,6 @@ test-integration:
 	$(MAKE) -f $(MAKEFILE_LIST) start-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) build-server && \
 	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	SERVER_CONFIG_FILE=config-test.yaml $(MAKE) -f $(MAKEFILE_LIST) start-server && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-process && \
@@ -830,23 +827,6 @@ start-containers-environment:
 	$(call log_info,Starting development environment with containers...)
 	@./scripts/make-containers-dev-local.sh
 	$(call log_success,Development environment started)
-
-# Start server using existing containers (no rebuild)
-start-dev-existing:
-	$(call log_info,"Starting development server with existing containers")
-	@if ! docker ps --format "{{.Names}}" | grep -q "^tmi-postgresql$$"; then \
-		echo -e "$(RED)[ERROR]$(NC) PostgreSQL container not running. Run 'make containers-dev' first."; \
-		exit 1; \
-	fi; \
-	if ! docker ps --format "{{.Names}}" | grep -q "^tmi-redis$$"; then \
-		echo -e "$(RED)[ERROR]$(NC) Redis container not running. Run 'make containers-dev' first."; \
-		exit 1; \
-	fi; \
-	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	go build -o bin/check-db cmd/check-db/main.go && \
-	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
-	SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
-	$(call log_success,"Development server started on port 8080 using containers")
 
 # Shorthand for all container operations
 build-containers-all: build-containers report-containers
