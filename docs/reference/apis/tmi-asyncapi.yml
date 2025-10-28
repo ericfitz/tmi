@@ -80,6 +80,8 @@ channels:
         $ref: '#/components/messages/AuthorizationDeniedMessage'
       stateCorrectionMessage:
         $ref: '#/components/messages/StateCorrectionMessage'
+      diagramStateSyncMessage:
+        $ref: '#/components/messages/DiagramStateSyncMessage'
       resyncRequestMessage:
         $ref: '#/components/messages/ResyncRequestMessage'
       resyncResponseMessage:
@@ -348,18 +350,18 @@ components:
       description: |
         Message sent by server to notify clients that diagram state has changed and they
         should resynchronize with the server. Used in two primary scenarios:
-        
+
         ## REST API Updates
-        When a diagram is updated via REST API (not through WebSocket), all connected 
+        When a diagram is updated via REST API (not through WebSocket), all connected
         WebSocket clients receive a state_correction message containing the new update_vector.
-        This signals them to fetch the latest diagram state via REST API and compare 
+        This signals them to fetch the latest diagram state via REST API and compare
         update vectors to determine if they need to resync.
-        
+
         ## Conflict Resolution
         When WebSocket operations result in conflicts or invalid state, affected clients
         receive a state_correction message with the current authoritative update_vector.
         Clients should compare this with their local state and resync if necessary.
-        
+
         ## Client Handling
         Upon receiving a state_correction message, clients should:
         1. Compare the provided update_vector with their local diagram state
@@ -378,6 +380,70 @@ components:
           payload:
             message_type: state_correction
             update_vector: 23
+
+    DiagramStateSyncMessage:
+      name: DiagramStateSyncMessage
+      title: Initial Diagram State Synchronization
+      summary: Server sends complete diagram state upon client connection
+      description: |
+        Message sent by server immediately after a client connects to a WebSocket
+        collaboration session. This ensures the client has the current server state
+        before sending any operations.
+
+        ## Purpose
+        Prevents "cell_already_exists" validation errors that occur when clients
+        attempt to send operations based on stale REST API cached state. By receiving
+        the current diagram state (including update_vector and all cells), clients can:
+        1. Detect if their cached state is out of sync
+        2. Compare update vectors to determine staleness
+        3. Update their local state before sending operations
+
+        ## When Sent
+        - Immediately after client successfully joins WebSocket session
+        - Sent before any other initial messages (current_presenter, participants_update)
+        - Sent only to the newly connected client (not broadcasted)
+
+        ## Client Handling
+        Upon receiving a diagram_state_sync message, clients should:
+        1. Compare the received update_vector with their local cached version
+        2. If update_vector differs:
+           - Option A: Use the received cells array to update local state
+           - Option B: Fetch fresh diagram via REST API for complete synchronization
+        3. Update local state before sending any diagram_operation messages
+        4. If cells array is empty, the diagram has no cells yet (new diagram)
+
+        ## Performance Considerations
+        For diagrams with many cells (100+), the cells array may be large. Clients
+        should handle this message asynchronously and may choose to fetch via REST API
+        instead of processing the embedded cells array.
+      payload:
+        $ref: '#/components/schemas/DiagramStateSyncPayload'
+      examples:
+        - name: InitialStateWithCells
+          summary: Initial state sync with existing diagram cells
+          payload:
+            message_type: diagram_state_sync
+            diagram_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+            update_vector: 42
+            cells:
+              - id: 123e4567-e89b-12d3-a456-426614174000
+                shape: process
+                x: 100
+                y: 100
+                width: 120
+                height: 60
+                label: Authentication Service
+              - id: 987fcdeb-51a2-43f7-8a9b-426614174000
+                shape: edge
+                source: 123e4567-e89b-12d3-a456-426614174000
+                target: 456e7890-abcd-12d3-a456-426614174000
+        - name: InitialStateEmpty
+          summary: Initial state sync for new diagram with no cells
+          payload:
+            message_type: diagram_state_sync
+            diagram_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+            update_vector: 1
+            cells: []
 
     ResyncRequestMessage:
       name: ResyncRequestMessage
@@ -854,6 +920,57 @@ components:
       required:
         - message_type
         - update_vector
+      additionalProperties: false
+
+    DiagramStateSyncPayload:
+      type: object
+      description: |
+        Server sends complete diagram state to newly connected clients to ensure
+        synchronization before operations are sent. Contains the current update_vector
+        and full cells array for immediate state comparison and update.
+      properties:
+        message_type:
+          const: diagram_state_sync
+        diagram_id:
+          type: string
+          format: uuid
+          description: |
+            UUID of the diagram being synchronized. Matches the diagram_id from the
+            WebSocket connection URL path parameter.
+          example: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+        update_vector:
+          type: integer
+          format: int64
+          minimum: 0
+          nullable: true
+          description: |
+            Current authoritative update vector for the diagram. Clients should
+            compare this with their locally cached update_vector from REST API fetch.
+            If different, the client's cached state is stale and should be updated.
+            May be null for diagrams that have never been modified.
+          example: 42
+        cells:
+          type: array
+          description: |
+            Complete array of diagram cells (nodes and edges) in current server state.
+            Clients can use this to update their local state without an additional REST
+            API call. For large diagrams (100+ cells), clients may choose to ignore
+            this array and fetch via REST API instead for better performance.
+          items:
+            $ref: '#/components/schemas/Cell'
+          example:
+            - id: 123e4567-e89b-12d3-a456-426614174000
+              shape: process
+              x: 100
+              y: 100
+            - id: 987fcdeb-51a2-43f7-8a9b-426614174000
+              shape: edge
+              source: 123e4567-e89b-12d3-a456-426614174000
+              target: 456e7890-abcd-12d3-a456-426614174000
+      required:
+        - message_type
+        - diagram_id
+        - cells
       additionalProperties: false
 
     ResyncRequestPayload:

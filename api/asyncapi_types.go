@@ -27,6 +27,7 @@ const (
 	MessageTypePresenterSelection  MessageType = "presenter_selection"
 	MessageTypeAuthorizationDenied MessageType = "authorization_denied"
 	MessageTypeStateCorrection     MessageType = "state_correction"
+	MessageTypeDiagramStateSync    MessageType = "diagram_state_sync"
 	MessageTypeResyncRequest       MessageType = "resync_request"
 	MessageTypeResyncResponse      MessageType = "resync_response"
 	MessageTypeHistoryOperation    MessageType = "history_operation"
@@ -340,6 +341,35 @@ func (m StateCorrectionMessage) Validate() error {
 		return fmt.Errorf("update_vector is required for state correction")
 	}
 	if *m.UpdateVector < 0 {
+		return fmt.Errorf("update_vector must be non-negative")
+	}
+	return nil
+}
+
+// DiagramStateSyncMessage is sent to clients immediately upon connection to synchronize state
+type DiagramStateSyncMessage struct {
+	MessageType  MessageType             `json:"message_type"`
+	DiagramID    string                  `json:"diagram_id"`
+	UpdateVector *int64                  `json:"update_vector"`
+	Cells        []DfdDiagram_Cells_Item `json:"cells"`
+}
+
+func (m DiagramStateSyncMessage) GetMessageType() MessageType { return m.MessageType }
+
+func (m DiagramStateSyncMessage) Validate() error {
+	if m.MessageType != MessageTypeDiagramStateSync {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeDiagramStateSync, m.MessageType)
+	}
+	if m.DiagramID == "" {
+		return fmt.Errorf("diagram_id is required for diagram state sync")
+	}
+	if _, err := uuid.Parse(m.DiagramID); err != nil {
+		return fmt.Errorf("diagram_id must be a valid UUID: %w", err)
+	}
+	if m.Cells == nil {
+		return fmt.Errorf("cells array is required (may be empty for new diagrams)")
+	}
+	if m.UpdateVector != nil && *m.UpdateVector < 0 {
 		return fmt.Errorf("update_vector must be non-negative")
 	}
 	return nil

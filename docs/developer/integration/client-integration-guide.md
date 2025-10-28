@@ -851,6 +851,274 @@ class TMICollaborativeClient {
 }
 ```
 
+### Initial State Synchronization
+
+**CRITICAL**: Immediately after connecting to a WebSocket collaboration session, clients receive a `diagram_state_sync` message containing the current server state. Clients **MUST** handle this message to prevent "cell_already_exists" validation errors.
+
+#### Why State Sync is Required
+
+When joining a collaboration session, there's a potential timing gap:
+
+1. **T1**: Client fetches diagram via REST API → Gets version 42
+2. **T2**: Another user makes changes → Server is now at version 45
+3. **T3**: Client connects to WebSocket → Client thinks they have version 42
+4. **T4**: Client sends "add" operation → Server rejects (cell already exists)
+
+The `diagram_state_sync` message solves this by providing the current server state immediately upon connection.
+
+#### Message Structure
+
+```typescript
+interface DiagramStateSyncMessage {
+  message_type: "diagram_state_sync";
+  diagram_id: string; // UUID of the diagram
+  update_vector: number | null; // Current server version (null for new diagrams)
+  cells: Cell[]; // Complete array of current diagram cells
+}
+```
+
+#### Handling State Sync
+
+```javascript
+class TMICollaborativeClient {
+  // Store locally cached diagram state
+  cachedDiagram = null;
+  isStateSynchronized = false;
+
+  handleMessage(message) {
+    switch (message.message_type) {
+      case "diagram_state_sync":
+        this.handleDiagramStateSync(message);
+        break;
+      case "diagram_operation":
+        this.handleDiagramOperation(message);
+        break;
+      // ... other message types
+    }
+  }
+
+  handleDiagramStateSync(message) {
+    console.log(`Received initial state sync - UpdateVector: ${message.update_vector}, Cells: ${message.cells.length}`);
+
+    // Compare with locally cached diagram (from REST API fetch)
+    const localVersion = this.cachedDiagram?.update_vector || 0;
+    const serverVersion = message.update_vector || 0;
+
+    if (localVersion !== serverVersion) {
+      console.warn(`State mismatch detected - Local: ${localVersion}, Server: ${serverVersion}`);
+
+      // Option A: Use the cells provided in the message (fastest)
+      this.updateLocalDiagram(message.cells, message.update_vector);
+
+      // Option B: Re-fetch via REST API for complete synchronization (most reliable)
+      // await this.fetchDiagramViaREST(message.diagram_id);
+    } else {
+      console.log("Local state matches server state - no sync needed");
+    }
+
+    // Mark as synchronized
+    this.isStateSynchronized = true;
+
+    // Process any queued operations that were waiting for sync
+    this.processQueuedOperations();
+  }
+
+  updateLocalDiagram(cells, updateVector) {
+    // Update local diagram representation
+    this.cachedDiagram = {
+      ...this.cachedDiagram,
+      cells: cells,
+      update_vector: updateVector
+    };
+
+    // Update UI to show current server state
+    this.renderDiagram(cells);
+  }
+
+  // Queue operations until state is synchronized
+  queuedOperations = [];
+
+  sendOperation(operation) {
+    if (!this.isStateSynchronized) {
+      console.log("Queueing operation until state sync completes");
+      this.queuedOperations.push(operation);
+      return;
+    }
+
+    // Send immediately if synchronized
+    this.ws.send(JSON.stringify(operation));
+  }
+
+  processQueuedOperations() {
+    console.log(`Processing ${this.queuedOperations.length} queued operations`);
+
+    while (this.queuedOperations.length > 0) {
+      const operation = this.queuedOperations.shift();
+      this.ws.send(JSON.stringify(operation));
+    }
+  }
+}
+```
+
+#### Detecting Out-of-Sync State
+
+Clients can detect state discrepancies by comparing update vectors:
+
+```javascript
+function isOutOfSync(localDiagram, stateSyncMessage) {
+  const localVector = localDiagram?.update_vector || 0;
+  const serverVector = stateSyncMessage.update_vector || 0;
+
+  return localVector !== serverVector;
+}
+
+function needsResync(localDiagram, stateSyncMessage) {
+  // If server version is higher, our cached state is stale
+  const localVector = localDiagram?.update_vector || 0;
+  const serverVector = stateSyncMessage.update_vector || 0;
+
+  return serverVector > localVector;
+}
+```
+
+#### Resynchronization Strategies
+
+When state mismatch is detected, clients have three options:
+
+**Option 1: Use Embedded Cells (Fastest)**
+```javascript
+// Update local state immediately from the cells array in diagram_state_sync
+this.cachedDiagram.cells = stateSyncMessage.cells;
+this.cachedDiagram.update_vector = stateSyncMessage.update_vector;
+```
+
+**Option 2: Re-fetch via REST API (Most Reliable)**
+```javascript
+// Fetch complete diagram via REST API for full synchronization
+const response = await fetch(`/api/threat_models/${tmId}/diagrams/${diagramId}`);
+this.cachedDiagram = await response.json();
+```
+
+**Option 3: Request Explicit Resync (Manual)**
+```javascript
+// Send resync_request message to server
+this.ws.send(JSON.stringify({
+  message_type: "resync_request"
+}));
+
+// Server responds with resync_response telling client to use REST API
+// Then fetch via REST API as in Option 2
+```
+
+#### State Correction Messages
+
+In addition to initial state sync, clients may receive `state_correction` messages during the session when:
+- Diagram is updated via REST API (outside WebSocket)
+- Operation conflicts are detected
+- Server state changes externally
+
+```javascript
+handleStateCorrection(message) {
+  console.warn(`State correction received - Server UpdateVector: ${message.update_vector}`);
+
+  const localVector = this.cachedDiagram?.update_vector || 0;
+
+  if (message.update_vector > localVector) {
+    // Server is ahead - we need to resync
+    console.log("Resyncing diagram state via REST API");
+    await this.fetchDiagramViaREST(this.diagramId);
+
+    // Retry any failed operations after resync
+    this.retryFailedOperations();
+  }
+}
+```
+
+#### Best Practices for State Synchronization
+
+1. **Always handle diagram_state_sync**: This is the first message you'll receive after connecting
+2. **Compare update vectors**: Check if your cached state matches server state
+3. **Queue operations until synchronized**: Don't send operations before handling state sync
+4. **Choose the right strategy**:
+   - Small diagrams (<100 cells): Use embedded cells
+   - Large diagrams (100+ cells): Re-fetch via REST API
+5. **Handle state_correction gracefully**: Resync when notified
+6. **Use correct operation types**:
+   - Use "add" only for brand new cells you're creating
+   - Use "update" for existing cells (check local state first)
+   - Use "remove" to delete cells
+7. **Track update_vector locally**: Update it when you receive operations from server
+
+#### Complete Example
+
+```javascript
+class TMICollaborativeClient {
+  async joinSession(threatModelId, diagramId) {
+    // 1. Fetch diagram via REST API
+    const response = await fetch(`/api/threat_models/${threatModelId}/diagrams/${diagramId}`);
+    this.cachedDiagram = await response.json();
+    console.log(`Cached diagram - Version: ${this.cachedDiagram.update_vector}, Cells: ${this.cachedDiagram.cells.length}`);
+
+    // 2. Connect to WebSocket
+    this.ws = new WebSocket(`wss://api.tmi.example.com/threat_models/${threatModelId}/diagrams/${diagramId}/ws`);
+
+    this.ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+
+      // 3. Handle initial state sync (first message received)
+      if (message.message_type === "diagram_state_sync") {
+        this.handleDiagramStateSync(message);
+      }
+      // ... handle other message types
+    };
+  }
+
+  handleDiagramStateSync(message) {
+    const localVector = this.cachedDiagram?.update_vector || 0;
+    const serverVector = message.update_vector || 0;
+
+    if (serverVector !== localVector) {
+      console.warn(`State sync needed - Local: ${localVector}, Server: ${serverVector}`);
+
+      // Update local state with server cells
+      this.cachedDiagram.cells = message.cells;
+      this.cachedDiagram.update_vector = message.update_vector;
+
+      // Re-render diagram with server state
+      this.renderDiagram(message.cells);
+    }
+
+    // Mark as synchronized and ready to send operations
+    this.isStateSynchronized = true;
+    this.emit('ready');
+  }
+
+  addCell(cellData) {
+    if (!this.isStateSynchronized) {
+      throw new Error("Cannot add cell - state not synchronized yet");
+    }
+
+    // Check if cell already exists in our synchronized state
+    const cellExists = this.cachedDiagram.cells.some(c => c.id === cellData.id);
+
+    const operation = {
+      message_type: "diagram_operation",
+      operation_id: crypto.randomUUID(),
+      operation: {
+        type: "patch",
+        cells: [{
+          id: cellData.id,
+          operation: cellExists ? "update" : "add", // Use correct operation type
+          data: cellData
+        }]
+      }
+    };
+
+    this.ws.send(JSON.stringify(operation));
+  }
+}
+```
+
 ## Message Types & Protocol
 
 ### Sending Operations
@@ -1573,6 +1841,13 @@ interface AuthorizationDeniedMessage {
 
 interface StateCorrectionMessage {
   message_type: "state_correction";
+  update_vector: number;
+}
+
+interface DiagramStateSyncMessage {
+  message_type: "diagram_state_sync";
+  diagram_id: string;
+  update_vector: number | null;
   cells: Cell[];
 }
 

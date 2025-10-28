@@ -1335,7 +1335,41 @@ func (s *DiagramSession) Run() {
 			slogging.Get().Debug("Client registered successfully in session - Session: %s, User: %s, Total clients: %d", s.ID, client.UserID, len(s.Clients))
 
 			// Send initial state to the new client
-			// First, send current presenter info
+			// First, send diagram state sync to ensure client has current server state
+			diagram, err := DiagramStore.Get(s.DiagramID)
+			if err != nil {
+				slogging.Get().Error("Failed to get diagram for initial state sync - Session: %s, User: %s, DiagramID: %s, Error: %v",
+					s.ID, client.UserID, s.DiagramID, err)
+				// Continue anyway - client can request resync later via resync_request message
+			} else {
+				updateVectorValue := int64(0)
+				if diagram.UpdateVector != nil {
+					updateVectorValue = *diagram.UpdateVector
+				}
+
+				stateSyncMsg := DiagramStateSyncMessage{
+					MessageType:  MessageTypeDiagramStateSync,
+					DiagramID:    s.DiagramID,
+					UpdateVector: diagram.UpdateVector,
+					Cells:        diagram.Cells,
+				}
+
+				if msgBytes, err := json.Marshal(stateSyncMsg); err == nil {
+					select {
+					case client.Send <- msgBytes:
+						slogging.Get().Info("Sent initial diagram state sync to client - Session: %s, User: %s, UpdateVector: %d, Cells: %d",
+							s.ID, client.UserID, updateVectorValue, len(diagram.Cells))
+					default:
+						slogging.Get().Error("Failed to queue initial state sync for client - Session: %s, User: %s (channel full)",
+							s.ID, client.UserID)
+					}
+				} else {
+					slogging.Get().Error("Failed to marshal diagram state sync message - Session: %s, User: %s, Error: %v",
+						s.ID, client.UserID, err)
+				}
+			}
+
+			// Second, send current presenter info
 			s.mu.RLock()
 			currentPresenter := s.CurrentPresenter
 			s.mu.RUnlock()
