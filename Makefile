@@ -1145,6 +1145,11 @@ status:
 	if [ -n "$$SERVICE_PID" ]; then \
 		SERVICE_NAME=$$(ps -p $$SERVICE_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
 		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Running" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
+		API_VERSION=$$(curl -s http://localhost:8080 2>/dev/null | jq -r '.api.version // "unknown"' 2>/dev/null || echo "unknown"); \
+		SERVICE_BUILD=$$(curl -s http://localhost:8080 2>/dev/null | jq -r '.service.build // "unknown"' 2>/dev/null || echo "unknown"); \
+		if [ "$$API_VERSION" != "unknown" ] || [ "$$SERVICE_BUILD" != "unknown" ]; then \
+			printf "  %-44s API Version: $$API_VERSION, Build: $$SERVICE_BUILD\n" ""; \
+		fi; \
 	else \
 		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Stopped" "-" "make start-server"; \
 	fi
