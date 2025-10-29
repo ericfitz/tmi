@@ -616,6 +616,15 @@ func (s *Server) BulkCreateDiagramMetadata(c *gin.Context, threatModelId openapi
 	handler.BulkCreateThreatModelDiagramMetadata(c)
 }
 
+// BulkUpsertDiagramMetadata bulk upserts diagram metadata
+func (s *Server) BulkUpsertDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
+	// Create diagram metadata handler
+	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
+
+	// Delegate to existing implementation
+	handler.BulkUpdateThreatModelDiagramMetadata(c)
+}
+
 // DeleteDiagramMetadataByKey deletes diagram metadata by key
 func (s *Server) DeleteDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) {
 	// Create diagram metadata handler
@@ -701,6 +710,11 @@ func (s *Server) BulkCreateDocumentMetadata(c *gin.Context, threatModelId openap
 	s.documentMetadataHandler.BulkCreateDocumentMetadata(c)
 }
 
+// BulkUpsertDocumentMetadata bulk upserts document metadata
+func (s *Server) BulkUpsertDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
+	s.documentMetadataHandler.BulkUpdateDocumentMetadata(c)
+}
+
 // DeleteDocumentMetadataByKey deletes document metadata by key
 func (s *Server) DeleteDocumentMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) {
 	s.documentMetadataHandler.DeleteDocumentMetadata(c)
@@ -763,6 +777,11 @@ func (s *Server) CreateNoteMetadata(c *gin.Context, threatModelId openapi_types.
 	s.noteMetadataHandler.CreateNoteMetadata(c)
 }
 
+// BulkCreateNoteMetadata bulk creates note metadata
+func (s *Server) BulkCreateNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
+	s.noteMetadataHandler.BulkCreateNoteMetadata(c)
+}
+
 // BulkUpdateNoteMetadata bulk updates note metadata
 func (s *Server) BulkUpdateNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
 	s.noteMetadataHandler.BulkUpdateNoteMetadata(c)
@@ -798,6 +817,11 @@ func (s *Server) CreateThreatModelMetadata(c *gin.Context, threatModelId openapi
 // BulkCreateThreatModelMetadata bulk creates threat model metadata
 func (s *Server) BulkCreateThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID) {
 	s.threatModelMetadataHandler.BulkCreateThreatModelMetadata(c)
+}
+
+// BulkUpsertThreatModelMetadata bulk upserts threat model metadata
+func (s *Server) BulkUpsertThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID) {
+	s.threatModelMetadataHandler.BulkUpdateThreatModelMetadata(c)
 }
 
 // DeleteThreatModelMetadataByKey deletes threat model metadata by key
@@ -871,6 +895,11 @@ func (s *Server) CreateRepositoryMetadata(c *gin.Context, threatModelId openapi_
 // BulkCreateRepositoryMetadata bulk creates repository metadata
 func (s *Server) BulkCreateRepositoryMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID) {
 	s.repositoryMetadataHandler.BulkCreateRepositoryMetadata(c)
+}
+
+// BulkUpsertRepositoryMetadata bulk upserts repository metadata
+func (s *Server) BulkUpsertRepositoryMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID) {
+	s.repositoryMetadataHandler.BulkUpdateRepositoryMetadata(c)
 }
 
 // DeleteRepositoryMetadataByKey deletes repository metadata by key
@@ -1033,6 +1062,11 @@ func (s *Server) CreateThreatMetadata(c *gin.Context, threatModelId openapi_type
 // BulkCreateThreatMetadata bulk creates threat metadata
 func (s *Server) BulkCreateThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
 	s.threatMetadataHandler.BulkCreateThreatMetadata(c)
+}
+
+// BulkUpsertThreatMetadata bulk upserts threat metadata
+func (s *Server) BulkUpsertThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
+	s.threatMetadataHandler.BulkUpdateThreatMetadata(c)
 }
 
 // DeleteThreatMetadataByKey deletes threat metadata by key

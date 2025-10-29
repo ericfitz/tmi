@@ -5720,6 +5720,87 @@
             "$ref": "#/components/responses/Error"
           }
         }
+      },
+      "put": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Bulk upsert threat metadata",
+        "description": "Creates or updates multiple metadata key-value pairs for the specified threat",
+        "operationId": "bulkUpsertThreatMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "threat_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat (UUID)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 20
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata upserted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/threat_models/{threat_model_id}/threats/bulk": {
@@ -7060,6 +7141,87 @@
             "$ref": "#/components/responses/Error"
           }
         }
+      },
+      "put": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Bulk upsert document metadata",
+        "description": "Creates or updates multiple metadata key-value pairs for the specified document",
+        "operationId": "bulkUpsertDocumentMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the document (UUID)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 20
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata upserted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/threat_models/{threat_model_id}/documents/bulk": {
@@ -8052,6 +8214,87 @@
             "$ref": "#/components/responses/Error"
           }
         }
+      },
+      "put": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Bulk upsert repository metadata",
+        "description": "Creates or updates multiple metadata key-value pairs for the specified repository",
+        "operationId": "bulkUpsertRepositoryMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "repository_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the source reference (UUID)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 20
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata upserted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/threat_models/{threat_model_id}/repositories/bulk": {
@@ -8565,6 +8808,76 @@
         "responses": {
           "201": {
             "description": "Metadata entries created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Bulk upsert threat model metadata",
+        "description": "Creates or updates multiple metadata key-value pairs for the specified threat model",
+        "operationId": "bulkUpsertThreatModelMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 20
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata upserted successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -9741,6 +10054,87 @@
             "$ref": "#/components/responses/Error"
           }
         }
+      },
+      "put": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Bulk upsert diagram metadata",
+        "description": "Creates or updates multiple metadata key-value pairs for the specified diagram",
+        "operationId": "bulkUpsertDiagramMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "diagram_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the diagram (UUID)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 20
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata upserted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/users/me": {
@@ -10557,6 +10951,86 @@
         "responses": {
           "200": {
             "description": "Metadata entries updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Bulk create note metadata",
+        "description": "Creates multiple metadata key-value pairs for the specified note",
+        "operationId": "bulkCreateNoteMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36
+            },
+            "description": "Unique identifier of the note (UUID)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Metadata created successfully",
             "content": {
               "application/json": {
                 "schema": {
