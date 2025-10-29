@@ -948,7 +948,7 @@ func (s *Server) BulkCreateThreatModelAssetMetadata(c *gin.Context, threatModelI
 
 // BulkUpsertThreatModelAssetMetadata creates or updates multiple asset metadata entries
 func (s *Server) BulkUpsertThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
-	s.assetMetadataHandler.BulkCreateAssetMetadata(c)
+	s.assetMetadataHandler.BulkUpdateAssetMetadata(c)
 }
 
 // DeleteThreatModelAssetMetadata deletes asset metadata by key
