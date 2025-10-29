@@ -765,7 +765,7 @@ func (s *Server) CreateNoteMetadata(c *gin.Context, threatModelId openapi_types.
 
 // BulkUpdateNoteMetadata bulk updates note metadata
 func (s *Server) BulkUpdateNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
-	s.noteMetadataHandler.BulkCreateNoteMetadata(c)
+	s.noteMetadataHandler.BulkUpdateNoteMetadata(c)
 }
 
 // DeleteNoteMetadataByKey deletes note metadata by key
