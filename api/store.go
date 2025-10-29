@@ -32,6 +32,7 @@ type ThreatModelWithCounts struct {
 	DiagramCount  int
 	ThreatCount   int
 	NoteCount     int
+	AssetCount    int
 }
 
 type ThreatModelStoreInterface interface {

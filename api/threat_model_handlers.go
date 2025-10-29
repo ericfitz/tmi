@@ -96,6 +96,8 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 			RepoCount:     tmWithCounts.SourceCount,
 			DiagramCount:  tmWithCounts.DiagramCount,
 			ThreatCount:   tmWithCounts.ThreatCount,
+			NoteCount:     tmWithCounts.NoteCount,
+			AssetCount:    tmWithCounts.AssetCount,
 		})
 	}
 

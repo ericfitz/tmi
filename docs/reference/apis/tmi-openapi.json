@@ -1585,6 +1585,16 @@
             "format": "uri",
             "description": "URL to an issue in an issue tracking system",
             "maxLength": 1024
+          },
+          "asset_count": {
+            "type": "integer",
+            "description": "Number of assets associated with this threat model",
+            "minimum": 0
+          },
+          "note_count": {
+            "type": "integer",
+            "description": "Number of notes associated with this threat model",
+            "minimum": 0
           }
         },
         "required": [
@@ -1598,7 +1608,9 @@
           "document_count",
           "repo_count",
           "diagram_count",
-          "threat_count"
+          "threat_count",
+          "asset_count",
+          "note_count"
         ]
       },
       "Point": {
