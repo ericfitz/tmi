@@ -30,13 +30,8 @@ type AssetStore interface {
 	WarmCache(ctx context.Context, threatModelID string) error
 }
 
-// ExtendedAsset includes database fields not in the API model
-type ExtendedAsset struct {
-	Asset
-	ThreatModelId uuid.UUID `json:"threat_model_id"`
-	CreatedAt     time.Time `json:"created_at"`
-	ModifiedAt    time.Time `json:"modified_at"`
-}
+// Note: ExtendedAsset is now generated from OpenAPI spec in api.go
+// It includes all Asset fields plus ThreatModelId, CreatedAt, ModifiedAt
 
 // DatabaseAssetStore implements AssetStore with database persistence and Redis caching
 type DatabaseAssetStore struct {
@@ -58,16 +53,32 @@ func NewDatabaseAssetStore(db *sql.DB, cache *CacheService, invalidator *CacheIn
 func assetToExtended(asset *Asset, threatModelID string, createdAt, modifiedAt time.Time) *ExtendedAsset {
 	tmID, _ := uuid.Parse(threatModelID)
 	return &ExtendedAsset{
-		Asset:         *asset,
-		ThreatModelId: tmID,
-		CreatedAt:     createdAt,
-		ModifiedAt:    modifiedAt,
+		Id:             asset.Id,
+		Name:           asset.Name,
+		Description:    asset.Description,
+		Type:           ExtendedAssetType(asset.Type),
+		Criticality:    asset.Criticality,
+		Classification: asset.Classification,
+		Sensitivity:    asset.Sensitivity,
+		Metadata:       asset.Metadata,
+		ThreatModelId:  tmID,
+		CreatedAt:      createdAt,
+		ModifiedAt:     modifiedAt,
 	}
 }
 
 // extendedToAsset converts an ExtendedAsset to Asset
 func extendedToAsset(extAsset *ExtendedAsset) *Asset {
-	return &extAsset.Asset
+	return &Asset{
+		Id:             extAsset.Id,
+		Name:           extAsset.Name,
+		Description:    extAsset.Description,
+		Type:           AssetType(extAsset.Type),
+		Criticality:    extAsset.Criticality,
+		Classification: extAsset.Classification,
+		Sensitivity:    extAsset.Sensitivity,
+		Metadata:       extAsset.Metadata,
+	}
 }
 
 // Create creates a new asset with write-through caching
@@ -130,8 +141,7 @@ func (s *DatabaseAssetStore) Create(ctx context.Context, asset *Asset, threatMod
 
 	// Cache the new asset
 	if s.cache != nil {
-		extAsset := assetToExtended(asset, threatModelID, now, now)
-		if cacheErr := s.cache.CacheAsset(ctx, &extAsset.Asset); cacheErr != nil {
+		if cacheErr := s.cache.CacheAsset(ctx, asset); cacheErr != nil {
 			logger.Error("Failed to cache new asset: %v", cacheErr)
 			// Don't fail the request if caching fails
 		}
