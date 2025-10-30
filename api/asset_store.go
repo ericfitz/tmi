@@ -399,6 +399,13 @@ func (s *DatabaseAssetStore) List(ctx context.Context, threatModelID string, off
 	logger := slogging.Get()
 	logger.Debug("Listing assets for threat model %s (offset: %d, limit: %d)", threatModelID, offset, limit)
 
+	// Parse threat model ID
+	tmID, err := uuid.Parse(threatModelID)
+	if err != nil {
+		logger.Error("Invalid threat model ID: %s", threatModelID)
+		return nil, fmt.Errorf("invalid threat model ID: %w", err)
+	}
+
 	// Try cache first
 	var assets []Asset
 	if s.cache != nil {
@@ -423,7 +430,7 @@ func (s *DatabaseAssetStore) List(ctx context.Context, threatModelID string, off
 		LIMIT $2 OFFSET $3
 	`
 
-	rows, err := s.db.QueryContext(ctx, query, threatModelID, limit, offset)
+	rows, err := s.db.QueryContext(ctx, query, tmID, limit, offset)
 	if err != nil {
 		logger.Error("Failed to query assets from database: %v", err)
 		return nil, fmt.Errorf("failed to list assets: %w", err)
