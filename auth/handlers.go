@@ -385,7 +385,7 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 	}
 
 	// Create or get user
-	user, err := h.createOrGetUser(c, ctx, userInfo, claims)
+	user, err := h.createOrGetUser(c, ctx, stateData.ProviderID, userInfo, claims)
 	if err != nil {
 		return err
 	}
@@ -463,17 +463,47 @@ func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, p
 	return tokenResponse, userInfo, claims, nil
 }
 
-// createOrGetUser creates a new user or gets existing user
-func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, userInfo *UserInfo, claims *IDTokenClaims) (User, error) {
+// extractEmailWithFallback extracts email from userInfo/claims with fallback to synthetic email
+func (h *Handlers) extractEmailWithFallback(c *gin.Context, providerID string, userInfo *UserInfo, claims *IDTokenClaims) (string, error) {
 	email := userInfo.Email
 	if email == "" && claims != nil {
 		email = claims.Email
 	}
 
 	if email == "" {
-		slogging.Get().WithContext(c).Error("OAuth provider returned empty email for user (name: %s, id: %s, userInfo.Email: %s)", userInfo.Name, userInfo.ID, userInfo.Email)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user email"})
-		return User{}, fmt.Errorf("no email found")
+		// Enhanced logging for email retrieval failure
+		claimsEmail := "<no_claims>"
+		if claims != nil {
+			claimsEmail = claims.Email
+		}
+		slogging.Get().WithContext(c).Warn("OAuth provider returned empty email - using fallback (provider: %s, user_id: %s, name: %s, userInfo.Email: %s, claims.Email: %s, email_verified: %v)",
+			providerID, userInfo.ID, userInfo.Name, userInfo.Email, claimsEmail, userInfo.EmailVerified)
+
+		// Fallback: use provider user ID as email identifier
+		// This handles cases where:
+		// - GitHub user has private email or unverified email
+		// - Provider doesn't return email in userinfo or ID token claims
+		if userInfo.ID == "" {
+			slogging.Get().WithContext(c).Error("OAuth provider returned no email and no user ID (provider: %s, name: %s)", providerID, userInfo.Name)
+			return "", fmt.Errorf("no email or user ID found")
+		}
+
+		// Create synthetic email from provider ID and user ID
+		// Format: <provider>-<user_id>@<provider>.oauth.tmi
+		email = fmt.Sprintf("%s-%s@%s.oauth.tmi", providerID, userInfo.ID, providerID)
+		slogging.Get().WithContext(c).Info("Using fallback email for OAuth user (provider: %s, user_id: %s, fallback_email: %s)",
+			providerID, userInfo.ID, email)
+	}
+
+	return email, nil
+}
+
+// createOrGetUser creates a new user or gets existing user
+func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, providerID string, userInfo *UserInfo, claims *IDTokenClaims) (User, error) {
+	email, err := h.extractEmailWithFallback(c, providerID, userInfo, claims)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user email or ID from provider"})
+		return User{}, err
 	}
 
 	name := userInfo.Name
@@ -705,16 +735,10 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		return
 	}
 
-	// Extract email from userInfo or claims
-	email := userInfo.Email
-	if email == "" && claims != nil {
-		email = claims.Email
-	}
-	if email == "" {
-		slogging.Get().WithContext(c).Error("OAuth provider returned empty email in callback (userInfo.Email: %s, claims present: %v)", userInfo.Email, claims != nil)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get user email from provider",
-		})
+	// Extract email from userInfo or claims with fallback
+	email, err := h.extractEmailWithFallback(c, providerID, userInfo, claims)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user email or ID from provider"})
 		return
 	}
 
