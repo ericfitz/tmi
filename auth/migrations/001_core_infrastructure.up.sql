@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
     family_name VARCHAR(255),
     picture VARCHAR(1024),
     locale VARCHAR(10) DEFAULT 'en-US',
+    identity_provider VARCHAR(100),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMPTZ
@@ -61,6 +62,7 @@ CREATE TABLE session_participants (
 -- Create indexes for users
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_last_login ON users(last_login);
+CREATE INDEX IF NOT EXISTS idx_users_identity_provider ON users(identity_provider);
 
 -- Create indexes for user_providers
 CREATE INDEX IF NOT EXISTS idx_user_providers_user_id ON user_providers(user_id);

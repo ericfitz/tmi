@@ -44,14 +44,16 @@ type TokenResponse struct {
 
 // UserInfo contains user information from the provider
 type UserInfo struct {
-	ID            string `json:"id,omitempty"`
-	Email         string `json:"email,omitempty"`
-	EmailVerified bool   `json:"email_verified,omitempty"`
-	Name          string `json:"name,omitempty"`
-	GivenName     string `json:"given_name,omitempty"`
-	FamilyName    string `json:"family_name,omitempty"`
-	Picture       string `json:"picture,omitempty"`
-	Locale        string `json:"locale,omitempty"`
+	ID            string   `json:"id,omitempty"`
+	Email         string   `json:"email,omitempty"`
+	EmailVerified bool     `json:"email_verified,omitempty"`
+	Name          string   `json:"name,omitempty"`
+	GivenName     string   `json:"given_name,omitempty"`
+	FamilyName    string   `json:"family_name,omitempty"`
+	Picture       string   `json:"picture,omitempty"`
+	Locale        string   `json:"locale,omitempty"`
+	IdP           string   `json:"idp,omitempty"`     // Identity provider ID
+	Groups        []string `json:"groups,omitempty"`  // Groups from identity provider
 }
 
 // IDTokenClaims contains the claims from an ID token

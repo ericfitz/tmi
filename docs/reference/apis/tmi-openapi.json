@@ -1110,7 +1110,14 @@
           "authorization": [
             {
               "subject": "user@example.com",
+              "subject_type": "user",
               "role": "owner"
+            },
+            {
+              "subject": "security-team",
+              "subject_type": "group",
+              "idp": "saml_okta",
+              "role": "writer"
             }
           ],
           "metadata": [],
@@ -1274,17 +1281,33 @@
       },
       "Authorization": {
         "type": "object",
-        "description": "A user-role pair defining access permissions",
+        "description": "Authorization entry defining access permissions for users or groups",
         "properties": {
           "subject": {
             "type": "string",
-            "description": "Email address or identifier of the authorized user (may be email address or other format)",
+            "description": "Email address for users, group name for groups",
             "minLength": 1,
-            "maxLength": 256,
+            "maxLength": 500,
             "pattern": "^[^<>\"'&]*$",
             "x-oapi-codegen-extra-tags": {
               "binding": "required"
             }
+          },
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "group"
+            ],
+            "description": "Type of authorization subject: user (individual) or group",
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required"
+            }
+          },
+          "idp": {
+            "type": "string",
+            "description": "Identity provider (required for groups, optional for users)",
+            "maxLength": 100
           },
           "role": {
             "type": "string",
@@ -1302,6 +1325,7 @@
         },
         "required": [
           "subject",
+          "subject_type",
           "role"
         ]
       },
@@ -2403,6 +2427,28 @@
             "type": "string",
             "description": "User's display name",
             "maxLength": 256
+          },
+          "picture": {
+            "type": "string",
+            "description": "URL to user's profile picture",
+            "maxLength": 1024
+          },
+          "idp": {
+            "type": "string",
+            "description": "Identity provider used for current session",
+            "maxLength": 100
+          },
+          "groups": {
+            "type": "array",
+            "description": "Groups the user belongs to (from identity provider)",
+            "items": {
+              "type": "string"
+            }
+          },
+          "last_login": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of user's last login"
           }
         },
         "required": [
@@ -2851,6 +2897,48 @@
             }
           },
           "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Get current user profile",
+        "description": "Returns detailed information about the currently authenticated user including groups and identity provider",
+        "operationId": "getCurrentUserProfile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                },
+                "example": {
+                  "user_id": "provider-user-123",
+                  "email": "alice@example.com",
+                  "name": "Alice Smith",
+                  "picture": "https://example.com/avatar.jpg",
+                  "idp": "saml_okta",
+                  "groups": ["security-team", "developers"],
+                  "last_login": "2024-01-15T10:30:00Z"
+                }
+              }
+            }
+          },
+          "401": {
             "$ref": "#/components/responses/Error"
           },
           "500": {
@@ -3383,6 +3471,96 @@
         }
       }
     },
+    "/oauth2/providers/{idp}/groups": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Get groups for identity provider",
+        "description": "Returns groups available from a specific identity provider for autocomplete and discovery",
+        "operationId": "getProviderGroups",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "idp",
+            "in": "path",
+            "required": true,
+            "description": "Identity provider ID (e.g., saml_okta, saml_azure)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of groups from the identity provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "idp": {
+                      "type": "string",
+                      "description": "Identity provider ID"
+                    },
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Group name"
+                          },
+                          "display_name": {
+                            "type": "string",
+                            "description": "Display name for the group"
+                          },
+                          "used_in_authorizations": {
+                            "type": "boolean",
+                            "description": "Whether this group is used in any threat model authorizations"
+                          }
+                        },
+                        "required": ["name"]
+                      }
+                    }
+                  },
+                  "required": ["idp", "groups"]
+                },
+                "example": {
+                  "idp": "saml_okta",
+                  "groups": [
+                    {
+                      "name": "security-team",
+                      "display_name": "Security Team",
+                      "used_in_authorizations": true
+                    },
+                    {
+                      "name": "developers",
+                      "display_name": "Development Team",
+                      "used_in_authorizations": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/oauth2/authorize": {
       "get": {
         "tags": [
@@ -3740,6 +3918,10 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "sub": {
+                      "type": "string",
+                      "description": "Subject identifier (email or provider-assigned ID)"
+                    },
                     "id": {
                       "type": "string",
                       "format": "uuid",
@@ -3754,6 +3936,18 @@
                     "name": {
                       "type": "string",
                       "description": "User display name"
+                    },
+                    "idp": {
+                      "type": "string",
+                      "description": "Current identity provider",
+                      "maxLength": 100
+                    },
+                    "groups": {
+                      "type": "array",
+                      "description": "Groups the user belongs to",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "providers": {
                       "type": "array",
@@ -3780,13 +3974,20 @@
                   ]
                 },
                 "example": {
+                  "sub": "user@example.com",
                   "id": "550e8400-e29b-41d4-a716-446655440000",
                   "email": "user@example.com",
                   "name": "John Doe",
+                  "idp": "saml_okta",
+                  "groups": ["security-team", "developers"],
                   "providers": [
                     {
-                      "provider": "google",
+                      "provider": "saml_okta",
                       "is_primary": true
+                    },
+                    {
+                      "provider": "google",
+                      "is_primary": false
                     }
                   ]
                 }
@@ -4245,6 +4446,7 @@
                   "authorization": [
                     {
                       "subject": "user@example.com",
+                      "subject_type": "user",
                       "role": "owner"
                     }
                   ],

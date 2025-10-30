@@ -351,6 +351,18 @@ func (s *Server) GetCurrentUser(c *gin.Context) {
 	}
 }
 
+// GetCurrentUserProfile gets current user profile with groups (from /me endpoint)
+func (s *Server) GetCurrentUserProfile(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] GetCurrentUserProfile called - delegating to authService.Me()")
+	if s.authService != nil {
+		// The Me() method will be updated to include groups and IdP
+		s.authService.Me(c)
+	} else {
+		HandleRequestError(c, ServerError("Auth service not configured"))
+	}
+}
+
 // DeleteUserAccount handles user account deletion (two-step challenge-response)
 func (s *Server) DeleteUserAccount(c *gin.Context, params DeleteUserAccountParams) {
 	logger := slogging.Get()
@@ -378,6 +390,32 @@ func (s *Server) GetAuthProviders(c *gin.Context) {
 	} else {
 		HandleRequestError(c, ServerError("Auth service not configured"))
 	}
+}
+
+// GetProviderGroups returns groups available from a specific identity provider
+func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] GetProviderGroups called for IdP: %s", idp)
+
+	// For now, return a placeholder response
+	// TODO: Implement actual group fetching from provider or cache
+	response := struct {
+		IdP    string `json:"idp"`
+		Groups []struct {
+			Name                 string `json:"name"`
+			DisplayName          string `json:"display_name,omitempty"`
+			UsedInAuthorizations bool   `json:"used_in_authorizations"`
+		} `json:"groups"`
+	}{
+		IdP:    idp,
+		Groups: []struct {
+			Name                 string `json:"name"`
+			DisplayName          string `json:"display_name,omitempty"`
+			UsedInAuthorizations bool   `json:"used_in_authorizations"`
+		}{},
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // GetJWKS returns the JSON Web Key Set for JWT signature verification

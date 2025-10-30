@@ -53,17 +53,20 @@ CREATE TABLE IF NOT EXISTS threats (
     FOREIGN KEY (diagram_id) REFERENCES diagrams(id) ON DELETE SET NULL
 );
 
--- Create threat_model_access table for authorization
+-- Create threat_model_access table for authorization (supports both users and groups)
 CREATE TABLE IF NOT EXISTS threat_model_access (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     threat_model_id UUID NOT NULL,
-    user_email VARCHAR(255) NOT NULL,
+    subject VARCHAR(500) NOT NULL,  -- Email for users, group name for groups
+    subject_type VARCHAR(20) NOT NULL CHECK (subject_type IN ('user', 'group')),
+    idp VARCHAR(100),  -- Identity provider (required for groups, optional for users)
     role VARCHAR(50) NOT NULL CHECK (role IN ('owner', 'writer', 'reader')),
+    granted_by VARCHAR(255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (threat_model_id) REFERENCES threat_models(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE,
-    UNIQUE(threat_model_id, user_email)
+    -- Note: We don't FK to users table for subject since it can be a group
+    UNIQUE(threat_model_id, subject, subject_type, idp)
 );
 
 -- Create documents table
@@ -160,9 +163,11 @@ CREATE INDEX IF NOT EXISTS idx_threats_threat_model_modified_at ON threats(threa
 
 -- Create indexes for threat_model_access
 CREATE INDEX IF NOT EXISTS idx_threat_model_access_threat_model_id ON threat_model_access(threat_model_id);
-CREATE INDEX IF NOT EXISTS idx_threat_model_access_user_email ON threat_model_access(user_email);
+CREATE INDEX IF NOT EXISTS idx_threat_model_access_subject ON threat_model_access(subject);
+CREATE INDEX IF NOT EXISTS idx_threat_model_access_subject_type ON threat_model_access(subject_type);
+CREATE INDEX IF NOT EXISTS idx_threat_model_access_idp ON threat_model_access(idp) WHERE idp IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_threat_model_access_role ON threat_model_access(role);
-CREATE INDEX IF NOT EXISTS idx_threat_model_access_performance ON threat_model_access(threat_model_id, role, user_email);
+CREATE INDEX IF NOT EXISTS idx_threat_model_access_performance ON threat_model_access(threat_model_id, subject_type, subject);
 
 -- Create indexes for documents
 CREATE INDEX idx_documents_threat_model_id ON documents(threat_model_id);
@@ -255,9 +260,26 @@ ALTER TABLE assets ADD CONSTRAINT assets_type_not_empty
     CHECK (LENGTH(TRIM(type)) > 0);
 
 -- Add constraints for metadata
-ALTER TABLE metadata ADD CONSTRAINT metadata_key_not_empty 
+ALTER TABLE metadata ADD CONSTRAINT metadata_key_not_empty
     CHECK (LENGTH(TRIM(key)) > 0 AND LENGTH(key) <= 128);
-ALTER TABLE metadata ADD CONSTRAINT metadata_value_not_empty 
+ALTER TABLE metadata ADD CONSTRAINT metadata_value_not_empty
     CHECK (LENGTH(TRIM(value)) > 0 AND LENGTH(value) <= 65535);
-ALTER TABLE metadata ADD CONSTRAINT metadata_key_format 
+ALTER TABLE metadata ADD CONSTRAINT metadata_key_format
     CHECK (key ~ '^[a-zA-Z0-9_-]+$');
+
+-- Create authorization_groups table to track groups used in authorizations
+CREATE TABLE IF NOT EXISTS authorization_groups (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    idp VARCHAR(100) NOT NULL,
+    group_name VARCHAR(255) NOT NULL,
+    display_name VARCHAR(255),
+    first_used TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    usage_count INTEGER DEFAULT 1,
+    UNIQUE(idp, group_name)
+);
+
+-- Create indexes for authorization_groups
+CREATE INDEX idx_authorization_groups_idp ON authorization_groups(idp);
+CREATE INDEX idx_authorization_groups_group_name ON authorization_groups(group_name);
+CREATE INDEX idx_authorization_groups_last_used ON authorization_groups(last_used);
