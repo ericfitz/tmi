@@ -451,7 +451,7 @@ func (s *Server) ProcessSAMLResponse(c *gin.Context) {
 
 	// For now, return an error as SAML is not fully configured
 	// TODO: Integrate with actual SAML provider
-	HandleRequestError(c, BadRequest("SAML response processing not yet configured"))
+	HandleRequestError(c, ServerError("SAML response processing not yet configured"))
 }
 
 // ProcessSAMLLogout handles SAML single logout (GET)
