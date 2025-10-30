@@ -146,7 +146,11 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 			c.Request.URL.Path == "/favicon-96x96.png" ||
 			c.Request.URL.Path == "/.well-known/openid-configuration" ||
 			c.Request.URL.Path == "/.well-known/oauth-authorization-server" ||
-			c.Request.URL.Path == "/.well-known/jwks.json"
+			c.Request.URL.Path == "/.well-known/jwks.json" ||
+			c.Request.URL.Path == "/saml/metadata" ||
+			c.Request.URL.Path == "/saml/acs" ||
+			c.Request.URL.Path == "/saml/slo" ||
+			c.Request.URL.Path == "/saml/login"
 
 		if isPublic {
 			logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] ✅ Public path identified: %s", c.Request.URL.Path)

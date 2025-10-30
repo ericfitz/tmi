@@ -418,6 +418,66 @@ func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 	c.JSON(http.StatusOK, response)
 }
 
+// GetSAMLMetadata returns SAML service provider metadata
+func (s *Server) GetSAMLMetadata(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] GetSAMLMetadata called")
+
+	// For now, return a placeholder response
+	// TODO: Integrate with actual SAML provider
+	c.Header("Content-Type", "application/samlmetadata+xml")
+	c.Data(http.StatusOK, "application/samlmetadata+xml", []byte(`<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata">
+    <SPSSODescriptor>
+        <!-- Placeholder SAML metadata -->
+    </SPSSODescriptor>
+</EntityDescriptor>`))
+}
+
+// InitiateSAMLLogin starts SAML authentication flow
+func (s *Server) InitiateSAMLLogin(c *gin.Context, params InitiateSAMLLoginParams) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] InitiateSAMLLogin called")
+
+	// For now, return an error as SAML is not fully configured
+	// TODO: Integrate with actual SAML provider
+	HandleRequestError(c, ServerError("SAML authentication not yet configured"))
+}
+
+// ProcessSAMLResponse handles SAML assertion consumer service
+func (s *Server) ProcessSAMLResponse(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] ProcessSAMLResponse called")
+
+	// For now, return an error as SAML is not fully configured
+	// TODO: Integrate with actual SAML provider
+	HandleRequestError(c, BadRequest("SAML response processing not yet configured"))
+}
+
+// ProcessSAMLLogout handles SAML single logout (GET)
+func (s *Server) ProcessSAMLLogout(c *gin.Context, params ProcessSAMLLogoutParams) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] ProcessSAMLLogout called (GET)")
+
+	// For now, return a success response
+	// TODO: Integrate with actual SAML provider
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Logout successful",
+	})
+}
+
+// ProcessSAMLLogoutPost handles SAML single logout (POST)
+func (s *Server) ProcessSAMLLogoutPost(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] ProcessSAMLLogoutPost called (POST)")
+
+	// For now, return a success response
+	// TODO: Integrate with actual SAML provider
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Logout successful",
+	})
+}
+
 // GetJWKS returns the JSON Web Key Set for JWT signature verification
 func (s *Server) GetJWKS(c *gin.Context) {
 	logger := slogging.Get()
