@@ -18,6 +18,7 @@ var DefaultClaimMappings = map[string]string{
 	"family_name_claim":    "family_name",
 	"picture_claim":        "picture",
 	"email_verified_claim": "email_verified",
+	"groups_claim":         "groups", // RFC 9068 standard: "groups" claim
 }
 
 // extractValue extracts a value from JSON data using a path expression
@@ -57,6 +58,41 @@ func extractValue(data interface{}, path string) (interface{}, error) {
 		// Check for array access
 		if strings.HasPrefix(part, "[") && strings.HasSuffix(part, "]") {
 			indexStr := strings.TrimSuffix(strings.TrimPrefix(part, "["), "]")
+
+			// Handle wildcard [*] to extract all items
+			if indexStr == "*" {
+				arr, ok := current.([]interface{})
+				if !ok {
+					logger.Error("Expected array but found different type path=%v part=%v actual_type=%v", path, part, fmt.Sprintf("%T", current))
+					return nil, fmt.Errorf("expected array at path segment: %s", part)
+				}
+
+				// If this is the last part, return the whole array
+				partIndex := 0
+				for i, p := range parts {
+					if p == part {
+						partIndex = i
+						break
+					}
+				}
+
+				// If there are more parts after [*], we need to extract the field from each item
+				if partIndex < len(parts)-1 {
+					remainingPath := strings.Join(parts[partIndex+1:], ".")
+					results := make([]interface{}, 0, len(arr))
+					for _, item := range arr {
+						if val, err := extractValue(item, remainingPath); err == nil {
+							results = append(results, val)
+						}
+					}
+					return results, nil
+				}
+
+				// Return the array as-is if [*] is the last part
+				return arr, nil
+			}
+
+			// Handle numeric index
 			index, err := strconv.Atoi(indexStr)
 			if err != nil {
 				logger.Error("Invalid array index in path path=%v part=%v index_str=%v error=%v", path, part, indexStr, err)
@@ -190,10 +226,48 @@ func extractClaims(jsonData map[string]interface{}, mappings map[string]string, 
 		case "email_verified_claim":
 			userInfo.EmailVerified = toBool(value)
 			logger.Debug("Set email verified claim value=%v", userInfo.EmailVerified)
+		case "groups_claim":
+			// Handle groups claim - can be an array, a string, or extracted array of values
+			switch v := value.(type) {
+			case []interface{}:
+				// Array of groups (could be from direct array or from [*] extraction)
+				groups := make([]string, 0, len(v))
+				for _, g := range v {
+					if groupStr := toString(g); groupStr != "" {
+						groups = append(groups, groupStr)
+					}
+				}
+				userInfo.Groups = groups
+				logger.Debug("Set groups claim from array value=%v count=%d", groups, len(groups))
+			case string:
+				// Single group or comma-separated groups
+				if v != "" {
+					// Check if it's comma-separated
+					if strings.Contains(v, ",") {
+						groups := strings.Split(v, ",")
+						for i := range groups {
+							groups[i] = strings.TrimSpace(groups[i])
+						}
+						userInfo.Groups = groups
+						logger.Debug("Set groups claim from comma-separated string value=%v count=%d", groups, len(groups))
+					} else {
+						userInfo.Groups = []string{v}
+						logger.Debug("Set groups claim from single string value=%v", v)
+					}
+				}
+			default:
+				// Try to convert to string as fallback
+				if str := toString(value); str != "" {
+					userInfo.Groups = []string{str}
+					logger.Debug("Set groups claim from converted value type=%T value=%v", value, str)
+				} else {
+					logger.Debug("Unsupported groups claim type: %T", value)
+				}
+			}
 		}
 	}
 
-	logger.Info("Claims extraction completed user_id=%v user_email=%v user_name=%v email_verified=%v", userInfo.ID, userInfo.Email, userInfo.Name, userInfo.EmailVerified)
+	logger.Info("Claims extraction completed user_id=%v user_email=%v user_name=%v email_verified=%v groups_count=%v", userInfo.ID, userInfo.Email, userInfo.Name, userInfo.EmailVerified, len(userInfo.Groups))
 	return nil
 }
 

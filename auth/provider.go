@@ -52,8 +52,8 @@ type UserInfo struct {
 	FamilyName    string   `json:"family_name,omitempty"`
 	Picture       string   `json:"picture,omitempty"`
 	Locale        string   `json:"locale,omitempty"`
-	IdP           string   `json:"idp,omitempty"`     // Identity provider ID
-	Groups        []string `json:"groups,omitempty"`  // Groups from identity provider
+	IdP           string   `json:"idp,omitempty"`    // Identity provider ID
+	Groups        []string `json:"groups,omitempty"` // Groups from identity provider
 }
 
 // IDTokenClaims contains the claims from an ID token
@@ -248,7 +248,9 @@ func (p *BaseProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 		return nil, fmt.Errorf("no userinfo endpoints configured")
 	}
 
-	userInfo := &UserInfo{}
+	userInfo := &UserInfo{
+		IdP: p.config.ID, // Set the identity provider ID
+	}
 
 	// Determine auth header format
 	authHeaderFormat := p.config.AuthHeaderFormat
@@ -291,7 +293,7 @@ func (p *BaseProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 		logger.Debug("Claims extracted successfully provider_id=%v endpoint_index=%v", p.config.ID, i)
 	}
 
-	logger.Info("User information retrieved successfully provider_id=%v user_id=%v user_email=%v", p.config.ID, userInfo.ID, userInfo.Email)
+	logger.Info("User information retrieved successfully provider_id=%v user_id=%v user_email=%v groups_count=%v", p.config.ID, userInfo.ID, userInfo.Email, len(userInfo.Groups))
 	return userInfo, nil
 }
 

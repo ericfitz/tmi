@@ -407,7 +407,7 @@ func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 			UsedInAuthorizations bool   `json:"used_in_authorizations"`
 		} `json:"groups"`
 	}{
-		IdP:    idp,
+		IdP: idp,
 		Groups: []struct {
 			Name                 string `json:"name"`
 			DisplayName          string `json:"display_name,omitempty"`

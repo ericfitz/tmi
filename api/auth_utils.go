@@ -178,8 +178,8 @@ func AccessCheck(principal string, requiredRole Role, authData AuthorizationData
 		// For user authorization (default for backward compatibility)
 		// If SubjectType is empty string, assume it's a user for backward compatibility
 		if (auth.SubjectType == "" || auth.SubjectType == AuthorizationSubjectTypeUser) && auth.Subject == principal {
-			if !found || isHigherRole(Role(auth.Role), highestRole) {
-				highestRole = Role(auth.Role)
+			if !found || isHigherRole(auth.Role, highestRole) {
+				highestRole = auth.Role
 				found = true
 			}
 		}
@@ -217,8 +217,8 @@ func AccessCheckWithGroups(principal string, principalIdP string, principalGroup
 		// If SubjectType is empty string, assume it's a user for backward compatibility
 		if auth.SubjectType == "" || auth.SubjectType == AuthorizationSubjectTypeUser {
 			if auth.Subject == principal {
-				if !found || isHigherRole(Role(auth.Role), highestRole) {
-					highestRole = Role(auth.Role)
+				if !found || isHigherRole(auth.Role, highestRole) {
+					highestRole = auth.Role
 					found = true
 				}
 			}
@@ -230,8 +230,8 @@ func AccessCheckWithGroups(principal string, principalIdP string, principalGroup
 			if auth.Idp != nil && *auth.Idp == principalIdP {
 				for _, group := range principalGroups {
 					if auth.Subject == group {
-						if !found || isHigherRole(Role(auth.Role), highestRole) {
-							highestRole = Role(auth.Role)
+						if !found || isHigherRole(auth.Role, highestRole) {
+							highestRole = auth.Role
 							found = true
 						}
 					}

@@ -37,9 +37,9 @@ type IDTokenClaims struct {
 
 // SAMLProvider implements the Provider interface for SAML authentication
 type SAMLProvider struct {
-	config         *SAMLConfig
+	config          *SAMLConfig
 	serviceProvider *saml.ServiceProvider
-	idpMetadata    *saml.EntityDescriptor
+	idpMetadata     *saml.EntityDescriptor
 }
 
 // NewSAMLProvider creates a new SAML provider
@@ -288,7 +288,8 @@ func fetchMetadataFromURL(metadataURL string) ([]byte, error) {
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: false, // Set to true only for development
+				MinVersion:         tls.VersionTLS12, // Require TLS 1.2 minimum
+				InsecureSkipVerify: false,            // Set to true only for development
 			},
 		},
 	}

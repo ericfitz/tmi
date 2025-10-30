@@ -88,7 +88,7 @@ type OAuthProviderConfig struct {
 
 // SAMLConfig holds SAML configuration
 type SAMLConfig struct {
-	Enabled   bool                           `json:"enabled"`
+	Enabled   bool                          `json:"enabled"`
 	Providers map[string]SAMLProviderConfig `json:"providers"`
 }
 
@@ -297,6 +297,16 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 						"given_name_claim":     "givenName",
 						"family_name_claim":    "surname",
 						"email_verified_claim": "true", // Literal value
+					},
+				},
+				// Optional: fetch group memberships from Microsoft Graph API
+				// Requires "GroupMember.Read.All" or "Directory.Read.All" scope
+				// Note: If the provider returns groups in the standard "groups" claim (RFC 9068),
+				// this additional endpoint is not needed - groups will be extracted automatically
+				{
+					URL: envutil.Get("OAUTH_PROVIDERS_MICROSOFT_GROUPS_URL", ""),
+					Claims: map[string]string{
+						"groups_claim": "value.[*].displayName", // Microsoft Graph API structure
 					},
 				},
 			},

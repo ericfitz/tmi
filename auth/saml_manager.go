@@ -104,7 +104,6 @@ func (m *SAMLManager) GetProvider(id string) (*saml.SAMLProvider, error) {
 	return provider, nil
 }
 
-
 // ListProviders returns a list of configured SAML provider IDs
 func (m *SAMLManager) ListProviders() []string {
 	m.mu.RLock()

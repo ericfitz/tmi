@@ -120,8 +120,8 @@ func (h *AuthTestHelper) TestCheckSubResourceAccess(t *testing.T, scenarios []Au
 				h.DB,
 				h.Cache,
 				scenario.User,
-				"",           // No IdP for test users
-				[]string{},   // No groups for test users
+				"",         // No IdP for test users
+				[]string{}, // No groups for test users
 				scenario.ThreatModelID,
 				scenario.ExpectedRole,
 			)

@@ -18,11 +18,11 @@ import (
 
 // Service provides authentication and authorization functionality
 type Service struct {
-	dbManager    *db.Manager
-	config       Config
-	keyManager   *JWTKeyManager
-	samlManager  *SAMLManager
-	stateStore   StateStore
+	dbManager   *db.Manager
+	config      Config
+	keyManager  *JWTKeyManager
+	samlManager *SAMLManager
+	stateStore  StateStore
 }
 
 // NewService creates a new authentication service
@@ -84,8 +84,8 @@ type User struct {
 	FamilyName       string    `json:"family_name,omitempty"`
 	Picture          string    `json:"picture,omitempty"`
 	Locale           string    `json:"locale,omitempty"`
-	IdentityProvider string    `json:"idp,omitempty"`       // Current identity provider
-	Groups           []string  `json:"groups,omitempty"`    // Groups from identity provider (not stored in DB)
+	IdentityProvider string    `json:"idp,omitempty"`    // Current identity provider
+	Groups           []string  `json:"groups,omitempty"` // Groups from identity provider (not stored in DB)
 	CreatedAt        time.Time `json:"created_at"`
 	ModifiedAt       time.Time `json:"modified_at"`
 	LastLogin        time.Time `json:"last_login,omitempty"`
@@ -134,7 +134,10 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 			user.IdentityProvider = userInfo.IdP
 			// Cache groups in Redis if available
 			if len(userInfo.Groups) > 0 {
-				s.CacheUserGroups(ctx, user.Email, userInfo.IdP, userInfo.Groups)
+				if err := s.CacheUserGroups(ctx, user.Email, userInfo.IdP, userInfo.Groups); err != nil {
+					// Log error but continue - caching failure shouldn't block login
+					slogging.Get().Warn("Failed to cache user groups: %v", err)
+				}
 			}
 		}
 		user.Groups = userInfo.Groups
