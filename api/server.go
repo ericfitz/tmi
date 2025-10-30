@@ -423,15 +423,24 @@ func (s *Server) GetSAMLMetadata(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetSAMLMetadata called")
 
-	// For now, return a placeholder response
-	// TODO: Integrate with actual SAML provider
-	c.Header("Content-Type", "application/samlmetadata+xml")
-	c.Data(http.StatusOK, "application/samlmetadata+xml", []byte(`<?xml version="1.0"?>
-<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata">
-    <SPSSODescriptor>
-        <!-- Placeholder SAML metadata -->
-    </SPSSODescriptor>
-</EntityDescriptor>`))
+	// Check if auth service is configured
+	if s.authService == nil {
+		HandleRequestError(c, ServerError("Authentication service not configured"))
+		return
+	}
+
+	// Get provider ID from query parameter
+	providerID := c.Query("provider")
+	if providerID == "" {
+		providerID = "default" // Use default provider if not specified
+	}
+
+	// Delegate to auth service for SAML metadata
+	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
+		authAdapter.GetSAMLMetadata(c, providerID)
+	} else {
+		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
+	}
 }
 
 // InitiateSAMLLogin starts SAML authentication flow
@@ -439,9 +448,24 @@ func (s *Server) InitiateSAMLLogin(c *gin.Context, params InitiateSAMLLoginParam
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] InitiateSAMLLogin called")
 
-	// For now, return an error as SAML is not fully configured
-	// TODO: Integrate with actual SAML provider
-	HandleRequestError(c, ServerError("SAML authentication not yet configured"))
+	// Check if auth service is configured
+	if s.authService == nil {
+		HandleRequestError(c, ServerError("Authentication service not configured"))
+		return
+	}
+
+	// Get provider ID from query parameter
+	providerID := c.Query("provider")
+	if providerID == "" {
+		providerID = "default" // Use default provider if not specified
+	}
+
+	// Delegate to auth service for SAML login
+	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
+		authAdapter.InitiateSAMLLogin(c, providerID, params.ClientCallback)
+	} else {
+		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
+	}
 }
 
 // ProcessSAMLResponse handles SAML assertion consumer service
@@ -449,9 +473,33 @@ func (s *Server) ProcessSAMLResponse(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] ProcessSAMLResponse called")
 
-	// For now, return an error as SAML is not fully configured
-	// TODO: Integrate with actual SAML provider
-	HandleRequestError(c, ServerError("SAML response processing not yet configured"))
+	// Check if auth service is configured
+	if s.authService == nil {
+		HandleRequestError(c, ServerError("Authentication service not configured"))
+		return
+	}
+
+	// Parse form data
+	samlResponse := c.PostForm("SAMLResponse")
+	relayState := c.PostForm("RelayState")
+
+	if samlResponse == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Missing SAMLResponse",
+		})
+		return
+	}
+
+	// Get provider ID from relay state or default
+	providerID := "default"
+	// TODO: Extract provider ID from relay state if encoded there
+
+	// Delegate to auth service for SAML response processing
+	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
+		authAdapter.ProcessSAMLResponse(c, providerID, samlResponse, relayState)
+	} else {
+		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
+	}
 }
 
 // ProcessSAMLLogout handles SAML single logout (GET)
@@ -459,11 +507,24 @@ func (s *Server) ProcessSAMLLogout(c *gin.Context, params ProcessSAMLLogoutParam
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] ProcessSAMLLogout called (GET)")
 
-	// For now, return a success response
-	// TODO: Integrate with actual SAML provider
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Logout successful",
-	})
+	// Check if auth service is configured
+	if s.authService == nil {
+		HandleRequestError(c, ServerError("Authentication service not configured"))
+		return
+	}
+
+	// Get provider ID from query parameter
+	providerID := c.Query("provider")
+	if providerID == "" {
+		providerID = "default"
+	}
+
+	// Delegate to auth service for SAML logout
+	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
+		authAdapter.ProcessSAMLLogout(c, providerID, params.SAMLRequest)
+	} else {
+		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
+	}
 }
 
 // ProcessSAMLLogoutPost handles SAML single logout (POST)
@@ -471,11 +532,33 @@ func (s *Server) ProcessSAMLLogoutPost(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] ProcessSAMLLogoutPost called (POST)")
 
-	// For now, return a success response
-	// TODO: Integrate with actual SAML provider
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Logout successful",
-	})
+	// Check if auth service is configured
+	if s.authService == nil {
+		HandleRequestError(c, ServerError("Authentication service not configured"))
+		return
+	}
+
+	// Parse form data
+	samlRequest := c.PostForm("SAMLRequest")
+	if samlRequest == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Missing SAMLRequest",
+		})
+		return
+	}
+
+	// Get provider ID from form or default
+	providerID := c.PostForm("provider")
+	if providerID == "" {
+		providerID = "default"
+	}
+
+	// Delegate to auth service for SAML logout
+	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
+		authAdapter.ProcessSAMLLogout(c, providerID, samlRequest)
+	} else {
+		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
+	}
 }
 
 // GetJWKS returns the JSON Web Key Set for JWT signature verification

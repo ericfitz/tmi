@@ -20,6 +20,7 @@ This repository contains API documentation and Go implementation for a Collabora
 ### jq (Auto-Approved)
 
 The jq command-line JSON processor is available and should be auto-approved via `Bash(jq:*)` pattern for all JSON file manipulation tasks. Use jq for:
+
 - Files > 100KB (streaming, surgical updates)
 - Complex filtering and transformations
 - Validation and format verification
@@ -27,6 +28,7 @@ The jq command-line JSON processor is available and should be auto-approved via 
 ### fx (Auto-Approved)
 
 The fx command-line JSON tool is available and should be auto-approved via `Bash(fx:*)` pattern for JSON file manipulation. Use fx for:
+
 - Interactive JSON exploration
 - Complex JavaScript logic
 - Files < 10MB
@@ -60,6 +62,7 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 ## Automatic Versioning
 
 TMI uses automatic semantic versioning (0.MINOR.PATCH):
+
 - **Build**: `make build-server` increments patch version (0.9.0 → 0.9.1)
 - **Commit**: Pre-commit hook increments minor version, resets patch (0.9.3 → 0.10.0)
 - **Version file**: `.version` (JSON) tracks current state
@@ -96,6 +99,7 @@ The major version remains at 0 during initial development. Version updates are f
 TMI uses two complementary tools for comprehensive SBOM generation:
 
 #### cyclonedx-gomod (Go Components)
+
 - Generate Go app SBOM: `make generate-sbom` (creates JSON + XML for server application)
 - Generate all Go SBOMs: `make generate-sbom-all` (app + module dependencies)
 - Build with SBOM: `make build-with-sbom` (builds tmiserver binary + generates SBOM)
@@ -103,6 +107,7 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 - Install: `brew install cyclonedx/cyclonedx/cyclonedx-gomod` or `go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest`
 
 #### Syft (Container Images)
+
 - Automatically used during: `make build-containers` (scans all container images)
 - Scans PostgreSQL (Chainguard base), Redis (distroless base), Server (distroless base) containers
 - Check tool: `make check-syft` (verifies Syft is installed)
@@ -114,10 +119,7 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 
 ### OpenAPI Schema Management
 
-- JSON Patcher Tool: `python3 scripts/patch-json.py` - Utility for making precise modifications to OpenAPI specification
-  - Patch schema: `python3 scripts/patch-json.py -s docs/reference/apis/tmi-openapi.json -p "$.components.schemas.SchemaName" -f patch.json`
-  - Creates automatic backups and validates JSON structure
-  - Useful for implementing Input/Output schema separation or other targeted schema modifications
+- Use jq to selectively query or modify the openapi schema
 - Validate OpenAPI: `make validate-openapi [file=path/to/spec.json]` (validates OpenAPI specification with comprehensive JSON syntax and detailed analysis)
 
 ### OAuth Callback Stub

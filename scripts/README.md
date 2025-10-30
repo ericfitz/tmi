@@ -20,7 +20,6 @@ This directory contains scripts that are actively used by the refactored build s
 
 ### Development Utilities
 
-- **`patch-json.py`** - Precise JSON modification utility for OpenAPI specs
 - **`oauth-client-callback-stub.py`** - Universal OAuth callback handler supporting both Authorization Code and Implicit flows for development testing. Use `make start-oauth-stub` to run.
   - **Features**: OAuth callback capture, credential persistence, user-specific credential retrieval
   - **Endpoints**: `GET /` (OAuth callback), `GET /latest` (latest credentials), `GET /creds?userid=<id>` (user-specific credentials)
@@ -62,7 +61,6 @@ make start-dev                # Replaces start-dev.sh
 ```bash
 python3 scripts/analyze_endpoints.py
 python3 scripts/validate_openapi.py docs/reference/apis/tmi-openapi.json
-python3 scripts/patch-json.py -s docs/reference/apis/tmi-openapi.json -p "$.components.schemas"
 ```
 
 # OAuth callback stub for development

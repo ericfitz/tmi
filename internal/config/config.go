@@ -65,6 +65,7 @@ type RedisConfig struct {
 type AuthConfig struct {
 	JWT   JWTConfig   `yaml:"jwt"`
 	OAuth OAuthConfig `yaml:"oauth"`
+	SAML  SAMLConfig  `yaml:"saml"`
 }
 
 // JWTConfig holds JWT configuration
@@ -103,6 +104,37 @@ type OAuthProviderConfig struct {
 	AdditionalParams map[string]string  `yaml:"additional_params"`
 	AuthHeaderFormat string             `yaml:"auth_header_format,omitempty"`
 	AcceptHeader     string             `yaml:"accept_header,omitempty"`
+}
+
+// SAMLConfig holds SAML configuration
+type SAMLConfig struct {
+	Enabled           bool                        `yaml:"enabled" env:"SAML_ENABLED"`
+	Providers         map[string]SAMLProviderConfig `yaml:"providers"`
+}
+
+// SAMLProviderConfig holds configuration for a SAML provider
+type SAMLProviderConfig struct {
+	ID                   string `yaml:"id"`
+	Name                 string `yaml:"name"`
+	Enabled              bool   `yaml:"enabled"`
+	EntityID             string `yaml:"entity_id" env:"SAML_ENTITY_ID"`
+	MetadataURL          string `yaml:"metadata_url" env:"SAML_METADATA_URL"`
+	MetadataXML          string `yaml:"metadata_xml" env:"SAML_METADATA_XML"`
+	ACSURL               string `yaml:"acs_url" env:"SAML_ACS_URL"`
+	SLOURL               string `yaml:"slo_url" env:"SAML_SLO_URL"`
+	SPPrivateKey         string `yaml:"sp_private_key" env:"SAML_SP_PRIVATE_KEY"`
+	SPPrivateKeyPath     string `yaml:"sp_private_key_path" env:"SAML_SP_PRIVATE_KEY_PATH"`
+	SPCertificate        string `yaml:"sp_certificate" env:"SAML_SP_CERTIFICATE"`
+	SPCertificatePath    string `yaml:"sp_certificate_path" env:"SAML_SP_CERTIFICATE_PATH"`
+	IDPMetadataURL       string `yaml:"idp_metadata_url" env:"SAML_IDP_METADATA_URL"`
+	IDPMetadataXML       string `yaml:"idp_metadata_xml" env:"SAML_IDP_METADATA_XML"`
+	AllowIDPInitiated    bool   `yaml:"allow_idp_initiated" env:"SAML_ALLOW_IDP_INITIATED"`
+	ForceAuthn           bool   `yaml:"force_authn" env:"SAML_FORCE_AUTHN"`
+	SignRequests         bool   `yaml:"sign_requests" env:"SAML_SIGN_REQUESTS"`
+	NameIDAttribute      string `yaml:"name_id_attribute" env:"SAML_NAME_ID_ATTRIBUTE"`
+	EmailAttribute       string `yaml:"email_attribute" env:"SAML_EMAIL_ATTRIBUTE"`
+	NameAttribute        string `yaml:"name_attribute" env:"SAML_NAME_ATTRIBUTE"`
+	GroupsAttribute      string `yaml:"groups_attribute" env:"SAML_GROUPS_ATTRIBUTE"`
 }
 
 // LoggingConfig holds logging configuration

@@ -5,16 +5,29 @@ import (
 	"strings"
 
 	"github.com/crewjam/saml"
-	"github.com/ericfitz/tmi/auth"
 )
 
+// UserInfo represents user information extracted from SAML assertion
+type UserInfo struct {
+	ID            string
+	Email         string
+	EmailVerified bool
+	Name          string
+	GivenName     string
+	FamilyName    string
+	Picture       string
+	Locale        string
+	IdP           string
+	Groups        []string
+}
+
 // ExtractUserInfo extracts user information and groups from SAML assertion
-func ExtractUserInfo(assertion *saml.Assertion, config *SAMLConfig) (*auth.UserInfo, error) {
+func ExtractUserInfo(assertion *saml.Assertion, config *SAMLConfig) (*UserInfo, error) {
 	if assertion == nil {
 		return nil, fmt.Errorf("assertion is nil")
 	}
 
-	userInfo := &auth.UserInfo{
+	userInfo := &UserInfo{
 		IdP: config.ID,
 	}
 

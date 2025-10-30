@@ -18,9 +18,11 @@ import (
 
 // Service provides authentication and authorization functionality
 type Service struct {
-	dbManager  *db.Manager
-	config     Config
-	keyManager *JWTKeyManager
+	dbManager    *db.Manager
+	config       Config
+	keyManager   *JWTKeyManager
+	samlManager  *SAMLManager
+	stateStore   StateStore
 }
 
 // NewService creates a new authentication service
@@ -39,16 +41,37 @@ func NewService(dbManager *db.Manager, config Config) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize JWT key manager: %w", err)
 	}
 
-	return &Service{
+	// Initialize state store (in-memory for now, can be Redis later)
+	stateStore := NewInMemoryStateStore()
+
+	// Create service instance
+	service := &Service{
 		dbManager:  dbManager,
 		config:     config,
 		keyManager: keyManager,
-	}, nil
+		stateStore: stateStore,
+	}
+
+	// Initialize SAML manager if configured
+	if config.SAML.Enabled {
+		samlManager := NewSAMLManager(service)
+		if err := samlManager.InitializeProviders(config.SAML, stateStore); err != nil {
+			return nil, fmt.Errorf("failed to initialize SAML providers: %w", err)
+		}
+		service.samlManager = samlManager
+	}
+
+	return service, nil
 }
 
 // GetKeyManager returns the JWT key manager (getter for unexported field)
 func (s *Service) GetKeyManager() *JWTKeyManager {
 	return s.keyManager
+}
+
+// GetSAMLManager returns the SAML manager (getter for unexported field)
+func (s *Service) GetSAMLManager() *SAMLManager {
+	return s.samlManager
 }
 
 // User represents a user in the system

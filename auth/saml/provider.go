@@ -16,9 +16,24 @@ import (
 
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
-	"github.com/ericfitz/tmi/auth"
 	"golang.org/x/oauth2"
 )
+
+// TokenResponse represents the tokens returned by SAML (stub for interface compatibility)
+type TokenResponse struct {
+	AccessToken  string
+	RefreshToken string
+	IDToken      string
+	ExpiresIn    int
+}
+
+// IDTokenClaims represents claims from an ID token (stub for interface compatibility)
+type IDTokenClaims struct {
+	Subject       string
+	Email         string
+	EmailVerified bool
+	Name          string
+}
 
 // SAMLProvider implements the Provider interface for SAML authentication
 type SAMLProvider struct {
@@ -92,17 +107,17 @@ func (p *SAMLProvider) GetAuthorizationURL(state string) (string, error) {
 }
 
 // ExchangeCode is not applicable for SAML
-func (p *SAMLProvider) ExchangeCode(ctx context.Context, code string) (*auth.TokenResponse, error) {
+func (p *SAMLProvider) ExchangeCode(ctx context.Context, code string) (*TokenResponse, error) {
 	return nil, fmt.Errorf("SAML provider does not support code exchange")
 }
 
 // GetUserInfo is not applicable for SAML (user info comes from assertion)
-func (p *SAMLProvider) GetUserInfo(ctx context.Context, accessToken string) (*auth.UserInfo, error) {
+func (p *SAMLProvider) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
 	return nil, fmt.Errorf("SAML provider does not support GetUserInfo - user info comes from assertion")
 }
 
 // ValidateIDToken is not applicable for SAML
-func (p *SAMLProvider) ValidateIDToken(ctx context.Context, idToken string) (*auth.IDTokenClaims, error) {
+func (p *SAMLProvider) ValidateIDToken(ctx context.Context, idToken string) (*IDTokenClaims, error) {
 	return nil, fmt.Errorf("SAML provider does not support ID tokens")
 }
 
@@ -128,7 +143,7 @@ func (p *SAMLProvider) ParseResponse(samlResponse string) (*saml.Assertion, erro
 }
 
 // ExtractUserInfoFromAssertion extracts user info from a SAML assertion
-func (p *SAMLProvider) ExtractUserInfoFromAssertion(assertion *saml.Assertion) (*auth.UserInfo, error) {
+func (p *SAMLProvider) ExtractUserInfoFromAssertion(assertion *saml.Assertion) (*UserInfo, error) {
 	return ExtractUserInfo(assertion, p.config)
 }
 
@@ -146,6 +161,34 @@ func (p *SAMLProvider) GetMetadataXML() ([]byte, error) {
 // GetConfig returns the SAML configuration
 func (p *SAMLProvider) GetConfig() *SAMLConfig {
 	return p.config
+}
+
+// GenerateMetadata returns the SP metadata XML string
+func (p *SAMLProvider) GenerateMetadata() (string, error) {
+	metadata, err := p.GetMetadataXML()
+	if err != nil {
+		return "", err
+	}
+	return string(metadata), nil
+}
+
+// InitiateLogin creates a SAML authentication request
+func (p *SAMLProvider) InitiateLogin(clientCallback *string) (string, string, error) {
+	// Generate a random state for CSRF protection
+	state := fmt.Sprintf("%d", time.Now().UnixNano())
+
+	authURL, err := p.GetAuthorizationURL(state)
+	if err != nil {
+		return "", "", err
+	}
+
+	return authURL, state, nil
+}
+
+// ProcessLogoutRequest handles a SAML logout request
+func (p *SAMLProvider) ProcessLogoutRequest(samlRequest string) error {
+	// TODO: Implement logout request processing
+	return nil
 }
 
 // loadKeyAndCert loads the SP private key and certificate
@@ -254,7 +297,7 @@ func fetchMetadataFromURL(metadataURL string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch metadata: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("metadata fetch returned status %d", resp.StatusCode)

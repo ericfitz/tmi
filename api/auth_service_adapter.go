@@ -150,6 +150,34 @@ func (a *AuthServiceAdapter) GetJWKS(c *gin.Context) {
 	a.handlers.GetJWKS(c)
 }
 
+// GetSAMLMetadata delegates to auth handlers for SAML metadata
+func (a *AuthServiceAdapter) GetSAMLMetadata(c *gin.Context, providerID string) {
+	logger := slogging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] GetSAMLMetadata called for provider: %s", providerID)
+	a.handlers.GetSAMLMetadata(c, providerID)
+}
+
+// InitiateSAMLLogin delegates to auth handlers to start SAML authentication
+func (a *AuthServiceAdapter) InitiateSAMLLogin(c *gin.Context, providerID string, clientCallback *string) {
+	logger := slogging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] InitiateSAMLLogin called for provider: %s", providerID)
+	a.handlers.InitiateSAMLLogin(c, providerID, clientCallback)
+}
+
+// ProcessSAMLResponse delegates to auth handlers to process SAML assertion
+func (a *AuthServiceAdapter) ProcessSAMLResponse(c *gin.Context, providerID string, samlResponse string, relayState string) {
+	logger := slogging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] ProcessSAMLResponse called for provider: %s", providerID)
+	a.handlers.ProcessSAMLResponse(c, providerID, samlResponse, relayState)
+}
+
+// ProcessSAMLLogout delegates to auth handlers for SAML logout
+func (a *AuthServiceAdapter) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequest string) {
+	logger := slogging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] ProcessSAMLLogout called for provider: %s", providerID)
+	a.handlers.ProcessSAMLLogout(c, providerID, samlRequest)
+}
+
 // GetOpenIDConfiguration delegates to auth handlers
 func (a *AuthServiceAdapter) GetOpenIDConfiguration(c *gin.Context) {
 	logger := slogging.Get()

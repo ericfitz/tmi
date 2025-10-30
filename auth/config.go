@@ -16,6 +16,7 @@ type Config struct {
 	Redis    RedisConfig
 	JWT      JWTConfig
 	OAuth    OAuthConfig
+	SAML     SAMLConfig
 }
 
 // PostgresConfig holds PostgreSQL configuration
@@ -85,6 +86,38 @@ type OAuthProviderConfig struct {
 	AcceptHeader     string             `json:"accept_header,omitempty"`      // Default: "application/json"
 }
 
+// SAMLConfig holds SAML configuration
+type SAMLConfig struct {
+	Enabled   bool                           `json:"enabled"`
+	Providers map[string]SAMLProviderConfig `json:"providers"`
+}
+
+// SAMLProviderConfig holds configuration for a SAML provider
+type SAMLProviderConfig struct {
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	Enabled           bool   `json:"enabled"`
+	Icon              string `json:"icon"`
+	EntityID          string `json:"entity_id"`
+	MetadataURL       string `json:"metadata_url"`
+	MetadataXML       string `json:"metadata_xml"`
+	ACSURL            string `json:"acs_url"`
+	SLOURL            string `json:"slo_url"`
+	SPPrivateKey      string `json:"sp_private_key"`
+	SPPrivateKeyPath  string `json:"sp_private_key_path"`
+	SPCertificate     string `json:"sp_certificate"`
+	SPCertificatePath string `json:"sp_certificate_path"`
+	IDPMetadataURL    string `json:"idp_metadata_url"`
+	IDPMetadataXML    string `json:"idp_metadata_xml"`
+	AllowIDPInitiated bool   `json:"allow_idp_initiated"`
+	ForceAuthn        bool   `json:"force_authn"`
+	SignRequests      bool   `json:"sign_requests"`
+	NameIDAttribute   string `json:"name_id_attribute"`
+	EmailAttribute    string `json:"email_attribute"`
+	NameAttribute     string `json:"name_attribute"`
+	GroupsAttribute   string `json:"groups_attribute"`
+}
+
 // LoadConfig loads configuration from environment variables
 func LoadConfig() (Config, error) {
 	logger := slogging.Get()
@@ -142,6 +175,10 @@ func LoadConfig() (Config, error) {
 		OAuth: OAuthConfig{
 			CallbackURL: envutil.Get("OAUTH_CALLBACK_URL", "http://localhost:8080/oauth2/callback"),
 			Providers:   loadOAuthProviders(),
+		},
+		SAML: SAMLConfig{
+			Enabled:   envutil.Get("SAML_ENABLED", "false") == "true",
+			Providers: loadSAMLProviders(),
 		},
 	}
 
@@ -283,6 +320,43 @@ func getEnabledProviderIDs(providers map[string]OAuthProviderConfig) []string {
 		}
 	}
 	return enabled
+}
+
+// loadSAMLProviders loads SAML provider configurations from environment
+func loadSAMLProviders() map[string]SAMLProviderConfig {
+	logger := slogging.Get()
+	logger.Debug("Loading SAML provider configurations")
+	providers := make(map[string]SAMLProviderConfig)
+
+	// Example SAML provider - can be configured via environment variables
+	// For now, we'll provide a test/example configuration
+	if envutil.Get("SAML_PROVIDER_EXAMPLE_ENABLED", "false") == "true" {
+		providers["example"] = SAMLProviderConfig{
+			ID:                "example",
+			Name:              envutil.Get("SAML_PROVIDER_EXAMPLE_NAME", "Example SAML Provider"),
+			Enabled:           true,
+			Icon:              envutil.Get("SAML_PROVIDER_EXAMPLE_ICON", "fa-solid fa-building"),
+			EntityID:          envutil.Get("SAML_PROVIDER_EXAMPLE_ENTITY_ID", "http://localhost:8080/saml/metadata"),
+			ACSURL:            envutil.Get("SAML_PROVIDER_EXAMPLE_ACS_URL", "http://localhost:8080/saml/acs"),
+			SLOURL:            envutil.Get("SAML_PROVIDER_EXAMPLE_SLO_URL", "http://localhost:8080/saml/slo"),
+			SPPrivateKey:      envutil.Get("SAML_PROVIDER_EXAMPLE_SP_PRIVATE_KEY", ""),
+			SPPrivateKeyPath:  envutil.Get("SAML_PROVIDER_EXAMPLE_SP_PRIVATE_KEY_PATH", ""),
+			SPCertificate:     envutil.Get("SAML_PROVIDER_EXAMPLE_SP_CERTIFICATE", ""),
+			SPCertificatePath: envutil.Get("SAML_PROVIDER_EXAMPLE_SP_CERTIFICATE_PATH", ""),
+			IDPMetadataURL:    envutil.Get("SAML_PROVIDER_EXAMPLE_IDP_METADATA_URL", ""),
+			IDPMetadataXML:    envutil.Get("SAML_PROVIDER_EXAMPLE_IDP_METADATA_XML", ""),
+			AllowIDPInitiated: envutil.Get("SAML_PROVIDER_EXAMPLE_ALLOW_IDP_INITIATED", "false") == "true",
+			ForceAuthn:        envutil.Get("SAML_PROVIDER_EXAMPLE_FORCE_AUTHN", "false") == "true",
+			SignRequests:      envutil.Get("SAML_PROVIDER_EXAMPLE_SIGN_REQUESTS", "true") == "true",
+			NameIDAttribute:   envutil.Get("SAML_PROVIDER_EXAMPLE_NAMEID_ATTRIBUTE", ""),
+			EmailAttribute:    envutil.Get("SAML_PROVIDER_EXAMPLE_EMAIL_ATTRIBUTE", "email"),
+			NameAttribute:     envutil.Get("SAML_PROVIDER_EXAMPLE_NAME_ATTRIBUTE", "name"),
+			GroupsAttribute:   envutil.Get("SAML_PROVIDER_EXAMPLE_GROUPS_ATTRIBUTE", "groups"),
+		}
+	}
+
+	logger.Info("SAML providers loaded providers_count=%v", len(providers))
+	return providers
 }
 
 // ValidateConfig validates the configuration
