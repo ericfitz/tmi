@@ -164,6 +164,28 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 			}
 		}
 
+		// Extract IdP if present
+		if idpValue, hasIdP := claims["idp"]; hasIdP {
+			if idp, ok := idpValue.(string); ok {
+				logger.Debug("User IdP from token: %s", idp)
+				c.Set("userIdP", idp)
+			}
+		}
+
+		// Extract groups if present
+		if groupsValue, hasGroups := claims["groups"]; hasGroups {
+			if groupsArray, ok := groupsValue.([]interface{}); ok {
+				groups := make([]string, 0, len(groupsArray))
+				for _, g := range groupsArray {
+					if groupStr, ok := g.(string); ok {
+						groups = append(groups, groupStr)
+					}
+				}
+				logger.Debug("User groups from token: %v", groups)
+				c.Set("userGroups", groups)
+			}
+		}
+
 		// Fetch full user object if auth handlers are available
 		if err := e.fetchAndSetUserObject(c); err != nil {
 			logger.Debug("Failed to fetch full user object: %v", err)

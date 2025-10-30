@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -52,17 +53,19 @@ func (s *Service) GetKeyManager() *JWTKeyManager {
 
 // User represents a user in the system
 type User struct {
-	ID            string    `json:"id"`
-	Email         string    `json:"email"`
-	Name          string    `json:"name"`
-	EmailVerified bool      `json:"email_verified"`
-	GivenName     string    `json:"given_name,omitempty"`
-	FamilyName    string    `json:"family_name,omitempty"`
-	Picture       string    `json:"picture,omitempty"`
-	Locale        string    `json:"locale,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	ModifiedAt    time.Time `json:"modified_at"`
-	LastLogin     time.Time `json:"last_login,omitempty"`
+	ID               string    `json:"id"`
+	Email            string    `json:"email"`
+	Name             string    `json:"name"`
+	EmailVerified    bool      `json:"email_verified"`
+	GivenName        string    `json:"given_name,omitempty"`
+	FamilyName       string    `json:"family_name,omitempty"`
+	Picture          string    `json:"picture,omitempty"`
+	Locale           string    `json:"locale,omitempty"`
+	IdentityProvider string    `json:"idp,omitempty"`       // Current identity provider
+	Groups           []string  `json:"groups,omitempty"`    // Groups from identity provider (not stored in DB)
+	CreatedAt        time.Time `json:"created_at"`
+	ModifiedAt       time.Time `json:"modified_at"`
+	LastLogin        time.Time `json:"last_login,omitempty"`
 }
 
 // TokenPair contains an access token and a refresh token
@@ -75,13 +78,15 @@ type TokenPair struct {
 
 // Claims represents the JWT claims
 type Claims struct {
-	Email         string `json:"email"`
-	EmailVerified bool   `json:"email_verified,omitempty"`
-	Name          string `json:"name"`
-	GivenName     string `json:"given_name,omitempty"`
-	FamilyName    string `json:"family_name,omitempty"`
-	Picture       string `json:"picture,omitempty"`
-	Locale        string `json:"locale,omitempty"`
+	Email            string   `json:"email"`
+	EmailVerified    bool     `json:"email_verified,omitempty"`
+	Name             string   `json:"name"`
+	GivenName        string   `json:"given_name,omitempty"`
+	FamilyName       string   `json:"family_name,omitempty"`
+	Picture          string   `json:"picture,omitempty"`
+	Locale           string   `json:"locale,omitempty"`
+	IdentityProvider string   `json:"idp,omitempty"`    // Identity provider
+	Groups           []string `json:"groups,omitempty"` // User's groups from IdP
 	jwt.RegisteredClaims
 }
 
@@ -101,8 +106,17 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		if userInfo.Locale != "" {
 			user.Locale = userInfo.Locale
 		}
+		// Set IdP and groups from the fresh UserInfo
+		if userInfo.IdP != "" {
+			user.IdentityProvider = userInfo.IdP
+			// Cache groups in Redis if available
+			if len(userInfo.Groups) > 0 {
+				s.CacheUserGroups(ctx, user.Email, userInfo.IdP, userInfo.Groups)
+			}
+		}
+		user.Groups = userInfo.Groups
 
-		// Update the user in the database with fresh provider data
+		// Update the user in the database with fresh provider data (except groups)
 		if err := s.UpdateUser(ctx, user); err != nil {
 			// Log error but continue - token generation shouldn't fail due to update issues
 			slogging.Get().Error("Failed to update user provider data: %v", err)
@@ -125,13 +139,15 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 	// Create the JWT claims using the user's stored data
 	expirationTime := time.Now().Add(s.config.GetJWTDuration())
 	claims := &Claims{
-		Email:         user.Email,
-		EmailVerified: user.EmailVerified,
-		Name:          user.Name,
-		GivenName:     user.GivenName,
-		FamilyName:    user.FamilyName,
-		Picture:       user.Picture,
-		Locale:        user.Locale,
+		Email:            user.Email,
+		EmailVerified:    user.EmailVerified,
+		Name:             user.Name,
+		GivenName:        user.GivenName,
+		FamilyName:       user.FamilyName,
+		Picture:          user.Picture,
+		Locale:           user.Locale,
+		IdentityProvider: user.IdentityProvider,
+		Groups:           user.Groups,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    issuer,
 			Subject:   providerID,
@@ -252,7 +268,7 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 	db := s.dbManager.Postgres().GetDB()
 
 	var user User
-	query := `SELECT id, email, name, email_verified, given_name, family_name, picture, locale, created_at, modified_at, last_login FROM users WHERE email = $1`
+	query := `SELECT id, email, name, email_verified, given_name, family_name, picture, locale, identity_provider, created_at, modified_at, last_login FROM users WHERE email = $1`
 	err := db.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
 		&user.Email,
@@ -262,6 +278,7 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 		&user.FamilyName,
 		&user.Picture,
 		&user.Locale,
+		&user.IdentityProvider,
 		&user.CreatedAt,
 		&user.ModifiedAt,
 		&user.LastLogin,
@@ -283,7 +300,7 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 	db := s.dbManager.Postgres().GetDB()
 
 	var user User
-	query := `SELECT id, email, name, email_verified, given_name, family_name, picture, locale, created_at, modified_at, last_login FROM users WHERE id = $1`
+	query := `SELECT id, email, name, email_verified, given_name, family_name, picture, locale, identity_provider, created_at, modified_at, last_login FROM users WHERE id = $1`
 	err := db.QueryRowContext(ctx, query, id).Scan(
 		&user.ID,
 		&user.Email,
@@ -293,6 +310,7 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 		&user.FamilyName,
 		&user.Picture,
 		&user.Locale,
+		&user.IdentityProvider,
 		&user.CreatedAt,
 		&user.ModifiedAt,
 		&user.LastLogin,
@@ -368,8 +386,8 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 	}
 
 	query := `
-		INSERT INTO users (id, email, name, email_verified, given_name, family_name, picture, locale, created_at, modified_at, last_login)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO users (id, email, name, email_verified, given_name, family_name, picture, locale, identity_provider, created_at, modified_at, last_login)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id
 	`
 
@@ -382,6 +400,7 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 		user.FamilyName,
 		user.Picture,
 		user.Locale,
+		user.IdentityProvider,
 		user.CreatedAt,
 		user.ModifiedAt,
 		user.LastLogin,
@@ -403,7 +422,8 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 
 	query := `
 		UPDATE users
-		SET email = $2, name = $3, email_verified = $4, given_name = $5, family_name = $6, picture = $7, locale = $8, modified_at = $9, last_login = $10
+		SET email = $2, name = $3, email_verified = $4, given_name = $5, family_name = $6,
+		    picture = $7, locale = $8, identity_provider = $9, modified_at = $10, last_login = $11
 		WHERE id = $1
 	`
 
@@ -416,6 +436,7 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 		user.FamilyName,
 		user.Picture,
 		user.Locale,
+		user.IdentityProvider,
 		user.ModifiedAt,
 		user.LastLogin,
 	)
@@ -683,4 +704,86 @@ func (s *Service) deriveIssuer() string {
 
 	// Return just the scheme and host (without path)
 	return fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
+}
+
+// CacheUserGroups caches user groups in Redis for the session duration
+func (s *Service) CacheUserGroups(ctx context.Context, email, idp string, groups []string) error {
+	redis := s.dbManager.Redis()
+	if redis == nil {
+		// No Redis available, skip caching
+		return nil
+	}
+
+	// Store groups as JSON in Redis with same TTL as JWT
+	key := fmt.Sprintf("user_groups:%s", email)
+	data := map[string]interface{}{
+		"email":     email,
+		"idp":       idp,
+		"groups":    groups,
+		"cached_at": time.Now().Unix(),
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal group data: %w", err)
+	}
+
+	// Cache for the same duration as the JWT token
+	ttl := s.config.GetJWTDuration()
+	if err := redis.Set(ctx, key, string(jsonData), ttl); err != nil {
+		return fmt.Errorf("failed to cache user groups: %w", err)
+	}
+
+	return nil
+}
+
+// GetCachedGroups retrieves cached user groups from Redis
+func (s *Service) GetCachedGroups(ctx context.Context, email string) (string, []string, error) {
+	redis := s.dbManager.Redis()
+	if redis == nil {
+		// No Redis available, return empty
+		return "", nil, nil
+	}
+
+	key := fmt.Sprintf("user_groups:%s", email)
+	jsonData, err := redis.Get(ctx, key)
+	if err != nil {
+		// Check if key doesn't exist (redis returns specific error for nil)
+		// This is not an error condition, just means no cached groups
+		return "", nil, nil
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
+		return "", nil, fmt.Errorf("failed to unmarshal group data: %w", err)
+	}
+
+	idp, _ := data["idp"].(string)
+	groupsInterface, _ := data["groups"].([]interface{})
+
+	var groups []string
+	for _, g := range groupsInterface {
+		if groupStr, ok := g.(string); ok {
+			groups = append(groups, groupStr)
+		}
+	}
+
+	return idp, groups, nil
+}
+
+// ClearUserGroups clears cached user groups from Redis (used on logout)
+func (s *Service) ClearUserGroups(ctx context.Context, email string) error {
+	redis := s.dbManager.Redis()
+	if redis == nil {
+		// No Redis available, skip
+		return nil
+	}
+
+	key := fmt.Sprintf("user_groups:%s", email)
+	if err := redis.Del(ctx, key); err != nil {
+		// Ignore error if key doesn't exist
+		return nil
+	}
+
+	return nil
 }

@@ -954,6 +954,19 @@ func (h *Handlers) Me(c *gin.Context) {
 	userInterface, exists := c.Get(string(UserContextKey))
 	if exists {
 		if user, ok := userInterface.(User); ok {
+			// Try to get groups from JWT claims or cache
+			userEmail := c.GetString("userEmail")
+			if userEmail != "" {
+				// Try to get groups from cache
+				idp, groups, _ := h.service.GetCachedGroups(c.Request.Context(), userEmail)
+				if len(groups) > 0 {
+					user.Groups = groups
+					if idp != "" {
+						user.IdentityProvider = idp
+					}
+				}
+			}
+
 			c.JSON(http.StatusOK, user)
 			return
 		}

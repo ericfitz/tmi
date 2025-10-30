@@ -2679,7 +2679,8 @@ func (s *DiagramSession) getUserRole(userID string) Role {
 	}
 
 	// Check user permissions using existing utility
-	role := GetUserRole(userID, tm)
+	// TODO: Get IdP and groups from user context when WebSocket supports it
+	role := GetUserRole(userID, "", []string{}, tm)
 	return role
 }
 

@@ -170,15 +170,72 @@ func AccessCheck(principal string, requiredRole Role, authData AuthorizationData
 		return true
 	}
 
+	// Check authorization list for principal's highest role (user only)
+	var highestRole Role
+	found := false
+
+	for _, auth := range authData.Authorization {
+		// For user authorization (default for backward compatibility)
+		// If SubjectType is empty string, assume it's a user for backward compatibility
+		if (auth.SubjectType == "" || auth.SubjectType == AuthorizationSubjectTypeUser) && auth.Subject == principal {
+			if !found || isHigherRole(Role(auth.Role), highestRole) {
+				highestRole = Role(auth.Role)
+				found = true
+			}
+		}
+	}
+
+	if !found {
+		// Principal not found in authorization list
+		return false
+	}
+
+	// Check if the principal's highest role meets the required role
+	return hasRequiredRole(highestRole, requiredRole)
+}
+
+// AccessCheckWithGroups performs authorization check with group support
+// Returns true if the principal or one of their groups has the required role
+func AccessCheckWithGroups(principal string, principalIdP string, principalGroups []string, requiredRole Role, authData AuthorizationData) bool {
+	// Validate authorization type
+	if authData.Type != AuthTypeTMI10 {
+		return false
+	}
+
+	// Check if principal is the owner
+	if authData.Owner == principal {
+		// Owner always has access regardless of required role
+		return true
+	}
+
 	// Check authorization list for principal's highest role
 	var highestRole Role
 	found := false
 
 	for _, auth := range authData.Authorization {
-		if auth.Subject == principal {
-			if !found || isHigherRole(auth.Role, highestRole) {
-				highestRole = auth.Role
-				found = true
+		// Check user authorization
+		// If SubjectType is empty string, assume it's a user for backward compatibility
+		if auth.SubjectType == "" || auth.SubjectType == AuthorizationSubjectTypeUser {
+			if auth.Subject == principal {
+				if !found || isHigherRole(Role(auth.Role), highestRole) {
+					highestRole = Role(auth.Role)
+					found = true
+				}
+			}
+		}
+
+		// Check group authorization
+		if auth.SubjectType == AuthorizationSubjectTypeGroup {
+			// Groups must match both the group name AND the IdP
+			if auth.Idp != nil && *auth.Idp == principalIdP {
+				for _, group := range principalGroups {
+					if auth.Subject == group {
+						if !found || isHigherRole(Role(auth.Role), highestRole) {
+							highestRole = Role(auth.Role)
+							found = true
+						}
+					}
+				}
 			}
 		}
 	}
@@ -403,7 +460,8 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 
 // CheckSubResourceAccess validates if a user has the required access to a sub-resource
 // This function implements authorization inheritance with Redis caching for performance
-func CheckSubResourceAccess(ctx context.Context, db *sql.DB, cache *CacheService, principal, threatModelID string, requiredRole Role) (bool, error) {
+// Now supports group-based authorization with IdP scoping
+func CheckSubResourceAccess(ctx context.Context, db *sql.DB, cache *CacheService, principal, principalIdP string, principalGroups []string, threatModelID string, requiredRole Role) (bool, error) {
 	logger := slogging.Get()
 	logger.Debug("Checking sub-resource access for user %s on threat model %s (required role: %s)",
 		principal, threatModelID, requiredRole)
@@ -437,8 +495,8 @@ func CheckSubResourceAccess(ctx context.Context, db *sql.DB, cache *CacheService
 		}
 	}
 
-	// Perform access check using the authorization data
-	hasAccess := AccessCheck(principal, requiredRole, *authData)
+	// Perform access check using the authorization data with group support
+	hasAccess := AccessCheckWithGroups(principal, principalIdP, principalGroups, requiredRole, *authData)
 
 	logger.Debug("Access check result for user %s on threat model %s: %t", principal, threatModelID, hasAccess)
 	return hasAccess, nil
@@ -446,6 +504,7 @@ func CheckSubResourceAccess(ctx context.Context, db *sql.DB, cache *CacheService
 
 // CheckSubResourceAccessWithoutCache validates sub-resource access without caching
 // This is useful for testing or when caching is not available
-func CheckSubResourceAccessWithoutCache(ctx context.Context, db *sql.DB, principal, threatModelID string, requiredRole Role) (bool, error) {
-	return CheckSubResourceAccess(ctx, db, nil, principal, threatModelID, requiredRole)
+// Now supports group-based authorization with IdP scoping
+func CheckSubResourceAccessWithoutCache(ctx context.Context, db *sql.DB, principal, principalIdP string, principalGroups []string, threatModelID string, requiredRole Role) (bool, error) {
+	return CheckSubResourceAccess(ctx, db, nil, principal, principalIdP, principalGroups, threatModelID, requiredRole)
 }
