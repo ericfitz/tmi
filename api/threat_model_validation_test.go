@@ -299,7 +299,7 @@ func TestValidThreatModelRequests(t *testing.T) {
 			"name":        "Valid Threat Model",
 			"description": "This is a valid threat model",
 			"authorization": []map[string]interface{}{
-				{"subject": "reader@example.com", "role": "reader"},
+				{"subject": "reader@example.com", "subject_type": "user", "role": "reader"},
 			},
 		}
 
@@ -326,7 +326,7 @@ func TestValidThreatModelRequests(t *testing.T) {
 			"owner":                  "test@example.com",
 			"threat_model_framework": "STRIDE",
 			"authorization": []map[string]interface{}{
-				{"subject": "test@example.com", "role": "owner"},
+				{"subject": "test@example.com", "subject_type": "user", "role": "owner"},
 			},
 		}
 

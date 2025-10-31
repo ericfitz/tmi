@@ -179,8 +179,8 @@ func TestWebSocketAuthorizationInvalidDiagramID(t *testing.T) {
 		{
 			name:           "non-existent diagram",
 			diagramID:      uuid.New().String(),
-			expectedStatus: http.StatusForbidden,
-			expectedError:  "forbidden",
+			expectedStatus: http.StatusUnauthorized,
+			expectedError:  "unauthorized",
 		},
 	}
 

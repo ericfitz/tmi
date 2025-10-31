@@ -18,6 +18,21 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 		Cells: []DfdDiagram_Cells_Item{},
 	}
 
+	// Initialize test fixtures and stores
+	InitTestFixtures()
+
+	// Create a WebSocketHub for the test
+	hub := NewWebSocketHubForTests()
+
+	// Store the test diagram
+	_, err := DiagramStore.Create(*testDiagram, func(d DfdDiagram, _ string) DfdDiagram {
+		d.Id = &diagramID
+		return d
+	})
+	if err != nil {
+		t.Fatalf("Failed to create test diagram: %v", err)
+	}
+
 	// Create a DiagramSession
 	session := &DiagramSession{
 		ID:                 uuid.New().String(),
@@ -27,6 +42,7 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 		NextSequenceNumber: 1,
 		clientLastSequence: make(map[string]uint64),
 		recentCorrections:  make(map[string]int),
+		Hub:                hub,
 	}
 
 	// Build current state map (empty for this test)

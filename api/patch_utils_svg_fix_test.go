@@ -57,7 +57,7 @@ func TestPreprocessPatchOperations_UTF8Validation(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorMsg:    "failed to decode base64 SVG data",
+			errorMsg:    "failed to decode base64 SVG data: illegal base64 data at input byte 7",
 		},
 		{
 			name: "non-SVG path should not be processed",
