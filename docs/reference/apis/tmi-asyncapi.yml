@@ -766,19 +766,30 @@ components:
 
     User:
       type: object
-      description: User information from JWT claims
+      description: |
+        User information from JWT claims. Authorization uses a two-step matching process:
+        1. First attempts to match user_id as IdP user identifier (OAuth sub, SAML NameID/subject-id/pairwise-id)
+        2. Falls back to email matching if no IdP user ID match is found
+
+        This approach prioritizes IdP-provided user identifiers while maintaining backward compatibility
+        with email-based authorization.
       properties:
         user_id:
           type: string
-          description: User identifier (from JWT sub claim)
+          description: |
+            Primary user identifier from JWT 'sub' claim (IdP-provided unique identifier).
+            This is the preferred and immutable identifier for user authorization.
+            Format varies by IdP: OAuth providers use 'sub' claim, SAML uses NameID/subject-id/pairwise-id.
           example: auth0|507f1f77bcf86cd799439011
         email:
           type: string
-          description: User email address
+          description: |
+            User email address from JWT 'email' claim.
+            Used as fallback identifier for authorization when IdP user ID matching fails.
           example: alice@example.com
         displayName:
           type: string
-          description: User display name (optional)
+          description: User display name from JWT 'name' claim (optional)
           example: Alice Johnson
       anyOf:
         - required: [user_id]
@@ -1133,11 +1144,15 @@ components:
             properties:
               user:
                 type: object
-                description: User information
+                description: |
+                  User information with IdP-provided identifiers.
+                  user_id is the primary identifier for authorization matching.
                 properties:
                   user_id:
                     type: string
-                    description: User identifier from JWT 'sub' claim (immutable)
+                    description: |
+                      Primary user identifier from JWT 'sub' claim (IdP-provided unique identifier, immutable).
+                      This is the preferred identifier for user authorization and matching.
                     example: auth0|507f1f77bcf86cd799439011
                   name:
                     type: string
@@ -1145,7 +1160,9 @@ components:
                     example: Alice Johnson
                   email:
                     type: string
-                    description: User email address from JWT 'email' claim
+                    description: |
+                      User email address from JWT 'email' claim.
+                      Used as fallback identifier for authorization when IdP user ID matching fails.
                     example: alice@example.com
                 required:
                   - user_id
