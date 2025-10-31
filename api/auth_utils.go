@@ -196,7 +196,17 @@ func AccessCheck(principal string, requiredRole Role, authData AuthorizationData
 
 // AccessCheckWithGroups performs authorization check with group support
 // Returns true if the principal or one of their groups has the required role
+// This is a compatibility wrapper that calls the enhanced version with nil auth service
 func AccessCheckWithGroups(principal string, principalIdP string, principalGroups []string, requiredRole Role, authData AuthorizationData) bool {
+	return AccessCheckWithGroupsAndIdPLookup(context.Background(), nil, principal, principalIdP, principalGroups, requiredRole, authData)
+}
+
+// AccessCheckWithGroupsAndIdPLookup performs authorization check with group support and IdP user ID lookup
+// Returns true if the principal or one of their groups has the required role
+// When authService is provided, it enables two-step user matching:
+// 1. First tries to match subject as IdP user ID (provider_user_id)
+// 2. Falls back to email matching if no IdP match found
+func AccessCheckWithGroupsAndIdPLookup(ctx context.Context, authService AuthService, principal string, principalIdP string, principalGroups []string, requiredRole Role, authData AuthorizationData) bool {
 	// Validate authorization type
 	if authData.Type != AuthTypeTMI10 {
 		return false
@@ -216,7 +226,42 @@ func AccessCheckWithGroups(principal string, principalIdP string, principalGroup
 		// Check user authorization
 		// If SubjectType is empty string, assume it's a user for backward compatibility
 		if auth.SubjectType == "" || auth.SubjectType == AuthorizationSubjectTypeUser {
-			if auth.Subject == principal {
+			// Two-step user matching when authService is available
+			userMatched := false
+
+			if authService != nil {
+				// Step 1: Try to match subject as IdP user ID
+				if auth.Idp != nil && *auth.Idp != "" {
+					// Provider-specific check: subject is IdP user ID for specific provider
+					if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
+						service := authAdapter.GetService()
+						if service != nil {
+							user, err := service.GetUserByProviderID(ctx, *auth.Idp, auth.Subject)
+							if err == nil && user.Email == principal {
+								userMatched = true
+							}
+						}
+					}
+				} else {
+					// Provider-independent check: subject could be IdP ID from any provider
+					if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
+						service := authAdapter.GetService()
+						if service != nil {
+							user, err := service.GetUserByAnyProviderID(ctx, auth.Subject)
+							if err == nil && user.Email == principal {
+								userMatched = true
+							}
+						}
+					}
+				}
+			}
+
+			// Step 2: Fallback to direct email matching
+			if !userMatched && auth.Subject == principal {
+				userMatched = true
+			}
+
+			if userMatched {
 				if !found || isHigherRole(auth.Role, highestRole) {
 					highestRole = auth.Role
 					found = true
@@ -392,11 +437,12 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 	}
 
 	// Query threat model access table to get authorization list
+	// Using the modern column structure: subject, subject_type, idp, role
 	accessQuery := `
-		SELECT user_email, role 
-		FROM threat_model_access 
+		SELECT subject, subject_type, idp, role
+		FROM threat_model_access
 		WHERE threat_model_id = $1
-		ORDER BY role DESC, user_email ASC
+		ORDER BY role DESC, subject ASC
 	`
 
 	rows, err := db.Query(accessQuery, threatModelID)
@@ -412,10 +458,12 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 
 	var authorization []Authorization
 	for rows.Next() {
-		var userEmail string
+		var subject string
+		var subjectType string
+		var idp sql.NullString
 		var role string
 
-		if err := rows.Scan(&userEmail, &role); err != nil {
+		if err := rows.Scan(&subject, &subjectType, &idp, &role); err != nil {
 			logger.Error("Failed to scan threat model access row: %v", err)
 			return nil, fmt.Errorf("failed to scan access row: %w", err)
 		}
@@ -430,14 +478,35 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 		case "reader":
 			roleType = RoleReader
 		default:
-			logger.Error("Invalid role %s found for user %s in threat model %s", role, userEmail, threatModelID)
+			logger.Error("Invalid role %s found for subject %s in threat model %s", role, subject, threatModelID)
 			continue // Skip invalid roles
 		}
 
-		authorization = append(authorization, Authorization{
-			Subject: userEmail,
-			Role:    roleType,
-		})
+		// Convert string subject_type to proper enum
+		var authSubjectType AuthorizationSubjectType
+		switch subjectType {
+		case "user":
+			authSubjectType = AuthorizationSubjectTypeUser
+		case "group":
+			authSubjectType = AuthorizationSubjectTypeGroup
+		default:
+			// For backward compatibility, treat empty or unknown as user
+			authSubjectType = AuthorizationSubjectTypeUser
+		}
+
+		// Build authorization entry with proper subject type and IdP
+		auth := Authorization{
+			Subject:     subject,
+			SubjectType: authSubjectType,
+			Role:        roleType,
+		}
+
+		// Set IdP if present
+		if idp.Valid && idp.String != "" {
+			auth.Idp = &idp.String
+		}
+
+		authorization = append(authorization, auth)
 	}
 
 	if err = rows.Err(); err != nil {

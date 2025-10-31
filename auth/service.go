@@ -712,6 +712,53 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 	return user, nil
 }
 
+// GetUserByAnyProviderID gets a user by provider ID across all providers
+// This allows provider-independent authorization using IdP user IDs
+func (s *Service) GetUserByAnyProviderID(ctx context.Context, providerUserID string) (User, error) {
+	db := s.dbManager.Postgres().GetDB()
+
+	var userID string
+	err := db.QueryRowContext(ctx, `
+		SELECT user_id FROM user_providers
+		WHERE provider_user_id = $1
+		LIMIT 1
+	`, providerUserID).Scan(&userID)
+
+	if err == sql.ErrNoRows {
+		return User{}, errors.New("user not found")
+	}
+
+	if err != nil {
+		return User{}, fmt.Errorf("failed to get user by provider ID: %w", err)
+	}
+
+	// Get the user
+	var user User
+	err = db.QueryRowContext(ctx, `
+		SELECT id, email, name, email_verified, given_name, family_name, picture, locale, created_at, modified_at, last_login
+		FROM users
+		WHERE id = $1
+	`, userID).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&user.EmailVerified,
+		&user.GivenName,
+		&user.FamilyName,
+		&user.Picture,
+		&user.Locale,
+		&user.CreatedAt,
+		&user.ModifiedAt,
+		&user.LastLogin,
+	)
+
+	if err != nil {
+		return User{}, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return user, nil
+}
+
 // deriveIssuer derives the issuer URL from the OAuth callback URL
 func (s *Service) deriveIssuer() string {
 	// Parse the OAuth callback URL to extract the base URL

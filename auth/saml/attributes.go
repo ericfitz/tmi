@@ -10,6 +10,7 @@ import (
 // UserInfo represents user information extracted from SAML assertion
 type UserInfo struct {
 	ID            string
+	IDType        string // Type of identifier: "subject-id", "pairwise-id", "nameid"
 	Email         string
 	EmailVerified bool
 	Name          string
@@ -31,29 +32,47 @@ func ExtractUserInfo(assertion *saml.Assertion, config *SAMLConfig) (*UserInfo, 
 		IdP: config.ID,
 	}
 
-	// Get the NameID as the user ID
-	if assertion.Subject != nil && assertion.Subject.NameID != nil {
-		userInfo.ID = assertion.Subject.NameID.Value
-	}
-
-	// Extract attributes from the assertion
-	if len(assertion.AttributeStatements) == 0 {
-		return userInfo, nil // No attributes but not an error
-	}
-
+	// Extract attributes from the assertion first (needed for subject-id/pairwise-id)
 	attributeMap := make(map[string][]string)
-	for _, stmt := range assertion.AttributeStatements {
-		for _, attr := range stmt.Attributes {
-			var values []string
-			for _, value := range attr.Values {
-				values = append(values, value.Value)
-			}
-			attributeMap[attr.Name] = values
-			// Also store by FriendlyName if available
-			if attr.FriendlyName != "" {
-				attributeMap[attr.FriendlyName] = values
+	if len(assertion.AttributeStatements) > 0 {
+		for _, stmt := range assertion.AttributeStatements {
+			for _, attr := range stmt.Attributes {
+				var values []string
+				for _, value := range attr.Values {
+					values = append(values, value.Value)
+				}
+				attributeMap[attr.Name] = values
+				// Also store by FriendlyName if available
+				if attr.FriendlyName != "" {
+					attributeMap[attr.FriendlyName] = values
+				}
 			}
 		}
+	}
+
+	// Hierarchical identifier extraction
+	// Priority: 1. subject-id, 2. pairwise-id, 3. NameID
+
+	// Check for subject-id attribute (persistent identifier)
+	if subjectID := getAttributeValue(attributeMap, "urn:oasis:names:tc:SAML:attribute:subject-id"); subjectID != "" {
+		userInfo.ID = subjectID
+		userInfo.IDType = "subject-id"
+	} else if subjectID := getAttributeValue(attributeMap, "subject-id"); subjectID != "" {
+		// Also check friendly name
+		userInfo.ID = subjectID
+		userInfo.IDType = "subject-id"
+	} else if pairwiseID := getAttributeValue(attributeMap, "urn:oasis:names:tc:SAML:attribute:pairwise-id"); pairwiseID != "" {
+		// Check for pairwise-id attribute (privacy-preserving identifier)
+		userInfo.ID = pairwiseID
+		userInfo.IDType = "pairwise-id"
+	} else if pairwiseID := getAttributeValue(attributeMap, "pairwise-id"); pairwiseID != "" {
+		// Also check friendly name
+		userInfo.ID = pairwiseID
+		userInfo.IDType = "pairwise-id"
+	} else if assertion.Subject != nil && assertion.Subject.NameID != nil {
+		// Fallback to NameID
+		userInfo.ID = assertion.Subject.NameID.Value
+		userInfo.IDType = "nameid"
 	}
 
 	// Map attributes using configuration
@@ -135,6 +154,14 @@ func filterGroups(groups []string, prefix string) []string {
 		}
 	}
 	return filtered
+}
+
+// getAttributeValue safely retrieves an attribute value from the attribute map
+func getAttributeValue(attributeMap map[string][]string, attributeName string) string {
+	if values, exists := attributeMap[attributeName]; exists && len(values) > 0 {
+		return values[0]
+	}
+	return ""
 }
 
 // GetAttributeValue safely retrieves an attribute value from the assertion

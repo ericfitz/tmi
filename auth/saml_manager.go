@@ -188,6 +188,16 @@ func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, 
 			return nil, fmt.Errorf("failed to update user: %w", err)
 		}
 
+		// Link or update the SAML provider for the existing user
+		if userInfo.ID != "" {
+			if err := m.service.LinkUserProvider(ctx, existingUser.ID, providerID, userInfo.ID, userInfo.Email); err != nil {
+				// Log the error but don't fail - user was updated successfully
+				logger := slogging.Get()
+				logger.Warn("failed to link SAML provider to existing user: %v (user_id=%s, provider=%s)",
+					err, existingUser.ID, providerID)
+			}
+		}
+
 		return &existingUser, nil
 	}
 
@@ -205,6 +215,16 @@ func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, 
 	createdUser, err := m.service.CreateUser(ctx, newUser)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Link the SAML provider to the newly created user
+	if userInfo.ID != "" {
+		if err := m.service.LinkUserProvider(ctx, createdUser.ID, providerID, userInfo.ID, userInfo.Email); err != nil {
+			// Log the error but don't fail - user was created successfully
+			logger := slogging.Get()
+			logger.Warn("failed to link SAML provider to user: %v (user_id=%s, provider=%s)",
+				err, createdUser.ID, providerID)
+		}
 	}
 
 	return &createdUser, nil

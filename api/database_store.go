@@ -583,8 +583,8 @@ func (s *ThreatModelDatabaseStore) Count() int {
 
 func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string) ([]Authorization, error) {
 	query := `
-		SELECT user_email, role 
-		FROM threat_model_access 
+		SELECT subject, subject_type, idp, role
+		FROM threat_model_access
 		WHERE threat_model_id = $1`
 
 	rows, err := s.db.Query(query, threatModelId)
@@ -600,16 +600,38 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string) ([]Au
 
 	var authorization []Authorization
 	for rows.Next() {
-		var userEmail, roleStr string
-		if err := rows.Scan(&userEmail, &roleStr); err != nil {
+		var subject, subjectTypeStr, roleStr string
+		var idp sql.NullString
+		if err := rows.Scan(&subject, &subjectTypeStr, &idp, &roleStr); err != nil {
 			continue
 		}
 
 		role := AuthorizationRole(roleStr)
-		authorization = append(authorization, Authorization{
-			Subject: userEmail,
-			Role:    role,
-		})
+
+		// Convert string subject_type to proper enum
+		var subjectType AuthorizationSubjectType
+		switch subjectTypeStr {
+		case "user":
+			subjectType = AuthorizationSubjectTypeUser
+		case "group":
+			subjectType = AuthorizationSubjectTypeGroup
+		default:
+			// For backward compatibility, treat empty or unknown as user
+			subjectType = AuthorizationSubjectTypeUser
+		}
+
+		auth := Authorization{
+			Subject:     subject,
+			SubjectType: subjectType,
+			Role:        role,
+		}
+
+		// Set IdP if present
+		if idp.Valid && idp.String != "" {
+			auth.Idp = &idp.String
+		}
+
+		authorization = append(authorization, auth)
 	}
 
 	return authorization, nil
@@ -913,14 +935,28 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 	}
 
 	for _, auth := range authorization {
+		// Determine subject type string for database
+		subjectTypeStr := "user"
+		if auth.SubjectType == AuthorizationSubjectTypeGroup {
+			subjectTypeStr = "group"
+		}
+
+		// Handle nullable idp field
+		var idpValue interface{}
+		if auth.Idp != nil && *auth.Idp != "" {
+			idpValue = *auth.Idp
+		} else {
+			idpValue = nil
+		}
+
 		query := `
-			INSERT INTO threat_model_access (threat_model_id, user_email, role, created_at, modified_at)
-			VALUES ($1, $2, $3, $4, $5)
-			ON CONFLICT (threat_model_id, user_email) 
-			DO UPDATE SET role = $3, modified_at = $5`
+			INSERT INTO threat_model_access (threat_model_id, subject, subject_type, idp, role, created_at, modified_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (threat_model_id, subject, subject_type, idp)
+			DO UPDATE SET role = $5, modified_at = $7`
 
 		now := time.Now().UTC()
-		_, err := tx.Exec(query, threatModelId, auth.Subject, string(auth.Role), now, now)
+		_, err := tx.Exec(query, threatModelId, auth.Subject, subjectTypeStr, idpValue, string(auth.Role), now, now)
 		if err != nil {
 			return err
 		}
