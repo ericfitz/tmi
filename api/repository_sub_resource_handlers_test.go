@@ -120,8 +120,8 @@ func TestGetRepositorys(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Len(t, response, 2)
-		assert.Equal(t, "https://github.com/user/repo1", response[0]["url"])
-		assert.Equal(t, "https://github.com/user/repo2", response[1]["url"])
+		assert.Equal(t, "https://github.com/user/repo1", response[0]["uri"])
+		assert.Equal(t, "https://github.com/user/repo2", response[1]["uri"])
 
 		mockStore.AssertExpectations(t)
 	})
@@ -183,7 +183,7 @@ func TestGetRepository(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, "https://github.com/user/test-repo", response["url"])
+		assert.Equal(t, "https://github.com/user/test-repo", response["uri"])
 
 		mockStore.AssertExpectations(t)
 	})
@@ -227,7 +227,7 @@ func TestCreateRepository(t *testing.T) {
 		requestBody := map[string]interface{}{
 			"name":        "New Test Repository",
 			"description": "A repository created for testing",
-			"url":         "https://github.com/user/new-repo",
+			"uri":         "https://github.com/user/new-repo",
 		}
 
 		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Repository"), threatModelID).Return(nil).Run(func(args mock.Arguments) {
@@ -252,7 +252,7 @@ func TestCreateRepository(t *testing.T) {
 
 		assert.Equal(t, "New Test Repository", response["name"])
 		assert.Equal(t, "A repository created for testing", response["description"])
-		assert.Equal(t, "https://github.com/user/new-repo", response["url"])
+		assert.Equal(t, "https://github.com/user/new-repo", response["uri"])
 
 		mockStore.AssertExpectations(t)
 	})
@@ -280,7 +280,7 @@ func TestCreateRepository(t *testing.T) {
 		r, _ := setupRepositorySubRerepositoryHandler()
 
 		requestBody := map[string]interface{}{
-			"url": "https://github.com/user/repo",
+			"uri": "https://github.com/user/repo",
 		}
 
 		body, _ := json.Marshal(requestBody)
@@ -305,7 +305,7 @@ func TestUpdateRepository(t *testing.T) {
 		requestBody := map[string]interface{}{
 			"name":        "Updated Test Repository",
 			"description": "An updated repository description",
-			"url":         "https://github.com/user/updated-repo",
+			"uri":         "https://github.com/user/updated-repo",
 		}
 
 		mockStore.On("Update", mock.Anything, mock.AnythingOfType("*api.Repository"), threatModelID).Return(nil)
@@ -324,7 +324,7 @@ func TestUpdateRepository(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "Updated Test Repository", response["name"])
-		assert.Equal(t, "https://github.com/user/updated-repo", response["url"])
+		assert.Equal(t, "https://github.com/user/updated-repo", response["uri"])
 
 		mockStore.AssertExpectations(t)
 	})
@@ -355,7 +355,7 @@ func TestUpdateRepository(t *testing.T) {
 		threatModelID := "00000000-0000-0000-0000-000000000001"
 
 		requestBody := map[string]interface{}{
-			"url": "https://github.com/user/repo",
+			"uri": "https://github.com/user/repo",
 		}
 
 		body, _ := json.Marshal(requestBody)
@@ -468,7 +468,7 @@ func TestBulkCreateRepositorys(t *testing.T) {
 		for i := 0; i < 51; i++ {
 			repositorys[i] = map[string]interface{}{
 				"name": "Bulk Repository " + string(rune(i)),
-				"url":  "https://github.com/user/repo",
+				"uri":  "https://github.com/user/repo",
 			}
 		}
 

@@ -224,7 +224,7 @@ func TestCreateDocument(t *testing.T) {
 		requestBody := map[string]interface{}{
 			"name":        "New Test Document",
 			"description": "A document created for testing",
-			"url":         "https://example.com/new-doc.pdf",
+			"uri":         "https://example.com/new-doc.pdf",
 		}
 
 		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), threatModelID).Return(nil).Run(func(args mock.Arguments) {
@@ -241,6 +241,12 @@ func TestCreateDocument(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
+		// Debug: print actual response
+		if w.Code != http.StatusCreated {
+			t.Logf("Response status: %d", w.Code)
+			t.Logf("Response body: %s", w.Body.String())
+		}
+
 		assert.Equal(t, http.StatusCreated, w.Code)
 
 		var response map[string]interface{}
@@ -249,7 +255,7 @@ func TestCreateDocument(t *testing.T) {
 
 		assert.Equal(t, "New Test Document", response["name"])
 		assert.Equal(t, "A document created for testing", response["description"])
-		assert.Equal(t, "https://example.com/new-doc.pdf", response["url"])
+		assert.Equal(t, "https://example.com/new-doc.pdf", response["uri"])
 
 		mockStore.AssertExpectations(t)
 	})
@@ -260,7 +266,7 @@ func TestCreateDocument(t *testing.T) {
 		threatModelID := "00000000-0000-0000-0000-000000000001"
 
 		requestBody := map[string]interface{}{
-			"url": "https://example.com/doc.pdf",
+			"uri": "https://example.com/doc.pdf",
 		}
 
 		body, _ := json.Marshal(requestBody)
@@ -297,7 +303,7 @@ func TestCreateDocument(t *testing.T) {
 
 		requestBody := map[string]interface{}{
 			"name": "Test Document",
-			"url":  "https://example.com/doc.pdf",
+			"uri":  "https://example.com/doc.pdf",
 		}
 
 		body, _ := json.Marshal(requestBody)
@@ -322,7 +328,7 @@ func TestUpdateDocument(t *testing.T) {
 		requestBody := map[string]interface{}{
 			"name":        "Updated Test Document",
 			"description": "An updated document description",
-			"url":         "https://example.com/updated-doc.pdf",
+			"uri":         "https://example.com/updated-doc.pdf",
 		}
 
 		mockStore.On("Update", mock.Anything, mock.AnythingOfType("*api.Document"), threatModelID).Return(nil)
@@ -341,7 +347,7 @@ func TestUpdateDocument(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "Updated Test Document", response["name"])
-		assert.Equal(t, "https://example.com/updated-doc.pdf", response["url"])
+		assert.Equal(t, "https://example.com/updated-doc.pdf", response["uri"])
 
 		mockStore.AssertExpectations(t)
 	})
@@ -353,7 +359,7 @@ func TestUpdateDocument(t *testing.T) {
 		documentID := "00000000-0000-0000-0000-000000000002"
 
 		requestBody := map[string]interface{}{
-			"url": "https://example.com/doc.pdf",
+			"uri": "https://example.com/doc.pdf",
 		}
 
 		body, _ := json.Marshal(requestBody)
@@ -373,7 +379,7 @@ func TestUpdateDocument(t *testing.T) {
 
 		requestBody := map[string]interface{}{
 			"name": "Test Document",
-			"url":  "https://example.com/doc.pdf",
+			"uri":  "https://example.com/doc.pdf",
 		}
 
 		body, _ := json.Marshal(requestBody)
@@ -486,7 +492,7 @@ func TestBulkCreateDocuments(t *testing.T) {
 		for i := 0; i < 51; i++ {
 			documents[i] = map[string]interface{}{
 				"name": "Bulk Document " + string(rune(i)),
-				"url":  "https://example.com/doc.pdf",
+				"uri":  "https://example.com/doc.pdf",
 			}
 		}
 
@@ -509,7 +515,7 @@ func TestBulkCreateDocuments(t *testing.T) {
 
 		requestBody := []map[string]interface{}{
 			{
-				"url": "https://example.com/doc.pdf",
+				"uri": "https://example.com/doc.pdf",
 			},
 		}
 

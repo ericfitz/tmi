@@ -24,7 +24,10 @@ func setupThreatModelRouterWithUser(userName string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
-	// Test fixtures should already be initialized by setupThreatModelRouter
+	// Initialize test fixtures only if not already initialized
+	if !TestFixtures.Initialized {
+		InitTestFixtures()
+	}
 
 	// Add a fake auth middleware to set user in context
 	r.Use(func(c *gin.Context) {
@@ -764,6 +767,13 @@ func TestWriterCannotChangeOwnerOrAuth(t *testing.T) {
 // TestGetThreatModelsAuthorizationFiltering tests that the list endpoint properly filters based on user access
 func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 	// Reset stores to ensure clean state
+	InitializeMockStores()
+	TestFixtures.Initialized = false
+	InitTestFixtures()
+
+	// Remove the default fixture threat model to start with a clean slate for this authorization test
+	_ = ThreatModelStore.Delete(TestFixtures.ThreatModelID)
+	_ = DiagramStore.Delete(TestFixtures.DiagramID)
 
 	// Set up test users
 	ownerUser := "owner@example.com"

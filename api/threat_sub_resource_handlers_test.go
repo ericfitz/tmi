@@ -59,7 +59,9 @@ func TestGetThreats(t *testing.T) {
 		threats[0].Id = &uuid1
 		threats[1].Id = &uuid2
 
-		mockStore.On("List", mock.Anything, threatModelID, 0, 20).Return(threats, nil)
+		mockStore.On("List", mock.Anything, threatModelID, mock.MatchedBy(func(f ThreatFilter) bool {
+			return f.Offset == 0 && f.Limit == 20
+		})).Return(threats, nil)
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/threats", nil)
 		w := httptest.NewRecorder()
@@ -99,7 +101,9 @@ func TestGetThreats(t *testing.T) {
 		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
 		threats[0].Id = &uuid1
 
-		mockStore.On("List", mock.Anything, threatModelID, 10, 5).Return(threats, nil)
+		mockStore.On("List", mock.Anything, threatModelID, mock.MatchedBy(func(f ThreatFilter) bool {
+			return f.Offset == 10 && f.Limit == 5
+		})).Return(threats, nil)
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/threats?limit=5&offset=10", nil)
 		w := httptest.NewRecorder()

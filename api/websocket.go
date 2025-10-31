@@ -298,6 +298,9 @@ func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagra
 		newVector = previousVector + 1
 		updatedDiagram.UpdateVector = &newVector
 		vectorIncremented = true
+	} else {
+		// Preserve existing update vector even if not incrementing
+		updatedDiagram.UpdateVector = &previousVector
 	}
 
 	// Handle image.update_vector logic: if image.svg is provided but image.update_vector is not,
