@@ -3,11 +3,11 @@
   "info": {
     "title": "TMI (Threat Modeling Improved) API",
     "description": "A RESTful API for collaborative threat modeling with full X6 graph library compatibility. This API provides schemas that align with AntV X6 cell object models for seamless integration with modern diagramming libraries. Supports OAuth 2.0 authentication with client callback integration for seamless single-page application authentication flows.",
-    "version": "0.103.0"
+    "version": "0.104.0"
   },
   "externalDocs": {
     "description": "Find more information here",
-    "url": ""
+    "url": "https://github.com/ericfitz/tmi/wiki"
   },
   "servers": [
     {
@@ -1285,7 +1285,7 @@
         "properties": {
           "subject": {
             "type": "string",
-            "description": "Email address for users, group name for groups",
+            "description": "Email address or user id for users, group name for groups",
             "minLength": 1,
             "maxLength": 500,
             "pattern": "^[^<>\"'&]*$",
