@@ -142,45 +142,135 @@ func getObjectKeys(obj map[string]interface{}) []string {
 	return keys
 }
 
+// toString converts interface{} to string
+func toString(v interface{}) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case float64:
+		return fmt.Sprintf("%.0f", val)
+	case bool:
+		return strconv.FormatBool(val)
+	default:
+		if val == nil {
+			return ""
+		}
+		// Try JSON encoding as last resort
+		if b, err := json.Marshal(val); err == nil {
+			return string(b)
+		}
+		return fmt.Sprintf("%v", val)
+	}
+}
+
+// toBool converts interface{} to bool
+func toBool(v interface{}) bool {
+	switch val := v.(type) {
+	case bool:
+		return val
+	case string:
+		return val == "true" || val == "1" || val == "yes"
+	case float64:
+		return val != 0
+	default:
+		return false
+	}
+}
+
+// processStringClaim processes a string-based claim value
+func processStringClaim(value interface{}, currentValue string, claimName string) string {
+	logger := slogging.Get()
+	if currentValue == "" {
+		result := toString(value)
+		logger.Debug("Set %s claim value=%v", claimName, result)
+		return result
+	}
+	return currentValue
+}
+
+// processGroupsClaim processes the groups claim which can be an array or string
+func processGroupsClaim(value interface{}) []string {
+	switch v := value.(type) {
+	case []interface{}:
+		return processGroupsArray(v)
+	case string:
+		return processGroupsString(v)
+	default:
+		return processGroupsFallback(value)
+	}
+}
+
+// processGroupsArray converts an array of interfaces to a string array
+func processGroupsArray(v []interface{}) []string {
+	logger := slogging.Get()
+	groups := make([]string, 0, len(v))
+	for _, g := range v {
+		if groupStr := toString(g); groupStr != "" {
+			groups = append(groups, groupStr)
+		}
+	}
+	logger.Debug("Set groups claim from array value=%v count=%d", groups, len(groups))
+	return groups
+}
+
+// processGroupsString handles string-based groups (single or comma-separated)
+func processGroupsString(v string) []string {
+	logger := slogging.Get()
+	if v == "" {
+		return nil
+	}
+
+	if strings.Contains(v, ",") {
+		groups := strings.Split(v, ",")
+		for i := range groups {
+			groups[i] = strings.TrimSpace(groups[i])
+		}
+		logger.Debug("Set groups claim from comma-separated string value=%v count=%d", groups, len(groups))
+		return groups
+	}
+
+	logger.Debug("Set groups claim from single string value=%v", v)
+	return []string{v}
+}
+
+// processGroupsFallback handles unexpected group value types
+func processGroupsFallback(value interface{}) []string {
+	logger := slogging.Get()
+	if str := toString(value); str != "" {
+		logger.Debug("Set groups claim from converted value type=%T value=%v", value, str)
+		return []string{str}
+	}
+	logger.Debug("Unsupported groups claim type: %T", value)
+	return nil
+}
+
+// processSingleClaim processes a single claim based on its type
+func processSingleClaim(claimType string, value interface{}, userInfo *UserInfo) {
+	switch claimType {
+	case "subject_claim":
+		userInfo.ID = processStringClaim(value, userInfo.ID, "subject")
+	case "email_claim":
+		userInfo.Email = processStringClaim(value, userInfo.Email, "email")
+	case "name_claim":
+		userInfo.Name = processStringClaim(value, userInfo.Name, "name")
+	case "given_name_claim":
+		userInfo.GivenName = processStringClaim(value, userInfo.GivenName, "given name")
+	case "family_name_claim":
+		userInfo.FamilyName = processStringClaim(value, userInfo.FamilyName, "family name")
+	case "picture_claim":
+		userInfo.Picture = processStringClaim(value, userInfo.Picture, "picture")
+	case "email_verified_claim":
+		userInfo.EmailVerified = toBool(value)
+		slogging.Get().Debug("Set email verified claim value=%v", userInfo.EmailVerified)
+	case "groups_claim":
+		userInfo.Groups = processGroupsClaim(value)
+	}
+}
+
 // extractClaims extracts claims from JSON data using the provided mappings
 func extractClaims(jsonData map[string]interface{}, mappings map[string]string, userInfo *UserInfo) error {
 	logger := slogging.Get()
 	logger.Debug("Extracting claims from JSON data mappings_count=%v data_keys=%v", len(mappings), getObjectKeys(jsonData))
-
-	// Helper to convert interface{} to string
-	toString := func(v interface{}) string {
-		switch val := v.(type) {
-		case string:
-			return val
-		case float64:
-			return fmt.Sprintf("%.0f", val)
-		case bool:
-			return strconv.FormatBool(val)
-		default:
-			if val == nil {
-				return ""
-			}
-			// Try JSON encoding as last resort
-			if b, err := json.Marshal(val); err == nil {
-				return string(b)
-			}
-			return fmt.Sprintf("%v", val)
-		}
-	}
-
-	// Helper to convert interface{} to bool
-	toBool := func(v interface{}) bool {
-		switch val := v.(type) {
-		case bool:
-			return val
-		case string:
-			return val == "true" || val == "1" || val == "yes"
-		case float64:
-			return val != 0
-		default:
-			return false
-		}
-	}
 
 	// Process each mapping
 	for claimType, path := range mappings {
@@ -192,79 +282,7 @@ func extractClaims(jsonData map[string]interface{}, mappings map[string]string, 
 			continue
 		}
 
-		switch claimType {
-		case "subject_claim":
-			if userInfo.ID == "" {
-				userInfo.ID = toString(value)
-				logger.Debug("Set subject claim value=%v", userInfo.ID)
-			}
-		case "email_claim":
-			if userInfo.Email == "" {
-				userInfo.Email = toString(value)
-				logger.Debug("Set email claim value=%v", userInfo.Email)
-			}
-		case "name_claim":
-			if userInfo.Name == "" {
-				userInfo.Name = toString(value)
-				logger.Debug("Set name claim value=%v", userInfo.Name)
-			}
-		case "given_name_claim":
-			if userInfo.GivenName == "" {
-				userInfo.GivenName = toString(value)
-				logger.Debug("Set given name claim value=%v", userInfo.GivenName)
-			}
-		case "family_name_claim":
-			if userInfo.FamilyName == "" {
-				userInfo.FamilyName = toString(value)
-				logger.Debug("Set family name claim value=%v", userInfo.FamilyName)
-			}
-		case "picture_claim":
-			if userInfo.Picture == "" {
-				userInfo.Picture = toString(value)
-				logger.Debug("Set picture claim value=%v", userInfo.Picture)
-			}
-		case "email_verified_claim":
-			userInfo.EmailVerified = toBool(value)
-			logger.Debug("Set email verified claim value=%v", userInfo.EmailVerified)
-		case "groups_claim":
-			// Handle groups claim - can be an array, a string, or extracted array of values
-			switch v := value.(type) {
-			case []interface{}:
-				// Array of groups (could be from direct array or from [*] extraction)
-				groups := make([]string, 0, len(v))
-				for _, g := range v {
-					if groupStr := toString(g); groupStr != "" {
-						groups = append(groups, groupStr)
-					}
-				}
-				userInfo.Groups = groups
-				logger.Debug("Set groups claim from array value=%v count=%d", groups, len(groups))
-			case string:
-				// Single group or comma-separated groups
-				if v != "" {
-					// Check if it's comma-separated
-					if strings.Contains(v, ",") {
-						groups := strings.Split(v, ",")
-						for i := range groups {
-							groups[i] = strings.TrimSpace(groups[i])
-						}
-						userInfo.Groups = groups
-						logger.Debug("Set groups claim from comma-separated string value=%v count=%d", groups, len(groups))
-					} else {
-						userInfo.Groups = []string{v}
-						logger.Debug("Set groups claim from single string value=%v", v)
-					}
-				}
-			default:
-				// Try to convert to string as fallback
-				if str := toString(value); str != "" {
-					userInfo.Groups = []string{str}
-					logger.Debug("Set groups claim from converted value type=%T value=%v", value, str)
-				} else {
-					logger.Debug("Unsupported groups claim type: %T", value)
-				}
-			}
-		}
+		processSingleClaim(claimType, value, userInfo)
 	}
 
 	logger.Info("Claims extraction completed user_id=%v user_email=%v user_name=%v email_verified=%v groups_count=%v", userInfo.ID, userInfo.Email, userInfo.Name, userInfo.EmailVerified, len(userInfo.Groups))

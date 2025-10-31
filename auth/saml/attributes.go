@@ -22,6 +22,133 @@ type UserInfo struct {
 	Groups        []string
 }
 
+// buildAttributeMap extracts all attributes from the assertion into a map
+func buildAttributeMap(assertion *saml.Assertion) map[string][]string {
+	attributeMap := make(map[string][]string)
+	if len(assertion.AttributeStatements) == 0 {
+		return attributeMap
+	}
+
+	for _, stmt := range assertion.AttributeStatements {
+		for _, attr := range stmt.Attributes {
+			var values []string
+			for _, value := range attr.Values {
+				values = append(values, value.Value)
+			}
+			attributeMap[attr.Name] = values
+			// Also store by FriendlyName if available
+			if attr.FriendlyName != "" {
+				attributeMap[attr.FriendlyName] = values
+			}
+		}
+	}
+	return attributeMap
+}
+
+// extractUserID extracts user ID with hierarchical priority
+// Priority: 1. subject-id, 2. pairwise-id, 3. NameID
+func extractUserID(assertion *saml.Assertion, attributeMap map[string][]string) (string, string) {
+	// Check for subject-id attribute (persistent identifier)
+	if subjectID := getAttributeValue(attributeMap, "urn:oasis:names:tc:SAML:attribute:subject-id"); subjectID != "" {
+		return subjectID, "subject-id"
+	}
+	if subjectID := getAttributeValue(attributeMap, "subject-id"); subjectID != "" {
+		return subjectID, "subject-id"
+	}
+
+	// Check for pairwise-id attribute (privacy-preserving identifier)
+	if pairwiseID := getAttributeValue(attributeMap, "urn:oasis:names:tc:SAML:attribute:pairwise-id"); pairwiseID != "" {
+		return pairwiseID, "pairwise-id"
+	}
+	if pairwiseID := getAttributeValue(attributeMap, "pairwise-id"); pairwiseID != "" {
+		return pairwiseID, "pairwise-id"
+	}
+
+	// Fallback to NameID
+	if assertion.Subject != nil && assertion.Subject.NameID != nil {
+		return assertion.Subject.NameID.Value, "nameid"
+	}
+
+	return "", ""
+}
+
+// mapAttribute extracts a single attribute value if configured
+func mapAttribute(attributeMap map[string][]string, attributeMapping map[string]string, key string) string {
+	if attr, ok := attributeMapping[key]; ok {
+		if values, exists := attributeMap[attr]; exists && len(values) > 0 {
+			return values[0]
+		}
+	}
+	return ""
+}
+
+// mapUserAttributes maps configured attributes to user info fields
+func mapUserAttributes(userInfo *UserInfo, attributeMap map[string][]string, config *SAMLConfig) {
+	if config.AttributeMapping == nil {
+		return
+	}
+
+	// Email
+	if email := mapAttribute(attributeMap, config.AttributeMapping, "email"); email != "" {
+		userInfo.Email = email
+		userInfo.EmailVerified = true // SAML assertions are considered verified
+	}
+
+	// Name
+	if name := mapAttribute(attributeMap, config.AttributeMapping, "name"); name != "" {
+		userInfo.Name = name
+	}
+
+	// Given name
+	if givenName := mapAttribute(attributeMap, config.AttributeMapping, "given_name"); givenName != "" {
+		userInfo.GivenName = givenName
+	}
+
+	// Family name
+	if familyName := mapAttribute(attributeMap, config.AttributeMapping, "family_name"); familyName != "" {
+		userInfo.FamilyName = familyName
+	}
+
+	// Groups
+	if groupsAttr, ok := config.AttributeMapping["groups"]; ok {
+		if values, exists := attributeMap[groupsAttr]; exists {
+			userInfo.Groups = filterGroups(values, config.GroupPrefix)
+		}
+	}
+}
+
+// extractGroups attempts to extract groups using configured attribute name
+func extractGroups(userInfo *UserInfo, attributeMap map[string][]string, config *SAMLConfig) {
+	if len(userInfo.Groups) == 0 && config.GroupAttributeName != "" {
+		if values, exists := attributeMap[config.GroupAttributeName]; exists {
+			userInfo.Groups = filterGroups(values, config.GroupPrefix)
+		}
+	}
+}
+
+// applyEmailFallback generates email if not present
+func applyEmailFallback(userInfo *UserInfo, config *SAMLConfig) {
+	if userInfo.Email != "" || userInfo.ID == "" {
+		return
+	}
+
+	// Check if ID looks like an email
+	if strings.Contains(userInfo.ID, "@") {
+		userInfo.Email = userInfo.ID
+	} else {
+		// Generate a synthetic email
+		userInfo.Email = fmt.Sprintf("%s@%s.saml.tmi", userInfo.ID, config.ID)
+	}
+}
+
+// applyNameFallback generates name from email prefix if not present
+func applyNameFallback(userInfo *UserInfo) {
+	if userInfo.Name == "" && userInfo.Email != "" {
+		parts := strings.Split(userInfo.Email, "@")
+		userInfo.Name = parts[0]
+	}
+}
+
 // ExtractUserInfo extracts user information and groups from SAML assertion
 func ExtractUserInfo(assertion *saml.Assertion, config *SAMLConfig) (*UserInfo, error) {
 	if assertion == nil {
@@ -32,111 +159,21 @@ func ExtractUserInfo(assertion *saml.Assertion, config *SAMLConfig) (*UserInfo, 
 		IdP: config.ID,
 	}
 
-	// Extract attributes from the assertion first (needed for subject-id/pairwise-id)
-	attributeMap := make(map[string][]string)
-	if len(assertion.AttributeStatements) > 0 {
-		for _, stmt := range assertion.AttributeStatements {
-			for _, attr := range stmt.Attributes {
-				var values []string
-				for _, value := range attr.Values {
-					values = append(values, value.Value)
-				}
-				attributeMap[attr.Name] = values
-				// Also store by FriendlyName if available
-				if attr.FriendlyName != "" {
-					attributeMap[attr.FriendlyName] = values
-				}
-			}
-		}
-	}
+	// Extract attributes from the assertion
+	attributeMap := buildAttributeMap(assertion)
 
-	// Hierarchical identifier extraction
-	// Priority: 1. subject-id, 2. pairwise-id, 3. NameID
-
-	// Check for subject-id attribute (persistent identifier)
-	if subjectID := getAttributeValue(attributeMap, "urn:oasis:names:tc:SAML:attribute:subject-id"); subjectID != "" {
-		userInfo.ID = subjectID
-		userInfo.IDType = "subject-id"
-	} else if subjectID := getAttributeValue(attributeMap, "subject-id"); subjectID != "" {
-		// Also check friendly name
-		userInfo.ID = subjectID
-		userInfo.IDType = "subject-id"
-	} else if pairwiseID := getAttributeValue(attributeMap, "urn:oasis:names:tc:SAML:attribute:pairwise-id"); pairwiseID != "" {
-		// Check for pairwise-id attribute (privacy-preserving identifier)
-		userInfo.ID = pairwiseID
-		userInfo.IDType = "pairwise-id"
-	} else if pairwiseID := getAttributeValue(attributeMap, "pairwise-id"); pairwiseID != "" {
-		// Also check friendly name
-		userInfo.ID = pairwiseID
-		userInfo.IDType = "pairwise-id"
-	} else if assertion.Subject != nil && assertion.Subject.NameID != nil {
-		// Fallback to NameID
-		userInfo.ID = assertion.Subject.NameID.Value
-		userInfo.IDType = "nameid"
-	}
+	// Extract user ID with hierarchical priority
+	userInfo.ID, userInfo.IDType = extractUserID(assertion, attributeMap)
 
 	// Map attributes using configuration
-	if config.AttributeMapping != nil {
-		// Email
-		if emailAttr, ok := config.AttributeMapping["email"]; ok {
-			if values, exists := attributeMap[emailAttr]; exists && len(values) > 0 {
-				userInfo.Email = values[0]
-				userInfo.EmailVerified = true // SAML assertions are considered verified
-			}
-		}
+	mapUserAttributes(userInfo, attributeMap, config)
 
-		// Name
-		if nameAttr, ok := config.AttributeMapping["name"]; ok {
-			if values, exists := attributeMap[nameAttr]; exists && len(values) > 0 {
-				userInfo.Name = values[0]
-			}
-		}
+	// Extract groups using fallback method
+	extractGroups(userInfo, attributeMap, config)
 
-		// Given name
-		if givenNameAttr, ok := config.AttributeMapping["given_name"]; ok {
-			if values, exists := attributeMap[givenNameAttr]; exists && len(values) > 0 {
-				userInfo.GivenName = values[0]
-			}
-		}
-
-		// Family name
-		if familyNameAttr, ok := config.AttributeMapping["family_name"]; ok {
-			if values, exists := attributeMap[familyNameAttr]; exists && len(values) > 0 {
-				userInfo.FamilyName = values[0]
-			}
-		}
-
-		// Groups
-		if groupsAttr, ok := config.AttributeMapping["groups"]; ok {
-			if values, exists := attributeMap[groupsAttr]; exists {
-				userInfo.Groups = filterGroups(values, config.GroupPrefix)
-			}
-		}
-	}
-
-	// Fallback: try to extract groups using GroupAttributeName
-	if len(userInfo.Groups) == 0 && config.GroupAttributeName != "" {
-		if values, exists := attributeMap[config.GroupAttributeName]; exists {
-			userInfo.Groups = filterGroups(values, config.GroupPrefix)
-		}
-	}
-
-	// Fallback: if no email, use NameID
-	if userInfo.Email == "" && userInfo.ID != "" {
-		// Check if ID looks like an email
-		if strings.Contains(userInfo.ID, "@") {
-			userInfo.Email = userInfo.ID
-		} else {
-			// Generate a synthetic email
-			userInfo.Email = fmt.Sprintf("%s@%s.saml.tmi", userInfo.ID, config.ID)
-		}
-	}
-
-	// Fallback: if no name, use email prefix
-	if userInfo.Name == "" && userInfo.Email != "" {
-		parts := strings.Split(userInfo.Email, "@")
-		userInfo.Name = parts[0]
-	}
+	// Apply fallbacks for missing fields
+	applyEmailFallback(userInfo, config)
+	applyNameFallback(userInfo)
 
 	return userInfo, nil
 }
