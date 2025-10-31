@@ -111,9 +111,9 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 		mock.ExpectQuery("SELECT (.+) FROM threat_models").WithArgs(testID).WillReturnRows(rows)
 
 		// Mock authorization query
-		authRows := sqlmock.NewRows([]string{"user_email", "role"}).
-			AddRow("owner@example.com", "owner").
-			AddRow("reader@example.com", "reader")
+		authRows := sqlmock.NewRows([]string{"subject", "subject_type", "idp", "role"}).
+			AddRow("owner@example.com", "user", nil, "owner").
+			AddRow("reader@example.com", "user", nil, "reader")
 		mock.ExpectQuery("SELECT (.+) FROM threat_model_access").WithArgs(testID).WillReturnRows(authRows)
 
 		// Mock metadata query
@@ -124,9 +124,12 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 
 		// Mock threats query
 		threatRows := sqlmock.NewRows([]string{
-			"id", "name", "description", "severity", "mitigation", "created_at", "modified_at",
+			"id", "name", "description", "severity", "mitigation", "diagram_id", "cell_id",
+			"priority", "mitigated", "status", "threat_type", "score", "issue_uri",
+			"created_at", "modified_at",
 		}).AddRow(
-			uuid.New(), "SQL Injection", "Database attack", "high", "Use prepared statements",
+			uuid.New(), "SQL Injection", "Database attack", "high", "Use prepared statements", nil, nil,
+			"High", false, "Open", "Injection", nil, nil,
 			time.Now(), time.Now(),
 		)
 		mock.ExpectQuery("SELECT (.+) FROM threats").WithArgs(testID).WillReturnRows(threatRows)
@@ -307,7 +310,7 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 			WithArgs(testID).
 			WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectExec("INSERT INTO threat_model_access").
-			WithArgs(testID, "test@example.com", "owner", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(testID, "test@example.com", "user", nil, "owner", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		// Mock metadata delete and insert
@@ -315,10 +318,10 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 			WithArgs(testID).
 			WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectExec("INSERT INTO metadata").
-			WithArgs(testID, "priority", "high", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(sqlmock.AnyArg(), testID, "priority", "high", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectExec("INSERT INTO metadata").
-			WithArgs(testID, "status", "active", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(sqlmock.AnyArg(), testID, "status", "active", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		mock.ExpectCommit()
@@ -531,7 +534,7 @@ func TestDiagramDatabaseStore_CreateWithThreatModel(t *testing.T) {
 		mock.ExpectExec("INSERT INTO diagrams").
 			WithArgs(
 				sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.Name, "DFD-1.0.0",
-				sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.CreatedAt, testDiagram.ModifiedAt,
+				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.CreatedAt, testDiagram.ModifiedAt,
 			).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -575,7 +578,7 @@ func TestDiagramDatabaseStore_Update(t *testing.T) {
 		mock.ExpectExec("UPDATE diagrams").
 			WithArgs(
 				testID, testDiagram.Name, "DFD-1.0.0",
-				sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.ModifiedAt,
+				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.ModifiedAt,
 			).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -596,7 +599,7 @@ func TestDiagramDatabaseStore_Update(t *testing.T) {
 
 		mock.ExpectExec("UPDATE diagrams").
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-									sqlmock.AnyArg(), sqlmock.AnyArg()).
+									sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(0, 0)) // 0 rows affected
 
 		err = store.Update(testID, testDiagram)

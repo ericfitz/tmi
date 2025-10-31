@@ -217,6 +217,25 @@ type MockThreatModelStore struct {
 
 func (m *MockThreatModelStore) Get(id string) (ThreatModel, error) {
 	if item, exists := m.data[id]; exists {
+		// Dynamically load diagrams from DiagramStore
+		var diagrams []Diagram
+		if mockDiagStore, ok := DiagramStore.(*MockDiagramStore); ok {
+			for diagramID, threatModelID := range mockDiagStore.threatModelMapping {
+				if threatModelID == id {
+					if diagram, err := DiagramStore.Get(diagramID); err == nil {
+						// Convert DfdDiagram to Diagram union type
+						var diagUnion Diagram
+						if err := diagUnion.FromDfdDiagram(diagram); err == nil {
+							diagrams = append(diagrams, diagUnion)
+						}
+					}
+				}
+			}
+		}
+		// Update the threat model with loaded diagrams
+		if len(diagrams) > 0 {
+			item.Diagrams = &diagrams
+		}
 		return item, nil
 	}
 	return ThreatModel{}, fmt.Errorf("threat model not found")
@@ -274,7 +293,8 @@ func (m *MockThreatModelStore) Count() int {
 }
 
 type MockDiagramStore struct {
-	data map[string]DfdDiagram
+	data               map[string]DfdDiagram
+	threatModelMapping map[string]string // diagram_id -> threat_model_id
 }
 
 func (m *MockDiagramStore) Get(id string) (DfdDiagram, error) {
@@ -312,7 +332,11 @@ func (m *MockDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, str
 }
 
 func (m *MockDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
-	return m.Create(item, idSetter)
+	diagram, err := m.Create(item, idSetter)
+	if err == nil && diagram.Id != nil {
+		m.threatModelMapping[diagram.Id.String()] = threatModelID
+	}
+	return diagram, err
 }
 
 func (m *MockDiagramStore) Update(id string, item DfdDiagram) error {
@@ -332,7 +356,10 @@ func (m *MockDiagramStore) Count() int {
 // InitializeMockStores creates simple mock stores for unit tests
 func InitializeMockStores() {
 	ThreatModelStore = &MockThreatModelStore{data: make(map[string]ThreatModel)}
-	DiagramStore = &MockDiagramStore{data: make(map[string]DfdDiagram)}
+	DiagramStore = &MockDiagramStore{
+		data:               make(map[string]DfdDiagram),
+		threatModelMapping: make(map[string]string),
+	}
 }
 
 // CreateNode creates a Node union item from basic parameters (test helper)

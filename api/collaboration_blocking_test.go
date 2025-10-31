@@ -108,8 +108,8 @@ func TestDiagramUpdateBlockedDuringCollaboration(t *testing.T) {
 	var errorResp map[string]interface{}
 	err = json.Unmarshal(updateW.Body.Bytes(), &errorResp)
 	require.NoError(t, err)
-	assert.Equal(t, "conflict", errorResp["code"])
-	assert.Contains(t, errorResp["message"], "collaboration session is active")
+	assert.Equal(t, "conflict", errorResp["error"])
+	assert.Contains(t, errorResp["error_description"], "collaboration session is active")
 }
 
 // TestDiagramPatchBlockedDuringCollaboration tests that PATCH /diagrams/{id} returns 409 during active session
@@ -202,8 +202,8 @@ func TestDiagramPatchBlockedDuringCollaboration(t *testing.T) {
 	var errorResp map[string]interface{}
 	err = json.Unmarshal(patchW.Body.Bytes(), &errorResp)
 	require.NoError(t, err)
-	assert.Equal(t, "conflict", errorResp["code"])
-	assert.Contains(t, errorResp["message"], "collaboration session is active")
+	assert.Equal(t, "conflict", errorResp["error"])
+	assert.Contains(t, errorResp["error_description"], "collaboration session is active")
 }
 
 // TestDiagramDeleteBlockedDuringCollaboration tests that DELETE /diagrams/{id} returns 409 during active session
@@ -287,8 +287,8 @@ func TestDiagramDeleteBlockedDuringCollaboration(t *testing.T) {
 	var errorResp map[string]interface{}
 	err = json.Unmarshal(deleteW.Body.Bytes(), &errorResp)
 	require.NoError(t, err)
-	assert.Equal(t, "conflict", errorResp["code"])
-	assert.Contains(t, errorResp["message"], "collaboration session is active")
+	assert.Equal(t, "conflict", errorResp["error"])
+	assert.Contains(t, errorResp["error_description"], "collaboration session is active")
 }
 
 // TestThreatModelDeleteBlockedDuringCollaboration tests that DELETE /threat_models/{id} returns 409 when diagram has active session
@@ -370,8 +370,8 @@ func TestThreatModelDeleteBlockedDuringCollaboration(t *testing.T) {
 	var errorResp map[string]interface{}
 	err = json.Unmarshal(deleteW.Body.Bytes(), &errorResp)
 	require.NoError(t, err)
-	assert.Equal(t, "conflict", errorResp["code"])
-	assert.Contains(t, errorResp["message"], "collaboration session")
+	assert.Equal(t, "conflict", errorResp["error"])
+	assert.Contains(t, errorResp["error_description"], "collaboration session")
 }
 
 // TestOperationsSucceedWithoutActiveSession verifies that operations work normally when no session is active

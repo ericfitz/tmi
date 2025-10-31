@@ -302,7 +302,10 @@ func TestWebSocketHub_GetActiveSessions(t *testing.T) {
 		Clients:      make(map[*WebSocketClient]bool),
 		LastActivity: time.Now().UTC(),
 	}
-	client := &WebSocketClient{UserName: "test@example.com"}
+	client := &WebSocketClient{
+		UserID:   "test@example.com",
+		UserName: "test@example.com",
+	}
 	validSession.Clients[client] = true
 	hub.Diagrams[validDiagramID] = validSession
 
