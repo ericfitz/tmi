@@ -300,11 +300,16 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 
 		mock.ExpectBegin()
 
+		// Mock SELECT query to get current status
+		mock.ExpectQuery("SELECT status FROM threat_models WHERE id").
+			WithArgs(testID).
+			WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(pq.Array([]string{})))
+
 		// Mock UPDATE query
 		mock.ExpectExec("UPDATE threat_models").
 			WithArgs(
 				testID, testModel.Name, testModel.Description, testModel.Owner, testModel.CreatedBy,
-				"STRIDE", testModel.IssueUri, testModel.ModifiedAt,
+				"STRIDE", testModel.IssueUri, sqlmock.AnyArg(), sqlmock.AnyArg(), testModel.ModifiedAt,
 			).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -345,9 +350,13 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 		testID := uuid.New().String()
 
 		mock.ExpectBegin()
+		// Mock SELECT query to get current status
+		mock.ExpectQuery("SELECT status FROM threat_models WHERE id").
+			WithArgs(testID).
+			WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(pq.Array([]string{})))
 		mock.ExpectExec("UPDATE threat_models").
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-									sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+									sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(0, 0)) // 0 rows affected
 		mock.ExpectRollback()
 

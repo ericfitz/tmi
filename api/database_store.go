@@ -11,6 +11,7 @@ import (
 	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/lib/pq"
 )
 
 // DatabaseStore provides a database-backed store implementation
@@ -90,7 +91,7 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 
 	err := s.db.QueryRow(query, id).Scan(
 		&tmUUID, &name, &description, &ownerEmail, &createdBy,
-		&threatModelFramework, &issueUrl, &status, &statusUpdated,
+		&threatModelFramework, &issueUrl, pq.Array(&status), &statusUpdated,
 		&createdAt, &modifiedAt,
 	)
 
@@ -207,7 +208,7 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 
 		err := rows.Scan(
 			&uuid, &name, &description, &ownerEmail, &createdBy,
-			&threatModelFramework, &issueUrl, &status, &statusUpdated,
+			&threatModelFramework, &issueUrl, pq.Array(&status), &statusUpdated,
 			&createdAt, &modifiedAt,
 		)
 		if err != nil {
@@ -297,7 +298,7 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 
 		err := rows.Scan(
 			&uuid, &name, &description, &ownerEmail, &createdBy,
-			&threatModelFramework, &issueUrl, &status, &statusUpdated,
+			&threatModelFramework, &issueUrl, pq.Array(&status), &statusUpdated,
 			&createdAt, &modifiedAt,
 		)
 		if err != nil {
@@ -477,7 +478,7 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 
 	_, err = tx.Exec(query,
 		id, item.Name, item.Description, item.Owner, item.CreatedBy,
-		framework, item.IssueUri, item.Status, statusUpdated,
+		framework, item.IssueUri, pq.Array(item.Status), statusUpdated,
 		item.CreatedAt, item.ModifiedAt,
 	)
 	if err != nil {
@@ -529,7 +530,7 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 
 	// Check if status has changed to determine if we should update status_updated
 	var oldStatus []string
-	err = tx.QueryRow("SELECT status FROM threat_models WHERE id = $1", id).Scan(&oldStatus)
+	err = tx.QueryRow("SELECT status FROM threat_models WHERE id = $1", id).Scan(pq.Array(&oldStatus))
 	if err != nil && err != sql.ErrNoRows {
 		return fmt.Errorf("failed to get current status: %w", err)
 	}
@@ -571,7 +572,7 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 
 	result, err := tx.Exec(query,
 		id, item.Name, item.Description, item.Owner, item.CreatedBy,
-		framework, item.IssueUri, item.Status, statusUpdated,
+		framework, item.IssueUri, pq.Array(item.Status), statusUpdated,
 		item.ModifiedAt,
 	)
 	if err != nil {
