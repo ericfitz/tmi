@@ -276,16 +276,14 @@
             "format": "uuid",
             "description": "Unique identifier for the diagram (UUID)",
             "maxLength": 36,
-            "readOnly": true,
-            "writeOnly": false
+            "readOnly": true
           },
           "name": {
             "type": "string",
             "description": "Name of the diagram",
             "maxLength": 256,
             "pattern": "^[^<>\"'&]*$",
-            "minLength": 1,
-            "writeOnly": false
+            "minLength": 1
           },
           "type": {
             "type": "string",
@@ -293,22 +291,19 @@
             "enum": [
               "DFD-1.0.0"
             ],
-            "maxLength": 64,
-            "writeOnly": false
+            "maxLength": 64
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp (ISO3339)",
-            "maxLength": 36,
-            "writeOnly": false
+            "maxLength": 36
           },
           "modified_at": {
             "type": "string",
             "format": "date-time",
             "description": "Last modification timestamp (ISO3339)",
-            "maxLength": 36,
-            "writeOnly": false
+            "maxLength": 36
           },
           "metadata": {
             "type": "array",
@@ -316,16 +311,14 @@
               "$ref": "#/components/schemas/Metadata"
             },
             "description": "Key-value pairs for additional diagram metadata",
-            "nullable": true,
-            "writeOnly": false
+            "nullable": true
           },
           "update_vector": {
             "type": "integer",
             "format": "int64",
             "description": "Server-managed monotonic version counter, incremented on each diagram update",
             "readOnly": true,
-            "minimum": 0,
-            "writeOnly": false
+            "minimum": 0
           },
           "image": {
             "type": "object",
@@ -343,8 +336,7 @@
                 "minimum": 0
               }
             },
-            "nullable": true,
-            "writeOnly": false
+            "nullable": true
           },
           "description": {
             "type": "string",
@@ -548,27 +540,23 @@
             "description": "Unique identifier of the cell (UUID)",
             "format": "uuid",
             "example": "37EAEDFA-BF37-4996-8665-242FEC34BBFF",
-            "maxLength": 36,
-            "writeOnly": false
+            "maxLength": 36
           },
           "shape": {
             "type": "string",
             "description": "Shape type identifier that determines cell structure and behavior",
-            "example": "process",
-            "writeOnly": false
+            "example": "process"
           },
           "zIndex": {
             "type": "number",
             "description": "Z-order layer for rendering (higher values render on top)",
             "default": 1,
-            "minimum": 0,
-            "writeOnly": false
+            "minimum": 0
           },
           "visible": {
             "type": "boolean",
             "description": "Whether the cell is visible in the diagram",
-            "default": true,
-            "writeOnly": false
+            "default": true
           },
           "data": {
             "type": "object",
@@ -585,24 +573,21 @@
             "additionalProperties": true,
             "default": {
               "_metadata": []
-            },
-            "writeOnly": false
+            }
           },
           "markup": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MarkupElement"
             },
-            "description": "SVG/HTML markup definition for custom shape rendering in X6",
-            "writeOnly": false
+            "description": "SVG/HTML markup definition for custom shape rendering in X6"
           },
           "tools": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CellTool"
             },
-            "description": "Interactive tools attached to the cell for user interaction",
-            "writeOnly": false
+            "description": "Interactive tools attached to the cell for user interaction"
           }
         }
       },
@@ -790,8 +775,7 @@
       "Edge": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Cell",
-            "description": "A diagram edge representing a connection or data flow between nodes in X6 native format. Fully compatible with X6 Edge objects and supports X6 routing algorithms (manhattan, orth, oneSide, metro, er), connector styles (normal, rounded, smooth, jumpover), custom markup, and tools."
+            "$ref": "#/components/schemas/Cell"
           },
           {
             "type": "object",
@@ -1893,54 +1877,6 @@
           }
         }
       },
-      "PaginatedResponse": {
-        "type": "object",
-        "description": "Paginated response wrapper for list endpoints",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            },
-            "description": "Array of items for the current page"
-          },
-          "pagination": {
-            "type": "object",
-            "description": "Pagination metadata",
-            "properties": {
-              "total": {
-                "type": "integer",
-                "description": "Total number of items across all pages",
-                "minimum": 0
-              },
-              "limit": {
-                "type": "integer",
-                "description": "Maximum number of items per page",
-                "minimum": 1
-              },
-              "offset": {
-                "type": "integer",
-                "description": "Number of items skipped from the beginning",
-                "minimum": 0
-              },
-              "has_more": {
-                "type": "boolean",
-                "description": "Whether there are more items available beyond this page"
-              }
-            },
-            "required": [
-              "total",
-              "limit",
-              "offset",
-              "has_more"
-            ]
-          }
-        },
-        "required": [
-          "data",
-          "pagination"
-        ]
-      },
       "MarkupElement": {
         "type": "object",
         "description": "SVG/HTML markup element for custom shape definitions in X6",
@@ -2154,35 +2090,30 @@
             "pattern": "^[^<>\"'&]*$",
             "x-oapi-codegen-extra-tags": {
               "binding": "required"
-            },
-            "writeOnly": false
+            }
           },
           "description": {
             "type": "string",
             "description": "Description of the threat model",
             "maxLength": 1024,
-            "pattern": "^[^<>]*$",
-            "writeOnly": false
+            "pattern": "^[^<>]*$"
           },
           "owner": {
             "type": "string",
             "description": "Email address of the current owner",
             "maxLength": 256,
-            "pattern": "^[^<>\"'&]*$",
-            "writeOnly": false
+            "pattern": "^[^<>\"'&]*$"
           },
           "threat_model_framework": {
             "type": "string",
-            "description": "The framework used for this threat model",
-            "writeOnly": false
+            "description": "The framework used for this threat model"
           },
           "authorization": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Authorization"
             },
-            "description": "List of users and their roles for this threat model",
-            "writeOnly": false
+            "description": "List of users and their roles for this threat model"
           },
           "metadata": {
             "type": "array",
@@ -2190,15 +2121,13 @@
               "$ref": "#/components/schemas/Metadata"
             },
             "description": "Key-value pairs for additional threat model metadata",
-            "nullable": true,
-            "writeOnly": false
+            "nullable": true
           },
           "issue_uri": {
             "type": "string",
             "format": "uri",
             "description": "URL to an issue in an issue tracking system for this threat model",
-            "maxLength": 1024,
-            "writeOnly": false
+            "maxLength": 1024
           },
           "status": {
             "type": "array",
@@ -2273,36 +2202,31 @@
             "description": "Name of the threat",
             "maxLength": 256,
             "pattern": "^[^<>\"'&]*$",
-            "minLength": 1,
-            "writeOnly": false
+            "minLength": 1
           },
           "description": {
             "type": "string",
             "description": "Description of the threat and risk to the organization",
-            "maxLength": 1024,
-            "writeOnly": false
+            "maxLength": 1024
           },
           "mitigation": {
             "type": "string",
             "description": "Recommended or planned mitigation(s) for the threat",
-            "maxLength": 1024,
-            "writeOnly": false
+            "maxLength": 1024
           },
           "diagram_id": {
             "type": "string",
             "format": "uuid",
             "description": "Unique identifier of the associated diagram (if applicable) (UUID)",
             "nullable": true,
-            "maxLength": 36,
-            "writeOnly": false
+            "maxLength": 36
           },
           "cell_id": {
             "type": "string",
             "format": "uuid",
             "description": "Unique identifier of the associated cell (if applicable) (UUID)",
             "nullable": true,
-            "maxLength": 36,
-            "writeOnly": false
+            "maxLength": 36
           },
           "severity": {
             "type": "string",
@@ -2314,38 +2238,32 @@
               "High",
               "Critical"
             ],
-            "description": "Severity level of the threat",
-            "writeOnly": false
+            "description": "Severity level of the threat"
           },
           "score": {
             "type": "number",
             "description": "Numeric score representing the risk or impact of the threat",
             "minimum": 0.0,
-            "maximum": 10.0,
-            "writeOnly": false
+            "maximum": 10.0
           },
           "priority": {
             "type": "string",
             "description": "Priority level for addressing the threat",
-            "maxLength": 16,
-            "writeOnly": false
+            "maxLength": 16
           },
           "mitigated": {
             "type": "boolean",
-            "description": "Whether the threat has been mitigated",
-            "writeOnly": false
+            "description": "Whether the threat has been mitigated"
           },
           "status": {
             "type": "string",
             "description": "Current status of the threat",
-            "maxLength": 256,
-            "writeOnly": false
+            "maxLength": 256
           },
           "threat_type": {
             "type": "string",
             "description": "Type or category of the threat",
-            "maxLength": 256,
-            "writeOnly": false
+            "maxLength": 256
           },
           "metadata": {
             "type": "array",
@@ -2353,23 +2271,20 @@
               "$ref": "#/components/schemas/Metadata"
             },
             "description": "Key-value pairs for additional threat metadata",
-            "nullable": true,
-            "writeOnly": false
+            "nullable": true
           },
           "issue_uri": {
             "type": "string",
             "format": "uri",
             "description": "URL to an issue in an issue tracking system for this threat",
-            "maxLength": 1024,
-            "writeOnly": false
+            "maxLength": 1024
           },
           "asset_id": {
             "type": "string",
             "format": "uuid",
             "description": "Unique identifier of the associated asset (if applicable) (UUID)",
             "nullable": true,
-            "maxLength": 36,
-            "writeOnly": false
+            "maxLength": 36
           }
         },
         "required": [
@@ -2685,15 +2600,13 @@
             "pattern": "^[^<>\"'&]*$",
             "x-oapi-codegen-extra-tags": {
               "binding": "required"
-            },
-            "writeOnly": false
+            }
           },
           "description": {
             "type": "string",
             "description": "Description of the asset",
             "maxLength": 1024,
-            "nullable": true,
-            "writeOnly": false
+            "nullable": true
           },
           "type": {
             "type": "string",
@@ -2709,15 +2622,13 @@
             "maxLength": 64,
             "x-oapi-codegen-extra-tags": {
               "binding": "required"
-            },
-            "writeOnly": false
+            }
           },
           "criticality": {
             "type": "string",
             "description": "Criticality level of the asset",
             "maxLength": 128,
-            "nullable": true,
-            "writeOnly": false
+            "nullable": true
           },
           "classification": {
             "type": "array",
@@ -2727,8 +2638,7 @@
             },
             "description": "Classification tags for the asset",
             "maxItems": 50,
-            "nullable": true,
-            "writeOnly": false
+            "nullable": true
           },
           "sensitivity": {
             "type": "array",
@@ -2738,8 +2648,7 @@
             },
             "description": "Sensitivity labels for the asset",
             "maxItems": 50,
-            "nullable": true,
-            "writeOnly": false
+            "nullable": true
           }
         }
       },
@@ -6492,33 +6401,25 @@
               "maxLength": 36
             },
             "description": "Unique identifier of the threat model (UUID)"
+          },
+          {
+            "name": "threat_ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "minItems": 1,
+              "maxItems": 20
+            },
+            "description": "Comma-separated list of threat IDs to delete (UUID format)",
+            "style": "form",
+            "explode": false
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "threat_ids"
-                ],
-                "properties": {
-                  "threat_ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "uuid"
-                    },
-                    "minItems": 1,
-                    "maxItems": 20,
-                    "description": "List of threat IDs to delete"
-                  }
-                }
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Successfully deleted threats",

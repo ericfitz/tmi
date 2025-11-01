@@ -1240,7 +1240,7 @@ func (s *Server) BulkPatchThreatModelThreats(c *gin.Context, threatModelId opena
 }
 
 // BulkDeleteThreatModelThreats bulk deletes threats
-func (s *Server) BulkDeleteThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID) {
+func (s *Server) BulkDeleteThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID, params BulkDeleteThreatModelThreatsParams) {
 	s.threatHandler.BulkDeleteThreats(c)
 }
 
