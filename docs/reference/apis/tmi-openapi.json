@@ -2900,51 +2900,6 @@
         }
       }
     },
-    "/me": {
-      "get": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "Get current user profile",
-        "description": "Returns detailed information about the currently authenticated user including groups and identity provider",
-        "operationId": "getCurrentUserProfile",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Current user profile",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                },
-                "example": {
-                  "user_id": "provider-user-123",
-                  "email": "alice@example.com",
-                  "name": "Alice Smith",
-                  "picture": "https://example.com/avatar.jpg",
-                  "idp": "saml_okta",
-                  "groups": [
-                    "security-team",
-                    "developers"
-                  ],
-                  "last_login": "2024-01-15T10:30:00Z"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
     "/.well-known/openid-configuration": {
       "get": {
         "tags": [
@@ -10428,6 +10383,49 @@
                 }
               }
             }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Get current user profile",
+        "description": "Returns detailed information about the currently authenticated user including groups and identity provider",
+        "operationId": "getCurrentUserProfile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                },
+                "example": {
+                  "user_id": "provider-user-123",
+                  "email": "alice@example.com",
+                  "name": "Alice Smith",
+                  "picture": "https://example.com/avatar.jpg",
+                  "idp": "saml_okta",
+                  "groups": [
+                    "security-team",
+                    "developers"
+                  ],
+                  "last_login": "2024-01-15T10:30:00Z"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }

@@ -351,10 +351,10 @@ func (s *Server) GetCurrentUser(c *gin.Context) {
 	}
 }
 
-// GetCurrentUserProfile gets current user profile with groups (from /me endpoint)
+// GetCurrentUserProfile gets current user profile with groups (from /users/me endpoint)
 func (s *Server) GetCurrentUserProfile(c *gin.Context) {
 	logger := slogging.Get()
-	logger.Info("[SERVER_INTERFACE] GetCurrentUserProfile called - delegating to authService.Me()")
+	logger.Info("[SERVER_INTERFACE] GetCurrentUserProfile called (GET /users/me) - delegating to authService.Me()")
 	if s.authService != nil {
 		// The Me() method will be updated to include groups and IdP
 		s.authService.Me(c)
