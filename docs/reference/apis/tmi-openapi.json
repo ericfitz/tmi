@@ -1579,6 +1579,21 @@
             "type": "integer",
             "description": "Number of notes associated with this threat model",
             "minimum": 0
+          },
+          "status": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\""
+          },
+          "status_updated": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Timestamp when the status field was last modified (RFC3339). Automatically updated by the server when status changes.",
+            "maxLength": 24,
+            "readOnly": true
           }
         },
         "required": [

@@ -91,6 +91,8 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 			CreatedBy:            createdBy,
 			ThreatModelFramework: framework,
 			IssueUri:             tm.IssueUri,
+			Status:               tm.Status,
+			StatusUpdated:        tm.StatusUpdated,
 			// Count fields from database
 			DocumentCount: tmWithCounts.DocumentCount,
 			RepoCount:     tmWithCounts.SourceCount,

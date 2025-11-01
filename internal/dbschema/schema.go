@@ -108,12 +108,16 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "created_by", DataType: "character varying", IsNullable: false},
 				{Name: "threat_model_framework", DataType: "character varying", IsNullable: false},
 				{Name: "issue_uri", DataType: "character varying", IsNullable: true},
+				{Name: "status", DataType: "ARRAY", IsNullable: true},
+				{Name: "status_updated", DataType: "timestamp with time zone", IsNullable: true},
 			},
 			Indexes: []IndexSchema{
 				{Name: "threat_models_pkey", Columns: []string{"id"}, IsUnique: true},
 				{Name: "idx_threat_models_owner_email", Columns: []string{"owner_email"}, IsUnique: false},
 				{Name: "idx_threat_models_framework", Columns: []string{"threat_model_framework"}, IsUnique: false},
 				{Name: "idx_threat_models_created_by", Columns: []string{"created_by"}, IsUnique: false},
+				{Name: "idx_threat_models_status", Columns: []string{"status"}, IsUnique: false},
+				{Name: "idx_threat_models_status_updated", Columns: []string{"status_updated"}, IsUnique: false},
 			},
 			Constraints: []ConstraintSchema{
 				{
