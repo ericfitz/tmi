@@ -177,14 +177,12 @@ generate-api:
 	@oapi-codegen -config oapi-codegen-config.yml docs/reference/apis/tmi-openapi.json
 	$(call log_success,"API code generated: api/api.go")
 
-# Legacy alias for generate-api
-gen-api: generate-api
 
 # ============================================================================
 # ATOMIC COMPONENTS - Database Operations
 # ============================================================================
 
-.PHONY: migrate-database check-database wait-database
+.PHONY: migrate-database check-database wait-database reset-database
 
 migrate-database:
 	$(call log_info,"Running database migrations...")
@@ -227,6 +225,20 @@ wait-database:
 		echo -e "$(RED)[ERROR]$(NC) Database failed to start within 300 seconds"; \
 		exit 1; \
 	fi
+
+reset-database:
+	@echo -e "$(YELLOW)[WARNING]$(NC) Dropping and recreating database (DESTRUCTIVE)..."
+	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
+	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
+	USER="$(INFRASTRUCTURE_POSTGRES_USER)"; \
+	if [ -z "$$USER" ]; then USER="tmi_dev"; fi; \
+	DATABASE="$(INFRASTRUCTURE_POSTGRES_DATABASE)"; \
+	if [ -z "$$DATABASE" ]; then DATABASE="tmi_dev"; fi; \
+	echo -e "$(YELLOW)[WARNING]$(NC) This will drop all data in database: $$DATABASE"; \
+	docker exec $$CONTAINER psql -U $$USER -d postgres -c "DROP DATABASE IF EXISTS $$DATABASE;" && \
+	docker exec $$CONTAINER psql -U $$USER -d postgres -c "CREATE DATABASE $$DATABASE;" && \
+	echo -e "$(GREEN)[SUCCESS]$(NC) Database dropped and recreated" && \
+	$(MAKE) migrate-database
 
 # ============================================================================
 # ATOMIC COMPONENTS - Process Management
@@ -891,11 +903,10 @@ clean-promtail:
 # BACKWARD COMPATIBILITY ALIASES
 # ============================================================================
 
-.PHONY: build build-all build-everything test lint clean dev prod infra-db-start infra-redis-start db-migrate dev-start containers-build
+.PHONY: build build-everything test lint clean dev prod
 
 # Keep backward compatibility with existing commands
 build: build-server
-build-all: build-server  # Deprecated: use build-everything
 build-everything: build-server
 test: test-unit
 lint:
@@ -948,27 +959,6 @@ deploy-heroku:
 	@echo "$(COLOR_GREEN)[SUCCESS]$(COLOR_RESET) Deployment complete!"
 	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Checking deployment status..."
 	@heroku releases --app tmi-server | head -3
-
-# Deprecated aliases for commonly used targets (will show warning)
-infra-db-start:
-	@echo "⚠️  WARNING: 'infra-db-start' is deprecated. Use 'start-database' instead."
-	@$(MAKE) start-database
-
-infra-redis-start:
-	@echo "⚠️  WARNING: 'infra-redis-start' is deprecated. Use 'start-redis' instead."
-	@$(MAKE) start-redis
-
-db-migrate:
-	@echo "⚠️  WARNING: 'db-migrate' is deprecated. Use 'migrate-database' instead."
-	@$(MAKE) migrate-database
-
-dev-start:
-	@echo "⚠️  WARNING: 'dev-start' is deprecated. Use 'start-dev' instead."
-	@$(MAKE) start-dev
-
-containers-build:
-	@echo "⚠️  WARNING: 'containers-build' is deprecated. Use 'build-containers' instead."
-	@$(MAKE) build-containers
 
 
 # ============================================================================
@@ -1224,6 +1214,7 @@ help:
 	@echo "  start-redis            - Start Redis container"
 	@echo "  build-server           - Build server binary"
 	@echo "  migrate-database       - Run database migrations"
+	@echo "  reset-database         - Drop database and run migrations (DESTRUCTIVE)"
 	@echo "  start-server           - Start server"
 	@echo "  clean-everything       - Clean up everything"
 	@echo ""
