@@ -138,12 +138,12 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 	// Insert into database
 	query := `
 		INSERT INTO threats (
-			id, threat_model_id, name, description, severity, 
-			mitigation, threat_type, status, priority, mitigated, 
-			score, issue_uri, diagram_id, cell_id, 
+			id, threat_model_id, name, description, severity,
+			mitigation, threat_type, status, priority, mitigated,
+			score, issue_uri, diagram_id, cell_id, asset_id,
 			created_at, modified_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 		)
 	`
 
@@ -162,6 +162,7 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 		threat.IssueUri,
 		threat.DiagramId,
 		threat.CellId,
+		threat.AssetId,
 		threat.CreatedAt,
 		threat.ModifiedAt,
 	)
@@ -220,15 +221,15 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
-			   score, issue_uri, diagram_id, cell_id, created_at, modified_at
-		FROM threats 
+			   score, issue_uri, diagram_id, cell_id, asset_id, created_at, modified_at
+		FROM threats
 		WHERE id = $1
 	`
 
 	var threat Threat
 	var description, mitigation, issueUrl sql.NullString
 	var score sql.NullFloat64
-	var diagramId, cellId sql.NullString
+	var diagramId, cellId, assetId sql.NullString
 
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&threat.Id,
@@ -245,6 +246,7 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 		&issueUrl,
 		&diagramId,
 		&cellId,
+		&assetId,
 		&threat.CreatedAt,
 		&threat.ModifiedAt,
 	)
@@ -279,6 +281,11 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 	if cellId.Valid {
 		if cID, err := uuid.Parse(cellId.String); err == nil {
 			threat.CellId = &cID
+		}
+	}
+	if assetId.Valid {
+		if aID, err := uuid.Parse(assetId.String); err == nil {
+			threat.AssetId = &aID
 		}
 	}
 	// Load metadata from the metadata table
@@ -329,8 +336,8 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 		UPDATE threats SET
 			name = $2, description = $3, severity = $4, mitigation = $5,
 			threat_type = $6, status = $7, priority = $8, mitigated = $9,
-			score = $10, issue_uri= $11, diagram_id = $12, cell_id = $13,
-			metadata = $14, modified_at = $15
+			score = $10, issue_uri = $11, diagram_id = $12, cell_id = $13,
+			asset_id = $14, metadata = $15, modified_at = $16
 		WHERE id = $1
 	`
 
@@ -348,6 +355,7 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 		threat.IssueUri,
 		threat.DiagramId,
 		threat.CellId,
+		threat.AssetId,
 		metadataJSON,
 		threat.ModifiedAt,
 	)
@@ -675,11 +683,11 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 
 	query := `
 		INSERT INTO threats (
-			id, threat_model_id, name, description, severity, 
-			mitigation, threat_type, status, priority, mitigated, 
-			score, issue_uri, diagram_id, cell_id, created_at, modified_at
+			id, threat_model_id, name, description, severity,
+			mitigation, threat_type, status, priority, mitigated,
+			score, issue_uri, diagram_id, cell_id, asset_id, created_at, modified_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 		)
 	`
 
@@ -742,6 +750,7 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 			threat.IssueUri,
 			threat.DiagramId,
 			threat.CellId,
+			threat.AssetId,
 			threat.CreatedAt,
 			threat.ModifiedAt,
 		)
@@ -796,8 +805,8 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 		UPDATE threats SET
 			name = $2, description = $3, severity = $4, mitigation = $5,
 			threat_type = $6, status = $7, priority = $8, mitigated = $9,
-			score = $10, issue_uri= $11, diagram_id = $12, cell_id = $13,
-			metadata = $14, modified_at = $15
+			score = $10, issue_uri = $11, diagram_id = $12, cell_id = $13,
+			asset_id = $14, metadata = $15, modified_at = $16
 		WHERE id = $1
 	`
 
@@ -850,6 +859,7 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 			threat.IssueUri,
 			threat.DiagramId,
 			threat.CellId,
+			threat.AssetId,
 			metadataJSON,
 			threat.ModifiedAt,
 		)
@@ -984,8 +994,8 @@ func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter Threat
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
-			   score, issue_uri, diagram_id, cell_id, metadata, created_at, modified_at
-		FROM threats 
+			   score, issue_uri, diagram_id, cell_id, asset_id, metadata, created_at, modified_at
+		FROM threats
 		WHERE threat_model_id = $1`
 
 	args := []interface{}{threatModelID}
@@ -1182,7 +1192,7 @@ func (s *DatabaseThreatStore) scanSingleThreat(rows *sql.Rows) (Threat, error) {
 	var threat Threat
 	var description, mitigation, issueUrl sql.NullString
 	var score sql.NullFloat64
-	var diagramId, cellId sql.NullString
+	var diagramId, cellId, assetId sql.NullString
 	var metadataJSON sql.NullString
 
 	err := rows.Scan(
@@ -1200,6 +1210,7 @@ func (s *DatabaseThreatStore) scanSingleThreat(rows *sql.Rows) (Threat, error) {
 		&issueUrl,
 		&diagramId,
 		&cellId,
+		&assetId,
 		&metadataJSON,
 		&threat.CreatedAt,
 		&threat.ModifiedAt,
@@ -1210,14 +1221,14 @@ func (s *DatabaseThreatStore) scanSingleThreat(rows *sql.Rows) (Threat, error) {
 	}
 
 	// Handle nullable fields
-	s.populateNullableFields(&threat, description, mitigation, issueUrl, score, diagramId, cellId, metadataJSON)
+	s.populateNullableFields(&threat, description, mitigation, issueUrl, score, diagramId, cellId, assetId, metadataJSON)
 
 	return threat, nil
 }
 
 // populateNullableFields sets the nullable fields on a Threat
 func (s *DatabaseThreatStore) populateNullableFields(threat *Threat, description, mitigation, issueUrl sql.NullString,
-	score sql.NullFloat64, diagramId, cellId sql.NullString, metadataJSON sql.NullString) {
+	score sql.NullFloat64, diagramId, cellId, assetId sql.NullString, metadataJSON sql.NullString) {
 
 	if description.Valid {
 		threat.Description = &description.String
@@ -1240,6 +1251,11 @@ func (s *DatabaseThreatStore) populateNullableFields(threat *Threat, description
 	if cellId.Valid {
 		if cID, err := uuid.Parse(cellId.String); err == nil {
 			threat.CellId = &cID
+		}
+	}
+	if assetId.Valid {
+		if aID, err := uuid.Parse(assetId.String); err == nil {
+			threat.AssetId = &aID
 		}
 	}
 	if metadataJSON.Valid && metadataJSON.String != "" {

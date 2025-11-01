@@ -69,6 +69,7 @@ DROP INDEX IF EXISTS idx_threats_threat_type;
 DROP INDEX IF EXISTS idx_threats_status;
 DROP INDEX IF EXISTS idx_threats_mitigated;
 DROP INDEX IF EXISTS idx_threats_priority;
+DROP INDEX IF EXISTS idx_threats_asset_id;
 DROP INDEX IF EXISTS idx_threats_cell_id;
 DROP INDEX IF EXISTS idx_threats_diagram_id;
 DROP INDEX IF EXISTS idx_threats_risk_level;

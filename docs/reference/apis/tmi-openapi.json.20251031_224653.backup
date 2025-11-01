@@ -2377,14 +2377,6 @@
             "description": "URL to an issue in an issue tracking system for this threat",
             "maxLength": 1024,
             "writeOnly": false
-          },
-          "asset_id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Unique identifier of the associated asset (if applicable) (UUID)",
-            "nullable": true,
-            "maxLength": 36,
-            "writeOnly": false
           }
         },
         "required": [

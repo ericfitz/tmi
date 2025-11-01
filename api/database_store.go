@@ -771,10 +771,10 @@ func (s *ThreatModelDatabaseStore) loadThreatMetadata(threatId string) ([]Metada
 
 func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, error) {
 	query := `
-		SELECT id, name, description, severity, mitigation, diagram_id, cell_id, 
+		SELECT id, name, description, severity, mitigation, diagram_id, cell_id, asset_id,
 		       priority, mitigated, status, threat_type, score, issue_uri,
 		       created_at, modified_at
-		FROM threats 
+		FROM threats
 		WHERE threat_model_id = $1`
 
 	rows, err := s.db.Query(query, threatModelId)
@@ -793,13 +793,13 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 		var id, threatModelUuid uuid.UUID
 		var name, priority, status, threatType string
 		var description, severityStr, mitigation *string
-		var diagramIdStr, cellIdStr *string
+		var diagramIdStr, cellIdStr, assetIdStr *string
 		var issueUrl *string
 		var score *float64
 		var mitigated bool
 		var createdAt, modifiedAt time.Time
 
-		if err := rows.Scan(&id, &name, &description, &severityStr, &mitigation, &diagramIdStr, &cellIdStr,
+		if err := rows.Scan(&id, &name, &description, &severityStr, &mitigation, &diagramIdStr, &cellIdStr, &assetIdStr,
 			&priority, &mitigated, &status, &threatType, &score, &issueUrl,
 			&createdAt, &modifiedAt); err != nil {
 			continue
@@ -814,8 +814,8 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 			severity = ThreatSeverity(*severityStr)
 		}
 
-		// Convert diagram_id and cell_id from strings to UUIDs
-		var diagramId, cellId *uuid.UUID
+		// Convert diagram_id, cell_id, and asset_id from strings to UUIDs
+		var diagramId, cellId, assetId *uuid.UUID
 		if diagramIdStr != nil && *diagramIdStr != "" {
 			if diagId, err := uuid.Parse(*diagramIdStr); err == nil {
 				diagramId = &diagId
@@ -824,6 +824,11 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 		if cellIdStr != nil && *cellIdStr != "" {
 			if cId, err := uuid.Parse(*cellIdStr); err == nil {
 				cellId = &cId
+			}
+		}
+		if assetIdStr != nil && *assetIdStr != "" {
+			if aId, err := uuid.Parse(*assetIdStr); err == nil {
+				assetId = &aId
 			}
 		}
 
@@ -850,6 +855,7 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 			Mitigation:    mitigation,
 			DiagramId:     diagramId,
 			CellId:        cellId,
+			AssetId:       assetId,
 			Priority:      priority,
 			Mitigated:     mitigated,
 			Status:        status,

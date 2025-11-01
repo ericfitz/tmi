@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS threats (
     threat_model_id UUID NOT NULL,
     diagram_id UUID,
     cell_id UUID,
+    asset_id UUID,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     severity VARCHAR(50) CHECK (severity IN ('Unknown', 'None', 'Low', 'Medium', 'High', 'Critical')),
@@ -52,7 +53,8 @@ CREATE TABLE IF NOT EXISTS threats (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (threat_model_id) REFERENCES threat_models(id) ON DELETE CASCADE,
-    FOREIGN KEY (diagram_id) REFERENCES diagrams(id) ON DELETE SET NULL
+    FOREIGN KEY (diagram_id) REFERENCES diagrams(id) ON DELETE SET NULL,
+    FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE SET NULL
 );
 
 -- Create threat_model_access table for authorization (supports both users and groups)
@@ -155,6 +157,7 @@ CREATE INDEX IF NOT EXISTS idx_threats_severity ON threats(severity);
 CREATE INDEX IF NOT EXISTS idx_threats_risk_level ON threats(risk_level);
 CREATE INDEX idx_threats_diagram_id ON threats(diagram_id);
 CREATE INDEX idx_threats_cell_id ON threats(cell_id);
+CREATE INDEX idx_threats_asset_id ON threats(asset_id);
 CREATE INDEX idx_threats_priority ON threats(priority);
 CREATE INDEX idx_threats_mitigated ON threats(mitigated);
 CREATE INDEX idx_threats_status ON threats(status);
