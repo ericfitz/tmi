@@ -53,6 +53,14 @@ func (m *MockDocumentStore) BulkCreate(ctx context.Context, documents []Document
 	return args.Error(0)
 }
 
+func (m *MockDocumentStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Document, error) {
+	args := m.Called(ctx, id, operations)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*Document), args.Error(1)
+}
+
 func (m *MockDocumentStore) InvalidateCache(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)

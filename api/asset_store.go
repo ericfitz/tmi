@@ -18,6 +18,7 @@ type AssetStore interface {
 	Get(ctx context.Context, id string) (*Asset, error)
 	Update(ctx context.Context, asset *Asset, threatModelID string) error
 	Delete(ctx context.Context, id string) error
+	Patch(ctx context.Context, id string, operations []PatchOperation) (*Asset, error)
 
 	// List operations with pagination
 	List(ctx context.Context, threatModelID string, offset, limit int) ([]Asset, error)
@@ -630,6 +631,135 @@ func (s *DatabaseAssetStore) BulkCreate(ctx context.Context, assets []Asset, thr
 
 	logger.Debug("Successfully bulk created %d assets", len(assets))
 	return nil
+}
+
+// Patch applies JSON patch operations to an asset
+func (s *DatabaseAssetStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Asset, error) {
+	logger := slogging.Get()
+	logger.Debug("Patching asset %s with %d operations", id, len(operations))
+
+	// Get current asset
+	asset, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply patch operations
+	for _, op := range operations {
+		if err := s.applyPatchOperation(asset, op); err != nil {
+			logger.Error("Failed to apply patch operation %s to asset %s: %v", op.Op, id, err)
+			return nil, fmt.Errorf("failed to apply patch operation: %w", err)
+		}
+	}
+
+	// Get threat model ID for update
+	threatModelID, err := s.getAssetThreatModelID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get threat model ID: %w", err)
+	}
+
+	// Update the asset
+	if err := s.Update(ctx, asset, threatModelID); err != nil {
+		return nil, err
+	}
+
+	return asset, nil
+}
+
+// applyPatchOperation applies a single patch operation to an asset
+func (s *DatabaseAssetStore) applyPatchOperation(asset *Asset, op PatchOperation) error {
+	switch op.Path {
+	case "/name":
+		if op.Op == "replace" {
+			if name, ok := op.Value.(string); ok {
+				asset.Name = name
+			} else {
+				return fmt.Errorf("invalid value type for name: expected string")
+			}
+		}
+	case "/type":
+		if op.Op == "replace" {
+			if assetType, ok := op.Value.(string); ok {
+				asset.Type = AssetType(assetType)
+			} else {
+				return fmt.Errorf("invalid value type for type: expected string")
+			}
+		}
+	case "/description":
+		switch op.Op {
+		case "replace", "add":
+			if desc, ok := op.Value.(string); ok {
+				asset.Description = &desc
+			} else {
+				return fmt.Errorf("invalid value type for description: expected string")
+			}
+		case "remove":
+			asset.Description = nil
+		}
+	case "/classification":
+		switch op.Op {
+		case "replace", "add":
+			if classArray, ok := op.Value.([]interface{}); ok {
+				strArray := make([]string, len(classArray))
+				for i, v := range classArray {
+					if s, ok := v.(string); ok {
+						strArray[i] = s
+					} else {
+						return fmt.Errorf("invalid value in classification array: expected string")
+					}
+				}
+				asset.Classification = &strArray
+			} else {
+				return fmt.Errorf("invalid value type for classification: expected array of strings")
+			}
+		case "remove":
+			asset.Classification = nil
+		}
+	case "/sensitivity":
+		switch op.Op {
+		case "replace", "add":
+			if sensArray, ok := op.Value.([]interface{}); ok {
+				strArray := make([]string, len(sensArray))
+				for i, v := range sensArray {
+					if s, ok := v.(string); ok {
+						strArray[i] = s
+					} else {
+						return fmt.Errorf("invalid value in sensitivity array: expected string")
+					}
+				}
+				asset.Sensitivity = &strArray
+			} else {
+				return fmt.Errorf("invalid value type for sensitivity: expected array of strings")
+			}
+		case "remove":
+			asset.Sensitivity = nil
+		}
+	case "/criticality":
+		switch op.Op {
+		case "replace", "add":
+			if criticality, ok := op.Value.(string); ok {
+				asset.Criticality = &criticality
+			} else {
+				return fmt.Errorf("invalid value type for criticality: expected string")
+			}
+		case "remove":
+			asset.Criticality = nil
+		}
+	default:
+		return fmt.Errorf("unsupported patch path: %s", op.Path)
+	}
+	return nil
+}
+
+// getAssetThreatModelID retrieves the threat model ID for an asset
+func (s *DatabaseAssetStore) getAssetThreatModelID(ctx context.Context, assetID string) (string, error) {
+	query := `SELECT threat_model_id FROM assets WHERE id = $1`
+	var threatModelID string
+	err := s.db.QueryRowContext(ctx, query, assetID).Scan(&threatModelID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get threat model ID for asset: %w", err)
+	}
+	return threatModelID, nil
 }
 
 // InvalidateCache invalidates the cache for a specific asset

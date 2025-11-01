@@ -272,3 +272,61 @@ func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 	logger.Debug("Successfully deleted note %s", noteID)
 	c.JSON(http.StatusNoContent, nil)
 }
+
+// PatchNote applies JSON patch operations to a note
+// PATCH /threat_models/{threat_model_id}/notes/{note_id}
+func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("PatchNote - applying patch operations to note")
+
+	// Extract note ID from URL
+	noteID := c.Param("note_id")
+	if noteID == "" {
+		HandleRequestError(c, InvalidIDError("Missing note ID"))
+		return
+	}
+
+	// Validate note ID format
+	if _, err := ParseUUID(noteID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid note ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userEmail, userRole, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse patch operations from request body
+	operations, err := ParsePatchRequest(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if len(operations) == 0 {
+		HandleRequestError(c, InvalidInputError("No patch operations provided"))
+		return
+	}
+
+	// Validate patch authorization
+	if err := ValidatePatchAuthorization(operations, userRole); err != nil {
+		HandleRequestError(c, ForbiddenError("Insufficient permissions for requested patch operations"))
+		return
+	}
+
+	logger.Debug("Applying %d patch operations to note %s (user: %s)",
+		len(operations), noteID, userEmail)
+
+	// Apply patch operations
+	updatedNote, err := h.noteStore.Patch(c.Request.Context(), noteID, operations)
+	if err != nil {
+		HandleRequestError(c, ServerError("Failed to patch note"))
+		return
+	}
+
+	logger.Info("Successfully patched note %s (user: %s)", noteID, userEmail)
+	c.JSON(http.StatusOK, updatedNote)
+}

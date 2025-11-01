@@ -12,13 +12,13 @@ import (
 )
 
 // RepositoryStore defines the interface for repository operations with caching support
-// Note: Repositorys do not support PATCH operations per the implementation plan
 type RepositoryStore interface {
-	// CRUD operations (no PATCH support)
+	// CRUD operations
 	Create(ctx context.Context, repository *Repository, threatModelID string) error
 	Get(ctx context.Context, id string) (*Repository, error)
 	Update(ctx context.Context, repository *Repository, threatModelID string) error
 	Delete(ctx context.Context, id string) error
+	Patch(ctx context.Context, id string, operations []PatchOperation) (*Repository, error)
 
 	// List operations with pagination
 	List(ctx context.Context, threatModelID string, offset, limit int) ([]Repository, error)
@@ -690,4 +690,93 @@ func (s *DatabaseRepositoryStore) loadMetadata(ctx context.Context, repositoryID
 	}
 
 	return metadata, nil
+}
+
+// Patch applies JSON patch operations to a repository
+func (s *DatabaseRepositoryStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Repository, error) {
+	logger := slogging.Get()
+	logger.Debug("Patching repository %s with %d operations", id, len(operations))
+
+	// Get current repository
+	repository, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply patch operations
+	for _, op := range operations {
+		if err := s.applyPatchOperation(repository, op); err != nil {
+			logger.Error("Failed to apply patch operation %s to repository %s: %v", op.Op, id, err)
+			return nil, fmt.Errorf("failed to apply patch operation: %w", err)
+		}
+	}
+
+	// Get threat model ID for update
+	threatModelID, err := s.getRepositoryThreatModelID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get threat model ID: %w", err)
+	}
+
+	// Update the repository
+	if err := s.Update(ctx, repository, threatModelID); err != nil {
+		return nil, err
+	}
+
+	return repository, nil
+}
+
+// applyPatchOperation applies a single patch operation to a repository
+func (s *DatabaseRepositoryStore) applyPatchOperation(repository *Repository, op PatchOperation) error {
+	switch op.Path {
+	case "/name":
+		if op.Op == "replace" {
+			if name, ok := op.Value.(string); ok {
+				repository.Name = &name
+			} else {
+				return fmt.Errorf("invalid value type for name: expected string")
+			}
+		}
+	case "/type":
+		if op.Op == "replace" {
+			if repoType, ok := op.Value.(string); ok {
+				rt := RepositoryType(repoType)
+				repository.Type = &rt
+			} else {
+				return fmt.Errorf("invalid value type for type: expected string")
+			}
+		}
+	case "/uri":
+		if op.Op == "replace" {
+			if uri, ok := op.Value.(string); ok {
+				repository.Uri = uri
+			} else {
+				return fmt.Errorf("invalid value type for uri: expected string")
+			}
+		}
+	case "/description":
+		switch op.Op {
+		case "replace", "add":
+			if desc, ok := op.Value.(string); ok {
+				repository.Description = &desc
+			} else {
+				return fmt.Errorf("invalid value type for description: expected string")
+			}
+		case "remove":
+			repository.Description = nil
+		}
+	default:
+		return fmt.Errorf("unsupported patch path: %s", op.Path)
+	}
+	return nil
+}
+
+// getRepositoryThreatModelID retrieves the threat model ID for a repository
+func (s *DatabaseRepositoryStore) getRepositoryThreatModelID(ctx context.Context, repositoryID string) (string, error) {
+	query := `SELECT threat_model_id FROM repositories WHERE id = $1`
+	var threatModelID string
+	err := s.db.QueryRowContext(ctx, query, repositoryID).Scan(&threatModelID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get threat model ID for repository: %w", err)
+	}
+	return threatModelID, nil
 }

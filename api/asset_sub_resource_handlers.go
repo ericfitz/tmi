@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -359,4 +360,148 @@ func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 
 	logger.Debug("Successfully bulk created %d assets", len(assets))
 	c.JSON(http.StatusCreated, assets)
+}
+
+// PatchAsset applies JSON patch operations to an asset
+// PATCH /threat_models/{threat_model_id}/assets/{asset_id}
+func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("PatchAsset - applying patch operations to asset")
+
+	// Extract asset ID from URL
+	assetID := c.Param("asset_id")
+	if assetID == "" {
+		HandleRequestError(c, InvalidIDError("Missing asset ID"))
+		return
+	}
+
+	// Validate asset ID format
+	if _, err := ParseUUID(assetID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid asset ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userEmail, userRole, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse patch operations from request body
+	operations, err := ParsePatchRequest(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if len(operations) == 0 {
+		HandleRequestError(c, InvalidInputError("No patch operations provided"))
+		return
+	}
+
+	// Validate patch authorization
+	if err := ValidatePatchAuthorization(operations, userRole); err != nil {
+		HandleRequestError(c, ForbiddenError("Insufficient permissions for requested patch operations"))
+		return
+	}
+
+	logger.Debug("Applying %d patch operations to asset %s (user: %s)",
+		len(operations), assetID, userEmail)
+
+	// Apply patch operations
+	updatedAsset, err := h.assetStore.Patch(c.Request.Context(), assetID, operations)
+	if err != nil {
+		HandleRequestError(c, ServerError("Failed to patch asset"))
+		return
+	}
+
+	logger.Info("Successfully patched asset %s (user: %s)", assetID, userEmail)
+	c.JSON(http.StatusOK, updatedAsset)
+}
+
+// BulkUpdateAssets updates or creates multiple assets (upsert operation)
+// PUT /threat_models/{threat_model_id}/assets/bulk
+func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("BulkUpdateAssets - upserting multiple assets")
+
+	// Extract threat model ID from URL
+	threatModelID := c.Param("threat_model_id")
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+
+	// Validate threat model ID format
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userEmail, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse and validate request body as array of assets
+	var assets []Asset
+	if err := c.ShouldBindJSON(&assets); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Basic validation
+	if len(assets) == 0 {
+		HandleRequestError(c, InvalidInputError("No assets provided"))
+		return
+	}
+
+	if len(assets) > 50 {
+		HandleRequestError(c, InvalidInputError("Maximum 50 assets allowed per bulk operation"))
+		return
+	}
+
+	// Validate each asset
+	for _, asset := range assets {
+		if asset.Id == nil {
+			HandleRequestError(c, InvalidInputError("Asset ID is required for all assets in bulk update"))
+			return
+		}
+		if asset.Name == "" {
+			HandleRequestError(c, InvalidInputError("Asset name is required for all assets"))
+			return
+		}
+	}
+
+	logger.Debug("Bulk updating %d assets for threat model %s (user: %s)", len(assets), threatModelID, userEmail)
+
+	// Upsert each asset
+	upsertedAssets := make([]Asset, 0, len(assets))
+	for _, asset := range assets {
+		// Check if asset exists
+		_, err := h.assetStore.Get(c.Request.Context(), asset.Id.String())
+		if err != nil {
+			// Asset doesn't exist, create it
+			if err := h.assetStore.Create(c.Request.Context(), &asset, threatModelID); err != nil {
+				logger.Error("Failed to create asset %s: %v", asset.Id.String(), err)
+				HandleRequestError(c, ServerError(fmt.Sprintf("Failed to create asset %s", asset.Id.String())))
+				return
+			}
+			upsertedAssets = append(upsertedAssets, asset)
+		} else {
+			// Asset exists, update it
+			if err := h.assetStore.Update(c.Request.Context(), &asset, threatModelID); err != nil {
+				logger.Error("Failed to update asset %s: %v", asset.Id.String(), err)
+				HandleRequestError(c, ServerError(fmt.Sprintf("Failed to update asset %s", asset.Id.String())))
+				return
+			}
+			upsertedAssets = append(upsertedAssets, asset)
+		}
+	}
+
+	logger.Info("Successfully bulk upserted %d assets for threat model %s (user: %s)", len(upsertedAssets), threatModelID, userEmail)
+	c.JSON(http.StatusOK, upsertedAssets)
 }

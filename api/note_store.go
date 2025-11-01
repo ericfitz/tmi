@@ -17,6 +17,7 @@ type NoteStore interface {
 	Get(ctx context.Context, id string) (*Note, error)
 	Update(ctx context.Context, note *Note, threatModelID string) error
 	Delete(ctx context.Context, id string) error
+	Patch(ctx context.Context, id string, operations []PatchOperation) (*Note, error)
 
 	// List operations with pagination
 	List(ctx context.Context, threatModelID string, offset, limit int) ([]Note, error)
@@ -502,4 +503,84 @@ func (s *DatabaseNoteStore) loadMetadata(ctx context.Context, noteID string) ([]
 	}
 
 	return metadata, nil
+}
+
+// Patch applies JSON patch operations to a note
+func (s *DatabaseNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Note, error) {
+	logger := slogging.Get()
+	logger.Debug("Patching note %s with %d operations", id, len(operations))
+
+	// Get current note
+	note, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply patch operations
+	for _, op := range operations {
+		if err := s.applyPatchOperation(note, op); err != nil {
+			logger.Error("Failed to apply patch operation %s to note %s: %v", op.Op, id, err)
+			return nil, fmt.Errorf("failed to apply patch operation: %w", err)
+		}
+	}
+
+	// Get threat model ID for update
+	threatModelID, err := s.getNoteThreatModelID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get threat model ID: %w", err)
+	}
+
+	// Update the note
+	if err := s.Update(ctx, note, threatModelID); err != nil {
+		return nil, err
+	}
+
+	return note, nil
+}
+
+// applyPatchOperation applies a single patch operation to a note
+func (s *DatabaseNoteStore) applyPatchOperation(note *Note, op PatchOperation) error {
+	switch op.Path {
+	case "/name":
+		if op.Op == "replace" {
+			if name, ok := op.Value.(string); ok {
+				note.Name = name
+			} else {
+				return fmt.Errorf("invalid value type for name: expected string")
+			}
+		}
+	case "/content":
+		if op.Op == "replace" {
+			if content, ok := op.Value.(string); ok {
+				note.Content = content
+			} else {
+				return fmt.Errorf("invalid value type for content: expected string")
+			}
+		}
+	case "/description":
+		switch op.Op {
+		case "replace", "add":
+			if desc, ok := op.Value.(string); ok {
+				note.Description = &desc
+			} else {
+				return fmt.Errorf("invalid value type for description: expected string")
+			}
+		case "remove":
+			note.Description = nil
+		}
+	default:
+		return fmt.Errorf("unsupported patch path: %s", op.Path)
+	}
+	return nil
+}
+
+// getNoteThreatModelID retrieves the threat model ID for a note
+func (s *DatabaseNoteStore) getNoteThreatModelID(ctx context.Context, noteID string) (string, error) {
+	query := `SELECT threat_model_id FROM notes WHERE id = $1`
+	var threatModelID string
+	err := s.db.QueryRowContext(ctx, query, noteID).Scan(&threatModelID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get threat model ID for note: %w", err)
+	}
+	return threatModelID, nil
 }

@@ -155,7 +155,7 @@ func InitSubResourceTestFixtures() {
 	SubResourceFixtures.Repository1ID = repository1UUID.String()
 	SubResourceFixtures.Repository2ID = repository2UUID.String()
 
-	gitType := Git
+	gitType := RepositoryTypeGit
 	SubResourceFixtures.Repository1 = Repository{
 		Id:          &repository1UUID,
 		Name:        stringPointer("Authentication Service"),
@@ -296,7 +296,7 @@ func CreateTestDocumentWithMetadata(metadata []Metadata) Document {
 func CreateTestRepositoryWithMetadata(metadata []Metadata) Repository {
 	repositoryUUID := uuid.New()
 
-	gitType := Git
+	gitType := RepositoryTypeGit
 	return Repository{
 		Id:          &repositoryUUID,
 		Name:        stringPointer("Test Repository"),

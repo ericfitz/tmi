@@ -11,13 +11,13 @@ import (
 )
 
 // DocumentStore defines the interface for document operations with caching support
-// Note: Documents do not support PATCH operations per the implementation plan
 type DocumentStore interface {
-	// CRUD operations (no PATCH support)
+	// CRUD operations
 	Create(ctx context.Context, document *Document, threatModelID string) error
 	Get(ctx context.Context, id string) (*Document, error)
 	Update(ctx context.Context, document *Document, threatModelID string) error
 	Delete(ctx context.Context, id string) error
+	Patch(ctx context.Context, id string, operations []PatchOperation) (*Document, error)
 
 	// List operations with pagination
 	List(ctx context.Context, threatModelID string, offset, limit int) ([]Document, error)
@@ -600,4 +600,84 @@ func (s *DatabaseDocumentStore) loadMetadata(ctx context.Context, documentID str
 	}
 
 	return metadata, nil
+}
+
+// Patch applies JSON patch operations to a document
+func (s *DatabaseDocumentStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Document, error) {
+	logger := slogging.Get()
+	logger.Debug("Patching document %s with %d operations", id, len(operations))
+
+	// Get current document
+	document, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply patch operations
+	for _, op := range operations {
+		if err := s.applyPatchOperation(document, op); err != nil {
+			logger.Error("Failed to apply patch operation %s to document %s: %v", op.Op, id, err)
+			return nil, fmt.Errorf("failed to apply patch operation: %w", err)
+		}
+	}
+
+	// Get threat model ID for update
+	threatModelID, err := s.getDocumentThreatModelID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get threat model ID: %w", err)
+	}
+
+	// Update the document
+	if err := s.Update(ctx, document, threatModelID); err != nil {
+		return nil, err
+	}
+
+	return document, nil
+}
+
+// applyPatchOperation applies a single patch operation to a document
+func (s *DatabaseDocumentStore) applyPatchOperation(document *Document, op PatchOperation) error {
+	switch op.Path {
+	case "/name":
+		if op.Op == "replace" {
+			if name, ok := op.Value.(string); ok {
+				document.Name = name
+			} else {
+				return fmt.Errorf("invalid value type for name: expected string")
+			}
+		}
+	case "/uri":
+		if op.Op == "replace" {
+			if uri, ok := op.Value.(string); ok {
+				document.Uri = uri
+			} else {
+				return fmt.Errorf("invalid value type for uri: expected string")
+			}
+		}
+	case "/description":
+		switch op.Op {
+		case "replace", "add":
+			if desc, ok := op.Value.(string); ok {
+				document.Description = &desc
+			} else {
+				return fmt.Errorf("invalid value type for description: expected string")
+			}
+		case "remove":
+			document.Description = nil
+		}
+	default:
+		return fmt.Errorf("unsupported patch path: %s", op.Path)
+	}
+	return nil
+}
+
+// getDocumentThreatModelID retrieves the threat model ID for a document
+func (s *DatabaseDocumentStore) getDocumentThreatModelID(ctx context.Context, documentID string) (string, error) {
+	query := `SELECT threat_model_id FROM documents WHERE id = $1`
+	var threatModelID string
+	err := s.db.QueryRowContext(ctx, query, documentID).Scan(&threatModelID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get threat model ID for document: %w", err)
+	}
+	return threatModelID, nil
 }

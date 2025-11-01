@@ -21,7 +21,6 @@ type Server struct {
 	repositoryHandler          *RepositorySubResourceHandler
 	assetHandler               *AssetSubResourceHandler
 	threatHandler              *ThreatSubResourceHandler
-	batchHandler               *BatchHandler
 	documentMetadataHandler    *DocumentMetadataHandler
 	noteMetadataHandler        *NoteMetadataHandler
 	repositoryMetadataHandler  *RepositoryMetadataHandler
@@ -45,7 +44,6 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 		repositoryHandler:          NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
 		assetHandler:               NewAssetSubResourceHandler(GlobalAssetStore, nil, nil, nil),
 		threatHandler:              NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
-		batchHandler:               NewBatchHandler(GlobalThreatStore, nil, nil, nil),
 		documentMetadataHandler:    NewDocumentMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		noteMetadataHandler:        NewNoteMetadataHandler(GlobalMetadataStore, nil, nil, nil),
 		repositoryMetadataHandler:  NewRepositoryMetadataHandler(GlobalMetadataStore, nil, nil, nil),
@@ -853,6 +851,12 @@ func (s *Server) BulkCreateThreatModelDocuments(c *gin.Context, threatModelId op
 	s.documentHandler.BulkCreateDocuments(c)
 }
 
+// BulkUpsertThreatModelDocuments bulk upserts documents
+func (s *Server) BulkUpsertThreatModelDocuments(c *gin.Context, threatModelId openapi_types.UUID) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.documentHandler.BulkUpdateDocuments(c)
+}
+
 // DeleteThreatModelDocument deletes a document
 func (s *Server) DeleteThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
@@ -872,6 +876,11 @@ func (s *Server) UpdateThreatModelDocument(c *gin.Context, threatModelId openapi
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "document_id", Value: documentId.String()})
 	s.documentHandler.UpdateDocument(c)
+}
+
+// PatchThreatModelDocument patches a document
+func (s *Server) PatchThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
+	s.documentHandler.PatchDocument(c)
 }
 
 // Document Metadata Methods - Placeholder implementations
@@ -944,6 +953,11 @@ func (s *Server) UpdateThreatModelNote(c *gin.Context, threatModelId openapi_typ
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "note_id", Value: noteId.String()})
 	s.noteHandler.UpdateNote(c)
+}
+
+// PatchThreatModelNote patches a note
+func (s *Server) PatchThreatModelNote(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
+	s.noteHandler.PatchNote(c)
 }
 
 // Note Metadata Methods - Implementations
@@ -1040,6 +1054,12 @@ func (s *Server) BulkCreateThreatModelRepositories(c *gin.Context, threatModelId
 	s.repositoryHandler.BulkCreateRepositorys(c)
 }
 
+// BulkUpsertThreatModelRepositories bulk upserts repositories
+func (s *Server) BulkUpsertThreatModelRepositories(c *gin.Context, threatModelId openapi_types.UUID) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.repositoryHandler.BulkUpdateRepositorys(c)
+}
+
 // DeleteThreatModelRepository deletes a repository
 func (s *Server) DeleteThreatModelRepository(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
@@ -1059,6 +1079,11 @@ func (s *Server) UpdateThreatModelRepository(c *gin.Context, threatModelId opena
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "repository_id", Value: repositoryId.String()})
 	s.repositoryHandler.UpdateRepository(c)
+}
+
+// PatchThreatModelRepository patches a repository
+func (s *Server) PatchThreatModelRepository(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID) {
+	s.repositoryHandler.PatchRepository(c)
 }
 
 // Repository Metadata Methods
@@ -1118,6 +1143,12 @@ func (s *Server) BulkCreateThreatModelAssets(c *gin.Context, threatModelId opena
 	s.assetHandler.BulkCreateAssets(c)
 }
 
+// BulkUpsertThreatModelAssets bulk upserts assets
+func (s *Server) BulkUpsertThreatModelAssets(c *gin.Context, threatModelId openapi_types.UUID) {
+	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
+	s.assetHandler.BulkUpdateAssets(c)
+}
+
 // DeleteThreatModelAsset deletes an asset
 func (s *Server) DeleteThreatModelAsset(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
@@ -1137,6 +1168,11 @@ func (s *Server) UpdateThreatModelAsset(c *gin.Context, threatModelId openapi_ty
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "asset_id", Value: assetId.String()})
 	s.assetHandler.UpdateAsset(c)
+}
+
+// PatchThreatModelAsset patches an asset
+func (s *Server) PatchThreatModelAsset(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
+	s.assetHandler.PatchAsset(c)
 }
 
 // Asset Metadata Methods
@@ -1188,16 +1224,6 @@ func (s *Server) CreateThreatModelThreat(c *gin.Context, threatModelId openapi_t
 	s.threatHandler.CreateThreat(c)
 }
 
-// BatchDeleteThreatModelThreats batch deletes threats
-func (s *Server) BatchDeleteThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID, params BatchDeleteThreatModelThreatsParams) {
-	s.batchHandler.BatchDeleteThreats(c)
-}
-
-// BatchPatchThreatModelThreats batch patches threats
-func (s *Server) BatchPatchThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID) {
-	s.batchHandler.BatchPatchThreats(c)
-}
-
 // BulkCreateThreatModelThreats bulk creates threats
 func (s *Server) BulkCreateThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID) {
 	s.threatHandler.BulkCreateThreats(c)
@@ -1206,6 +1232,16 @@ func (s *Server) BulkCreateThreatModelThreats(c *gin.Context, threatModelId open
 // BulkUpdateThreatModelThreats bulk updates threats
 func (s *Server) BulkUpdateThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID) {
 	s.threatHandler.BulkUpdateThreats(c)
+}
+
+// BulkPatchThreatModelThreats bulk patches threats
+func (s *Server) BulkPatchThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID) {
+	s.threatHandler.BulkPatchThreats(c)
+}
+
+// BulkDeleteThreatModelThreats bulk deletes threats
+func (s *Server) BulkDeleteThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID) {
+	s.threatHandler.BulkDeleteThreats(c)
 }
 
 // DeleteThreatModelThreat deletes a threat

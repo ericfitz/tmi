@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,70 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+// MockThreatStore is a mock implementation of ThreatStore for testing
+type MockThreatStore struct {
+	mock.Mock
+}
+
+func (m *MockThreatStore) Create(ctx context.Context, threat *Threat) error {
+	args := m.Called(ctx, threat)
+	return args.Error(0)
+}
+
+func (m *MockThreatStore) Get(ctx context.Context, id string) (*Threat, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*Threat), args.Error(1)
+}
+
+func (m *MockThreatStore) Update(ctx context.Context, threat *Threat) error {
+	args := m.Called(ctx, threat)
+	return args.Error(0)
+}
+
+func (m *MockThreatStore) Delete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockThreatStore) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
+	args := m.Called(ctx, threatModelID, filter)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]Threat), args.Error(1)
+}
+
+func (m *MockThreatStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error) {
+	args := m.Called(ctx, id, operations)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*Threat), args.Error(1)
+}
+
+func (m *MockThreatStore) BulkCreate(ctx context.Context, threats []Threat) error {
+	args := m.Called(ctx, threats)
+	return args.Error(0)
+}
+
+func (m *MockThreatStore) BulkUpdate(ctx context.Context, threats []Threat) error {
+	args := m.Called(ctx, threats)
+	return args.Error(0)
+}
+
+func (m *MockThreatStore) InvalidateCache(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockThreatStore) WarmCache(ctx context.Context, threatModelID string) error {
+	args := m.Called(ctx, threatModelID)
+	return args.Error(0)
+}
 
 // setupThreatSubResourceHandler creates a test router with threat sub-resource handlers
 func setupThreatSubResourceHandler() (*gin.Engine, *MockThreatStore) {

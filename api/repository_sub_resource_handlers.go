@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -346,4 +347,148 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 
 	logger.Debug("Successfully bulk created %d repository code references", len(repositorys))
 	c.JSON(http.StatusCreated, repositorys)
+}
+
+// PatchRepository applies JSON patch operations to a repository
+// PATCH /threat_models/{threat_model_id}/repositories/{repository_id}
+func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("PatchRepository - applying patch operations to repository")
+
+	// Extract repository ID from URL
+	repositoryID := c.Param("repository_id")
+	if repositoryID == "" {
+		HandleRequestError(c, InvalidIDError("Missing repository ID"))
+		return
+	}
+
+	// Validate repository ID format
+	if _, err := ParseUUID(repositoryID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid repository ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userEmail, userRole, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse patch operations from request body
+	operations, err := ParsePatchRequest(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if len(operations) == 0 {
+		HandleRequestError(c, InvalidInputError("No patch operations provided"))
+		return
+	}
+
+	// Validate patch authorization
+	if err := ValidatePatchAuthorization(operations, userRole); err != nil {
+		HandleRequestError(c, ForbiddenError("Insufficient permissions for requested patch operations"))
+		return
+	}
+
+	logger.Debug("Applying %d patch operations to repository %s (user: %s)",
+		len(operations), repositoryID, userEmail)
+
+	// Apply patch operations
+	updatedRepository, err := h.repositoryStore.Patch(c.Request.Context(), repositoryID, operations)
+	if err != nil {
+		HandleRequestError(c, ServerError("Failed to patch repository"))
+		return
+	}
+
+	logger.Info("Successfully patched repository %s (user: %s)", repositoryID, userEmail)
+	c.JSON(http.StatusOK, updatedRepository)
+}
+
+// BulkUpdateRepositorys updates or creates multiple repositories (upsert operation)
+// PUT /threat_models/{threat_model_id}/repositories/bulk
+func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("BulkUpdateRepositorys - upserting multiple repositories")
+
+	// Extract threat model ID from URL
+	threatModelID := c.Param("threat_model_id")
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+
+	// Validate threat model ID format
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userEmail, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse and validate request body as array of repositories
+	var repositories []Repository
+	if err := c.ShouldBindJSON(&repositories); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Basic validation
+	if len(repositories) == 0 {
+		HandleRequestError(c, InvalidInputError("No repositories provided"))
+		return
+	}
+
+	if len(repositories) > 50 {
+		HandleRequestError(c, InvalidInputError("Maximum 50 repositories allowed per bulk operation"))
+		return
+	}
+
+	// Validate each repository
+	for _, repository := range repositories {
+		if repository.Id == nil {
+			HandleRequestError(c, InvalidInputError("Repository ID is required for all repositories in bulk update"))
+			return
+		}
+		if repository.Name == nil || *repository.Name == "" {
+			HandleRequestError(c, InvalidInputError("Repository name is required for all repositories"))
+			return
+		}
+	}
+
+	logger.Debug("Bulk updating %d repositories for threat model %s (user: %s)", len(repositories), threatModelID, userEmail)
+
+	// Upsert each repository
+	upsertedRepositories := make([]Repository, 0, len(repositories))
+	for _, repository := range repositories {
+		// Check if repository exists
+		_, err := h.repositoryStore.Get(c.Request.Context(), repository.Id.String())
+		if err != nil {
+			// Repository doesn't exist, create it
+			if err := h.repositoryStore.Create(c.Request.Context(), &repository, threatModelID); err != nil {
+				logger.Error("Failed to create repository %s: %v", repository.Id.String(), err)
+				HandleRequestError(c, ServerError(fmt.Sprintf("Failed to create repository %s", repository.Id.String())))
+				return
+			}
+			upsertedRepositories = append(upsertedRepositories, repository)
+		} else {
+			// Repository exists, update it
+			if err := h.repositoryStore.Update(c.Request.Context(), &repository, threatModelID); err != nil {
+				logger.Error("Failed to update repository %s: %v", repository.Id.String(), err)
+				HandleRequestError(c, ServerError(fmt.Sprintf("Failed to update repository %s", repository.Id.String())))
+				return
+			}
+			upsertedRepositories = append(upsertedRepositories, repository)
+		}
+	}
+
+	logger.Info("Successfully bulk upserted %d repositories for threat model %s (user: %s)", len(upsertedRepositories), threatModelID, userEmail)
+	c.JSON(http.StatusOK, upsertedRepositories)
 }

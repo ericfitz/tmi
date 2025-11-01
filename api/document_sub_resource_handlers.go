@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -350,4 +351,148 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 
 	logger.Debug("Successfully bulk created %d documents", len(documents))
 	c.JSON(http.StatusCreated, documents)
+}
+
+// PatchDocument applies JSON patch operations to a document
+// PATCH /threat_models/{threat_model_id}/documents/{document_id}
+func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("PatchDocument - applying patch operations to document")
+
+	// Extract document ID from URL
+	documentID := c.Param("document_id")
+	if documentID == "" {
+		HandleRequestError(c, InvalidIDError("Missing document ID"))
+		return
+	}
+
+	// Validate document ID format
+	if _, err := ParseUUID(documentID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid document ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userEmail, userRole, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse patch operations from request body
+	operations, err := ParsePatchRequest(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if len(operations) == 0 {
+		HandleRequestError(c, InvalidInputError("No patch operations provided"))
+		return
+	}
+
+	// Validate patch authorization
+	if err := ValidatePatchAuthorization(operations, userRole); err != nil {
+		HandleRequestError(c, ForbiddenError("Insufficient permissions for requested patch operations"))
+		return
+	}
+
+	logger.Debug("Applying %d patch operations to document %s (user: %s)",
+		len(operations), documentID, userEmail)
+
+	// Apply patch operations
+	updatedDocument, err := h.documentStore.Patch(c.Request.Context(), documentID, operations)
+	if err != nil {
+		HandleRequestError(c, ServerError("Failed to patch document"))
+		return
+	}
+
+	logger.Info("Successfully patched document %s (user: %s)", documentID, userEmail)
+	c.JSON(http.StatusOK, updatedDocument)
+}
+
+// BulkUpdateDocuments updates or creates multiple documents (upsert operation)
+// PUT /threat_models/{threat_model_id}/documents/bulk
+func (h *DocumentSubResourceHandler) BulkUpdateDocuments(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("BulkUpdateDocuments - upserting multiple documents")
+
+	// Extract threat model ID from URL
+	threatModelID := c.Param("threat_model_id")
+	if threatModelID == "" {
+		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+		return
+	}
+
+	// Validate threat model ID format
+	if _, err := ParseUUID(threatModelID); err != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+
+	// Get authenticated user
+	userEmail, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Parse and validate request body as array of documents
+	var documents []Document
+	if err := c.ShouldBindJSON(&documents); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Basic validation
+	if len(documents) == 0 {
+		HandleRequestError(c, InvalidInputError("No documents provided"))
+		return
+	}
+
+	if len(documents) > 50 {
+		HandleRequestError(c, InvalidInputError("Maximum 50 documents allowed per bulk operation"))
+		return
+	}
+
+	// Validate each document
+	for _, document := range documents {
+		if document.Id == nil {
+			HandleRequestError(c, InvalidInputError("Document ID is required for all documents in bulk update"))
+			return
+		}
+		if document.Name == "" {
+			HandleRequestError(c, InvalidInputError("Document name is required for all documents"))
+			return
+		}
+	}
+
+	logger.Debug("Bulk updating %d documents for threat model %s (user: %s)", len(documents), threatModelID, userEmail)
+
+	// Upsert each document
+	upsertedDocuments := make([]Document, 0, len(documents))
+	for _, document := range documents {
+		// Check if document exists
+		_, err := h.documentStore.Get(c.Request.Context(), document.Id.String())
+		if err != nil {
+			// Document doesn't exist, create it
+			if err := h.documentStore.Create(c.Request.Context(), &document, threatModelID); err != nil {
+				logger.Error("Failed to create document %s: %v", document.Id.String(), err)
+				HandleRequestError(c, ServerError(fmt.Sprintf("Failed to create document %s", document.Id.String())))
+				return
+			}
+			upsertedDocuments = append(upsertedDocuments, document)
+		} else {
+			// Document exists, update it
+			if err := h.documentStore.Update(c.Request.Context(), &document, threatModelID); err != nil {
+				logger.Error("Failed to update document %s: %v", document.Id.String(), err)
+				HandleRequestError(c, ServerError(fmt.Sprintf("Failed to update document %s", document.Id.String())))
+				return
+			}
+			upsertedDocuments = append(upsertedDocuments, document)
+		}
+	}
+
+	logger.Info("Successfully bulk upserted %d documents for threat model %s (user: %s)", len(upsertedDocuments), threatModelID, userEmail)
+	c.JSON(http.StatusOK, upsertedDocuments)
 }

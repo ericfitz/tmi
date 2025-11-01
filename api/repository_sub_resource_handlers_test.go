@@ -53,6 +53,14 @@ func (m *MockRepositoryStore) BulkCreate(ctx context.Context, repositorys []Repo
 	return args.Error(0)
 }
 
+func (m *MockRepositoryStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Repository, error) {
+	args := m.Called(ctx, id, operations)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*Repository), args.Error(1)
+}
+
 func (m *MockRepositoryStore) InvalidateCache(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
