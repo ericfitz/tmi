@@ -17,6 +17,7 @@
 !.dockerignore
 !config-example.yml
 !auth/migrations/*.sql
+!.claude/settings.local.json
 
 # Include subdirectories (but avoid overriding specific ignores)
 !api/
@@ -51,7 +52,6 @@
 !app.json
 !Procfile
 
-
 # Explicitly ignore unwanted files and directories
 *.log
 **/logs/**
@@ -75,7 +75,6 @@ test.mk
 api/api.test
 ws-test-harness/wstest
 ws-test-harness/*.log
-.claude/settings.local.json
 postman/test-results
 postman/test-results/**
 scripts/configure-heroku-env.sh
