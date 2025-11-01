@@ -50,7 +50,7 @@ func (m *Manager) RunMigrations(cfg MigrationConfig) error {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	slogging.Get().Error("Database migrations completed successfully")
+	slogging.Get().Info("Database migrations completed successfully")
 	return nil
 }
 
@@ -88,7 +88,7 @@ func (m *Manager) MigrateDown(cfg MigrationConfig) error {
 		return fmt.Errorf("failed to roll back migrations: %w", err)
 	}
 
-	slogging.Get().Error("Database migrations rolled back successfully")
+	slogging.Get().Info("Database migrations rolled back successfully")
 	return nil
 }
 
@@ -126,6 +126,6 @@ func (m *Manager) MigrateStep(cfg MigrationConfig, steps int) error {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	slogging.Get().Error("Database migrations completed successfully")
+	slogging.Get().Info("Database migrations completed successfully")
 	return nil
 }
