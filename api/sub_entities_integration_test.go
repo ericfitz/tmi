@@ -27,11 +27,6 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-// getTestServerURL returns the base URL for the running integration test server
-func getTestServerURL() string {
-	return getEnvOrDefault("TEST_SERVER_URL", "http://localhost:8081")
-}
-
 // SubEntityIntegrationTestSuite manages database setup and teardown for sub-entity integration tests
 type SubEntityIntegrationTestSuite struct {
 	dbManager        *db.Manager

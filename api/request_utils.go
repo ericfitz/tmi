@@ -378,7 +378,7 @@ func extractTokenFromRequest(c *gin.Context) (string, error) {
 
 // blacklistTokenIfAvailable attempts to blacklist a JWT token using the available token blacklist service
 // Note: This function tries to access the blacklist service but gracefully handles when it's not available
-func blacklistTokenIfAvailable(c *gin.Context, tokenStr string, userName string) {
+func blacklistTokenIfAvailable(c *gin.Context, _ string, userName string) {
 	// Since we don't have direct access to the Server type from api package,
 	// we'll focus on logging the intent and let the calling code handle the blacklisting
 	// This is a defensive approach that ensures the main error handling works even if

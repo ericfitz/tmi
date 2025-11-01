@@ -1,12 +1,8 @@
 package api
 
 import (
-	"bytes"
-	"encoding/json"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -297,15 +293,4 @@ func min(a, b int) int {
 		return a
 	}
 	return b
-}
-
-func createTestContextForValidation(body map[string]interface{}) (*gin.Context, *httptest.ResponseRecorder) {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-
-	jsonBody, _ := json.Marshal(body)
-	c.Request = httptest.NewRequest("POST", "/test", bytes.NewBuffer(jsonBody))
-	c.Request.Header.Set("Content-Type", "application/json")
-
-	return c, w
 }

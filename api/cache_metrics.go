@@ -394,7 +394,7 @@ func (cm *CacheMetrics) findMinLatency(latencies []time.Duration) time.Duration 
 }
 
 // populateSystemStats populates system-level statistics from Redis
-func (cm *CacheMetrics) populateSystemStats(ctx context.Context, stats *CacheStats) error {
+func (cm *CacheMetrics) populateSystemStats(_ context.Context, stats *CacheStats) error {
 	// In a real implementation, this would query Redis INFO command
 	// For now, we'll set some placeholder values
 	stats.TotalKeys = 0

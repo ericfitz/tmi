@@ -50,24 +50,6 @@ func NewDatabaseAssetStore(db *sql.DB, cache *CacheService, invalidator *CacheIn
 	}
 }
 
-// assetToExtended converts an Asset to ExtendedAsset
-func assetToExtended(asset *Asset, threatModelID string, createdAt, modifiedAt time.Time) *ExtendedAsset {
-	tmID, _ := uuid.Parse(threatModelID)
-	return &ExtendedAsset{
-		Id:             asset.Id,
-		Name:           asset.Name,
-		Description:    asset.Description,
-		Type:           ExtendedAssetType(asset.Type),
-		Criticality:    asset.Criticality,
-		Classification: asset.Classification,
-		Sensitivity:    asset.Sensitivity,
-		Metadata:       asset.Metadata,
-		ThreatModelId:  tmID,
-		CreatedAt:      createdAt,
-		ModifiedAt:     modifiedAt,
-	}
-}
-
 // extendedToAsset converts an ExtendedAsset to Asset
 func extendedToAsset(extAsset *ExtendedAsset) *Asset {
 	return &Asset{

@@ -750,7 +750,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 }
 
 // convertClientToParticipant converts a WebSocket client to a Participant
-func convertClientToParticipant(client *WebSocketClient, session *DiagramSession, tm *ThreatModel) *Participant {
+func convertClientToParticipant(client *WebSocketClient, _ *DiagramSession, tm *ThreatModel) *Participant {
 	// Get user's session permissions using existing auth system
 	var permissions ParticipantPermissions
 	if tm != nil {
@@ -981,28 +981,6 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 	}
 
 	return sessions
-}
-
-// userHasAccessToThreatModel checks if a user has any level of access to a threat model
-func (h *WebSocketHub) userHasAccessToThreatModel(userName string, threatModelId openapi_types.UUID) bool {
-	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), return false
-	if ThreatModelStore == nil {
-		return false
-	}
-
-	// Get the threat model
-	tm, err := ThreatModelStore.Get(threatModelId.String())
-	if err != nil {
-		return false
-	}
-
-	// Check if user has any access to the threat model (reader, writer, or resource owner)
-	hasAccess, err := CheckResourceAccess(userName, tm, RoleReader)
-	if err != nil {
-		return false
-	}
-
-	return hasAccess
 }
 
 // getThreatModelIdForDiagram finds the threat model that contains a specific diagram
@@ -1654,6 +1632,7 @@ type DiagramOperation struct {
 }
 
 // Validate the diagram operation
+// nolint:unused
 func validateDiagramOperation(op DiagramOperation) error {
 	// Validate operation type
 	if op.Type != "add" && op.Type != "update" && op.Type != "remove" {
@@ -1748,6 +1727,7 @@ func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte)
 }
 
 // processDiagramOperation handles enhanced diagram operations
+// nolint:unused
 func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, message []byte) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -2539,6 +2519,7 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 // broadcastSessionTermination sends termination messages to all participants
 
 // cleanupSession removes this session from the hub when it terminates
+// nolint:unused
 func (s *DiagramSession) cleanupSession() {
 	if s.Hub != nil {
 		s.Hub.mu.Lock()
@@ -2929,7 +2910,7 @@ func (s *DiagramSession) sendStateCorrectionWithReason(client *WebSocketClient, 
 }
 
 // sendEnhancedStateCorrection sends enhanced state correction with update vector
-func (s *DiagramSession) sendEnhancedStateCorrection(client *WebSocketClient, affectedCellIDs []string, reason string, userRole Role) {
+func (s *DiagramSession) sendEnhancedStateCorrection(client *WebSocketClient, _ []string, reason string, userRole Role) {
 
 	// Get current diagram state
 	diagram, err := DiagramStore.Get(s.DiagramID)
@@ -3480,6 +3461,7 @@ type OperationValidationResult struct {
 }
 
 // applyOperation applies a diagram operation with validation and conflict detection
+// nolint:unused
 func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOperationMessage) bool {
 	slogging.Get().Debug("applyOperation - Session: %s, User: %s, OperationID: %s, Cell operations: %d",
 		s.ID, client.UserID, msg.OperationID, len(msg.Operation.Cells))
@@ -3781,7 +3763,7 @@ func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentSta
 }
 
 // addToHistory adds an operation to the history for conflict resolution
-func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, userID string, previousState, currentState map[string]*DfdDiagram_Cells_Item) {
+func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, userID string, previousState, _ map[string]*DfdDiagram_Cells_Item) {
 	if s.OperationHistory == nil {
 		return
 	}
@@ -3808,6 +3790,7 @@ func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, userID string
 }
 
 // cleanupOldHistory removes old history entries to stay within limits
+// nolint:unused
 func (s *DiagramSession) cleanupOldHistory() {
 	// Find oldest entries to remove
 	var sequences []uint64
@@ -4002,7 +3985,8 @@ func (c *WebSocketClient) ReadPump() {
 
 // applyDiagramOperation applies a diagram operation to the stored diagram
 // Note: This function is currently unused according to linter warnings
-func applyDiagramOperation(diagramID string, op DiagramOperation) error {
+// nolint:unused
+func applyDiagramOperation(_ string, _ DiagramOperation) error {
 	// Since this function is unused and the validation functions (validateAddOperation, etc.)
 	// already handle individual cell operations with proper centralized updates,
 	// we'll deprecate this function to avoid complexity.

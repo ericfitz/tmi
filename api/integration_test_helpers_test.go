@@ -119,6 +119,7 @@ func verifyDocumentInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T
 }
 
 // verifySourceInDatabase verifies a source exists in the database with expected data
+// nolint:unused
 func verifySourceInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, id, threatModelID string, expectedData map[string]interface{}) {
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
@@ -190,6 +191,7 @@ func verifyDiagramInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T,
 }
 
 // verifyMetadataInDatabase verifies metadata exists in the database with expected data
+// nolint:unused
 func verifyMetadataInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, parentID, entityType string, expectedData map[string]interface{}) {
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
@@ -243,7 +245,8 @@ func verifyMetadataInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T
 }
 
 // verifyCellInDatabase verifies a cell exists in the database with expected data
-func verifyCellInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, diagramID, cellID string, expectedData map[string]interface{}) {
+// nolint:unused,unparam
+func verifyCellInDatabase(_ *SubEntityIntegrationTestSuite, t *testing.T, _, _ string, _ map[string]interface{}) {
 	// Note: Based on the OpenAPI spec review in the plan, there are no cell-specific endpoints
 	// Cell operations appear to be handled through diagram content updates
 	// This method is provided for completeness but may not be used
@@ -253,6 +256,7 @@ func verifyCellInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, di
 // Negative verification methods (deletion testing)
 
 // verifyThreatModelNotInDatabase verifies a threat model does not exist in the database
+// nolint:unused
 func verifyThreatModelNotInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, id string) {
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
@@ -277,6 +281,7 @@ func verifyThreatNotInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.
 }
 
 // verifyDocumentNotInDatabase verifies a document does not exist in the database
+// nolint:unused
 func verifyDocumentNotInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, id string) {
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
@@ -289,6 +294,7 @@ func verifyDocumentNotInDatabase(suite *SubEntityIntegrationTestSuite, t *testin
 }
 
 // verifySourceNotInDatabase verifies a source does not exist in the database
+// nolint:unused
 func verifySourceNotInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, id string) {
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
@@ -301,6 +307,7 @@ func verifySourceNotInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.
 }
 
 // verifyDiagramNotInDatabase verifies a diagram does not exist in the database
+// nolint:unused
 func verifyDiagramNotInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, id string) {
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
@@ -313,6 +320,7 @@ func verifyDiagramNotInDatabase(suite *SubEntityIntegrationTestSuite, t *testing
 }
 
 // verifyNoOrphanedSubEntitiesInDatabase verifies no sub-entities remain after parent deletion
+// nolint:unused
 func verifyNoOrphanedSubEntitiesInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, threatModelID string) {
 	ctx := context.Background()
 	db := suite.dbManager.Postgres().GetDB()
@@ -384,7 +392,8 @@ func verifyNoOrphanedSubEntitiesInDatabase(suite *SubEntityIntegrationTestSuite,
 // Field-specific verification methods
 
 // verifyFieldInDatabase verifies a specific field value in the database
-func verifyFieldInDatabase(suite *SubEntityIntegrationTestSuite, t *testing.T, entityID, fieldName string, expectedValue interface{}) {
+// nolint:unused,unparam
+func verifyFieldInDatabase(_ *SubEntityIntegrationTestSuite, t *testing.T, entityID, fieldName string, expectedValue interface{}) {
 	// This is a generic helper that would need to be customized per entity type
 	// For now, we'll use it as a placeholder for future implementation
 	t.Logf("Verifying field %s = %v for entity %s", fieldName, expectedValue, entityID)

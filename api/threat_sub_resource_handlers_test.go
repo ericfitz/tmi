@@ -644,8 +644,3 @@ func TestBulkUpdateThreats(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
-
-// Helper function (reuse boolPtr from existing test files)
-func boolPtr(b bool) *bool {
-	return &b
-}
