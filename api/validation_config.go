@@ -399,6 +399,49 @@ var ValidationConfigs = map[string]ValidationConfig{
 		CustomValidators: []ValidatorFunc{},
 		Operation:        "DELETE",
 	},
+
+	// PATCH validation configs for simple resources
+	// PATCH operations use JSON Patch (RFC 6902) with PatchOperation arrays
+	// Validation is done on individual patch operations, not the whole resource
+	"asset_patch": {
+		ProhibitedFields: []string{
+			"id", "created_at", "modified_at",
+		},
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"no_html_injection", "string_length",
+		}),
+		Operation: "PATCH",
+	},
+
+	"document_patch": {
+		ProhibitedFields: []string{
+			"id", "created_at", "modified_at",
+		},
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"no_html_injection", "string_length",
+		}),
+		Operation: "PATCH",
+	},
+
+	"note_patch": {
+		ProhibitedFields: []string{
+			"id", "created_at", "modified_at",
+		},
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"no_html_injection", "string_length",
+		}),
+		Operation: "PATCH",
+	},
+
+	"repository_patch": {
+		ProhibitedFields: []string{
+			"id", "created_at", "modified_at",
+		},
+		CustomValidators: CommonValidators.GetValidators([]string{
+			"no_html_injection", "string_length",
+		}),
+		Operation: "PATCH",
+	},
 }
 
 // GetValidationConfig returns the validation config for an endpoint

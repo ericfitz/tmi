@@ -127,11 +127,11 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 
 		// Mock threats query
 		threatRows := sqlmock.NewRows([]string{
-			"id", "name", "description", "severity", "mitigation", "diagram_id", "cell_id",
+			"id", "name", "description", "severity", "mitigation", "diagram_id", "cell_id", "asset_id",
 			"priority", "mitigated", "status", "threat_type", "score", "issue_uri",
 			"created_at", "modified_at",
 		}).AddRow(
-			uuid.New(), "SQL Injection", "Database attack", "high", "Use prepared statements", nil, nil,
+			uuid.New(), "SQL Injection", "Database attack", "high", "Use prepared statements", nil, nil, nil,
 			"High", false, "Open", "Injection", nil, nil,
 			time.Now(), time.Now(),
 		)

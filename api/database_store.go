@@ -100,18 +100,6 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			slogging.Get().GetSlogger().Debug("No rows found", "id", id)
-			// Let's check if ANY threat models exist and what their IDs look like
-			countQuery := "SELECT COUNT(*), string_agg(id::text, ', ') FROM threat_models LIMIT 5"
-			var count int
-			var sampleIds sql.NullString
-			if countErr := s.db.QueryRow(countQuery).Scan(&count, &sampleIds); countErr == nil {
-				slogging.Get().GetSlogger().Debug("Total threat models in DB", "count", count)
-				if sampleIds.Valid {
-					slogging.Get().GetSlogger().Debug("Sample IDs in DB", "sample_ids", sampleIds.String)
-				}
-			} else {
-				slogging.Get().GetSlogger().Error("Failed to get sample data", "error", countErr)
-			}
 			return tm, fmt.Errorf("threat model with ID %s not found", id)
 		}
 		slogging.Get().GetSlogger().Error("Database error (not ErrNoRows)", "error", err)
