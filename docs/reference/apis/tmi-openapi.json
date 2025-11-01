@@ -1038,6 +1038,14 @@
                 },
                 "description": "List of assets associated with the threat model",
                 "readOnly": true
+              },
+              "status_updated": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true,
+                "description": "Timestamp when the status field was last modified (RFC3339). Automatically updated by the server when status changes.",
+                "maxLength": 24,
+                "readOnly": true
               }
             }
           }
@@ -1179,7 +1187,12 @@
                 }
               ]
             }
-          ]
+          ],
+          "status": [
+            "In progress",
+            "Review"
+          ],
+          "status_updated": "2025-04-08T14:30:00Z"
         }
       },
       "Threat": {
@@ -2201,6 +2214,16 @@
             "description": "URL to an issue in an issue tracking system for this threat model",
             "maxLength": 1024,
             "writeOnly": false
+          },
+          "status": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "nullable": true,
+            "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\"",
+            "maxItems": 50
           }
         },
         "required": [
@@ -4330,6 +4353,32 @@
               "format": "date-time"
             },
             "description": "Filter threat models modified before this date (RFC3339 format)"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by status value (exact match). To filter by multiple statuses, use multiple status parameters or comma-separated values."
+          },
+          {
+            "name": "status_updated_after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Filter threat models where status was updated after this timestamp (RFC3339)"
+          },
+          {
+            "name": "status_updated_before",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Filter threat models where status was updated before this timestamp (RFC3339)"
           }
         ],
         "responses": {

@@ -67,11 +67,14 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	var name, ownerEmail, createdBy string
 	var description, issueUrl *string
 	var threatModelFramework string
+	var status []string
+	var statusUpdated *time.Time
 	var createdAt, modifiedAt time.Time
 
 	query := `
 		SELECT id, name, description, owner_email, created_by,
-		       threat_model_framework, issue_uri, created_at, modified_at
+		       threat_model_framework, issue_uri, status, status_updated,
+		       created_at, modified_at
 		FROM threat_models
 		WHERE id = $1`
 
@@ -87,7 +90,8 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 
 	err := s.db.QueryRow(query, id).Scan(
 		&tmUUID, &name, &description, &ownerEmail, &createdBy,
-		&threatModelFramework, &issueUrl, &createdAt, &modifiedAt,
+		&threatModelFramework, &issueUrl, &status, &statusUpdated,
+		&createdAt, &modifiedAt,
 	)
 
 	slogging.Get().GetSlogger().Debug("Query execution completed", "error", err)
@@ -153,6 +157,8 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		CreatedBy:            &createdBy,
 		ThreatModelFramework: framework,
 		IssueUri:             issueUrl,
+		Status:               &status,
+		StatusUpdated:        statusUpdated,
 		CreatedAt:            &createdAt,
 		ModifiedAt:           &modifiedAt,
 		Authorization:        authorization,
@@ -173,8 +179,9 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 
 	query := `
 		SELECT id, name, description, owner_email, created_by,
-		       threat_model_framework, issue_uri, created_at, modified_at
-		FROM threat_models 
+		       threat_model_framework, issue_uri, status, status_updated,
+		       created_at, modified_at
+		FROM threat_models
 		ORDER BY created_at DESC`
 
 	rows, err := s.db.Query(query)
@@ -194,11 +201,14 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 		var name, ownerEmail, createdBy string
 		var description, issueUrl *string
 		var threatModelFramework string
+		var status []string
+		var statusUpdated *time.Time
 		var createdAt, modifiedAt time.Time
 
 		err := rows.Scan(
 			&uuid, &name, &description, &ownerEmail, &createdBy,
-			&threatModelFramework, &issueUrl, &createdAt, &modifiedAt,
+			&threatModelFramework, &issueUrl, &status, &statusUpdated,
+			&createdAt, &modifiedAt,
 		)
 		if err != nil {
 			continue
@@ -224,6 +234,8 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 			CreatedBy:            &createdBy,
 			ThreatModelFramework: framework,
 			IssueUri:             issueUrl,
+			Status:               &status,
+			StatusUpdated:        statusUpdated,
 			CreatedAt:            &createdAt,
 			ModifiedAt:           &modifiedAt,
 			Authorization:        authorization,
@@ -257,8 +269,9 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 
 	query := `
 		SELECT id, name, description, owner_email, created_by,
-		       threat_model_framework, issue_uri, created_at, modified_at
-		FROM threat_models 
+		       threat_model_framework, issue_uri, status, status_updated,
+		       created_at, modified_at
+		FROM threat_models
 		ORDER BY created_at DESC`
 
 	rows, err := s.db.Query(query)
@@ -278,11 +291,14 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 		var name, ownerEmail, createdBy string
 		var description, issueUrl *string
 		var threatModelFramework string
+		var status []string
+		var statusUpdated *time.Time
 		var createdAt, modifiedAt time.Time
 
 		err := rows.Scan(
 			&uuid, &name, &description, &ownerEmail, &createdBy,
-			&threatModelFramework, &issueUrl, &createdAt, &modifiedAt,
+			&threatModelFramework, &issueUrl, &status, &statusUpdated,
+			&createdAt, &modifiedAt,
 		)
 		if err != nil {
 			continue
@@ -308,6 +324,8 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 			CreatedBy:            &createdBy,
 			ThreatModelFramework: framework,
 			IssueUri:             issueUrl,
+			Status:               &status,
+			StatusUpdated:        statusUpdated,
 			CreatedAt:            &createdAt,
 			ModifiedAt:           &modifiedAt,
 			Authorization:        authorization,
@@ -443,15 +461,24 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 		framework = "STRIDE" // default
 	}
 
+	// Set status_updated if status is provided
+	var statusUpdated *time.Time
+	if item.Status != nil && len(*item.Status) > 0 {
+		now := time.Now().UTC()
+		statusUpdated = &now
+	}
+
 	// Insert threat model
 	query := `
-		INSERT INTO threat_models (id, name, description, owner_email, created_by, 
-		                          threat_model_framework, issue_uri, created_at, modified_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+		INSERT INTO threat_models (id, name, description, owner_email, created_by,
+		                          threat_model_framework, issue_uri, status, status_updated,
+		                          created_at, modified_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
 	_, err = tx.Exec(query,
 		id, item.Name, item.Description, item.Owner, item.CreatedBy,
-		framework, item.IssueUri, item.CreatedAt, item.ModifiedAt,
+		framework, item.IssueUri, item.Status, statusUpdated,
+		item.CreatedAt, item.ModifiedAt,
 	)
 	if err != nil {
 		return item, fmt.Errorf("failed to insert threat model: %w", err)
@@ -500,16 +527,52 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 		framework = "STRIDE" // default
 	}
 
+	// Check if status has changed to determine if we should update status_updated
+	var oldStatus []string
+	err = tx.QueryRow("SELECT status FROM threat_models WHERE id = $1", id).Scan(&oldStatus)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("failed to get current status: %w", err)
+	}
+
+	// Determine if status changed
+	statusChanged := false
+	newStatus := item.Status
+	if newStatus == nil && oldStatus != nil {
+		statusChanged = true
+	} else if newStatus != nil && oldStatus == nil {
+		statusChanged = true
+	} else if newStatus != nil && oldStatus != nil {
+		if len(*newStatus) != len(oldStatus) {
+			statusChanged = true
+		} else {
+			for i := range *newStatus {
+				if (*newStatus)[i] != oldStatus[i] {
+					statusChanged = true
+					break
+				}
+			}
+		}
+	}
+
+	// Set status_updated if status changed
+	var statusUpdated *time.Time
+	if statusChanged {
+		now := time.Now().UTC()
+		statusUpdated = &now
+	}
+
 	// Update threat model
 	query := `
-		UPDATE threat_models 
+		UPDATE threat_models
 		SET name = $2, description = $3, owner_email = $4, created_by = $5,
-		    threat_model_framework = $6, issue_uri= $7, modified_at = $8
+		    threat_model_framework = $6, issue_uri = $7, status = $8, status_updated = $9,
+		    modified_at = $10
 		WHERE id = $1`
 
 	result, err := tx.Exec(query,
 		id, item.Name, item.Description, item.Owner, item.CreatedBy,
-		framework, item.IssueUri, item.ModifiedAt,
+		framework, item.IssueUri, item.Status, statusUpdated,
+		item.ModifiedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update threat model: %w", err)

@@ -5,9 +5,11 @@ CREATE TABLE IF NOT EXISTS threat_models (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     created_by VARCHAR(256) NOT NULL,
-    threat_model_framework VARCHAR(50) NOT NULL DEFAULT 'STRIDE' 
+    threat_model_framework VARCHAR(50) NOT NULL DEFAULT 'STRIDE'
         CHECK (threat_model_framework IN ('CIA', 'STRIDE', 'LINDDUN', 'DIE', 'PLOT4ai')),
     issue_uri VARCHAR(1024),
+    status TEXT[],
+    status_updated TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (owner_email) REFERENCES users(email) ON DELETE RESTRICT
@@ -138,6 +140,8 @@ CREATE INDEX IF NOT EXISTS idx_threat_models_owner_email ON threat_models(owner_
 CREATE INDEX idx_threat_models_framework ON threat_models(threat_model_framework);
 CREATE INDEX idx_threat_models_created_by ON threat_models(created_by);
 CREATE INDEX IF NOT EXISTS idx_threat_models_owner_created_at ON threat_models(owner_email, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_threat_models_status ON threat_models USING GIN (status);
+CREATE INDEX IF NOT EXISTS idx_threat_models_status_updated ON threat_models(status_updated);
 
 -- Create indexes for diagrams
 CREATE INDEX IF NOT EXISTS idx_diagrams_threat_model_id ON diagrams(threat_model_id);

@@ -8,6 +8,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -103,10 +104,12 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 		// Mock main threat model query
 		rows := sqlmock.NewRows([]string{
 			"id", "name", "description", "owner_email", "created_by",
-			"threat_model_framework", "issue_url", "created_at", "modified_at",
+			"threat_model_framework", "issue_url", "status", "status_updated",
+			"created_at", "modified_at",
 		}).AddRow(
 			testUUID, "Test Model", "Test Description", "owner@example.com", "creator@example.com",
-			"STRIDE", "https://example.com/issue", time.Now(), time.Now(),
+			"STRIDE", "https://example.com/issue", pq.Array([]string{"In progress"}), time.Now(),
+			time.Now(), time.Now(),
 		)
 		mock.ExpectQuery("SELECT (.+) FROM threat_models").WithArgs(testID).WillReturnRows(rows)
 
