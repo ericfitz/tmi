@@ -549,7 +549,7 @@
       },
       "Cell": {
         "type": "object",
-        "description": "Base schema for all diagram cells (nodes and edges) fully compatible with AntV X6 graph library. This schema includes all X6 native properties plus convenience properties for easier integration. X6-specific properties like markup, tools, router, and connector are supported for advanced customization.",
+        "description": "Base schema for all diagram cells (nodes and edges) in AntV X6 native format. This schema matches X6's toJSON() output exactly, enabling zero-transformation persistence. X6-specific properties like markup, tools, router, and connector are fully supported.",
         "discriminator": {
           "propertyName": "shape"
         },
@@ -710,42 +710,6 @@
                 "description": "ID of the parent cell for nested/grouped nodes (UUID)",
                 "nullable": true,
                 "maxLength": 36
-              },
-              "label": {
-                "type": "string",
-                "description": "Convenience property: Simple text label that automatically creates appropriate attrs.text.text structure",
-                "maxLength": 256
-              },
-              "style": {
-                "type": "object",
-                "description": "Convenience property: Simplified styling options that automatically create appropriate attrs structure",
-                "properties": {
-                  "fill": {
-                    "type": "string",
-                    "description": "Background fill color",
-                    "maxLength": 32
-                  },
-                  "stroke": {
-                    "type": "string",
-                    "description": "Border/outline color",
-                    "maxLength": 32
-                  },
-                  "strokeWidth": {
-                    "type": "number",
-                    "description": "Border/outline width in pixels",
-                    "minimum": 0
-                  },
-                  "fontSize": {
-                    "type": "number",
-                    "description": "Text font size in pixels",
-                    "minimum": 1
-                  },
-                  "fontColor": {
-                    "type": "string",
-                    "description": "Text color",
-                    "maxLength": 32
-                  }
-                }
               }
             },
             "example": {
@@ -841,7 +805,8 @@
       "Edge": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Cell"
+            "$ref": "#/components/schemas/Cell",
+            "description": "A diagram edge representing a connection or data flow between nodes in X6 native format. Fully compatible with X6 Edge objects and supports X6 routing algorithms (manhattan, orth, oneSide, metro, er), connector styles (normal, rounded, smooth, jumpover), custom markup, and tools."
           },
           {
             "type": "object",
@@ -919,42 +884,6 @@
                   }
                 ],
                 "description": "Default label configuration applied to edges without explicit labels"
-              },
-              "label": {
-                "type": "string",
-                "description": "Convenience property: Simple text label that automatically creates appropriate attrs.text.text structure",
-                "maxLength": 256
-              },
-              "style": {
-                "type": "object",
-                "description": "Convenience property: Simplified styling options that automatically create appropriate attrs structure",
-                "properties": {
-                  "stroke": {
-                    "type": "string",
-                    "description": "Line color",
-                    "maxLength": 32
-                  },
-                  "strokeWidth": {
-                    "type": "number",
-                    "description": "Line width in pixels",
-                    "minimum": 0
-                  },
-                  "strokeDasharray": {
-                    "type": "string",
-                    "description": "Line dash pattern (e.g., '5 5' for dashed)",
-                    "maxLength": 64
-                  },
-                  "fontSize": {
-                    "type": "number",
-                    "description": "Label font size in pixels",
-                    "minimum": 1
-                  },
-                  "fontColor": {
-                    "type": "string",
-                    "description": "Label text color",
-                    "maxLength": 32
-                  }
-                }
               }
             },
             "example": {
