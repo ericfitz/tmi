@@ -23,6 +23,8 @@
 !api/**
 !auth/
 !auth/**
+!client-sdks/
+!client-sdks/**
 !cmd/
 !cmd/**
 !docs/
