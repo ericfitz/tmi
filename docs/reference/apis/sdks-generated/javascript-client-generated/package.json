@@ -1,0 +1,41 @@
+{
+  "name": "tmi-client",
+  "version": "1.0.0",
+  "description": "A_RESTful_API_for_collaborative_threat_modeling_with_full_X6_graph_library_compatibility__This_API_provides_schemas_that_align_with_AntV_X6_cell_object_models_for_seamless_integration_with_modern_diagramming_libraries__Supports_OAuth_2_0_authentication_with_client_callback_integration_for_seamless_single_page_application_authentication_flows__API_Design_v1_0_0_Authorization_ModelTMI_uses_hierarchical_authorization_access_control_is_defined_at_the_ThreatModel_level_via_the_authorization_field__readers_writers_owners__All_child_resources__Assets_Diagrams_Documents_Notes_Repositories_Threats_inherit_permissions_from_their_parent_ThreatModel__This_simplifies_permission_management_and_ensures_consistent_access_control__Bulk_OperationsNotes_and_Diagrams_do_not_support_bulk_operations_due_to_their_unique_creation_workflows_and_lack_of_valid_bulk_use_cases__All_other_resources__Threats_Assets_Documents_Repositories_support_full_bulk_operations_POST__create_PUT__upsert_PATCH__partial_update_DELETE__batch_delete_All_resources_support_bulk_metadata_operations_regardless_of_resource_level_bulk_support__List_Response_Strategy__ThreatModels_return_summary_information__TMListItem_because_they_contain_many_child_objects_that_can_be_large___Diagrams_return_summary_information__DiagramListItem_because_diagram_data__cells_images_can_be_large___Notes_return_summary_information__NoteListItem_because_the_content_field_can_be_large___Threats_Assets_Documents_Repositories_return_full_schemas_as_they_are_relatively_small_and_static__PATCH_SupportAll_resources_support_PATCH_for_partial_updates_using_JSON_Patch__RFC_6902__This_is_particularly_useful_for__Assets_Array_field_updates__affected_assets_trust_boundaries_ensuring_no_duplicates__Notes_Updating_namedescription_without_changing_content_field__All_resources_Efficient_updates_without_full_object_replacement",
+  "license": "Unlicense",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "mocha --require @babel/register --recursive"
+  },
+  "browser": {
+    "fs": false
+  },
+  "dependencies": {
+    "@babel/cli": "^7.0.0",
+    "superagent": "^5.3.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.0.0",
+    "@babel/plugin-proposal-class-properties": "^7.0.0",
+    "@babel/plugin-proposal-decorators": "^7.0.0",
+    "@babel/plugin-proposal-do-expressions": "^7.0.0",
+    "@babel/plugin-proposal-export-default-from": "^7.0.0",
+    "@babel/plugin-proposal-export-namespace-from": "^7.0.0",
+    "@babel/plugin-proposal-function-bind": "^7.0.0",
+    "@babel/plugin-proposal-function-sent": "^7.0.0",
+    "@babel/plugin-proposal-json-strings": "^7.0.0",
+    "@babel/plugin-proposal-logical-assignment-operators": "^7.0.0",
+    "@babel/plugin-proposal-nullish-coalescing-operator": "^7.0.0",
+    "@babel/plugin-proposal-numeric-separator": "^7.0.0",
+    "@babel/plugin-proposal-optional-chaining": "^7.0.0",
+    "@babel/plugin-proposal-pipeline-operator": "^7.0.0",
+    "@babel/plugin-proposal-throw-expressions": "^7.0.0",
+    "@babel/plugin-syntax-dynamic-import": "^7.0.0",
+    "@babel/plugin-syntax-import-meta": "^7.0.0",
+    "@babel/preset-env": "^7.0.0",
+    "@babel/register": "^7.0.0",
+    "expect.js": "^0.3.1",
+    "mocha": "^8.0.1",
+    "sinon": "^7.2.0"
+  }
+}

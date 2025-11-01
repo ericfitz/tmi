@@ -1,0 +1,29 @@
+<div class="main-content">
+  <h2><a name=""></a></h2>
+  <p>This is the  API</p>
+
+  <h2><a name="deleteUserAccount"></a>deleteUserAccount</h2>
+  <hr>
+  <p></p>
+  <p>Two-step deletion process: 1. First call (no challenge parameter) - Returns challenge string 2. Second call (with challenge parameter) - Confirms deletion  Ownership behavior: - Shared threat models: Transfers ownership to another owner from authorization list - Unshared threat models: Deletes completely along with all child resources</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/users/me</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>DELETE</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="DeletionChallenge"><a href="">DeletionChallenge</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">challenge</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description">Challenge string from first request (step 2 only). Must match exactly.</p>
+	  </li>
+  </ul>
+</div>

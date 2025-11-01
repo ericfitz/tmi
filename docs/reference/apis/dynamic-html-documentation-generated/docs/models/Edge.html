@@ -1,0 +1,82 @@
+
+<h2>Edge</h2>
+<ul class="parameter">
+  <li class="param-required-true">shape : String
+    <br/>Edge type identifier
+      <dl class="param-enum">
+        <dt>Enum:
+            <dd>edge</dd>
+        </dt>
+      </dl>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">source : 
+    <br/>Source connection point
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">target : 
+    <br/>Target connection point
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">attrs : 
+    <br/>Visual styling attributes for the edge
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">labels : List
+    <br/>Text labels positioned along the edge
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">vertices : List
+    <br/>Intermediate waypoints for edge routing
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">router : 
+    <br/>Edge routing algorithm configuration for path calculation
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">connector : 
+    <br/>Edge connector style configuration for visual appearance
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">defaultLabel : 
+    <br/>Default label configuration applied to edges without explicit labels
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">id : UUID
+    <br/>Unique identifier of the cell (UUID)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">zIndex : BigDecimal
+    <br/>Z-order layer for rendering (higher values render on top)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">visible : Boolean
+    <br/>Whether the cell is visible in the diagram
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">data : Cell_data
+    <br/>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">markup : List
+    <br/>SVG/HTML markup definition for custom shape rendering in X6
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">tools : List
+    <br/>Interactive tools attached to the cell for user interaction
+  </li>
+</ul>

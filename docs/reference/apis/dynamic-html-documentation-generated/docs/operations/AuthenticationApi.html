@@ -1,0 +1,409 @@
+<div class="main-content">
+  <h2><a name=""></a></h2>
+  <p>This is the  API</p>
+
+  <h2><a name="authorizeOAuthProvider"></a>authorizeOAuthProvider</h2>
+  <hr>
+  <p></p>
+  <p>Redirects user to OAuth provider&#x27;s authorization page. Supports client callback URL for seamless client integration. Generates state parameter for CSRF protection.</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/oauth2/authorize</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model=""><a href=""></a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">scope</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description">OAuth 2.0 scope parameter. For OpenID Connect, must include \&quot;openid\&quot;. Supports \&quot;profile\&quot; and \&quot;email\&quot; scopes. Other scopes are silently ignored. Space-separated values.</p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">idp</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description">OAuth provider identifier. Defaults to &#x27;test&#x27; provider in non-production builds if not specified.</p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">client_callback</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description">Client callback URL where TMI should redirect after successful OAuth completion with tokens as query parameters. If not provided, tokens are returned as JSON response.</p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">state</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description">CSRF protection state parameter. Recommended for security. Will be included in the callback response.</p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">login_hint</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description">User identity hint for test OAuth provider. Allows specifying a desired user identity for testing and automation. Only supported by the test provider (ignored by production providers like Google, GitHub, etc.). Must be 3-20 characters, alphanumeric and hyphens only.</p>
+	  </li>
+  </ul>
+  <h2><a name="exchangeOAuthCode"></a>exchangeOAuthCode</h2>
+  <hr>
+  <p></p>
+  <p>Provider-neutral endpoint to exchange OAuth authorization codes for TMI JWT tokens. Supports Google, GitHub, and Microsoft OAuth providers.</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/oauth2/token</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>POST</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="AuthTokenResponse"><a href="">AuthTokenResponse</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      
+      
+      
+      <span class="param-in">Body: </span>
+      <span class="param-name">body</span>
+      <span class="param-type">Oauth2_token_body(Oauth2_token_body)</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">idp</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description">OAuth provider identifier. Defaults to &#x27;test&#x27; provider in non-production builds if not specified.</p>
+	  </li>
+  </ul>
+  <h2><a name="getAuthProviders"></a>getAuthProviders</h2>
+  <hr>
+  <p></p>
+  <p>Returns a list of configured OAuth providers available for authentication</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/oauth2/providers</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="inline_response_200_4"><a href="">inline_response_200_4</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+  </ul>
+  <h2><a name="getCurrentUser"></a>getCurrentUser</h2>
+  <hr>
+  <p></p>
+  <p>Returns information about the currently authenticated user</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/oauth2/userinfo</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="inline_response_200_6"><a href="">inline_response_200_6</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+  </ul>
+  <h2><a name="getCurrentUserProfile"></a>getCurrentUserProfile</h2>
+  <hr>
+  <p></p>
+  <p>Returns detailed information about the currently authenticated user including groups and identity provider</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/users/me</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="User"><a href="">User</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+  </ul>
+  <h2><a name="getProviderGroups"></a>getProviderGroups</h2>
+  <hr>
+  <p></p>
+  <p>Returns groups available from a specific identity provider for autocomplete and discovery</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/oauth2/providers/{idp}/groups</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="inline_response_200_5"><a href="">inline_response_200_5</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      
+      <span class="param-in">Path: </span>
+      
+      
+      <span class="param-name">idp</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description">Identity provider ID (e.g., saml_okta, saml_azure)</p>
+	  </li>
+  </ul>
+  <h2><a name="getSAMLMetadata"></a>getSAMLMetadata</h2>
+  <hr>
+  <p></p>
+  <p>Returns the SP metadata XML for SAML configuration</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/saml/metadata</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="string"><a href="">String</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+  </ul>
+  <h2><a name="handleOAuthCallback"></a>handleOAuthCallback</h2>
+  <hr>
+  <p></p>
+  <p>Exchanges OAuth authorization code for JWT tokens. If client_callback was provided during authorization, redirects to client with tokens. Otherwise returns tokens as JSON response.</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/oauth2/callback</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="AuthTokenResponse"><a href="">AuthTokenResponse</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">code</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description">Authorization code from the OAuth provider</p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">state</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description">Optional state parameter for CSRF protection</p>
+	  </li>
+  </ul>
+  <h2><a name="initiateSAMLLogin"></a>initiateSAMLLogin</h2>
+  <hr>
+  <p></p>
+  <p>Starts SAML authentication flow by redirecting to IdP</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/saml/login</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model=""><a href=""></a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">client_callback</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description">Client callback URL to redirect after authentication</p>
+	  </li>
+  </ul>
+  <h2><a name="introspectToken"></a>introspectToken</h2>
+  <hr>
+  <p></p>
+  <p>Introspects a JWT token to determine its validity and metadata as per RFC 7662</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/oauth2/introspect</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>POST</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="inline_response_200_3"><a href="">inline_response_200_3</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">token</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">token_type_hint</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+  </ul>
+  <h2><a name="logoutUser"></a>logoutUser</h2>
+  <hr>
+  <p></p>
+  <p>Invalidates the user&#x27;s JWT token by adding it to a blacklist, effectively ending the session. Once logged out, the token cannot be used for further authenticated requests until it naturally expires. The token blacklist is maintained in Redis with automatic cleanup based on token expiration times.</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/oauth2/revoke</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>POST</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model=""><a href=""></a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      
+      
+      
+      <span class="param-in">Body: </span>
+      <span class="param-name">body</span>
+      <span class="param-type">Object(object)</span>
+      
+      <p class="param-description">Empty request body - token is provided via Authorization header</p>
+	  </li>
+  </ul>
+  <h2><a name="processSAMLLogout"></a>processSAMLLogout</h2>
+  <hr>
+  <p></p>
+  <p>Handles SAML logout requests from IdP</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/saml/slo</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>GET</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="inline_response_200_8"><a href="">inline_response_200_8</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">SAMLRequest</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description">Base64-encoded SAML logout request</p>
+	  </li>
+  </ul>
+  <h2><a name="processSAMLLogoutPost"></a>processSAMLLogoutPost</h2>
+  <hr>
+  <p></p>
+  <p>Handles SAML logout requests from IdP via POST</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/saml/slo</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>POST</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="inline_response_200_8"><a href="">inline_response_200_8</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">SAMLRequest</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+  </ul>
+  <h2><a name="processSAMLResponse"></a>processSAMLResponse</h2>
+  <hr>
+  <p></p>
+  <p>Processes SAML responses from IdP after authentication</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/saml/acs</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>POST</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="AuthTokenResponse"><a href="">AuthTokenResponse</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">SAMLResponse</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      <span class="param-in">Form: </span>
+      
+      
+      
+      
+      <span class="param-name">RelayState</span>
+      <span class="param-type">String</span>
+      
+      <p class="param-description"></p>
+	  </li>
+  </ul>
+  <h2><a name="refreshToken"></a>refreshToken</h2>
+  <hr>
+  <p></p>
+  <p>Exchanges a refresh token for a new JWT access token</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/oauth2/refresh</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>POST</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="AuthTokenResponse"><a href="">AuthTokenResponse</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      
+      
+      
+      <span class="param-in">Body: </span>
+      <span class="param-name">body</span>
+      <span class="param-type">Oauth2_refresh_body(Oauth2_refresh_body)</span>
+      
+      <p class="param-description"></p>
+	  </li>
+  </ul>
+</div>

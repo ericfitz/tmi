@@ -1,0 +1,51 @@
+<div class="main-content">
+  <h2><a name=""></a></h2>
+  <p>This is the  API</p>
+
+  <h2><a name="patchThreatModelNote"></a>patchThreatModelNote</h2>
+  <hr>
+  <p></p>
+  <p>Apply JSON Patch operations to partially update a note</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/threat_models/{threat_model_id}/notes/{note_id}</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>PATCH</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="Note"><a href="">Note</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      
+      
+      
+      <span class="param-in">Body: </span>
+      <span class="param-name">body</span>
+      <span class="param-type">List(threats_threat_id_body)</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      
+      
+      <span class="param-in">Path: </span>
+      
+      
+      <span class="param-name">threat_model_id</span>
+      <span class="param-type">UUID</span>
+      
+      <p class="param-description">Unique identifier of the threat model (UUID)</p>
+	  </li>
+	  <li class="parameter">
+      
+      
+      <span class="param-in">Path: </span>
+      
+      
+      <span class="param-name">note_id</span>
+      <span class="param-type">UUID</span>
+      
+      <p class="param-description">Note ID</p>
+	  </li>
+  </ul>
+</div>

@@ -1,0 +1,75 @@
+<div class="main-content">
+  <h2><a name=""></a></h2>
+  <p>This is the  API</p>
+
+  <h2><a name="bulkDeleteThreatModelThreats"></a>bulkDeleteThreatModelThreats</h2>
+  <hr>
+  <p></p>
+  <p>Delete multiple threats in a single request</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/threat_models/{threat_model_id}/threats/bulk</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>DELETE</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="inline_response_200_7"><a href="">inline_response_200_7</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      
+      <span class="param-in">Path: </span>
+      
+      
+      <span class="param-name">threat_model_id</span>
+      <span class="param-type">UUID</span>
+      
+      <p class="param-description">Unique identifier of the threat model (UUID)</p>
+	  </li>
+	  <li class="parameter">
+      
+      <span class="param-in">Query: </span>
+      
+      
+      
+      <span class="param-name">threat_ids</span>
+      <span class="param-type">List(UUID)</span>
+      
+      <p class="param-description">Comma-separated list of threat IDs to delete (UUID format)</p>
+	  </li>
+  </ul>
+  <h2><a name="bulkPatchThreatModelThreats"></a>bulkPatchThreatModelThreats</h2>
+  <hr>
+  <p></p>
+  <p>Apply JSON Patch operations to multiple threats in a single request</p>
+  <h3 class="section">URL</h3>
+  <code>http://localhost:8080/threat_models/{threat_model_id}/threats/bulk</code>
+  <h3 class="section">HTTP Method</h3>
+  <code>PATCH</code>
+  <h3 class="section">Response Type</h3>
+  <div class="model" data-model="Threat"><a href="">List</a></div>
+  <h3 class="section">Parameters</h3>
+  <ul>
+	  <li class="parameter">
+      
+      
+      
+      
+      <span class="param-in">Body: </span>
+      <span class="param-name">body</span>
+      <span class="param-type">Threats_bulk_body(Threats_bulk_body)</span>
+      
+      <p class="param-description"></p>
+	  </li>
+	  <li class="parameter">
+      
+      
+      <span class="param-in">Path: </span>
+      
+      
+      <span class="param-name">threat_model_id</span>
+      <span class="param-type">UUID</span>
+      
+      <p class="param-description">Unique identifier of the threat model (UUID)</p>
+	  </li>
+  </ul>
+</div>

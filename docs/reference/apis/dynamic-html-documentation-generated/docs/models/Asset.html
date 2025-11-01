@@ -1,0 +1,62 @@
+
+<h2>Asset</h2>
+<ul class="parameter">
+  <li class="param-required-true">id : UUID
+    <br/>Unique identifier for the asset
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">metadata : List
+    <br/>Optional metadata key-value pairs
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">created_at : Date
+    <br/>Creation timestamp (RFC3339)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">modified_at : Date
+    <br/>Last modification timestamp (RFC3339)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">name : String
+    <br/>Asset name
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">description : String
+    <br/>Description of the asset
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">type : String
+    <br/>Type of asset
+      <dl class="param-enum">
+        <dt>Enum:
+            <dd>data</dd>
+            <dd>hardware</dd>
+            <dd>software</dd>
+            <dd>infrastructure</dd>
+            <dd>service</dd>
+            <dd>personnel</dd>
+        </dt>
+      </dl>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">criticality : String
+    <br/>Criticality level of the asset
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">classification : List
+    <br/>Classification tags for the asset
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">sensitivity : List
+    <br/>Sensitivity labels for the asset
+  </li>
+</ul>

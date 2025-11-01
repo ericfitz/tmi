@@ -1,0 +1,37 @@
+
+<h2>Cell</h2>
+<ul class="parameter">
+  <li class="param-required-true">id : UUID
+    <br/>Unique identifier of the cell (UUID)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">shape : String
+    <br/>Shape type identifier that determines cell structure and behavior
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">zIndex : BigDecimal
+    <br/>Z-order layer for rendering (higher values render on top)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">visible : Boolean
+    <br/>Whether the cell is visible in the diagram
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">data : Cell_data
+    <br/>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">markup : List
+    <br/>SVG/HTML markup definition for custom shape rendering in X6
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">tools : List
+    <br/>Interactive tools attached to the cell for user interaction
+  </li>
+</ul>

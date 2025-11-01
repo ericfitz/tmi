@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+  <link rel="stylesheet" type="text/css" href="assets/css/bootstrap.css" media="screen">
+  <link rel="stylesheet" type="text/css" href="assets/css/bootstrap-responsive.css" media="screen">
+  <link rel="stylesheet" type="text/css" href="assets/css/style.css">
+  <script src="assets/js/jquery-1.8.3.min.js" type="text/javascript"></script>
+  <script src="assets/js/main.js" type="text/javascript"></script>
+
+  <title>REST API Resources</title>
+</head>
+<body>
+  <div class="header">
+    <div class="top-bar">
+      <h1 id="logo"><a class="logo" href="/"><span>Swagger</span><span class="light">API Docs</span></a></h1>
+    </div>
+  </div>
+  <div class="model-container"></div>
+  <div class="content">
+    <div class="box clearfix">
+      <div class="sidebar">
+        <div class="section-box">
+          <div class="section-header">
+            Overview
+          </div>
+          <ul>
+            <li>Getting Started</li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/AssetsApi">AssetsApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/AssetsApi#patchThreatModelAsset">patchThreatModelAsset</a></li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/AuthenticationApi">AuthenticationApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/AuthenticationApi#authorizeOAuthProvider">authorizeOAuthProvider</a></li>
+            <li><a href="#!/AuthenticationApi#exchangeOAuthCode">exchangeOAuthCode</a></li>
+            <li><a href="#!/AuthenticationApi#getAuthProviders">getAuthProviders</a></li>
+            <li><a href="#!/AuthenticationApi#getCurrentUser">getCurrentUser</a></li>
+            <li><a href="#!/AuthenticationApi#getCurrentUserProfile">getCurrentUserProfile</a></li>
+            <li><a href="#!/AuthenticationApi#getProviderGroups">getProviderGroups</a></li>
+            <li><a href="#!/AuthenticationApi#getSAMLMetadata">getSAMLMetadata</a></li>
+            <li><a href="#!/AuthenticationApi#handleOAuthCallback">handleOAuthCallback</a></li>
+            <li><a href="#!/AuthenticationApi#initiateSAMLLogin">initiateSAMLLogin</a></li>
+            <li><a href="#!/AuthenticationApi#introspectToken">introspectToken</a></li>
+            <li><a href="#!/AuthenticationApi#logoutUser">logoutUser</a></li>
+            <li><a href="#!/AuthenticationApi#processSAMLLogout">processSAMLLogout</a></li>
+            <li><a href="#!/AuthenticationApi#processSAMLLogoutPost">processSAMLLogoutPost</a></li>
+            <li><a href="#!/AuthenticationApi#processSAMLResponse">processSAMLResponse</a></li>
+            <li><a href="#!/AuthenticationApi#refreshToken">refreshToken</a></li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/CollaborationApi">CollaborationApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/CollaborationApi#createDiagramCollaborationSession">createDiagramCollaborationSession</a></li>
+            <li><a href="#!/CollaborationApi#endDiagramCollaborationSession">endDiagramCollaborationSession</a></li>
+            <li><a href="#!/CollaborationApi#getCollaborationSessions">getCollaborationSessions</a></li>
+            <li><a href="#!/CollaborationApi#getDiagramCollaborationSession">getDiagramCollaborationSession</a></li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/DocumentsApi">DocumentsApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/DocumentsApi#patchThreatModelDocument">patchThreatModelDocument</a></li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/GeneralApi">GeneralApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/GeneralApi#getApiInfo">getApiInfo</a></li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/NotesApi">NotesApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/NotesApi#patchThreatModelNote">patchThreatModelNote</a></li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/OAuthDiscoveryApi">OAuthDiscoveryApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/OAuthDiscoveryApi#getOAuthProtectedResourceMetadata">getOAuthProtectedResourceMetadata</a></li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/OIDCDiscoveryApi">OIDCDiscoveryApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/OIDCDiscoveryApi#getJWKS">getJWKS</a></li>
+            <li><a href="#!/OIDCDiscoveryApi#getOAuthAuthorizationServerMetadata">getOAuthAuthorizationServerMetadata</a></li>
+            <li><a href="#!/OIDCDiscoveryApi#getOpenIDConfiguration">getOpenIDConfiguration</a></li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/RepositoriesApi">RepositoriesApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/RepositoriesApi#patchThreatModelRepository">patchThreatModelRepository</a></li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/ThreatModelSubResourcesApi">ThreatModelSubResourcesApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkCreateDiagramMetadata">bulkCreateDiagramMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkCreateDocumentMetadata">bulkCreateDocumentMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkCreateNoteMetadata">bulkCreateNoteMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkCreateRepositoryMetadata">bulkCreateRepositoryMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkCreateThreatMetadata">bulkCreateThreatMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkCreateThreatModelAssetMetadata">bulkCreateThreatModelAssetMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkCreateThreatModelAssets">bulkCreateThreatModelAssets</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkCreateThreatModelDocuments">bulkCreateThreatModelDocuments</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkCreateThreatModelMetadata">bulkCreateThreatModelMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkCreateThreatModelRepositories">bulkCreateThreatModelRepositories</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkCreateThreatModelThreats">bulkCreateThreatModelThreats</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkUpdateNoteMetadata">bulkUpdateNoteMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkUpdateThreatModelThreats">bulkUpdateThreatModelThreats</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkUpsertDiagramMetadata">bulkUpsertDiagramMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkUpsertDocumentMetadata">bulkUpsertDocumentMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkUpsertRepositoryMetadata">bulkUpsertRepositoryMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkUpsertThreatMetadata">bulkUpsertThreatMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkUpsertThreatModelAssetMetadata">bulkUpsertThreatModelAssetMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkUpsertThreatModelAssets">bulkUpsertThreatModelAssets</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkUpsertThreatModelDocuments">bulkUpsertThreatModelDocuments</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkUpsertThreatModelMetadata">bulkUpsertThreatModelMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#bulkUpsertThreatModelRepositories">bulkUpsertThreatModelRepositories</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createDiagramMetadata">createDiagramMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createDocumentMetadata">createDocumentMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createNoteMetadata">createNoteMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createRepositoryMetadata">createRepositoryMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createThreatMetadata">createThreatMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createThreatModelAsset">createThreatModelAsset</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createThreatModelAssetMetadata">createThreatModelAssetMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createThreatModelDiagram">createThreatModelDiagram</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createThreatModelDocument">createThreatModelDocument</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createThreatModelMetadata">createThreatModelMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createThreatModelNote">createThreatModelNote</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createThreatModelRepository">createThreatModelRepository</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#createThreatModelThreat">createThreatModelThreat</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteDiagramMetadataByKey">deleteDiagramMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteDocumentMetadataByKey">deleteDocumentMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteNoteMetadataByKey">deleteNoteMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteRepositoryMetadataByKey">deleteRepositoryMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteThreatMetadataByKey">deleteThreatMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteThreatModelAsset">deleteThreatModelAsset</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteThreatModelAssetMetadata">deleteThreatModelAssetMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteThreatModelDiagram">deleteThreatModelDiagram</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteThreatModelDocument">deleteThreatModelDocument</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteThreatModelMetadataByKey">deleteThreatModelMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteThreatModelNote">deleteThreatModelNote</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteThreatModelRepository">deleteThreatModelRepository</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#deleteThreatModelThreat">deleteThreatModelThreat</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getDiagramMetadata">getDiagramMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getDiagramMetadataByKey">getDiagramMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getDocumentMetadata">getDocumentMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getDocumentMetadataByKey">getDocumentMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getNoteMetadata">getNoteMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getNoteMetadataByKey">getNoteMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getRepositoryMetadata">getRepositoryMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getRepositoryMetadataByKey">getRepositoryMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatMetadata">getThreatMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatMetadataByKey">getThreatMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelAsset">getThreatModelAsset</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelAssetMetadata">getThreatModelAssetMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelAssetMetadataByKey">getThreatModelAssetMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelAssets">getThreatModelAssets</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelDiagram">getThreatModelDiagram</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelDiagrams">getThreatModelDiagrams</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelDocument">getThreatModelDocument</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelDocuments">getThreatModelDocuments</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelMetadata">getThreatModelMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelMetadataByKey">getThreatModelMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelNote">getThreatModelNote</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelNotes">getThreatModelNotes</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelRepositories">getThreatModelRepositories</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelRepository">getThreatModelRepository</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelThreat">getThreatModelThreat</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#getThreatModelThreats">getThreatModelThreats</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#patchThreatModelDiagram">patchThreatModelDiagram</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#patchThreatModelThreat">patchThreatModelThreat</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateDiagramMetadataByKey">updateDiagramMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateDocumentMetadataByKey">updateDocumentMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateNoteMetadataByKey">updateNoteMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateRepositoryMetadataByKey">updateRepositoryMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateThreatMetadataByKey">updateThreatMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateThreatModelAsset">updateThreatModelAsset</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateThreatModelAssetMetadata">updateThreatModelAssetMetadata</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateThreatModelDiagram">updateThreatModelDiagram</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateThreatModelDocument">updateThreatModelDocument</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateThreatModelMetadataByKey">updateThreatModelMetadataByKey</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateThreatModelNote">updateThreatModelNote</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateThreatModelRepository">updateThreatModelRepository</a></li>
+            <li><a href="#!/ThreatModelSubResourcesApi#updateThreatModelThreat">updateThreatModelThreat</a></li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/ThreatModelsApi">ThreatModelsApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/ThreatModelsApi#createThreatModel">createThreatModel</a></li>
+            <li><a href="#!/ThreatModelsApi#deleteThreatModel">deleteThreatModel</a></li>
+            <li><a href="#!/ThreatModelsApi#getThreatModel">getThreatModel</a></li>
+            <li><a href="#!/ThreatModelsApi#listThreatModels">listThreatModels</a></li>
+            <li><a href="#!/ThreatModelsApi#patchThreatModel">patchThreatModel</a></li>
+            <li><a href="#!/ThreatModelsApi#updateThreatModel">updateThreatModel</a></li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/ThreatsApi">ThreatsApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/ThreatsApi#bulkDeleteThreatModelThreats">bulkDeleteThreatModelThreats</a></li>
+            <li><a href="#!/ThreatsApi#bulkPatchThreatModelThreats">bulkPatchThreatModelThreats</a></li>
+          </ul>
+        </div>
+        <div class="section-box">
+          <div class="section-header">
+            <a href="#!/UsersApi">UsersApi</a>
+          </div>
+          <ul>
+            <li><a href="#!/UsersApi#deleteUserAccount">deleteUserAccount</a></li>
+          </ul>
+        </div>
+      </div>
+    <div class="non-sidebar">
+      <div class="main-content">
+        <h2>Getting Started</h2>
+        <p>To begin using your fancy HTTP API, follow the steps below.</p>
+        <p>You can add some helpful tips, here</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
