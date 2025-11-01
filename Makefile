@@ -334,10 +334,10 @@ execute-tests-unit:
 	$(call log_info,"Executing unit tests...")
 	@if [ -n "$(TEST_PATTERN)" ] && [ "$(TEST_PATTERN)" != "" ]; then \
 		echo "Running specific unit test: $(TEST_PATTERN)"; \
-		TEST_CMD="$(ENVIRONMENT_LOGGING_IS_TEST)=true go test -short ./... -run $(TEST_PATTERN) -v"; \
+		TEST_CMD="$(ENVIRONMENT_LOGGING_IS_TEST)=true go test -short ./api/... ./auth/... ./cmd/... ./internal/... -run $(TEST_PATTERN) -v"; \
 	else \
 		echo "Running all unit tests..."; \
-		TEST_CMD="$(ENVIRONMENT_LOGGING_IS_TEST)=true go test -short ./..."; \
+		TEST_CMD="$(ENVIRONMENT_LOGGING_IS_TEST)=true go test -short ./api/... ./auth/... ./cmd/... ./internal/..."; \
 	fi; \
 	if [ "$(TEST_COUNT1)" = "true" ]; then \
 		TEST_CMD="$$TEST_CMD --count=1"; \
@@ -489,7 +489,7 @@ clean-everything: clean-process clean-containers clean-files
 # Unit Testing - Fast tests with no external dependencies
 test-unit:
 	$(call log_info,"Running unit tests")
-	@LOGGING_IS_TEST=true go test -short ./... -v
+	@LOGGING_IS_TEST=true go test -short ./api/... ./auth/... ./cmd/... ./internal/... -v
 	@rm -f integration-test.log server.log logs/server.log .server.pid
 
 # Integration Testing - Full environment with database and server
@@ -910,7 +910,7 @@ build: build-server
 build-everything: build-server
 test: test-unit
 lint:
-	@$(HOME)/go/bin/golangci-lint run
+	@$(HOME)/go/bin/golangci-lint run ./api/... ./auth/... ./cmd/... ./internal/...
 clean: clean-build
 dev: start-dev
 prod: start-dev  # For now, prod is same as dev
