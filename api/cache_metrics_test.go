@@ -511,7 +511,6 @@ func TestEntityStats(t *testing.T) {
 
 // TestCacheStats tests cache statistics structure
 func TestCacheStats(t *testing.T) {
-	now := time.Now()
 	stats := CacheStats{
 		TotalHits:   100,
 		TotalMisses: 25,
@@ -521,17 +520,9 @@ func TestCacheStats(t *testing.T) {
 			Misses:   10,
 			HitRatio: 0.83,
 		},
-		AverageLatency:    15 * time.Millisecond,
-		MaxLatency:        50 * time.Millisecond,
-		MinLatency:        5 * time.Millisecond,
-		TotalKeys:         1000,
-		MemoryUsage:       1024 * 1024, // 1MB
-		ConnectionsActive: 5,
-		Uptime:            2 * time.Hour,
-		LastResetTime:     now,
-		TotalErrors:       5,
-		ConnectionErrors:  2,
-		TimeoutErrors:     1,
+		AverageLatency: 15 * time.Millisecond,
+		TotalKeys:      1000,
+		Uptime:         2 * time.Hour,
 	}
 
 	assert.Equal(t, int64(100), stats.TotalHits)

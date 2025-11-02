@@ -123,18 +123,6 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 	// Normalize severity to standardized case
 	threat.Severity = normalizeSeverity(threat.Severity)
 
-	// Serialize metadata if present
-	var metadataJSON sql.NullString
-	if threat.Metadata != nil && len(*threat.Metadata) > 0 {
-		metadataBytes, err := json.Marshal(*threat.Metadata)
-		if err != nil {
-			logger.Error("Failed to marshal threat metadata: %v", err)
-			return fmt.Errorf("failed to marshal metadata: %w", err)
-		}
-		metadataJSON.String = string(metadataBytes)
-		metadataJSON.Valid = true
-	}
-
 	// Insert into database
 	query := `
 		INSERT INTO threats (
@@ -724,15 +712,6 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 		// Track parent for cache invalidation
 		if parentThreatModelID == "" {
 			parentThreatModelID = threat.ThreatModelId.String()
-		}
-
-		// Serialize metadata if present
-		var metadataJSON sql.NullString
-		if threat.Metadata != nil && len(*threat.Metadata) > 0 {
-			if metadataBytes, err := json.Marshal(*threat.Metadata); err == nil {
-				metadataJSON.String = string(metadataBytes)
-				metadataJSON.Valid = true
-			}
 		}
 
 		_, err = stmt.ExecContext(ctx,

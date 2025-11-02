@@ -885,12 +885,3 @@ func TestWebSocketIntegrationWithHarness(t *testing.T) {
 		assert.True(t, true, "Harness integration placeholder")
 	})
 }
-
-// Helper function to create a mock WebSocket upgrader for testing
-func createTestWebSocketUpgrader() *websocket.Upgrader {
-	return &websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-	}
-}

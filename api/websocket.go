@@ -1631,74 +1631,6 @@ type DiagramOperation struct {
 	Properties map[string]interface{} `json:"properties,omitempty"`
 }
 
-// Validate the diagram operation
-// nolint:unused
-func validateDiagramOperation(op DiagramOperation) error {
-	// Validate operation type
-	if op.Type != "add" && op.Type != "update" && op.Type != "remove" {
-		return fmt.Errorf("invalid operation type: %s", op.Type)
-	}
-
-	// Validate operation parameters based on type
-	switch op.Type {
-	case "add":
-		// Add requires a component
-		if op.Component == nil {
-			return fmt.Errorf("add operation requires component data")
-		}
-
-		// Validate component data
-		if err := validateCell(op.Component); err != nil {
-			return fmt.Errorf("invalid component data: %w", err)
-		}
-
-	case "remove":
-		// Remove requires component ID
-		if op.ComponentID == "" {
-			return fmt.Errorf("remove operation requires component_id")
-		}
-
-		// Validate component ID
-		if _, err := uuid.Parse(op.ComponentID); err != nil {
-			return fmt.Errorf("invalid component ID format: %w", err)
-		}
-
-	case "update":
-		// Update requires component ID and either component or properties
-		if op.ComponentID == "" {
-			return fmt.Errorf("update operation requires component_id")
-		}
-
-		// Validate component ID
-		if _, err := uuid.Parse(op.ComponentID); err != nil {
-			return fmt.Errorf("invalid component ID format: %w", err)
-		}
-
-		// Properties or component required
-		if op.Properties == nil && op.Component == nil {
-			return fmt.Errorf("update operation requires either properties or component")
-		}
-
-		// If component provided, validate it
-		if op.Component != nil {
-			if err := validateCell(op.Component); err != nil {
-				return fmt.Errorf("invalid component data: %w", err)
-			}
-		}
-
-		// If properties provided, validate them
-		if op.Properties != nil {
-			for key := range op.Properties {
-				if len(key) > 255 {
-					return fmt.Errorf("property key exceeds maximum length: %s", key)
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
 // validateCell performs basic cell validation
 func validateCell(cell *DfdDiagram_Cells_Item) error {
 	if cell == nil {
@@ -1724,139 +1656,6 @@ func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte)
 		slogging.Get().Error("Failed to route WebSocket message - Session: %s, User: %s, Error: %v",
 			s.ID, client.UserID, err)
 	}
-}
-
-// processDiagramOperation handles enhanced diagram operations
-// nolint:unused
-func (s *DiagramSession) processDiagramOperation(client *WebSocketClient, message []byte) {
-	defer func() {
-		if r := recover(); r != nil {
-			slogging.Get().Error("PANIC in processDiagramOperation - Session: %s, User: %s, Error: %v, Stack: %s",
-				s.ID, client.UserID, r, debug.Stack())
-		}
-	}()
-
-	startTime := time.Now()
-	slogging.Get().Debug("Processing diagram operation - Session: %s, User: %s", s.ID, client.UserID)
-
-	var msg DiagramOperationMessage
-	if err := json.Unmarshal(message, &msg); err != nil {
-		slogging.Get().Error("Failed to parse diagram operation - Session: %s, User: %s, Error: %v",
-			s.ID, client.UserID, err)
-		return
-	}
-
-	// Record message metrics
-	if GlobalPerformanceMonitor != nil {
-		GlobalPerformanceMonitor.RecordMessage(s.ID, len(message), 0)
-	}
-
-	// User identity is validated by connection authentication, not message payload
-
-	// Check authorization (this will be implemented in the authorization filtering task)
-	// Use email for permission check for backwards compatibility
-	permissionCheckID := client.UserEmail
-	if permissionCheckID == "" {
-		permissionCheckID = client.UserID
-	}
-	if !s.checkMutationPermission(permissionCheckID) {
-		s.sendAuthorizationDenied(client, msg.OperationID, "insufficient_permissions")
-
-		// Send enhanced state correction for affected cells
-		affectedCellIDs := extractCellIDs(msg.Operation.Cells)
-		s.sendStateCorrectionWithReason(client, affectedCellIDs, "unauthorized_operation")
-		return
-	}
-
-	// Check for out-of-order message delivery if client has a sequence number
-	if msg.SequenceNumber != nil {
-		s.mu.Lock()
-		lastSeq, exists := s.clientLastSequence[client.UserID]
-		expectedSeq := lastSeq + 1
-
-		if exists && *msg.SequenceNumber != expectedSeq {
-			if *msg.SequenceNumber < expectedSeq {
-				slogging.Get().Info("Duplicate or old message from %s: expected %d, got %d",
-					client.UserID, expectedSeq, *msg.SequenceNumber)
-				s.trackPotentialSyncIssue(client.UserID, "duplicate_message")
-			} else {
-				slogging.Get().Info("Message gap detected from %s: expected %d, got %d (gap of %d)",
-					client.UserID, expectedSeq, *msg.SequenceNumber, *msg.SequenceNumber-expectedSeq)
-				s.trackPotentialSyncIssue(client.UserID, "message_gap")
-			}
-		}
-
-		// Update client's last sequence number
-		s.clientLastSequence[client.UserID] = *msg.SequenceNumber
-		s.mu.Unlock()
-	}
-
-	// Assign sequence number
-	s.mu.Lock()
-	sequenceNumber := s.NextSequenceNumber
-	s.NextSequenceNumber++
-	s.mu.Unlock()
-
-	msg.SequenceNumber = &sequenceNumber
-
-	// Process operation using shared processor
-	processor := NewCellOperationProcessor(DiagramStore)
-	result, err := processor.ProcessCellOperations(s.DiagramID, msg.Operation)
-	if err != nil {
-		slogging.Get().Info("Failed to process cell operation: %v", err)
-		return
-	}
-
-	if !result.Valid {
-		slogging.Get().Info("Operation %s validation failed: %s", msg.OperationID, result.Reason)
-
-		if result.CorrectionNeeded {
-			s.sendStateCorrection(client, result.CellsModified)
-		}
-		return
-	}
-
-	if !result.StateChanged {
-		slogging.Get().Info("Operation %s resulted in no state changes", msg.OperationID)
-
-		// Record operation performance even for no-op operations
-		if GlobalPerformanceMonitor != nil {
-			perf := &OperationPerformance{
-				OperationID:      msg.OperationID,
-				UserID:           client.UserID,
-				StartTime:        startTime,
-				TotalTime:        time.Since(startTime),
-				CellCount:        len(msg.Operation.Cells),
-				StateChanged:     false,
-				ConflictDetected: false,
-			}
-			GlobalPerformanceMonitor.RecordOperation(perf)
-		}
-		return // Don't broadcast no-op operations
-	}
-
-	// Update operation history
-	s.addToHistory(msg, client.UserID, result.PreviousState, result.PreviousState) // For now, use same state
-
-	// Record operation performance
-	if GlobalPerformanceMonitor != nil {
-		perf := &OperationPerformance{
-			OperationID:      msg.OperationID,
-			UserID:           client.UserID,
-			StartTime:        startTime,
-			TotalTime:        time.Since(startTime),
-			CellCount:        len(msg.Operation.Cells),
-			StateChanged:     result.StateChanged,
-			ConflictDetected: !result.Valid,
-		}
-		GlobalPerformanceMonitor.RecordOperation(perf)
-	}
-
-	slogging.Get().Info("Successfully applied operation %s from %s with sequence %d",
-		msg.OperationID, client.UserID, *msg.SequenceNumber)
-
-	// Broadcast to all other clients (not the sender)
-	s.broadcastToOthers(client, msg)
 }
 
 // processPresenterRequest handles presenter mode requests
@@ -2517,23 +2316,6 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 }
 
 // broadcastSessionTermination sends termination messages to all participants
-
-// cleanupSession removes this session from the hub when it terminates
-// nolint:unused
-func (s *DiagramSession) cleanupSession() {
-	if s.Hub != nil {
-		s.Hub.mu.Lock()
-		delete(s.Hub.Diagrams, s.DiagramID)
-		s.Hub.mu.Unlock()
-
-		slogging.Get().Info("Session %s removed from hub after termination", s.ID)
-
-		// Record session end
-		if GlobalPerformanceMonitor != nil {
-			GlobalPerformanceMonitor.RecordSessionEnd(s.ID)
-		}
-	}
-}
 
 // findClientByUserID finds a connected client by their user ID
 func (s *DiagramSession) findClientByUserID(userID string) *WebSocketClient {
@@ -3460,69 +3242,6 @@ type OperationValidationResult struct {
 	PreviousState    map[string]*DfdDiagram_Cells_Item
 }
 
-// applyOperation applies a diagram operation with validation and conflict detection
-// nolint:unused
-func (s *DiagramSession) applyOperation(client *WebSocketClient, msg DiagramOperationMessage) bool {
-	slogging.Get().Debug("applyOperation - Session: %s, User: %s, OperationID: %s, Cell operations: %d",
-		s.ID, client.UserID, msg.OperationID, len(msg.Operation.Cells))
-
-	// Get current diagram state
-	diagram, err := DiagramStore.Get(s.DiagramID)
-	if err != nil {
-		slogging.Get().Warn("applyOperation FAILED - Session: %s, User: %s, OperationID: %s, Reason: Failed to get diagram: %v",
-			s.ID, client.UserID, msg.OperationID, err)
-		return false
-	}
-
-	// Build current state map for conflict detection
-	currentState := make(map[string]*DfdDiagram_Cells_Item)
-	for i := range diagram.Cells {
-		cellItem := &diagram.Cells[i]
-		// Extract ID from union type
-		var itemID string
-		if node, err := cellItem.AsNode(); err == nil {
-			itemID = node.Id.String()
-		} else if edge, err := cellItem.AsEdge(); err == nil {
-			itemID = edge.Id.String()
-		}
-		if itemID != "" {
-			currentState[itemID] = cellItem
-		}
-	}
-
-	slogging.Get().Debug("applyOperation - Session: %s, Current diagram cells: %d, Processing %d cell operations",
-		s.ID, len(currentState), len(msg.Operation.Cells))
-
-	// Process each cell operation
-	result := s.processAndValidateCellOperations(&diagram, currentState, msg.Operation)
-
-	if !result.Valid {
-		slogging.Get().Info("applyOperation VALIDATION FAILED - Session: %s, User: %s, OperationID: %s, Reason: %s, ConflictDetected: %v, CorrectionNeeded: %v",
-			s.ID, client.UserID, msg.OperationID, result.Reason, result.ConflictDetected, result.CorrectionNeeded)
-
-		if result.CorrectionNeeded {
-			slogging.Get().Info("applyOperation - Sending state correction to %s for cells: %v", client.UserID, result.CellsModified)
-			s.sendStateCorrection(client, result.CellsModified)
-		}
-
-		return false
-	}
-
-	if !result.StateChanged {
-		slogging.Get().Info("applyOperation NO STATE CHANGE - Session: %s, User: %s, OperationID: %s, Reason: Operation resulted in no state changes (idempotent or no-op)",
-			s.ID, client.UserID, msg.OperationID)
-		return false // Don't broadcast no-op operations
-	}
-
-	// Update operation history
-	s.addToHistory(msg, client.UserID, result.PreviousState, currentState)
-
-	slogging.Get().Info("applyOperation SUCCESS - Session: %s, User: %s, OperationID: %s, SequenceNumber: %d, CellsModified: %d, Will broadcast: true",
-		s.ID, client.UserID, msg.OperationID, *msg.SequenceNumber, len(result.CellsModified))
-
-	return true
-}
-
 // processAndValidateCellOperations processes and validates cell operations
 func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, operation CellPatchOperation) OperationValidationResult {
 	result := OperationValidationResult{
@@ -3789,25 +3508,6 @@ func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, userID string
 	s.OperationHistory.AddOperation(entry)
 }
 
-// cleanupOldHistory removes old history entries to stay within limits
-// nolint:unused
-func (s *DiagramSession) cleanupOldHistory() {
-	// Find oldest entries to remove
-	var sequences []uint64
-	for seq := range s.OperationHistory.Operations {
-		sequences = append(sequences, seq)
-	}
-
-	// Sort and remove oldest
-	if len(sequences) > s.OperationHistory.MaxEntries {
-		// Simple approach: remove entries older than MaxEntries/2 to free up space
-		toRemove := len(sequences) - s.OperationHistory.MaxEntries/2
-		for i := 0; i < toRemove; i++ {
-			delete(s.OperationHistory.Operations, sequences[i])
-		}
-	}
-}
-
 // History utility methods for operation tracking
 
 // GetHistoryEntry retrieves a specific history entry by sequence number
@@ -3981,17 +3681,6 @@ func (c *WebSocketClient) ReadPump() {
 		// Process message using enhanced message handler
 		c.Session.ProcessMessage(c, message)
 	}
-}
-
-// applyDiagramOperation applies a diagram operation to the stored diagram
-// Note: This function is currently unused according to linter warnings
-// nolint:unused
-func applyDiagramOperation(_ string, _ DiagramOperation) error {
-	// Since this function is unused and the validation functions (validateAddOperation, etc.)
-	// already handle individual cell operations with proper centralized updates,
-	// we'll deprecate this function to avoid complexity.
-	// If needed in the future, it should be refactored to use the centralized UpdateDiagram function.
-	return fmt.Errorf("applyDiagramOperation is deprecated - use CellOperationProcessor instead")
 }
 
 // WritePump pumps messages from hub to WebSocket

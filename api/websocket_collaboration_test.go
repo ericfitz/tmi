@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"sync"
 	"testing"
 	"time"
 
@@ -301,19 +300,12 @@ func testPerformanceMonitoring(t *testing.T, suite *SubEntityIntegrationTestSuit
 }
 
 // Helper function to create WebSocket client
-func createWebSocketClient(t *testing.T, suite *SubEntityIntegrationTestSuite, diagramID, userID string) *websocket.Conn {
+func createWebSocketClient(t *testing.T, _ *SubEntityIntegrationTestSuite, diagramID, userID string) *websocket.Conn {
 	// For testing purposes, we'll create a simple mock WebSocket connection
 	// In a real test environment, you would need to set up the WebSocket server properly
 	t.Logf("Created mock WebSocket client for %s on diagram %s", userID, diagramID)
 
 	return &websocket.Conn{} // Return a placeholder connection for now
-}
-
-// mockWebSocketConn is a simple mock for testing message structures
-type mockWebSocketConn struct {
-	messages chan []byte
-	closed   chan struct{}
-	mu       sync.RWMutex
 }
 
 // Simple test functions that verify message structure validation
@@ -409,7 +401,6 @@ func TestOperationSequencing(t *testing.T) {
 		Clients:            make(map[*WebSocketClient]bool),
 		NextSequenceNumber: 1,
 		clientLastSequence: make(map[string]uint64),
-		recentCorrections:  make(map[string]int),
 	}
 
 	// Test sequence number assignment

@@ -254,7 +254,7 @@ func TestCreateThreat(t *testing.T) {
 			"mitigated":   false,
 		}
 
-		createdThreat := &Threat{
+		_ = &Threat{
 			Name:        "New Test Threat",
 			Description: stringPtr("A threat created for testing"),
 			Severity:    ThreatSeverityHigh,
@@ -264,7 +264,6 @@ func TestCreateThreat(t *testing.T) {
 			Mitigated:   false,
 		}
 		threatUUID, _ := uuid.Parse("00000000-0000-0000-0000-000000000002")
-		createdThreat.Id = &threatUUID
 
 		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Threat")).Return(nil).Run(func(args mock.Arguments) {
 			threat := args.Get(1).(*Threat)

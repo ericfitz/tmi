@@ -719,13 +719,12 @@ func TestCacheWarmer_WarmOnDemandRequest_INTEGRATION(t *testing.T) {
 func TestWarmingRequest(t *testing.T) {
 	t.Run("ValidRequest", func(t *testing.T) {
 		request := WarmingRequest{
-			EntityType:    "threat",
-			EntityID:      uuid.New().String(),
-			ThreatModelID: uuid.New().String(),
-			Priority:      PriorityHigh,
-			Strategy:      WarmProactively,
-			TTLOverride:   &[]time.Duration{5 * time.Minute}[0],
-			ForceRefresh:  true,
+			EntityType:   "threat",
+			EntityID:     uuid.New().String(),
+			Priority:     PriorityHigh,
+			Strategy:     WarmProactively,
+			TTLOverride:  &[]time.Duration{5 * time.Minute}[0],
+			ForceRefresh: true,
 		}
 
 		assert.Equal(t, "threat", request.EntityType)
@@ -743,13 +742,8 @@ func TestWarmingStats(t *testing.T) {
 		stats := WarmingStats{
 			TotalWarmed:       10,
 			ThreatsWarmed:     3,
-			DocumentsWarmed:   2,
-			SourcesWarmed:     1,
-			MetadataWarmed:    2,
-			AuthDataWarmed:    2,
 			WarmingDuration:   30 * time.Second,
 			ErrorsEncountered: 1,
-			LastWarmingTime:   time.Now(),
 		}
 
 		assert.Equal(t, 10, stats.TotalWarmed)

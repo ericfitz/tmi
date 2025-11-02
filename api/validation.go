@@ -82,6 +82,16 @@ func parseAndValidateStruct[T any](rawData map[string]interface{}, result *T) er
 
 	// Parse into struct
 	if err := json.Unmarshal(jsonData, result); err != nil {
+		// Check for UUID parsing errors and provide helpful context
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "invalid UUID") {
+			// Extract field name if possible from error context
+			return InvalidInputError(fmt.Sprintf(
+				"Invalid UUID format in request. UUIDs must be in standard format (e.g., '550e8400-e29b-41d4-a716-446655440000'). "+
+					"If a UUID field is optional, omit it or send null instead of invalid values. Error: %s",
+				errMsg,
+			))
+		}
 		return InvalidInputError("Invalid request format: " + err.Error())
 	}
 
