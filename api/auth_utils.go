@@ -149,6 +149,13 @@ const (
 	AuthTypeTMI10 = "tmi-1.0"
 )
 
+// Pseudo-group constants
+const (
+	// EveryonePseudoGroup is a special group that matches all authenticated users
+	// regardless of their identity provider or actual group memberships
+	EveryonePseudoGroup = "everyone"
+)
+
 // AuthorizationData represents abstracted authorization data for any resource
 type AuthorizationData struct {
 	Type          string          `json:"type"`
@@ -201,6 +208,71 @@ func AccessCheckWithGroups(principal string, principalIdP string, principalGroup
 	return AccessCheckWithGroupsAndIdPLookup(context.Background(), nil, principal, principalIdP, principalGroups, requiredRole, authData)
 }
 
+// checkUserMatch checks if an authorization entry matches the principal user
+// Returns true if the user matches, using two-step matching when authService is available
+func checkUserMatch(ctx context.Context, authService AuthService, auth Authorization, principal string) bool {
+	if authService != nil {
+		// Step 1: Try to match subject as IdP user ID
+		if auth.Idp != nil && *auth.Idp != "" {
+			// Provider-specific check: subject is IdP user ID for specific provider
+			if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
+				service := authAdapter.GetService()
+				if service != nil {
+					user, err := service.GetUserByProviderID(ctx, *auth.Idp, auth.Subject)
+					if err == nil && user.Email == principal {
+						return true
+					}
+				}
+			}
+		} else {
+			// Provider-independent check: subject could be IdP ID from any provider
+			if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
+				service := authAdapter.GetService()
+				if service != nil {
+					user, err := service.GetUserByAnyProviderID(ctx, auth.Subject)
+					if err == nil && user.Email == principal {
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	// Step 2: Fallback to direct email matching
+	return auth.Subject == principal
+}
+
+// checkGroupMatch checks if an authorization entry matches the principal's groups
+// Returns true if the user is a member of the group, handling special pseudo-groups
+func checkGroupMatch(auth Authorization, principal string, principalIdP string, principalGroups []string) bool {
+	// Special handling for "everyone" pseudo-group
+	if auth.Subject == EveryonePseudoGroup {
+		logger := slogging.Get()
+		logger.Debug("Access granted via 'everyone' pseudo-group with role: %s for user: %s",
+			auth.Role, principal)
+		return true
+	}
+
+	// Normal groups must match both the group name AND the IdP
+	if auth.Idp != nil && *auth.Idp == principalIdP {
+		for _, group := range principalGroups {
+			if auth.Subject == group {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// updateHighestRole updates the highest role if the new role is higher
+func updateHighestRole(currentHighest Role, newRole Role, found bool) (Role, bool) {
+	if !found || isHigherRole(newRole, currentHighest) {
+		return newRole, true
+	}
+	return currentHighest, found
+}
+
 // AccessCheckWithGroupsAndIdPLookup performs authorization check with group support and IdP user ID lookup
 // Returns true if the principal or one of their groups has the required role
 // When authService is provided, it enables two-step user matching:
@@ -214,7 +286,6 @@ func AccessCheckWithGroupsAndIdPLookup(ctx context.Context, authService AuthServ
 
 	// Check if principal is the owner
 	if authData.Owner == principal {
-		// Owner always has access regardless of required role
 		return true
 	}
 
@@ -224,73 +295,24 @@ func AccessCheckWithGroupsAndIdPLookup(ctx context.Context, authService AuthServ
 
 	for _, auth := range authData.Authorization {
 		// Check user authorization
-		// If SubjectType is empty string, assume it's a user for backward compatibility
 		if auth.SubjectType == "" || auth.SubjectType == AuthorizationSubjectTypeUser {
-			// Two-step user matching when authService is available
-			userMatched := false
-
-			if authService != nil {
-				// Step 1: Try to match subject as IdP user ID
-				if auth.Idp != nil && *auth.Idp != "" {
-					// Provider-specific check: subject is IdP user ID for specific provider
-					if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
-						service := authAdapter.GetService()
-						if service != nil {
-							user, err := service.GetUserByProviderID(ctx, *auth.Idp, auth.Subject)
-							if err == nil && user.Email == principal {
-								userMatched = true
-							}
-						}
-					}
-				} else {
-					// Provider-independent check: subject could be IdP ID from any provider
-					if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
-						service := authAdapter.GetService()
-						if service != nil {
-							user, err := service.GetUserByAnyProviderID(ctx, auth.Subject)
-							if err == nil && user.Email == principal {
-								userMatched = true
-							}
-						}
-					}
-				}
-			}
-
-			// Step 2: Fallback to direct email matching
-			if !userMatched && auth.Subject == principal {
-				userMatched = true
-			}
-
-			if userMatched {
-				if !found || isHigherRole(auth.Role, highestRole) {
-					highestRole = auth.Role
-					found = true
-				}
+			if checkUserMatch(ctx, authService, auth, principal) {
+				highestRole, found = updateHighestRole(highestRole, auth.Role, found)
 			}
 		}
 
 		// Check group authorization
 		if auth.SubjectType == AuthorizationSubjectTypeGroup {
-			// Groups must match both the group name AND the IdP
-			if auth.Idp != nil && *auth.Idp == principalIdP {
-				for _, group := range principalGroups {
-					if auth.Subject == group {
-						if !found || isHigherRole(auth.Role, highestRole) {
-							highestRole = auth.Role
-							found = true
-						}
-					}
-				}
+			if checkGroupMatch(auth, principal, principalIdP, principalGroups) {
+				highestRole, found = updateHighestRole(highestRole, auth.Role, found)
 			}
 		}
 	}
 
 	if !found {
-		// Principal not found in authorization list
 		return false
 	}
 
-	// Check if the principal's highest role meets the required role
 	return hasRequiredRole(highestRole, requiredRole)
 }
 

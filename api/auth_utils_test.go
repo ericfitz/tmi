@@ -1089,3 +1089,335 @@ func TestIsHigherRole(t *testing.T) {
 		})
 	}
 }
+
+// TestEveryonePseudoGroup tests the "everyone" pseudo-group functionality
+func TestEveryonePseudoGroup(t *testing.T) {
+	tests := []struct {
+		name         string
+		principal    string
+		principalIdP string
+		groups       []string
+		requiredRole Role
+		authData     AuthorizationData
+		expected     bool
+		description  string
+	}{
+		{
+			name:         "everyone grants reader access to any user",
+			principal:    "alice@example.com",
+			principalIdP: "test",
+			groups:       []string{},
+			requiredRole: RoleReader,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner@example.com",
+				Authorization: []Authorization{
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Role:        RoleReader,
+					},
+				},
+			},
+			expected:    true,
+			description: "User with no groups should get reader access via everyone",
+		},
+		{
+			name:         "everyone grants writer access to any user",
+			principal:    "bob@example.com",
+			principalIdP: "google",
+			groups:       []string{"some-group"},
+			requiredRole: RoleWriter,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner@example.com",
+				Authorization: []Authorization{
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Role:        RoleWriter,
+					},
+				},
+			},
+			expected:    true,
+			description: "User from different IdP should get writer access via everyone",
+		},
+		{
+			name:         "everyone grants owner access to any user",
+			principal:    "charlie@example.com",
+			principalIdP: "saml",
+			groups:       []string{},
+			requiredRole: RoleOwner,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner@example.com",
+				Authorization: []Authorization{
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Role:        RoleOwner,
+					},
+				},
+			},
+			expected:    true,
+			description: "User from SAML IdP should get owner access via everyone",
+		},
+		{
+			name:         "everyone works with nil IdP field",
+			principal:    "dave@example.com",
+			principalIdP: "test",
+			groups:       []string{},
+			requiredRole: RoleReader,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner@example.com",
+				Authorization: []Authorization{
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Idp:         nil,
+						Role:        RoleReader,
+					},
+				},
+			},
+			expected:    true,
+			description: "Everyone pseudo-group should work with nil IdP",
+		},
+		{
+			name:         "everyone works even when IdP is specified (ignored)",
+			principal:    "eve@example.com",
+			principalIdP: "google",
+			groups:       []string{},
+			requiredRole: RoleReader,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner@example.com",
+				Authorization: []Authorization{
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Idp:         stringPtr("test"),
+						Role:        RoleReader,
+					},
+				},
+			},
+			expected:    true,
+			description: "Everyone should match even if IdP field is set (it's ignored)",
+		},
+		{
+			name:         "specific user role overrides everyone (higher role)",
+			principal:    "alice@example.com",
+			principalIdP: "test",
+			groups:       []string{},
+			requiredRole: RoleOwner,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner@example.com",
+				Authorization: []Authorization{
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Role:        RoleReader,
+					},
+					{
+						Subject:     "alice@example.com",
+						SubjectType: AuthorizationSubjectTypeUser,
+						Role:        RoleOwner,
+					},
+				},
+			},
+			expected:    true,
+			description: "Specific user with owner role should override everyone reader role",
+		},
+		{
+			name:         "everyone provides fallback when user has no specific grant",
+			principal:    "bob@example.com",
+			principalIdP: "test",
+			groups:       []string{},
+			requiredRole: RoleReader,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner@example.com",
+				Authorization: []Authorization{
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Role:        RoleReader,
+					},
+					{
+						Subject:     "alice@example.com",
+						SubjectType: AuthorizationSubjectTypeUser,
+						Role:        RoleOwner,
+					},
+				},
+			},
+			expected:    true,
+			description: "User without specific grant should get reader access via everyone",
+		},
+		{
+			name:         "specific group role combines with everyone (highest wins)",
+			principal:    "carol@example.com",
+			principalIdP: "google",
+			groups:       []string{"editors"},
+			requiredRole: RoleWriter,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner@example.com",
+				Authorization: []Authorization{
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Role:        RoleReader,
+					},
+					{
+						Subject:     "editors",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Idp:         stringPtr("google"),
+						Role:        RoleWriter,
+					},
+				},
+			},
+			expected:    true,
+			description: "User in editors group should get writer role (higher than everyone reader)",
+		},
+		{
+			name:         "everyone reader cannot access writer-required resource",
+			principal:    "frank@example.com",
+			principalIdP: "test",
+			groups:       []string{},
+			requiredRole: RoleWriter,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner@example.com",
+				Authorization: []Authorization{
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Role:        RoleReader,
+					},
+				},
+			},
+			expected:    false,
+			description: "Everyone with reader role should not grant writer access",
+		},
+		{
+			name:         "everyone works across different IdPs",
+			principal:    "grace@example.com",
+			principalIdP: "okta",
+			groups:       []string{},
+			requiredRole: RoleReader,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner@example.com",
+				Authorization: []Authorization{
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Role:        RoleReader,
+					},
+				},
+			},
+			expected:    true,
+			description: "Everyone should work for users from any IdP (okta in this case)",
+		},
+		{
+			name:         "owner field still takes precedence over everyone",
+			principal:    "owner@example.com",
+			principalIdP: "test",
+			groups:       []string{},
+			requiredRole: RoleOwner,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner@example.com",
+				Authorization: []Authorization{
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Role:        RoleReader,
+					},
+				},
+			},
+			expected:    true,
+			description: "Owner field should grant owner permissions regardless of everyone",
+		},
+		{
+			name:         "multiple everyone entries - highest role wins",
+			principal:    "harry@example.com",
+			principalIdP: "test",
+			groups:       []string{},
+			requiredRole: RoleWriter,
+			authData: AuthorizationData{
+				Type:  AuthTypeTMI10,
+				Owner: "owner@example.com",
+				Authorization: []Authorization{
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Role:        RoleReader,
+					},
+					{
+						Subject:     "everyone",
+						SubjectType: AuthorizationSubjectTypeGroup,
+						Role:        RoleWriter,
+					},
+				},
+			},
+			expected:    true,
+			description: "Multiple everyone entries should result in highest role (writer)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := AccessCheckWithGroups(tt.principal, tt.principalIdP, tt.groups, tt.requiredRole, tt.authData)
+			assert.Equal(t, tt.expected, result, tt.description)
+		})
+	}
+}
+
+// TestEveryonePseudoGroupMixedScenarios tests complex mixed authorization scenarios
+func TestEveryonePseudoGroupMixedScenarios(t *testing.T) {
+	t.Run("complex authorization with everyone, groups, and users", func(t *testing.T) {
+		authData := AuthorizationData{
+			Type:  AuthTypeTMI10,
+			Owner: "admin@example.com",
+			Authorization: []Authorization{
+				{
+					Subject:     "everyone",
+					SubjectType: AuthorizationSubjectTypeGroup,
+					Role:        RoleReader,
+				},
+				{
+					Subject:     "editors",
+					SubjectType: AuthorizationSubjectTypeGroup,
+					Idp:         stringPtr("google"),
+					Role:        RoleWriter,
+				},
+				{
+					Subject:     "power-user@example.com",
+					SubjectType: AuthorizationSubjectTypeUser,
+					Role:        RoleOwner,
+				},
+			},
+		}
+
+		// Test 1: Random user gets reader via everyone
+		assert.True(t, AccessCheckWithGroups("random@example.com", "test", []string{}, RoleReader, authData))
+		assert.False(t, AccessCheckWithGroups("random@example.com", "test", []string{}, RoleWriter, authData))
+
+		// Test 2: Editor from google gets writer (higher than everyone reader)
+		assert.True(t, AccessCheckWithGroups("editor@example.com", "google", []string{"editors"}, RoleReader, authData))
+		assert.True(t, AccessCheckWithGroups("editor@example.com", "google", []string{"editors"}, RoleWriter, authData))
+		assert.False(t, AccessCheckWithGroups("editor@example.com", "google", []string{"editors"}, RoleOwner, authData))
+
+		// Test 3: Editor from different IdP only gets everyone reader
+		assert.True(t, AccessCheckWithGroups("editor@example.com", "okta", []string{"editors"}, RoleReader, authData))
+		assert.False(t, AccessCheckWithGroups("editor@example.com", "okta", []string{"editors"}, RoleWriter, authData))
+
+		// Test 4: Power user gets owner
+		assert.True(t, AccessCheckWithGroups("power-user@example.com", "test", []string{}, RoleOwner, authData))
+
+		// Test 5: Admin (owner) gets owner permissions
+		assert.True(t, AccessCheckWithGroups("admin@example.com", "test", []string{}, RoleOwner, authData))
+	})
+}
