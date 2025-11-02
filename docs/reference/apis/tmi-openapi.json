@@ -598,11 +598,8 @@
           },
           {
             "type": "object",
-            "description": "A diagram node representing an entity, process, store, or boundary. Fully compatible with X6 Node objects using X6's native toJSON/fromJSON format with position and size objects.",
-            "required": [
-              "position",
-              "size"
-            ],
+            "description": "A diagram node representing an entity, process, store, or boundary. Supports both X6 position/size object format and flat x/y/width/height format. Input accepts either format. Output always uses flat format (x, y, width, height).",
+            "required": [],
             "properties": {
               "shape": {
                 "type": "string",
@@ -617,7 +614,7 @@
               },
               "position": {
                 "type": "object",
-                "description": "Node position in X6 format",
+                "description": "Node position in X6 nested format. Use either this with size object OR use flat x/y/width/height properties.",
                 "properties": {
                   "x": {
                     "type": "number",
@@ -635,7 +632,7 @@
               },
               "size": {
                 "type": "object",
-                "description": "Node size in X6 format",
+                "description": "Node size in X6 nested format. Use either this with position object OR use flat x/y/width/height properties.",
                 "properties": {
                   "width": {
                     "type": "number",
@@ -680,19 +677,33 @@
                 "description": "ID of the parent cell for nested/grouped nodes (UUID)",
                 "nullable": true,
                 "maxLength": 36
+              },
+              "x": {
+                "type": "number",
+                "description": "X coordinate (flat format). Use either this with y, width, height OR use position/size objects."
+              },
+              "y": {
+                "type": "number",
+                "description": "Y coordinate (flat format)"
+              },
+              "width": {
+                "type": "number",
+                "description": "Width in pixels (flat format)",
+                "minimum": 40
+              },
+              "height": {
+                "type": "number",
+                "description": "Height in pixels (flat format)",
+                "minimum": 30
               }
             },
             "example": {
               "id": "233598D2-8C6D-4A73-AFE1-647081C4F7AA",
               "shape": "process",
-              "position": {
-                "x": 100,
-                "y": 100
-              },
-              "size": {
-                "width": 120,
-                "height": 60
-              },
+              "x": 100,
+              "y": 100,
+              "width": 120,
+              "height": 60,
               "zIndex": 10,
               "visible": true,
               "attrs": {
@@ -706,68 +717,7 @@
                   "fontSize": 14,
                   "fill": "#000000"
                 }
-              },
-              "ports": {
-                "groups": {
-                  "in": {
-                    "position": "left"
-                  },
-                  "out": {
-                    "position": "right"
-                  }
-                },
-                "items": [
-                  {
-                    "id": "port_in_1",
-                    "group": "in"
-                  },
-                  {
-                    "id": "port_out_1",
-                    "group": "out"
-                  }
-                ]
-              },
-              "data": {
-                "_metadata": [
-                  {
-                    "key": "category",
-                    "value": "business-process"
-                  },
-                  {
-                    "key": "owner",
-                    "value": "engineering-team"
-                  }
-                ],
-                "customValidation": {
-                  "rules": [
-                    "required-input",
-                    "sanitize-output"
-                  ],
-                  "level": "strict"
-                }
-              },
-              "markup": [
-                {
-                  "tagName": "rect",
-                  "selector": "body",
-                  "attrs": {
-                    "rx": 5,
-                    "ry": 5
-                  }
-                },
-                {
-                  "tagName": "text",
-                  "selector": "label"
-                }
-              ],
-              "tools": [
-                {
-                  "name": "boundary",
-                  "args": {
-                    "padding": 5
-                  }
-                }
-              ]
+              }
             }
           }
         ]

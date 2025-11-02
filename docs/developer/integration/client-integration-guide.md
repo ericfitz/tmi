@@ -70,6 +70,99 @@ await client.sendBatchOperation([
 ]);
 ```
 
+## Node Position and Size Format
+
+### Dual Format Support (AntV/X6 Compatible)
+
+The TMI API supports **two formats** for node position and size properties to ensure compatibility with both AntV/X6 formats:
+
+**Format 1 (Nested - Legacy):**
+```javascript
+{
+  "id": "uuid",
+  "shape": "process",
+  "position": {
+    "x": 100,
+    "y": 200
+  },
+  "size": {
+    "width": 80,
+    "height": 60
+  }
+}
+```
+
+**Format 2 (Flat - Recommended):**
+```javascript
+{
+  "id": "uuid",
+  "shape": "process",
+  "x": 100,
+  "y": 200,
+  "width": 80,
+  "height": 60
+}
+```
+
+### Key Points
+
+- **Input**: The API accepts **both formats** when creating or updating nodes
+- **Output**: The API **always returns flat format** (Format 2) in responses
+- **Preference**: When both formats are provided, flat format takes precedence
+- **Migration**: Existing clients using nested format will continue to work, but responses will use flat format
+
+### Code Examples
+
+**Sending nodes (either format works):**
+```javascript
+// Using flat format (recommended)
+await client.addCell({
+  id: uuid(),
+  shape: "process",
+  x: 100,
+  y: 150,
+  width: 120,
+  height: 80
+});
+
+// Using nested format (legacy, still supported)
+await client.addCell({
+  id: uuid(),
+  shape: "process",
+  position: { x: 100, y: 150 },
+  size: { width: 120, height: 80 }
+});
+```
+
+**Receiving nodes (always flat format):**
+```javascript
+client.on("diagramOperation", (operation) => {
+  operation.cells.forEach(cellOp => {
+    if (cellOp.operation === "add" && cellOp.data) {
+      // Response always uses flat format
+      console.log(`Node at (${cellOp.data.x}, ${cellOp.data.y})`);
+      console.log(`Size: ${cellOp.data.width}x${cellOp.data.height}`);
+    }
+  });
+});
+```
+
+### TypeScript Type Definitions
+
+For TypeScript projects, use the flat format in your type definitions:
+
+```typescript
+interface Node {
+  id: string;
+  shape: "actor" | "process" | "store" | "security-boundary" | "text-box";
+  x: number;
+  y: number;
+  width: number;  // Minimum: 40
+  height: number; // Minimum: 30
+  // ... other optional fields
+}
+```
+
 ## Collaboration Session Management
 
 ### Overview
@@ -1807,10 +1900,11 @@ interface CellOperation {
 interface Cell {
   id: string;
   shape: string;
+  // Position and size in flat format (API always returns this format)
   x: number;
   y: number;
-  width: number;
-  height: number;
+  width: number;  // Minimum: 40
+  height: number; // Minimum: 30
   label: string;
   [key: string]: any;
 }
