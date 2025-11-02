@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -308,24 +307,12 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 	// Normalize severity to standardized case
 	threat.Severity = normalizeSeverity(threat.Severity)
 
-	// Serialize metadata if present
-	var metadataJSON sql.NullString
-	if threat.Metadata != nil && len(*threat.Metadata) > 0 {
-		metadataBytes, err := json.Marshal(*threat.Metadata)
-		if err != nil {
-			logger.Error("Failed to marshal threat metadata: %v", err)
-			return fmt.Errorf("failed to marshal metadata: %w", err)
-		}
-		metadataJSON.String = string(metadataBytes)
-		metadataJSON.Valid = true
-	}
-
 	query := `
 		UPDATE threats SET
 			name = $2, description = $3, severity = $4, mitigation = $5,
 			threat_type = $6, status = $7, priority = $8, mitigated = $9,
 			score = $10, issue_uri = $11, diagram_id = $12, cell_id = $13,
-			asset_id = $14, metadata = $15, modified_at = $16
+			asset_id = $14, modified_at = $15
 		WHERE id = $1
 	`
 
@@ -344,7 +331,6 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 		threat.DiagramId,
 		threat.CellId,
 		threat.AssetId,
-		metadataJSON,
 		threat.ModifiedAt,
 	)
 
@@ -361,6 +347,12 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 
 	if rowsAffected == 0 {
 		return fmt.Errorf("threat not found: %s", threat.Id)
+	}
+
+	// Save metadata to separate table
+	if err := s.saveMetadata(ctx, threat.Id.String(), threat.Metadata); err != nil {
+		logger.Error("Failed to save metadata for threat %s: %v", threat.Id, err)
+		// Don't fail the update if metadata save fails, just log the error
 	}
 
 	// Update cache
@@ -785,7 +777,7 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 			name = $2, description = $3, severity = $4, mitigation = $5,
 			threat_type = $6, status = $7, priority = $8, mitigated = $9,
 			score = $10, issue_uri = $11, diagram_id = $12, cell_id = $13,
-			asset_id = $14, metadata = $15, modified_at = $16
+			asset_id = $14, modified_at = $15
 		WHERE id = $1
 	`
 
@@ -815,15 +807,6 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 			parentThreatModelID = threat.ThreatModelId.String()
 		}
 
-		// Serialize metadata if present
-		var metadataJSON sql.NullString
-		if threat.Metadata != nil && len(*threat.Metadata) > 0 {
-			if metadataBytes, err := json.Marshal(*threat.Metadata); err == nil {
-				metadataJSON.String = string(metadataBytes)
-				metadataJSON.Valid = true
-			}
-		}
-
 		_, err = stmt.ExecContext(ctx,
 			threat.Id,
 			threat.Name,
@@ -839,13 +822,18 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 			threat.DiagramId,
 			threat.CellId,
 			threat.AssetId,
-			metadataJSON,
 			threat.ModifiedAt,
 		)
 
 		if err != nil {
 			logger.Error("Failed to execute bulk update for threat %d: %v", i, err)
 			return fmt.Errorf("failed to update threat %d: %w", i, err)
+		}
+
+		// Save metadata to separate table
+		if err := s.saveMetadata(ctx, threat.Id.String(), threat.Metadata); err != nil {
+			logger.Error("Failed to save metadata for threat %s: %v", threat.Id, err)
+			// Don't fail the bulk update if metadata save fails, just log the error
 		}
 	}
 
@@ -899,8 +887,8 @@ func (s *DatabaseThreatStore) WarmCache(ctx context.Context, threatModelID strin
 // loadMetadata loads metadata for a threat from the metadata table
 func (s *DatabaseThreatStore) loadMetadata(ctx context.Context, threatID string) ([]Metadata, error) {
 	query := `
-		SELECT key, value 
-		FROM metadata 
+		SELECT key, value
+		FROM metadata
 		WHERE entity_type = 'threat' AND entity_id = $1
 		ORDER BY key ASC
 	`
@@ -933,6 +921,36 @@ func (s *DatabaseThreatStore) loadMetadata(ctx context.Context, threatID string)
 	}
 
 	return metadata, nil
+}
+
+// saveMetadata saves metadata for a threat to the metadata table
+func (s *DatabaseThreatStore) saveMetadata(ctx context.Context, threatID string, metadata *[]Metadata) error {
+	logger := slogging.Get()
+
+	// Delete existing metadata for this threat
+	deleteQuery := `DELETE FROM metadata WHERE entity_type = 'threat' AND entity_id = $1`
+	if _, err := s.db.ExecContext(ctx, deleteQuery, threatID); err != nil {
+		logger.Error("Failed to delete existing metadata for threat %s: %v", threatID, err)
+		return fmt.Errorf("failed to delete existing metadata: %w", err)
+	}
+
+	// Insert new metadata if present
+	if metadata != nil && len(*metadata) > 0 {
+		insertQuery := `
+			INSERT INTO metadata (id, entity_type, entity_id, key, value, created_at, modified_at)
+			VALUES ($1, 'threat', $2, $3, $4, $5, $6)
+		`
+		now := time.Now().UTC()
+		for _, m := range *metadata {
+			id := uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata)
+			if _, err := s.db.ExecContext(ctx, insertQuery, id, threatID, m.Key, m.Value, now, now); err != nil {
+				logger.Error("Failed to insert metadata for threat %s (key: %s): %v", threatID, m.Key, err)
+				return fmt.Errorf("failed to insert metadata: %w", err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // Helper functions for DatabaseThreatStore to reduce cyclomatic complexity
@@ -973,7 +991,7 @@ func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter Threat
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
-			   score, issue_uri, diagram_id, cell_id, asset_id, metadata, created_at, modified_at
+			   score, issue_uri, diagram_id, cell_id, asset_id, created_at, modified_at
 		FROM threats
 		WHERE threat_model_id = $1`
 
@@ -1172,7 +1190,6 @@ func (s *DatabaseThreatStore) scanSingleThreat(rows *sql.Rows) (Threat, error) {
 	var description, mitigation, issueUrl sql.NullString
 	var score sql.NullFloat64
 	var diagramId, cellId, assetId sql.NullString
-	var metadataJSON sql.NullString
 
 	err := rows.Scan(
 		&threat.Id,
@@ -1190,7 +1207,6 @@ func (s *DatabaseThreatStore) scanSingleThreat(rows *sql.Rows) (Threat, error) {
 		&diagramId,
 		&cellId,
 		&assetId,
-		&metadataJSON,
 		&threat.CreatedAt,
 		&threat.ModifiedAt,
 	)
@@ -1200,14 +1216,14 @@ func (s *DatabaseThreatStore) scanSingleThreat(rows *sql.Rows) (Threat, error) {
 	}
 
 	// Handle nullable fields
-	s.populateNullableFields(&threat, description, mitigation, issueUrl, score, diagramId, cellId, assetId, metadataJSON)
+	s.populateNullableFields(&threat, description, mitigation, issueUrl, score, diagramId, cellId, assetId)
 
 	return threat, nil
 }
 
 // populateNullableFields sets the nullable fields on a Threat
 func (s *DatabaseThreatStore) populateNullableFields(threat *Threat, description, mitigation, issueUrl sql.NullString,
-	score sql.NullFloat64, diagramId, cellId, assetId sql.NullString, metadataJSON sql.NullString) {
+	score sql.NullFloat64, diagramId, cellId, assetId sql.NullString) {
 
 	if description.Valid {
 		threat.Description = &description.String
@@ -1235,12 +1251,6 @@ func (s *DatabaseThreatStore) populateNullableFields(threat *Threat, description
 	if assetId.Valid {
 		if aID, err := uuid.Parse(assetId.String); err == nil {
 			threat.AssetId = &aID
-		}
-	}
-	if metadataJSON.Valid && metadataJSON.String != "" {
-		var metadata []Metadata
-		if err := json.Unmarshal([]byte(metadataJSON.String), &metadata); err == nil {
-			threat.Metadata = &metadata
 		}
 	}
 }
