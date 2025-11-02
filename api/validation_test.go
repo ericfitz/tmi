@@ -399,3 +399,191 @@ func createTestContext(body map[string]interface{}) (*gin.Context, *httptest.Res
 func validationStringPtr(s string) *string {
 	return &s
 }
+
+func TestValidateNoteMarkdown(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		expectError bool
+		description string
+	}{
+		{
+			name:        "Valid Markdown with headings",
+			content:     "# Heading 1\n## Heading 2\n### Heading 3",
+			expectError: false,
+			description: "Standard Markdown headings should be allowed",
+		},
+		{
+			name:        "Valid Markdown with code block containing JSON",
+			content:     "```json\n{\"option_key_1\": true, \"option_key_2\": \"value\"}\n```",
+			expectError: false,
+			description: "JSON in code blocks should not trigger false positives",
+		},
+		{
+			name:        "Valid Markdown with inline code",
+			content:     "Use the `onclick` handler in your code",
+			expectError: false,
+			description: "Code references to event handlers should be allowed",
+		},
+		{
+			name: "Valid Markdown with complex example from user",
+			content: `# Heading 1
+## Heading 2
+### Heading 3
+#### Heading 4
+##### Heading 5
+###### Heading 6
+
+## Text Styles
+__Bold__ or **Bold**
+_Italicized_ or *Italicized*
+~Strikethrough~ or ~~Strikethrough~~
+> Quoted text
+
+_Note: superscripts, subscripts, underlining, and color are not supported_
+
+## Unordered (bullet) list:
+- item
+- item
+    - sub-item
+    - sub-item
+- item
+
+## Ordered (numbered) list:
+
+## Task list:
+- [x] Completed task
+- [ ] Task 2
+- [ ] Task 3
+
+## Hyperlinks in a numbered (ordered) list:
+- [Local (heading 1)](#heading-1)
+- [External (tmi.dev)](https://www.tmi.dev)
+
+## Code
+
+Inline ` + "`code`" + ` reference
+
+Code block with syntax highlighting:
+` + "```python" + `
+import argparse
+import json
+import yaml
+from collections import defaultdict
+from pathlib import Path
+from typing import Dict, List, Tuple, Any, Set
+
+
+class LocalizationDeDuplicator:
+    def __init__(self, locale_file_path: str, skip_policy: bool = False):
+        self.locale_file_path = Path(locale_file_path)
+        self.skip_policy = skip_policy
+        self.localization_data = {}
+        self.key_value_map = {}  # Full path key -> value
+        self.value_to_keys = defaultdict(list)  # Value -> list of full path keys
+        self.dedup_plan = []
+
+    def load_localization_file(self):
+        """Load the localization JSON file."""
+        with open(self.locale_file_path, 'r', encoding='utf-8') as f:
+            self.localization_data = json.load(f)
+` + "```" + ``,
+			expectError: false,
+			description: "Complex real-world Markdown example should be allowed",
+		},
+		{
+			name:        "Invalid HTML script tag",
+			content:     "This is a note with <script>alert('xss')</script> dangerous content",
+			expectError: true,
+			description: "Script tags should be rejected",
+		},
+		{
+			name:        "Invalid HTML with onclick handler",
+			content:     "Click <a href='#' onclick='alert(1)'>here</a>",
+			expectError: true,
+			description: "HTML with inline event handlers should be rejected",
+		},
+		{
+			name:        "Invalid iframe tag",
+			content:     "Embedded content: <iframe src='http://evil.com'></iframe>",
+			expectError: true,
+			description: "Iframe tags should be rejected",
+		},
+		{
+			name:        "Invalid HTML img tag",
+			content:     "Image: <img src='x' onerror='alert(1)'>",
+			expectError: true,
+			description: "HTML img tags should be rejected",
+		},
+		{
+			name:        "Valid Markdown with link",
+			content:     "Check out [this link](https://example.com)",
+			expectError: false,
+			description: "Markdown links should be allowed",
+		},
+		{
+			name:        "Valid Markdown with image",
+			content:     "![alt text](https://example.com/image.png)",
+			expectError: false,
+			description: "Markdown images should be allowed",
+		},
+		{
+			name:        "Valid empty content",
+			content:     "",
+			expectError: false,
+			description: "Empty content should pass sanitization (required validation is separate)",
+		},
+		{
+			name:        "Invalid HTML paragraph tag",
+			content:     "<p>This is HTML</p>",
+			expectError: true,
+			description: "HTML paragraph tags should be rejected",
+		},
+		{
+			name:        "Invalid HTML div tag",
+			content:     "<div class='container'>Content</div>",
+			expectError: true,
+			description: "HTML div tags should be rejected",
+		},
+		{
+			name:        "Valid Markdown with special characters",
+			content:     "Special chars: & < > \" ' are allowed in plain text",
+			expectError: false,
+			description: "Special characters in plain text should be allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a test Note
+			note := &Note{
+				Content: tt.content,
+				Name:    "Test Note",
+			}
+
+			// Run validation
+			err := ValidateNoteMarkdown(note)
+
+			if tt.expectError {
+				assert.Error(t, err, tt.description)
+				if err != nil {
+					assert.Contains(t, err.Error(), "HTML tags", "Error should mention HTML tags")
+				}
+			} else {
+				assert.NoError(t, err, tt.description)
+			}
+		})
+	}
+}
+
+func TestValidateNoteMarkdown_NonNoteType(t *testing.T) {
+	// Test that non-Note types are skipped
+	testStruct := struct {
+		Content string
+	}{
+		Content: "<script>alert('xss')</script>",
+	}
+
+	err := ValidateNoteMarkdown(&testStruct)
+	assert.NoError(t, err, "Non-Note types should be skipped by ValidateNoteMarkdown")
+}

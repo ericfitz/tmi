@@ -30,6 +30,7 @@ func NewValidatorRegistry() *CommonValidatorRegistry {
 	registry.Register("role_format", ValidateRoleFields)
 	registry.Register("metadata_key", ValidateMetadataKey)
 	registry.Register("no_html_injection", ValidateNoHTMLInjection)
+	registry.Register("note_markdown", ValidateNoteMarkdown)
 	registry.Register("string_length", ValidateStringLengths)
 	registry.Register("no_duplicates", ValidateNoDuplicateEntries)
 
@@ -211,6 +212,39 @@ func ValidateNoHTMLInjection(data interface{}) error {
 				return InvalidInputError(fmt.Sprintf("Field '%s' contains potentially dangerous content", fieldName))
 			}
 		}
+	}
+
+	return nil
+}
+
+// ValidateNoteMarkdown validates Note.Content field for dangerous HTML
+// This validator is specifically designed for Note objects that contain Markdown content.
+// It strips Markdown code blocks first, then checks remaining content for HTML tags.
+// This prevents false positives from code examples while still blocking actual HTML.
+func ValidateNoteMarkdown(data interface{}) error {
+	// Only validate Note objects
+	note, ok := data.(*Note)
+	if !ok {
+		return nil // Skip validation for non-Note types
+	}
+
+	content := note.Content
+
+	// Remove code blocks (both ``` and indented) to avoid false positives
+	// This regex removes fenced code blocks (```...```)
+	codeBlockRegex := regexp.MustCompile("(?s)```[^`]*```")
+	contentWithoutCodeBlocks := codeBlockRegex.ReplaceAllString(content, "")
+
+	// Also remove inline code (`...`)
+	inlineCodeRegex := regexp.MustCompile("`[^`]+`")
+	contentWithoutCode := inlineCodeRegex.ReplaceAllString(contentWithoutCodeBlocks, "")
+
+	// Now check for HTML tags in the remaining content
+	// Match HTML tags: < followed by letter/slash, then tag content, then >
+	// This avoids false positives from math expressions like "x < y > z"
+	htmlTagRegex := regexp.MustCompile("<[a-zA-Z/][^>]*>")
+	if htmlTagRegex.MatchString(contentWithoutCode) {
+		return InvalidInputError("Field 'content' contains HTML tags. Only Markdown formatting is allowed")
 	}
 
 	return nil

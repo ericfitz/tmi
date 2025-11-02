@@ -153,7 +153,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 			"id", "created_at", "modified_at",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
-			"uuid_fields", "no_html_injection", "string_length",
+			"uuid_fields", "note_markdown", "string_length",
 		}), func(data interface{}) error {
 			// Validate required fields for notes
 			note, ok := data.(*Note)
@@ -176,7 +176,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 			"id", "created_at", "modified_at",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
-			"uuid_fields", "no_html_injection", "string_length",
+			"uuid_fields", "note_markdown", "string_length",
 		}), func(data interface{}) error {
 			// Validate required fields for notes
 			note, ok := data.(*Note)
