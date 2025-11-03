@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # /// script
-# dependencies = ["requests>=2.31.0"]
+# dependencies = ["requests>=2.32.0"]
 # ///
 
 import http.server

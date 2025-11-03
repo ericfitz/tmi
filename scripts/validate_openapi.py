@@ -2,9 +2,9 @@
 # /// script
 # requires-python = ">=3.8"
 # dependencies = [
-#     "jsonschema>=4.0.0",
+#     "jsonschema>=4.25.0",
 #     "pyyaml>=6.0",
-#     "requests>=2.25.0",
+#     "requests>=2.32.0",
 # ]
 # ///
 """
