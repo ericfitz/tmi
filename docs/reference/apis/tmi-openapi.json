@@ -1790,10 +1790,75 @@
             }
           },
           "position": {
-            "type": "number",
-            "description": "Position along the edge (0 = start, 1 = end)",
-            "minimum": 0,
-            "maximum": 1
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "Simple position: 0-1 for percentage, >1 for pixels from start, <0 for pixels from end"
+              },
+              {
+                "type": "object",
+                "description": "Advanced position with offset and angle (X6 LabelPositionObject format)",
+                "required": [
+                  "distance"
+                ],
+                "properties": {
+                  "distance": {
+                    "type": "number",
+                    "description": "Position along the edge: 0-1 for percentage, >1 for pixels from start, <0 for pixels from end"
+                  },
+                  "offset": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "description": "Perpendicular offset from edge (positive = down/right, negative = up/left)"
+                      },
+                      {
+                        "type": "object",
+                        "description": "Absolute x,y offset",
+                        "properties": {
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "angle": {
+                    "type": "number",
+                    "description": "Rotation angle in degrees (clockwise)"
+                  },
+                  "options": {
+                    "type": "object",
+                    "description": "Advanced positioning options",
+                    "properties": {
+                      "absoluteDistance": {
+                        "type": "boolean",
+                        "description": "Forces absolute coordinates for distance"
+                      },
+                      "reverseDistance": {
+                        "type": "boolean",
+                        "description": "Forces reverse absolute coordinates"
+                      },
+                      "absoluteOffset": {
+                        "type": "boolean",
+                        "description": "Forces absolute coordinates for offset"
+                      },
+                      "keepGradient": {
+                        "type": "boolean",
+                        "description": "Auto-adjusts angle to match path gradient"
+                      },
+                      "ensureLegibility": {
+                        "type": "boolean",
+                        "description": "Rotates labels to avoid upside-down text"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
           }
         },
         "example": {
