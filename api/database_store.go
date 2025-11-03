@@ -326,14 +326,14 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 			actualDiagramCount := s.calculateDiagramCount(uuid.String())
 			actualThreatCount := s.calculateThreatCount(uuid.String())
 			actualDocumentCount := s.calculateDocumentCount(uuid.String())
-			actualSourceCount := s.calculateSourceCount(uuid.String())
+			actualRepositoryCount := s.calculateRepositoryCount(uuid.String())
 			actualNoteCount := s.calculateNoteCount(uuid.String())
 			actualAssetCount := s.calculateAssetCount(uuid.String())
 
 			results = append(results, ThreatModelWithCounts{
 				ThreatModel:   tm,
 				DocumentCount: actualDocumentCount,
-				SourceCount:   actualSourceCount,
+				SourceCount:   actualRepositoryCount,
 				DiagramCount:  actualDiagramCount,
 				ThreatCount:   actualThreatCount,
 				NoteCount:     actualNoteCount,
@@ -388,9 +388,9 @@ func (s *ThreatModelDatabaseStore) calculateDocumentCount(threatModelId string) 
 	return count
 }
 
-// calculateSourceCount counts the actual number of sources for a threat model
-func (s *ThreatModelDatabaseStore) calculateSourceCount(threatModelId string) int {
-	query := `SELECT COUNT(*) FROM sources WHERE threat_model_id = $1`
+// calculateRepositoryCount counts the actual number of repositories for a threat model
+func (s *ThreatModelDatabaseStore) calculateRepositoryCount(threatModelId string) int {
+	query := `SELECT COUNT(*) FROM repositories WHERE threat_model_id = $1`
 	var count int
 	err := s.db.QueryRow(query, threatModelId).Scan(&count)
 	if err != nil {
