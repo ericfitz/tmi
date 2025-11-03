@@ -501,7 +501,7 @@ test-integration:
 	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
-	SERVER_CONFIG_FILE=config-test.yaml $(MAKE) -f $(MAKEFILE_LIST) start-server && \
+	SERVER_CONFIG_FILE=config-test.yml $(MAKE) -f $(MAKEFILE_LIST) start-server && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-process && \
 	$(MAKE) -f $(MAKEFILE_LIST) execute-tests-integration
 
