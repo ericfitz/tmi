@@ -82,25 +82,28 @@ func TestHandleCollaborationSessions(t *testing.T) {
 	})
 
 	// Create diagrams for each threat model
+	now := time.Now().UTC()
 	diagram1 := DfdDiagram{
 		Name:       "Diagram 1",
 		Type:       "dfd",
-		CreatedAt:  time.Now().UTC(),
-		ModifiedAt: time.Now().UTC(),
+		CreatedAt:  &now,
+		ModifiedAt: &now,
 		Cells:      []DfdDiagram_Cells_Item{},
 	}
+	now2 := time.Now().UTC()
 	diagram2 := DfdDiagram{
 		Name:       "Diagram 2",
 		Type:       "dfd",
-		CreatedAt:  time.Now().UTC(),
-		ModifiedAt: time.Now().UTC(),
+		CreatedAt:  &now2,
+		ModifiedAt: &now2,
 		Cells:      []DfdDiagram_Cells_Item{},
 	}
+	now3 := time.Now().UTC()
 	diagram3 := DfdDiagram{
 		Name:       "Diagram 3",
 		Type:       "dfd",
-		CreatedAt:  time.Now().UTC(),
-		ModifiedAt: time.Now().UTC(),
+		CreatedAt:  &now3,
+		ModifiedAt: &now3,
 		Cells:      []DfdDiagram_Cells_Item{},
 	}
 

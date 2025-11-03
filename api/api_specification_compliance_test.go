@@ -497,8 +497,8 @@ func (act *APISpecificationComplianceTest) createTestDiagramRequest() DfdDiagram
 	return DfdDiagram{
 		Id:         &diagramID,
 		Name:       "API Specification Compliance Test Diagram",
-		CreatedAt:  now,
-		ModifiedAt: now,
+		CreatedAt:  &now,
+		ModifiedAt: &now,
 		Type:       DfdDiagramTypeDFD100,
 		Cells:      []DfdDiagram_Cells_Item{},
 	}
@@ -508,7 +508,8 @@ func (act *APISpecificationComplianceTest) createTestDiagramRequest() DfdDiagram
 func (act *APISpecificationComplianceTest) createUpdateDiagramRequest() DfdDiagram {
 	diagram := act.createTestDiagramRequest()
 	diagram.Name = "Updated API Specification Compliance Test Diagram"
-	diagram.ModifiedAt = time.Now().UTC()
+	now := time.Now().UTC()
+	diagram.ModifiedAt = &now
 
 	return diagram
 }

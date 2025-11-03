@@ -1085,8 +1085,8 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 		Metadata:     &metadata,
 		Image:        imagePtr,
 		UpdateVector: &updateVector,
-		CreatedAt:    createdAt,
-		ModifiedAt:   modifiedAt,
+		CreatedAt:    &createdAt,
+		ModifiedAt:   &modifiedAt,
 	}
 
 	// Store threat model ID in context for later use

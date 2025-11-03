@@ -77,12 +77,12 @@ type AuthUser struct {
 
 // SetCreatedAt implements WithTimestamps interface for DfdDiagram
 func (d *DfdDiagram) SetCreatedAt(t time.Time) {
-	d.CreatedAt = t
+	d.CreatedAt = &t
 }
 
 // SetModifiedAt implements WithTimestamps interface for DfdDiagram
 func (d *DfdDiagram) SetModifiedAt(t time.Time) {
-	d.ModifiedAt = t
+	d.ModifiedAt = &t
 }
 
 // SetCreatedAt implements WithTimestamps interface

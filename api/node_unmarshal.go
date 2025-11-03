@@ -52,6 +52,16 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 	hasFlat := temp.X != nil && temp.Y != nil && temp.Width != nil && temp.Height != nil
 	hasNested := temp.Position != nil && temp.Size != nil
 
+	// Initialize Position and Size pointers
+	n.Position = &struct {
+		X float32 `json:"x"`
+		Y float32 `json:"y"`
+	}{}
+	n.Size = &struct {
+		Height float32 `json:"height"`
+		Width  float32 `json:"width"`
+	}{}
+
 	if hasFlat && hasNested {
 		// Both formats provided - prefer flat format
 		n.Position.X = *temp.X
@@ -120,11 +130,22 @@ func (n Node) MarshalJSON() ([]byte, error) {
 		ZIndex  *float32            `json:"zIndex,omitempty"`
 	}
 
+	// Handle nil pointers with defaults
+	var height, width, x, y float32
+	if n.Size != nil {
+		height = n.Size.Height
+		width = n.Size.Width
+	}
+	if n.Position != nil {
+		x = n.Position.X
+		y = n.Position.Y
+	}
+
 	flat := NodeFlat{
 		Angle:   n.Angle,
 		Attrs:   n.Attrs,
 		Data:    n.Data,
-		Height:  n.Size.Height,
+		Height:  height,
 		Id:      n.Id,
 		Markup:  n.Markup,
 		Parent:  n.Parent,
@@ -132,9 +153,9 @@ func (n Node) MarshalJSON() ([]byte, error) {
 		Shape:   n.Shape,
 		Tools:   n.Tools,
 		Visible: n.Visible,
-		Width:   n.Size.Width,
-		X:       n.Position.X,
-		Y:       n.Position.Y,
+		Width:   width,
+		X:       x,
+		Y:       y,
 		ZIndex:  n.ZIndex,
 	}
 

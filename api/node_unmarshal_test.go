@@ -85,14 +85,14 @@ func TestNodeMarshal_AlwaysFlat(t *testing.T) {
 	node := Node{
 		Id:    uuid,
 		Shape: "store",
-		Position: struct {
+		Position: &struct {
 			X float32 `json:"x"`
 			Y float32 `json:"y"`
 		}{
 			X: 300,
 			Y: 400,
 		},
-		Size: struct {
+		Size: &struct {
 			Height float32 `json:"height"`
 			Width  float32 `json:"width"`
 		}{

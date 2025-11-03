@@ -197,8 +197,8 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	d := DfdDiagram{
 		Name:         request.Name,
 		Type:         DfdDiagramType(request.Type),
-		CreatedAt:    now,
-		ModifiedAt:   now,
+		CreatedAt:    &now,
+		ModifiedAt:   &now,
 		UpdateVector: &initialUpdateVector,
 		Cells:        cells,
 		Metadata:     &metadata,

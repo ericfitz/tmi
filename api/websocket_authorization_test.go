@@ -46,11 +46,12 @@ func TestWebSocketAuthorizationValidation(t *testing.T) {
 	}
 
 	// Create a diagram in the threat model
+	now := time.Now().UTC()
 	diagram := DfdDiagram{
 		Name:       "Test Diagram",
 		Type:       "dfd",
-		CreatedAt:  time.Now().UTC(),
-		ModifiedAt: time.Now().UTC(),
+		CreatedAt:  &now,
+		ModifiedAt: &now,
 		Cells:      []DfdDiagram_Cells_Item{},
 	}
 

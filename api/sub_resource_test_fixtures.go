@@ -235,8 +235,8 @@ func InitSubResourceTestFixtures() {
 	SubResourceFixtures.Diagram = DfdDiagram{
 		Id:         &diagramUUID,
 		Name:       "Test Data Flow Diagram",
-		CreatedAt:  now,
-		ModifiedAt: now,
+		CreatedAt:  &now,
+		ModifiedAt: &now,
 		Cells:      cells,
 		Type:       DfdDiagramTypeDFD100,
 	}

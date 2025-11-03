@@ -143,8 +143,8 @@ func InitTestFixtures() {
 	diagram := DfdDiagram{
 		Id:         uuidPointer(uuid2),
 		Name:       "Test Diagram",
-		CreatedAt:  now,
-		ModifiedAt: now,
+		CreatedAt:  &now,
+		ModifiedAt: &now,
 		Cells:      cells,
 		Metadata:   &metadata,
 		Type:       DfdDiagramTypeDFD100,
@@ -374,14 +374,14 @@ func CreateNode(id string, shape NodeShape, x, y, width, height float32) (DfdDia
 	node := Node{
 		Id:    uuid,
 		Shape: shape,
-		Position: struct {
+		Position: &struct {
 			X float32 `json:"x"`
 			Y float32 `json:"y"`
 		}{
 			X: x,
 			Y: y,
 		},
-		Size: struct {
+		Size: &struct {
 			Height float32 `json:"height"`
 			Width  float32 `json:"width"`
 		}{

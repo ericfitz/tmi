@@ -297,15 +297,13 @@
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp (ISO3339)",
-            "maxLength": 36,
-            "readOnly": true
+            "maxLength": 36
           },
           "modified_at": {
             "type": "string",
             "format": "date-time",
             "description": "Last modification timestamp (ISO3339)",
-            "maxLength": 36,
-            "readOnly": true
+            "maxLength": 36
           },
           "metadata": {
             "type": "array",

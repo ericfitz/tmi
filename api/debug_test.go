@@ -59,8 +59,8 @@ func TestPatchOperation(t *testing.T) {
 	diagram := DfdDiagram{
 		Id:         &uuid,
 		Name:       "Debug Diagram",
-		CreatedAt:  now,
-		ModifiedAt: now,
+		CreatedAt:  &now,
+		ModifiedAt: &now,
 		Cells:      []DfdDiagram_Cells_Item{},
 	}
 

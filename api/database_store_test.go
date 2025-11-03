@@ -62,14 +62,15 @@ func createTestDiagramDB() DfdDiagram {
 		{Key: "priority", Value: "high"},
 	}
 
+	now := time.Now()
 	return DfdDiagram{
 		Id:         &id,
 		Name:       "Test Diagram",
 		Type:       DfdDiagramTypeDFD100,
 		Cells:      cells,
 		Metadata:   &metadata,
-		CreatedAt:  time.Now(),
-		ModifiedAt: time.Now(),
+		CreatedAt:  &now,
+		ModifiedAt: &now,
 	}
 }
 
