@@ -2,9 +2,9 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "pydantic>=2.0.0",
+#     "pydantic>=2.12.0",
 #     "pyyaml>=6.0",
-#     "jsonschema>=4.20.0",
+#     "jsonschema>=4.25.0",
 # ]
 # ///
 """
