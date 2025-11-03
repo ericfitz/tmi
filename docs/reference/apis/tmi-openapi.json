@@ -387,7 +387,18 @@
                     {
                       "$ref": "#/components/schemas/Edge"
                     }
-                  ]
+                  ],
+                  "discriminator": {
+                    "propertyName": "shape",
+                    "mapping": {
+                      "actor": "#/components/schemas/Node",
+                      "process": "#/components/schemas/Node",
+                      "store": "#/components/schemas/Node",
+                      "security-boundary": "#/components/schemas/Node",
+                      "text-box": "#/components/schemas/Node",
+                      "edge": "#/components/schemas/Edge"
+                    }
+                  }
                 },
                 "description": "List of diagram cells (nodes and edges) following X6 structure"
               }
