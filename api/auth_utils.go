@@ -284,9 +284,24 @@ func AccessCheckWithGroupsAndIdPLookup(ctx context.Context, authService AuthServ
 		return false
 	}
 
-	// Check if principal is the owner
+	// Check if principal is the owner using two-step matching
+	// Step 1: Try direct email match
 	if authData.Owner == principal {
 		return true
+	}
+
+	// Step 2: Try IdP user ID match if authService is available
+	if authService != nil && authData.Owner != "" {
+		if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
+			service := authAdapter.GetService()
+			if service != nil {
+				// Try to resolve owner as IdP user ID from any provider
+				user, err := service.GetUserByAnyProviderID(ctx, authData.Owner)
+				if err == nil && user.Email == principal {
+					return true
+				}
+			}
+		}
 	}
 
 	// Check authorization list for principal's highest role
