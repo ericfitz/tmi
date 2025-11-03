@@ -3,7 +3,8 @@
 A collaborative threat modeling server built with Go.
 
 Try it yourself at [https://www.tmi.dev](https://www.tmi.dev)\
-API server online at [https://api.tmi.dev](https://api.tmi.dev) 
+API server online at [https://api.tmi.dev](https://api.tmi.dev)\
+API clients available at [https://github.com/ericfitz/tmi-clients](https://github.com/ericfitz/tmi-clients)
 
 ## Overview
 
