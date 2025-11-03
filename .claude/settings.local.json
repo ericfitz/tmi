@@ -40,6 +40,7 @@
       "Bash(oapi-codegen:*)",
       "Bash(openssl:*)",
       "Bash(pgrep:*)",
+      "Bash(pip3:*)",
       "Bash(pkill:*)",
       "Bash(pm2:*)",
       "Bash(ps:*)",
