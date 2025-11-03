@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# dependencies = ["click"]
+# dependencies = ["click>=8.3.0"]
 # ///
 
 import json

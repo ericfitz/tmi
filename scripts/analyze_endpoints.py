@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # dependencies = [
-#   "pyyaml",
+#   "pyyaml>=6.0",
 # ]
 # ///
 """
