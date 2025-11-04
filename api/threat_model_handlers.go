@@ -37,7 +37,18 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		userEmail = ""
 	}
 
-	// Filter by user access using new authorization utilities
+	// Get user IdP and groups from context for group-based authorization
+	userIdP := ""
+	if idp, exists := c.Get("userIdP"); exists {
+		userIdP, _ = idp.(string)
+	}
+
+	var userGroups []string
+	if groups, exists := c.Get("userGroups"); exists {
+		userGroups, _ = groups.([]string)
+	}
+
+	// Filter by user access using authorization utilities with group support
 	filter := func(tm ThreatModel) bool {
 		// If no user is authenticated, only show public threat models (if any)
 		if userEmail == "" {
@@ -51,8 +62,8 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 			Authorization: tm.Authorization,
 		}
 
-		// Check if user has at least reader access
-		return AccessCheck(userEmail, RoleReader, authData)
+		// Check if user has at least reader access (including group-based access like "everyone")
+		return AccessCheckWithGroups(userEmail, userIdP, userGroups, RoleReader, authData)
 	}
 
 	// Get threat models from store with filtering and counts
@@ -131,8 +142,8 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 		return
 	}
 
-	// Check authorization using new utilities
-	hasAccess, err := CheckResourceAccess(userEmail, tm, RoleReader)
+	// Check authorization using new utilities with group support
+	hasAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -330,7 +341,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	}
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccess(userEmail, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -346,7 +357,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	authChanging := (len(updatedTM.Authorization) > 0) && (!authorizationEqual(updatedTM.Authorization, tm.Authorization))
 
 	if ownerChanging || authChanging {
-		hasOwnerAccess, err := CheckResourceAccess(userEmail, tm, RoleOwner)
+		hasOwnerAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleOwner)
 		if err != nil {
 			HandleRequestError(c, err)
 			return
@@ -448,7 +459,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	modifiedTM = h.preserveThreatModelCriticalFields(modifiedTM, existingTM)
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccess(userEmail, existingTM, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, userEmail, existingTM, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -464,7 +475,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	authChanging := !authorizationEqual(existingTM.Authorization, modifiedTM.Authorization)
 
 	if ownerChanging || authChanging {
-		hasOwnerAccess, err := CheckResourceAccess(userEmail, existingTM, RoleOwner)
+		hasOwnerAccess, err := CheckResourceAccessFromContext(c, userEmail, existingTM, RoleOwner)
 		if err != nil {
 			HandleRequestError(c, err)
 			return
@@ -544,7 +555,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	}
 
 	// Check if user has owner access (required for deletion)
-	hasOwnerAccess, err := CheckResourceAccess(userEmail, tm, RoleOwner)
+	hasOwnerAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleOwner)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

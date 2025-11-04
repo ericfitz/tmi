@@ -91,7 +91,7 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	}
 
 	// Check if user has access to the threat model using new utilities
-	hasAccess, err := CheckResourceAccess(userEmail, tm, RoleReader)
+	hasAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -176,7 +176,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	}
 
 	// Check if user has write access to the threat model using new utilities
-	hasWriteAccess, err := CheckResourceAccess(userEmail, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -257,7 +257,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 	}
 
 	// Check if user has access to the threat model using new utilities
-	hasAccess, err := CheckResourceAccess(userEmail, tm, RoleReader)
+	hasAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -320,7 +320,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	}
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccess(userEmail, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -422,7 +422,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	}
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccess(userEmail, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -522,7 +522,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 
 	// Check if user has owner access to the threat model
 	// Only owners can delete diagrams
-	hasOwnerAccess, err := CheckResourceAccess(userEmail, tm, RoleOwner)
+	hasOwnerAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleOwner)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -588,7 +588,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	}
 
 	// Check if user has access to the threat model
-	hasReadAccess, err := CheckResourceAccess(userEmail, tm, RoleReader)
+	hasReadAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -668,7 +668,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	}
 
 	// Check if user has access to the threat model
-	hasReadAccess, err := CheckResourceAccess(userEmail, tm, RoleReader)
+	hasReadAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -749,7 +749,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	}
 
 	// Check if user has access to the threat model
-	hasReadAccess, err := CheckResourceAccess(userEmail, tm, RoleReader)
+	hasReadAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

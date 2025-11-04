@@ -405,8 +405,11 @@ func ExtractAuthData(resource interface{}) (AuthorizationData, error) {
 	}
 }
 
-// CheckResourceAccess is a utility function that checks if a user has required access to a resource
-func CheckResourceAccess(userEmail string, resource interface{}, requiredRole Role) (bool, error) {
+// CheckResourceAccess is a utility function that checks if a subject has required access to a resource
+// This function uses the basic AccessCheck and does NOT support group-based authorization.
+// For group support (including "everyone" pseudo-group), use CheckResourceAccessWithGroups instead.
+// Note: subject can be a user email or user ID, but group matching is not supported by this function.
+func CheckResourceAccess(subject string, resource interface{}, requiredRole Role) (bool, error) {
 	// Extract authorization data from the resource
 	authData, err := ExtractAuthData(resource)
 	if err != nil {
@@ -414,8 +417,42 @@ func CheckResourceAccess(userEmail string, resource interface{}, requiredRole Ro
 	}
 
 	// Use AccessCheck to determine access
-	hasAccess := AccessCheck(userEmail, requiredRole, authData)
+	hasAccess := AccessCheck(subject, requiredRole, authData)
 	return hasAccess, nil
+}
+
+// CheckResourceAccessWithGroups checks if a subject has required access to a resource with group support
+// This function supports group-based authorization including the "everyone" pseudo-group.
+// The subject can be a user email or user ID. The function also checks group memberships.
+func CheckResourceAccessWithGroups(subject string, subjectIdP string, subjectGroups []string, resource interface{}, requiredRole Role) (bool, error) {
+	// Extract authorization data from the resource
+	authData, err := ExtractAuthData(resource)
+	if err != nil {
+		return false, err
+	}
+
+	// Use AccessCheckWithGroups to determine access (supports groups and "everyone")
+	hasAccess := AccessCheckWithGroups(subject, subjectIdP, subjectGroups, requiredRole, authData)
+	return hasAccess, nil
+}
+
+// CheckResourceAccessFromContext checks resource access using subject info from Gin context
+// This is a convenience function that extracts subject (user email/ID), IdP, and groups from the context
+// and calls CheckResourceAccessWithGroups for group-aware authorization including "everyone" pseudo-group.
+func CheckResourceAccessFromContext(c *gin.Context, subject string, resource interface{}, requiredRole Role) (bool, error) {
+	// Get subject's IdP and groups from context for group-based authorization
+	subjectIdP := ""
+	if idp, exists := c.Get("userIdP"); exists {
+		subjectIdP, _ = idp.(string)
+	}
+
+	var subjectGroups []string
+	if groups, exists := c.Get("userGroups"); exists {
+		subjectGroups, _ = groups.([]string)
+	}
+
+	// Use the group-aware version
+	return CheckResourceAccessWithGroups(subject, subjectIdP, subjectGroups, resource, requiredRole)
 }
 
 // ValidateResourceAccess is a Gin middleware-compatible function for authorization checks
