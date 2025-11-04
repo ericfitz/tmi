@@ -269,7 +269,7 @@
       },
       "BaseDiagram": {
         "type": "object",
-        "description": "Base diagram object with common properties",
+        "description": "Base diagram object with common properties - used for API responses",
         "properties": {
           "id": {
             "type": "string",
@@ -361,14 +361,127 @@
           }
         }
       },
+      "BaseDiagramInput": {
+        "type": "object",
+        "description": "Base diagram input for PUT/PATCH requests - excludes readOnly server-managed fields",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the diagram",
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of diagram with version",
+            "enum": [
+              "DFD-1.0.0"
+            ],
+            "maxLength": 64
+          },
+          "metadata": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Metadata"
+            },
+            "description": "Key-value pairs for additional diagram metadata",
+            "nullable": true
+          },
+          "image": {
+            "type": "object",
+            "description": "Image data with version information",
+            "properties": {
+              "svg": {
+                "type": "string",
+                "format": "byte",
+                "description": "BASE64 encoded SVG representation of the diagram, used for thumbnails and reports"
+              },
+              "update_vector": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Version of the diagram when this SVG was generated. If not provided when svg is updated, will be auto-set to BaseDiagram.update_vector",
+                "minimum": 0
+              }
+            },
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1024,
+            "nullable": true,
+            "description": "Optional description of the diagram"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "DFD-1.0.0": "#/components/schemas/DfdDiagramInput"
+          }
+        }
+      },
       "DfdDiagram": {
+        "x-discriminator-value": "DFD-1.0.0",
         "allOf": [
           {
             "$ref": "#/components/schemas/BaseDiagram"
           },
           {
             "type": "object",
-            "description": "Data Flow Diagram (DFD) with cells",
+            "description": "Data Flow Diagram (DFD) with cells - API response schema",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "DFD-1.0.0"
+                ],
+                "description": "DFD diagram type with version"
+              },
+              "cells": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Node"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Edge"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "shape",
+                    "mapping": {
+                      "actor": "#/components/schemas/Node",
+                      "process": "#/components/schemas/Node",
+                      "store": "#/components/schemas/Node",
+                      "security-boundary": "#/components/schemas/Node",
+                      "text-box": "#/components/schemas/Node",
+                      "edge": "#/components/schemas/Edge"
+                    }
+                  }
+                },
+                "description": "List of diagram cells (nodes and edges) following X6 structure"
+              }
+            },
+            "required": [
+              "cells"
+            ]
+          }
+        ]
+      },
+      "DfdDiagramInput": {
+        "x-discriminator-value": "DFD-1.0.0",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BaseDiagramInput"
+          },
+          {
+            "type": "object",
+            "description": "Data Flow Diagram (DFD) input for PUT requests - excludes readOnly fields",
             "properties": {
               "type": {
                 "type": "string",
@@ -434,6 +547,8 @@
         "additionalProperties": false
       },
       "Diagram": {
+        "deprecated": true,
+        "description": "DEPRECATED: Empty wrapper schema for polymorphic diagram types. Use DfdDiagram directly instead. This schema is kept for backward compatibility but generates empty classes in client libraries.",
         "oneOf": [
           {
             "$ref": "#/components/schemas/DfdDiagram"
@@ -1431,7 +1546,7 @@
       },
       "DiagramListItem": {
         "type": "object",
-        "description": "A simplified diagram item for list endpoints, containing id, name, and type",
+        "description": "Summary diagram object for GET /diagrams list endpoints. Excludes large fields (cells, image) for performance. Full diagram details available via GET /diagrams/{id} which returns DfdDiagram.",
         "properties": {
           "id": {
             "type": "string",
@@ -9777,7 +9892,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Diagram"
+                  "$ref": "#/components/schemas/DfdDiagram"
                 }
               }
             }
@@ -9843,7 +9958,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Diagram"
+                  "$ref": "#/components/schemas/DfdDiagram"
                 }
               }
             }
@@ -9867,7 +9982,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Update a diagram",
-        "description": "Completely replaces a diagram with new data",
+        "description": "Completely replaces a diagram with new data. Use DfdDiagramInput schema which excludes readOnly fields (id, created_at, modified_at, update_vector).",
         "operationId": "updateThreatModelDiagram",
         "security": [
           {
@@ -9903,7 +10018,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Diagram"
+                "$ref": "#/components/schemas/DfdDiagramInput"
               }
             }
           }
@@ -9914,7 +10029,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Diagram"
+                  "$ref": "#/components/schemas/DfdDiagram"
                 }
               }
             }
@@ -10058,7 +10173,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Diagram"
+                  "$ref": "#/components/schemas/DfdDiagram"
                 }
               }
             }
