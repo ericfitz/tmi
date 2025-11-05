@@ -106,11 +106,11 @@ func InitSubResourceTestFixtures() {
 		CreatedAt:     &now,
 		ModifiedAt:    &now,
 		ThreatModelId: &threatModelUUID,
-		Severity:      ThreatSeverityHigh,
-		Priority:      "high",
-		Status:        "active",
+		Severity:      stringPointer("High"),
+		Priority:      stringPointer("high"),
+		Status:        stringPointer("active"),
 		ThreatType:    "Injection",
-		Mitigated:     false,
+		Mitigated:     boolPointer(false),
 	}
 
 	// Create a later timestamp for threat2
@@ -122,11 +122,11 @@ func InitSubResourceTestFixtures() {
 		CreatedAt:     &laterTime,
 		ModifiedAt:    &laterTime,
 		ThreatModelId: &threatModelUUID,
-		Severity:      ThreatSeverityMedium,
-		Priority:      "medium",
-		Status:        "identified",
+		Severity:      stringPointer("Medium"),
+		Priority:      stringPointer("medium"),
+		Status:        stringPointer("identified"),
 		ThreatType:    "Cross-Site Scripting",
-		Mitigated:     false,
+		Mitigated:     boolPointer(false),
 	}
 
 	// Create test documents
@@ -271,11 +271,11 @@ func CreateTestThreatWithMetadata(threatModelID string, metadata []Metadata) Thr
 		ModifiedAt:    &now,
 		ThreatModelId: &threatModelTypedUUID,
 		Metadata:      &metadata,
-		Severity:      ThreatSeverityMedium,
-		Priority:      "Medium",
-		Status:        "Open",
+		Severity:      stringPointer("Medium"),
+		Priority:      stringPointer("Medium"),
+		Status:        stringPointer("Open"),
 		ThreatType:    "Test",
-		Mitigated:     false,
+		Mitigated:     boolPointer(false),
 	}
 }
 

@@ -147,8 +147,8 @@ func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params 
 		filter.ThreatType = params.ThreatType
 	}
 	if params.Severity != nil {
-		severity := ThreatSeverity(string(*params.Severity))
-		filter.Severity = &severity
+		severityStr := string(*params.Severity)
+		filter.Severity = &severityStr
 	}
 	if params.Priority != nil {
 		filter.Priority = params.Priority

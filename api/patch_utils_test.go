@@ -492,7 +492,15 @@ func TestPatchWorkflow(t *testing.T) {
 	assert.Equal(t, "new-owner", modified.Owner)            // Modified
 }
 
-// Helper function
+// Helper functions
 func stringPtr(s string) *string {
 	return &s
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }

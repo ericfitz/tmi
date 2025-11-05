@@ -257,11 +257,11 @@ func TestCreateThreat(t *testing.T) {
 		_ = &Threat{
 			Name:        "New Test Threat",
 			Description: stringPtr("A threat created for testing"),
-			Severity:    ThreatSeverityHigh,
-			Status:      "identified",
+			Severity:    stringPtr("High"),
+			Status:      stringPtr("identified"),
 			ThreatType:  "spoofing",
-			Priority:    "high",
-			Mitigated:   false,
+			Priority:    stringPtr("high"),
+			Mitigated:   boolPtr(false),
 		}
 		threatUUID, _ := uuid.Parse("00000000-0000-0000-0000-000000000002")
 

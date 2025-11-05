@@ -38,7 +38,6 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 		Parent  *openapi_types.UUID `json:"parent"`
 		Ports   *PortConfiguration  `json:"ports,omitempty"`
 		Shape   NodeShape           `json:"shape"`
-		Tools   *[]CellTool         `json:"tools,omitempty"`
 		Visible *bool               `json:"visible,omitempty"`
 		ZIndex  *float32            `json:"zIndex,omitempty"`
 	}
@@ -101,7 +100,6 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 	n.Parent = temp.Parent
 	n.Ports = temp.Ports
 	n.Shape = temp.Shape
-	n.Tools = temp.Tools
 	n.Visible = temp.Visible
 	n.ZIndex = temp.ZIndex
 
@@ -122,7 +120,6 @@ func (n Node) MarshalJSON() ([]byte, error) {
 		Parent  *openapi_types.UUID `json:"parent"`
 		Ports   *PortConfiguration  `json:"ports,omitempty"`
 		Shape   NodeShape           `json:"shape"`
-		Tools   *[]CellTool         `json:"tools,omitempty"`
 		Visible *bool               `json:"visible,omitempty"`
 		Width   float32             `json:"width"`
 		X       float32             `json:"x"`
@@ -151,7 +148,6 @@ func (n Node) MarshalJSON() ([]byte, error) {
 		Parent:  n.Parent,
 		Ports:   n.Ports,
 		Shape:   n.Shape,
-		Tools:   n.Tools,
 		Visible: n.Visible,
 		Width:   width,
 		X:       x,

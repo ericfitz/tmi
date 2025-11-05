@@ -16,6 +16,10 @@ func uuidPointer(u TypesUUID) *TypesUUID {
 	return &u
 }
 
+func boolPointer(b bool) *bool {
+	return &b
+}
+
 // Fixtures provides test data for unit tests
 // CustomDiagram extends Diagram with authorization fields for testing
 type CustomDiagram struct {
@@ -75,11 +79,11 @@ func InitTestFixtures() {
 			CreatedAt:     &now,
 			ModifiedAt:    &now,
 			ThreatModelId: uuidPointer(NewUUID()),
-			Severity:      ThreatSeverityHigh,
-			Priority:      "High",
-			Status:        "Open",
+			Severity:      stringPointer("High"),
+			Priority:      stringPointer("High"),
+			Status:        stringPointer("Open"),
 			ThreatType:    "Injection",
-			Mitigated:     false,
+			Mitigated:     boolPointer(false),
 			Metadata:      &metadata,
 		},
 	}

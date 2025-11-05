@@ -779,12 +779,13 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 	var threats []Threat
 	for rows.Next() {
 		var id, threatModelUuid uuid.UUID
-		var name, priority, status, threatType string
+		var name, threatType string
+		var priority, status *string
 		var description, severityStr, mitigation *string
 		var diagramIdStr, cellIdStr, assetIdStr *string
 		var issueUrl *string
 		var score *float64
-		var mitigated bool
+		var mitigated *bool
 		var createdAt, modifiedAt time.Time
 
 		if err := rows.Scan(&id, &name, &description, &severityStr, &mitigation, &diagramIdStr, &cellIdStr, &assetIdStr,
@@ -797,9 +798,9 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 		threatModelUuid, _ = uuid.Parse(threatModelId)
 
 		// Convert severity
-		severity := ThreatSeverityUnknown // default
+		var severity *string
 		if severityStr != nil && *severityStr != "" {
-			severity = ThreatSeverity(*severityStr)
+			severity = severityStr
 		}
 
 		// Convert diagram_id, cell_id, and asset_id from strings to UUIDs

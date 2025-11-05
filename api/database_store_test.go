@@ -25,12 +25,12 @@ func createTestThreatModelDB() ThreatModel {
 			Id:            &id,
 			Name:          "SQL Injection",
 			Description:   strPtr("Database attack"),
-			Severity:      ThreatSeverityHigh,
+			Severity:      strPtr("High"),
 			ThreatModelId: &id,
-			Priority:      "High",
-			Status:        "Open",
+			Priority:      strPtr("High"),
+			Status:        strPtr("Open"),
 			ThreatType:    "Injection",
-			Mitigated:     false,
+			Mitigated:     boolPtr(false),
 		},
 	}
 	diagrams := []Diagram{}
@@ -72,11 +72,6 @@ func createTestDiagramDB() DfdDiagram {
 		CreatedAt:  &now,
 		ModifiedAt: &now,
 	}
-}
-
-// Helper function for string pointers
-func strPtr(s string) *string {
-	return &s
 }
 
 // TestNewThreatModelDatabaseStore tests store creation
