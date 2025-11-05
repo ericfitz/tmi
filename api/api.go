@@ -2768,7 +2768,7 @@ func (t DfdDiagram_Cells_Item) AsNode() (Node, error) {
 
 // FromNode overwrites any union data inside the DfdDiagram_Cells_Item as the provided Node
 func (t *DfdDiagram_Cells_Item) FromNode(v Node) error {
-	v.Shape = "store"
+	v.Shape = "security-boundary"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -2776,7 +2776,7 @@ func (t *DfdDiagram_Cells_Item) FromNode(v Node) error {
 
 // MergeNode performs a merge with any union data inside the DfdDiagram_Cells_Item, using the provided Node
 func (t *DfdDiagram_Cells_Item) MergeNode(v Node) error {
-	v.Shape = "store"
+	v.Shape = "security-boundary"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -2831,7 +2831,7 @@ func (t DfdDiagram_Cells_Item) ValueByDiscriminator() (interface{}, error) {
 	switch discriminator {
 	case "edge":
 		return t.AsEdge()
-	case "store":
+	case "security-boundary":
 		return t.AsNode()
 	default:
 		return nil, errors.New("unknown discriminator value: " + discriminator)

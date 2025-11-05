@@ -98,47 +98,11 @@ func ValidateURLFields(data interface{}) error {
 	})
 }
 
-// ValidateThreatSeverity validates and normalizes threat severity values to title case
+// ValidateThreatSeverity is a no-op validator that accepts any severity value
+// Severity is now a free-form string field per the OpenAPI schema
 func ValidateThreatSeverity(data interface{}) error {
-	validSeverities := map[string]bool{
-		"low":      true,
-		"medium":   true,
-		"high":     true,
-		"critical": true,
-		"unknown":  true,
-		"none":     true,
-		"":         true, // Allow empty for optional fields
-	}
-
-	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	return validateAndNormalizeSeverityFields(v, "severity", func(fieldValue string) (string, error) {
-		lowerValue := strings.ToLower(fieldValue)
-		if !validSeverities[lowerValue] {
-			return "", InvalidInputError(fmt.Sprintf("Invalid severity '%s'. Must be one of: low, medium, high, critical, unknown, none", fieldValue))
-		}
-
-		// Normalize to title case
-		switch lowerValue {
-		case "low":
-			return "Low", nil
-		case "medium":
-			return "Medium", nil
-		case "high":
-			return "High", nil
-		case "critical":
-			return "Critical", nil
-		case "unknown":
-			return "Unknown", nil
-		case "none":
-			return "None", nil
-		default:
-			return fieldValue, nil // empty string or already correct
-		}
-	})
+	// No validation needed - severity is a free-form string field
+	return nil
 }
 
 // ValidateRoleFields validates role format in struct fields

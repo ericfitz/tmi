@@ -43,25 +43,10 @@ type ThreatFilter struct {
 	Limit  int
 }
 
-// normalizeSeverity converts severity values to the standardized case-sensitive format
+// normalizeSeverity is a no-op that returns severity as-is without modification
+// Severity is now a free-form string field and should not be normalized
 func normalizeSeverity(severity string) string {
-	switch strings.ToLower(severity) {
-	case "low":
-		return "Low"
-	case "medium":
-		return "Medium"
-	case "high":
-		return "High"
-	case "critical":
-		return "Critical"
-	case "unknown":
-		return "Unknown"
-	case "none":
-		return "None"
-	default:
-		// If no match, return as-is (likely already in correct format)
-		return severity
-	}
+	return severity
 }
 
 // ThreatStore defines the interface for threat operations with caching support
