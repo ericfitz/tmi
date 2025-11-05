@@ -4799,7 +4799,8 @@
                       "description": "JSON path to target"
                     },
                     "value": {
-                      "description": "Value to apply"
+                      "description": "Value to apply",
+                      "nullable": true
                     }
                   },
                   "required": [
