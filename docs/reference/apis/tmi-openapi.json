@@ -1652,11 +1652,10 @@
             "minimum": 0
           },
           "status": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\""
+            "type": "string",
+            "nullable": true,
+            "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\"",
+            "maxLength": 128
           },
           "status_updated": {
             "type": "string",
@@ -2257,14 +2256,10 @@
             "maxLength": 1024
           },
           "status": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "maxLength": 128
-            },
+            "type": "string",
             "nullable": true,
             "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\"",
-            "maxItems": 50
+            "maxLength": 128
           }
         },
         "required": [
