@@ -1095,6 +1095,64 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	return r, apiServer
 }
 
+// startWebhookWorkers initializes and starts all webhook workers
+func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.WebhookChallengeWorker, *api.WebhookDeliveryWorker, *api.WebhookCleanupWorker) {
+	logger := slogging.Get()
+
+	// Initialize webhook metrics
+	api.InitializeWebhookMetrics()
+
+	// Start webhook workers if database and Redis are available
+	dbManager := auth.GetDatabaseManager()
+	var webhookConsumer *api.WebhookEventConsumer
+	var challengeWorker *api.WebhookChallengeWorker
+	var deliveryWorker *api.WebhookDeliveryWorker
+	var cleanupWorker *api.WebhookCleanupWorker
+
+	if dbManager != nil && dbManager.Postgres() != nil {
+		logger.Info("Starting webhook workers...")
+
+		// Start event consumer (requires Redis)
+		if dbManager.Redis() != nil {
+			webhookConsumer = api.NewWebhookEventConsumer(
+				dbManager.Redis().GetClient(),
+				"tmi:events",
+				"webhook-consumers",
+				fmt.Sprintf("consumer-%d", time.Now().Unix()),
+			)
+			if err := webhookConsumer.Start(ctx); err != nil {
+				logger.Error("Failed to start webhook event consumer: %v", err)
+			}
+		} else {
+			logger.Warn("Redis not available, webhook event consumer disabled")
+		}
+
+		// Start challenge verification worker
+		challengeWorker = api.NewWebhookChallengeWorker()
+		if err := challengeWorker.Start(ctx); err != nil {
+			logger.Error("Failed to start webhook challenge worker: %v", err)
+		}
+
+		// Start delivery worker
+		deliveryWorker = api.NewWebhookDeliveryWorker()
+		if err := deliveryWorker.Start(ctx); err != nil {
+			logger.Error("Failed to start webhook delivery worker: %v", err)
+		}
+
+		// Start cleanup worker
+		cleanupWorker = api.NewWebhookCleanupWorker()
+		if err := cleanupWorker.Start(ctx); err != nil {
+			logger.Error("Failed to start webhook cleanup worker: %v", err)
+		}
+
+		logger.Info("Webhook workers started successfully")
+	} else {
+		logger.Warn("Database not available, webhook workers disabled")
+	}
+
+	return webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker
+}
+
 func main() {
 	// Parse command line flags
 	configFile, generateConfig, err := config.ParseFlags()
@@ -1165,6 +1223,9 @@ func main() {
 
 	// Start WebSocket hub with context for cleanup
 	apiServer.StartWebSocketHub(ctx)
+
+	// Initialize and start webhook workers
+	webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker := startWebhookWorkers(ctx)
 
 	// Prepare address
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Interface, cfg.Server.Port)
@@ -1280,6 +1341,24 @@ func main() {
 	}
 
 	logger.Info("Server gracefully stopped")
+
+	// Stop webhook workers
+	if webhookConsumer != nil {
+		logger.Info("Stopping webhook event consumer...")
+		webhookConsumer.Stop()
+	}
+	if challengeWorker != nil {
+		logger.Info("Stopping webhook challenge worker...")
+		challengeWorker.Stop()
+	}
+	if deliveryWorker != nil {
+		logger.Info("Stopping webhook delivery worker...")
+		deliveryWorker.Stop()
+	}
+	if cleanupWorker != nil {
+		logger.Info("Stopping webhook cleanup worker...")
+		cleanupWorker.Stop()
+	}
 
 	// Shutdown auth system
 	if err := auth.Shutdown(context.TODO()); err != nil {
