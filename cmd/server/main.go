@@ -1015,8 +1015,13 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	if dbManager != nil && dbManager.Redis() != nil {
 		logger.Info("Initializing token blacklist service")
 		server.tokenBlacklist = auth.NewTokenBlacklist(dbManager.Redis().GetClient(), authHandlers.Service().GetKeyManager())
+
+		// Initialize event emitter for webhook support
+		logger.Info("Initializing event emitter for webhook subscriptions")
+		api.InitializeEventEmitter(dbManager.Redis().GetClient(), "tmi:events")
 	} else {
 		logger.Warn("Redis not available - token blacklist service disabled")
+		logger.Warn("Redis not available - event emitter disabled (webhooks will not emit events)")
 	}
 
 	// Add comprehensive request tracing middleware first

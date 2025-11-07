@@ -2983,6 +2983,240 @@
             "$ref": "#/components/schemas/RepositoryBase"
           }
         ]
+      },
+      "WebhookSubscription": {
+        "type": "object",
+        "required": [
+          "id",
+          "owner_id",
+          "name",
+          "url",
+          "events",
+          "status",
+          "created_at",
+          "modified_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier"
+          },
+          "owner_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Owner user ID"
+          },
+          "threat_model_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Optional threat model filter (null means all threat models)"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Descriptive name"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "minLength": 8,
+            "maxLength": 2048,
+            "description": "Webhook endpoint URL (must be HTTPS)"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "description": "List of event types to subscribe to"
+          },
+          "secret": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "HMAC secret for signing payloads (not returned in GET responses)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_verification",
+              "active",
+              "pending_delete"
+            ],
+            "description": "Subscription status"
+          },
+          "challenges_sent": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of verification challenges sent"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation timestamp"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last modification timestamp"
+          },
+          "last_successful_use": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Last successful delivery timestamp"
+          },
+          "publication_failures": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Count of consecutive failed deliveries"
+          }
+        }
+      },
+      "WebhookSubscriptionInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "url",
+          "events"
+        ],
+        "properties": {
+          "threat_model_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Optional threat model filter"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Descriptive name for the subscription"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "minLength": 8,
+            "maxLength": 2048,
+            "description": "Webhook endpoint URL (must be HTTPS)"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 50,
+            "description": "List of event types to subscribe to"
+          },
+          "secret": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128,
+            "description": "Optional HMAC secret for signing payloads (auto-generated if not provided)"
+          }
+        }
+      },
+      "WebhookDelivery": {
+        "type": "object",
+        "required": [
+          "id",
+          "subscription_id",
+          "event_type",
+          "status",
+          "attempts",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier (UUIDv7)"
+          },
+          "subscription_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Subscription that triggered this delivery"
+          },
+          "event_type": {
+            "type": "string",
+            "description": "Type of event"
+          },
+          "payload": {
+            "type": "object",
+            "description": "Event payload (JSON)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "delivered",
+              "failed"
+            ],
+            "description": "Delivery status"
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of delivery attempts"
+          },
+          "next_retry_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Next retry timestamp"
+          },
+          "last_error": {
+            "type": "string",
+            "description": "Last error message"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation timestamp"
+          },
+          "delivered_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Successful delivery timestamp"
+          }
+        }
+      },
+      "WebhookTestRequest": {
+        "type": "object",
+        "properties": {
+          "event_type": {
+            "type": "string",
+            "default": "test.webhook",
+            "description": "Event type for test"
+          }
+        }
+      },
+      "WebhookTestResponse": {
+        "type": "object",
+        "required": [
+          "delivery_id",
+          "status"
+        ],
+        "properties": {
+          "delivery_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Test delivery ID"
+          },
+          "status": {
+            "type": "string",
+            "description": "Test result status"
+          },
+          "message": {
+            "type": "string",
+            "description": "Result message"
+          }
+        }
       }
     },
     "responses": {
@@ -13336,6 +13570,544 @@
           }
         }
       }
+    },
+    "/webhooks/subscriptions": {
+      "get": {
+        "summary": "List webhook subscriptions",
+        "description": "List all webhook subscriptions owned by the authenticated user. Optionally filter by threat_model_id.",
+        "operationId": "listWebhookSubscriptions",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "query",
+            "description": "Filter subscriptions by threat model ID",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Pagination offset",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Pagination limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of webhook subscriptions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookSubscription"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create webhook subscription",
+        "description": "Create a new webhook subscription. The subscription will be in pending_verification status until the challenge is completed.",
+        "operationId": "createWebhookSubscription",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookSubscriptionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook subscription created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSubscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/subscriptions/{webhook_id}": {
+      "get": {
+        "summary": "Get webhook subscription",
+        "description": "Get a specific webhook subscription by ID",
+        "operationId": "getWebhookSubscription",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "webhook_id",
+            "in": "path",
+            "description": "Webhook subscription ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook subscription details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSubscription"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete webhook subscription",
+        "description": "Delete a webhook subscription. Only the owner can delete a subscription.",
+        "operationId": "deleteWebhookSubscription",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "webhook_id",
+            "in": "path",
+            "description": "Webhook subscription ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Webhook subscription deleted"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/subscriptions/{webhook_id}/test": {
+      "post": {
+        "summary": "Test webhook subscription",
+        "description": "Send a test event to the webhook URL to verify it's working correctly",
+        "operationId": "testWebhookSubscription",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "webhook_id",
+            "in": "path",
+            "description": "Webhook subscription ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookTestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test webhook sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookTestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/deliveries": {
+      "get": {
+        "summary": "List webhook deliveries",
+        "description": "List webhook deliveries for the authenticated user's subscriptions",
+        "operationId": "listWebhookDeliveries",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subscription_id",
+            "in": "query",
+            "description": "Filter by subscription ID",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Pagination offset",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Pagination limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of webhook deliveries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookDelivery"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/deliveries/{delivery_id}": {
+      "get": {
+        "summary": "Get webhook delivery",
+        "description": "Get details of a specific webhook delivery",
+        "operationId": "getWebhookDelivery",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "delivery_id",
+            "in": "path",
+            "description": "Webhook delivery ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook delivery details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookDelivery"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "webhooks",
+      "description": "Webhook subscription management"
+    }
+  ]
 }

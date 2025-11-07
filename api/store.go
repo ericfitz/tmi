@@ -75,6 +75,10 @@ func InitializeDatabaseStores(db *sql.DB) {
 	GlobalAssetStore = NewDatabaseAssetStore(db, nil, nil)
 	GlobalThreatStore = NewDatabaseThreatStore(db, nil, nil)
 	GlobalMetadataStore = NewDatabaseMetadataStore(db, nil, nil)
+	GlobalWebhookSubscriptionStore = NewDBWebhookSubscriptionDatabaseStore(db)
+	GlobalWebhookDeliveryStore = NewDBWebhookDeliveryDatabaseStore(db)
+	GlobalWebhookQuotaStore = NewWebhookQuotaDatabaseStore(db)
+	GlobalWebhookUrlDenyListStore = NewWebhookUrlDenyListDatabaseStore(db)
 }
 
 // NOTE: InitializeInMemoryStores function removed - all stores now use database implementations

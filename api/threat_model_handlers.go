@@ -255,6 +255,22 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// Broadcast notification about new threat model
 	BroadcastThreatModelCreated(userEmail, createdTM.Id.String(), createdTM.Name)
 
+	// Emit event for webhook subscriptions
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:     EventThreatModelCreated,
+			ThreatModelID: createdTM.Id.String(),
+			ResourceID:    createdTM.Id.String(),
+			ResourceType:  "threat_model",
+			OwnerID:       createdTM.Owner,
+			Data: map[string]interface{}{
+				"name":        createdTM.Name,
+				"description": createdTM.Description,
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(c.Request.Context(), payload)
+	}
+
 	// Set the Location header
 	c.Header("Location", "/threat_models/"+createdTM.Id.String())
 	c.JSON(http.StatusCreated, createdTM)
@@ -401,6 +417,22 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Broadcast notification about updated threat model
 	BroadcastThreatModelUpdated(userEmail, updatedTM.Id.String(), updatedTM.Name)
 
+	// Emit event for webhook subscriptions
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:     EventThreatModelUpdated,
+			ThreatModelID: updatedTM.Id.String(),
+			ResourceID:    updatedTM.Id.String(),
+			ResourceType:  "threat_model",
+			OwnerID:       updatedTM.Owner,
+			Data: map[string]interface{}{
+				"name":        updatedTM.Name,
+				"description": updatedTM.Description,
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(c.Request.Context(), payload)
+	}
+
 	c.JSON(http.StatusOK, updatedTM)
 }
 
@@ -526,6 +558,22 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// Broadcast notification about updated threat model
 	BroadcastThreatModelUpdated(userEmail, modifiedTM.Id.String(), modifiedTM.Name)
 
+	// Emit event for webhook subscriptions
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:     EventThreatModelUpdated,
+			ThreatModelID: modifiedTM.Id.String(),
+			ResourceID:    modifiedTM.Id.String(),
+			ResourceType:  "threat_model",
+			OwnerID:       modifiedTM.Owner,
+			Data: map[string]interface{}{
+				"name":        modifiedTM.Name,
+				"description": modifiedTM.Description,
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(c.Request.Context(), payload)
+	}
+
 	c.JSON(http.StatusOK, modifiedTM)
 }
 
@@ -587,6 +635,21 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 
 	// Broadcast notification about deleted threat model
 	BroadcastThreatModelDeleted(userEmail, tm.Id.String(), tm.Name)
+
+	// Emit event for webhook subscriptions
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:     EventThreatModelDeleted,
+			ThreatModelID: tm.Id.String(),
+			ResourceID:    tm.Id.String(),
+			ResourceType:  "threat_model",
+			OwnerID:       tm.Owner,
+			Data: map[string]interface{}{
+				"name": tm.Name,
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(c.Request.Context(), payload)
+	}
 
 	c.Status(http.StatusNoContent)
 }
