@@ -123,12 +123,6 @@ func (r *WebhookRateLimiter) checkSlidingWindow(ctx context.Context, key string,
 	// Count entries in current window
 	countCmd := pipe.ZCount(ctx, key, fmt.Sprintf("%d", windowStart), "+inf")
 
-	// Add current request
-	pipe.ZAdd(ctx, key, &redis.Z{
-		Score:  float64(now),
-		Member: fmt.Sprintf("%d", now),
-	})
-
 	// Set expiration to window + 60 seconds
 	pipe.Expire(ctx, key, time.Duration(windowSeconds+60)*time.Second)
 
@@ -138,7 +132,22 @@ func (r *WebhookRateLimiter) checkSlidingWindow(ctx context.Context, key string,
 	}
 
 	count := countCmd.Val()
-	return count < int64(limit), nil
+
+	// Check if we're at or over the limit
+	if count >= int64(limit) {
+		return false, nil
+	}
+
+	// Add current request only if under limit
+	_, err = r.redisClient.ZAdd(ctx, key, &redis.Z{
+		Score:  float64(now),
+		Member: fmt.Sprintf("%d:%d", now, time.Now().UnixNano()),
+	}).Result()
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // RecordSubscriptionRequest records a subscription creation request for rate limiting
