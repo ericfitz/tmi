@@ -2752,13 +2752,9 @@
             "nullable": true
           },
           "sensitivity": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "maxLength": 128
-            },
-            "description": "Sensitivity labels for the asset",
-            "maxItems": 50,
+            "type": "string",
+            "description": "Sensitivity label for the asset",
+            "maxLength": 128,
             "nullable": true
           }
         }

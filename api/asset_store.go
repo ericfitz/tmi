@@ -90,9 +90,9 @@ func (s *DatabaseAssetStore) Create(ctx context.Context, asset *Asset, threatMod
 	if asset.Classification != nil {
 		classification = *asset.Classification
 	}
-	var sensitivity []string
+	var sensitivity *string
 	if asset.Sensitivity != nil {
-		sensitivity = *asset.Sensitivity
+		sensitivity = asset.Sensitivity
 	}
 
 	// Insert into database
@@ -112,7 +112,7 @@ func (s *DatabaseAssetStore) Create(ctx context.Context, asset *Asset, threatMod
 		asset.Type,
 		asset.Criticality,
 		pq.Array(classification),
-		pq.Array(sensitivity),
+		sensitivity,
 		now,
 		now,
 	)
@@ -175,8 +175,8 @@ func (s *DatabaseAssetStore) Get(ctx context.Context, id string) (*Asset, error)
 	`
 
 	var extAsset ExtendedAsset
-	var description, criticality sql.NullString
-	var classification, sensitivity []string
+	var description, criticality, sensitivity sql.NullString
+	var classification []string
 
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&extAsset.Id,
@@ -186,7 +186,7 @@ func (s *DatabaseAssetStore) Get(ctx context.Context, id string) (*Asset, error)
 		&extAsset.Type,
 		&criticality,
 		pq.Array(&classification),
-		pq.Array(&sensitivity),
+		&sensitivity,
 		&extAsset.CreatedAt,
 		&extAsset.ModifiedAt,
 	)
@@ -209,8 +209,8 @@ func (s *DatabaseAssetStore) Get(ctx context.Context, id string) (*Asset, error)
 	if len(classification) > 0 {
 		extAsset.Classification = &classification
 	}
-	if len(sensitivity) > 0 {
-		extAsset.Sensitivity = &sensitivity
+	if sensitivity.Valid {
+		extAsset.Sensitivity = &sensitivity.String
 	}
 
 	asset := extendedToAsset(&extAsset)
@@ -255,9 +255,9 @@ func (s *DatabaseAssetStore) Update(ctx context.Context, asset *Asset, threatMod
 	if asset.Classification != nil {
 		classification = *asset.Classification
 	}
-	var sensitivity []string
+	var sensitivity *string
 	if asset.Sensitivity != nil {
-		sensitivity = *asset.Sensitivity
+		sensitivity = asset.Sensitivity
 	}
 
 	query := `
@@ -273,7 +273,7 @@ func (s *DatabaseAssetStore) Update(ctx context.Context, asset *Asset, threatMod
 		asset.Type,
 		asset.Criticality,
 		pq.Array(classification),
-		pq.Array(sensitivity),
+		sensitivity,
 		now,
 		tmID,
 	)
@@ -427,8 +427,8 @@ func (s *DatabaseAssetStore) List(ctx context.Context, threatModelID string, off
 	assets = make([]Asset, 0)
 	for rows.Next() {
 		var extAsset ExtendedAsset
-		var description, criticality sql.NullString
-		var classification, sensitivity []string
+		var description, criticality, sensitivity sql.NullString
+		var classification []string
 
 		err := rows.Scan(
 			&extAsset.Id,
@@ -438,7 +438,7 @@ func (s *DatabaseAssetStore) List(ctx context.Context, threatModelID string, off
 			&extAsset.Type,
 			&criticality,
 			pq.Array(&classification),
-			pq.Array(&sensitivity),
+			&sensitivity,
 			&extAsset.CreatedAt,
 			&extAsset.ModifiedAt,
 		)
@@ -458,8 +458,8 @@ func (s *DatabaseAssetStore) List(ctx context.Context, threatModelID string, off
 		if len(classification) > 0 {
 			extAsset.Classification = &classification
 		}
-		if len(sensitivity) > 0 {
-			extAsset.Sensitivity = &sensitivity
+		if sensitivity.Valid {
+			extAsset.Sensitivity = &sensitivity.String
 		}
 
 		asset := extendedToAsset(&extAsset)
@@ -557,9 +557,9 @@ func (s *DatabaseAssetStore) BulkCreate(ctx context.Context, assets []Asset, thr
 		if asset.Classification != nil {
 			classification = *asset.Classification
 		}
-		var sensitivity []string
+		var sensitivity *string
 		if asset.Sensitivity != nil {
-			sensitivity = *asset.Sensitivity
+			sensitivity = asset.Sensitivity
 		}
 
 		_, err = stmt.ExecContext(ctx,
@@ -570,7 +570,7 @@ func (s *DatabaseAssetStore) BulkCreate(ctx context.Context, assets []Asset, thr
 			asset.Type,
 			asset.Criticality,
 			pq.Array(classification),
-			pq.Array(sensitivity),
+			sensitivity,
 			now,
 			now,
 		)
@@ -700,18 +700,10 @@ func (s *DatabaseAssetStore) applyPatchOperation(asset *Asset, op PatchOperation
 	case "/sensitivity":
 		switch op.Op {
 		case "replace", "add":
-			if sensArray, ok := op.Value.([]interface{}); ok {
-				strArray := make([]string, len(sensArray))
-				for i, v := range sensArray {
-					if s, ok := v.(string); ok {
-						strArray[i] = s
-					} else {
-						return fmt.Errorf("invalid value in sensitivity array: expected string")
-					}
-				}
-				asset.Sensitivity = &strArray
+			if sens, ok := op.Value.(string); ok {
+				asset.Sensitivity = &sens
 			} else {
-				return fmt.Errorf("invalid value type for sensitivity: expected array of strings")
+				return fmt.Errorf("invalid value type for sensitivity: expected string")
 			}
 		case "remove":
 			asset.Sensitivity = nil

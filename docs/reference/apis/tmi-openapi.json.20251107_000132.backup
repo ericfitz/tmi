@@ -269,7 +269,7 @@
       },
       "BaseDiagram": {
         "type": "object",
-        "description": "Base diagram object with common properties",
+        "description": "Base diagram object with common properties - used for API responses",
         "properties": {
           "id": {
             "type": "string",
@@ -297,13 +297,15 @@
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp (ISO3339)",
-            "maxLength": 36
+            "maxLength": 36,
+            "readOnly": true
           },
           "modified_at": {
             "type": "string",
             "format": "date-time",
             "description": "Last modification timestamp (ISO3339)",
-            "maxLength": 36
+            "maxLength": 36,
+            "readOnly": true
           },
           "metadata": {
             "type": "array",
@@ -359,14 +361,78 @@
           }
         }
       },
+      "BaseDiagramInput": {
+        "type": "object",
+        "description": "Base diagram input for PUT/PATCH requests - excludes readOnly server-managed fields",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the diagram",
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of diagram with version",
+            "enum": [
+              "DFD-1.0.0"
+            ],
+            "maxLength": 64
+          },
+          "metadata": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Metadata"
+            },
+            "description": "Key-value pairs for additional diagram metadata",
+            "nullable": true
+          },
+          "image": {
+            "type": "object",
+            "description": "Image data with version information",
+            "properties": {
+              "svg": {
+                "type": "string",
+                "format": "byte",
+                "description": "BASE64 encoded SVG representation of the diagram, used for thumbnails and reports"
+              },
+              "update_vector": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Version of the diagram when this SVG was generated. If not provided when svg is updated, will be auto-set to BaseDiagram.update_vector",
+                "minimum": 0
+              }
+            },
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1024,
+            "nullable": true,
+            "description": "Optional description of the diagram"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "DFD-1.0.0": "#/components/schemas/DfdDiagramInput"
+          }
+        }
+      },
       "DfdDiagram": {
+        "x-discriminator-value": "DFD-1.0.0",
         "allOf": [
           {
             "$ref": "#/components/schemas/BaseDiagram"
           },
           {
             "type": "object",
-            "description": "Data Flow Diagram (DFD) with cells",
+            "description": "Data Flow Diagram (DFD) with cells - API response schema",
             "properties": {
               "type": {
                 "type": "string",
@@ -385,7 +451,67 @@
                     {
                       "$ref": "#/components/schemas/Edge"
                     }
-                  ]
+                  ],
+                  "discriminator": {
+                    "propertyName": "shape",
+                    "mapping": {
+                      "actor": "#/components/schemas/Node",
+                      "process": "#/components/schemas/Node",
+                      "store": "#/components/schemas/Node",
+                      "security-boundary": "#/components/schemas/Node",
+                      "text-box": "#/components/schemas/Node",
+                      "edge": "#/components/schemas/Edge"
+                    }
+                  }
+                },
+                "description": "List of diagram cells (nodes and edges) following X6 structure"
+              }
+            },
+            "required": [
+              "cells"
+            ]
+          }
+        ]
+      },
+      "DfdDiagramInput": {
+        "x-discriminator-value": "DFD-1.0.0",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BaseDiagramInput"
+          },
+          {
+            "type": "object",
+            "description": "Data Flow Diagram (DFD) input for PUT requests - excludes readOnly fields",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "DFD-1.0.0"
+                ],
+                "description": "DFD diagram type with version"
+              },
+              "cells": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Node"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Edge"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "shape",
+                    "mapping": {
+                      "actor": "#/components/schemas/Node",
+                      "process": "#/components/schemas/Node",
+                      "store": "#/components/schemas/Node",
+                      "security-boundary": "#/components/schemas/Node",
+                      "text-box": "#/components/schemas/Node",
+                      "edge": "#/components/schemas/Edge"
+                    }
+                  }
                 },
                 "description": "List of diagram cells (nodes and edges) following X6 structure"
               }
@@ -421,6 +547,8 @@
         "additionalProperties": false
       },
       "Diagram": {
+        "deprecated": true,
+        "description": "DEPRECATED: Empty wrapper schema for polymorphic diagram types. Use DfdDiagram directly instead. This schema is kept for backward compatibility but generates empty classes in client libraries.",
         "oneOf": [
           {
             "$ref": "#/components/schemas/DfdDiagram"
@@ -581,13 +709,6 @@
               "$ref": "#/components/schemas/MarkupElement"
             },
             "description": "SVG/HTML markup definition for custom shape rendering in X6"
-          },
-          "tools": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CellTool"
-            },
-            "description": "Interactive tools attached to the cell for user interaction"
           }
         }
       },
@@ -1418,7 +1539,7 @@
       },
       "DiagramListItem": {
         "type": "object",
-        "description": "A simplified diagram item for list endpoints, containing id, name, and type",
+        "description": "Summary diagram object for GET /diagrams list endpoints. Excludes large fields (cells, image) for performance. Full diagram details available via GET /diagrams/{id} which returns DfdDiagram.",
         "properties": {
           "id": {
             "type": "string",
@@ -1531,11 +1652,10 @@
             "minimum": 0
           },
           "status": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\""
+            "type": "string",
+            "nullable": true,
+            "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\"",
+            "maxLength": 128
           },
           "status_updated": {
             "type": "string",
@@ -1777,10 +1897,75 @@
             }
           },
           "position": {
-            "type": "number",
-            "description": "Position along the edge (0 = start, 1 = end)",
-            "minimum": 0,
-            "maximum": 1
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "Simple position: 0-1 for percentage, >1 for pixels from start, <0 for pixels from end"
+              },
+              {
+                "type": "object",
+                "description": "Advanced position with offset and angle (X6 LabelPositionObject format)",
+                "required": [
+                  "distance"
+                ],
+                "properties": {
+                  "distance": {
+                    "type": "number",
+                    "description": "Position along the edge: 0-1 for percentage, >1 for pixels from start, <0 for pixels from end"
+                  },
+                  "offset": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "description": "Perpendicular offset from edge (positive = down/right, negative = up/left)"
+                      },
+                      {
+                        "type": "object",
+                        "description": "Absolute x,y offset",
+                        "properties": {
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "angle": {
+                    "type": "number",
+                    "description": "Rotation angle in degrees (clockwise)"
+                  },
+                  "options": {
+                    "type": "object",
+                    "description": "Advanced positioning options",
+                    "properties": {
+                      "absoluteDistance": {
+                        "type": "boolean",
+                        "description": "Forces absolute coordinates for distance"
+                      },
+                      "reverseDistance": {
+                        "type": "boolean",
+                        "description": "Forces reverse absolute coordinates"
+                      },
+                      "absoluteOffset": {
+                        "type": "boolean",
+                        "description": "Forces absolute coordinates for offset"
+                      },
+                      "keepGradient": {
+                        "type": "boolean",
+                        "description": "Auto-adjusts angle to match path gradient"
+                      },
+                      "ensureLegibility": {
+                        "type": "boolean",
+                        "description": "Rotates labels to avoid upside-down text"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
           }
         },
         "example": {
@@ -1875,30 +2060,6 @@
               "$ref": "#/components/schemas/MarkupElement"
             },
             "description": "Nested child elements"
-          }
-        }
-      },
-      "CellTool": {
-        "type": "object",
-        "description": "Interactive tool configuration for X6 cells",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Tool identifier (e.g., 'boundary', 'button', 'remove')",
-            "example": "button"
-          },
-          "args": {
-            "type": "object",
-            "description": "Tool-specific configuration arguments",
-            "additionalProperties": true,
-            "example": {
-              "x": 10,
-              "y": 10,
-              "markup": "<circle r='5' fill='red'/>"
-            }
           }
         }
       },
@@ -2095,14 +2256,10 @@
             "maxLength": 1024
           },
           "status": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "maxLength": 128
-            },
+            "type": "string",
             "nullable": true,
             "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\"",
-            "maxItems": 50
+            "maxLength": 128
           }
         },
         "required": [
@@ -2195,15 +2352,8 @@
           },
           "severity": {
             "type": "string",
-            "enum": [
-              "Unknown",
-              "None",
-              "Low",
-              "Medium",
-              "High",
-              "Critical"
-            ],
-            "description": "Severity level of the threat"
+            "description": "Severity level of the threat",
+            "maxLength": 256
           },
           "score": {
             "type": "number",
@@ -2214,7 +2364,7 @@
           "priority": {
             "type": "string",
             "description": "Priority level for addressing the threat",
-            "maxLength": 16
+            "maxLength": 256
           },
           "mitigated": {
             "type": "boolean",
@@ -2254,10 +2404,6 @@
         },
         "required": [
           "name",
-          "severity",
-          "priority",
-          "mitigated",
-          "status",
           "threat_type"
         ]
       },
@@ -4653,7 +4799,8 @@
                       "description": "JSON path to target"
                     },
                     "value": {
-                      "description": "Value to apply"
+                      "description": "Value to apply",
+                      "nullable": true
                     }
                   },
                   "required": [
@@ -9699,7 +9846,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Diagram"
+                  "$ref": "#/components/schemas/DfdDiagram"
                 }
               }
             }
@@ -9765,7 +9912,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Diagram"
+                  "$ref": "#/components/schemas/DfdDiagram"
                 }
               }
             }
@@ -9789,7 +9936,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Update a diagram",
-        "description": "Completely replaces a diagram with new data",
+        "description": "Completely replaces a diagram with new data. Use DfdDiagramInput schema which excludes readOnly fields (id, created_at, modified_at, update_vector).",
         "operationId": "updateThreatModelDiagram",
         "security": [
           {
@@ -9825,7 +9972,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Diagram"
+                "$ref": "#/components/schemas/DfdDiagramInput"
               }
             }
           }
@@ -9836,7 +9983,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Diagram"
+                  "$ref": "#/components/schemas/DfdDiagram"
                 }
               }
             }
@@ -9980,7 +10127,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Diagram"
+                  "$ref": "#/components/schemas/DfdDiagram"
                 }
               }
             }
