@@ -341,8 +341,9 @@ var ValidationConfigs = map[string]ValidationConfig{
 			if asset.Classification != nil && len(*asset.Classification) > 50 {
 				return InvalidInputError("Asset classification array exceeds maximum of 50 items")
 			}
-			if asset.Sensitivity != nil && len(*asset.Sensitivity) > 50 {
-				return InvalidInputError("Asset sensitivity array exceeds maximum of 50 items")
+			// Validate string field lengths
+			if asset.Sensitivity != nil && len(*asset.Sensitivity) > 128 {
+				return InvalidInputError("Asset sensitivity exceeds maximum of 128 characters")
 			}
 			return nil
 		}),
@@ -379,8 +380,9 @@ var ValidationConfigs = map[string]ValidationConfig{
 			if asset.Classification != nil && len(*asset.Classification) > 50 {
 				return InvalidInputError("Asset classification array exceeds maximum of 50 items")
 			}
-			if asset.Sensitivity != nil && len(*asset.Sensitivity) > 50 {
-				return InvalidInputError("Asset sensitivity array exceeds maximum of 50 items")
+			// Validate string field lengths
+			if asset.Sensitivity != nil && len(*asset.Sensitivity) > 128 {
+				return InvalidInputError("Asset sensitivity exceeds maximum of 128 characters")
 			}
 			return nil
 		}),
