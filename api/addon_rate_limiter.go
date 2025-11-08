@@ -7,14 +7,15 @@ import (
 
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 )
 
 // AddonRateLimiter provides rate limiting for add-on invocations
 type AddonRateLimiter struct {
-	redis       *db.RedisDB
-	builder     *db.RedisKeyBuilder
-	quotaStore  AddonInvocationQuotaStore
+	redis      *db.RedisDB
+	builder    *db.RedisKeyBuilder
+	quotaStore AddonInvocationQuotaStore
 }
 
 // NewAddonRateLimiter creates a new rate limiter
@@ -78,15 +79,17 @@ func (rl *AddonRateLimiter) CheckHourlyRateLimit(ctx context.Context, userID uui
 	now := time.Now().Unix()
 	windowStart := now - 3600 // 1 hour ago
 
+	client := rl.redis.GetClient()
+
 	// Remove old entries outside the window
-	err = rl.redis.ZRemRangeByScore(ctx, key, "0", fmt.Sprintf("%d", windowStart))
+	err = client.ZRemRangeByScore(ctx, key, "0", fmt.Sprintf("%d", windowStart)).Err()
 	if err != nil {
 		logger.Error("Failed to clean old rate limit entries for user %s: %v", userID, err)
 		// Continue despite error
 	}
 
 	// Count entries in current window
-	count, err := rl.redis.ZCount(ctx, key, fmt.Sprintf("%d", windowStart), fmt.Sprintf("%d", now))
+	count, err := client.ZCount(ctx, key, fmt.Sprintf("%d", windowStart), fmt.Sprintf("%d", now)).Result()
 	if err != nil {
 		logger.Error("Failed to count rate limit entries for user %s: %v", userID, err)
 		return fmt.Errorf("failed to check rate limit: %w", err)
@@ -97,10 +100,10 @@ func (rl *AddonRateLimiter) CheckHourlyRateLimit(ctx context.Context, userID uui
 			userID, count, quota.MaxInvocationsPerHour)
 
 		// Calculate retry-after (time until oldest entry expires)
-		oldestScore, err := rl.redis.ZRangeWithScores(ctx, key, 0, 0)
+		oldestScores, err := client.ZRangeWithScores(ctx, key, 0, 0).Result()
 		retryAfter := 3600 // default 1 hour
-		if err == nil && len(oldestScore) > 0 {
-			oldestTime := int64(oldestScore[0])
+		if err == nil && len(oldestScores) > 0 {
+			oldestTime := int64(oldestScores[0].Score)
 			retryAfter = int(oldestTime + 3600 - now)
 			if retryAfter < 0 {
 				retryAfter = 0
@@ -138,8 +141,13 @@ func (rl *AddonRateLimiter) RecordInvocation(ctx context.Context, userID uuid.UU
 	// Create unique member using timestamp + nanoseconds
 	member := fmt.Sprintf("%d:%d", score, now.UnixNano())
 
+	client := rl.redis.GetClient()
+
 	// Add to sorted set
-	err := rl.redis.ZAdd(ctx, key, float64(score), member)
+	err := client.ZAdd(ctx, key, &redis.Z{
+		Score:  float64(score),
+		Member: member,
+	}).Err()
 	if err != nil {
 		logger.Error("Failed to record invocation for user %s: %v", userID, err)
 		return fmt.Errorf("failed to record invocation: %w", err)

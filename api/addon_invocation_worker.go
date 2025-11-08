@@ -26,15 +26,15 @@ type AddonInvocationWorker struct {
 
 // AddonInvocationPayload represents the payload sent to webhook endpoints
 type AddonInvocationPayload struct {
-	EventType     string    `json:"event_type"`
-	InvocationID  uuid.UUID `json:"invocation_id"`
-	AddonID       uuid.UUID `json:"addon_id"`
-	ThreatModelID uuid.UUID `json:"threat_model_id"`
-	ObjectType    string    `json:"object_type,omitempty"`
-	ObjectID      *uuid.UUID `json:"object_id,omitempty"`
-	Timestamp     time.Time `json:"timestamp"`
+	EventType     string          `json:"event_type"`
+	InvocationID  uuid.UUID       `json:"invocation_id"`
+	AddonID       uuid.UUID       `json:"addon_id"`
+	ThreatModelID uuid.UUID       `json:"threat_model_id"`
+	ObjectType    string          `json:"object_type,omitempty"`
+	ObjectID      *uuid.UUID      `json:"object_id,omitempty"`
+	Timestamp     time.Time       `json:"timestamp"`
 	Payload       json.RawMessage `json:"payload"`
-	CallbackURL   string    `json:"callback_url"`
+	CallbackURL   string          `json:"callback_url"`
 }
 
 // NewAddonInvocationWorker creates a new invocation worker

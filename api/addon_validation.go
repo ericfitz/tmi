@@ -87,7 +87,7 @@ func ValidateIcon(icon string) error {
 
 // ValidateObjects validates that all object types are in the TMI taxonomy
 func ValidateObjects(objects []string) error {
-	if objects == nil || len(objects) == 0 {
+	if len(objects) == 0 {
 		// Empty objects array is allowed
 		return nil
 	}
@@ -108,8 +108,8 @@ func ValidateObjects(objects []string) error {
 
 	if len(invalidObjects) > 0 {
 		return &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
+			Status: 400,
+			Code:   "invalid_input",
 			Message: fmt.Sprintf("Invalid object types: %s. Valid types: %s",
 				strings.Join(invalidObjects, ", "),
 				strings.Join(TMIObjectTypes, ", ")),

@@ -169,8 +169,8 @@ func ListAddons(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
 	// Parse query parameters
-	limit := 50  // default
-	offset := 0  // default
+	limit := 50 // default
+	offset := 0 // default
 
 	if limitStr := c.Query("limit"); limitStr != "" {
 		if parsedLimit, err := parsePositiveInt(limitStr); err == nil {
@@ -218,16 +218,7 @@ func ListAddons(c *gin.Context) {
 	// Convert to response format
 	var responses []AddonResponse
 	for _, addon := range addons {
-		responses = append(responses, AddonResponse{
-			ID:            addon.ID,
-			CreatedAt:     addon.CreatedAt,
-			Name:          addon.Name,
-			WebhookID:     addon.WebhookID,
-			Description:   addon.Description,
-			Icon:          addon.Icon,
-			Objects:       addon.Objects,
-			ThreatModelID: addon.ThreatModelID,
-		})
+		responses = append(responses, AddonResponse(addon))
 	}
 
 	// Return paginated response

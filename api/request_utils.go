@@ -420,3 +420,21 @@ func truncateBeforeStackTrace(errMsg string) string {
 	// No stack trace markers found, return original message
 	return errMsg
 }
+
+// parsePositiveInt parses a string as a positive integer with validation
+func parsePositiveInt(value string) (int, error) {
+	if value == "" {
+		return 0, fmt.Errorf("empty value")
+	}
+
+	var result int
+	if _, err := fmt.Sscanf(value, "%d", &result); err != nil {
+		return 0, fmt.Errorf("invalid integer format: %w", err)
+	}
+
+	if result <= 0 {
+		return 0, fmt.Errorf("value must be positive: %d", result)
+	}
+
+	return result, nil
+}

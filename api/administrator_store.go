@@ -9,12 +9,12 @@ import (
 
 // Administrator represents an administrator entry
 type Administrator struct {
-	UserID      uuid.UUID `json:"user_id"`
-	Subject     string    `json:"subject"`      // email for users, group name for groups
-	SubjectType string    `json:"subject_type"` // "user" or "group"
-	GrantedAt   time.Time `json:"granted_at"`
+	UserID      uuid.UUID  `json:"user_id"`
+	Subject     string     `json:"subject"`      // email for users, group name for groups
+	SubjectType string     `json:"subject_type"` // "user" or "group"
+	GrantedAt   time.Time  `json:"granted_at"`
 	GrantedBy   *uuid.UUID `json:"granted_by,omitempty"`
-	Notes       string    `json:"notes,omitempty"`
+	Notes       string     `json:"notes,omitempty"`
 }
 
 // AdministratorStore defines the interface for administrator storage operations

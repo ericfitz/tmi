@@ -20,8 +20,8 @@ type AddonInvocation struct {
 	ObjectType      string     `json:"object_type,omitempty"`
 	ObjectID        *uuid.UUID `json:"object_id,omitempty"`
 	InvokedBy       uuid.UUID  `json:"invoked_by"`
-	Payload         string     `json:"payload"` // JSON string
-	Status          string     `json:"status"`  // pending, in_progress, completed, failed
+	Payload         string     `json:"payload"`        // JSON string
+	Status          string     `json:"status"`         // pending, in_progress, completed, failed
 	StatusPercent   int        `json:"status_percent"` // 0-100
 	StatusMessage   string     `json:"status_message,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
@@ -187,7 +187,7 @@ func (s *AddonInvocationRedisStore) Update(ctx context.Context, invocation *Addo
 	// Update active tracking if status changed to completed/failed
 	if invocation.Status == InvocationStatusCompleted || invocation.Status == InvocationStatusFailed {
 		activeKey := s.buildActiveUserKey(invocation.InvokedBy)
-		err = s.redis.Delete(ctx, activeKey)
+		err = s.redis.Del(ctx, activeKey)
 		if err != nil {
 			logger.Error("Failed to clear active invocation for user %s: %v", invocation.InvokedBy, err)
 			// Don't fail the update for this
@@ -209,8 +209,11 @@ func (s *AddonInvocationRedisStore) List(ctx context.Context, userID *uuid.UUID,
 	var cursor uint64
 	var allKeys []string
 
+	client := s.redis.GetClient()
 	for {
-		keys, newCursor, err := s.redis.Scan(ctx, cursor, pattern, 100)
+		var keys []string
+		var newCursor uint64
+		keys, newCursor, err := client.Scan(ctx, cursor, pattern, 100).Result()
 		if err != nil {
 			logger.Error("Failed to scan invocation keys: %v", err)
 			return nil, 0, fmt.Errorf("failed to scan invocations: %w", err)
@@ -285,8 +288,11 @@ func (s *AddonInvocationRedisStore) CountActive(ctx context.Context, addonID uui
 	var cursor uint64
 	count := 0
 
+	client := s.redis.GetClient()
 	for {
-		keys, newCursor, err := s.redis.Scan(ctx, cursor, pattern, 100)
+		var keys []string
+		var newCursor uint64
+		keys, newCursor, err := client.Scan(ctx, cursor, pattern, 100).Result()
 		if err != nil {
 			logger.Error("Failed to scan invocation keys: %v", err)
 			return 0, fmt.Errorf("failed to scan invocations: %w", err)
@@ -355,7 +361,7 @@ func (s *AddonInvocationRedisStore) Delete(ctx context.Context, id uuid.UUID) er
 	logger := slogging.Get()
 
 	key := s.buildInvocationKey(id)
-	err := s.redis.Delete(ctx, key)
+	err := s.redis.Del(ctx, key)
 	if err != nil {
 		logger.Error("Failed to delete invocation %s: %v", id, err)
 		return fmt.Errorf("failed to delete invocation: %w", err)

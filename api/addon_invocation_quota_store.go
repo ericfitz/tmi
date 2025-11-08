@@ -12,17 +12,17 @@ import (
 
 // AddonInvocationQuota represents per-user rate limits for add-on invocations
 type AddonInvocationQuota struct {
-	OwnerID              uuid.UUID `json:"owner_id"`
-	MaxActiveInvocations int       `json:"max_active_invocations"`
-	MaxInvocationsPerHour int      `json:"max_invocations_per_hour"`
-	CreatedAt            time.Time `json:"created_at"`
-	ModifiedAt           time.Time `json:"modified_at"`
+	OwnerID               uuid.UUID `json:"owner_id"`
+	MaxActiveInvocations  int       `json:"max_active_invocations"`
+	MaxInvocationsPerHour int       `json:"max_invocations_per_hour"`
+	CreatedAt             time.Time `json:"created_at"`
+	ModifiedAt            time.Time `json:"modified_at"`
 }
 
 // Default quota values
 const (
-	DefaultMaxActiveInvocations    = 1
-	DefaultMaxInvocationsPerHour   = 10
+	DefaultMaxActiveInvocations  = 1
+	DefaultMaxInvocationsPerHour = 10
 )
 
 // AddonInvocationQuotaStore defines the interface for quota storage operations

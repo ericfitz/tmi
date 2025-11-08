@@ -13,9 +13,9 @@ import (
 
 // InvokeAddonRequest represents the request to invoke an add-on
 type InvokeAddonRequest struct {
-	ThreatModelID uuid.UUID  `json:"threat_model_id" binding:"required"`
-	ObjectType    string     `json:"object_type,omitempty"`
-	ObjectID      *uuid.UUID `json:"object_id,omitempty"`
+	ThreatModelID uuid.UUID       `json:"threat_model_id" binding:"required"`
+	ObjectType    string          `json:"object_type,omitempty"`
+	ObjectID      *uuid.UUID      `json:"object_id,omitempty"`
 	Payload       json.RawMessage `json:"payload,omitempty"`
 }
 
@@ -400,20 +400,7 @@ func ListInvocations(c *gin.Context) {
 	// Convert to response format
 	var responses []InvocationResponse
 	for _, inv := range invocations {
-		responses = append(responses, InvocationResponse{
-			ID:              inv.ID,
-			AddonID:         inv.AddonID,
-			ThreatModelID:   inv.ThreatModelID,
-			ObjectType:      inv.ObjectType,
-			ObjectID:        inv.ObjectID,
-			InvokedBy:       inv.InvokedBy,
-			Payload:         inv.Payload,
-			Status:          inv.Status,
-			StatusPercent:   inv.StatusPercent,
-			StatusMessage:   inv.StatusMessage,
-			CreatedAt:       inv.CreatedAt,
-			StatusUpdatedAt: inv.StatusUpdatedAt,
-		})
+		responses = append(responses, InvocationResponse(inv))
 	}
 
 	// Return paginated response
