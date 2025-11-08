@@ -165,3 +165,9 @@ logging:
 operator:
   name: "" # Operator/maintainer name (set via env var OPERATOR_NAME)
   contact: "" # Operator contact info - email/URL (set via env var OPERATOR_CONTACT)
+
+administrators:
+  - subject: "admin@example.com" # Admin user email
+    subject_type: "user" # "user" or "group"
+  # - subject: "admins" # Example group-based admin
+  #   subject_type: "group"
