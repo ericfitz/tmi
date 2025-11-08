@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"time"
 
@@ -216,8 +217,12 @@ func InvokeAddon(c *gin.Context) {
 		return
 	}
 
-	// TODO: Trigger webhook worker to send invocation to webhook
-	// For now, this is a placeholder - the worker will be implemented next
+	// Queue invocation for webhook worker
+	if GlobalAddonInvocationWorker != nil {
+		GlobalAddonInvocationWorker.QueueInvocation(invocation.ID)
+	} else {
+		logger.Warn("GlobalAddonInvocationWorker not initialized, invocation will not be sent to webhook")
+	}
 
 	// Return response
 	response := InvokeAddonResponse{
@@ -490,8 +495,71 @@ func UpdateInvocationStatus(c *gin.Context) {
 		return
 	}
 
-	// TODO: Verify HMAC signature using webhook secret
-	// For now, this is a placeholder - HMAC verification will be added with webhook worker
+	// Get addon to get webhook details
+	addon, err := GlobalAddonStore.Get(c.Request.Context(), invocation.AddonID)
+	if err != nil {
+		logger.Error("Failed to get addon: id=%s, error=%v", invocation.AddonID, err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to verify invocation",
+		})
+		return
+	}
+
+	// Get webhook to verify signature
+	webhook, err := GlobalWebhookSubscriptionStore.Get(addon.WebhookID.String())
+	if err != nil {
+		logger.Error("Failed to get webhook: id=%s, error=%v", addon.WebhookID, err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to verify invocation",
+		})
+		return
+	}
+
+	// Verify HMAC signature
+	if webhook.Secret != "" {
+		// Get request body for signature verification
+		bodyBytes, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			logger.Error("Failed to read request body: %v", err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_request",
+				Message: "Failed to read request body",
+			})
+			return
+		}
+
+		// Get signature from header
+		signature := c.GetHeader("X-Webhook-Signature")
+		if signature == "" {
+			logger.Warn("Missing HMAC signature for invocation status update: %s", invocationID)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusUnauthorized,
+				Code:    "unauthorized",
+				Message: "Missing webhook signature",
+			})
+			return
+		}
+
+		// Verify signature
+		if !VerifySignature(bodyBytes, signature, webhook.Secret) {
+			logger.Warn("Invalid HMAC signature for invocation status update: %s", invocationID)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusUnauthorized,
+				Code:    "unauthorized",
+				Message: "Invalid webhook signature",
+			})
+			return
+		}
+
+		logger.Debug("HMAC signature verified for invocation status update: %s", invocationID)
+	} else {
+		logger.Warn("Webhook has no secret, skipping HMAC verification for invocation: %s", invocationID)
+	}
 
 	// Validate status transition
 	if invocation.Status == InvocationStatusCompleted || invocation.Status == InvocationStatusFailed {
