@@ -330,13 +330,22 @@ func (s *AddonDatabaseStore) GetByWebhookID(ctx context.Context, webhookID uuid.
 }
 
 // CountActiveInvocations counts pending/in_progress invocations for an add-on
-// This implementation is a placeholder - it will be fully implemented when we add Redis invocation store
 func (s *AddonDatabaseStore) CountActiveInvocations(ctx context.Context, addonID uuid.UUID) (int, error) {
 	logger := slogging.Get()
 
-	// TODO: This will be implemented to query Redis for active invocations
-	// For now, return 0 to allow deletion
-	logger.Debug("CountActiveInvocations called for addon_id=%s (placeholder implementation)", addonID)
+	// Use the Redis invocation store to count active invocations
+	if GlobalAddonInvocationStore == nil {
+		logger.Warn("GlobalAddonInvocationStore not initialized, cannot count active invocations")
+		return 0, nil // Allow deletion if store not available
+	}
 
-	return 0, nil
+	count, err := GlobalAddonInvocationStore.CountActive(ctx, addonID)
+	if err != nil {
+		logger.Error("Failed to count active invocations for addon_id=%s: %v", addonID, err)
+		return 0, fmt.Errorf("failed to count active invocations: %w", err)
+	}
+
+	logger.Debug("Counted %d active invocations for addon_id=%s", count, addonID)
+
+	return count, nil
 }
