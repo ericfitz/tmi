@@ -3487,9 +3487,6 @@ func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, userID string
 		return
 	}
 
-	s.OperationHistory.mutex.Lock()
-	defer s.OperationHistory.mutex.Unlock()
-
 	var sequenceNumber uint64
 	if msg.SequenceNumber != nil {
 		sequenceNumber = *msg.SequenceNumber
@@ -3504,7 +3501,7 @@ func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, userID string
 		PreviousState:  previousState,
 	}
 
-	// Use the new AddOperation method which handles position tracking and cleanup
+	// AddOperation handles its own mutex locking, so we don't lock here
 	s.OperationHistory.AddOperation(entry)
 }
 
