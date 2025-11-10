@@ -94,6 +94,15 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 		session.ID, client.UserID, msg.OperationID, validationResult.Valid, validationResult.StateChanged, applied, totalClients)
 
 	if applied {
+		// Save the modified diagram to the database
+		if err := DiagramStore.Update(session.DiagramID, diagram); err != nil {
+			slogging.Get().Error("Failed to save diagram after operation - Session: %s, OperationID: %s, Error: %v",
+				session.ID, msg.OperationID, err)
+			session.sendOperationRejected(client, msg.OperationID, msg.SequenceNumber, "save_failed",
+				"Failed to persist diagram changes", nil, nil, true)
+			return fmt.Errorf("failed to save diagram: %w", err)
+		}
+
 		// Update operation history
 		session.addToHistory(msg, client.UserID, validationResult.PreviousState, currentState)
 
