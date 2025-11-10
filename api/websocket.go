@@ -2261,10 +2261,23 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 	s.TerminatedAt = &now
 	s.mu.Unlock()
 
-	// Close all remaining client connections gracefully
+	// Send termination message to all remaining participants before closing connections
+	s.broadcastSessionTermination("Host has disconnected")
+
+	// Close all remaining client connections immediately
 	s.mu.Lock()
 	for client := range s.Clients {
 		if client.UserID != disconnectedHostID { // Host already disconnected
+			// Send WebSocket close message and close connection immediately
+			if err := client.Conn.WriteMessage(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.CloseNormalClosure, "Session terminated: host disconnected")); err != nil {
+				slogging.Get().Debug("Failed to send close message to participant %s: %v", client.UserID, err)
+			}
+			// Close the underlying connection immediately
+			if err := client.Conn.Close(); err != nil {
+				slogging.Get().Debug("Failed to close connection for participant %s: %v", client.UserID, err)
+			}
+			// Close the Send channel
 			close(client.Send)
 			slogging.Get().Debug("Closed connection for participant %s due to session termination", client.UserID)
 		}
@@ -2293,6 +2306,40 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 }
 
 // broadcastSessionTermination sends termination messages to all participants
+func (s *DiagramSession) broadcastSessionTermination(reason string) {
+	s.mu.RLock()
+	clients := make([]*WebSocketClient, 0, len(s.Clients))
+	for client := range s.Clients {
+		clients = append(clients, client)
+	}
+	s.mu.RUnlock()
+
+	terminationMsg := ErrorMessage{
+		MessageType: MessageTypeError,
+		Error:       "session_terminated",
+		Message:     fmt.Sprintf("Collaboration session has been terminated: %s", reason),
+		Timestamp:   time.Now().UTC(),
+	}
+
+	msgBytes, err := json.Marshal(terminationMsg)
+	if err != nil {
+		slogging.Get().Error("Failed to marshal session termination message: %v", err)
+		return
+	}
+
+	// Send to all clients
+	for _, client := range clients {
+		select {
+		case client.Send <- msgBytes:
+			slogging.Get().Debug("Sent session termination message to client %s", client.UserID)
+		default:
+			slogging.Get().Debug("Failed to send termination message to client %s (channel full)", client.UserID)
+		}
+	}
+
+	// Give clients a brief moment to receive the termination message
+	time.Sleep(100 * time.Millisecond)
+}
 
 // findClientByUserID finds a connected client by their user ID
 func (s *DiagramSession) findClientByUserID(userID string) *WebSocketClient {
