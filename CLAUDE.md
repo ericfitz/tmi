@@ -82,6 +82,7 @@ The major version remains at 0 during initial development. Version updates are f
 - Dev DB only: `make start-database` (starts PostgreSQL container)
 - Dev Redis only: `make start-redis` (starts Redis container)
 - Clean all: `make clean-everything` (comprehensive cleanup of processes, containers, and files)
+- Health check: Use `curl http://localhost:8080/` (root endpoint) to verify server is running
 - Observability: `make observability-start` (starts OpenTelemetry monitoring stack), `make obs-start` (alias)
 - Stop observability: `make observability-stop` (stops monitoring services), `make obs-stop` (alias)
 - Clean observability: `make observability-clean` (removes monitoring data), `make obs-clean` (alias)
@@ -312,6 +313,7 @@ make start-database
 - Integration tests: `make test-integration` (requires database, runs with automatic setup/cleanup)
   - Specific test: `make test-integration name=TestName`
   - Cleanup only: `make clean-everything`
+- Coverage tests: `make test-coverage` (generates combined unit + integration coverage reports)
 
 #### Testing Examples
 
@@ -387,6 +389,10 @@ make start-dev                   # Start server first
 - WebSocketHub manages active connections and broadcasts updates
 - Only diagrams support real-time collaboration, not threat models
 - Uses Gorilla WebSocket library
+- Session lifecycle: Active → Terminating → Terminated states
+- Host-based control: Only session host can manage participants
+- Inactivity timeout: Configurable (default 300s, minimum 15s)
+- Deny list: Session-specific tracking of removed participants
 
 ### Database Integration
 
@@ -396,12 +402,20 @@ make start-dev                   # Start server first
 - Development uses Docker containers
 - Dual-mode storage: in-memory for tests, database-backed for dev/prod
 
+### Cache Architecture
+
+- Redis-backed caching with invalidation, warming, and metrics
+- Cache service in api/cache_service.go provides consistent caching patterns
+- Automatic cache invalidation on resource updates
+- Cache metrics tracking (hits, misses, size monitoring)
+
 ## Development Environment
 
 - Copy `.env.example` to `.env.dev` for local development
 - Uses PostgreSQL and Redis Docker containers
 - Development scripts handle container management automatically
 - Server runs on port 8080 by default with configurable TLS support
+- Logs: In development and test, logs are written to `logs/tmi.log` in the project directory
 
 ## Documentation Organization
 
@@ -446,7 +460,7 @@ When completing any task involving code changes, follow this checklist:
   - `docs(readme): update OAuth setup instructions`
   - `refactor(websocket): simplify hub message broadcasting`
   - `test(integration): add database connection pooling tests`
-  - `chore(deps): update Echo framework to v4.12.0`
+  - `chore(deps): update Gin framework to v1.11.0`
 
 ## Make Command Memories
 
@@ -484,9 +498,10 @@ When completing any task involving code changes, follow this checklist:
 ### OpenAPI Integration
 
 - API code generated from docs/reference/apis/tmi-openapi.json using oapi-codegen v2
+- Uses Gin web framework (not Echo) with oapi-codegen/gin-middleware for validation
 - OpenAPI validation middleware clears security schemes (auth handled by JWT middleware)
-- Generated types in api/api.go include Echo server handlers and embedded spec
-- Config file: oapi-codegen-config.yml
+- Generated types in api/api.go include Gin server handlers and embedded spec
+- Config file: oapi-codegen-config.yml (configured for gin-middleware package)
 
 ## Clean Architecture - Request Flow
 
@@ -505,11 +520,9 @@ The system now uses a clean, single-router architecture with OpenAPI-driven rout
 **Request Flow**:
 
 ```
-
 HTTP Request → OpenAPI Route Registration → ServerInterface Implementation →
 JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
-
-````
+```
 
 **Key Components**:
 
@@ -550,15 +563,15 @@ curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=qa-automation"
 
 # Without login_hint - generates random user like 'testuser-12345678@test.tmi'
 curl "http://localhost:8080/oauth2/authorize?idp=test"
-````
+```
 
 **Automation Integration**:
 
 ```bash
 # OAuth callback stub with login_hint
 curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_callback=http://localhost:8079/"
+```
 
 ## Python Development Memories
 
 - Run python scripts with uv. When creating python scripts, add uv toml to the script for automatic package management.
-```
