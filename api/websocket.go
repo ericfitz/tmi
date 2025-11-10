@@ -163,6 +163,20 @@ func (c *WebSocketClient) toUser() User {
 	}
 }
 
+// closeClientChannel safely closes a client's Send channel with proper locking
+// to prevent "send on closed channel" panics. This MUST be used instead of
+// directly calling close(client.Send) to avoid race conditions.
+func (c *WebSocketClient) closeClientChannel() {
+	c.closingMu.Lock()
+	defer c.closingMu.Unlock()
+
+	// Only close if not already closing/closed
+	if !c.closing {
+		c.closing = true
+		close(c.Send)
+	}
+}
+
 // getUserByID finds a User in the session by user ID
 func (s *DiagramSession) getUserByID(userID string) *User {
 	s.mu.RLock()
@@ -1160,21 +1174,9 @@ func (h *WebSocketHub) CloseSession(diagramID string) {
 	// Close client channels outside the lock to prevent deadlocks
 	// and after clearing the clients map to prevent new sends
 	for _, client := range clientsToClose {
-		// Mark client as closing to prevent new sends
-		client.closingMu.Lock()
-		client.closing = true
-		client.closingMu.Unlock()
-
-		// Safely close the channel, recovering from panic if already closed
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					slogging.Get().Debug("Channel already closed for participant %s", client.UserID)
-				}
-			}()
-			close(client.Send)
-			slogging.Get().Debug("Closed connection for participant %s due to immediate session termination", client.UserID)
-		}()
+		// Use helper function for thread-safe channel closure
+		client.closeClientChannel()
+		slogging.Get().Debug("Closed connection for participant %s due to immediate session termination", client.UserID)
 	}
 
 	slogging.Get().Info("Session %s terminated immediately by host %s", session.ID, session.Host)
@@ -1215,7 +1217,7 @@ func (h *WebSocketHub) CleanupInactiveSessions() {
 		if shouldCleanup {
 			// Close session
 			for client := range session.Clients {
-				close(client.Send)
+				client.closeClientChannel()
 			}
 			delete(h.Diagrams, diagramID)
 			slogging.Get().Info("Cleaned up session %s for diagram %s: %s", session.ID, diagramID, cleanupReason)
@@ -1242,7 +1244,7 @@ func (h *WebSocketHub) CleanupEmptySessions() {
 		if clientCount == 0 {
 			// Close session
 			for client := range session.Clients {
-				close(client.Send)
+				client.closeClientChannel()
 			}
 			delete(h.Diagrams, diagramID)
 			slogging.Get().Info("Cleaned up empty session %s for diagram %s (triggered by user departure)", session.ID, diagramID)
@@ -1272,7 +1274,7 @@ func (h *WebSocketHub) CleanupAllSessions() {
 	for diagramID, session := range h.Diagrams {
 		// Close all client connections
 		for client := range session.Clients {
-			close(client.Send)
+			client.closeClientChannel()
 		}
 		slogging.Get().Debug("Cleaned up collaboration session for diagram %s", diagramID)
 	}
@@ -1444,7 +1446,7 @@ func (s *DiagramSession) Run() {
 			s.mu.Lock()
 			if _, ok := s.Clients[client]; ok {
 				delete(s.Clients, client)
-				close(client.Send)
+				client.closeClientChannel()
 				s.LastActivity = time.Now().UTC()
 
 				// Check if the leaving client was the current presenter
@@ -1512,7 +1514,7 @@ func (s *DiagramSession) Run() {
 				case client.Send <- message:
 					clientCount++
 				default:
-					close(client.Send)
+					client.closeClientChannel()
 					delete(s.Clients, client)
 				}
 			}
@@ -2297,8 +2299,8 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 			if err := client.Conn.Close(); err != nil {
 				slogging.Get().Debug("Failed to close connection for participant %s: %v", client.UserID, err)
 			}
-			// Close the Send channel
-			close(client.Send)
+			// Close the Send channel using thread-safe helper
+			client.closeClientChannel()
 			slogging.Get().Debug("Closed connection for participant %s due to session termination", client.UserID)
 		}
 	}
@@ -2419,13 +2421,8 @@ func (s *DiagramSession) removeAndBlockClient(client *WebSocketClient, reason st
 	}
 	s.sendToClient(client, errorMsg)
 
-	// Close the client connection (only if not already closed)
-	select {
-	case <-client.Send:
-		// Already closed
-	default:
-		close(client.Send)
-	}
+	// Close the client connection using thread-safe helper
+	client.closeClientChannel()
 
 	// Broadcast participant left message to remaining clients
 	leftMsg := ParticipantLeftMessage{
@@ -2953,8 +2950,18 @@ func (s *DiagramSession) sendToClient(client *WebSocketClient, message interface
 		}
 	}()
 
+	// Double-check closing flag right before send to minimize race window
+	client.closingMu.RLock()
+	if client.closing {
+		client.closingMu.RUnlock()
+		slogging.Get().Debug("Client %s closing flag set just before send, dropping message", client.UserID)
+		return
+	}
+	client.closingMu.RUnlock()
+
 	select {
 	case client.Send <- msgBytes:
+		// Successfully sent
 	default:
 		slogging.Get().Info("Client send channel full, dropping message")
 	}
