@@ -51,6 +51,7 @@ type AsyncMessage interface {
 // DiagramOperationMessage represents enhanced collaborative editing operations
 type DiagramOperationMessage struct {
 	MessageType    MessageType        `json:"message_type"`
+	InitiatingUser User               `json:"initiating_user"`
 	OperationID    string             `json:"operation_id"`
 	SequenceNumber *uint64            `json:"sequence_number,omitempty"` // Server-assigned
 	Operation      CellPatchOperation `json:"operation"`
@@ -140,7 +141,6 @@ func (op CellOperation) Validate() error {
 
 type PresenterRequestMessage struct {
 	MessageType MessageType `json:"message_type"`
-	User        User        `json:"user"`
 }
 
 func (m PresenterRequestMessage) GetMessageType() MessageType { return m.MessageType }
@@ -149,22 +149,12 @@ func (m PresenterRequestMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterRequest, m.MessageType)
 	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
-	}
-	if m.User.Email == "" {
-		return fmt.Errorf("user.email is required")
-	}
-	if m.User.Name == "" {
-		return fmt.Errorf("user.name is required")
-	}
 	return nil
 }
 
 type PresenterDeniedMessage struct {
-	MessageType MessageType `json:"message_type"`
-	User        User        `json:"user"`
-	TargetUser  string      `json:"target_user"`
+	MessageType      MessageType `json:"message_type"`
+	CurrentPresenter User        `json:"current_presenter"`
 }
 
 func (m PresenterDeniedMessage) GetMessageType() MessageType { return m.MessageType }
@@ -173,19 +163,16 @@ func (m PresenterDeniedMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterDenied {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterDenied, m.MessageType)
 	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
-	}
-	if m.TargetUser == "" {
-		return fmt.Errorf("target_user is required")
+	if m.CurrentPresenter.UserId == "" {
+		return fmt.Errorf("current_presenter.user_id is required")
 	}
 	return nil
 }
 
 type ChangePresenterMessage struct {
-	MessageType  MessageType `json:"message_type"`
-	User         User        `json:"user"`
-	NewPresenter string      `json:"new_presenter"`
+	MessageType    MessageType `json:"message_type"`
+	InitiatingUser User        `json:"initiating_user"`
+	NewPresenter   User        `json:"new_presenter"`
 }
 
 func (m ChangePresenterMessage) GetMessageType() MessageType { return m.MessageType }
@@ -194,19 +181,18 @@ func (m ChangePresenterMessage) Validate() error {
 	if m.MessageType != MessageTypeChangePresenter {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeChangePresenter, m.MessageType)
 	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
+	if m.InitiatingUser.UserId == "" {
+		return fmt.Errorf("initiating_user.user_id is required")
 	}
-	if m.NewPresenter == "" {
-		return fmt.Errorf("new_presenter is required")
+	if m.NewPresenter.UserId == "" {
+		return fmt.Errorf("new_presenter.user_id is required")
 	}
 	return nil
 }
 
 type RemoveParticipantMessage struct {
 	MessageType MessageType `json:"message_type"`
-	User        User        `json:"user"`
-	TargetUser  string      `json:"target_user"`
+	RemovedUser User        `json:"removed_user"`
 }
 
 func (m RemoveParticipantMessage) GetMessageType() MessageType { return m.MessageType }
@@ -215,18 +201,15 @@ func (m RemoveParticipantMessage) Validate() error {
 	if m.MessageType != MessageTypeRemoveParticipant {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeRemoveParticipant, m.MessageType)
 	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
-	}
-	if m.TargetUser == "" {
-		return fmt.Errorf("target_user is required")
+	if m.RemovedUser.UserId == "" {
+		return fmt.Errorf("removed_user.user_id is required")
 	}
 	return nil
 }
 
 type CurrentPresenterMessage struct {
 	MessageType      MessageType `json:"message_type"`
-	CurrentPresenter string      `json:"current_presenter"`
+	CurrentPresenter User        `json:"current_presenter"`
 }
 
 func (m CurrentPresenterMessage) GetMessageType() MessageType { return m.MessageType }
@@ -235,8 +218,8 @@ func (m CurrentPresenterMessage) Validate() error {
 	if m.MessageType != MessageTypeCurrentPresenter {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeCurrentPresenter, m.MessageType)
 	}
-	if m.CurrentPresenter == "" {
-		return fmt.Errorf("current_presenter is required")
+	if m.CurrentPresenter.UserId == "" {
+		return fmt.Errorf("current_presenter.user_id is required")
 	}
 	return nil
 }
@@ -249,7 +232,6 @@ type CursorPosition struct {
 
 type PresenterCursorMessage struct {
 	MessageType    MessageType    `json:"message_type"`
-	User           User           `json:"user"`
 	CursorPosition CursorPosition `json:"cursor_position"`
 }
 
@@ -259,21 +241,11 @@ func (m PresenterCursorMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterCursor {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterCursor, m.MessageType)
 	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
-	}
-	if m.User.Email == "" {
-		return fmt.Errorf("user.email is required")
-	}
-	if m.User.Name == "" {
-		return fmt.Errorf("user.name is required")
-	}
 	return nil
 }
 
 type PresenterSelectionMessage struct {
 	MessageType   MessageType `json:"message_type"`
-	User          User        `json:"user"`
 	SelectedCells []string    `json:"selected_cells"`
 }
 
@@ -282,15 +254,6 @@ func (m PresenterSelectionMessage) GetMessageType() MessageType { return m.Messa
 func (m PresenterSelectionMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterSelection {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterSelection, m.MessageType)
-	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
-	}
-	if m.User.Email == "" {
-		return fmt.Errorf("user.email is required")
-	}
-	if m.User.Name == "" {
-		return fmt.Errorf("user.name is required")
 	}
 	// Validate that selected cells are valid UUIDs
 	for i, cellID := range m.SelectedCells {
@@ -393,8 +356,6 @@ func (m ResyncRequestMessage) Validate() error {
 
 type ResyncResponseMessage struct {
 	MessageType   MessageType `json:"message_type"`
-	User          User        `json:"user"`
-	TargetUser    string      `json:"target_user"`
 	Method        string      `json:"method"`
 	DiagramID     string      `json:"diagram_id"`
 	ThreatModelID string      `json:"threat_model_id,omitempty"`
@@ -405,12 +366,6 @@ func (m ResyncResponseMessage) GetMessageType() MessageType { return m.MessageTy
 func (m ResyncResponseMessage) Validate() error {
 	if m.MessageType != MessageTypeResyncResponse {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeResyncResponse, m.MessageType)
-	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
-	}
-	if m.TargetUser == "" {
-		return fmt.Errorf("target_user is required")
 	}
 	if m.Method == "" {
 		return fmt.Errorf("method is required")
@@ -440,7 +395,8 @@ func (m HistoryOperationMessage) Validate() error {
 }
 
 type UndoRequestMessage struct {
-	MessageType MessageType `json:"message_type"`
+	MessageType    MessageType `json:"message_type"`
+	InitiatingUser User        `json:"initiating_user"`
 }
 
 func (m UndoRequestMessage) GetMessageType() MessageType { return m.MessageType }
@@ -449,11 +405,15 @@ func (m UndoRequestMessage) Validate() error {
 	if m.MessageType != MessageTypeUndoRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeUndoRequest, m.MessageType)
 	}
+	if m.InitiatingUser.UserId == "" {
+		return fmt.Errorf("initiating_user.user_id is required")
+	}
 	return nil
 }
 
 type RedoRequestMessage struct {
-	MessageType MessageType `json:"message_type"`
+	MessageType    MessageType `json:"message_type"`
+	InitiatingUser User        `json:"initiating_user"`
 }
 
 func (m RedoRequestMessage) GetMessageType() MessageType { return m.MessageType }
@@ -461,6 +421,9 @@ func (m RedoRequestMessage) GetMessageType() MessageType { return m.MessageType 
 func (m RedoRequestMessage) Validate() error {
 	if m.MessageType != MessageTypeRedoRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeRedoRequest, m.MessageType)
+	}
+	if m.InitiatingUser.UserId == "" {
+		return fmt.Errorf("initiating_user.user_id is required")
 	}
 	return nil
 }
@@ -578,7 +541,7 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 // ParticipantJoinedMessage notifies when a participant joins a session
 type ParticipantJoinedMessage struct {
 	MessageType MessageType `json:"message_type"`
-	User        User        `json:"user"`
+	JoinedUser  User        `json:"joined_user"`
 	Timestamp   time.Time   `json:"timestamp"`
 }
 
@@ -588,17 +551,17 @@ func (m ParticipantJoinedMessage) Validate() error {
 	if m.MessageType != MessageTypeParticipantJoined {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantJoined, m.MessageType)
 	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
+	if m.JoinedUser.UserId == "" {
+		return fmt.Errorf("joined_user.user_id is required")
 	}
 	return nil
 }
 
 // ParticipantLeftMessage notifies when a participant leaves a session
 type ParticipantLeftMessage struct {
-	MessageType MessageType `json:"message_type"`
-	User        User        `json:"user"`
-	Timestamp   time.Time   `json:"timestamp"`
+	MessageType  MessageType `json:"message_type"`
+	DepartedUser User        `json:"departed_user"`
+	Timestamp    time.Time   `json:"timestamp"`
 }
 
 func (m ParticipantLeftMessage) GetMessageType() MessageType { return m.MessageType }
@@ -607,19 +570,20 @@ func (m ParticipantLeftMessage) Validate() error {
 	if m.MessageType != MessageTypeParticipantLeft {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantLeft, m.MessageType)
 	}
-	if m.User.UserId == "" {
-		return fmt.Errorf("user.user_id is required")
+	if m.DepartedUser.UserId == "" {
+		return fmt.Errorf("departed_user.user_id is required")
 	}
 	return nil
 }
 
 // ErrorMessage represents an error response
 type ErrorMessage struct {
-	MessageType      MessageType `json:"message_type"`
-	Error            string      `json:"error"`
-	Message          string      `json:"message"`
-	ErrorDescription *string     `json:"error_description,omitempty"`
-	Timestamp        time.Time   `json:"timestamp"`
+	MessageType MessageType            `json:"message_type"`
+	Error       string                 `json:"error"`
+	Message     string                 `json:"message"`
+	Code        *string                `json:"code,omitempty"`
+	Details     map[string]interface{} `json:"details,omitempty"`
+	Timestamp   time.Time              `json:"timestamp"`
 }
 
 func (m ErrorMessage) GetMessageType() MessageType { return m.MessageType }

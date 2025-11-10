@@ -183,11 +183,6 @@ func TestPresenterMessages(t *testing.T) {
 	t.Run("Presenter Request", func(t *testing.T) {
 		msg := PresenterRequestMessage{
 			MessageType: MessageTypePresenterRequest,
-			User: User{
-				UserId: "test-user-123",
-				Email:  "test@example.com",
-				Name:   "Test User",
-			},
 		}
 
 		err := msg.Validate()
@@ -198,11 +193,7 @@ func TestPresenterMessages(t *testing.T) {
 	t.Run("Presenter Cursor", func(t *testing.T) {
 		msg := PresenterCursorMessage{
 			MessageType: MessageTypePresenterCursor,
-			User: User{
-				UserId: "test-user-123",
-				Email:  "test@example.com",
-				Name:   "Test User",
-			},
+
 			CursorPosition: CursorPosition{
 				X: 100.5,
 				Y: 200.5,
@@ -219,11 +210,7 @@ func TestPresenterMessages(t *testing.T) {
 
 		msg := PresenterSelectionMessage{
 			MessageType: MessageTypePresenterSelection,
-			User: User{
-				UserId: "test-user-123",
-				Email:  "test@example.com",
-				Name:   "Test User",
-			},
+
 			SelectedCells: []string{cellID1, cellID2},
 		}
 
@@ -234,11 +221,7 @@ func TestPresenterMessages(t *testing.T) {
 	t.Run("Presenter Selection Invalid UUID", func(t *testing.T) {
 		msg := PresenterSelectionMessage{
 			MessageType: MessageTypePresenterSelection,
-			User: User{
-				UserId: "test-user-123",
-				Email:  "test@example.com",
-				Name:   "Test User",
-			},
+
 			SelectedCells: []string{"invalid-uuid"},
 		}
 
@@ -290,11 +273,6 @@ func TestMessageParser(t *testing.T) {
 	t.Run("Parse Presenter Request", func(t *testing.T) {
 		originalMsg := PresenterRequestMessage{
 			MessageType: MessageTypePresenterRequest,
-			User: User{
-				UserId: "test-user-123",
-				Email:  "test@example.com",
-				Name:   "Test User",
-			},
 		}
 
 		// Marshal to JSON
@@ -340,11 +318,6 @@ func TestMarshalAsyncMessage(t *testing.T) {
 	t.Run("Marshal Valid Message", func(t *testing.T) {
 		msg := PresenterRequestMessage{
 			MessageType: MessageTypePresenterRequest,
-			User: User{
-				UserId: "test-user-123",
-				Email:  "test@example.com",
-				Name:   "Test User",
-			},
 		}
 
 		data, err := MarshalAsyncMessage(msg)
@@ -360,11 +333,6 @@ func TestMarshalAsyncMessage(t *testing.T) {
 	t.Run("Marshal Invalid Message Type", func(t *testing.T) {
 		msg := PresenterRequestMessage{
 			MessageType: "invalid_type",
-			User: User{
-				UserId: "test-user-123",
-				Email:  "test@example.com",
-				Name:   "Test User",
-			},
 		}
 
 		_, err := MarshalAsyncMessage(msg)

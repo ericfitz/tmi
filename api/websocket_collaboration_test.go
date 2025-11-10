@@ -341,11 +341,6 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 	t.Run("PresenterRequestMessage", func(t *testing.T) {
 		msg := PresenterRequestMessage{
 			MessageType: "presenter_request",
-			User: User{
-				UserId: "test-user-123",
-				Email:  "test@example.com",
-				Name:   "Test User",
-			},
 		}
 
 		err := msg.Validate()
@@ -374,6 +369,11 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 	t.Run("UndoRequestMessage", func(t *testing.T) {
 		msg := UndoRequestMessage{
 			MessageType: "undo_request",
+			InitiatingUser: User{
+				UserId: "test-user-id",
+				Email:  "test@example.com",
+				Name:   "Test User",
+			},
 		}
 
 		err := msg.Validate()

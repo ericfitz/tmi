@@ -390,11 +390,6 @@ func TestDiagramSession(t *testing.T) {
 		// (Note: spoofed data would now be blocked by security validation)
 		presenterRequestMsg := PresenterRequestMessage{
 			MessageType: MessageTypePresenterRequest,
-			User: User{
-				UserId: participantClient.UserID,
-				Email:  participantClient.UserEmail,
-				Name:   participantClient.UserName,
-			},
 		}
 
 		msgBytes, err := json.Marshal(presenterRequestMsg)
@@ -413,10 +408,7 @@ func TestDiagramSession(t *testing.T) {
 			// Verify message type
 			assert.Equal(t, MessageTypePresenterRequest, forwarded.MessageType)
 
-			// Verify user info matches authenticated client
-			assert.Equal(t, participantClient.UserID, forwarded.User.UserId, "Should use authenticated UserID")
-			assert.Equal(t, participantClient.UserEmail, forwarded.User.Email, "Should use authenticated UserEmail")
-			assert.Equal(t, participantClient.UserName, forwarded.User.Name, "Should use authenticated UserName")
+			// User field removed from PresenterRequestMessage - no additional assertions needed
 		case <-time.After(2 * time.Second):
 			t.Fatal("Host did not receive presenter request")
 		}
@@ -428,190 +420,15 @@ func TestWebSocketSecuritySpoofing(t *testing.T) {
 	hub := NewWebSocketHubForTests()
 
 	t.Run("PresenterRequestSpoofing", func(t *testing.T) {
-		diagramID := uuid.New().String()
-		threatModelID := uuid.New().String()
-		hostEmail := "host@example.com"
-		participantEmail := "participant@example.com"
-
-		session, err := hub.CreateSession(diagramID, threatModelID, hostEmail)
-		require.NoError(t, err)
-
-		// Create host client
-		hostClient := &WebSocketClient{
-			Hub:       hub,
-			Session:   session,
-			UserID:    "host-id",
-			UserEmail: hostEmail,
-			UserName:  "Host User",
-			Send:      make(chan []byte, 256),
-		}
-
-		// Create participant client
-		participantClient := &WebSocketClient{
-			Hub:       hub,
-			Session:   session,
-			UserID:    "participant-id",
-			UserEmail: participantEmail,
-			UserName:  "Participant User",
-			Send:      make(chan []byte, 256),
-		}
-
-		// Add both clients
-		session.mu.Lock()
-		session.Clients[hostClient] = true
-		session.Clients[participantClient] = true
-		session.mu.Unlock()
-
-		// Start session
-		go session.Run()
-
-		// Participant tries to spoof identity in presenter request
-		spoofedMsg := PresenterRequestMessage{
-			MessageType: MessageTypePresenterRequest,
-			User: User{
-				UserId: "host-id",   // Trying to impersonate host!
-				Email:  hostEmail,   // Trying to impersonate host!
-				Name:   "Host User", // Trying to impersonate host!
-			},
-		}
-
-		msgBytes, err := json.Marshal(spoofedMsg)
-		require.NoError(t, err)
-
-		// Process the spoofed request
-		session.processPresenterRequest(participantClient, msgBytes)
-
-		// Give a moment for processing
-		time.Sleep(10 * time.Millisecond)
-
-		// Participant should be removed from session (primary check)
-		session.mu.RLock()
-		_, stillConnected := session.Clients[participantClient]
-		session.mu.RUnlock()
-
-		assert.False(t, stillConnected, "Spoofing client should be removed from session")
-
-		// Try to receive error message if available (secondary check)
-		// Note: This may not always work due to channel closing timing
-		errorReceived := false
-		select {
-		case msg := <-participantClient.Send:
-			var errorMsg ErrorMessage
-			if err := json.Unmarshal(msg, &errorMsg); err == nil && errorMsg.MessageType == MessageTypeError {
-				assert.Equal(t, "SECURITY_VIOLATION", errorMsg.Error)
-				errorReceived = true
-			}
-		case <-time.After(10 * time.Millisecond):
-			// Timeout is ok - channel might be closed
-		}
-
-		// Log if we got the error message (for informational purposes)
-		if errorReceived {
-			t.Log("Successfully received security violation error message")
-		}
+		t.Skip("PresenterRequestMessage no longer contains user data - server uses authenticated client identity")
 	})
 
 	t.Run("PresenterCursorSpoofing", func(t *testing.T) {
-		diagramID := uuid.New().String()
-		threatModelID := uuid.New().String()
-		presenterEmail := "presenter@example.com"
-
-		session, err := hub.CreateSession(diagramID, threatModelID, presenterEmail)
-		require.NoError(t, err)
-
-		// Set presenter
-		session.mu.Lock()
-		session.CurrentPresenter = presenterEmail
-		session.mu.Unlock()
-
-		presenterClient := &WebSocketClient{
-			Hub:       hub,
-			Session:   session,
-			UserID:    "presenter-id",
-			UserEmail: presenterEmail,
-			UserName:  "Presenter User",
-			Send:      make(chan []byte, 256),
-		}
-
-		session.mu.Lock()
-		session.Clients[presenterClient] = true
-		session.mu.Unlock()
-
-		go session.Run()
-
-		// Try to send cursor with spoofed identity
-		spoofedCursor := PresenterCursorMessage{
-			MessageType: MessageTypePresenterCursor,
-			User: User{
-				UserId: "fake-id",
-				Email:  "fake@example.com",
-				Name:   "Fake User",
-			},
-			CursorPosition: CursorPosition{X: 100, Y: 200},
-		}
-
-		msgBytes, err := json.Marshal(spoofedCursor)
-		require.NoError(t, err)
-
-		session.processPresenterCursor(presenterClient, msgBytes)
-
-		// Client should be removed
-		session.mu.RLock()
-		_, stillConnected := session.Clients[presenterClient]
-		session.mu.RUnlock()
-
-		assert.False(t, stillConnected, "Spoofing client should be removed from session")
+		t.Skip("PresenterCursorMessage no longer contains user data - server uses authenticated client identity")
 	})
 
 	t.Run("PresenterSelectionSpoofing", func(t *testing.T) {
-		diagramID := uuid.New().String()
-		threatModelID := uuid.New().String()
-		presenterEmail := "presenter@example.com"
-
-		session, err := hub.CreateSession(diagramID, threatModelID, presenterEmail)
-		require.NoError(t, err)
-
-		session.mu.Lock()
-		session.CurrentPresenter = presenterEmail
-		session.mu.Unlock()
-
-		presenterClient := &WebSocketClient{
-			Hub:       hub,
-			Session:   session,
-			UserID:    "presenter-id",
-			UserEmail: presenterEmail,
-			UserName:  "Presenter User",
-			Send:      make(chan []byte, 256),
-		}
-
-		session.mu.Lock()
-		session.Clients[presenterClient] = true
-		session.mu.Unlock()
-
-		go session.Run()
-
-		// Try to send selection with wrong email
-		spoofedSelection := PresenterSelectionMessage{
-			MessageType: MessageTypePresenterSelection,
-			User: User{
-				UserId: "presenter-id",      // Correct ID
-				Email:  "wrong@example.com", // Wrong email!
-				Name:   "Presenter User",
-			},
-			SelectedCells: []string{uuid.New().String()},
-		}
-
-		msgBytes, err := json.Marshal(spoofedSelection)
-		require.NoError(t, err)
-
-		session.processPresenterSelection(presenterClient, msgBytes)
-
-		// Client should be removed
-		session.mu.RLock()
-		_, stillConnected := session.Clients[presenterClient]
-		session.mu.RUnlock()
-
-		assert.False(t, stillConnected, "Spoofing client should be removed from session")
+		t.Skip("PresenterSelectionMessage no longer contains user data - server uses authenticated client identity")
 	})
 
 	t.Run("ChangePresenterSpoofing", func(t *testing.T) {
@@ -640,12 +457,16 @@ func TestWebSocketSecuritySpoofing(t *testing.T) {
 		// Try to change presenter with spoofed user name
 		spoofedMsg := ChangePresenterMessage{
 			MessageType: MessageTypeChangePresenter,
-			User: User{
+			InitiatingUser: User{
 				UserId: "host-id",
 				Email:  hostEmail,
 				Name:   "Evil Hacker", // Wrong name!
 			},
-			NewPresenter: "someone@example.com",
+			NewPresenter: User{
+				UserId: "someone-id",
+				Email:  "someone@example.com",
+				Name:   "Someone",
+			},
 		}
 
 		msgBytes, err := json.Marshal(spoofedMsg)
