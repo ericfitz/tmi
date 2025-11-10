@@ -61,12 +61,12 @@ For any JSON ≥ 100KB, immediately switch to streaming approaches with jq to pr
 
 ## Automatic Versioning
 
-TMI uses automatic semantic versioning (0.MINOR.PATCH):
+TMI uses automatic semantic versioning (0.MINOR.PATCH) based on conventional commits:
 
-- **Build**: `make build-server` increments patch version (0.9.0 → 0.9.1)
-- **Commit**: Pre-commit hook increments minor version, resets patch (0.9.3 → 0.10.0)
+- **Feature commits** (`feat:`): Post-commit hook increments MINOR version, resets PATCH to 0 (0.9.3 → 0.10.0)
+- **All other commits** (`fix:`, `refactor:`, etc.): Post-commit hook increments PATCH version (0.9.0 → 0.9.1)
 - **Version file**: `.version` (JSON) tracks current state
-- **Script**: `scripts/update-version.sh --build` or `--commit`
+- **Script**: `scripts/update-version.sh --commit` (automatically called by post-commit hook)
 - **Documentation**: See `docs/developer/setup/automatic-versioning.md`
 
 The major version remains at 0 during initial development. Version updates are fully automated—no manual intervention required.
@@ -74,7 +74,7 @@ The major version remains at 0 during initial development. Version updates are f
 ## Commands
 
 - List targets: `make list-targets` (lists all available make targets)
-- Build: `make build-server` (creates bin/tmiserver executable, auto-increments patch version)
+- Build: `make build-server` (creates bin/tmiserver executable)
 - Lint: `make lint` (runs golangci-lint)
 - Generate API: `make generate-api` (uses oapi-codegen with config from oapi-codegen-config.yml)
 - Development: `make start-dev` (starts full dev environment with DB and Redis on localhost)

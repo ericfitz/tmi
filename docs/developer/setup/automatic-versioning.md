@@ -1,43 +1,45 @@
 # Automatic Semantic Versioning
 
-TMI uses automatic semantic versioning to eliminate manual version updates and ensure monotonically increasing version numbers.
+TMI uses automatic semantic versioning based on conventional commit types to eliminate manual version updates and ensure monotonically increasing version numbers.
 
 ## Version Format
 
 Versions follow semantic versioning: `MAJOR.MINOR.PATCH`
 
 - **MAJOR**: Fixed at `0` (initial development phase)
-- **MINOR**: Incremented on every commit
-- **PATCH**: Incremented on every build, reset to `0` on commits
+- **MINOR**: Incremented on feature commits (`feat:`)
+- **PATCH**: Incremented on all other commits (`fix:`, `refactor:`, `docs:`, etc.)
 
 ## How It Works
 
-### Build Workflow
+### Commit-Based Versioning
 
-Every time you run `make build-server`, the patch version automatically increments:
+Every time you commit, the post-commit hook automatically:
+1. Reads the commit message
+2. Parses the conventional commit type
+3. Updates version based on commit type:
+   - `feat:` commits → increment MINOR, reset PATCH to 0
+   - All other commits → increment PATCH
+4. Updates version files
+5. Amends the commit with the updated version files
 
 ```bash
 # Starting at 0.9.0
-make build-server  # → 0.9.1
-make build-server  # → 0.9.2
-make build-server  # → 0.9.3
+git commit -m "fix(api): correct JWT validation"     # → 0.9.1 (patch++)
+git commit -m "refactor(auth): simplify login flow"  # → 0.9.2 (patch++)
+git commit -m "feat(api): add user deletion endpoint" # → 0.10.0 (minor++, patch=0)
+git commit -m "docs: update API documentation"       # → 0.10.1 (patch++)
+git commit -m "feat(websocket): add heartbeat"       # → 0.11.0 (minor++, patch=0)
 ```
 
-### Commit Workflow
+### Conventional Commit Format
 
-Every time you commit, the pre-commit hook automatically:
-1. Increments the minor version
-2. Resets the patch version to 0
-3. Updates version files
-4. Stages the changes for the commit
-
-```bash
-# Starting at 0.9.3
-git commit -m "Add new feature"  # → 0.10.0 (minor++, patch=0)
-make build-server                # → 0.10.1
-make build-server                # → 0.10.2
-git commit -m "Fix bug"          # → 0.11.0 (minor++, patch=0)
-```
+The version script recognizes these conventional commit patterns:
+- `feat:` - New feature (increments MINOR)
+- `feat(scope):` - New feature with scope (increments MINOR)
+- `feat!:` - Breaking change feature (increments MINOR)
+- `feat(scope)!:` - Breaking change feature with scope (increments MINOR)
+- All other types (`fix:`, `refactor:`, `docs:`, `style:`, `test:`, `chore:`, etc.) increment PATCH
 
 ## Version Storage
 
@@ -76,19 +78,22 @@ var (
 
 `scripts/update-version.sh` manages version updates:
 
-- `--build`: Increments patch version (called by Makefile)
-- `--commit`: Increments minor version, resets patch (called by git hook)
+- `--commit`: Parses commit type and increments version accordingly (called by post-commit hook)
+  - `feat:` commits → increment MINOR, reset PATCH
+  - Other commits → increment PATCH
 
-### 2. Pre-commit Hook
+### 2. Post-commit Hook
 
-`.git/hooks/pre-commit` automatically runs before each commit to update the version.
+`.git/hooks/post-commit` automatically runs after each commit to:
+1. Call `update-version.sh --commit` to update version based on commit type
+2. Stage the updated version files
+3. Amend the commit with version changes (using `--no-verify` to prevent infinite loop)
 
 ### 3. Makefile Integration
 
 The `build-server` target in the Makefile:
-1. Calls `update-version.sh --build` to increment the patch
-2. Reads the version from `.version`
-3. Uses `-ldflags` to inject version info at compile time
+1. Reads the version from `.version`
+2. Uses `-ldflags` to inject version info at compile time
 
 ## Manual Version Operations
 
@@ -102,18 +107,11 @@ cat .version
 
 If you need to manually adjust the version (e.g., for a major version bump):
 
-1. Edit `.version` file directly
-2. Run `./scripts/update-version.sh --build` to sync `api/version.go`
+1. Edit `.version` file directly (change `major`, `minor`, or `patch` fields)
+2. Update `api/version.go` to match (or let the next commit sync it automatically)
 3. Commit the changes
 
-### Bypass Version Increment
-
-If you need to build without incrementing the version (not recommended):
-
-```bash
-# Build directly with go
-go build -o bin/tmiserver ./cmd/server
-```
+Note: Version syncing happens automatically on the next commit via the post-commit hook.
 
 ## Version Information at Runtime
 
@@ -130,12 +128,12 @@ The version includes:
 
 ## Troubleshooting
 
-### Pre-commit Hook Not Running
+### Post-commit Hook Not Running
 
 Ensure the hook is executable:
 
 ```bash
-chmod +x .git/hooks/pre-commit
+chmod +x .git/hooks/post-commit
 ```
 
 ### Version Not Updating
@@ -149,10 +147,11 @@ which jq
 
 ### Version Mismatch
 
-If `.version` and `api/version.go` are out of sync:
+If `.version` and `api/version.go` are out of sync, make any commit to trigger the post-commit hook:
 
 ```bash
-./scripts/update-version.sh --build
+# The post-commit hook will automatically sync the files
+git commit --allow-empty -m "chore: sync version files"
 ```
 
 ## Future Enhancements
