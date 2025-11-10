@@ -1,9 +1,8 @@
 #!/bin/bash
-# update-version.sh - Automatic semantic version management for TMI
+# update-version.sh - Automatic version management for TMI
 #
 # Usage:
-#   ./update-version.sh --build   # Increment patch version (for builds)
-#   ./update-version.sh --commit  # Increment minor version, reset patch (for commits)
+#   ./update-version.sh --commit  # Increment build number (for commits, will amend)
 
 set -e
 
@@ -37,31 +36,24 @@ fi
 # Read current version
 MAJOR=$(jq -r '.major' "$VERSION_FILE")
 MINOR=$(jq -r '.minor' "$VERSION_FILE")
-PATCH=$(jq -r '.patch' "$VERSION_FILE")
+BUILD=$(jq -r '.build' "$VERSION_FILE")
 
-log_info "Current version: $MAJOR.$MINOR.$PATCH"
+log_info "Current version: $MAJOR.$MINOR.$BUILD"
 
 # Determine action
-if [ "$1" == "--build" ]; then
-    # Increment patch version
-    PATCH=$((PATCH + 1))
-    log_info "Incrementing patch version for build"
-
-elif [ "$1" == "--commit" ]; then
-    # Increment minor version, reset patch
-    MINOR=$((MINOR + 1))
-    PATCH=0
-    log_info "Incrementing minor version for commit, resetting patch"
+if [ "$1" == "--commit" ]; then
+    # Increment build number
+    BUILD=$((BUILD + 1))
+    log_info "Incrementing build number for commit"
 
 else
-    log_error "Invalid argument. Use --build or --commit"
+    log_error "Invalid argument. Use --commit"
     echo "Usage:"
-    echo "  $0 --build   # Increment patch version (for builds)"
-    echo "  $0 --commit  # Increment minor version, reset patch (for commits)"
+    echo "  $0 --commit  # Increment build number (for commits)"
     exit 1
 fi
 
-NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+NEW_VERSION="$MAJOR.$MINOR.$BUILD"
 log_success "New version: $NEW_VERSION"
 
 # Update .version file
@@ -69,7 +61,7 @@ cat > "$VERSION_FILE" <<EOF
 {
   "major": $MAJOR,
   "minor": $MINOR,
-  "patch": $PATCH
+  "build": $BUILD
 }
 EOF
 
@@ -80,7 +72,7 @@ if [ -f "$VERSION_GO_FILE" ]; then
     # Update the version variables in version.go
     sed -i.bak "s/VersionMajor = \"[0-9]*\"/VersionMajor = \"$MAJOR\"/" "$VERSION_GO_FILE"
     sed -i.bak "s/VersionMinor = \"[0-9]*\"/VersionMinor = \"$MINOR\"/" "$VERSION_GO_FILE"
-    sed -i.bak "s/VersionPatch = \"[0-9]*\"/VersionPatch = \"$PATCH\"/" "$VERSION_GO_FILE"
+    sed -i.bak "s/VersionPatch = \"[0-9]*\"/VersionPatch = \"$BUILD\"/" "$VERSION_GO_FILE"
     rm -f "${VERSION_GO_FILE}.bak"
     log_success "Updated $VERSION_GO_FILE"
 else
@@ -88,12 +80,10 @@ else
     exit 1
 fi
 
-# If this is a commit operation, stage the files for git
-if [ "$1" == "--commit" ]; then
-    if git rev-parse --git-dir > /dev/null 2>&1; then
-        git add "$VERSION_FILE" "$VERSION_GO_FILE"
-        log_success "Staged version files for commit"
-    fi
+# Stage the version files for git
+if git rev-parse --git-dir > /dev/null 2>&1; then
+    git add "$VERSION_FILE" "$VERSION_GO_FILE"
+    log_success "Staged version files for amend"
 fi
 
 log_success "Version update complete: $NEW_VERSION"
