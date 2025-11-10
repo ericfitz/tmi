@@ -148,6 +148,10 @@ type WebSocketClient struct {
 	Send chan []byte
 	// Last activity timestamp
 	LastActivity time.Time
+	// Flag to indicate the client is closing (prevents send on closed channel)
+	closing bool
+	// Mutex to protect closing flag
+	closingMu sync.RWMutex
 }
 
 // toUser converts WebSocketClient user information to a User object for messages
@@ -1143,19 +1147,35 @@ func (h *WebSocketHub) CloseSession(diagramID string) {
 	session.State = SessionStateTerminated
 	now := time.Now().UTC()
 	session.TerminatedAt = &now
-	session.mu.Unlock()
 
-	// Close all client connections immediately without sending termination messages
-
-	// Close all client connections immediately
-	session.mu.Lock()
+	// Collect clients to close while holding the lock
+	clientsToClose := make([]*WebSocketClient, 0, len(session.Clients))
 	for client := range session.Clients {
-		close(client.Send)
-		slogging.Get().Debug("Closed connection for participant %s due to immediate session termination", client.UserID)
+		clientsToClose = append(clientsToClose, client)
 	}
-	// Clear the clients map
+	// Clear the clients map while still holding the lock
 	session.Clients = make(map[*WebSocketClient]bool)
 	session.mu.Unlock()
+
+	// Close client channels outside the lock to prevent deadlocks
+	// and after clearing the clients map to prevent new sends
+	for _, client := range clientsToClose {
+		// Mark client as closing to prevent new sends
+		client.closingMu.Lock()
+		client.closing = true
+		client.closingMu.Unlock()
+
+		// Safely close the channel, recovering from panic if already closed
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slogging.Get().Debug("Channel already closed for participant %s", client.UserID)
+				}
+			}()
+			close(client.Send)
+			slogging.Get().Debug("Closed connection for participant %s due to immediate session termination", client.UserID)
+		}()
+	}
 
 	slogging.Get().Info("Session %s terminated immediately by host %s", session.ID, session.Host)
 }
@@ -2911,11 +2931,27 @@ func (s *DiagramSession) broadcastToAllClients(message interface{}) {
 
 // sendToClient sends a message to a specific client
 func (s *DiagramSession) sendToClient(client *WebSocketClient, message interface{}) {
+	// Check if client is closing to prevent send on closed channel
+	client.closingMu.RLock()
+	if client.closing {
+		client.closingMu.RUnlock()
+		slogging.Get().Debug("Skipping send to client %s - client is closing", client.UserID)
+		return
+	}
+	client.closingMu.RUnlock()
+
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
 		slogging.Get().Info("Error marshaling message: %v", err)
 		return
 	}
+
+	// Use defer/recover as additional safety against panics
+	defer func() {
+		if r := recover(); r != nil {
+			slogging.Get().Debug("Recovered from panic sending to client %s: %v", client.UserID, r)
+		}
+	}()
 
 	select {
 	case client.Send <- msgBytes:

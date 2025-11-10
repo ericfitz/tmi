@@ -55,30 +55,72 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 	slogging.Get().Debug("Assigned sequence number - Session: %s, User: %s, OperationID: %s, SequenceNumber: %d",
 		session.ID, client.UserID, msg.OperationID, sequenceNumber)
 
-	// Get current diagram state before validation to extract rejection details
-	diagram, err := DiagramStore.Get(session.DiagramID)
-	if err != nil {
-		slogging.Get().Error("Failed to get diagram before operation validation - Session: %s, User: %s, OperationID: %s, Error: %v",
-			session.ID, client.UserID, msg.OperationID, err)
-		session.sendOperationRejected(client, msg.OperationID, msg.SequenceNumber, "diagram_not_found",
-			"Target diagram could not be retrieved", nil, nil, true)
-		return err
-	}
+	// Get current diagram state from the session cache if available, otherwise from database
+	// This prevents race conditions where concurrent operations read stale state from DB
+	session.mu.Lock()
+	var diagram DfdDiagram
+	var currentState map[string]*DfdDiagram_Cells_Item
+	var err error
 
-	// Build current state map for detailed rejection feedback
-	currentState := make(map[string]*DfdDiagram_Cells_Item)
-	for i := range diagram.Cells {
-		cellItem := &diagram.Cells[i]
-		var itemID string
-		if node, err := cellItem.AsNode(); err == nil {
-			itemID = node.Id.String()
-		} else if edge, err := cellItem.AsEdge(); err == nil {
-			itemID = edge.Id.String()
+	// Check if we have cached state in operation history
+	if session.OperationHistory != nil && len(session.OperationHistory.CurrentState) > 0 {
+		// Use cached state from operation history
+		currentState = make(map[string]*DfdDiagram_Cells_Item)
+		for k, v := range session.OperationHistory.CurrentState {
+			cellCopy := *v
+			currentState[k] = &cellCopy
 		}
-		if itemID != "" {
-			currentState[itemID] = cellItem
+
+		// Reconstruct diagram from current state
+		diagram, err = DiagramStore.Get(session.DiagramID)
+		if err != nil {
+			session.mu.Unlock()
+			slogging.Get().Error("Failed to get diagram before operation validation - Session: %s, User: %s, OperationID: %s, Error: %v",
+				session.ID, client.UserID, msg.OperationID, err)
+			session.sendOperationRejected(client, msg.OperationID, msg.SequenceNumber, "diagram_not_found",
+				"Target diagram could not be retrieved", nil, nil, true)
+			return err
 		}
+
+		// Replace diagram cells with current state from history
+		diagram.Cells = make([]DfdDiagram_Cells_Item, 0, len(currentState))
+		for _, cellItem := range currentState {
+			diagram.Cells = append(diagram.Cells, *cellItem)
+		}
+
+		slogging.Get().Debug("Using cached diagram state from operation history - Session: %s, CellCount: %d",
+			session.ID, len(currentState))
+	} else {
+		// First operation in session - load from database
+		diagram, err = DiagramStore.Get(session.DiagramID)
+		if err != nil {
+			session.mu.Unlock()
+			slogging.Get().Error("Failed to get diagram before operation validation - Session: %s, User: %s, OperationID: %s, Error: %v",
+				session.ID, client.UserID, msg.OperationID, err)
+			session.sendOperationRejected(client, msg.OperationID, msg.SequenceNumber, "diagram_not_found",
+				"Target diagram could not be retrieved", nil, nil, true)
+			return err
+		}
+
+		// Build current state map for detailed rejection feedback
+		currentState = make(map[string]*DfdDiagram_Cells_Item)
+		for i := range diagram.Cells {
+			cellItem := &diagram.Cells[i]
+			var itemID string
+			if node, err := cellItem.AsNode(); err == nil {
+				itemID = node.Id.String()
+			} else if edge, err := cellItem.AsEdge(); err == nil {
+				itemID = edge.Id.String()
+			}
+			if itemID != "" {
+				currentState[itemID] = cellItem
+			}
+		}
+
+		slogging.Get().Debug("Loaded diagram state from database - Session: %s, CellCount: %d",
+			session.ID, len(currentState))
 	}
+	session.mu.Unlock()
 
 	// Process and validate cell operations to get detailed rejection reason
 	validationResult := session.processAndValidateCellOperations(&diagram, currentState, msg.Operation)
@@ -103,8 +145,23 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 			return fmt.Errorf("failed to save diagram: %w", err)
 		}
 
-		// Update operation history
-		session.addToHistory(msg, client.UserID, validationResult.PreviousState, currentState)
+		// Rebuild current state map after validation (diagram was modified in place)
+		newCurrentState := make(map[string]*DfdDiagram_Cells_Item)
+		for i := range diagram.Cells {
+			cellItem := &diagram.Cells[i]
+			var itemID string
+			if node, err := cellItem.AsNode(); err == nil {
+				itemID = node.Id.String()
+			} else if edge, err := cellItem.AsEdge(); err == nil {
+				itemID = edge.Id.String()
+			}
+			if itemID != "" {
+				newCurrentState[itemID] = cellItem
+			}
+		}
+
+		// Update operation history with new state
+		session.addToHistory(msg, client.UserID, validationResult.PreviousState, newCurrentState)
 
 		// Broadcast the operation to all other clients
 		slogging.Get().Info("[TRACE-BROADCAST] *** CALLING broadcastToOthers *** - Session: %s, Sender: %s (%p), OperationID: %s, Total clients: %d, Expected recipients: %d",
