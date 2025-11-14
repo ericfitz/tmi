@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 )
 
 // Global database manager for access from other packages
@@ -86,17 +88,14 @@ func startCacheRebuildJob(ctx context.Context, dbManager *db.Manager) {
 
 // rebuildCache rebuilds the Redis cache from PostgreSQL
 func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
-	// Get the database connections
 	postgres := dbManager.Postgres().GetDB()
 	redis := dbManager.Redis().GetClient()
 
-	// Start a transaction
 	tx, err := postgres.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
 
-	// Defer a rollback function that only executes if the transaction hasn't been committed
 	committed := false
 	defer func() {
 		if !committed {
@@ -106,10 +105,32 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 		}
 	}()
 
-	// 1. Get all threat models from PostgreSQL
-	rows, err := tx.QueryContext(ctx, `
-		SELECT id, owner_email FROM threat_models
-	`)
+	// Rebuild threat model authorization cache
+	if err := rebuildThreatModelAuthCache(ctx, tx, redis); err != nil {
+		return err
+	}
+
+	// Rebuild threat-to-threat-model mapping cache
+	if err := rebuildThreatMappingCache(ctx, tx, redis); err != nil {
+		return err
+	}
+
+	// Rebuild diagram-to-threat-model mapping cache
+	if err := rebuildDiagramMappingCache(ctx, tx, redis); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	committed = true
+
+	return nil
+}
+
+// rebuildThreatModelAuthCache rebuilds authorization data for threat models
+func rebuildThreatModelAuthCache(ctx context.Context, tx *sql.Tx, redis *redis.Client) error {
+	rows, err := tx.QueryContext(ctx, `SELECT id, owner_email FROM threat_models`)
 	if err != nil {
 		return fmt.Errorf("failed to get threat models: %w", err)
 	}
@@ -119,78 +140,89 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 		}
 	}()
 
-	// 2. For each threat model, get its authorization data and store in Redis
 	for rows.Next() {
 		var id, ownerEmail string
 		if err := rows.Scan(&id, &ownerEmail); err != nil {
 			return fmt.Errorf("failed to scan threat model: %w", err)
 		}
 
-		// Get all users with access to this threat model
-		accessRows, err := tx.QueryContext(ctx, `
-			SELECT user_email, role FROM threat_model_access
-			WHERE threat_model_id = $1
-		`, id)
+		roles, err := getThreatModelRoles(ctx, tx, id, ownerEmail)
 		if err != nil {
-			return fmt.Errorf("failed to get threat model access: %w", err)
-		}
-		defer func() {
-			if err := accessRows.Close(); err != nil {
-				slogging.Get().Error("Error closing accessRows: %v", err)
-			}
-		}()
-
-		// Create a map of user emails to roles
-		roles := make(map[string]string)
-		roles[ownerEmail] = "owner" // The owner always has owner role
-
-		for accessRows.Next() {
-			var email, role string
-			if err := accessRows.Scan(&email, &role); err != nil {
-				return fmt.Errorf("failed to scan threat model access: %w", err)
-			}
-			roles[email] = role
+			return err
 		}
 
-		if err := accessRows.Err(); err != nil {
-			return fmt.Errorf("error iterating threat model access: %w", err)
-		}
-
-		// 3. Store the authorization data in Redis
-		key := fmt.Sprintf("threatmodel:%s:roles", id)
-		for email, role := range roles {
-			if err := redis.HSet(ctx, key, email, role).Err(); err != nil {
-				return fmt.Errorf("failed to store role in Redis: %w", err)
-			}
-		}
-
-		// Set expiration for the key
-		if err := redis.Expire(ctx, key, 24*time.Hour).Err(); err != nil {
-			return fmt.Errorf("failed to set expiration for Redis key: %w", err)
+		if err := storeThreatModelRoles(ctx, redis, id, roles); err != nil {
+			return err
 		}
 	}
 
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("error iterating threat models: %w", err)
+	return rows.Err()
+}
+
+// getThreatModelRoles retrieves roles for a threat model
+func getThreatModelRoles(ctx context.Context, tx *sql.Tx, threatModelID, ownerEmail string) (map[string]string, error) {
+	accessRows, err := tx.QueryContext(ctx, `
+		SELECT user_email, role FROM threat_model_access
+		WHERE threat_model_id = $1
+	`, threatModelID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get threat model access: %w", err)
+	}
+	defer func() {
+		if err := accessRows.Close(); err != nil {
+			slogging.Get().Error("Error closing accessRows: %v", err)
+		}
+	}()
+
+	roles := make(map[string]string)
+	roles[ownerEmail] = "owner"
+
+	for accessRows.Next() {
+		var email, role string
+		if err := accessRows.Scan(&email, &role); err != nil {
+			return nil, fmt.Errorf("failed to scan threat model access: %w", err)
+		}
+		roles[email] = role
 	}
 
-	// 4. Get all threats and their parent threat model IDs
-	threatRows, err := tx.QueryContext(ctx, `
-		SELECT id, threat_model_id FROM threats
-	`)
+	if err := accessRows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating threat model access: %w", err)
+	}
+
+	return roles, nil
+}
+
+// storeThreatModelRoles stores authorization roles in Redis
+func storeThreatModelRoles(ctx context.Context, redis *redis.Client, threatModelID string, roles map[string]string) error {
+	key := fmt.Sprintf("threatmodel:%s:roles", threatModelID)
+	for email, role := range roles {
+		if err := redis.HSet(ctx, key, email, role).Err(); err != nil {
+			return fmt.Errorf("failed to store role in Redis: %w", err)
+		}
+	}
+
+	if err := redis.Expire(ctx, key, 24*time.Hour).Err(); err != nil {
+		return fmt.Errorf("failed to set expiration for Redis key: %w", err)
+	}
+
+	return nil
+}
+
+// rebuildThreatMappingCache rebuilds threat-to-threat-model mapping cache
+func rebuildThreatMappingCache(ctx context.Context, tx *sql.Tx, redis *redis.Client) error {
+	rows, err := tx.QueryContext(ctx, `SELECT id, threat_model_id FROM threats`)
 	if err != nil {
 		return fmt.Errorf("failed to get threats: %w", err)
 	}
 	defer func() {
-		if err := threatRows.Close(); err != nil {
-			slogging.Get().Error("Error closing threatRows: %v", err)
+		if err := rows.Close(); err != nil {
+			slogging.Get().Error("Error closing rows: %v", err)
 		}
 	}()
 
-	// 5. Store the threat-to-threat-model mapping in Redis
-	for threatRows.Next() {
+	for rows.Next() {
 		var id, threatModelID string
-		if err := threatRows.Scan(&id, &threatModelID); err != nil {
+		if err := rows.Scan(&id, &threatModelID); err != nil {
 			return fmt.Errorf("failed to scan threat: %w", err)
 		}
 
@@ -200,27 +232,24 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 		}
 	}
 
-	if err := threatRows.Err(); err != nil {
-		return fmt.Errorf("error iterating threats: %w", err)
-	}
+	return rows.Err()
+}
 
-	// 6. Get all diagrams and their parent threat model IDs
-	diagramRows, err := tx.QueryContext(ctx, `
-		SELECT id, threat_model_id FROM diagrams
-	`)
+// rebuildDiagramMappingCache rebuilds diagram-to-threat-model mapping cache
+func rebuildDiagramMappingCache(ctx context.Context, tx *sql.Tx, redis *redis.Client) error {
+	rows, err := tx.QueryContext(ctx, `SELECT id, threat_model_id FROM diagrams`)
 	if err != nil {
 		return fmt.Errorf("failed to get diagrams: %w", err)
 	}
 	defer func() {
-		if err := diagramRows.Close(); err != nil {
-			slogging.Get().Error("Error closing diagramRows: %v", err)
+		if err := rows.Close(); err != nil {
+			slogging.Get().Error("Error closing rows: %v", err)
 		}
 	}()
 
-	// 7. Store the diagram-to-threat-model mapping in Redis
-	for diagramRows.Next() {
+	for rows.Next() {
 		var id, threatModelID string
-		if err := diagramRows.Scan(&id, &threatModelID); err != nil {
+		if err := rows.Scan(&id, &threatModelID); err != nil {
 			return fmt.Errorf("failed to scan diagram: %w", err)
 		}
 
@@ -230,17 +259,7 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 		}
 	}
 
-	if err := diagramRows.Err(); err != nil {
-		return fmt.Errorf("error iterating diagrams: %w", err)
-	}
-
-	// Commit the transaction
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-	committed = true // Mark as committed
-
-	return nil
+	return rows.Err()
 }
 
 // GetDatabaseManager returns the global database manager
