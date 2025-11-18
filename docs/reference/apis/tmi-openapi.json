@@ -4292,7 +4292,7 @@
             "schema": {
               "type": "string",
               "example": "random_state_abc123",
-              "pattern": "^[a-zA-Z0-9_-]*$",
+              "pattern": "^[a-zA-Z0-9_~.+/=-]*$",
               "maxLength": 256
             }
           },
