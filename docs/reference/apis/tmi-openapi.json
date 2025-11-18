@@ -173,7 +173,8 @@
               "openid",
               "email",
               "profile"
-            ]
+            ],
+            "maxItems": 100
           },
           "authorization_servers": {
             "type": "array",
@@ -186,7 +187,8 @@
             "description": "List of authorization server issuer identifiers that can issue tokens for this resource",
             "example": [
               "http://localhost:8080"
-            ]
+            ],
+            "maxItems": 100
           },
           "jwks_url": {
             "type": "string",
@@ -212,7 +214,8 @@
               "header",
               "body",
               "query"
-            ]
+            ],
+            "maxItems": 100
           },
           "resource_name": {
             "type": "string",
@@ -283,7 +286,8 @@
                   "$ref": "#/components/schemas/Metadata"
                 },
                 "description": "Optional metadata key-value pairs",
-                "readOnly": true
+                "readOnly": true,
+                "maxItems": 100
               },
               "created_at": {
                 "type": "string",
@@ -355,7 +359,8 @@
               "$ref": "#/components/schemas/Metadata"
             },
             "description": "Key-value pairs for additional diagram metadata",
-            "nullable": true
+            "nullable": true,
+            "maxItems": 10000
           },
           "update_vector": {
             "type": "integer",
@@ -433,7 +438,8 @@
               "$ref": "#/components/schemas/Metadata"
             },
             "description": "Key-value pairs for additional diagram metadata",
-            "nullable": true
+            "nullable": true,
+            "maxItems": 10000
           },
           "image": {
             "type": "object",
@@ -516,7 +522,8 @@
                     }
                   }
                 },
-                "description": "List of diagram cells (nodes and edges) following X6 structure"
+                "description": "List of diagram cells (nodes and edges) following X6 structure",
+                "maxItems": 10000
               }
             },
             "required": [
@@ -566,7 +573,8 @@
                     }
                   }
                 },
-                "description": "List of diagram cells (nodes and edges) following X6 structure"
+                "description": "List of diagram cells (nodes and edges) following X6 structure",
+                "maxItems": 10000
               }
             },
             "required": [
@@ -753,7 +761,8 @@
                 "items": {
                   "$ref": "#/components/schemas/Metadata"
                 },
-                "description": "Reserved namespace for structured business metadata"
+                "description": "Reserved namespace for structured business metadata",
+                "maxItems": 100
               }
             },
             "additionalProperties": true,
@@ -766,7 +775,8 @@
             "items": {
               "$ref": "#/components/schemas/MarkupElement"
             },
-            "description": "SVG/HTML markup definition for custom shape rendering in X6"
+            "description": "SVG/HTML markup definition for custom shape rendering in X6",
+            "maxItems": 1000
           }
         },
         "additionalProperties": false
@@ -955,14 +965,16 @@
                 "items": {
                   "$ref": "#/components/schemas/EdgeLabel"
                 },
-                "description": "Text labels positioned along the edge"
+                "description": "Text labels positioned along the edge",
+                "maxItems": 1000
               },
               "vertices": {
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Point"
                 },
-                "description": "Intermediate waypoints for edge routing"
+                "description": "Intermediate waypoints for edge routing",
+                "maxItems": 1000
               },
               "router": {
                 "allOf": [
@@ -1104,7 +1116,8 @@
                   "$ref": "#/components/schemas/Document"
                 },
                 "description": "List of documents related to the threat model",
-                "readOnly": true
+                "readOnly": true,
+                "maxItems": 1000
               },
               "repositories": {
                 "type": "array",
@@ -1112,7 +1125,8 @@
                   "$ref": "#/components/schemas/Repository"
                 },
                 "description": "List of source code repositories related to the threat model",
-                "readOnly": true
+                "readOnly": true,
+                "maxItems": 1000
               },
               "diagrams": {
                 "type": "array",
@@ -1120,7 +1134,8 @@
                   "$ref": "#/components/schemas/Diagram"
                 },
                 "description": "List of diagram objects associated with this threat model",
-                "readOnly": true
+                "readOnly": true,
+                "maxItems": 10000
               },
               "threats": {
                 "type": "array",
@@ -1128,7 +1143,8 @@
                   "$ref": "#/components/schemas/Threat"
                 },
                 "description": "List of threats within the threat model",
-                "readOnly": true
+                "readOnly": true,
+                "maxItems": 1000
               },
               "notes": {
                 "type": "array",
@@ -1136,7 +1152,8 @@
                   "$ref": "#/components/schemas/Note"
                 },
                 "description": "List of notes associated with the threat model",
-                "readOnly": true
+                "readOnly": true,
+                "maxItems": 1000
               },
               "assets": {
                 "type": "array",
@@ -1144,7 +1161,8 @@
                   "$ref": "#/components/schemas/ExtendedAsset"
                 },
                 "description": "List of assets associated with the threat model",
-                "readOnly": true
+                "readOnly": true,
+                "maxItems": 1000
               },
               "status_updated": {
                 "type": "string",
@@ -1590,7 +1608,8 @@
             "items": {
               "$ref": "#/components/schemas/Participant"
             },
-            "description": "List of active participants"
+            "description": "List of active participants",
+            "maxItems": 1000
           },
           "websocket_url": {
             "type": "string",
@@ -2158,7 +2177,8 @@
                 }
               },
               "additionalProperties": false
-            }
+            },
+            "maxItems": 1000
           }
         },
         "additionalProperties": false
@@ -2195,7 +2215,8 @@
             "items": {
               "$ref": "#/components/schemas/MarkupElement"
             },
-            "description": "Nested child elements"
+            "description": "Nested child elements",
+            "maxItems": 1000
           }
         },
         "additionalProperties": false
@@ -2259,7 +2280,8 @@
                         "left"
                       ]
                     },
-                    "description": "Allowed routing directions"
+                    "description": "Allowed routing directions",
+                    "maxItems": 1000
                   }
                 }
               }
@@ -2384,7 +2406,8 @@
             "items": {
               "$ref": "#/components/schemas/Authorization"
             },
-            "description": "List of users and their roles for this threat model"
+            "description": "List of users and their roles for this threat model",
+            "maxItems": 1000
           },
           "metadata": {
             "type": "array",
@@ -2392,7 +2415,8 @@
               "$ref": "#/components/schemas/Metadata"
             },
             "description": "Key-value pairs for additional threat model metadata",
-            "nullable": true
+            "nullable": true,
+            "maxItems": 100
           },
           "issue_uri": {
             "type": "string",
@@ -2444,7 +2468,8 @@
             "items": {
               "$ref": "#/components/schemas/Authorization"
             },
-            "description": "List of users and their roles for this threat model"
+            "description": "List of users and their roles for this threat model",
+            "maxItems": 1000
           },
           "metadata": {
             "type": "array",
@@ -2452,7 +2477,8 @@
               "$ref": "#/components/schemas/Metadata"
             },
             "description": "Key-value pairs for additional threat model metadata",
-            "nullable": true
+            "nullable": true,
+            "maxItems": 100
           },
           "issue_uri": {
             "type": "string",
@@ -2544,7 +2570,8 @@
               "$ref": "#/components/schemas/Metadata"
             },
             "description": "Key-value pairs for additional threat metadata",
-            "nullable": true
+            "nullable": true,
+            "maxItems": 100
           },
           "issue_uri": {
             "type": "string",
@@ -2613,7 +2640,8 @@
             "description": "Groups the user belongs to (from identity provider)",
             "items": {
               "type": "string"
-            }
+            },
+            "maxItems": 1000
           },
           "last_login": {
             "type": "string",
@@ -2705,7 +2733,8 @@
                   "$ref": "#/components/schemas/Metadata"
                 },
                 "description": "Optional metadata key-value pairs",
-                "readOnly": true
+                "readOnly": true,
+                "maxItems": 100
               },
               "created_at": {
                 "type": "string",
@@ -2753,7 +2782,8 @@
                   "$ref": "#/components/schemas/Metadata"
                 },
                 "description": "Optional metadata key-value pairs",
-                "readOnly": true
+                "readOnly": true,
+                "maxItems": 100
               },
               "created_at": {
                 "type": "string",
@@ -2801,7 +2831,8 @@
                   "$ref": "#/components/schemas/Metadata"
                 },
                 "description": "Optional metadata key-value pairs",
-                "readOnly": true
+                "readOnly": true,
+                "maxItems": 100
               },
               "created_at": {
                 "type": "string",
@@ -3078,7 +3109,8 @@
               "$ref": "#/components/schemas/Metadata"
             },
             "description": "Key-value pairs for additional note metadata",
-            "nullable": true
+            "nullable": true,
+            "maxItems": 100
           },
           "id": {
             "type": "string",
@@ -3240,7 +3272,8 @@
               "type": "string"
             },
             "minItems": 1,
-            "description": "List of event types to subscribe to"
+            "description": "List of event types to subscribe to",
+            "maxItems": 1000
           },
           "secret": {
             "type": "string",
@@ -3581,7 +3614,8 @@
           "500": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": []
       }
     },
     "/.well-known/openid-configuration": {
@@ -4024,7 +4058,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/oauth2/providers": {
@@ -4143,7 +4178,8 @@
           "500": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": []
       }
     },
     "/oauth2/providers/{idp}/groups": {
@@ -4355,7 +4391,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/oauth2/token": {
@@ -4494,7 +4531,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/oauth2/refresh": {
@@ -4604,7 +4642,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/oauth2/userinfo": {
@@ -4789,7 +4828,8 @@
           "500": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": []
       }
     },
     "/oauth2/revoke": {
@@ -5411,7 +5451,8 @@
                     "path"
                   ],
                   "additionalProperties": false
-                }
+                },
+                "maxItems": 1000
               }
             }
           }
@@ -6077,7 +6118,8 @@
                     "path"
                   ],
                   "additionalProperties": false
-                }
+                },
+                "maxItems": 1000
               },
               "examples": {
                 "updateThreatDetails": {
@@ -7097,11 +7139,13 @@
                             },
                             "additionalProperties": false
                           },
-                          "description": "JSON Patch operations to apply"
+                          "description": "JSON Patch operations to apply",
+                          "maxItems": 1000
                         }
                       },
                       "additionalProperties": false
-                    }
+                    },
+                    "maxItems": 1000
                   }
                 },
                 "additionalProperties": false
@@ -7728,7 +7772,8 @@
                     }
                   },
                   "additionalProperties": false
-                }
+                },
+                "maxItems": 1000
               }
             }
           }
@@ -9077,7 +9122,8 @@
                     }
                   },
                   "additionalProperties": false
-                }
+                },
+                "maxItems": 1000
               }
             }
           }
@@ -10797,7 +10843,8 @@
                     "path"
                   ],
                   "additionalProperties": false
-                }
+                },
+                "maxItems": 10000
               },
               "examples": {
                 "updateName": {
@@ -12204,7 +12251,8 @@
                     }
                   },
                   "additionalProperties": false
-                }
+                },
+                "maxItems": 1000
               }
             }
           }
@@ -12668,7 +12716,8 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Metadata"
-                }
+                },
+                "maxItems": 100
               }
             }
           }
@@ -12750,7 +12799,8 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Metadata"
-                }
+                },
+                "maxItems": 100
               }
             }
           }
@@ -13333,7 +13383,8 @@
                     }
                   },
                   "additionalProperties": false
-                }
+                },
+                "maxItems": 1000
               }
             }
           }
@@ -13787,7 +13838,8 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Metadata"
-                }
+                },
+                "maxItems": 100
               }
             }
           }
@@ -13869,7 +13921,8 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Metadata"
-                }
+                },
+                "maxItems": 100
               }
             }
           }
@@ -13936,7 +13989,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/saml/login": {
@@ -13975,7 +14029,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/saml/acs": {
@@ -14043,7 +14098,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/saml/slo": {
@@ -14092,7 +14148,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       },
       "post": {
         "tags": [
@@ -14147,7 +14204,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/webhooks/subscriptions": {
