@@ -38,12 +38,15 @@
                   "OK",
                   "ERROR"
                 ],
-                "description": "Status code indicating if the API is functioning correctly"
+                "description": "Status code indicating if the API is functioning correctly",
+                "pattern": "^[a-zA-Z0-9_-]*$",
+                "maxLength": 512
               },
               "time": {
                 "type": "string",
                 "format": "date-time",
-                "description": "Current server time in UTC, formatted as RFC 3339"
+                "description": "Current server time in UTC, formatted as RFC 3339",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
               }
             },
             "required": [
@@ -57,12 +60,15 @@
             "properties": {
               "name": {
                 "type": "string",
-                "description": "Name of the service"
+                "description": "Name of the service",
+                "maxLength": 256,
+                "pattern": "^[\\u0020-\\uFFFF]*$"
               },
               "build": {
                 "type": "string",
                 "description": "Current build number",
-                "maxLength": 256
+                "maxLength": 32,
+                "pattern": "^[0-9]+\\\\.[0-9]+\\\\.[0-9]+(-[a-zA-Z0-9.]+)?(\\\\+[a-zA-Z0-9.]+)?$"
               }
             },
             "required": [
@@ -76,13 +82,16 @@
             "properties": {
               "version": {
                 "type": "string",
-                "description": "API version"
+                "description": "API version",
+                "pattern": "^[0-9]+\\\\.[0-9]+\\\\.[0-9]+(-[a-zA-Z0-9.]+)?(\\\\+[a-zA-Z0-9.]+)?$",
+                "maxLength": 32
               },
               "specification": {
                 "type": "string",
                 "format": "uri",
                 "description": "URL to the API specification",
-                "maxLength": 1024
+                "maxLength": 1000,
+                "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
               }
             },
             "required": [
@@ -97,7 +106,8 @@
               "name": {
                 "type": "string",
                 "description": "Operator name from environment variables",
-                "maxLength": 256
+                "maxLength": 256,
+                "pattern": "^[\\u0020-\\uFFFF]*$"
               },
               "contact": {
                 "type": "string",
@@ -146,12 +156,17 @@
             "type": "string",
             "format": "uri",
             "description": "The protected resource's resource identifier URL",
-            "example": "http://localhost:8080"
+            "example": "http://localhost:8080",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+            "maxLength": 1000
           },
           "scopes_supported": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[\\x21\\x23-\\x5B\\x5D-\\x7E]*$",
+              "maxLength": 64,
+              "description": "OAuth 2.0 scope token (RFC 6749 Section 3.3 - printable ASCII excluding whitespace and double-quote)"
             },
             "description": "JSON array of OAuth scope values supported by this protected resource",
             "example": [
@@ -164,7 +179,9 @@
             "type": "array",
             "items": {
               "type": "string",
-              "format": "uri"
+              "format": "uri",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+              "maxLength": 1000
             },
             "description": "List of authorization server issuer identifiers that can issue tokens for this resource",
             "example": [
@@ -175,12 +192,20 @@
             "type": "string",
             "format": "uri",
             "description": "URL of the protected resource's JSON Web Key Set",
-            "example": "http://localhost:8080/.well-known/jwks.json"
+            "example": "http://localhost:8080/.well-known/jwks.json",
+            "pattern": "^(https?|wss?|file)://[^\\s]*$",
+            "maxLength": 1024
           },
           "bearer_methods_supported": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "header",
+                "body",
+                "query"
+              ],
+              "description": "OAuth 2.0 bearer token transmission method (RFC 6750)"
             },
             "description": "Supported token presentation methods for bearer tokens",
             "example": [
@@ -192,13 +217,17 @@
           "resource_name": {
             "type": "string",
             "description": "Human-readable name of the protected resource",
-            "example": "TMI (Threat Modeling Improved) API"
+            "example": "TMI (Threat Modeling Improved) API",
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "resource_documentation": {
             "type": "string",
             "format": "uri",
             "description": "URL with information for developers on how to use this protected resource",
-            "example": "https://github.com/ericfitz/tmi"
+            "example": "https://github.com/ericfitz/tmi",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+            "maxLength": 1000
           },
           "tls_client_certificate_bound_access_tokens": {
             "type": "boolean",
@@ -245,7 +274,8 @@
                 "type": "string",
                 "format": "uuid",
                 "description": "Unique identifier for the document",
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
               },
               "metadata": {
                 "type": "array",
@@ -260,14 +290,16 @@
                 "format": "date-time",
                 "maxLength": 24,
                 "description": "Creation timestamp (RFC3339)",
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
                 "maxLength": 24,
                 "description": "Last modification timestamp (RFC3339)",
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
             },
             "additionalProperties": false
@@ -283,7 +315,8 @@
             "format": "uuid",
             "description": "Unique identifier for the diagram (UUID)",
             "maxLength": 36,
-            "readOnly": true
+            "readOnly": true,
+            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "name": {
             "type": "string",
@@ -305,14 +338,16 @@
             "format": "date-time",
             "description": "Creation timestamp (ISO3339)",
             "maxLength": 36,
-            "readOnly": true
+            "readOnly": true,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           },
           "modified_at": {
             "type": "string",
             "format": "date-time",
             "description": "Last modification timestamp (ISO3339)",
             "maxLength": 36,
-            "readOnly": true
+            "readOnly": true,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           },
           "metadata": {
             "type": "array",
@@ -336,7 +371,9 @@
               "svg": {
                 "type": "string",
                 "format": "byte",
-                "description": "BASE64 encoded SVG representation of the diagram, used for thumbnails and reports"
+                "description": "BASE64 encoded SVG representation of the diagram, used for thumbnails and reports",
+                "pattern": "^[A-Za-z0-9+/]*=*$",
+                "maxLength": 102400
               },
               "update_vector": {
                 "type": "integer",
@@ -352,7 +389,8 @@
             "type": "string",
             "maxLength": 1024,
             "nullable": true,
-            "description": "Optional description of the diagram"
+            "description": "Optional description of the diagram",
+            "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           }
         },
         "required": [
@@ -404,7 +442,9 @@
               "svg": {
                 "type": "string",
                 "format": "byte",
-                "description": "BASE64 encoded SVG representation of the diagram, used for thumbnails and reports"
+                "description": "BASE64 encoded SVG representation of the diagram, used for thumbnails and reports",
+                "pattern": "^[A-Za-z0-9+/]*=*$",
+                "maxLength": 102400
               },
               "update_vector": {
                 "type": "integer",
@@ -420,7 +460,8 @@
             "type": "string",
             "maxLength": 1024,
             "nullable": true,
-            "description": "Optional description of the diagram"
+            "description": "Optional description of the diagram",
+            "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           }
         },
         "required": [
@@ -542,7 +583,8 @@
           "name": {
             "type": "string",
             "description": "Name of the diagram",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "type": {
             "type": "string",
@@ -681,12 +723,15 @@
             "description": "Unique identifier of the cell (UUID)",
             "format": "uuid",
             "example": "37EAEDFA-BF37-4996-8665-242FEC34BBFF",
-            "maxLength": 36
+            "maxLength": 36,
+            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "shape": {
             "type": "string",
             "description": "Shape type identifier that determines cell structure and behavior",
-            "example": "process"
+            "example": "process",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "maxLength": 64
           },
           "zIndex": {
             "type": "number",
@@ -813,7 +858,8 @@
                 "format": "uuid",
                 "description": "ID of the parent cell for nested/grouped nodes (UUID)",
                 "nullable": true,
-                "maxLength": 36
+                "maxLength": 36,
+                "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
               },
               "x": {
                 "type": "number",
@@ -1026,21 +1072,24 @@
                 "format": "uuid",
                 "description": "Unique identifier for the threat model (UUID)",
                 "maxLength": 36,
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
               },
               "created_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "Creation timestamp (RFC3339)",
                 "maxLength": 24,
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "Last modification timestamp (RFC3339)",
                 "maxLength": 24,
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
               "created_by": {
                 "type": "string",
@@ -1103,7 +1152,8 @@
                 "nullable": true,
                 "description": "Timestamp when the status field was last modified (RFC3339). Automatically updated by the server when status changes.",
                 "maxLength": 24,
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
             },
             "additionalProperties": false
@@ -1268,28 +1318,32 @@
                 "format": "uuid",
                 "description": "Unique identifier for the threat (UUID)",
                 "maxLength": 36,
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
               },
               "threat_model_id": {
                 "type": "string",
                 "format": "uuid",
                 "description": "Unique identifier of the parent threat model (UUID)",
                 "maxLength": 36,
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
               },
               "created_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "Creation timestamp (RFC3339)",
                 "maxLength": 24,
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "Last modification timestamp (RFC3339)",
                 "maxLength": 24,
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
             },
             "additionalProperties": false
@@ -1324,7 +1378,8 @@
           "idp": {
             "type": "string",
             "description": "Identity provider (required for groups, optional for users)",
-            "maxLength": 100
+            "maxLength": 100,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
           },
           "role": {
             "type": "string",
@@ -1393,7 +1448,9 @@
           "error_uri": {
             "type": "string",
             "format": "uri",
-            "description": "URI to documentation about the error"
+            "description": "URI to documentation about the error",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+            "maxLength": 1000
           },
           "details": {
             "type": "object",
@@ -1402,7 +1459,9 @@
               "code": {
                 "type": "string",
                 "description": "Machine-readable error code for programmatic handling",
-                "example": "COLLABORATION_SESSION_NOT_FOUND"
+                "example": "COLLABORATION_SESSION_NOT_FOUND",
+                "pattern": "^[a-zA-Z0-9_-]*$",
+                "maxLength": 512
               },
               "context": {
                 "type": "object",
@@ -1440,11 +1499,15 @@
         "properties": {
           "access_token": {
             "type": "string",
-            "description": "JWT access token"
+            "description": "JWT access token",
+            "pattern": "^[a-zA-Z0-9_.-]*$",
+            "maxLength": 4096
           },
           "refresh_token": {
             "type": "string",
-            "description": "Refresh token for obtaining new access tokens"
+            "description": "Refresh token for obtaining new access tokens",
+            "pattern": "^[a-zA-Z0-9_.-]*$",
+            "maxLength": 1024
           },
           "token_type": {
             "type": "string",
@@ -1481,7 +1544,8 @@
             "format": "uuid",
             "description": "Unique identifier for the session (UUID)",
             "maxLength": 36,
-            "readOnly": true
+            "readOnly": true,
+            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "host": {
             "type": "string",
@@ -1499,23 +1563,27 @@
             "type": "string",
             "format": "uuid",
             "description": "Unique identifier of the associated threat model (UUID)",
-            "maxLength": 36
+            "maxLength": 36,
+            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "threat_model_name": {
             "type": "string",
             "description": "Name of the associated threat model",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "diagram_id": {
             "type": "string",
             "format": "uuid",
             "description": "Unique identifier of the associated diagram (UUID)",
-            "maxLength": 36
+            "maxLength": 36,
+            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "diagram_name": {
             "type": "string",
             "description": "Name of the associated diagram",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "participants": {
             "type": "array",
@@ -1527,7 +1595,8 @@
           "websocket_url": {
             "type": "string",
             "description": "WebSocket URL for real-time updates",
-            "maxLength": 1024
+            "maxLength": 1024,
+            "pattern": "^(https?|wss?|file)://[^\\s]*$"
           }
         },
         "required": [
@@ -1571,12 +1640,14 @@
             "format": "uuid",
             "description": "Unique identifier of the diagram (UUID)",
             "maxLength": 36,
-            "readOnly": true
+            "readOnly": true,
+            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "name": {
             "type": "string",
             "description": "Name of the diagram",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "type": {
             "type": "string",
@@ -1602,7 +1673,8 @@
             "format": "uuid",
             "description": "Unique identifier of the threat model (UUID)",
             "maxLength": 36,
-            "readOnly": true
+            "readOnly": true,
+            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "name": {
             "type": "string",
@@ -1614,19 +1686,22 @@
           "description": {
             "type": "string",
             "description": "Description of the threat model",
-            "maxLength": 1024
+            "maxLength": 1024,
+            "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp (RFC3339)",
-            "maxLength": 24
+            "maxLength": 24,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           },
           "modified_at": {
             "type": "string",
             "format": "date-time",
             "description": "Last modification timestamp (RFC3339)",
-            "maxLength": 24
+            "maxLength": 24,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           },
           "owner": {
             "type": "string",
@@ -1639,7 +1714,9 @@
           },
           "threat_model_framework": {
             "type": "string",
-            "description": "The framework used for this threat model"
+            "description": "The framework used for this threat model",
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "maxLength": 30
           },
           "document_count": {
             "type": "integer",
@@ -1665,7 +1742,8 @@
             "type": "string",
             "format": "uri",
             "description": "URL to an issue in an issue tracking system",
-            "maxLength": 1024
+            "maxLength": 1000,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
           },
           "asset_count": {
             "type": "integer",
@@ -1689,7 +1767,8 @@
             "nullable": true,
             "description": "Timestamp when the status field was last modified (RFC3339). Automatically updated by the server when status changes.",
             "maxLength": 24,
-            "readOnly": true
+            "readOnly": true,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           }
         },
         "required": [
@@ -1743,7 +1822,8 @@
             "type": "string",
             "format": "uuid",
             "description": "ID of the connected node (UUID)",
-            "maxLength": 36
+            "maxLength": 36,
+            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "port": {
             "type": "string",
@@ -1769,12 +1849,14 @@
               "fill": {
                 "type": "string",
                 "description": "Fill color",
-                "maxLength": 32
+                "maxLength": 32,
+                "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\([0-9]*,[0-9]*,[0-9]*\\)|[a-z]+)$"
               },
               "stroke": {
                 "type": "string",
                 "description": "Stroke color",
-                "maxLength": 32
+                "maxLength": 32,
+                "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\([0-9]*,[0-9]*,[0-9]*\\)|[a-z]+)$"
               },
               "strokeWidth": {
                 "type": "number",
@@ -1785,7 +1867,8 @@
                 "type": "string",
                 "description": "Dash pattern for strokes",
                 "nullable": true,
-                "maxLength": 64
+                "maxLength": 64,
+                "pattern": "^[0-9]+(\\\\.[0-9]+)?(,[0-9]+(\\\\.[0-9]+)?)*$"
               }
             },
             "additionalProperties": false
@@ -1807,12 +1890,14 @@
               "fill": {
                 "type": "string",
                 "description": "Text color",
-                "maxLength": 32
+                "maxLength": 32,
+                "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\([0-9]*,[0-9]*,[0-9]*\\)|[a-z]+)$"
               },
               "fontFamily": {
                 "type": "string",
                 "description": "Font family",
-                "maxLength": 64
+                "maxLength": 64,
+                "pattern": "^[a-zA-Z0-9 ,'-]*$"
               }
             },
             "additionalProperties": false
@@ -1831,7 +1916,8 @@
               "stroke": {
                 "type": "string",
                 "description": "Line color",
-                "maxLength": 32
+                "maxLength": 32,
+                "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\([0-9]*,[0-9]*,[0-9]*\\)|[a-z]+)$"
               },
               "strokeWidth": {
                 "type": "number",
@@ -1842,7 +1928,8 @@
                 "type": "string",
                 "description": "Dash pattern for the line",
                 "nullable": true,
-                "maxLength": 64
+                "maxLength": 64,
+                "pattern": "^[0-9]+(\\\\.[0-9]+)?(,[0-9]+(\\\\.[0-9]+)?)*$"
               },
               "targetMarker": {
                 "type": "object",
@@ -1857,7 +1944,8 @@
                       "diamond",
                       "circle"
                     ],
-                    "maxLength": 32
+                    "maxLength": 32,
+                    "pattern": "^[\\u0020-\\uFFFF]*$"
                   },
                   "size": {
                     "type": "number",
@@ -1880,7 +1968,8 @@
                       "diamond",
                       "circle"
                     ],
-                    "maxLength": 32
+                    "maxLength": 32,
+                    "pattern": "^[\\u0020-\\uFFFF]*$"
                   },
                   "size": {
                     "type": "number",
@@ -1921,12 +2010,14 @@
                   "fill": {
                     "type": "string",
                     "description": "Text color",
-                    "maxLength": 32
+                    "maxLength": 32,
+                    "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\([0-9]*,[0-9]*,[0-9]*\\)|[a-z]+)$"
                   },
                   "fontFamily": {
                     "type": "string",
                     "description": "Font family",
-                    "maxLength": 64
+                    "maxLength": 64,
+                    "pattern": "^[a-zA-Z0-9 ,'-]*$"
                   }
                 },
                 "additionalProperties": false
@@ -2140,7 +2231,9 @@
                   "metro",
                   "er"
                 ],
-                "description": "Router algorithm name"
+                "description": "Router algorithm name",
+                "maxLength": 256,
+                "pattern": "^[\\u0020-\\uFFFF]*$"
               },
               "args": {
                 "type": "object",
@@ -2210,7 +2303,9 @@
                   "smooth",
                   "jumpover"
                 ],
-                "description": "Connector style name"
+                "description": "Connector style name",
+                "maxLength": 256,
+                "pattern": "^[\\u0020-\\uFFFF]*$"
               },
               "args": {
                 "type": "object",
@@ -2280,7 +2375,9 @@
           },
           "threat_model_framework": {
             "type": "string",
-            "description": "The framework used for this threat model"
+            "description": "The framework used for this threat model",
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "maxLength": 30
           },
           "authorization": {
             "type": "array",
@@ -2301,7 +2398,8 @@
             "type": "string",
             "format": "uri",
             "description": "URL to an issue in an issue tracking system for this threat model",
-            "maxLength": 1024
+            "maxLength": 1000,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
           },
           "status": {
             "type": "string",
@@ -2325,17 +2423,21 @@
           "name": {
             "type": "string",
             "description": "Name of the threat model",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "description": {
             "type": "string",
             "description": "Description of the threat model and its purpose",
             "maxLength": 1024,
-            "nullable": true
+            "nullable": true,
+            "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           },
           "threat_model_framework": {
             "type": "string",
-            "description": "The framework used for this threat model"
+            "description": "The framework used for this threat model",
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "maxLength": 30
           },
           "authorization": {
             "type": "array",
@@ -2356,8 +2458,9 @@
             "type": "string",
             "format": "uri",
             "description": "URL to an issue in an issue tracking system for this threat model",
-            "maxLength": 1024,
-            "nullable": true
+            "maxLength": 1000,
+            "nullable": true,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
           }
         },
         "required": [
@@ -2379,31 +2482,36 @@
           "description": {
             "type": "string",
             "description": "Description of the threat and risk to the organization",
-            "maxLength": 1024
+            "maxLength": 1024,
+            "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           },
           "mitigation": {
             "type": "string",
             "description": "Recommended or planned mitigation(s) for the threat",
-            "maxLength": 1024
+            "maxLength": 1024,
+            "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           },
           "diagram_id": {
             "type": "string",
             "format": "uuid",
             "description": "Unique identifier of the associated diagram (if applicable) (UUID)",
             "nullable": true,
-            "maxLength": 36
+            "maxLength": 36,
+            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "cell_id": {
             "type": "string",
             "format": "uuid",
             "description": "Unique identifier of the associated cell (if applicable) (UUID)",
             "nullable": true,
-            "maxLength": 36
+            "maxLength": 36,
+            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "severity": {
             "type": "string",
             "description": "Severity level of the threat",
-            "maxLength": 256
+            "maxLength": 50,
+            "pattern": "^[\\u0020-\\uFFFF_().-]*$"
           },
           "score": {
             "type": "number",
@@ -2442,14 +2550,16 @@
             "type": "string",
             "format": "uri",
             "description": "URL to an issue in an issue tracking system for this threat",
-            "maxLength": 1024
+            "maxLength": 1000,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
           },
           "asset_id": {
             "type": "string",
             "format": "uuid",
             "description": "Unique identifier of the associated asset (if applicable) (UUID)",
             "nullable": true,
-            "maxLength": 36
+            "maxLength": 36,
+            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           }
         },
         "required": [
@@ -2483,17 +2593,20 @@
           "name": {
             "type": "string",
             "description": "User's display name",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "picture": {
             "type": "string",
             "description": "URL to user's profile picture",
-            "maxLength": 1024
+            "maxLength": 1024,
+            "pattern": "^(https?|wss?|file)://[^\\s]*$"
           },
           "idp": {
             "type": "string",
             "description": "Identity provider used for current session",
-            "maxLength": 100
+            "maxLength": 100,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
           },
           "groups": {
             "type": "array",
@@ -2505,7 +2618,8 @@
           "last_login": {
             "type": "string",
             "format": "date-time",
-            "description": "Timestamp of user's last login"
+            "description": "Timestamp of user's last login",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
           }
         },
         "required": [
@@ -2526,7 +2640,8 @@
             "type": "string",
             "format": "date-time",
             "description": "Last activity timestamp",
-            "maxLength": 36
+            "maxLength": 36,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           },
           "permissions": {
             "type": "string",
@@ -2559,7 +2674,8 @@
           "expires_at": {
             "type": "string",
             "format": "date-time",
-            "description": "When the challenge expires (3 minutes from issuance)"
+            "description": "When the challenge expires (3 minutes from issuance)",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
           }
         },
         "additionalProperties": false
@@ -2580,7 +2696,8 @@
                 "type": "string",
                 "format": "uuid",
                 "description": "Unique identifier for the repository",
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
               },
               "metadata": {
                 "type": "array",
@@ -2595,14 +2712,16 @@
                 "format": "date-time",
                 "maxLength": 24,
                 "description": "Creation timestamp (RFC3339)",
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
                 "maxLength": 24,
                 "description": "Last modification timestamp (RFC3339)",
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
             },
             "additionalProperties": false
@@ -2625,7 +2744,8 @@
                 "type": "string",
                 "format": "uuid",
                 "description": "Unique identifier for the note",
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
               },
               "metadata": {
                 "type": "array",
@@ -2640,14 +2760,16 @@
                 "format": "date-time",
                 "maxLength": 24,
                 "description": "Creation timestamp (RFC3339)",
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
                 "maxLength": 24,
                 "description": "Last modification timestamp (RFC3339)",
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
             },
             "additionalProperties": false
@@ -2670,7 +2792,8 @@
                 "type": "string",
                 "format": "uuid",
                 "description": "Unique identifier for the asset",
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
               },
               "metadata": {
                 "type": "array",
@@ -2685,14 +2808,16 @@
                 "format": "date-time",
                 "maxLength": 24,
                 "description": "Creation timestamp (RFC3339)",
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
                 "maxLength": 24,
                 "description": "Last modification timestamp (RFC3339)",
-                "readOnly": true
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
             },
             "additionalProperties": false
@@ -2711,19 +2836,22 @@
                 "type": "string",
                 "format": "uuid",
                 "description": "ID of the threat model this asset belongs to",
-                "maxLength": 36
+                "maxLength": 36,
+                "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
               },
               "created_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "Creation timestamp (ISO3339)",
-                "maxLength": 36
+                "maxLength": 36,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "Last modification timestamp (ISO3339)",
-                "maxLength": 36
+                "maxLength": 36,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
             },
             "required": [
@@ -2775,7 +2903,8 @@
             "type": "string",
             "description": "Description of the asset",
             "maxLength": 1024,
-            "nullable": true
+            "nullable": true,
+            "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           },
           "type": {
             "type": "string",
@@ -2848,16 +2977,18 @@
             "type": "string",
             "description": "Description of document purpose or content",
             "maxLength": 1024,
-            "nullable": true
+            "nullable": true,
+            "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           },
           "uri": {
             "type": "string",
             "format": "uri",
             "description": "URL location of the document",
-            "maxLength": 1024,
+            "maxLength": 1000,
             "x-oapi-codegen-extra-tags": {
               "binding": "required,url"
-            }
+            },
+            "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
           }
         },
         "additionalProperties": false
@@ -2895,13 +3026,15 @@
             "maxLength": 65536,
             "x-oapi-codegen-extra-tags": {
               "binding": "required"
-            }
+            },
+            "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           },
           "description": {
             "type": "string",
             "description": "Description of note purpose or context",
             "maxLength": 1024,
-            "nullable": true
+            "nullable": true,
+            "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           }
         },
         "additionalProperties": false
@@ -2936,7 +3069,8 @@
             "type": "string",
             "description": "Description of note purpose or context",
             "maxLength": 1024,
-            "nullable": true
+            "nullable": true,
+            "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           },
           "metadata": {
             "type": "array",
@@ -2950,21 +3084,24 @@
             "type": "string",
             "format": "uuid",
             "description": "Unique identifier for the note",
-            "readOnly": true
+            "readOnly": true,
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
             "maxLength": 24,
             "description": "Creation timestamp (RFC3339)",
-            "readOnly": true
+            "readOnly": true,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           },
           "modified_at": {
             "type": "string",
             "format": "date-time",
             "maxLength": 24,
             "description": "Last modification timestamp (RFC3339)",
-            "readOnly": true
+            "readOnly": true,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           }
         },
         "additionalProperties": false
@@ -2987,7 +3124,8 @@
             "type": "string",
             "description": "Description of the referenced source code",
             "maxLength": 1024,
-            "nullable": true
+            "nullable": true,
+            "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           },
           "type": {
             "type": "string",
@@ -3035,7 +3173,8 @@
             "type": "string",
             "format": "uri",
             "description": "URL to retrieve the referenced source code",
-            "maxLength": 1024
+            "maxLength": 1000,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
           }
         },
         "additionalProperties": false
@@ -3064,31 +3203,36 @@
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier"
+            "description": "Unique identifier",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "owner_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Owner user ID"
+            "description": "Owner user ID",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "threat_model_id": {
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Optional threat model filter (null means all threat models)"
+            "description": "Optional threat model filter (null means all threat models)",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "name": {
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "description": "Descriptive name"
+            "description": "Descriptive name",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "url": {
             "type": "string",
             "format": "uri",
             "minLength": 8,
-            "maxLength": 2048,
-            "description": "Webhook endpoint URL (must be HTTPS)"
+            "maxLength": 1024,
+            "description": "Webhook endpoint URL (must be HTTPS)",
+            "pattern": "^(https?|wss?|file)://[^\\s]*$"
           },
           "events": {
             "type": "array",
@@ -3120,18 +3264,21 @@
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Creation timestamp"
+            "description": "Creation timestamp",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
           },
           "modified_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Last modification timestamp"
+            "description": "Last modification timestamp",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
           },
           "last_successful_use": {
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Last successful delivery timestamp"
+            "description": "Last successful delivery timestamp",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
           },
           "publication_failures": {
             "type": "integer",
@@ -3153,20 +3300,23 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Optional threat model filter"
+            "description": "Optional threat model filter",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "name": {
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "description": "Descriptive name for the subscription"
+            "description": "Descriptive name for the subscription",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "url": {
             "type": "string",
             "format": "uri",
             "minLength": 8,
-            "maxLength": 2048,
-            "description": "Webhook endpoint URL (must be HTTPS)"
+            "maxLength": 1024,
+            "description": "Webhook endpoint URL (must be HTTPS)",
+            "pattern": "^(https?|wss?|file)://[^\\s]*$"
           },
           "events": {
             "type": "array",
@@ -3200,16 +3350,44 @@
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier (UUIDv7)"
+            "description": "Unique identifier (UUIDv7)",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "subscription_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Subscription that triggered this delivery"
+            "description": "Subscription that triggered this delivery",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "event_type": {
             "type": "string",
-            "description": "Type of event"
+            "enum": [
+              "threat_model.created",
+              "threat_model.updated",
+              "threat_model.deleted",
+              "diagram.created",
+              "diagram.updated",
+              "diagram.deleted",
+              "document.created",
+              "document.updated",
+              "document.deleted",
+              "note.created",
+              "note.updated",
+              "note.deleted",
+              "repository.created",
+              "repository.updated",
+              "repository.deleted",
+              "asset.created",
+              "asset.updated",
+              "asset.deleted",
+              "threat.created",
+              "threat.updated",
+              "threat.deleted",
+              "metadata.created",
+              "metadata.updated",
+              "metadata.deleted"
+            ],
+            "description": "Webhook event type following {resource}.{action} pattern"
           },
           "payload": {
             "type": "object",
@@ -3234,7 +3412,8 @@
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Next retry timestamp"
+            "description": "Next retry timestamp",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
           },
           "last_error": {
             "type": "string",
@@ -3243,13 +3422,15 @@
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Creation timestamp"
+            "description": "Creation timestamp",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
           },
           "delivered_at": {
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Successful delivery timestamp"
+            "description": "Successful delivery timestamp",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
           }
         },
         "additionalProperties": false
@@ -3259,8 +3440,33 @@
         "properties": {
           "event_type": {
             "type": "string",
-            "default": "test.webhook",
-            "description": "Event type for test"
+            "enum": [
+              "threat_model.created",
+              "threat_model.updated",
+              "threat_model.deleted",
+              "diagram.created",
+              "diagram.updated",
+              "diagram.deleted",
+              "document.created",
+              "document.updated",
+              "document.deleted",
+              "note.created",
+              "note.updated",
+              "note.deleted",
+              "repository.created",
+              "repository.updated",
+              "repository.deleted",
+              "asset.created",
+              "asset.updated",
+              "asset.deleted",
+              "threat.created",
+              "threat.updated",
+              "threat.deleted",
+              "metadata.created",
+              "metadata.updated",
+              "metadata.deleted"
+            ],
+            "description": "Webhook event type following {resource}.{action} pattern"
           }
         },
         "additionalProperties": false
@@ -3275,7 +3481,8 @@
           "delivery_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Test delivery ID"
+            "description": "Test delivery ID",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "status": {
             "type": "string",
@@ -3397,27 +3604,37 @@
                     "issuer": {
                       "type": "string",
                       "format": "uri",
-                      "example": "http://localhost:8080"
+                      "example": "http://localhost:8080",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                      "maxLength": 1000
                     },
                     "authorization_endpoint": {
                       "type": "string",
                       "format": "uri",
-                      "example": "http://localhost:8080/oauth2/authorize"
+                      "example": "http://localhost:8080/oauth2/authorize",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                      "maxLength": 1000
                     },
                     "token_endpoint": {
                       "type": "string",
                       "format": "uri",
-                      "example": "http://localhost:8080/oauth2/token"
+                      "example": "http://localhost:8080/oauth2/token",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                      "maxLength": 1000
                     },
                     "userinfo_endpoint": {
                       "type": "string",
                       "format": "uri",
-                      "example": "http://localhost:8080/oauth2/userinfo"
+                      "example": "http://localhost:8080/oauth2/userinfo",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                      "maxLength": 1000
                     },
                     "jwks_uri": {
                       "type": "string",
                       "format": "uri",
-                      "example": "http://localhost:8080/.well-known/jwks.json"
+                      "example": "http://localhost:8080/.well-known/jwks.json",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                      "maxLength": 1000
                     },
                     "response_types_supported": {
                       "type": "array",
@@ -3482,7 +3699,9 @@
                     "introspection_endpoint": {
                       "type": "string",
                       "format": "uri",
-                      "example": "http://localhost:8080/oauth2/introspect"
+                      "example": "http://localhost:8080/oauth2/introspect",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                      "maxLength": 1000
                     }
                   },
                   "required": [
@@ -3528,22 +3747,30 @@
                     "issuer": {
                       "type": "string",
                       "format": "uri",
-                      "example": "http://localhost:8080"
+                      "example": "http://localhost:8080",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                      "maxLength": 1000
                     },
                     "authorization_endpoint": {
                       "type": "string",
                       "format": "uri",
-                      "example": "http://localhost:8080/oauth2/authorize"
+                      "example": "http://localhost:8080/oauth2/authorize",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                      "maxLength": 1000
                     },
                     "token_endpoint": {
                       "type": "string",
                       "format": "uri",
-                      "example": "http://localhost:8080/oauth2/token"
+                      "example": "http://localhost:8080/oauth2/token",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                      "maxLength": 1000
                     },
                     "introspection_endpoint": {
                       "type": "string",
                       "format": "uri",
-                      "example": "http://localhost:8080/oauth2/introspect"
+                      "example": "http://localhost:8080/oauth2/introspect",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                      "maxLength": 1000
                     },
                     "response_types_supported": {
                       "type": "array",
@@ -3759,7 +3986,9 @@
                     "name": {
                       "type": "string",
                       "description": "User's full name",
-                      "example": "John Doe"
+                      "example": "John Doe",
+                      "maxLength": 256,
+                      "pattern": "^[\\u0020-\\uFFFF]*$"
                     },
                     "exp": {
                       "type": "integer",
@@ -3825,7 +4054,9 @@
                           },
                           "name": {
                             "type": "string",
-                            "description": "Display name of the provider"
+                            "description": "Display name of the provider",
+                            "maxLength": 256,
+                            "pattern": "^[\\u0020-\\uFFFF]*$"
                           },
                           "icon": {
                             "type": "string",
@@ -3834,17 +4065,23 @@
                           "auth_url": {
                             "type": "string",
                             "format": "uri",
-                            "description": "TMI authorization endpoint URL for this provider"
+                            "description": "TMI authorization endpoint URL for this provider",
+                            "pattern": "^(https?|wss?|file)://[^\\s]*$",
+                            "maxLength": 1024
                           },
                           "token_url": {
                             "type": "string",
                             "format": "uri",
-                            "description": "TMI token exchange endpoint URL for this provider"
+                            "description": "TMI token exchange endpoint URL for this provider",
+                            "pattern": "^(https?|wss?|file)://[^\\s]*$",
+                            "maxLength": 1024
                           },
                           "redirect_uri": {
                             "type": "string",
                             "format": "uri",
-                            "description": "OAuth callback URI configured for this provider"
+                            "description": "OAuth callback URI configured for this provider",
+                            "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                            "maxLength": 1000
                           },
                           "client_id": {
                             "type": "string",
@@ -3929,7 +4166,9 @@
             "required": true,
             "description": "Identity provider ID (e.g., saml_okta, saml_azure)",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
+              "maxLength": 100
             }
           }
         ],
@@ -3943,7 +4182,9 @@
                   "properties": {
                     "idp": {
                       "type": "string",
-                      "description": "Identity provider ID"
+                      "description": "Identity provider ID",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
+                      "maxLength": 100
                     },
                     "groups": {
                       "type": "array",
@@ -3952,11 +4193,15 @@
                         "properties": {
                           "name": {
                             "type": "string",
-                            "description": "Group name"
+                            "description": "Group name",
+                            "maxLength": 256,
+                            "pattern": "^[\\u0020-\\uFFFF]*$"
                           },
                           "display_name": {
                             "type": "string",
-                            "description": "Display name for the group"
+                            "description": "Display name for the group",
+                            "maxLength": 256,
+                            "pattern": "^[\\u0020-\\uFFFF]*$"
                           },
                           "used_in_authorizations": {
                             "type": "boolean",
@@ -4021,7 +4266,9 @@
             "required": false,
             "description": "OAuth provider identifier. Defaults to 'test' provider in non-production builds if not specified.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
+              "maxLength": 100
             }
           },
           {
@@ -4032,7 +4279,9 @@
             "schema": {
               "type": "string",
               "format": "uri",
-              "example": "http://localhost:4200/oauth2/callback"
+              "example": "http://localhost:4200/oauth2/callback",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+              "maxLength": 1000
             }
           },
           {
@@ -4042,7 +4291,9 @@
             "description": "CSRF protection state parameter. Recommended for security. Will be included in the callback response.",
             "schema": {
               "type": "string",
-              "example": "random_state_abc123"
+              "example": "random_state_abc123",
+              "pattern": "^[a-zA-Z0-9_-]*$",
+              "maxLength": 256
             }
           },
           {
@@ -4074,7 +4325,9 @@
               "Location": {
                 "schema": {
                   "type": "string",
-                  "format": "uri"
+                  "format": "uri",
+                  "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                  "maxLength": 1000
                 },
                 "description": "OAuth provider authorization URL with client_id, redirect_uri, response_type, scope, and state parameters"
               }
@@ -4118,7 +4371,9 @@
             "required": false,
             "description": "OAuth provider identifier. Defaults to 'test' provider in non-production builds if not specified.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
+              "maxLength": 100
             }
           }
         ],
@@ -4132,18 +4387,24 @@
                   "code": {
                     "type": "string",
                     "description": "Authorization code received from OAuth provider",
-                    "example": "4/0AX4XfWiXY2BZ_example_auth_code_from_google"
+                    "example": "4/0AX4XfWiXY2BZ_example_auth_code_from_google",
+                    "pattern": "^[a-zA-Z0-9_-]*$",
+                    "maxLength": 512
                   },
                   "state": {
                     "type": "string",
                     "description": "State parameter for CSRF protection (optional but recommended)",
-                    "example": "random_state_value_abc123"
+                    "example": "random_state_value_abc123",
+                    "pattern": "^[a-zA-Z0-9_-]*$",
+                    "maxLength": 256
                   },
                   "redirect_uri": {
                     "type": "string",
                     "format": "uri",
                     "description": "Redirect URI used in the authorization request (must match exactly)",
-                    "example": "https://your-web-app.com/oauth2/callback"
+                    "example": "https://your-web-app.com/oauth2/callback",
+                    "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                    "maxLength": 1000
                   }
                 },
                 "required": [
@@ -4373,21 +4634,26 @@
                       "type": "string",
                       "format": "uuid",
                       "description": "Unique identifier for the user (UUID)",
-                      "maxLength": 36
+                      "maxLength": 36,
+                      "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
                     },
                     "email": {
                       "type": "string",
                       "format": "email",
-                      "description": "User email address"
+                      "description": "User email address",
+                      "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
                     },
                     "name": {
                       "type": "string",
-                      "description": "User display name"
+                      "description": "User display name",
+                      "maxLength": 256,
+                      "pattern": "^[\\u0020-\\uFFFF]*$"
                     },
                     "idp": {
                       "type": "string",
                       "description": "Current identity provider",
-                      "maxLength": 100
+                      "maxLength": 100,
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
                     },
                     "groups": {
                       "type": "array",
@@ -4469,7 +4735,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]*$",
+              "maxLength": 512
             },
             "description": "Authorization code from the OAuth provider"
           },
@@ -4477,7 +4745,9 @@
             "name": "state",
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]*$",
+              "maxLength": 256
             },
             "description": "Optional state parameter for CSRF protection"
           }
@@ -4500,7 +4770,9 @@
                 "schema": {
                   "type": "string",
                   "format": "uri",
-                  "example": "http://localhost:4200/oauth2/callback?access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&expires_in=3600&token_type=Bearer&state=random_state_abc123"
+                  "example": "http://localhost:4200/oauth2/callback?access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&expires_in=3600&token_type=Bearer&state=random_state_abc123",
+                  "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+                  "maxLength": 1000
                 },
                 "description": "Client callback URL with access_token, refresh_token, expires_in, token_type, and state as query parameters"
               }
@@ -4737,7 +5009,8 @@
             "name": "owner",
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 256
             },
             "description": "Filter by owner name or email"
           },
@@ -4745,7 +5018,8 @@
             "name": "name",
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 256
             },
             "description": "Filter by threat model name (partial match)"
           },
@@ -4770,7 +5044,8 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
             },
             "description": "Filter threat models created after this date (RFC3339 format)"
           },
@@ -4779,7 +5054,8 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
             },
             "description": "Filter threat models created before this date (RFC3339 format)"
           },
@@ -4788,7 +5064,8 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
             },
             "description": "Filter threat models modified after this date (RFC3339 format)"
           },
@@ -4797,7 +5074,8 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
             },
             "description": "Filter threat models modified before this date (RFC3339 format)"
           },
@@ -4805,7 +5083,8 @@
             "name": "status",
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 256
             },
             "description": "Filter by status value (exact match). To filter by multiple statuses, use multiple status parameters or comma-separated values."
           },
@@ -4814,7 +5093,8 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
             },
             "description": "Filter threat models where status was updated after this timestamp (RFC3339)"
           },
@@ -4823,7 +5103,8 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
             },
             "description": "Filter threat models where status was updated before this timestamp (RFC3339)"
           }
@@ -4971,7 +5252,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model to retrieve (UUID)"
           }
@@ -5021,7 +5303,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model to update (UUID)"
           }
@@ -5084,7 +5367,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model to update (UUID)"
           }
@@ -5111,7 +5395,9 @@
                     },
                     "path": {
                       "type": "string",
-                      "description": "JSON path to target"
+                      "description": "JSON path to target",
+                      "pattern": "^(/[^/]*)*$",
+                      "maxLength": 512
                     },
                     "value": {
                       "description": "Value to apply",
@@ -5176,7 +5462,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model to delete (UUID)"
           }
@@ -5221,7 +5508,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -5259,7 +5547,8 @@
             "name": "name",
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 256
             },
             "description": "Filter by threat name (partial match)"
           },
@@ -5299,7 +5588,8 @@
             "name": "priority",
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 256
             },
             "description": "Filter by priority (exact match)"
           },
@@ -5307,7 +5597,8 @@
             "name": "status",
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 256
             },
             "description": "Filter by status (exact match)"
           },
@@ -5316,7 +5607,8 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             },
             "description": "Filter by diagram ID (exact match)"
           },
@@ -5325,7 +5617,8 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             },
             "description": "Filter by cell ID (exact match)"
           },
@@ -5384,7 +5677,8 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
             },
             "description": "Filter threats created after this date (RFC3339 format)"
           },
@@ -5393,7 +5687,8 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
             },
             "description": "Filter threats created before this date (RFC3339 format)"
           },
@@ -5402,7 +5697,8 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
             },
             "description": "Filter threats modified after this date (RFC3339 format)"
           },
@@ -5411,7 +5707,8 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
             },
             "description": "Filter threats modified before this date (RFC3339 format)"
           }
@@ -5522,7 +5819,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -5587,7 +5885,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -5598,7 +5897,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat (UUID)"
           }
@@ -5648,7 +5948,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -5659,7 +5960,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat (UUID)"
           }
@@ -5722,7 +6024,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -5733,7 +6036,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat (UUID)"
           }
@@ -5918,7 +6222,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -5929,7 +6234,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat (UUID)"
           }
@@ -5974,7 +6280,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -5985,7 +6292,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat (UUID)"
           }
@@ -6038,7 +6346,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -6049,7 +6358,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat (UUID)"
           }
@@ -6114,7 +6424,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -6125,7 +6436,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat (UUID)"
           },
@@ -6185,7 +6497,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -6196,7 +6509,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat (UUID)"
           },
@@ -6279,7 +6593,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -6290,7 +6605,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat (UUID)"
           },
@@ -6345,7 +6661,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -6356,7 +6673,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat (UUID)"
           }
@@ -6426,7 +6744,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -6437,7 +6756,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat (UUID)"
           }
@@ -6509,7 +6829,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -6621,7 +6942,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -6712,7 +7034,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -6739,7 +7062,8 @@
                         "id": {
                           "type": "string",
                           "format": "uuid",
-                          "description": "Threat ID to patch"
+                          "description": "Threat ID to patch",
+                          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
                         },
                         "operations": {
                           "type": "array",
@@ -6831,7 +7155,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -6843,7 +7168,8 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
               },
               "minItems": 1,
               "maxItems": 20
@@ -6869,7 +7195,8 @@
                       "type": "array",
                       "items": {
                         "type": "string",
-                        "format": "uuid"
+                        "format": "uuid",
+                        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
                       },
                       "description": "IDs of deleted threats"
                     }
@@ -6920,7 +7247,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -7043,7 +7371,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -7157,7 +7486,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -7168,7 +7498,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the document (UUID)"
           }
@@ -7218,7 +7549,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -7229,7 +7561,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the document (UUID)"
           }
@@ -7292,7 +7625,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -7303,7 +7637,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the document (UUID)"
           }
@@ -7341,7 +7676,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -7351,7 +7687,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             },
             "description": "Document ID"
           }
@@ -7446,7 +7783,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -7457,7 +7795,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the document (UUID)"
           }
@@ -7510,7 +7849,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -7521,7 +7861,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the document (UUID)"
           }
@@ -7586,7 +7927,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -7597,7 +7939,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the document (UUID)"
           },
@@ -7657,7 +8000,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -7668,7 +8012,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the document (UUID)"
           },
@@ -7751,7 +8096,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -7762,7 +8108,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the document (UUID)"
           },
@@ -7817,7 +8164,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -7828,7 +8176,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the document (UUID)"
           }
@@ -7898,7 +8247,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -7909,7 +8259,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the document (UUID)"
           }
@@ -7981,7 +8332,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -8132,7 +8484,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -8285,7 +8638,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -8415,7 +8769,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -8480,7 +8835,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -8491,7 +8847,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the source reference (UUID)"
           }
@@ -8541,7 +8898,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -8552,7 +8910,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the source reference (UUID)"
           }
@@ -8615,7 +8974,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -8626,7 +8986,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the source reference (UUID)"
           }
@@ -8664,7 +9025,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -8674,7 +9036,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             },
             "description": "Repository ID"
           }
@@ -8769,7 +9132,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -8780,7 +9144,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the source reference (UUID)"
           }
@@ -8833,7 +9198,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -8844,7 +9210,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the source reference (UUID)"
           }
@@ -8909,7 +9276,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -8920,7 +9288,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the source reference (UUID)"
           },
@@ -8980,7 +9349,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -8991,7 +9361,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the source reference (UUID)"
           },
@@ -9074,7 +9445,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -9085,7 +9457,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the source reference (UUID)"
           },
@@ -9140,7 +9513,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -9151,7 +9525,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the source reference (UUID)"
           }
@@ -9221,7 +9596,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -9232,7 +9608,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the source reference (UUID)"
           }
@@ -9304,7 +9681,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -9455,7 +9833,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -9608,7 +9987,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -9661,7 +10041,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -9726,7 +10107,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -9786,7 +10168,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -9869,7 +10252,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -9924,7 +10308,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -9994,7 +10379,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -10066,7 +10452,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -10152,7 +10539,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -10217,7 +10605,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -10228,7 +10617,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           }
@@ -10278,7 +10668,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -10289,7 +10680,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           }
@@ -10352,7 +10744,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -10363,7 +10756,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           }
@@ -10500,7 +10894,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -10511,7 +10906,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           }
@@ -10556,7 +10952,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -10567,7 +10964,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           }
@@ -10617,7 +11015,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -10628,7 +11027,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           }
@@ -10674,7 +11074,9 @@
                     "join_url": {
                       "type": "string",
                       "description": "URL to join the existing collaboration session",
-                      "example": "/threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate"
+                      "example": "/threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate",
+                      "pattern": "^(https?|wss?|file)://[^\\s]*$",
+                      "maxLength": 1024
                     }
                   },
                   "additionalProperties": false
@@ -10707,7 +11109,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -10718,7 +11121,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           }
@@ -10763,7 +11167,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -10774,7 +11179,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           }
@@ -10827,7 +11233,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -10838,7 +11245,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           }
@@ -10903,7 +11311,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -10914,7 +11323,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           },
@@ -10974,7 +11384,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -10985,7 +11396,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           },
@@ -11069,7 +11481,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -11080,7 +11493,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           },
@@ -11135,7 +11549,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -11146,7 +11561,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           }
@@ -11216,7 +11632,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -11227,7 +11644,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the diagram (UUID)"
           }
@@ -11403,7 +11821,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -11477,7 +11896,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -11542,7 +11962,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -11553,7 +11974,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the note (UUID)"
           }
@@ -11603,7 +12025,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -11614,7 +12037,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the note (UUID)"
           }
@@ -11677,7 +12101,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -11688,7 +12113,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the note (UUID)"
           }
@@ -11726,7 +12152,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -11736,7 +12163,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             },
             "description": "Note ID"
           }
@@ -11831,7 +12259,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -11842,7 +12271,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the note (UUID)"
           }
@@ -11895,7 +12325,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -11906,7 +12337,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the note (UUID)"
           }
@@ -11971,7 +12403,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -11982,7 +12415,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the note (UUID)"
           },
@@ -12042,7 +12476,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -12053,7 +12488,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the note (UUID)"
           },
@@ -12136,7 +12572,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -12147,7 +12584,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the note (UUID)"
           },
@@ -12202,7 +12640,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -12213,7 +12652,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the note (UUID)"
           }
@@ -12282,7 +12722,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -12293,7 +12734,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the note (UUID)"
           }
@@ -12364,7 +12806,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -12438,7 +12881,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -12503,7 +12947,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -12573,7 +13018,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           }
@@ -12645,7 +13091,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -12656,7 +13103,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the asset (UUID)"
           }
@@ -12706,7 +13154,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -12717,7 +13166,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the asset (UUID)"
           }
@@ -12780,7 +13230,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -12791,7 +13242,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the asset (UUID)"
           }
@@ -12829,7 +13281,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -12839,7 +13292,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             },
             "description": "Asset ID"
           }
@@ -12934,7 +13388,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -12945,7 +13400,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the asset (UUID)"
           }
@@ -12998,7 +13454,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -13009,7 +13466,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the asset (UUID)"
           }
@@ -13074,7 +13532,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -13085,7 +13544,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the asset (UUID)"
           },
@@ -13145,7 +13605,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -13156,7 +13617,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the asset (UUID)"
           },
@@ -13229,7 +13691,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -13240,7 +13703,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the asset (UUID)"
           },
@@ -13295,7 +13759,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -13306,7 +13771,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the asset (UUID)"
           }
@@ -13375,7 +13841,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the threat model (UUID)"
           },
@@ -13386,7 +13853,8 @@
             "schema": {
               "type": "string",
               "format": "uuid",
-              "maxLength": 36
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
             },
             "description": "Unique identifier of the asset (UUID)"
           }
@@ -13485,7 +13953,9 @@
             "description": "Client callback URL to redirect after authentication",
             "schema": {
               "type": "string",
-              "format": "uri"
+              "format": "uri",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+              "maxLength": 1000
             }
           }
         ],
@@ -13699,7 +14169,8 @@
             "required": false,
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             }
           },
           {
@@ -13869,7 +14340,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             }
           }
         ],
@@ -13936,7 +14408,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             }
           }
         ],
@@ -13998,7 +14471,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             }
           }
         ],
@@ -14077,7 +14551,8 @@
             "required": false,
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             }
           },
           {
@@ -14162,7 +14637,8 @@
             "required": true,
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             }
           }
         ],

@@ -1,6 +1,7 @@
 package saml
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
 	"crypto/tls"
@@ -254,7 +255,7 @@ func loadKeyAndCert(config *SAMLConfig) (*rsa.PrivateKey, *x509.Certificate, err
 	return privateKey, certificate, nil
 }
 
-// fetchIDPMetadata fetches and parses IdP metadata
+// fetchIDPMetadata fetches and parses IdP metadata with security validation
 func fetchIDPMetadata(config *SAMLConfig) (*saml.EntityDescriptor, error) {
 	var metadataXML []byte
 	var err error
@@ -272,10 +273,31 @@ func fetchIDPMetadata(config *SAMLConfig) (*saml.EntityDescriptor, error) {
 		return nil, fmt.Errorf("no IdP metadata configured")
 	}
 
-	// Parse metadata
+	// SECURITY: Validate size before parsing (prevent XML bombs and DoS attacks)
+	const maxMetadataSize = 102400 // 100KB limit
+	if len(metadataXML) > maxMetadataSize {
+		return nil, fmt.Errorf("metadata exceeds maximum size of %d bytes (got %d bytes)", maxMetadataSize, len(metadataXML))
+	}
+
+	// SECURITY: Validate well-formedness with strict decoder settings
+	// This protects against:
+	// - XML bombs (billion laughs attack)
+	// - XXE attacks (external entities disabled by default in Go)
+	// - Charset encoding attacks
+	// - Malformed XML structures
+	decoder := xml.NewDecoder(bytes.NewReader(metadataXML))
+	decoder.Strict = true       // Enable strict XML parsing
+	decoder.CharsetReader = nil // Disable charset conversion to prevent encoding attacks
+
+	// Parse metadata with security settings
 	metadata := &saml.EntityDescriptor{}
-	if err := xml.Unmarshal(metadataXML, metadata); err != nil {
+	if err := decoder.Decode(metadata); err != nil {
 		return nil, fmt.Errorf("failed to parse IdP metadata: %w", err)
+	}
+
+	// SECURITY: Validate expected structure (ensure required fields present)
+	if metadata.EntityID == "" {
+		return nil, fmt.Errorf("invalid metadata: missing EntityID")
 	}
 
 	return metadata, nil
