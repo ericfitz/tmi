@@ -282,7 +282,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	type UpdateThreatModelRequest struct {
 		Name                 string          `json:"name" binding:"required"`
 		Description          *string         `json:"description,omitempty"`
-		Owner                string          `json:"owner" binding:"required"`
+		Owner                *string         `json:"owner,omitempty"` // Optional: if not provided, preserves existing owner
 		ThreatModelFramework string          `json:"threat_model_framework" binding:"required"`
 		IssueUri             *string         `json:"issue_uri,omitempty"`
 		Authorization        []Authorization `json:"authorization" binding:"required"`
@@ -335,12 +335,18 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Determine owner: use provided value or preserve existing
+	owner := tm.Owner
+	if request.Owner != nil && *request.Owner != "" {
+		owner = *request.Owner
+	}
+
 	// Build full threat model from request
 	updatedTM := ThreatModel{
 		Id:                   &uuid,
 		Name:                 request.Name,
 		Description:          request.Description,
-		Owner:                request.Owner,
+		Owner:                owner,
 		ThreatModelFramework: request.ThreatModelFramework,
 		IssueUri:             request.IssueUri,
 		Authorization:        request.Authorization,

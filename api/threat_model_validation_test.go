@@ -323,7 +323,6 @@ func TestValidThreatModelRequests(t *testing.T) {
 		requestBody := map[string]interface{}{
 			"name":                   "Updated Valid Threat Model",
 			"description":            "Updated description",
-			"owner":                  "test@example.com",
 			"threat_model_framework": "STRIDE",
 			"authorization": []map[string]interface{}{
 				{"subject": "test@example.com", "subject_type": "user", "role": "owner"},
@@ -338,6 +337,9 @@ func TestValidThreatModelRequests(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		// Should succeed
+		if w.Code != http.StatusOK {
+			t.Logf("Expected status 200, got %d. Response: %s", w.Code, w.Body.String())
+		}
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
