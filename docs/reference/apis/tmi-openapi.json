@@ -112,7 +112,8 @@
               "contact": {
                 "type": "string",
                 "description": "Operator contact information from environment variables",
-                "maxLength": 1024
+                "maxLength": 1024,
+                "pattern": "^[\\u0020-\\uFFFF]*$"
               }
             },
             "required": [
@@ -1457,11 +1458,13 @@
         "properties": {
           "error": {
             "type": "string",
-            "description": "Error code"
+            "description": "Error code",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "error_description": {
             "type": "string",
-            "description": "Human-readable error description"
+            "description": "Human-readable error description",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "error_uri": {
             "type": "string",
@@ -1493,7 +1496,8 @@
               "suggestion": {
                 "type": "string",
                 "description": "Human-readable suggestion for resolving the error",
-                "example": "Start a collaboration session first using POST /diagrams/{id}/collaborate"
+                "example": "Start a collaboration session first using POST /diagrams/{id}/collaborate",
+                "pattern": "^[\\u0020-\\uFFFF]*$"
               }
             },
             "additionalProperties": false,
@@ -1569,13 +1573,15 @@
             "type": "string",
             "description": "Email address of the session host",
             "maxLength": 256,
-            "readOnly": true
+            "readOnly": true,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "presenter": {
             "type": "string",
             "description": "Email address of the current presenter",
             "maxLength": 256,
-            "readOnly": true
+            "readOnly": true,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "threat_model_id": {
             "type": "string",
@@ -1724,12 +1730,14 @@
           },
           "owner": {
             "type": "string",
-            "description": "Email address of the current owner"
+            "description": "Email address of the current owner",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "created_by": {
             "type": "string",
             "description": "Email address, name or identifier of the creator",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "threat_model_framework": {
             "type": "string",
@@ -1778,7 +1786,8 @@
             "type": "string",
             "nullable": true,
             "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\"",
-            "maxLength": 128
+            "maxLength": 128,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "status_updated": {
             "type": "string",
@@ -1848,7 +1857,8 @@
             "type": "string",
             "description": "ID of the specific port on the node (optional)",
             "nullable": true,
-            "maxLength": 64
+            "maxLength": 64,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           }
         },
         "example": {
@@ -1899,7 +1909,8 @@
               "text": {
                 "type": "string",
                 "description": "Label text content",
-                "maxLength": 256
+                "maxLength": 256,
+                "pattern": "^[\\u0020-\\uFFFF]*$"
               },
               "fontSize": {
                 "type": "number",
@@ -2019,7 +2030,8 @@
                   "text": {
                     "type": "string",
                     "description": "Label text content",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "pattern": "^[\\u0020-\\uFFFF]*$"
                   },
                   "fontSize": {
                     "type": "number",
@@ -2168,12 +2180,14 @@
                 "id": {
                   "type": "string",
                   "description": "Unique port identifier",
-                  "maxLength": 64
+                  "maxLength": 64,
+                  "pattern": "^[\\u0020-\\uFFFF]*$"
                 },
                 "group": {
                   "type": "string",
                   "description": "Port group this port belongs to",
-                  "maxLength": 32
+                  "maxLength": 32,
+                  "pattern": "^[\\u0020-\\uFFFF]*$"
                 }
               },
               "additionalProperties": false
@@ -2193,12 +2207,14 @@
           "tagName": {
             "type": "string",
             "description": "SVG or HTML tag name (e.g., 'rect', 'circle', 'path', 'text')",
-            "example": "rect"
+            "example": "rect",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "selector": {
             "type": "string",
             "description": "CSS selector for targeting this element in styling",
-            "example": "body"
+            "example": "body",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "attrs": {
             "type": "object",
@@ -2429,7 +2445,8 @@
             "type": "string",
             "nullable": true,
             "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\"",
-            "maxLength": 128
+            "maxLength": 128,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           }
         },
         "required": [
@@ -2548,7 +2565,8 @@
           "priority": {
             "type": "string",
             "description": "Priority level for addressing the threat",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "mitigated": {
             "type": "boolean",
@@ -2557,12 +2575,14 @@
           "status": {
             "type": "string",
             "description": "Current status of the threat",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "threat_type": {
             "type": "string",
             "description": "Type or category of the threat",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "metadata": {
             "type": "array",
@@ -2610,12 +2630,14 @@
           "user_id": {
             "type": "string",
             "description": "OAuth provider's unique identifier for the user (from primary provider)",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "email": {
             "type": "string",
             "description": "User's email address",
-            "maxLength": 256
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "name": {
             "type": "string",
@@ -2639,7 +2661,8 @@
             "type": "array",
             "description": "Groups the user belongs to (from identity provider)",
             "items": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[\\u0020-\\uFFFF]*$"
             },
             "maxItems": 1000
           },
@@ -2697,7 +2720,8 @@
         "properties": {
           "challenge_text": {
             "type": "string",
-            "description": "The exact challenge string that must be provided to confirm deletion"
+            "description": "The exact challenge string that must be provided to confirm deletion",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "expires_at": {
             "type": "string",
@@ -2957,13 +2981,15 @@
             "type": "string",
             "description": "Criticality level of the asset",
             "maxLength": 128,
-            "nullable": true
+            "nullable": true,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "classification": {
             "type": "array",
             "items": {
               "type": "string",
-              "maxLength": 128
+              "maxLength": 128,
+              "pattern": "^[\\u0020-\\uFFFF]*$"
             },
             "description": "Classification tags for the asset",
             "maxItems": 50,
@@ -2973,7 +2999,8 @@
             "type": "string",
             "description": "Sensitivity label for the asset",
             "maxLength": 128,
-            "nullable": true
+            "nullable": true,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           }
         },
         "additionalProperties": false
@@ -3187,12 +3214,14 @@
               "refValue": {
                 "type": "string",
                 "description": "Reference value (branch name, tag value, or commit id)",
-                "maxLength": 256
+                "maxLength": 256,
+                "pattern": "^[\\u0020-\\uFFFF]*$"
               },
               "subPath": {
                 "type": "string",
                 "description": "Sub-path within the repository",
-                "maxLength": 256
+                "maxLength": 256,
+                "pattern": "^[\\u0020-\\uFFFF]*$"
               }
             },
             "required": [
@@ -3269,7 +3298,8 @@
           "events": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[\\u0020-\\uFFFF]*$"
             },
             "minItems": 1,
             "description": "List of event types to subscribe to",
@@ -3278,7 +3308,8 @@
           "secret": {
             "type": "string",
             "maxLength": 128,
-            "description": "HMAC secret for signing payloads (not returned in GET responses)"
+            "description": "HMAC secret for signing payloads (not returned in GET responses)",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "status": {
             "type": "string",
@@ -3354,7 +3385,8 @@
           "events": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[\\u0020-\\uFFFF]*$"
             },
             "minItems": 1,
             "maxItems": 50,
@@ -3364,7 +3396,8 @@
             "type": "string",
             "minLength": 16,
             "maxLength": 128,
-            "description": "Optional HMAC secret for signing payloads (auto-generated if not provided)"
+            "description": "Optional HMAC secret for signing payloads (auto-generated if not provided)",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           }
         },
         "additionalProperties": false
@@ -3450,7 +3483,8 @@
           },
           "last_error": {
             "type": "string",
-            "description": "Last error message"
+            "description": "Last error message",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "created_at": {
             "type": "string",
@@ -3519,11 +3553,13 @@
           },
           "status": {
             "type": "string",
-            "description": "Test result status"
+            "description": "Test result status",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "message": {
             "type": "string",
-            "description": "Result message"
+            "description": "Result message",
+            "pattern": "^[\\u0020-\\uFFFF]*$"
           }
         },
         "additionalProperties": false
