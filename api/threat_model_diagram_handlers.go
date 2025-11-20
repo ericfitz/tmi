@@ -385,6 +385,9 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	// Preserve creation time
 	updatedDiagram.CreatedAt = existingDiagram.CreatedAt
 
+	// Normalize cell data to ensure consistent structure (Position/Size structs)
+	NormalizeDiagramCells(updatedDiagram.Cells)
+
 	// Use centralized update function
 	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {
 		// Return the full updated diagram, incrementing vector only if cells changed

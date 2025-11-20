@@ -3211,6 +3211,14 @@ func normalizeCellData(cellItem *DfdDiagram_Cells_Item) {
 	// Edges don't have position/size normalization needs
 }
 
+// NormalizeDiagramCells normalizes all cells in a diagram
+// This should be called for both REST API and WebSocket operations
+func NormalizeDiagramCells(cells []DfdDiagram_Cells_Item) {
+	for i := range cells {
+		normalizeCellData(&cells[i])
+	}
+}
+
 // validateAddOperation validates adding a new cell
 // If the cell already exists, this operation is treated as idempotent and converted to an update
 func (cop *CellOperationProcessor) validateAddOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) *OperationValidationResult {
