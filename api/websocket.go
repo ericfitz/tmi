@@ -3169,26 +3169,100 @@ func (cop *CellOperationProcessor) validateAndProcessCellOperation(diagram *DfdD
 	}
 }
 
+// normalizeCellData ensures consistent structure for cell data
+// Converts flat X/Y/Width/Height properties to nested Position/Size structs
+func normalizeCellData(cellItem *DfdDiagram_Cells_Item) {
+	// Try to extract as Node
+	if node, err := cellItem.AsNode(); err == nil {
+		// Check if flat properties are set but Position is not
+		if node.X != nil && node.Y != nil && node.Position == nil {
+			node.Position = &struct {
+				X float32 `json:"x"`
+				Y float32 `json:"y"`
+			}{
+				X: *node.X,
+				Y: *node.Y,
+			}
+			// Clear flat properties after moving to Position
+			node.X = nil
+			node.Y = nil
+
+			// Update the cell item with normalized node
+			_ = cellItem.FromNode(node)
+		}
+
+		// Check if flat Width/Height are set but Size is not
+		if node.Width != nil && node.Height != nil && node.Size == nil {
+			node.Size = &struct {
+				Height float32 `json:"height"`
+				Width  float32 `json:"width"`
+			}{
+				Height: *node.Height,
+				Width:  *node.Width,
+			}
+			// Clear flat properties after moving to Size
+			node.Width = nil
+			node.Height = nil
+
+			// Update the cell item with normalized node
+			_ = cellItem.FromNode(node)
+		}
+	}
+	// Edges don't have position/size normalization needs
+}
+
 // validateAddOperation validates adding a new cell
+// If the cell already exists, this operation is treated as idempotent and converted to an update
 func (cop *CellOperationProcessor) validateAddOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) *OperationValidationResult {
 	result := &OperationValidationResult{Valid: true}
 
-	// Check if cell already exists (conflict)
-	if _, exists := currentState[cellOp.ID]; exists {
-		result.Valid = false
-		result.Reason = "cell_already_exists"
-		result.ConflictDetected = true
-		result.CorrectionNeeded = true
-		return result
-	}
-
-	// Validate cell data
+	// Validate cell data first
 	if cellOp.Data == nil {
 		result.Valid = false
 		result.Reason = "add_requires_cell_data"
 		return result
 	}
 
+	// Normalize cell data to use Position/Size structs instead of flat properties
+	normalizeCellData(cellOp.Data)
+
+	// Check if cell already exists - if so, treat as update (idempotent add)
+	if _, exists := currentState[cellOp.ID]; exists {
+		slogging.Get().Debug("Add operation for existing cell - converting to update (idempotent) - CellID: %s", cellOp.ID)
+
+		// Convert to update operation by finding and replacing the cell
+		found := false
+		for i := range diagram.Cells {
+			cellItem := &diagram.Cells[i]
+			// Extract ID from union type to find matching cell
+			var itemID string
+			if node, err := cellItem.AsNode(); err == nil {
+				itemID = node.Id.String()
+			} else if edge, err := cellItem.AsEdge(); err == nil {
+				itemID = edge.Id.String()
+			}
+
+			if itemID == cellOp.ID {
+				// Replace with new cell data (idempotent add acts as update)
+				diagram.Cells[i] = *cellOp.Data
+				found = true
+				result.StateChanged = true
+				break
+			}
+		}
+
+		if !found {
+			// This shouldn't happen if currentState is accurate, but handle defensively
+			result.Valid = false
+			result.Reason = "cell_not_found_in_diagram"
+			result.ConflictDetected = true
+			return result
+		}
+
+		return result
+	}
+
+	// Cell doesn't exist - perform normal add operation
 	// cellOp.Data is already a DfdDiagram_Cells_Item union type (Node | Edge)
 	// No conversion needed - directly append to diagram
 	diagram.Cells = append(diagram.Cells, *cellOp.Data)
@@ -3217,6 +3291,9 @@ func (cop *CellOperationProcessor) validateUpdateOperation(diagram *DfdDiagram, 
 		result.Reason = "update_requires_cell_data"
 		return result
 	}
+
+	// Normalize cell data to use Position/Size structs instead of flat properties
+	normalizeCellData(cellOp.Data)
 
 	// Apply the update operation to diagram
 	// cellOp.Data is already a DfdDiagram_Cells_Item union type (Node | Edge)
@@ -3353,6 +3430,10 @@ func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, c
 
 	// Process each deduplicated cell operation
 	for _, cellOp := range deduplicatedCells {
+		// Log each cell operation before processing
+		slogging.Get().Debug("Processing cell operation - Session: %s, CellID: %s, Operation: %s, CurrentStateHasCell: %v",
+			s.ID, cellOp.ID, cellOp.Operation, currentState[cellOp.ID] != nil)
+
 		cellResult := s.validateAndProcessCellOperation(diagram, currentState, cellOp)
 
 		if !cellResult.Valid {
@@ -3361,6 +3442,8 @@ func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, c
 			result.ConflictDetected = cellResult.ConflictDetected
 			result.CorrectionNeeded = cellResult.CorrectionNeeded
 			result.CellsModified = append(result.CellsModified, cellOp.ID)
+			slogging.Get().Warn("Cell operation validation failed - Session: %s, CellID: %s, Operation: %s, Reason: %s",
+				s.ID, cellOp.ID, cellOp.Operation, cellResult.Reason)
 			return result
 		}
 

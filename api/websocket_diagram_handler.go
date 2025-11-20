@@ -40,6 +40,12 @@ func (h *DiagramOperationHandler) HandleMessage(session *DiagramSession, client 
 	slogging.Get().Debug("[TRACE-BROADCAST] Parsed diagram operation - Session: %s, User: %s, OperationID: %s, OperationType: %s, CellCount: %d",
 		session.ID, client.UserID, msg.OperationID, msg.Operation.Type, len(msg.Operation.Cells))
 
+	// Log details of each cell operation in the message
+	for i, cellOp := range msg.Operation.Cells {
+		slogging.Get().Debug("[TRACE-BROADCAST] Cell operation %d - CellID: %s, Operation: '%s', HasData: %v",
+			i, cellOp.ID, cellOp.Operation, cellOp.Data != nil)
+	}
+
 	// Note: DiagramOperationMessage doesn't currently include user identity field,
 	// so we rely on the authenticated client context from the WebSocket connection.
 	// If user attribution is added in the future, validate with validateAndEnforceUserIdentity()
