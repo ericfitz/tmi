@@ -378,7 +378,16 @@ execute-tests-integration:
 # ATOMIC COMPONENTS - Cleanup Operations
 # ============================================================================
 
-.PHONY: clean-files clean-containers clean-process clean-everything
+.PHONY: clean-files clean-logs clean-containers clean-process clean-everything
+
+clean-logs:
+	$(call log_info,"Cleaning up log files...")
+	@rm -f integration-test.log server.log .server.pid
+	@if [ -d logs ]; then \
+		echo -e "$(BLUE)[INFO]$(NC) Removing logs/* files"; \
+		rm -rf logs/*; \
+	fi
+	$(call log_success,"Log files cleaned")
 
 clean-files:
 	$(call log_info,"Cleaning up files...")
@@ -386,14 +395,6 @@ clean-files:
 		for file in $(CLEANUP_FILES); do \
 			if [ -f "$$file" ]; then \
 				echo -e "$(BLUE)[INFO]$(NC) Removing file: $$file"; \
-				rm -f "$$file"; \
-			fi; \
-		done; \
-	fi
-	@if [ -n "$(ARTIFACTS_LOG_FILES)" ] && [ "$(ARTIFACTS_LOG_FILES)" != "" ]; then \
-		for file in $(ARTIFACTS_LOG_FILES); do \
-			if [ -f "$$file" ]; then \
-				echo -e "$(BLUE)[INFO]$(NC) Removing log file: $$file"; \
 				rm -f "$$file"; \
 			fi; \
 		done; \
@@ -406,6 +407,7 @@ clean-files:
 			fi; \
 		done; \
 	fi
+	@$(MAKE) -f $(MAKEFILE_LIST) clean-logs
 	$(call log_success,"File cleanup completed")
 
 clean-containers:
@@ -482,13 +484,13 @@ clean-everything: clean-process clean-containers clean-files
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-api start-dev start-dev-0 clean-dev test-coverage
+.PHONY: test-unit test-integration test-api start-dev start-dev-0 restart-dev clean-dev test-coverage
 
 # Unit Testing - Fast tests with no external dependencies
 test-unit:
 	$(call log_info,"Running unit tests")
 	@LOGGING_IS_TEST=true go test -short ./api/... ./auth/... ./cmd/... ./internal/... -v
-	@rm -f integration-test.log server.log logs/server.log .server.pid
+	@$(MAKE) -f $(MAKEFILE_LIST) clean-logs
 
 # Integration Testing - Full environment with database and server
 test-integration:
@@ -537,6 +539,13 @@ start-dev-0:
 	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	SERVER_INTERFACE=0.0.0.0 SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development environment started on 0.0.0.0:8080")
+
+# Development Environment - Restart (stop server, clean logs, start dev)
+restart-dev:
+	$(call log_info,"Restarting development environment")
+	@$(MAKE) -f $(MAKEFILE_LIST) stop-server && \
+	$(MAKE) -f $(MAKEFILE_LIST) clean-logs && \
+	$(MAKE) -f $(MAKEFILE_LIST) start-dev
 
 # Development Environment Cleanup
 clean-dev:
