@@ -3672,6 +3672,55 @@
             }
           }
         }
+      },
+      "TooManyRequests": {
+        "description": "Too Many Requests - Rate limit exceeded. The client has sent too many requests in a given amount of time. See rate limit headers for details.",
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "The maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "The number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 0
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix timestamp (seconds since epoch) when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "example": 1640000000
+            }
+          },
+          "Retry-After": {
+            "description": "Number of seconds to wait before retrying the request",
+            "schema": {
+              "type": "integer",
+              "example": 60
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "code": "rate_limit_exceeded",
+              "message": "Rate limit exceeded: 100 requests per minute. Retry after 45 seconds.",
+              "details": {
+                "limit": 100,
+                "window": "minute",
+                "retry_after": 45
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -3700,9 +3749,24 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
-        "security": []
+        "security": [],
+        "x-rate-limit": {
+          "scope": "ip",
+          "tier": "public-discovery",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 10,
+              "configurable": false,
+              "tracking_method": "Source IP address"
+            }
+          ]
+        }
       }
     },
     "/.well-known/openid-configuration": {
@@ -3854,7 +3918,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "ip",
+          "tier": "public-discovery",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 10,
+              "configurable": false,
+              "tracking_method": "Source IP address"
+            }
+          ]
         }
       }
     },
@@ -3958,7 +4037,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "ip",
+          "tier": "public-discovery",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 10,
+              "configurable": false,
+              "tracking_method": "Source IP address"
+            }
+          ]
         }
       }
     },
@@ -4029,7 +4123,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "ip",
+          "tier": "public-discovery",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 10,
+              "configurable": false,
+              "tracking_method": "Source IP address"
+            }
+          ]
         }
       }
     },
@@ -4058,7 +4167,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "ip",
+          "tier": "public-discovery",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 10,
+              "configurable": false,
+              "tracking_method": "Source IP address"
+            }
+          ]
         }
       }
     },
@@ -4172,9 +4296,52 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
-        "security": []
+        "security": [],
+        "x-rate-limit": {
+          "strategy": "multi-scope",
+          "tier": "auth-flows",
+          "scopes": [
+            {
+              "name": "session",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 5,
+                  "configurable": false,
+                  "tracking_method": "OAuth state parameter or SAML request ID"
+                }
+              ]
+            },
+            {
+              "name": "ip",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 100,
+                  "configurable": false,
+                  "tracking_method": "Source IP address"
+                }
+              ]
+            },
+            {
+              "name": "user_identifier",
+              "limits": [
+                {
+                  "type": "attempts_per_hour",
+                  "default": 10,
+                  "configurable": false,
+                  "tracking_method": "login_hint parameter or email address"
+                }
+              ]
+            }
+          ],
+          "enforcement": "Most restrictive limit applies"
+        }
       }
     },
     "/oauth2/providers": {
@@ -4296,9 +4463,24 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
-        "security": []
+        "security": [],
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
       }
     },
     "/oauth2/providers/{idp}/groups": {
@@ -4403,7 +4585,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -4511,9 +4708,52 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
-        "security": []
+        "security": [],
+        "x-rate-limit": {
+          "strategy": "multi-scope",
+          "tier": "auth-flows",
+          "scopes": [
+            {
+              "name": "session",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 5,
+                  "configurable": false,
+                  "tracking_method": "OAuth state parameter or SAML request ID"
+                }
+              ]
+            },
+            {
+              "name": "ip",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 100,
+                  "configurable": false,
+                  "tracking_method": "Source IP address"
+                }
+              ]
+            },
+            {
+              "name": "user_identifier",
+              "limits": [
+                {
+                  "type": "attempts_per_hour",
+                  "default": 10,
+                  "configurable": false,
+                  "tracking_method": "login_hint parameter or email address"
+                }
+              ]
+            }
+          ],
+          "enforcement": "Most restrictive limit applies"
+        }
       }
     },
     "/oauth2/token": {
@@ -4651,9 +4891,52 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
-        "security": []
+        "security": [],
+        "x-rate-limit": {
+          "strategy": "multi-scope",
+          "tier": "auth-flows",
+          "scopes": [
+            {
+              "name": "session",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 5,
+                  "configurable": false,
+                  "tracking_method": "OAuth state parameter or SAML request ID"
+                }
+              ]
+            },
+            {
+              "name": "ip",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 100,
+                  "configurable": false,
+                  "tracking_method": "Source IP address"
+                }
+              ]
+            },
+            {
+              "name": "user_identifier",
+              "limits": [
+                {
+                  "type": "attempts_per_hour",
+                  "default": 10,
+                  "configurable": false,
+                  "tracking_method": "login_hint parameter or email address"
+                }
+              ]
+            }
+          ],
+          "enforcement": "Most restrictive limit applies"
+        }
       }
     },
     "/oauth2/refresh": {
@@ -4764,9 +5047,52 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
-        "security": []
+        "security": [],
+        "x-rate-limit": {
+          "strategy": "multi-scope",
+          "tier": "auth-flows",
+          "scopes": [
+            {
+              "name": "session",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 5,
+                  "configurable": false,
+                  "tracking_method": "OAuth state parameter or SAML request ID"
+                }
+              ]
+            },
+            {
+              "name": "ip",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 100,
+                  "configurable": false,
+                  "tracking_method": "Source IP address"
+                }
+              ]
+            },
+            {
+              "name": "user_identifier",
+              "limits": [
+                {
+                  "type": "attempts_per_hour",
+                  "default": 10,
+                  "configurable": false,
+                  "tracking_method": "login_hint parameter or email address"
+                }
+              ]
+            }
+          ],
+          "enforcement": "Most restrictive limit applies"
+        }
       }
     },
     "/oauth2/userinfo": {
@@ -4887,7 +5213,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -4956,9 +5297,52 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
-        "security": []
+        "security": [],
+        "x-rate-limit": {
+          "strategy": "multi-scope",
+          "tier": "auth-flows",
+          "scopes": [
+            {
+              "name": "session",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 5,
+                  "configurable": false,
+                  "tracking_method": "OAuth state parameter or SAML request ID"
+                }
+              ]
+            },
+            {
+              "name": "ip",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 100,
+                  "configurable": false,
+                  "tracking_method": "Source IP address"
+                }
+              ]
+            },
+            {
+              "name": "user_identifier",
+              "limits": [
+                {
+                  "type": "attempts_per_hour",
+                  "default": 10,
+                  "configurable": false,
+                  "tracking_method": "login_hint parameter or email address"
+                }
+              ]
+            }
+          ],
+          "enforcement": "Most restrictive limit applies"
+        }
       }
     },
     "/oauth2/revoke": {
@@ -5050,7 +5434,22 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -5141,7 +5540,22 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -5339,7 +5753,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -5413,7 +5842,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -5466,7 +5910,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -5530,7 +5989,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "patch": {
@@ -5628,7 +6102,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -5672,7 +6161,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -6003,7 +6507,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -6067,7 +6586,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -6132,7 +6666,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -6208,7 +6757,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "patch": {
@@ -6413,7 +6977,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -6469,7 +7048,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -6538,7 +7132,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -6614,7 +7223,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -6690,7 +7314,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -6789,7 +7428,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -6856,7 +7510,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -6942,7 +7611,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -7026,7 +7710,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -7142,7 +7841,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -7240,7 +7954,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "patch": {
@@ -7366,13 +8095,28 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
       },
       "delete": {
         "summary": "Bulk DELETE threats",
@@ -7454,13 +8198,28 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
       }
     },
     "/threat_models/{threat_model_id}/documents": {
@@ -7586,7 +8345,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -7699,7 +8473,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -7764,7 +8553,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -7840,7 +8644,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -7896,7 +8715,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "patch": {
@@ -7999,13 +8833,28 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
       }
     },
     "/threat_models/{threat_model_id}/documents/{document_id}/metadata": {
@@ -8073,7 +8922,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -8149,7 +9013,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -8225,7 +9104,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -8324,7 +9218,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -8391,7 +9300,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -8477,7 +9401,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -8561,7 +9500,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -8716,7 +9670,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -8869,7 +9838,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -9003,7 +9987,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -9067,7 +10066,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -9132,7 +10146,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -9208,7 +10237,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -9264,7 +10308,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "patch": {
@@ -9367,13 +10426,28 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
       }
     },
     "/threat_models/{threat_model_id}/repositories/{repository_id}/metadata": {
@@ -9441,7 +10515,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -9517,7 +10606,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -9593,7 +10697,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -9692,7 +10811,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -9759,7 +10893,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -9845,7 +10994,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -9929,7 +11093,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -10084,7 +11263,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -10237,7 +11431,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -10294,7 +11503,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -10358,7 +11582,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -10422,7 +11661,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -10509,7 +11763,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -10564,7 +11833,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -10638,7 +11922,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -10710,7 +12009,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -10800,7 +12114,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -10864,7 +12193,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -10929,7 +12273,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -11005,7 +12364,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "patch": {
@@ -11162,7 +12536,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -11218,7 +12607,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -11283,7 +12687,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -11378,7 +12797,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -11434,7 +12868,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -11503,7 +12952,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -11579,7 +13043,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -11655,7 +13134,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -11754,7 +13248,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -11821,7 +13330,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -11907,7 +13431,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -11991,7 +13530,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -12054,7 +13608,22 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "get": {
@@ -12097,7 +13666,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -12175,7 +13759,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -12239,7 +13838,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -12304,7 +13918,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -12380,7 +14009,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -12436,7 +14080,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "patch": {
@@ -12539,13 +14198,28 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
       }
     },
     "/threat_models/{threat_model_id}/notes/{note_id}/metadata": {
@@ -12613,7 +14287,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -12689,7 +14378,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -12765,7 +14469,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -12864,7 +14583,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -12931,7 +14665,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -13017,7 +14766,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -13101,7 +14865,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -13179,7 +14958,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -13243,7 +15037,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -13317,7 +15126,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -13389,7 +15213,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -13454,7 +15293,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -13530,7 +15384,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -13586,7 +15455,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "patch": {
@@ -13689,13 +15573,28 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
       }
     },
     "/threat_models/{threat_model_id}/assets/{asset_id}/metadata": {
@@ -13763,7 +15662,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "post": {
@@ -13839,7 +15753,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -13915,7 +15844,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -14002,7 +15946,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "delete": {
@@ -14069,7 +16028,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -14155,7 +16129,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       },
       "put": {
@@ -14239,7 +16228,22 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     },
@@ -14273,9 +16277,24 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
-        "security": []
+        "security": [],
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
       }
     },
     "/saml/login": {
@@ -14313,9 +16332,52 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
-        "security": []
+        "security": [],
+        "x-rate-limit": {
+          "strategy": "multi-scope",
+          "tier": "auth-flows",
+          "scopes": [
+            {
+              "name": "session",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 5,
+                  "configurable": false,
+                  "tracking_method": "OAuth state parameter or SAML request ID"
+                }
+              ]
+            },
+            {
+              "name": "ip",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 100,
+                  "configurable": false,
+                  "tracking_method": "Source IP address"
+                }
+              ]
+            },
+            {
+              "name": "user_identifier",
+              "limits": [
+                {
+                  "type": "attempts_per_hour",
+                  "default": 10,
+                  "configurable": false,
+                  "tracking_method": "login_hint parameter or email address"
+                }
+              ]
+            }
+          ],
+          "enforcement": "Most restrictive limit applies"
+        }
       }
     },
     "/saml/acs": {
@@ -14386,9 +16448,52 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
-        "security": []
+        "security": [],
+        "x-rate-limit": {
+          "strategy": "multi-scope",
+          "tier": "auth-flows",
+          "scopes": [
+            {
+              "name": "session",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 5,
+                  "configurable": false,
+                  "tracking_method": "OAuth state parameter or SAML request ID"
+                }
+              ]
+            },
+            {
+              "name": "ip",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 100,
+                  "configurable": false,
+                  "tracking_method": "Source IP address"
+                }
+              ]
+            },
+            {
+              "name": "user_identifier",
+              "limits": [
+                {
+                  "type": "attempts_per_hour",
+                  "default": 10,
+                  "configurable": false,
+                  "tracking_method": "login_hint parameter or email address"
+                }
+              ]
+            }
+          ],
+          "enforcement": "Most restrictive limit applies"
+        }
       }
     },
     "/saml/slo": {
@@ -14439,9 +16544,52 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
-        "security": []
+        "security": [],
+        "x-rate-limit": {
+          "strategy": "multi-scope",
+          "tier": "auth-flows",
+          "scopes": [
+            {
+              "name": "session",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 5,
+                  "configurable": false,
+                  "tracking_method": "OAuth state parameter or SAML request ID"
+                }
+              ]
+            },
+            {
+              "name": "ip",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 100,
+                  "configurable": false,
+                  "tracking_method": "Source IP address"
+                }
+              ]
+            },
+            {
+              "name": "user_identifier",
+              "limits": [
+                {
+                  "type": "attempts_per_hour",
+                  "default": 10,
+                  "configurable": false,
+                  "tracking_method": "login_hint parameter or email address"
+                }
+              ]
+            }
+          ],
+          "enforcement": "Most restrictive limit applies"
+        }
       },
       "post": {
         "tags": [
@@ -14498,9 +16646,52 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
-        "security": []
+        "security": [],
+        "x-rate-limit": {
+          "strategy": "multi-scope",
+          "tier": "auth-flows",
+          "scopes": [
+            {
+              "name": "session",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 5,
+                  "configurable": false,
+                  "tracking_method": "OAuth state parameter or SAML request ID"
+                }
+              ]
+            },
+            {
+              "name": "ip",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 100,
+                  "configurable": false,
+                  "tracking_method": "Source IP address"
+                }
+              ]
+            },
+            {
+              "name": "user_identifier",
+              "limits": [
+                {
+                  "type": "attempts_per_hour",
+                  "default": 10,
+                  "configurable": false,
+                  "tracking_method": "login_hint parameter or email address"
+                }
+              ]
+            }
+          ],
+          "enforcement": "Most restrictive limit applies"
+        }
       }
     },
     "/webhooks/subscriptions": {
@@ -14587,7 +16778,40 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
         }
       },
       "post": {
@@ -14673,6 +16897,36 @@
               }
             }
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
         }
       }
     },
@@ -14743,7 +16997,40 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
         }
       },
       "delete": {
@@ -14805,7 +17092,40 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
         }
       }
     },
@@ -14886,7 +17206,40 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
         }
       }
     },
@@ -14974,7 +17327,40 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
         }
       }
     },
@@ -15045,7 +17431,40 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
         }
       }
     }
