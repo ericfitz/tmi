@@ -62,6 +62,7 @@ coverage/
 coverage_html/
 security-reports/
 security-reports/**
+rmoa-api-key
 .venv/
 .venv/**
 **/bin/**

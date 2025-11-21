@@ -1106,7 +1106,7 @@ build-server-sbom: build-with-sbom
 # VALIDATION TARGETS
 # ============================================================================
 
-.PHONY: validate-openapi validate-asyncapi
+.PHONY: validate-openapi validate-asyncapi scan-openapi-security
 
 validate-openapi:
 	$(call log_info,Validating OpenAPI specification...)
@@ -1117,6 +1117,21 @@ validate-asyncapi:
 	$(call log_info,Validating AsyncAPI specification...)
 	@uv run scripts/validate_asyncapi.py docs/reference/apis/tmi-asyncapi.yml
 	$(call log_success,AsyncAPI specification is valid)
+
+scan-openapi-security:
+	$(call log_info,Scanning OpenAPI specification for security issues...)
+	@if [ ! -f rmoa-api-key ]; then \
+		$(call log_error,rmoa-api-key file not found); \
+		echo "Create rmoa-api-key file with your API key"; \
+		exit 1; \
+	fi
+	@if ! command -v rmoa >/dev/null 2>&1; then \
+		$(call log_error,rmoa not found. Install with: npm install -g @redocly/model-any); \
+		exit 1; \
+	fi
+	@API_KEY=$$(cat rmoa-api-key); \
+	rmoa lint --filename docs/reference/apis/tmi-openapi.json --api-key $$API_KEY
+	$(call log_success,OpenAPI security scan completed)
 
 # ============================================================================
 # STATUS CHECKING
@@ -1234,6 +1249,7 @@ help:
 	@echo "Validation Targets:"
 	@echo "  validate-openapi       - Validate OpenAPI specification"
 	@echo "  validate-asyncapi      - Validate AsyncAPI specification"
+	@echo "  scan-openapi-security  - Scan OpenAPI specification for security issues (requires rmoa)"
 	@echo ""
 	@echo "Configuration Files:"
 	@echo "  config/test-unit.yml           - Unit testing configuration"
