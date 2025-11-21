@@ -1126,11 +1126,11 @@ scan-openapi-security:
 		exit 1; \
 	fi
 	@if ! command -v rmoa >/dev/null 2>&1; then \
-		$(call log_error,rmoa not found. Install with: npm install -g @redocly/model-any); \
+		$(call log_error,rmoa not found. Install with: npm install -g rmoa); \
 		exit 1; \
 	fi
 	@API_KEY=$$(cat rmoa-api-key); \
-	rmoa lint --filename docs/reference/apis/tmi-openapi.json --api-key $$API_KEY
+	rmoa lint --filename docs/reference/apis/tmi-openapi.json --output json --api-key $$API_KEY
 	$(call log_success,OpenAPI security scan completed)
 
 # ============================================================================
