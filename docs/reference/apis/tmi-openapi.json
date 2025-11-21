@@ -415,7 +415,15 @@
             "DFD-1.0.0": "#/components/schemas/DfdDiagram"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "880e8400-e29b-41d4-a716-446655440003",
+          "name": "Payment Flow Data Flow Diagram",
+          "type": "DFD-1.0.0",
+          "threat_model_id": "660e8400-e29b-41d4-a716-446655440001",
+          "created_at": "2024-01-15T11:00:00Z",
+          "modified_at": "2024-01-20T14:30:00Z"
+        }
       },
       "BaseDiagramInput": {
         "type": "object",
@@ -484,7 +492,12 @@
             "DFD-1.0.0": "#/components/schemas/DfdDiagramInput"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "name": "Payment Flow Data Flow Diagram",
+          "type": "DFD-1.0.0",
+          "threat_model_id": "660e8400-e29b-41d4-a716-446655440001"
+        }
       },
       "DfdDiagram": {
         "x-discriminator-value": "DFD-1.0.0",
@@ -613,7 +626,11 @@
           "name",
           "type"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "name": "Payment Flow Data Flow Diagram",
+          "type": "DFD-1.0.0"
+        }
       },
       "Diagram": {
         "deprecated": true,
@@ -785,7 +802,17 @@
             "maxItems": 1000
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "cell-001",
+          "shape": "process",
+          "x": 100,
+          "y": 150,
+          "width": 120,
+          "height": 80,
+          "label": "Payment Processor",
+          "style": "stroke:#333;fill:#e0e0e0"
+        }
       },
       "Node": {
         "allOf": [
@@ -1427,7 +1454,13 @@
           "subject_type",
           "role"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "subject": "alice@example.com",
+          "subject_type": "user",
+          "role": "owner",
+          "idp": "google"
+        }
       },
       "Metadata": {
         "type": "object",
@@ -1458,7 +1491,11 @@
           "key",
           "value"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "key": "environment",
+          "value": "production"
+        }
       },
       "Error": {
         "type": "object",
@@ -1828,7 +1865,15 @@
           "asset_count",
           "note_count"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "660e8400-e29b-41d4-a716-446655440001",
+          "name": "Payment Gateway Threat Model",
+          "owner": "alice@example.com",
+          "threat_model_framework": "STRIDE",
+          "created_at": "2024-01-15T10:30:00Z",
+          "modified_at": "2024-01-20T15:45:30Z"
+        }
       },
       "Point": {
         "type": "object",
@@ -1947,7 +1992,13 @@
             "additionalProperties": false
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "fill": "#e0e0e0",
+          "stroke": "#333333",
+          "strokeWidth": 2,
+          "opacity": 1.0
+        }
       },
       "EdgeAttrs": {
         "type": "object",
@@ -2027,7 +2078,13 @@
             "additionalProperties": false
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "stroke": "#666666",
+          "strokeWidth": 2,
+          "strokeDasharray": "5,5",
+          "opacity": 0.8
+        }
       },
       "EdgeLabel": {
         "type": "object",
@@ -2209,7 +2266,27 @@
             "maxItems": 1000
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "groups": {
+            "in": {
+              "position": "left"
+            },
+            "out": {
+              "position": "right"
+            }
+          },
+          "items": [
+            {
+              "group": "in",
+              "id": "port-in-1"
+            },
+            {
+              "group": "out",
+              "id": "port-out-1"
+            }
+          ]
+        }
       },
       "MarkupElement": {
         "type": "object",
@@ -2251,7 +2328,17 @@
             "maxItems": 1000
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "tagName": "text",
+          "textContent": "Payment Flow",
+          "selector": "label",
+          "attributes": {
+            "font-size": "14",
+            "font-weight": "bold",
+            "fill": "#333333"
+          }
+        }
       },
       "EdgeRouter": {
         "oneOf": [
@@ -2475,7 +2562,23 @@
           "authorization",
           "threat_model_framework"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "660e8400-e29b-41d4-a716-446655440001",
+          "name": "Payment Gateway Threat Model",
+          "owner": "alice@example.com",
+          "description": "Threat analysis for payment processing",
+          "threat_model_framework": "STRIDE",
+          "authorization": [
+            {
+              "subject": "alice@example.com",
+              "subject_type": "user",
+              "role": "owner"
+            }
+          ],
+          "created_at": "2024-01-15T10:30:00Z",
+          "modified_at": "2024-01-20T15:45:30Z"
+        }
       },
       "ThreatModelInput": {
         "type": "object",
@@ -2529,7 +2632,23 @@
         "required": [
           "name"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "name": "Payment Gateway Threat Model",
+          "description": "Threat analysis for the payment processing system",
+          "threat_model_framework": "STRIDE",
+          "metadata": [
+            {
+              "key": "project",
+              "value": "payment-service"
+            },
+            {
+              "key": "version",
+              "value": "2.0"
+            }
+          ],
+          "issue_uri": "https://github.com/example/project/issues/123"
+        }
       },
       "ThreatBase": {
         "type": "object",
@@ -2633,7 +2752,17 @@
           "name",
           "threat_type"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "cc0e8400-e29b-41d4-a716-446655440007",
+          "name": "SQL Injection via Payment Form",
+          "threat_type": "Tampering",
+          "description": "Attacker could inject malicious SQL through payment form fields",
+          "mitigation_status": "mitigated",
+          "priority": "high",
+          "created_at": "2024-01-16T09:00:00Z",
+          "modified_at": "2024-01-19T14:30:00Z"
+        }
       },
       "ThreatInput": {
         "allOf": [
@@ -2700,7 +2829,19 @@
           "email",
           "name"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "user_id": "alice@example.com",
+          "email": "alice@example.com",
+          "name": "Alice Johnson",
+          "picture": "https://avatars.example.com/alice.jpg",
+          "idp": "google",
+          "groups": [
+            "engineering",
+            "security-team"
+          ],
+          "last_login": "2024-01-20T15:45:30Z"
+        }
       },
       "Participant": {
         "type": "object",
@@ -2731,7 +2872,15 @@
           "last_activity",
           "permissions"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "user": "bob@example.com",
+          "last_activity": "2024-01-20T15:50:00Z",
+          "permissions": [
+            "read",
+            "write"
+          ]
+        }
       },
       "DeletionChallenge": {
         "type": "object",
@@ -2755,7 +2904,11 @@
             "maxLength": 64
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "challenge_text": "delete-660e8400-e29b-41d4-a716-446655440001",
+          "expires_at": "2024-01-20T16:00:00Z"
+        }
       },
       "Repository": {
         "description": "Complete Repository schema with server-generated fields",
@@ -3031,7 +3184,16 @@
             "pattern": "^[\\u0020-\\uFFFF]*$"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "dd0e8400-e29b-41d4-a716-446655440008",
+          "name": "Payment Database",
+          "type": "database",
+          "description": "PostgreSQL database storing customer payment information",
+          "criticality": "high",
+          "created_at": "2024-01-16T10:00:00Z",
+          "modified_at": "2024-01-19T11:00:00Z"
+        }
       },
       "AssetInput": {
         "description": "Input schema for creating or updating Asset",
@@ -3077,7 +3239,15 @@
             "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "ee0e8400-e29b-41d4-a716-446655440009",
+          "name": "Payment System Architecture",
+          "uri": "https://docs.example.com/architecture/payment-system.pdf",
+          "description": "High-level architecture diagram and documentation",
+          "created_at": "2024-01-14T08:00:00Z",
+          "modified_at": "2024-01-18T13:00:00Z"
+        }
       },
       "DocumentInput": {
         "description": "Input schema for creating or updating Document",
@@ -3123,7 +3293,14 @@
             "pattern": "^[\\u0020-\\uFFFF\\n\\r\\t]*$"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "ff0e8400-e29b-41d4-a716-44665544000a",
+          "name": "Security Review Notes",
+          "content": "Reviewed payment flow with security team. Key findings:\n- Need additional input validation\n- Consider rate limiting on payment endpoint",
+          "created_at": "2024-01-17T14:30:00Z",
+          "modified_at": "2024-01-17T15:00:00Z"
+        }
       },
       "NoteInput": {
         "description": "Input schema for creating or updating Note",
@@ -3192,7 +3369,13 @@
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "ff0e8400-e29b-41d4-a716-44665544000a",
+          "name": "Security Review Notes",
+          "created_at": "2024-01-17T14:30:00Z",
+          "modified_at": "2024-01-17T15:00:00Z"
+        }
       },
       "RepositoryBase": {
         "type": "object",
@@ -3267,7 +3450,14 @@
             "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "110e8400-e29b-41d4-a716-44665544000b",
+          "uri": "https://github.com/example/payment-service",
+          "description": "Main repository for payment processing service",
+          "created_at": "2024-01-12T10:00:00Z",
+          "modified_at": "2024-01-20T09:00:00Z"
+        }
       },
       "RepositoryInput": {
         "description": "Input schema for creating or updating Repository",
@@ -3387,7 +3577,25 @@
             "description": "Count of consecutive failed deliveries"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "owner_id": "user123",
+          "threat_model_id": "660e8400-e29b-41d4-a716-446655440001",
+          "name": "Production Slack Notifications",
+          "url": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXX",
+          "events": [
+            "diagram.updated",
+            "threat_model.created"
+          ],
+          "status": "active",
+          "secret": "whsec_abc123def456",
+          "created_at": "2024-01-15T10:30:00Z",
+          "modified_at": "2024-01-15T10:30:00Z",
+          "last_successful_use": "2024-01-20T14:22:15Z",
+          "challenges_sent": 0,
+          "publication_failures": 0
+        }
       },
       "WebhookSubscriptionInput": {
         "type": "object",
@@ -3439,7 +3647,16 @@
             "pattern": "^[\\u0020-\\uFFFF]*$"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "name": "Production Slack Notifications",
+          "url": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXX",
+          "events": [
+            "diagram.updated",
+            "threat_model.created"
+          ],
+          "threat_model_id": "660e8400-e29b-41d4-a716-446655440001"
+        }
       },
       "WebhookDelivery": {
         "type": "object",
@@ -3548,7 +3765,21 @@
             "maxLength": 64
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "aa0e8400-e29b-41d4-a716-446655440005",
+          "subscription_id": "550e8400-e29b-41d4-a716-446655440000",
+          "event_type": "diagram.updated",
+          "status": "delivered",
+          "attempts": 1,
+          "created_at": "2024-01-20T15:45:30Z",
+          "delivered_at": "2024-01-20T15:45:31Z",
+          "payload": {
+            "diagram_id": "880e8400-e29b-41d4-a716-446655440003",
+            "threat_model_id": "660e8400-e29b-41d4-a716-446655440001",
+            "updated_by": "alice@example.com"
+          }
+        }
       },
       "WebhookTestRequest": {
         "type": "object",
@@ -3585,7 +3816,10 @@
             "maxLength": 1000
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "event_type": "diagram.updated"
+        }
       },
       "WebhookTestResponse": {
         "type": "object",
@@ -3614,7 +3848,12 @@
             "maxLength": 1000
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "delivery_id": "bb0e8400-e29b-41d4-a716-446655440006",
+          "status": "success",
+          "message": "Test webhook delivered successfully"
+        }
       },
       "CreateAddonRequest": {
         "type": "object",
@@ -3665,6 +3904,17 @@
             "format": "uuid",
             "description": "Optional: Scope add-on to specific threat model"
           }
+        },
+        "example": {
+          "name": "Security Scanner",
+          "description": "Automated security vulnerability scanner for threat models",
+          "webhook_id": "550e8400-e29b-41d4-a716-446655440000",
+          "threat_model_id": "660e8400-e29b-41d4-a716-446655440001",
+          "icon": "https://example.com/icons/scanner.svg",
+          "objects": [
+            "threat_model",
+            "diagram"
+          ]
         }
       },
       "AddonResponse": {
@@ -3715,6 +3965,19 @@
             "format": "uuid",
             "description": "Threat model scope (if scoped)"
           }
+        },
+        "example": {
+          "id": "770e8400-e29b-41d4-a716-446655440002",
+          "name": "Security Scanner",
+          "description": "Automated security vulnerability scanner for threat models",
+          "webhook_id": "550e8400-e29b-41d4-a716-446655440000",
+          "threat_model_id": "660e8400-e29b-41d4-a716-446655440001",
+          "icon": "https://example.com/icons/scanner.svg",
+          "objects": [
+            "threat_model",
+            "diagram"
+          ],
+          "created_at": "2024-01-15T10:30:00Z"
         }
       },
       "ListAddonsResponse": {
@@ -3744,6 +4007,20 @@
             "type": "integer",
             "description": "Pagination offset"
           }
+        },
+        "example": {
+          "addons": [
+            {
+              "id": "770e8400-e29b-41d4-a716-446655440002",
+              "name": "Security Scanner",
+              "description": "Automated security vulnerability scanner",
+              "webhook_id": "550e8400-e29b-41d4-a716-446655440000",
+              "created_at": "2024-01-15T10:30:00Z"
+            }
+          ],
+          "total": 1,
+          "limit": 50,
+          "offset": 0
         }
       },
       "InvokeAddonRequest": {
@@ -3781,6 +4058,15 @@
             "description": "User-provided data for the add-on (max 1KB JSON-serialized)",
             "additionalProperties": true
           }
+        },
+        "example": {
+          "threat_model_id": "660e8400-e29b-41d4-a716-446655440001",
+          "object_type": "diagram",
+          "object_id": "880e8400-e29b-41d4-a716-446655440003",
+          "payload": {
+            "scan_type": "full",
+            "include_recommendations": true
+          }
         }
       },
       "InvokeAddonResponse": {
@@ -3811,6 +4097,11 @@
             "format": "date-time",
             "description": "Invocation creation timestamp"
           }
+        },
+        "example": {
+          "invocation_id": "990e8400-e29b-41d4-a716-446655440004",
+          "status": "pending",
+          "created_at": "2024-01-20T15:45:30Z"
         }
       },
       "InvocationResponse": {
@@ -3889,6 +4180,20 @@
             "format": "date-time",
             "description": "Last status update timestamp"
           }
+        },
+        "example": {
+          "id": "990e8400-e29b-41d4-a716-446655440004",
+          "addon_id": "770e8400-e29b-41d4-a716-446655440002",
+          "threat_model_id": "660e8400-e29b-41d4-a716-446655440001",
+          "object_type": "diagram",
+          "object_id": "880e8400-e29b-41d4-a716-446655440003",
+          "invoked_by": "alice@example.com",
+          "status": "completed",
+          "status_percent": 100,
+          "status_message": "Security scan completed successfully",
+          "created_at": "2024-01-20T15:45:30Z",
+          "status_updated_at": "2024-01-20T15:50:00Z",
+          "completed_at": "2024-01-20T15:50:00Z"
         }
       },
       "ListInvocationsResponse": {
@@ -3918,6 +4223,23 @@
             "type": "integer",
             "description": "Pagination offset"
           }
+        },
+        "example": {
+          "invocations": [
+            {
+              "id": "990e8400-e29b-41d4-a716-446655440004",
+              "addon_id": "770e8400-e29b-41d4-a716-446655440002",
+              "threat_model_id": "660e8400-e29b-41d4-a716-446655440001",
+              "invoked_by": "alice@example.com",
+              "status": "completed",
+              "status_percent": 100,
+              "created_at": "2024-01-20T15:45:30Z",
+              "status_updated_at": "2024-01-20T15:50:00Z"
+            }
+          ],
+          "total": 1,
+          "limit": 50,
+          "offset": 0
         }
       },
       "UpdateInvocationStatusRequest": {
@@ -3945,6 +4267,11 @@
             "type": "string",
             "description": "Optional status description"
           }
+        },
+        "example": {
+          "status": "completed",
+          "status_percent": 100,
+          "status_message": "Security scan completed successfully. Found 3 vulnerabilities."
         }
       },
       "UpdateInvocationStatusResponse": {
@@ -3982,6 +4309,12 @@
             "format": "date-time",
             "description": "Status update timestamp"
           }
+        },
+        "example": {
+          "id": "990e8400-e29b-41d4-a716-446655440004",
+          "status": "completed",
+          "status_percent": 100,
+          "status_updated_at": "2024-01-20T15:50:00Z"
         }
       }
     },
@@ -18443,7 +18776,11 @@
         "tags": [
           "Addons"
         ],
-        "security": [],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
