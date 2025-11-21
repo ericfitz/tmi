@@ -3492,7 +3492,8 @@
               "threat.deleted",
               "metadata.created",
               "metadata.updated",
-              "metadata.deleted"
+              "metadata.deleted",
+              "addon.invoked"
             ],
             "description": "Webhook event type following {resource}.{action} pattern",
             "maxLength": 1000
