@@ -64,14 +64,14 @@ Your webhook receives:
 ```http
 POST /webhooks/tmi
 Content-Type: application/json
-X-Webhook-Event: addon_invocation
+X-Webhook-Event: addon.invoked
 X-Invocation-Id: 550e8400-e29b-41d4-a716-446655440000
 X-Addon-Id: 123e4567-e89b-12d3-a456-426614174000
 X-Webhook-Signature: sha256=abc123...
 User-Agent: TMI-Addon-Worker/1.0
 
 {
-  "event_type": "addon_invocation",
+  "event_type": "addon.invoked",
   "invocation_id": "550e8400-e29b-41d4-a716-446655440000",
   "addon_id": "123e4567-e89b-12d3-a456-426614174000",
   "threat_model_id": "789e0123-e45b-67c8-d901-234567890abc",
@@ -297,7 +297,7 @@ Invalid transitions (return 409):
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `event_type` | string | Always `"addon_invocation"` |
+| `event_type` | string | Always `"addon.invoked"` |
 | `invocation_id` | uuid | Unique invocation identifier |
 | `addon_id` | uuid | Add-on identifier |
 | `threat_model_id` | uuid | Threat model context (always present) |

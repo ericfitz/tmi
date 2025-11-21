@@ -151,7 +151,7 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 
 	// Build payload
 	payload := AddonInvocationPayload{
-		EventType:     "addon_invocation",
+		EventType:     "addon.invoked",
 		InvocationID:  invocation.ID,
 		AddonID:       invocation.AddonID,
 		ThreatModelID: invocation.ThreatModelID,
@@ -182,7 +182,7 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 
 	// Add headers
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Webhook-Event", "addon_invocation")
+	req.Header.Set("X-Webhook-Event", "addon.invoked")
 	req.Header.Set("X-Invocation-Id", invocationID.String())
 	req.Header.Set("X-Addon-Id", invocation.AddonID.String())
 	req.Header.Set("User-Agent", "TMI-Addon-Worker/1.0")

@@ -566,7 +566,7 @@ administrators:
 
 ### Webhook Payload Structure
 
-**Event Type:** `addon_invocation` (not added to webhook subscription events - direct invocation)
+**Event Type:** `addon.invoked` (webhook subscription event for add-on invocations)
 
 **HTTP Request:**
 ```
@@ -576,7 +576,7 @@ X-Webhook-Signature: sha256={hmac_signature}
 X-Invocation-Id: {invocation_id}
 
 {
-  "event_type": "addon_invocation",
+  "event_type": "addon.invoked",
   "invocation_id": "uuid",
   "addon_id": "uuid",
   "threat_model_id": "uuid",

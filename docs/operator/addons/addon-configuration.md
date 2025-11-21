@@ -216,7 +216,7 @@ Webhooks receive:
 
 ```json
 {
-  "event_type": "addon_invocation",
+  "event_type": "addon.invoked",
   "invocation_id": "uuid",
   "addon_id": "uuid",
   "threat_model_id": "uuid",
@@ -230,7 +230,7 @@ Webhooks receive:
 
 **Headers:**
 - `Content-Type: application/json`
-- `X-Webhook-Event: addon_invocation`
+- `X-Webhook-Event: addon.invoked`
 - `X-Invocation-Id: {uuid}`
 - `X-Addon-Id: {uuid}`
 - `X-Webhook-Signature: sha256={hmac_hex}`
