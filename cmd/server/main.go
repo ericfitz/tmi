@@ -1026,10 +1026,21 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 
 		logger.Info("Initializing webhook rate limiter")
 		apiServer.SetWebhookRateLimiter(api.NewWebhookRateLimiter(dbManager.Redis().GetClient()))
+
+		logger.Info("Initializing IP rate limiter")
+		apiServer.SetIPRateLimiter(api.NewIPRateLimiter(dbManager.Redis().GetClient()))
+
+		logger.Info("Initializing auth flow rate limiter")
+		apiServer.SetAuthFlowRateLimiter(api.NewAuthFlowRateLimiter(dbManager.Redis().GetClient()))
+
+		// Initialize quota cache for dynamic adjustment (60 second TTL)
+		logger.Info("Initializing quota cache with 60 second TTL")
+		api.InitializeQuotaCache(60 * time.Second)
 	} else {
 		logger.Warn("Redis not available - token blacklist service disabled")
 		logger.Warn("Redis not available - event emitter disabled (webhooks will not emit events)")
 		logger.Warn("Redis not available - rate limiting disabled")
+		logger.Warn("Redis not available - quota caching disabled")
 	}
 
 	// Add comprehensive request tracing middleware first
@@ -1039,10 +1050,16 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Test debug logging is working
 	logger.Debug("[MAIN] Testing debug logging - this should appear in logs!")
 
+	// Add IP-based rate limiting middleware first (for public endpoints)
+	r.Use(api.IPRateLimitMiddleware(apiServer))
+
+	// Add auth flow rate limiting middleware (for OAuth/SAML endpoints)
+	r.Use(api.AuthFlowRateLimitMiddleware(apiServer))
+
 	// Now add JWT middleware with token blacklist support and auth handlers for user lookup
 	r.Use(JWTMiddleware(config, server.tokenBlacklist, authHandlers)) // JWT auth with public path skipping
 
-	// Add rate limiting middleware (after JWT so user_id is available)
+	// Add user-based rate limiting middleware (after JWT so user_id is available)
 	r.Use(api.RateLimitMiddleware(apiServer))
 
 	// Add server middleware to make API server available in context
@@ -1095,6 +1112,21 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /collaboration/sessions -> GetCollaborationSessions")
 	api.RegisterHandlers(r, apiServer)
 	logger.Info("[MAIN_MODULE] OpenAPI route registration completed")
+
+	// Register admin endpoints (protected by JWT middleware, admin role required)
+	adminGroup := r.Group("/admin/quotas")
+	{
+		// User API quota management
+		adminGroup.GET("/users/:user_id", apiServer.GetUserAPIQuota)
+		adminGroup.PUT("/users/:user_id", apiServer.UpdateUserAPIQuota)
+		adminGroup.DELETE("/users/:user_id", apiServer.DeleteUserAPIQuota)
+
+		// Webhook quota management
+		adminGroup.GET("/webhooks/:user_id", apiServer.GetWebhookQuota)
+		adminGroup.PUT("/webhooks/:user_id", apiServer.UpdateWebhookQuota)
+		adminGroup.DELETE("/webhooks/:user_id", apiServer.DeleteWebhookQuota)
+	}
+	logger.Info("Admin quota management endpoints registered")
 
 	// Add development routes when in dev mode
 	if config.Logging.IsDev {

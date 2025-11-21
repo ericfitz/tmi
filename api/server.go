@@ -33,8 +33,10 @@ type Server struct {
 	// Auth handlers (for delegating auth-related methods)
 	authService AuthService // We'll need to add this dependency
 	// Rate limiters
-	apiRateLimiter     *APIRateLimiter
-	webhookRateLimiter *WebhookRateLimiter
+	apiRateLimiter      *APIRateLimiter
+	webhookRateLimiter  *WebhookRateLimiter
+	ipRateLimiter       *IPRateLimiter
+	authFlowRateLimiter *AuthFlowRateLimiter
 }
 
 // NewServer creates a new API server instance
@@ -281,6 +283,16 @@ func (s *Server) SetAPIRateLimiter(rateLimiter *APIRateLimiter) {
 // SetWebhookRateLimiter sets the webhook rate limiter
 func (s *Server) SetWebhookRateLimiter(rateLimiter *WebhookRateLimiter) {
 	s.webhookRateLimiter = rateLimiter
+}
+
+// SetIPRateLimiter sets the IP rate limiter
+func (s *Server) SetIPRateLimiter(rateLimiter *IPRateLimiter) {
+	s.ipRateLimiter = rateLimiter
+}
+
+// SetAuthFlowRateLimiter sets the auth flow rate limiter
+func (s *Server) SetAuthFlowRateLimiter(rateLimiter *AuthFlowRateLimiter) {
+	s.authFlowRateLimiter = rateLimiter
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps
