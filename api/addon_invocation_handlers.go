@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"time"
@@ -11,59 +10,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// InvokeAddonRequest represents the request to invoke an add-on
-type InvokeAddonRequest struct {
-	ThreatModelID uuid.UUID       `json:"threat_model_id" binding:"required"`
-	ObjectType    string          `json:"object_type,omitempty"`
-	ObjectID      *uuid.UUID      `json:"object_id,omitempty"`
-	Payload       json.RawMessage `json:"payload,omitempty"`
-}
-
-// InvokeAddonResponse represents the response after invoking an add-on
-type InvokeAddonResponse struct {
-	InvocationID uuid.UUID `json:"invocation_id"`
-	Status       string    `json:"status"`
-	CreatedAt    time.Time `json:"created_at"`
-}
-
-// InvocationResponse represents a single invocation in responses
-type InvocationResponse struct {
-	ID              uuid.UUID  `json:"id"`
-	AddonID         uuid.UUID  `json:"addon_id"`
-	ThreatModelID   uuid.UUID  `json:"threat_model_id"`
-	ObjectType      string     `json:"object_type,omitempty"`
-	ObjectID        *uuid.UUID `json:"object_id,omitempty"`
-	InvokedBy       uuid.UUID  `json:"invoked_by"`
-	Payload         string     `json:"payload"`
-	Status          string     `json:"status"`
-	StatusPercent   int        `json:"status_percent"`
-	StatusMessage   string     `json:"status_message,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	StatusUpdatedAt time.Time  `json:"status_updated_at"`
-}
-
-// ListInvocationsResponse represents paginated invocation list
-type ListInvocationsResponse struct {
-	Invocations []InvocationResponse `json:"invocations"`
-	Total       int                  `json:"total"`
-	Limit       int                  `json:"limit"`
-	Offset      int                  `json:"offset"`
-}
-
-// UpdateInvocationStatusRequest represents request to update invocation status
-type UpdateInvocationStatusRequest struct {
-	Status        string `json:"status" binding:"required"`
-	StatusPercent int    `json:"status_percent"`
-	StatusMessage string `json:"status_message,omitempty"`
-}
-
-// UpdateInvocationStatusResponse represents response after status update
-type UpdateInvocationStatusResponse struct {
-	ID              uuid.UUID `json:"id"`
-	Status          string    `json:"status"`
-	StatusPercent   int       `json:"status_percent"`
-	StatusUpdatedAt time.Time `json:"status_updated_at"`
-}
+// Note: Type definitions (InvokeAddonRequest, InvokeAddonResponse, InvocationResponse,
+// ListInvocationsResponse, UpdateInvocationStatusRequest, UpdateInvocationStatusResponse)
+// are now generated in api.go from the OpenAPI specification
 
 // InvokeAddon invokes an add-on (authenticated users)
 func InvokeAddon(c *gin.Context) {
@@ -129,8 +78,9 @@ func InvokeAddon(c *gin.Context) {
 	}
 
 	// Validate payload size (max 1KB = 1024 bytes)
-	if len(req.Payload) > 1024 {
-		logger.Error("Payload too large: %d bytes (max 1024)", len(req.Payload))
+	payloadStr := payloadToString(req.Payload)
+	if len(payloadStr) > 1024 {
+		logger.Error("Payload too large: %d bytes (max 1024)", len(payloadStr))
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_input",
@@ -152,16 +102,16 @@ func InvokeAddon(c *gin.Context) {
 	}
 
 	// Validate object_type if provided
-	if req.ObjectType != "" && len(addon.Objects) > 0 {
+	if req.ObjectType != nil && *req.ObjectType != "" && len(addon.Objects) > 0 {
 		validObjectType := false
 		for _, obj := range addon.Objects {
-			if obj == req.ObjectType {
+			if obj == string(*req.ObjectType) {
 				validObjectType = true
 				break
 			}
 		}
 		if !validObjectType {
-			logger.Error("Invalid object_type '%s' for add-on (allowed: %v)", req.ObjectType, addon.Objects)
+			logger.Error("Invalid object_type '%s' for add-on (allowed: %v)", string(*req.ObjectType), addon.Objects)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "invalid_input",
@@ -196,15 +146,17 @@ func InvokeAddon(c *gin.Context) {
 
 	// Create invocation
 	invocation := &AddonInvocation{
-		AddonID:       addonID,
-		ThreatModelID: req.ThreatModelID,
-		ObjectType:    req.ObjectType,
-		ObjectID:      req.ObjectID,
-		InvokedBy:     userID,
-		Payload:       string(req.Payload),
-		Status:        InvocationStatusPending,
-		StatusPercent: 0,
-		CreatedAt:     time.Now(),
+		ID:              uuid.New(),
+		AddonID:         addonID,
+		ThreatModelID:   req.ThreatModelId,
+		ObjectType:      toObjectTypeString(req.ObjectType),
+		ObjectID:        req.ObjectId,
+		InvokedBy:       userID,
+		Payload:         payloadToString(req.Payload),
+		Status:          "pending",
+		StatusPercent:   0,
+		CreatedAt:       time.Now(),
+		StatusUpdatedAt: time.Now(),
 	}
 
 	if err := GlobalAddonInvocationStore.Create(c.Request.Context(), invocation); err != nil {
@@ -226,8 +178,8 @@ func InvokeAddon(c *gin.Context) {
 
 	// Return response
 	response := InvokeAddonResponse{
-		InvocationID: invocation.ID,
-		Status:       invocation.Status,
+		InvocationId: invocation.ID,
+		Status:       statusToInvokeAddonResponseStatus(invocation.Status),
 		CreatedAt:    invocation.CreatedAt,
 	}
 
@@ -305,20 +257,7 @@ func GetInvocation(c *gin.Context) {
 	}
 
 	// Return response
-	response := InvocationResponse{
-		ID:              invocation.ID,
-		AddonID:         invocation.AddonID,
-		ThreatModelID:   invocation.ThreatModelID,
-		ObjectType:      invocation.ObjectType,
-		ObjectID:        invocation.ObjectID,
-		InvokedBy:       invocation.InvokedBy,
-		Payload:         invocation.Payload,
-		Status:          invocation.Status,
-		StatusPercent:   invocation.StatusPercent,
-		StatusMessage:   invocation.StatusMessage,
-		CreatedAt:       invocation.CreatedAt,
-		StatusUpdatedAt: invocation.StatusUpdatedAt,
-	}
+	response := invocationToResponse(invocation)
 
 	c.JSON(http.StatusOK, response)
 }
@@ -400,7 +339,8 @@ func ListInvocations(c *gin.Context) {
 	// Convert to response format
 	var responses []InvocationResponse
 	for _, inv := range invocations {
-		responses = append(responses, InvocationResponse(inv))
+		inv := inv // Create copy for pointer
+		responses = append(responses, invocationToResponse(&inv))
 	}
 
 	// Return paginated response
@@ -449,7 +389,7 @@ func UpdateInvocationStatus(c *gin.Context) {
 		InvocationStatusCompleted:  true,
 		InvocationStatusFailed:     true,
 	}
-	if !validStatuses[req.Status] {
+	if !validStatuses[statusFromUpdateRequestStatus(req.Status)] {
 		logger.Error("Invalid status: %s", req.Status)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
@@ -460,7 +400,7 @@ func UpdateInvocationStatus(c *gin.Context) {
 	}
 
 	// Validate status_percent
-	if req.StatusPercent < 0 || req.StatusPercent > 100 {
+	if req.StatusPercent != nil && (*req.StatusPercent < 0 || *req.StatusPercent > 100) {
 		logger.Error("Invalid status_percent: %d", req.StatusPercent)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
@@ -561,9 +501,9 @@ func UpdateInvocationStatus(c *gin.Context) {
 	}
 
 	// Update invocation
-	invocation.Status = req.Status
-	invocation.StatusPercent = req.StatusPercent
-	invocation.StatusMessage = req.StatusMessage
+	invocation.Status = statusFromUpdateRequestStatus(req.Status)
+	invocation.StatusPercent = fromIntPtr(req.StatusPercent)
+	invocation.StatusMessage = fromStringPtr(req.StatusMessage)
 
 	if err := GlobalAddonInvocationStore.Update(c.Request.Context(), invocation); err != nil {
 		logger.Error("Failed to update invocation: id=%s, error=%v", invocationID, err)
@@ -577,8 +517,8 @@ func UpdateInvocationStatus(c *gin.Context) {
 
 	// Return response
 	response := UpdateInvocationStatusResponse{
-		ID:              invocation.ID,
-		Status:          invocation.Status,
+		Id:              invocation.ID,
+		Status:          statusToUpdateResponseStatus(invocation.Status),
 		StatusPercent:   invocation.StatusPercent,
 		StatusUpdatedAt: invocation.StatusUpdatedAt,
 	}
