@@ -1,10 +1,16 @@
 package api
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -53,8 +59,101 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 		}
 	}
 
-	// TODO: Implement full handler logic
-	c.JSON(http.StatusNotImplemented, Error{Error: "not yet implemented"})
+	// Parse request body
+	var input WebhookSubscriptionInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		logger.Error("failed to parse request body: %v", err)
+		c.JSON(http.StatusBadRequest, Error{Error: "invalid request body"})
+		return
+	}
+
+	// Validate required fields
+	if input.Name == "" {
+		c.JSON(http.StatusBadRequest, Error{Error: "name is required"})
+		return
+	}
+	if input.Url == "" {
+		c.JSON(http.StatusBadRequest, Error{Error: "url is required"})
+		return
+	}
+	if len(input.Events) == 0 {
+		c.JSON(http.StatusBadRequest, Error{Error: "at least one event type is required"})
+		return
+	}
+
+	// Validate URL is HTTPS
+	if !strings.HasPrefix(input.Url, "https://") {
+		c.JSON(http.StatusBadRequest, Error{Error: "webhook URL must use HTTPS"})
+		return
+	}
+
+	// Generate secret if not provided
+	secret := ""
+	if input.Secret != nil {
+		secret = *input.Secret
+	} else {
+		// Generate 32-byte random secret
+		secretBytes := make([]byte, 32)
+		if _, err := rand.Read(secretBytes); err != nil {
+			logger.Error("failed to generate secret: %v", err)
+			c.JSON(http.StatusInternalServerError, Error{Error: "failed to generate secret"})
+			return
+		}
+		secret = hex.EncodeToString(secretBytes)
+	}
+
+	// Generate challenge token for verification
+	challengeBytes := make([]byte, 32)
+	if _, err := rand.Read(challengeBytes); err != nil {
+		logger.Error("failed to generate challenge: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to generate challenge"})
+		return
+	}
+	challenge := hex.EncodeToString(challengeBytes)
+
+	// Convert threat model ID if provided
+	var threatModelID *uuid.UUID
+	if input.ThreatModelId != nil {
+		threatModelID = input.ThreatModelId
+	}
+
+	// Create subscription in database
+	ownerUUID, err := uuid.Parse(userID)
+	if err != nil {
+		logger.Error("invalid user ID: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{Error: "invalid user ID"})
+		return
+	}
+
+	subscription := DBWebhookSubscription{
+		OwnerId:        ownerUUID,
+		ThreatModelId:  threatModelID,
+		Name:           input.Name,
+		Url:            input.Url,
+		Events:         input.Events,
+		Secret:         secret,
+		Status:         "pending_verification",
+		Challenge:      challenge,
+		ChallengesSent: 0,
+	}
+
+	created, err := GlobalWebhookSubscriptionStore.Create(subscription, func(sub DBWebhookSubscription, id string) DBWebhookSubscription {
+		parsedID, _ := uuid.Parse(id)
+		sub.Id = parsedID
+		return sub
+	})
+	if err != nil {
+		logger.Error("failed to create subscription: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to create subscription"})
+		return
+	}
+
+	logger.Info("created webhook subscription %s for user %s", created.Id, userID)
+
+	// Convert to API response type
+	response := dbWebhookSubscriptionToAPI(created, true) // Include secret in creation response
+
+	c.JSON(http.StatusCreated, response)
 }
 
 // GetWebhookSubscription gets a specific webhook subscription
@@ -62,15 +161,32 @@ func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user
-	_, _, err := ValidateAuthenticatedUser(c)
+	userID, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
 		return
 	}
 
-	// TODO: Implement full handler logic
-	c.JSON(http.StatusNotImplemented, Error{Error: "not yet implemented"})
+	// Get subscription from database
+	subscription, err := GlobalWebhookSubscriptionStore.Get(webhookId.String())
+	if err != nil {
+		logger.Error("failed to get subscription %s: %v", webhookId, err)
+		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
+		return
+	}
+
+	// Verify ownership
+	if subscription.OwnerId.String() != userID {
+		logger.Warn("user %s attempted to access subscription %s owned by %s", userID, webhookId, subscription.OwnerId)
+		c.JSON(http.StatusForbidden, Error{Error: "access denied"})
+		return
+	}
+
+	// Convert to API response type (no secret in GET response)
+	response := dbWebhookSubscriptionToAPI(subscription, false)
+
+	c.JSON(http.StatusOK, response)
 }
 
 // DeleteWebhookSubscription deletes a webhook subscription
@@ -78,15 +194,48 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user
-	_, _, err := ValidateAuthenticatedUser(c)
+	userID, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
 		return
 	}
 
-	// TODO: Implement full handler logic
-	c.Status(http.StatusNotImplemented)
+	// Check rate limits if webhook rate limiter is available
+	if s.webhookRateLimiter != nil {
+		// Check subscription request rate limit (applies to both create and delete)
+		if err := s.webhookRateLimiter.CheckSubscriptionRequestLimit(c.Request.Context(), userID); err != nil {
+			logger.Warn("subscription request rate limit exceeded for user %s: %v", userID, err)
+			c.JSON(http.StatusTooManyRequests, Error{Error: err.Error()})
+			return
+		}
+	}
+
+	// Get subscription from database
+	subscription, err := GlobalWebhookSubscriptionStore.Get(webhookId.String())
+	if err != nil {
+		logger.Error("failed to get subscription %s: %v", webhookId, err)
+		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
+		return
+	}
+
+	// Verify ownership
+	if subscription.OwnerId.String() != userID {
+		logger.Warn("user %s attempted to delete subscription %s owned by %s", userID, webhookId, subscription.OwnerId)
+		c.JSON(http.StatusForbidden, Error{Error: "access denied"})
+		return
+	}
+
+	// Delete the subscription
+	if err := GlobalWebhookSubscriptionStore.Delete(webhookId.String()); err != nil {
+		logger.Error("failed to delete subscription %s: %v", webhookId, err)
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to delete subscription"})
+		return
+	}
+
+	logger.Info("deleted webhook subscription %s for user %s", webhookId, userID)
+
+	c.Status(http.StatusNoContent)
 }
 
 // TestWebhookSubscription sends a test event to the webhook
@@ -94,15 +243,87 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user
-	_, _, err := ValidateAuthenticatedUser(c)
+	userID, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
 		return
 	}
 
-	// TODO: Implement full handler logic
-	c.JSON(http.StatusNotImplemented, Error{Error: "not yet implemented"})
+	// Parse optional request body
+	var input WebhookTestRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		// Body is optional, so ignore parse errors
+		input = WebhookTestRequest{}
+	}
+
+	// Get subscription from database
+	subscription, err := GlobalWebhookSubscriptionStore.Get(webhookId.String())
+	if err != nil {
+		logger.Error("failed to get subscription %s: %v", webhookId, err)
+		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
+		return
+	}
+
+	// Verify ownership
+	if subscription.OwnerId.String() != userID {
+		logger.Warn("user %s attempted to test subscription %s owned by %s", userID, webhookId, subscription.OwnerId)
+		c.JSON(http.StatusForbidden, Error{Error: "access denied"})
+		return
+	}
+
+	// Determine event type - use provided or first from subscription
+	eventType := "webhook.test"
+	if input.EventType != nil {
+		eventType = string(*input.EventType)
+	} else if len(subscription.Events) > 0 {
+		eventType = subscription.Events[0]
+	}
+
+	// Create test delivery
+	testPayload := map[string]interface{}{
+		"type":            "test",
+		"subscription_id": webhookId.String(),
+		"timestamp":       time.Now().UTC().Format(time.RFC3339),
+		"message":         "This is a test webhook delivery",
+	}
+
+	payloadJSON, err := json.Marshal(testPayload)
+	if err != nil {
+		logger.Error("failed to marshal test payload: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to create test delivery"})
+		return
+	}
+
+	// Create delivery record
+	deliveryID := uuid.Must(uuid.NewV7())
+	delivery := DBWebhookDelivery{
+		Id:             deliveryID,
+		SubscriptionId: subscription.Id,
+		EventType:      eventType,
+		Payload:        string(payloadJSON),
+		Status:         "pending",
+		Attempts:       0,
+		CreatedAt:      time.Now().UTC(),
+	}
+
+	created, err := GlobalWebhookDeliveryStore.Create(delivery)
+	if err != nil {
+		logger.Error("failed to create test delivery: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to create test delivery"})
+		return
+	}
+
+	logger.Info("created test delivery %s for subscription %s", created.Id, webhookId)
+
+	// Return response with delivery ID
+	message := "Test delivery created and queued for sending"
+	response := WebhookTestResponse{
+		DeliveryId: created.Id,
+		Message:    &message,
+	}
+
+	c.JSON(http.StatusAccepted, response)
 }
 
 // ListWebhookDeliveries lists webhook deliveries for the authenticated user
@@ -126,13 +347,106 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user
-	_, _, err := ValidateAuthenticatedUser(c)
+	userID, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
 		return
 	}
 
-	// TODO: Implement full handler logic
-	c.JSON(http.StatusNotImplemented, Error{Error: "not yet implemented"})
+	// Get delivery from database
+	delivery, err := GlobalWebhookDeliveryStore.Get(deliveryId.String())
+	if err != nil {
+		logger.Error("failed to get delivery %s: %v", deliveryId, err)
+		c.JSON(http.StatusNotFound, Error{Error: "delivery not found"})
+		return
+	}
+
+	// Get subscription to verify ownership
+	subscription, err := GlobalWebhookSubscriptionStore.Get(delivery.SubscriptionId.String())
+	if err != nil {
+		logger.Error("failed to get subscription for delivery %s: %v", deliveryId, err)
+		c.JSON(http.StatusNotFound, Error{Error: "delivery not found"})
+		return
+	}
+
+	// Verify ownership
+	if subscription.OwnerId.String() != userID {
+		logger.Warn("user %s attempted to access delivery %s owned by %s", userID, deliveryId, subscription.OwnerId)
+		c.JSON(http.StatusForbidden, Error{Error: "access denied"})
+		return
+	}
+
+	// Convert to API response type
+	response := dbWebhookDeliveryToAPI(delivery)
+
+	c.JSON(http.StatusOK, response)
+}
+
+// Helper functions for type conversion
+
+// dbWebhookSubscriptionToAPI converts a database webhook subscription to API response type
+func dbWebhookSubscriptionToAPI(db DBWebhookSubscription, includeSecret bool) WebhookSubscription {
+	response := WebhookSubscription{
+		Id:                  db.Id,
+		OwnerId:             db.OwnerId,
+		Name:                db.Name,
+		Url:                 db.Url,
+		Events:              db.Events,
+		Status:              WebhookSubscriptionStatus(db.Status),
+		CreatedAt:           db.CreatedAt,
+		ModifiedAt:          db.ModifiedAt,
+		ChallengesSent:      &db.ChallengesSent,
+		PublicationFailures: &db.PublicationFailures,
+	}
+
+	// Include secret only for creation response
+	if includeSecret && db.Secret != "" {
+		response.Secret = &db.Secret
+	}
+
+	// Include threat model ID if present
+	if db.ThreatModelId != nil {
+		response.ThreatModelId = db.ThreatModelId
+	}
+
+	// Include last successful use if present
+	if db.LastSuccessfulUse != nil {
+		response.LastSuccessfulUse = db.LastSuccessfulUse
+	}
+
+	return response
+}
+
+// dbWebhookDeliveryToAPI converts a database webhook delivery to API response type
+func dbWebhookDeliveryToAPI(db DBWebhookDelivery) WebhookDelivery {
+	response := WebhookDelivery{
+		Id:             db.Id,
+		SubscriptionId: db.SubscriptionId,
+		EventType:      WebhookDeliveryEventType(db.EventType),
+		Status:         WebhookDeliveryStatus(db.Status),
+		Attempts:       db.Attempts,
+		CreatedAt:      db.CreatedAt,
+	}
+
+	// Parse payload JSON if present
+	if db.Payload != "" {
+		var payload map[string]interface{}
+		if err := json.Unmarshal([]byte(db.Payload), &payload); err == nil {
+			response.Payload = &payload
+		}
+	}
+
+	// Include optional fields if present
+	if db.DeliveredAt != nil {
+		response.DeliveredAt = db.DeliveredAt
+	}
+	if db.NextRetryAt != nil {
+		response.NextRetryAt = db.NextRetryAt
+	}
+	if db.LastError != "" {
+		response.LastError = &db.LastError
+	}
+
+	return response
 }
