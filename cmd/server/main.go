@@ -1019,9 +1019,17 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		// Initialize event emitter for webhook support
 		logger.Info("Initializing event emitter for webhook subscriptions")
 		api.InitializeEventEmitter(dbManager.Redis().GetClient(), "tmi:events")
+
+		// Initialize rate limiters
+		logger.Info("Initializing API rate limiter")
+		apiServer.SetAPIRateLimiter(api.NewAPIRateLimiter(dbManager.Redis().GetClient(), api.GlobalUserAPIQuotaStore))
+
+		logger.Info("Initializing webhook rate limiter")
+		apiServer.SetWebhookRateLimiter(api.NewWebhookRateLimiter(dbManager.Redis().GetClient()))
 	} else {
 		logger.Warn("Redis not available - token blacklist service disabled")
 		logger.Warn("Redis not available - event emitter disabled (webhooks will not emit events)")
+		logger.Warn("Redis not available - rate limiting disabled")
 	}
 
 	// Add comprehensive request tracing middleware first
@@ -1033,6 +1041,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 
 	// Now add JWT middleware with token blacklist support and auth handlers for user lookup
 	r.Use(JWTMiddleware(config, server.tokenBlacklist, authHandlers)) // JWT auth with public path skipping
+
+	// Add rate limiting middleware (after JWT so user_id is available)
+	r.Use(api.RateLimitMiddleware(apiServer))
 
 	// Add server middleware to make API server available in context
 	r.Use(func(c *gin.Context) {

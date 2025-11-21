@@ -32,6 +32,9 @@ type Server struct {
 	wsHub *WebSocketHub
 	// Auth handlers (for delegating auth-related methods)
 	authService AuthService // We'll need to add this dependency
+	// Rate limiters
+	apiRateLimiter     *APIRateLimiter
+	webhookRateLimiter *WebhookRateLimiter
 }
 
 // NewServer creates a new API server instance
@@ -268,6 +271,16 @@ func (s *Server) SetAuthService(authService AuthService) {
 	if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
 		s.userDeletionHandler = NewUserDeletionHandler(authAdapter.GetService())
 	}
+}
+
+// SetAPIRateLimiter sets the API rate limiter
+func (s *Server) SetAPIRateLimiter(rateLimiter *APIRateLimiter) {
+	s.apiRateLimiter = rateLimiter
+}
+
+// SetWebhookRateLimiter sets the webhook rate limiter
+func (s *Server) SetWebhookRateLimiter(rateLimiter *WebhookRateLimiter) {
+	s.webhookRateLimiter = rateLimiter
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps

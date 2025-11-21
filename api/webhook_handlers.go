@@ -29,11 +29,28 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user
-	_, _, err := ValidateAuthenticatedUser(c)
+	userID, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
 		return
+	}
+
+	// Check rate limits if webhook rate limiter is available
+	if s.webhookRateLimiter != nil {
+		// Check subscription count limit
+		if err := s.webhookRateLimiter.CheckSubscriptionLimit(c.Request.Context(), userID); err != nil {
+			logger.Warn("subscription limit check failed for user %s: %v", userID, err)
+			c.JSON(http.StatusTooManyRequests, Error{Error: err.Error()})
+			return
+		}
+
+		// Check subscription request rate limit
+		if err := s.webhookRateLimiter.CheckSubscriptionRequestLimit(c.Request.Context(), userID); err != nil {
+			logger.Warn("subscription request rate limit exceeded for user %s: %v", userID, err)
+			c.JSON(http.StatusTooManyRequests, Error{Error: err.Error()})
+			return
+		}
 	}
 
 	// TODO: Implement full handler logic
