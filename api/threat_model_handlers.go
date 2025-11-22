@@ -37,7 +37,12 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		userEmail = ""
 	}
 
-	// Get user IdP and groups from context for group-based authorization
+	// Get user provider ID, IdP and groups from context for group-based authorization
+	userProviderID := ""
+	if providerID, exists := c.Get("userID"); exists {
+		userProviderID, _ = providerID.(string)
+	}
+
 	userIdP := ""
 	if idp, exists := c.Get("userIdP"); exists {
 		userIdP, _ = idp.(string)
@@ -63,7 +68,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		}
 
 		// Check if user has at least reader access (including group-based access like "everyone")
-		return AccessCheckWithGroups(userEmail, userIdP, userGroups, RoleReader, authData)
+		return AccessCheckWithGroups(userEmail, userProviderID, userIdP, userGroups, RoleReader, authData)
 	}
 
 	// Get threat models from store with filtering and counts

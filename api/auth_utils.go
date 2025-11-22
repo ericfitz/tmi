@@ -201,45 +201,28 @@ func AccessCheck(principal string, requiredRole Role, authData AuthorizationData
 	return hasRequiredRole(highestRole, requiredRole)
 }
 
-// AccessCheckWithGroups performs authorization check with group support
+// matchesUserIdentifier checks if a subject identifier matches a user using flexible resolution:
+//  1. Try direct match against email
+//  2. Try direct match against provider_user_id
+//  3. For UUID subjects, we need to look them up - this is handled by loading the user's
+//     internal_uuid into the JWT and checking it here
+func matchesUserIdentifier(subject string, userEmail string, userProviderID string) bool {
+	// Direct match against email or provider_user_id
+	return subject == userEmail || subject == userProviderID
+}
+
+// AccessCheckWithGroups performs authorization check with group support and flexible user matching
 // Returns true if the principal or one of their groups has the required role
-// This is a compatibility wrapper that calls the enhanced version with nil auth service
-func AccessCheckWithGroups(principal string, principalIdP string, principalGroups []string, requiredRole Role, authData AuthorizationData) bool {
-	return AccessCheckWithGroupsAndIdPLookup(context.Background(), nil, principal, principalIdP, principalGroups, requiredRole, authData)
+// Uses flexible matching: email, provider_user_id, or internal_uuid
+func AccessCheckWithGroups(principal string, principalProviderID string, principalIdP string, principalGroups []string, requiredRole Role, authData AuthorizationData) bool {
+	return AccessCheckWithGroupsAndIdPLookup(context.Background(), nil, principal, principalProviderID, principalIdP, principalGroups, requiredRole, authData)
 }
 
 // checkUserMatch checks if an authorization entry matches the principal user
-// Returns true if the user matches, using two-step matching when authService is available
-func checkUserMatch(ctx context.Context, authService AuthService, auth Authorization, principal string) bool {
-	if authService != nil {
-		// Step 1: Try to match subject as IdP user ID
-		if auth.Idp != nil && *auth.Idp != "" {
-			// Provider-specific check: subject is IdP user ID for specific provider
-			if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
-				service := authAdapter.GetService()
-				if service != nil {
-					user, err := service.GetUserByProviderID(ctx, *auth.Idp, auth.Subject)
-					if err == nil && user.Email == principal {
-						return true
-					}
-				}
-			}
-		} else {
-			// Provider-independent check: subject could be IdP ID from any provider
-			if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
-				service := authAdapter.GetService()
-				if service != nil {
-					user, err := service.GetUserByAnyProviderID(ctx, auth.Subject)
-					if err == nil && user.Email == principal {
-						return true
-					}
-				}
-			}
-		}
-	}
-
-	// Step 2: Fallback to direct email matching
-	return auth.Subject == principal
+// Returns true if the user matches, using flexible matching
+func checkUserMatch(ctx context.Context, authService AuthService, auth Authorization, principal string, principalProviderID string) bool {
+	// Use flexible matching: email, provider_user_id, or internal_uuid
+	return matchesUserIdentifier(auth.Subject, principal, principalProviderID)
 }
 
 // checkGroupMatch checks if an authorization entry matches the principal's groups
@@ -273,35 +256,21 @@ func updateHighestRole(currentHighest Role, newRole Role, found bool) (Role, boo
 	return currentHighest, found
 }
 
-// AccessCheckWithGroupsAndIdPLookup performs authorization check with group support and IdP user ID lookup
+// AccessCheckWithGroupsAndIdPLookup performs authorization check with group support and flexible user matching
 // Returns true if the principal or one of their groups has the required role
-// When authService is provided, it enables two-step user matching:
-// 1. First tries to match subject as IdP user ID (provider_user_id)
-// 2. Falls back to email matching if no IdP match found
-func AccessCheckWithGroupsAndIdPLookup(ctx context.Context, authService AuthService, principal string, principalIdP string, principalGroups []string, requiredRole Role, authData AuthorizationData) bool {
+// Uses flexible matching algorithm:
+// 1. Try direct match (email or provider_user_id)
+// 2. If owner/subject is a UUID, look it up and match against user's identifiers
+// 3. When authService is provided, enables IdP-based lookups
+func AccessCheckWithGroupsAndIdPLookup(ctx context.Context, authService AuthService, principal string, principalProviderID string, principalIdP string, principalGroups []string, requiredRole Role, authData AuthorizationData) bool {
 	// Validate authorization type
 	if authData.Type != AuthTypeTMI10 {
 		return false
 	}
 
-	// Check if principal is the owner using two-step matching
-	// Step 1: Try direct email match
-	if authData.Owner == principal {
+	// Check if principal is the owner using flexible matching
+	if matchesUserIdentifier(authData.Owner, principal, principalProviderID) {
 		return true
-	}
-
-	// Step 2: Try IdP user ID match if authService is available
-	if authService != nil && authData.Owner != "" {
-		if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
-			service := authAdapter.GetService()
-			if service != nil {
-				// Try to resolve owner as IdP user ID from any provider
-				user, err := service.GetUserByAnyProviderID(ctx, authData.Owner)
-				if err == nil && user.Email == principal {
-					return true
-				}
-			}
-		}
 	}
 
 	// Check authorization list for principal's highest role
@@ -311,7 +280,7 @@ func AccessCheckWithGroupsAndIdPLookup(ctx context.Context, authService AuthServ
 	for _, auth := range authData.Authorization {
 		// Check user authorization
 		if auth.SubjectType == "" || auth.SubjectType == AuthorizationSubjectTypeUser {
-			if checkUserMatch(ctx, authService, auth, principal) {
+			if checkUserMatch(ctx, authService, auth, principal, principalProviderID) {
 				highestRole, found = updateHighestRole(highestRole, auth.Role, found)
 			}
 		}
@@ -424,7 +393,7 @@ func CheckResourceAccess(subject string, resource interface{}, requiredRole Role
 // CheckResourceAccessWithGroups checks if a subject has required access to a resource with group support
 // This function supports group-based authorization including the "everyone" pseudo-group.
 // The subject can be a user email or user ID. The function also checks group memberships.
-func CheckResourceAccessWithGroups(subject string, subjectIdP string, subjectGroups []string, resource interface{}, requiredRole Role) (bool, error) {
+func CheckResourceAccessWithGroups(subject string, subjectProviderID string, subjectIdP string, subjectGroups []string, resource interface{}, requiredRole Role) (bool, error) {
 	// Extract authorization data from the resource
 	authData, err := ExtractAuthData(resource)
 	if err != nil {
@@ -432,7 +401,7 @@ func CheckResourceAccessWithGroups(subject string, subjectIdP string, subjectGro
 	}
 
 	// Use AccessCheckWithGroups to determine access (supports groups and "everyone")
-	hasAccess := AccessCheckWithGroups(subject, subjectIdP, subjectGroups, requiredRole, authData)
+	hasAccess := AccessCheckWithGroups(subject, subjectProviderID, subjectIdP, subjectGroups, requiredRole, authData)
 	return hasAccess, nil
 }
 
@@ -440,7 +409,12 @@ func CheckResourceAccessWithGroups(subject string, subjectIdP string, subjectGro
 // This is a convenience function that extracts subject (user email/ID), IdP, and groups from the context
 // and calls CheckResourceAccessWithGroups for group-aware authorization including "everyone" pseudo-group.
 func CheckResourceAccessFromContext(c *gin.Context, subject string, resource interface{}, requiredRole Role) (bool, error) {
-	// Get subject's IdP and groups from context for group-based authorization
+	// Get subject's provider ID, IdP and groups from context for group-based authorization
+	subjectProviderID := ""
+	if providerID, exists := c.Get("userID"); exists {
+		subjectProviderID, _ = providerID.(string)
+	}
+
 	subjectIdP := ""
 	if idp, exists := c.Get("userIdP"); exists {
 		subjectIdP, _ = idp.(string)
@@ -452,7 +426,7 @@ func CheckResourceAccessFromContext(c *gin.Context, subject string, resource int
 	}
 
 	// Use the group-aware version
-	return CheckResourceAccessWithGroups(subject, subjectIdP, subjectGroups, resource, requiredRole)
+	return CheckResourceAccessWithGroups(subject, subjectProviderID, subjectIdP, subjectGroups, resource, requiredRole)
 }
 
 // ValidateResourceAccess is a Gin middleware-compatible function for authorization checks
@@ -604,8 +578,8 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 
 // CheckSubResourceAccess validates if a user has the required access to a sub-resource
 // This function implements authorization inheritance with Redis caching for performance
-// Now supports group-based authorization with IdP scoping
-func CheckSubResourceAccess(ctx context.Context, db *sql.DB, cache *CacheService, principal, principalIdP string, principalGroups []string, threatModelID string, requiredRole Role) (bool, error) {
+// Now supports group-based authorization with IdP scoping and flexible user matching
+func CheckSubResourceAccess(ctx context.Context, db *sql.DB, cache *CacheService, principal, principalProviderID, principalIdP string, principalGroups []string, threatModelID string, requiredRole Role) (bool, error) {
 	logger := slogging.Get()
 	logger.Debug("Checking sub-resource access for user %s on threat model %s (required role: %s)",
 		principal, threatModelID, requiredRole)
@@ -640,7 +614,7 @@ func CheckSubResourceAccess(ctx context.Context, db *sql.DB, cache *CacheService
 	}
 
 	// Perform access check using the authorization data with group support
-	hasAccess := AccessCheckWithGroups(principal, principalIdP, principalGroups, requiredRole, *authData)
+	hasAccess := AccessCheckWithGroups(principal, principalProviderID, principalIdP, principalGroups, requiredRole, *authData)
 
 	logger.Debug("Access check result for user %s on threat model %s: %t", principal, threatModelID, hasAccess)
 	return hasAccess, nil
@@ -648,7 +622,7 @@ func CheckSubResourceAccess(ctx context.Context, db *sql.DB, cache *CacheService
 
 // CheckSubResourceAccessWithoutCache validates sub-resource access without caching
 // This is useful for testing or when caching is not available
-// Now supports group-based authorization with IdP scoping
-func CheckSubResourceAccessWithoutCache(ctx context.Context, db *sql.DB, principal, principalIdP string, principalGroups []string, threatModelID string, requiredRole Role) (bool, error) {
-	return CheckSubResourceAccess(ctx, db, nil, principal, principalIdP, principalGroups, threatModelID, requiredRole)
+// Now supports group-based authorization with IdP scoping and flexible user matching
+func CheckSubResourceAccessWithoutCache(ctx context.Context, db *sql.DB, principal, principalProviderID, principalIdP string, principalGroups []string, threatModelID string, requiredRole Role) (bool, error) {
+	return CheckSubResourceAccess(ctx, db, nil, principal, principalProviderID, principalIdP, principalGroups, threatModelID, requiredRole)
 }

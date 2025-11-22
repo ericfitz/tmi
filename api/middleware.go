@@ -138,7 +138,7 @@ var ErrAccessDenied = errors.New("access denied")
 
 // GetUserRole determines the role of the user for a given threat model
 // This now supports both user and group authorization with IdP scoping
-func GetUserRole(userEmail string, userIdP string, userGroups []string, threatModel ThreatModel) Role {
+func GetUserRole(userEmail string, userProviderID string, userIdP string, userGroups []string, threatModel ThreatModel) Role {
 	// Build authorization data
 	authData := AuthorizationData{
 		Type:          AuthTypeTMI10,
@@ -148,13 +148,13 @@ func GetUserRole(userEmail string, userIdP string, userGroups []string, threatMo
 
 	// Check access with groups support
 	// We'll check each role level from highest to lowest to determine user's actual role
-	if AccessCheckWithGroups(userEmail, userIdP, userGroups, RoleOwner, authData) {
+	if AccessCheckWithGroups(userEmail, userProviderID, userIdP, userGroups, RoleOwner, authData) {
 		return RoleOwner
 	}
-	if AccessCheckWithGroups(userEmail, userIdP, userGroups, RoleWriter, authData) {
+	if AccessCheckWithGroups(userEmail, userProviderID, userIdP, userGroups, RoleWriter, authData) {
 		return RoleWriter
 	}
-	if AccessCheckWithGroups(userEmail, userIdP, userGroups, RoleReader, authData) {
+	if AccessCheckWithGroups(userEmail, userProviderID, userIdP, userGroups, RoleReader, authData) {
 		return RoleReader
 	}
 
@@ -164,7 +164,7 @@ func GetUserRole(userEmail string, userIdP string, userGroups []string, threatMo
 
 // CheckThreatModelAccess checks if a user has required access to a threat model
 // This now supports both user and group authorization with IdP scoping
-func CheckThreatModelAccess(userEmail string, userIdP string, userGroups []string, threatModel ThreatModel, requiredRole Role) error {
+func CheckThreatModelAccess(userEmail string, userProviderID string, userIdP string, userGroups []string, threatModel ThreatModel, requiredRole Role) error {
 	// Build authorization data
 	authData := AuthorizationData{
 		Type:          AuthTypeTMI10,
@@ -173,7 +173,7 @@ func CheckThreatModelAccess(userEmail string, userIdP string, userGroups []strin
 	}
 
 	// Check access with groups support
-	if AccessCheckWithGroups(userEmail, userIdP, userGroups, requiredRole, authData) {
+	if AccessCheckWithGroups(userEmail, userProviderID, userIdP, userGroups, requiredRole, authData) {
 		return nil
 	}
 
@@ -218,7 +218,12 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Get user's IdP and groups from context (set by JWT middleware)
+		// Get user's provider ID, IdP, and groups from context (set by JWT middleware)
+		userProviderID := ""
+		if providerID, exists := c.Get("userID"); exists {
+			userProviderID, _ = providerID.(string)
+		}
+
 		userIdP := ""
 		if idp, exists := c.Get("userIdP"); exists {
 			userIdP, _ = idp.(string)
@@ -330,8 +335,8 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 
 		// Check authorization without reading request body
 		// This just checks the basic role permission based on resource ownership
-		if err := CheckThreatModelAccess(userEmail, userIdP, userGroups, threatModel, requiredRole); err != nil {
-			userRole := GetUserRole(userEmail, userIdP, userGroups, threatModel)
+		if err := CheckThreatModelAccess(userEmail, userProviderID, userIdP, userGroups, threatModel, requiredRole); err != nil {
+			userRole := GetUserRole(userEmail, userProviderID, userIdP, userGroups, threatModel)
 			logger.Warn("Access denied for user %s with role %s, required role: %s",
 				userEmail, userRole, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
@@ -341,7 +346,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		userRole := GetUserRole(userEmail, userIdP, userGroups, threatModel)
+		userRole := GetUserRole(userEmail, userProviderID, userIdP, userGroups, threatModel)
 		// Set the role and threatModel in the context for handlers to use
 		c.Set("userRole", userRole)
 		c.Set("threatModel", threatModel)
@@ -390,7 +395,12 @@ func DiagramMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Get user's IdP and groups from context (set by JWT middleware)
+		// Get user's provider ID, IdP, and groups from context (set by JWT middleware)
+		userProviderID := ""
+		if providerID, exists := c.Get("userID"); exists {
+			userProviderID, _ = providerID.(string)
+		}
+
 		userIdP := ""
 		if idp, exists := c.Get("userIdP"); exists {
 			userIdP, _ = idp.(string)
@@ -485,8 +495,8 @@ func DiagramMiddleware() gin.HandlerFunc {
 
 		// Check authorization without reading request body
 		// This just checks the basic role permission based on resource ownership
-		if err := CheckDiagramAccess(userEmail, userIdP, userGroups, diagram, requiredRole); err != nil {
-			userRole := GetUserRoleForDiagram(userEmail, userIdP, userGroups, diagram)
+		if err := CheckDiagramAccess(userEmail, userProviderID, userIdP, userGroups, diagram, requiredRole); err != nil {
+			userRole := GetUserRoleForDiagram(userEmail, userProviderID, userIdP, userGroups, diagram)
 			logger.Warn("Access denied for user %s with role %s, required role: %s",
 				userEmail, userRole, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
@@ -496,7 +506,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		userRole := GetUserRoleForDiagram(userEmail, userIdP, userGroups, diagram)
+		userRole := GetUserRoleForDiagram(userEmail, userProviderID, userIdP, userGroups, diagram)
 		// Set the role and diagram in the context for handlers to use
 		c.Set("userRole", userRole)
 		c.Set("diagram", diagram)
@@ -508,8 +518,8 @@ func DiagramMiddleware() gin.HandlerFunc {
 }
 
 // GetUserRoleForDiagram determines the role of the user for a given diagram
-// This now supports both user and group authorization with IdP scoping
-func GetUserRoleForDiagram(userEmail string, userIdP string, userGroups []string, diagram DfdDiagram) Role {
+// This now supports both user and group authorization with IdP scoping and flexible user matching
+func GetUserRoleForDiagram(userEmail string, userProviderID string, userIdP string, userGroups []string, diagram DfdDiagram) Role {
 	// Diagrams inherit permissions from their parent threat model
 	// For database-backed diagrams, we need to find the parent threat model
 
@@ -538,7 +548,7 @@ func GetUserRoleForDiagram(userEmail string, userIdP string, userGroups []string
 				}
 
 				// Use group-based authorization check
-				return GetUserRole(userEmail, userIdP, userGroups, threatModel)
+				return GetUserRole(userEmail, userProviderID, userIdP, userGroups, threatModel)
 			}
 		}
 	}
@@ -547,7 +557,7 @@ func GetUserRoleForDiagram(userEmail string, userIdP string, userGroups []string
 	parentThreatModel := TestFixtures.ThreatModel
 
 	// Use group-based authorization check
-	return GetUserRole(userEmail, userIdP, userGroups, parentThreatModel)
+	return GetUserRole(userEmail, userProviderID, userIdP, userGroups, parentThreatModel)
 }
 
 // NewReadCloser creates a new io.ReadCloser from a byte slice
@@ -587,9 +597,9 @@ func LogRequest(c *gin.Context, prefix string) {
 }
 
 // CheckDiagramAccess checks if a user has required access to a diagram
-// This now supports both user and group authorization with IdP scoping
-func CheckDiagramAccess(userEmail string, userIdP string, userGroups []string, diagram DfdDiagram, requiredRole Role) error {
-	userRole := GetUserRoleForDiagram(userEmail, userIdP, userGroups, diagram)
+// This now supports both user and group authorization with IdP scoping and flexible user matching
+func CheckDiagramAccess(userEmail string, userProviderID string, userIdP string, userGroups []string, diagram DfdDiagram, requiredRole Role) error {
+	userRole := GetUserRoleForDiagram(userEmail, userProviderID, userIdP, userGroups, diagram)
 
 	// If no role found, access is denied
 	if userRole == "" {
@@ -654,7 +664,12 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 			return
 		}
 
-		// Get user's IdP and groups from context (set by JWT middleware)
+		// Get user's provider ID, IdP, and groups from context (set by JWT middleware)
+		userProviderID := ""
+		if providerID, exists := c.Get("userID"); exists {
+			userProviderID, _ = providerID.(string)
+		}
+
 		userIdP := ""
 		if idp, exists := c.Get("userIdP"); exists {
 			userIdP, _ = idp.(string)
@@ -678,7 +693,7 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 		}
 
 		// Check sub-resource access using inherited authorization with group support
-		hasAccess, err := CheckSubResourceAccess(c.Request.Context(), db, cache, userEmail, userIdP, userGroups, threatModelID, requiredRole)
+		hasAccess, err := CheckSubResourceAccess(c.Request.Context(), db, cache, userEmail, userProviderID, userIdP, userGroups, threatModelID, requiredRole)
 		if err != nil {
 			logger.Error("Failed to check sub-resource access for user %s on threat model %s: %v",
 				userEmail, threatModelID, err)

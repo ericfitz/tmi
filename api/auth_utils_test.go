@@ -1369,7 +1369,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := AccessCheckWithGroups(tt.principal, tt.principalIdP, tt.groups, tt.requiredRole, tt.authData)
+			result := AccessCheckWithGroups(tt.principal, "", tt.principalIdP, tt.groups, tt.requiredRole, tt.authData)
 			assert.Equal(t, tt.expected, result, tt.description)
 		})
 	}
@@ -1402,22 +1402,22 @@ func TestEveryonePseudoGroupMixedScenarios(t *testing.T) {
 		}
 
 		// Test 1: Random user gets reader via everyone
-		assert.True(t, AccessCheckWithGroups("random@example.com", "test", []string{}, RoleReader, authData))
-		assert.False(t, AccessCheckWithGroups("random@example.com", "test", []string{}, RoleWriter, authData))
+		assert.True(t, AccessCheckWithGroups("random@example.com", "", "test", []string{}, RoleReader, authData))
+		assert.False(t, AccessCheckWithGroups("random@example.com", "", "test", []string{}, RoleWriter, authData))
 
 		// Test 2: Editor from google gets writer (higher than everyone reader)
-		assert.True(t, AccessCheckWithGroups("editor@example.com", "google", []string{"editors"}, RoleReader, authData))
-		assert.True(t, AccessCheckWithGroups("editor@example.com", "google", []string{"editors"}, RoleWriter, authData))
-		assert.False(t, AccessCheckWithGroups("editor@example.com", "google", []string{"editors"}, RoleOwner, authData))
+		assert.True(t, AccessCheckWithGroups("editor@example.com", "", "google", []string{"editors"}, RoleReader, authData))
+		assert.True(t, AccessCheckWithGroups("editor@example.com", "", "google", []string{"editors"}, RoleWriter, authData))
+		assert.False(t, AccessCheckWithGroups("editor@example.com", "", "google", []string{"editors"}, RoleOwner, authData))
 
 		// Test 3: Editor from different IdP only gets everyone reader
-		assert.True(t, AccessCheckWithGroups("editor@example.com", "okta", []string{"editors"}, RoleReader, authData))
-		assert.False(t, AccessCheckWithGroups("editor@example.com", "okta", []string{"editors"}, RoleWriter, authData))
+		assert.True(t, AccessCheckWithGroups("editor@example.com", "", "okta", []string{"editors"}, RoleReader, authData))
+		assert.False(t, AccessCheckWithGroups("editor@example.com", "", "okta", []string{"editors"}, RoleWriter, authData))
 
 		// Test 4: Power user gets owner
-		assert.True(t, AccessCheckWithGroups("power-user@example.com", "test", []string{}, RoleOwner, authData))
+		assert.True(t, AccessCheckWithGroups("power-user@example.com", "", "test", []string{}, RoleOwner, authData))
 
 		// Test 5: Admin (owner) gets owner permissions
-		assert.True(t, AccessCheckWithGroups("admin@example.com", "test", []string{}, RoleOwner, authData))
+		assert.True(t, AccessCheckWithGroups("admin@example.com", "", "test", []string{}, RoleOwner, authData))
 	})
 }
