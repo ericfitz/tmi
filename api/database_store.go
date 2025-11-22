@@ -456,6 +456,14 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 		statusUpdated = &now
 	}
 
+	// Look up user's internal_uuid from email
+	var ownerUUID string
+	userQuery := `SELECT internal_uuid FROM users WHERE email = $1`
+	err = tx.QueryRow(userQuery, item.Owner).Scan(&ownerUUID)
+	if err != nil {
+		return item, fmt.Errorf("failed to lookup user internal_uuid for email %s: %w", item.Owner, err)
+	}
+
 	// Insert threat model
 	query := `
 		INSERT INTO threat_models (id, name, description, owner_internal_uuid, created_by,
@@ -464,7 +472,7 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
 	_, err = tx.Exec(query,
-		id, item.Name, item.Description, item.Owner, item.CreatedBy,
+		id, item.Name, item.Description, ownerUUID, item.CreatedBy,
 		framework, item.IssueUri, item.Status, statusUpdated,
 		item.CreatedAt, item.ModifiedAt,
 	)
