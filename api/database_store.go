@@ -42,6 +42,40 @@ func NewThreatModelDatabaseStore(database *sql.DB) *ThreatModelDatabaseStore {
 	}
 }
 
+// resolveUserIdentifierToUUID attempts to resolve a user identifier to an internal_uuid
+// It tries in order:
+// 1. If the value is a valid UUID, check if it exists as internal_uuid
+// 2. Try to match as provider_user_id for any provider
+// 3. Try to match as email
+// Returns the internal_uuid or an error if the user cannot be found
+func (s *ThreatModelDatabaseStore) resolveUserIdentifierToUUID(tx *sql.Tx, identifier string) (string, error) {
+	// Step 1: Check if it's already a valid internal_uuid
+	if _, err := uuid.Parse(identifier); err == nil {
+		var existsUUID string
+		err := tx.QueryRow(`SELECT internal_uuid FROM users WHERE internal_uuid = $1`, identifier).Scan(&existsUUID)
+		if err == nil {
+			return existsUUID, nil
+		}
+		// Not found as internal_uuid, continue to other checks
+	}
+
+	// Step 2: Try as provider_user_id (check all providers)
+	var internalUUID string
+	err := tx.QueryRow(`SELECT internal_uuid FROM users WHERE provider_user_id = $1`, identifier).Scan(&internalUUID)
+	if err == nil {
+		return internalUUID, nil
+	}
+
+	// Step 3: Try as email
+	err = tx.QueryRow(`SELECT internal_uuid FROM users WHERE email = $1`, identifier).Scan(&internalUUID)
+	if err == nil {
+		return internalUUID, nil
+	}
+
+	// Not found by any method
+	return "", fmt.Errorf("user not found with identifier: %s", identifier)
+}
+
 // Get retrieves a threat model by ID
 func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	s.mutex.RLock()
@@ -456,12 +490,10 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 		statusUpdated = &now
 	}
 
-	// Look up user's internal_uuid from email
-	var ownerUUID string
-	userQuery := `SELECT internal_uuid FROM users WHERE email = $1`
-	err = tx.QueryRow(userQuery, item.Owner).Scan(&ownerUUID)
+	// Resolve owner identifier (UUID, provider_user_id, or email) to internal_uuid
+	ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner)
 	if err != nil {
-		return item, fmt.Errorf("failed to lookup user internal_uuid for email %s: %w", item.Owner, err)
+		return item, fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner, err)
 	}
 
 	// Insert threat model
@@ -936,6 +968,19 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 			idpValue = nil
 		}
 
+		// For user subjects, resolve identifier to internal_uuid
+		subjectValue := auth.Subject
+		if subjectTypeStr == "user" {
+			resolvedUUID, err := s.resolveUserIdentifierToUUID(tx, auth.Subject)
+			if err != nil {
+				// If resolution fails, keep the original subject value
+				// This allows for forward compatibility with subjects that don't exist yet
+				slogging.Get().Debug("Could not resolve user identifier %s to internal_uuid, using as-is: %v", auth.Subject, err)
+			} else {
+				subjectValue = resolvedUUID
+			}
+		}
+
 		query := `
 			INSERT INTO threat_model_access (threat_model_id, subject, subject_type, idp, role, created_at, modified_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -943,7 +988,7 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 			DO UPDATE SET role = $5, modified_at = $7`
 
 		now := time.Now().UTC()
-		_, err := tx.Exec(query, threatModelId, auth.Subject, subjectTypeStr, idpValue, string(auth.Role), now, now)
+		_, err := tx.Exec(query, threatModelId, subjectValue, subjectTypeStr, idpValue, string(auth.Role), now, now)
 		if err != nil {
 			return err
 		}
