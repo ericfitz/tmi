@@ -93,13 +93,22 @@ func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 
 // isPublicEndpoint checks if the path is a public discovery endpoint
 func isPublicEndpoint(path string) bool {
-	publicPaths := []string{
+	// Exact matches for specific public paths
+	exactMatches := []string{
 		"/",
-		"/.well-known/",
+	}
+	for _, exactPath := range exactMatches {
+		if path == exactPath {
+			return true
+		}
 	}
 
-	for _, prefix := range publicPaths {
-		if path == prefix || strings.HasPrefix(path, prefix) {
+	// Prefix matches for public path prefixes
+	prefixes := []string{
+		"/.well-known/",
+	}
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(path, prefix) {
 			return true
 		}
 	}
