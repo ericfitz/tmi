@@ -76,7 +76,9 @@ func (s *Service) GetSAMLManager() *SAMLManager {
 
 // User represents a user in the system
 type User struct {
-	ID               string    `json:"id"`
+	InternalUUID     string    `json:"id"`                         // Internal system UUID (never exposed in JWT sub)
+	Provider         string    `json:"provider"`                   // OAuth provider: "test", "google", "github", "microsoft", "azure"
+	ProviderUserID   string    `json:"provider_user_id"`           // Provider's user ID (from JWT sub claim)
 	Email            string    `json:"email"`
 	Name             string    `json:"name"`
 	EmailVerified    bool      `json:"email_verified"`
@@ -84,8 +86,11 @@ type User struct {
 	FamilyName       string    `json:"family_name,omitempty"`
 	Picture          string    `json:"picture,omitempty"`
 	Locale           string    `json:"locale,omitempty"`
-	IdentityProvider string    `json:"idp,omitempty"`    // Current identity provider
-	Groups           []string  `json:"groups,omitempty"` // Groups from identity provider (not stored in DB)
+	AccessToken      string    `json:"-"`                          // OAuth access token (not exposed in JSON)
+	RefreshToken     string    `json:"-"`                          // OAuth refresh token (not exposed in JSON)
+	TokenExpiry      time.Time `json:"-"`                          // Token expiration time (not exposed in JSON)
+	IdentityProvider string    `json:"idp,omitempty"`              // DEPRECATED: Use Provider instead (kept for backward compatibility)
+	Groups           []string  `json:"groups,omitempty"`           // Groups from identity provider (not stored in DB)
 	CreatedAt        time.Time `json:"created_at"`
 	ModifiedAt       time.Time `json:"modified_at"`
 	LastLogin        time.Time `json:"last_login,omitempty"`
@@ -149,14 +154,10 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		}
 	}
 
-	// Get the primary provider ID for the user
-	providerID, err := s.GetPrimaryProviderID(ctx, user.ID)
-	if err != nil {
-		return TokenPair{}, fmt.Errorf("failed to get primary provider ID: %w", err)
-	}
-
-	if providerID == "" {
-		return TokenPair{}, fmt.Errorf("no primary provider ID found for user %s", user.ID)
+	// The provider user ID is now directly stored on the User struct
+	// JWT sub claim should contain the provider's user ID, NOT our internal UUID
+	if user.ProviderUserID == "" {
+		return TokenPair{}, fmt.Errorf("no provider user ID found for user %s", user.InternalUUID)
 	}
 
 	// Derive the issuer from the OAuth callback URL
@@ -176,7 +177,7 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		Groups:           user.Groups,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    issuer,
-			Subject:   providerID,
+			Subject:   user.ProviderUserID, // JWT sub contains provider's user ID, NOT internal UUID
 			Audience:  jwt.ClaimStrings{issuer}, // The audience is the issuer itself for self-issued tokens
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -195,9 +196,9 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 	refreshToken := uuid.New().String()
 	refreshDuration := 30 * 24 * time.Hour // 30 days
 
-	// Store the refresh token in Redis
+	// Store the refresh token in Redis (map to internal UUID)
 	refreshKey := fmt.Sprintf("refresh_token:%s", refreshToken)
-	err = s.dbManager.Redis().Set(ctx, refreshKey, user.ID, refreshDuration)
+	err = s.dbManager.Redis().Set(ctx, refreshKey, user.InternalUUID, refreshDuration)
 	if err != nil {
 		return TokenPair{}, fmt.Errorf("failed to store refresh token: %w", err)
 	}
@@ -294,9 +295,11 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 	db := s.dbManager.Postgres().GetDB()
 
 	var user User
-	query := `SELECT id, email, name, email_verified, given_name, family_name, picture, locale, identity_provider, created_at, modified_at, last_login FROM users WHERE email = $1`
+	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, given_name, family_name, picture, locale, access_token, refresh_token, token_expiry, created_at, modified_at, last_login FROM users WHERE email = $1`
 	err := db.QueryRowContext(ctx, query, email).Scan(
-		&user.ID,
+		&user.InternalUUID,
+		&user.Provider,
+		&user.ProviderUserID,
 		&user.Email,
 		&user.Name,
 		&user.EmailVerified,
@@ -304,7 +307,9 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 		&user.FamilyName,
 		&user.Picture,
 		&user.Locale,
-		&user.IdentityProvider,
+		&user.AccessToken,
+		&user.RefreshToken,
+		&user.TokenExpiry,
 		&user.CreatedAt,
 		&user.ModifiedAt,
 		&user.LastLogin,
@@ -318,17 +323,22 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 		return User{}, fmt.Errorf("failed to get user: %w", err)
 	}
 
+	// Set IdentityProvider for backward compatibility
+	user.IdentityProvider = user.Provider
+
 	return user, nil
 }
 
-// GetUserByID gets a user by ID
+// GetUserByID gets a user by internal UUID
 func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 	db := s.dbManager.Postgres().GetDB()
 
 	var user User
-	query := `SELECT id, email, name, email_verified, given_name, family_name, picture, locale, identity_provider, created_at, modified_at, last_login FROM users WHERE id = $1`
+	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, given_name, family_name, picture, locale, access_token, refresh_token, token_expiry, created_at, modified_at, last_login FROM users WHERE internal_uuid = $1`
 	err := db.QueryRowContext(ctx, query, id).Scan(
-		&user.ID,
+		&user.InternalUUID,
+		&user.Provider,
+		&user.ProviderUserID,
 		&user.Email,
 		&user.Name,
 		&user.EmailVerified,
@@ -336,7 +346,9 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 		&user.FamilyName,
 		&user.Picture,
 		&user.Locale,
-		&user.IdentityProvider,
+		&user.AccessToken,
+		&user.RefreshToken,
+		&user.TokenExpiry,
 		&user.CreatedAt,
 		&user.ModifiedAt,
 		&user.LastLogin,
@@ -349,57 +361,31 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 	if err != nil {
 		return User{}, fmt.Errorf("failed to get user: %w", err)
 	}
+
+	// Set IdentityProvider for backward compatibility
+	user.IdentityProvider = user.Provider
 
 	return user, nil
 }
 
-// GetUserWithProviderID gets a user by email with their primary provider ID
+// GetUserWithProviderID gets a user by email - DEPRECATED: provider ID is now on User struct
 func (s *Service) GetUserWithProviderID(ctx context.Context, email string) (User, error) {
-	db := s.dbManager.Postgres().GetDB()
-
-	var user User
-	var providerUserID sql.NullString
-	query := `
-		SELECT u.id, u.email, u.name, u.email_verified, u.given_name, u.family_name, 
-		       u.picture, u.locale, u.created_at, u.modified_at, u.last_login,
-		       up.provider_user_id
-		FROM users u
-		LEFT JOIN user_providers up ON u.id = up.user_id AND up.is_primary = true
-		WHERE u.email = $1
-	`
-	err := db.QueryRowContext(ctx, query, email).Scan(
-		&user.ID,
-		&user.Email,
-		&user.Name,
-		&user.EmailVerified,
-		&user.GivenName,
-		&user.FamilyName,
-		&user.Picture,
-		&user.Locale,
-		&user.CreatedAt,
-		&user.ModifiedAt,
-		&user.LastLogin,
-		&providerUserID,
-	)
-
-	if err == sql.ErrNoRows {
-		return User{}, errors.New("user not found")
-	}
-
-	if err != nil {
-		return User{}, fmt.Errorf("failed to get user: %w", err)
-	}
-
-	return user, nil
+	// This function is now just an alias for GetUserByEmail since provider info is on User
+	return s.GetUserByEmail(ctx, email)
 }
 
 // CreateUser creates a new user
 func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 	db := s.dbManager.Postgres().GetDB()
 
-	// Generate a new ID if not provided
-	if user.ID == "" {
-		user.ID = uuid.New().String()
+	// Generate a new internal UUID if not provided
+	if user.InternalUUID == "" {
+		user.InternalUUID = uuid.New().String()
+	}
+
+	// Provider and ProviderUserID must be set by caller
+	if user.Provider == "" || user.ProviderUserID == "" {
+		return User{}, errors.New("provider and provider_user_id are required")
 	}
 
 	// Set timestamps if not provided
@@ -411,14 +397,21 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 		user.ModifiedAt = now
 	}
 
+	// Set default locale if not provided
+	if user.Locale == "" {
+		user.Locale = "en-US"
+	}
+
 	query := `
-		INSERT INTO users (id, email, name, email_verified, given_name, family_name, picture, locale, identity_provider, created_at, modified_at, last_login)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		RETURNING id
+		INSERT INTO users (internal_uuid, provider, provider_user_id, email, name, email_verified, given_name, family_name, picture, locale, access_token, refresh_token, token_expiry, created_at, modified_at, last_login)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		RETURNING internal_uuid
 	`
 
 	err := db.QueryRowContext(ctx, query,
-		user.ID,
+		user.InternalUUID,
+		user.Provider,
+		user.ProviderUserID,
 		user.Email,
 		user.Name,
 		user.EmailVerified,
@@ -426,15 +419,20 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 		user.FamilyName,
 		user.Picture,
 		user.Locale,
-		user.IdentityProvider,
+		user.AccessToken,
+		user.RefreshToken,
+		user.TokenExpiry,
 		user.CreatedAt,
 		user.ModifiedAt,
 		user.LastLogin,
-	).Scan(&user.ID)
+	).Scan(&user.InternalUUID)
 
 	if err != nil {
 		return User{}, fmt.Errorf("failed to create user: %w", err)
 	}
+
+	// Set IdentityProvider for backward compatibility
+	user.IdentityProvider = user.Provider
 
 	return user, nil
 }
@@ -449,12 +447,13 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 	query := `
 		UPDATE users
 		SET email = $2, name = $3, email_verified = $4, given_name = $5, family_name = $6,
-		    picture = $7, locale = $8, identity_provider = $9, modified_at = $10, last_login = $11
-		WHERE id = $1
+		    picture = $7, locale = $8, access_token = $9, refresh_token = $10, token_expiry = $11,
+		    modified_at = $12, last_login = $13
+		WHERE internal_uuid = $1
 	`
 
 	result, err := db.ExecContext(ctx, query,
-		user.ID,
+		user.InternalUUID,
 		user.Email,
 		user.Name,
 		user.EmailVerified,
@@ -462,7 +461,9 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 		user.FamilyName,
 		user.Picture,
 		user.Locale,
-		user.IdentityProvider,
+		user.AccessToken,
+		user.RefreshToken,
+		user.TokenExpiry,
 		user.ModifiedAt,
 		user.LastLogin,
 	)
@@ -483,11 +484,11 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 	return nil
 }
 
-// DeleteUser deletes a user
+// DeleteUser deletes a user by internal UUID
 func (s *Service) DeleteUser(ctx context.Context, id string) error {
 	db := s.dbManager.Postgres().GetDB()
 
-	query := `DELETE FROM users WHERE id = $1`
+	query := `DELETE FROM users WHERE internal_uuid = $1`
 
 	result, err := db.ExecContext(ctx, query, id)
 	if err != nil {
@@ -667,15 +668,34 @@ func (s *Service) GetPrimaryProviderID(ctx context.Context, userID string) (stri
 	return providerUserID, nil
 }
 
-// GetUserByProviderID gets a user by provider ID
+// GetUserByProviderID gets a user by provider and provider user ID
 func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUserID string) (User, error) {
 	db := s.dbManager.Postgres().GetDB()
 
-	var userID string
-	err := db.QueryRowContext(ctx, `
-		SELECT user_id FROM user_providers
+	var user User
+	query := `
+		SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, given_name, family_name, picture, locale, access_token, refresh_token, token_expiry, created_at, modified_at, last_login
+		FROM users
 		WHERE provider = $1 AND provider_user_id = $2
-	`, provider, providerUserID).Scan(&userID)
+	`
+	err := db.QueryRowContext(ctx, query, provider, providerUserID).Scan(
+		&user.InternalUUID,
+		&user.Provider,
+		&user.ProviderUserID,
+		&user.Email,
+		&user.Name,
+		&user.EmailVerified,
+		&user.GivenName,
+		&user.FamilyName,
+		&user.Picture,
+		&user.Locale,
+		&user.AccessToken,
+		&user.RefreshToken,
+		&user.TokenExpiry,
+		&user.CreatedAt,
+		&user.ModifiedAt,
+		&user.LastLogin,
+	)
 
 	if err == sql.ErrNoRows {
 		return User{}, errors.New("user not found")
@@ -685,44 +705,43 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 		return User{}, fmt.Errorf("failed to get user by provider ID: %w", err)
 	}
 
-	// Get the user
-	var user User
-	err = db.QueryRowContext(ctx, `
-		SELECT id, email, name, email_verified, given_name, family_name, picture, locale, created_at, modified_at, last_login
-		FROM users
-		WHERE id = $1
-	`, userID).Scan(
-		&user.ID,
-		&user.Email,
-		&user.Name,
-		&user.EmailVerified,
-		&user.GivenName,
-		&user.FamilyName,
-		&user.Picture,
-		&user.Locale,
-		&user.CreatedAt,
-		&user.ModifiedAt,
-		&user.LastLogin,
-	)
-
-	if err != nil {
-		return User{}, fmt.Errorf("failed to get user: %w", err)
-	}
+	// Set IdentityProvider for backward compatibility
+	user.IdentityProvider = user.Provider
 
 	return user, nil
 }
 
 // GetUserByAnyProviderID gets a user by provider ID across all providers
 // This allows provider-independent authorization using IdP user IDs
+// NOTE: This can return ambiguous results if the same provider_user_id exists for multiple providers
 func (s *Service) GetUserByAnyProviderID(ctx context.Context, providerUserID string) (User, error) {
 	db := s.dbManager.Postgres().GetDB()
 
-	var userID string
-	err := db.QueryRowContext(ctx, `
-		SELECT user_id FROM user_providers
+	var user User
+	query := `
+		SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, given_name, family_name, picture, locale, access_token, refresh_token, token_expiry, created_at, modified_at, last_login
+		FROM users
 		WHERE provider_user_id = $1
 		LIMIT 1
-	`, providerUserID).Scan(&userID)
+	`
+	err := db.QueryRowContext(ctx, query, providerUserID).Scan(
+		&user.InternalUUID,
+		&user.Provider,
+		&user.ProviderUserID,
+		&user.Email,
+		&user.Name,
+		&user.EmailVerified,
+		&user.GivenName,
+		&user.FamilyName,
+		&user.Picture,
+		&user.Locale,
+		&user.AccessToken,
+		&user.RefreshToken,
+		&user.TokenExpiry,
+		&user.CreatedAt,
+		&user.ModifiedAt,
+		&user.LastLogin,
+	)
 
 	if err == sql.ErrNoRows {
 		return User{}, errors.New("user not found")
@@ -732,29 +751,8 @@ func (s *Service) GetUserByAnyProviderID(ctx context.Context, providerUserID str
 		return User{}, fmt.Errorf("failed to get user by provider ID: %w", err)
 	}
 
-	// Get the user
-	var user User
-	err = db.QueryRowContext(ctx, `
-		SELECT id, email, name, email_verified, given_name, family_name, picture, locale, created_at, modified_at, last_login
-		FROM users
-		WHERE id = $1
-	`, userID).Scan(
-		&user.ID,
-		&user.Email,
-		&user.Name,
-		&user.EmailVerified,
-		&user.GivenName,
-		&user.FamilyName,
-		&user.Picture,
-		&user.Locale,
-		&user.CreatedAt,
-		&user.ModifiedAt,
-		&user.LastLogin,
-	)
-
-	if err != nil {
-		return User{}, fmt.Errorf("failed to get user: %w", err)
-	}
+	// Set IdentityProvider for backward compatibility
+	user.IdentityProvider = user.Provider
 
 	return user, nil
 }
