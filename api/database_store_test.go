@@ -293,6 +293,7 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 		store := NewThreatModelDatabaseStore(db)
 		testModel := createTestThreatModelDB()
 		testID := uuid.New().String()
+		testUUID := uuid.New().String()
 
 		mock.ExpectBegin()
 
@@ -301,10 +302,17 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 			WithArgs(testID).
 			WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(pq.Array([]string{})))
 
+		// Mock user lookup query (resolveUserIdentifierToUUID)
+		// First try as UUID - will fail since email is not a valid UUID
+		// Then try as provider_user_id - will return the user's internal_uuid
+		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
+			WithArgs(testModel.Owner).
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(testUUID))
+
 		// Mock UPDATE query
 		mock.ExpectExec("UPDATE threat_models").
 			WithArgs(
-				testID, testModel.Name, testModel.Description, testModel.Owner, testModel.CreatedBy,
+				testID, testModel.Name, testModel.Description, testUUID, testModel.CreatedBy,
 				"STRIDE", testModel.IssueUri, sqlmock.AnyArg(), sqlmock.AnyArg(), testModel.ModifiedAt,
 			).
 			WillReturnResult(sqlmock.NewResult(0, 1))
@@ -313,8 +321,14 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 		mock.ExpectExec("DELETE FROM threat_model_access").
 			WithArgs(testID).
 			WillReturnResult(sqlmock.NewResult(0, 0))
+
+		// Mock user lookup for authorization subject (will also resolve)
+		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
+			WithArgs("test@example.com").
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(testUUID))
+
 		mock.ExpectExec("INSERT INTO threat_model_access").
-			WithArgs(testID, "test@example.com", "user", nil, "owner", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(testID, testUUID, "user", nil, "owner", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		// Mock metadata delete and insert
@@ -344,12 +358,19 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 		store := NewThreatModelDatabaseStore(db)
 		testModel := createTestThreatModelDB()
 		testID := uuid.New().String()
+		testUUID := uuid.New().String()
 
 		mock.ExpectBegin()
 		// Mock SELECT query to get current status
 		mock.ExpectQuery("SELECT status FROM threat_models WHERE id").
 			WithArgs(testID).
 			WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(pq.Array([]string{})))
+
+		// Mock user lookup query
+		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
+			WithArgs(testModel.Owner).
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(testUUID))
+
 		mock.ExpectExec("UPDATE threat_models").
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
 									sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).

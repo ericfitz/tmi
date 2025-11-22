@@ -582,6 +582,12 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 		statusUpdated = &now
 	}
 
+	// Resolve owner identifier (UUID, provider_user_id, or email) to internal_uuid
+	ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner)
+	if err != nil {
+		return fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner, err)
+	}
+
 	// Update threat model
 	query := `
 		UPDATE threat_models
@@ -591,7 +597,7 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 		WHERE id = $1`
 
 	result, err := tx.Exec(query,
-		id, item.Name, item.Description, item.Owner, item.CreatedBy,
+		id, item.Name, item.Description, ownerUUID, item.CreatedBy,
 		framework, item.IssueUri, item.Status, statusUpdated,
 		item.ModifiedAt,
 	)
