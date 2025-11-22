@@ -76,9 +76,9 @@ func (s *Service) GetSAMLManager() *SAMLManager {
 
 // User represents a user in the system
 type User struct {
-	InternalUUID     string    `json:"id"`                         // Internal system UUID (never exposed in JWT sub)
-	Provider         string    `json:"provider"`                   // OAuth provider: "test", "google", "github", "microsoft", "azure"
-	ProviderUserID   string    `json:"provider_user_id"`           // Provider's user ID (from JWT sub claim)
+	InternalUUID     string    `json:"id"`               // Internal system UUID (never exposed in JWT sub)
+	Provider         string    `json:"provider"`         // OAuth provider: "test", "google", "github", "microsoft", "azure"
+	ProviderUserID   string    `json:"provider_user_id"` // Provider's user ID (from JWT sub claim)
 	Email            string    `json:"email"`
 	Name             string    `json:"name"`
 	EmailVerified    bool      `json:"email_verified"`
@@ -86,11 +86,11 @@ type User struct {
 	FamilyName       string    `json:"family_name,omitempty"`
 	Picture          string    `json:"picture,omitempty"`
 	Locale           string    `json:"locale,omitempty"`
-	AccessToken      string    `json:"-"`                          // OAuth access token (not exposed in JSON)
-	RefreshToken     string    `json:"-"`                          // OAuth refresh token (not exposed in JSON)
-	TokenExpiry      time.Time `json:"-"`                          // Token expiration time (not exposed in JSON)
-	IdentityProvider string    `json:"idp,omitempty"`              // DEPRECATED: Use Provider instead (kept for backward compatibility)
-	Groups           []string  `json:"groups,omitempty"`           // Groups from identity provider (not stored in DB)
+	AccessToken      string    `json:"-"`                // OAuth access token (not exposed in JSON)
+	RefreshToken     string    `json:"-"`                // OAuth refresh token (not exposed in JSON)
+	TokenExpiry      time.Time `json:"-"`                // Token expiration time (not exposed in JSON)
+	IdentityProvider string    `json:"idp,omitempty"`    // DEPRECATED: Use Provider instead (kept for backward compatibility)
+	Groups           []string  `json:"groups,omitempty"` // Groups from identity provider (not stored in DB)
 	CreatedAt        time.Time `json:"created_at"`
 	ModifiedAt       time.Time `json:"modified_at"`
 	LastLogin        time.Time `json:"last_login,omitempty"`
@@ -177,7 +177,7 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		Groups:           user.Groups,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    issuer,
-			Subject:   user.ProviderUserID, // JWT sub contains provider's user ID, NOT internal UUID
+			Subject:   user.ProviderUserID,      // JWT sub contains provider's user ID, NOT internal UUID
 			Audience:  jwt.ClaimStrings{issuer}, // The audience is the issuer itself for self-issued tokens
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

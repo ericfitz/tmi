@@ -130,7 +130,7 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 		// Validate the token (simplified for testing)
 		if authHeader == "Bearer "+accessToken {
 			c.Set("userEmail", testUser.Email)
-			c.Set("userID", testUser.ID)
+			c.Set("userID", testUser.ProviderUserID)
 		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			c.Abort()
@@ -591,9 +591,11 @@ func createSubEntityTestUserWithToken(t *testing.T, authService *auth.Service) (
 
 	// Create test user struct
 	testUser := auth.User{
-		ID:    userID,
-		Email: userEmail,
-		Name:  "Sub Entity Test User",
+		InternalUUID:   uuid.New().String(),
+		Provider:       "test",
+		ProviderUserID: userID,
+		Email:          userEmail,
+		Name:           "Sub Entity Test User",
 	}
 
 	// Create user in the database

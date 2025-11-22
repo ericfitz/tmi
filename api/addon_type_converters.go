@@ -10,9 +10,10 @@ import (
 // Helper functions to convert between internal Addon types and OpenAPI-generated types
 
 // authUserToAPIUser converts auth.User to api.User (OpenAPI generated type)
+// Note: API User.Id contains the provider's user ID (from JWT sub claim), not the internal UUID
 func authUserToAPIUser(u auth.User) User {
 	return User{
-		Id:    u.ID,
+		Id:    u.ProviderUserID, // Provider's user ID (from JWT sub claim)
 		Email: openapi_types.Email(u.Email),
 		Name:  u.Name,
 	}

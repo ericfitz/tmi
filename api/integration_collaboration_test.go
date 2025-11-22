@@ -592,8 +592,8 @@ func testCollaborationSessionsEndpoint(t *testing.T, suite *SubEntityIntegration
 
 		// Verify participant details
 		participant := session_resp.Participants[0]
-		assert.NotEmpty(t, participant.User.UserId, "Participant should have user ID")
-		assert.Equal(t, suite.testUser.Email, participant.User.UserId, "Participant should be the test user")
+		assert.NotEmpty(t, participant.User.Id, "Participant should have user ID")
+		assert.Equal(t, suite.testUser.Email, participant.User.Id, "Participant should be the test user")
 	})
 
 	t.Run("AuthenticationRequired", func(t *testing.T) {

@@ -94,8 +94,8 @@ func setupUserDeletionTest(t *testing.T) (*gin.Engine, *auth.Service, *auth.User
 	user, err := authService.CreateUser(ctx, testUser)
 	require.NoError(t, err)
 
-	// Link test provider to user
-	err = authService.LinkUserProvider(ctx, user.ID, "test", "test-provider-user-id", user.Email)
+	// Link test provider to user - DEPRECATED: provider info now on User struct
+	err = authService.LinkUserProvider(ctx, user.InternalUUID, "test", "test-provider-user-id", user.Email)
 	require.NoError(t, err)
 
 	// Generate access token
@@ -117,7 +117,7 @@ func setupUserDeletionTest(t *testing.T) (*gin.Engine, *auth.Service, *auth.User
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "Bearer "+tokens.AccessToken {
 			c.Set("userEmail", user.Email)
-			c.Set("userID", user.ID)
+			c.Set("userID", user.ProviderUserID) // JWT sub claim contains provider user ID
 		}
 		c.Next()
 	})

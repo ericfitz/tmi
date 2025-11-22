@@ -66,12 +66,11 @@ func InvokeAddon(c *gin.Context) {
 		return
 	}
 
-	// Get provider-assigned user ID (the ID from the identity provider, stored in auth.User.ID)
-	var providerUserID string
-	// The JWT sub claim contains our internal UUID, but auth.User.ID contains the provider ID
+	// Get provider-assigned user ID (the ID from the identity provider, stored in auth.User.ProviderUserID)
+	// The JWT sub claim contains the provider user ID from auth.User.ProviderUserID
 	// For now, we'll use the userEmail as a fallback and fetch the real ID from the user object
 	// This should ideally come from the JWT or context
-	providerUserID = userEmail // Temporary: use email until we fetch from auth.User
+	providerUserID := userEmail // Temporary: use email until we fetch from auth.User
 
 	// Get user display name from context
 	var userName string
@@ -267,9 +266,9 @@ func GetInvocation(c *gin.Context) {
 	}
 
 	// Authorization: user can only see their own invocations unless admin
-	if !isAdmin && invocation.InvokedBy != userID {
+	if !isAdmin && invocation.InvokedByUUID != userID {
 		logger.Warn("User %s attempted to access invocation belonging to %s",
-			userID, invocation.InvokedBy)
+			userID, invocation.InvokedByUUID)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusForbidden,
 			Code:    "forbidden",

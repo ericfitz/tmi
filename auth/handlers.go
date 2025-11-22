@@ -390,8 +390,9 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 		return err
 	}
 
-	// Link provider to user
-	h.linkProviderToUser(ctx, user.ID, stateData.ProviderID, userInfo, claims)
+	// Link provider to user - DEPRECATED: provider info is now on User struct
+	// This function is now a no-op since provider is stored directly on the user
+	h.linkProviderToUser(ctx, user.InternalUUID, stateData.ProviderID, userInfo, claims)
 
 	// Refetch user with provider ID for token generation
 	userWithProviderID, err := h.service.GetUserWithProviderID(ctx, user.Email)
@@ -778,21 +779,23 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		if err != nil {
 			// Log error but continue
 			logger := slogging.Get().WithContext(c)
-			logger.Error("Failed to update user last login: %v (user_id: %s)", err, user.ID)
+			logger.Error("Failed to update user last login: %v (user_id: %s)", err, user.InternalUUID)
 		}
 	}
 
-	// Link provider to user
+	// Link provider to user - DEPRECATED: provider info is now stored directly on User struct
+	// This code block is now a no-op since provider information (provider, provider_user_id)
+	// is stored directly on the users table
 	providerUserID := userInfo.ID
 	if providerUserID == "" && claims != nil {
 		providerUserID = claims.Subject
 	}
 	if providerUserID != "" {
-		err = h.service.LinkUserProvider(ctx, user.ID, providerID, providerUserID, email)
+		err = h.service.LinkUserProvider(ctx, user.InternalUUID, providerID, providerUserID, email)
 		if err != nil {
 			// Log error but continue
 			logger := slogging.Get().WithContext(c)
-			logger.Error("Failed to link user provider: %v (user_id: %s, provider: %s)", err, user.ID, providerID)
+			logger.Error("Failed to link user provider: %v (user_id: %s, provider: %s)", err, user.InternalUUID, providerID)
 		}
 	}
 
@@ -1446,10 +1449,11 @@ func (h *Handlers) handleImplicitOrHybridFlow(c *gin.Context, provider Provider,
 			return fmt.Errorf("failed to create user: %v", err)
 		}
 
-		// Link provider to user after creation
+		// Link provider to user after creation - DEPRECATED: provider info is now on User struct
+		// This code block is now a no-op since provider information is stored directly on users table
 		providerUserID := userInfo.ID
 		if providerUserID != "" && stateData["provider"] != "" {
-			err = h.service.LinkUserProvider(ctx, user.ID, stateData["provider"], providerUserID, email)
+			err = h.service.LinkUserProvider(ctx, user.InternalUUID, stateData["provider"], providerUserID, email)
 			if err != nil {
 				// Log error but continue
 				slogging.Get().Error("Failed to link provider in implicit flow: %v", err)
@@ -1483,7 +1487,7 @@ func (h *Handlers) handleImplicitOrHybridFlow(c *gin.Context, provider Provider,
 			"provider":   stateData["provider"],
 			"email":      user.Email,
 			"name":       user.Name,
-			"user_id":    user.ID,
+			"user_id":    user.InternalUUID,
 			"expires_at": fmt.Sprintf("%d", time.Now().Add(10*time.Minute).Unix()),
 		}
 

@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -458,14 +459,14 @@ func TestWebSocketSecuritySpoofing(t *testing.T) {
 		spoofedMsg := ChangePresenterMessage{
 			MessageType: MessageTypeChangePresenter,
 			InitiatingUser: User{
-				UserId: "host-id",
-				Email:  hostEmail,
-				Name:   "Evil Hacker", // Wrong name!
+				Id:    "host-id",
+				Email: openapi_types.Email(hostEmail),
+				Name:  "Evil Hacker", // Wrong name!
 			},
 			NewPresenter: User{
-				UserId: "someone-id",
-				Email:  "someone@example.com",
-				Name:   "Someone",
+				Id:    "someone-id",
+				Email: openapi_types.Email("someone@example.com"),
+				Name:  "Someone",
 			},
 		}
 

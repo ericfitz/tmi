@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -370,9 +371,9 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 		msg := UndoRequestMessage{
 			MessageType: "undo_request",
 			InitiatingUser: User{
-				UserId: "test-user-id",
-				Email:  "test@example.com",
-				Name:   "Test User",
+				Id:    "test-user-id",
+				Email: openapi_types.Email("test@example.com"),
+				Name:  "Test User",
 			},
 		}
 
