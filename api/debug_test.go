@@ -39,10 +39,10 @@ func TestDiagramStoreAuth(t *testing.T) {
 	}
 
 	// Test role resolution
-	role := GetUserRoleForDiagram("test@example.com", "", "", []string{}, d)
+	role := GetUserRoleForDiagram("test@example.com", "", "", "", []string{}, d)
 	slogging.Get().Debug("Role for original owner: %s", role)
 
-	newRole := GetUserRoleForDiagram("newowner@example.com", "", "", []string{}, d)
+	newRole := GetUserRoleForDiagram("newowner@example.com", "", "", "", []string{}, d)
 	slogging.Get().Debug("Role for new owner: %s", newRole)
 }
 
@@ -141,7 +141,7 @@ func TestPatchOperation(t *testing.T) {
 	}
 
 	// Check role for new user
-	newUserRole := GetUserRoleForDiagram("newowner@example.com", "", "", []string{}, modifiedDiagram)
+	newUserRole := GetUserRoleForDiagram("newowner@example.com", "", "", "", []string{}, modifiedDiagram)
 	slogging.Get().Debug("Role for new user: %s", newUserRole)
 
 	// Check that we can retrieve the modified diagram
@@ -153,6 +153,6 @@ func TestPatchOperation(t *testing.T) {
 	slogging.Get().Debug("Retrieved diagram: %+v", retrieved)
 
 	// Test role resolution for the new user
-	roleAfterRetrieval := GetUserRoleForDiagram("newowner@example.com", "", "", []string{}, retrieved)
+	roleAfterRetrieval := GetUserRoleForDiagram("newowner@example.com", "", "", "", []string{}, retrieved)
 	slogging.Get().Debug("Role after retrieval: %s", roleAfterRetrieval)
 }
