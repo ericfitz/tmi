@@ -5752,18 +5752,24 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "grant_type": {
+                    "type": "string",
+                    "description": "OAuth 2.0 grant type (RFC 6749)",
+                    "enum": ["authorization_code"],
+                    "example": "authorization_code"
+                  },
                   "code": {
                     "type": "string",
                     "description": "Authorization code received from OAuth provider",
                     "example": "0AX4XfWiXY2BZ_example_auth_code_from_google",
-                    "pattern": "^[a-zA-Z0-9_-]*$",
+                    "pattern": "^[a-zA-Z0-9_=-]*$",
                     "maxLength": 512
                   },
                   "state": {
                     "type": "string",
                     "description": "State parameter for CSRF protection (optional but recommended)",
                     "example": "random_state_value_abc123",
-                    "pattern": "^[a-zA-Z0-9_-]*$",
+                    "pattern": "^[a-zA-Z0-9_=-]*$",
                     "maxLength": 256
                   },
                   "redirect_uri": {
@@ -5776,6 +5782,7 @@
                   }
                 },
                 "required": [
+                  "grant_type",
                   "code",
                   "redirect_uri"
                 ],

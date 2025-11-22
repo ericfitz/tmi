@@ -519,16 +519,18 @@ func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, provider
 	if err != nil {
 		// Create a new user with provider data
 		user = User{
-			Email:         email,
-			Name:          name,
-			EmailVerified: userInfo.EmailVerified,
-			GivenName:     userInfo.GivenName,
-			FamilyName:    userInfo.FamilyName,
-			Picture:       userInfo.Picture,
-			Locale:        userInfo.Locale,
-			CreatedAt:     time.Now(),
-			ModifiedAt:    time.Now(),
-			LastLogin:     time.Now(),
+			Provider:       providerID,
+			ProviderUserID: userInfo.ID,
+			Email:          email,
+			Name:           name,
+			EmailVerified:  userInfo.EmailVerified,
+			GivenName:      userInfo.GivenName,
+			FamilyName:     userInfo.FamilyName,
+			Picture:        userInfo.Picture,
+			Locale:         userInfo.Locale,
+			CreatedAt:      time.Now(),
+			ModifiedAt:     time.Now(),
+			LastLogin:      time.Now(),
 		}
 
 		// Set default locale if not provided
@@ -758,11 +760,13 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	if err != nil {
 		// Create new user
 		user = User{
-			Email:      email,
-			Name:       name,
-			CreatedAt:  time.Now(),
-			ModifiedAt: time.Now(),
-			LastLogin:  time.Now(),
+			Provider:       providerID,
+			ProviderUserID: userInfo.ID,
+			Email:          email,
+			Name:           name,
+			CreatedAt:      time.Now(),
+			ModifiedAt:     time.Now(),
+			LastLogin:      time.Now(),
 		}
 
 		user, err = h.service.CreateUser(ctx, user)
@@ -1437,30 +1441,25 @@ func (h *Handlers) handleImplicitOrHybridFlow(c *gin.Context, provider Provider,
 
 	user, err := h.service.GetUserByEmail(ctx, email)
 	if err != nil {
-		// Create a new user
+		// Create a new user with provider information
+		providerID := stateData["provider"]
+		if providerID == "" {
+			providerID = "test" // Default to test provider
+		}
+
 		user = User{
-			Email:      email,
-			Name:       name,
-			CreatedAt:  time.Now(),
-			ModifiedAt: time.Now(),
-			LastLogin:  time.Now(),
+			Provider:       providerID,
+			ProviderUserID: userInfo.ID,
+			Email:          email,
+			Name:           name,
+			CreatedAt:      time.Now(),
+			ModifiedAt:     time.Now(),
+			LastLogin:      time.Now(),
 		}
 
 		user, err = h.service.CreateUser(ctx, user)
 		if err != nil {
 			return fmt.Errorf("failed to create user: %v", err)
-		}
-
-		// Link provider to user after creation - DEPRECATED: provider info is now on User struct
-		// This code block is now a no-op since provider information is stored directly on users table
-		providerUserID := userInfo.ID
-		if providerUserID != "" && stateData["provider"] != "" {
-			//nolint:staticcheck // Deprecated function kept for backward compatibility
-			err = h.service.LinkUserProvider(ctx, user.InternalUUID, stateData["provider"], providerUserID, email)
-			if err != nil {
-				// Log error but continue
-				slogging.Get().Error("Failed to link provider in implicit flow: %v", err)
-			}
 		}
 	}
 
