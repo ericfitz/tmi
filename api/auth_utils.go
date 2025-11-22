@@ -154,6 +154,11 @@ const (
 	// EveryonePseudoGroup is a special group that matches all authenticated users
 	// regardless of their identity provider or actual group memberships
 	EveryonePseudoGroup = "everyone"
+
+	// EveryonePseudoGroupUUID is the flag UUID used to represent the "everyone" pseudo-group
+	// in the database. This allows storing "everyone" in a UUID column (subject_internal_uuid).
+	// The zero UUID (all zeros) is used as it will never conflict with real user UUIDs.
+	EveryonePseudoGroupUUID = "00000000-0000-0000-0000-000000000000"
 )
 
 // AuthorizationData represents abstracted authorization data for any resource

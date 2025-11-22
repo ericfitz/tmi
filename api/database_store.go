@@ -710,6 +710,11 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string) ([]Au
 			subjectType = AuthorizationSubjectTypeUser
 		}
 
+		// Map the flag UUID back to "everyone" pseudo-group
+		if subjectTypeStr == "group" && subject == EveryonePseudoGroupUUID {
+			subject = EveryonePseudoGroup
+		}
+
 		auth := Authorization{
 			Subject:     subject,
 			SubjectType: subjectType,
@@ -975,6 +980,7 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 		}
 
 		// For user subjects, resolve identifier to internal_uuid
+		// For groups, handle the "everyone" pseudo-group specially
 		subjectValue := auth.Subject
 		if subjectTypeStr == "user" {
 			resolvedUUID, err := s.resolveUserIdentifierToUUID(tx, auth.Subject)
@@ -985,6 +991,9 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 			} else {
 				subjectValue = resolvedUUID
 			}
+		} else if subjectTypeStr == "group" && auth.Subject == EveryonePseudoGroup {
+			// Map "everyone" pseudo-group to the flag UUID for database storage
+			subjectValue = EveryonePseudoGroupUUID
 		}
 
 		query := `

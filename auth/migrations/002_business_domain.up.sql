@@ -244,6 +244,22 @@ CREATE TABLE IF NOT EXISTS authorization_groups (
 );
 
 -- ============================================================================
+-- INITIAL DATA
+-- ============================================================================
+
+-- Pre-create the "everyone" pseudo-group with the flag UUID
+-- This special group grants access to all authenticated users
+INSERT INTO authorization_groups (id, idp, group_name, display_name, usage_count)
+VALUES (
+    '00000000-0000-0000-0000-000000000000'::uuid,
+    '*',
+    'everyone',
+    'Everyone (Pseudo-group)',
+    0
+)
+ON CONFLICT (idp, group_name) DO NOTHING;
+
+-- ============================================================================
 -- INDEXES
 -- ============================================================================
 
