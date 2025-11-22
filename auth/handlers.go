@@ -596,6 +596,7 @@ func (h *Handlers) linkProviderToUser(ctx context.Context, userID, providerID st
 	}
 
 	if providerUserID != "" {
+		//nolint:staticcheck // Deprecated function kept for backward compatibility
 		err := h.service.LinkUserProvider(ctx, userID, providerID, providerUserID, userInfo.Email)
 		if err != nil {
 			logger := slogging.Get()
@@ -791,6 +792,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		providerUserID = claims.Subject
 	}
 	if providerUserID != "" {
+		//nolint:staticcheck // Deprecated function kept for backward compatibility
 		err = h.service.LinkUserProvider(ctx, user.InternalUUID, providerID, providerUserID, email)
 		if err != nil {
 			// Log error but continue
@@ -1453,6 +1455,7 @@ func (h *Handlers) handleImplicitOrHybridFlow(c *gin.Context, provider Provider,
 		// This code block is now a no-op since provider information is stored directly on users table
 		providerUserID := userInfo.ID
 		if providerUserID != "" && stateData["provider"] != "" {
+			//nolint:staticcheck // Deprecated function kept for backward compatibility
 			err = h.service.LinkUserProvider(ctx, user.InternalUUID, stateData["provider"], providerUserID, email)
 			if err != nil {
 				// Log error but continue

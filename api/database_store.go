@@ -72,7 +72,7 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	var createdAt, modifiedAt time.Time
 
 	query := `
-		SELECT id, name, description, owner_email, created_by,
+		SELECT id, name, description, owner_internal_uuid, created_by,
 		       threat_model_framework, issue_uri, status, status_updated,
 		       created_at, modified_at
 		FROM threat_models
@@ -166,7 +166,7 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 	var results []ThreatModel
 
 	query := `
-		SELECT id, name, description, owner_email, created_by,
+		SELECT id, name, description, owner_internal_uuid, created_by,
 		       threat_model_framework, issue_uri, status, status_updated,
 		       created_at, modified_at
 		FROM threat_models
@@ -256,7 +256,7 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 	var results []ThreatModelWithCounts
 
 	query := `
-		SELECT id, name, description, owner_email, created_by,
+		SELECT id, name, description, owner_internal_uuid, created_by,
 		       threat_model_framework, issue_uri, status, status_updated,
 		       created_at, modified_at
 		FROM threat_models
@@ -458,7 +458,7 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 
 	// Insert threat model
 	query := `
-		INSERT INTO threat_models (id, name, description, owner_email, created_by,
+		INSERT INTO threat_models (id, name, description, owner_internal_uuid, created_by,
 		                          threat_model_framework, issue_uri, status, status_updated,
 		                          created_at, modified_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
@@ -545,7 +545,7 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 	// Update threat model
 	query := `
 		UPDATE threat_models
-		SET name = $2, description = $3, owner_email = $4, created_by = $5,
+		SET name = $2, description = $3, owner_internal_uuid = $4, created_by = $5,
 		    threat_model_framework = $6, issue_uri = $7, status = $8, status_updated = $9,
 		    modified_at = $10
 		WHERE id = $1`

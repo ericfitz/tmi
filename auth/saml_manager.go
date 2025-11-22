@@ -191,6 +191,7 @@ func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, 
 		// Link or update the SAML provider for the existing user - DEPRECATED: provider info on User struct
 		// This code block is now a no-op since provider information is stored directly on users table
 		if userInfo.ID != "" {
+			//nolint:staticcheck // Deprecated function kept for backward compatibility
 			if err := m.service.LinkUserProvider(ctx, existingUser.InternalUUID, providerID, userInfo.ID, userInfo.Email); err != nil {
 				// Log the error but don't fail - user was updated successfully
 				logger := slogging.Get()
@@ -223,6 +224,7 @@ func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, 
 	// Link the SAML provider to the newly created user - DEPRECATED: provider info on User struct
 	// This code block is now a no-op since provider information is stored directly on users table
 	if userInfo.ID != "" {
+		//nolint:staticcheck // Deprecated function kept for backward compatibility
 		if err := m.service.LinkUserProvider(ctx, createdUser.InternalUUID, providerID, userInfo.ID, userInfo.Email); err != nil {
 			// Log the error but don't fail - user was created successfully
 			logger := slogging.Get()

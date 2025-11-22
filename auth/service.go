@@ -292,11 +292,17 @@ func (s *Service) RevokeToken(ctx context.Context, refreshToken string) error {
 
 // GetUserByEmail gets a user by email
 func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	// Try cache first
+	cachedUser, err := s.GetCachedUserByEmail(ctx, email)
+	if err == nil && cachedUser != nil {
+		return *cachedUser, nil
+	}
+
 	db := s.dbManager.Postgres().GetDB()
 
 	var user User
 	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, given_name, family_name, picture, locale, access_token, refresh_token, token_expiry, created_at, modified_at, last_login FROM users WHERE email = $1`
-	err := db.QueryRowContext(ctx, query, email).Scan(
+	err = db.QueryRowContext(ctx, query, email).Scan(
 		&user.InternalUUID,
 		&user.Provider,
 		&user.ProviderUserID,
@@ -325,17 +331,30 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 
 	// Set IdentityProvider for backward compatibility
 	user.IdentityProvider = user.Provider
+
+	// Cache the user for future lookups
+	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
+		logger := slogging.Get()
+		logger.Warn("Failed to cache user after lookup: %v", cacheErr)
+		// Don't fail the request, just log the cache error
+	}
 
 	return user, nil
 }
 
 // GetUserByID gets a user by internal UUID
 func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
+	// Try cache first
+	cachedUser, err := s.GetCachedUserByID(ctx, id)
+	if err == nil && cachedUser != nil {
+		return *cachedUser, nil
+	}
+
 	db := s.dbManager.Postgres().GetDB()
 
 	var user User
 	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, given_name, family_name, picture, locale, access_token, refresh_token, token_expiry, created_at, modified_at, last_login FROM users WHERE internal_uuid = $1`
-	err := db.QueryRowContext(ctx, query, id).Scan(
+	err = db.QueryRowContext(ctx, query, id).Scan(
 		&user.InternalUUID,
 		&user.Provider,
 		&user.ProviderUserID,
@@ -364,6 +383,13 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 
 	// Set IdentityProvider for backward compatibility
 	user.IdentityProvider = user.Provider
+
+	// Cache the user for future lookups
+	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
+		logger := slogging.Get()
+		logger.Warn("Failed to cache user after lookup: %v", cacheErr)
+		// Don't fail the request, just log the cache error
+	}
 
 	return user, nil
 }
@@ -434,6 +460,13 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 	// Set IdentityProvider for backward compatibility
 	user.IdentityProvider = user.Provider
 
+	// Cache the newly created user
+	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
+		logger := slogging.Get()
+		logger.Warn("Failed to cache newly created user: %v", cacheErr)
+		// Don't fail the request, just log the cache error
+	}
+
 	return user, nil
 }
 
@@ -481,11 +514,24 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 		return errors.New("user not found")
 	}
 
+	// Invalidate cache after update
+	if cacheErr := s.InvalidateUserCache(ctx, user); cacheErr != nil {
+		logger := slogging.Get()
+		logger.Warn("Failed to invalidate user cache after update: %v", cacheErr)
+		// Don't fail the request, just log the cache error
+	}
+
 	return nil
 }
 
 // DeleteUser deletes a user by internal UUID
 func (s *Service) DeleteUser(ctx context.Context, id string) error {
+	// Get user before deletion for cache invalidation
+	user, err := s.GetUserByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	db := s.dbManager.Postgres().GetDB()
 
 	query := `DELETE FROM users WHERE internal_uuid = $1`
@@ -504,6 +550,13 @@ func (s *Service) DeleteUser(ctx context.Context, id string) error {
 		return errors.New("user not found")
 	}
 
+	// Invalidate cache after deletion
+	if cacheErr := s.InvalidateUserCache(ctx, user); cacheErr != nil {
+		logger := slogging.Get()
+		logger.Warn("Failed to invalidate user cache after deletion: %v", cacheErr)
+		// Don't fail the request, just log the cache error
+	}
+
 	return nil
 }
 
@@ -519,157 +572,124 @@ type UserProvider struct {
 	LastLogin      time.Time `json:"last_login,omitempty"`
 }
 
-// GetUserProviders gets the OAuth providers for a user
+// GetUserProviders gets the OAuth provider for a user
+// Note: In the new architecture, each user has exactly one provider
 func (s *Service) GetUserProviders(ctx context.Context, userID string) ([]UserProvider, error) {
 	db := s.dbManager.Postgres().GetDB()
 
 	query := `
-		SELECT id, user_id, provider, provider_user_id, email, is_primary, created_at, last_login
-		FROM user_providers
-		WHERE user_id = $1
+		SELECT internal_uuid, provider, provider_user_id, email, created_at, last_login
+		FROM users
+		WHERE internal_uuid = $1
 	`
 
-	rows, err := db.QueryContext(ctx, query, userID)
+	var user struct {
+		InternalUUID   string
+		Provider       string
+		ProviderUserID string
+		Email          string
+		CreatedAt      time.Time
+		LastLogin      *time.Time
+	}
+
+	err := db.QueryRowContext(ctx, query, userID).Scan(
+		&user.InternalUUID,
+		&user.Provider,
+		&user.ProviderUserID,
+		&user.Email,
+		&user.CreatedAt,
+		&user.LastLogin,
+	)
+
+	if err == sql.ErrNoRows {
+		return []UserProvider{}, nil // User not found, return empty array
+	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user providers: %w", err)
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			slogging.Get().Error("Error closing rows: %v", err)
-		}
-	}()
-
-	var providers []UserProvider
-	for rows.Next() {
-		var provider UserProvider
-		err := rows.Scan(
-			&provider.ID,
-			&provider.UserID,
-			&provider.Provider,
-			&provider.ProviderUserID,
-			&provider.Email,
-			&provider.IsPrimary,
-			&provider.CreatedAt,
-			&provider.LastLogin,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan user provider: %w", err)
-		}
-		providers = append(providers, provider)
+		return nil, fmt.Errorf("failed to get user provider: %w", err)
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating user providers: %w", err)
+	// Convert to UserProvider format (single provider)
+	lastLogin := time.Time{} // Zero value
+	if user.LastLogin != nil {
+		lastLogin = *user.LastLogin
+	}
+
+	providers := []UserProvider{
+		{
+			ID:             user.InternalUUID, // Use internal UUID as provider record ID
+			UserID:         user.InternalUUID,
+			Provider:       user.Provider,
+			ProviderUserID: user.ProviderUserID,
+			Email:          user.Email,
+			IsPrimary:      true, // Always true since there's only one provider per user now
+			CreatedAt:      user.CreatedAt,
+			LastLogin:      lastLogin,
+		},
 	}
 
 	return providers, nil
 }
 
 // LinkUserProvider links an OAuth provider to a user
+// LinkUserProvider is deprecated - provider information is now stored directly on the User struct
+// This function is kept for backward compatibility but is now a no-op.
+// Provider linking happens automatically during user creation via the provider, provider_user_id fields.
+//
+// Deprecated: Use CreateUser or UpdateUser with provider fields instead.
 func (s *Service) LinkUserProvider(ctx context.Context, userID, provider, providerUserID, email string) error {
-	db := s.dbManager.Postgres().GetDB()
-
-	// Check if the provider is already linked to the user
-	var count int
-	err := db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM user_providers
-		WHERE user_id = $1 AND provider = $2
-	`, userID, provider).Scan(&count)
-
-	if err != nil {
-		return fmt.Errorf("failed to check existing provider: %w", err)
-	}
-
-	if count > 0 {
-		// Provider already linked, update it
-		_, err := db.ExecContext(ctx, `
-			UPDATE user_providers
-			SET provider_user_id = $3, email = $4, last_login = $5
-			WHERE user_id = $1 AND provider = $2
-		`, userID, provider, providerUserID, email, time.Now())
-
-		if err != nil {
-			return fmt.Errorf("failed to update provider: %w", err)
-		}
-	} else {
-		// Provider not linked, insert it
-		_, err := db.ExecContext(ctx, `
-			INSERT INTO user_providers (id, user_id, provider, provider_user_id, email, is_primary, created_at, last_login)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		`, uuid.New().String(), userID, provider, providerUserID, email, count == 0, time.Now(), time.Now())
-
-		if err != nil {
-			return fmt.Errorf("failed to link provider: %w", err)
-		}
-	}
-
+	// DEPRECATED: user_providers table has been eliminated
+	// Provider information is now stored directly on users table (provider, provider_user_id fields)
+	// This function is maintained for backward compatibility but performs no operation
+	logger := slogging.Get()
+	logger.Debug("LinkUserProvider called (deprecated no-op): userID=%s, provider=%s", userID, provider)
 	return nil
 }
 
-// UnlinkUserProvider unlinks an OAuth provider from a user
+// UnlinkUserProvider is deprecated - provider information is now stored directly on the User struct
+// With the new architecture, each user has exactly one provider (stored in provider, provider_user_id fields).
+// Unlinking a provider would require deleting the user entirely.
+//
+// Deprecated: Provider unlinking is not supported in the new architecture.
+// Each user is tied to exactly one OAuth provider.
 func (s *Service) UnlinkUserProvider(ctx context.Context, userID, provider string) error {
-	db := s.dbManager.Postgres().GetDB()
-
-	// Check if this is the only provider for the user
-	var count int
-	err := db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM user_providers
-		WHERE user_id = $1
-	`, userID).Scan(&count)
-
-	if err != nil {
-		return fmt.Errorf("failed to count user providers: %w", err)
-	}
-
-	if count <= 1 {
-		return errors.New("cannot unlink the only provider for a user")
-	}
-
-	// Delete the provider
-	result, err := db.ExecContext(ctx, `
-		DELETE FROM user_providers
-		WHERE user_id = $1 AND provider = $2
-	`, userID, provider)
-
-	if err != nil {
-		return fmt.Errorf("failed to unlink provider: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return errors.New("provider not found")
-	}
-
-	return nil
+	// DEPRECATED: user_providers table has been eliminated
+	// In the new architecture, users have a single provider (provider, provider_user_id fields)
+	// Unlinking a provider is not supported - the user would need to be deleted instead
+	logger := slogging.Get()
+	logger.Warn("UnlinkUserProvider called (deprecated, not supported): userID=%s, provider=%s", userID, provider)
+	return errors.New("unlinking providers is not supported in the current architecture - each user is tied to one provider")
 }
 
-// GetPrimaryProviderID gets the primary provider ID for a user
+// GetPrimaryProviderID gets the provider user ID for a user
+// Note: In the new architecture, each user has exactly one provider stored directly on the users table
 func (s *Service) GetPrimaryProviderID(ctx context.Context, userID string) (string, error) {
 	db := s.dbManager.Postgres().GetDB()
 
 	var providerUserID string
 	query := `
-		SELECT provider_user_id 
-		FROM user_providers 
-		WHERE user_id = $1 AND is_primary = true
+		SELECT provider_user_id
+		FROM users
+		WHERE internal_uuid = $1
 		LIMIT 1
 	`
 	err := db.QueryRowContext(ctx, query, userID).Scan(&providerUserID)
 	if err == sql.ErrNoRows {
-		return "", nil // No primary provider
+		return "", nil // User not found
 	}
 	if err != nil {
-		return "", fmt.Errorf("failed to get primary provider ID: %w", err)
+		return "", fmt.Errorf("failed to get provider user ID: %w", err)
 	}
 	return providerUserID, nil
 }
 
 // GetUserByProviderID gets a user by provider and provider user ID
 func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUserID string) (User, error) {
+	// Try cache first
+	cachedUser, err := s.GetCachedUserByProvider(ctx, provider, providerUserID)
+	if err == nil && cachedUser != nil {
+		return *cachedUser, nil
+	}
+
 	db := s.dbManager.Postgres().GetDB()
 
 	var user User
@@ -678,7 +698,7 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 		FROM users
 		WHERE provider = $1 AND provider_user_id = $2
 	`
-	err := db.QueryRowContext(ctx, query, provider, providerUserID).Scan(
+	err = db.QueryRowContext(ctx, query, provider, providerUserID).Scan(
 		&user.InternalUUID,
 		&user.Provider,
 		&user.ProviderUserID,
@@ -707,6 +727,13 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 
 	// Set IdentityProvider for backward compatibility
 	user.IdentityProvider = user.Provider
+
+	// Cache the user for future lookups
+	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
+		logger := slogging.Get()
+		logger.Warn("Failed to cache user after lookup: %v", cacheErr)
+		// Don't fail the request, just log the cache error
+	}
 
 	return user, nil
 }
@@ -755,6 +782,156 @@ func (s *Service) GetUserByAnyProviderID(ctx context.Context, providerUserID str
 	user.IdentityProvider = user.Provider
 
 	return user, nil
+}
+
+// User Caching Methods
+
+const (
+	// UserCacheTTL defines how long user data is cached
+	UserCacheTTL = 15 * time.Minute
+)
+
+// CacheUser stores a user in Redis cache with multiple lookup keys
+func (s *Service) CacheUser(ctx context.Context, user User) error {
+	logger := slogging.Get()
+	redis := s.dbManager.Redis()
+	builder := db.NewRedisKeyBuilder()
+
+	// Marshal user data
+	data, err := json.Marshal(user)
+	if err != nil {
+		logger.Error("Failed to marshal user for cache: %v", err)
+		return fmt.Errorf("failed to marshal user: %w", err)
+	}
+
+	// Cache by internal UUID (primary key)
+	keyByID := builder.CacheUserKey(user.InternalUUID)
+	if err := redis.Set(ctx, keyByID, string(data), UserCacheTTL); err != nil {
+		logger.Error("Failed to cache user by ID %s: %v", user.InternalUUID, err)
+		return fmt.Errorf("failed to cache user by ID: %w", err)
+	}
+
+	// Cache by email (secondary key)
+	keyByEmail := builder.CacheUserByEmailKey(user.Email)
+	if err := redis.Set(ctx, keyByEmail, string(data), UserCacheTTL); err != nil {
+		logger.Error("Failed to cache user by email %s: %v", user.Email, err)
+		return fmt.Errorf("failed to cache user by email: %w", err)
+	}
+
+	// Cache by provider + provider_user_id (tertiary key)
+	keyByProvider := builder.CacheUserByProviderKey(user.Provider, user.ProviderUserID)
+	if err := redis.Set(ctx, keyByProvider, string(data), UserCacheTTL); err != nil {
+		logger.Error("Failed to cache user by provider %s:%s: %v", user.Provider, user.ProviderUserID, err)
+		return fmt.Errorf("failed to cache user by provider: %w", err)
+	}
+
+	logger.Debug("Cached user %s with TTL %v", user.InternalUUID, UserCacheTTL)
+	return nil
+}
+
+// GetCachedUserByID retrieves a user from cache by internal UUID
+func (s *Service) GetCachedUserByID(ctx context.Context, userID string) (*User, error) {
+	logger := slogging.Get()
+	redis := s.dbManager.Redis()
+	builder := db.NewRedisKeyBuilder()
+
+	key := builder.CacheUserKey(userID)
+	data, err := redis.Get(ctx, key)
+	if err != nil {
+		if err.Error() == "redis: nil" {
+			logger.Debug("Cache miss for user ID %s", userID)
+			return nil, nil // Cache miss
+		}
+		logger.Error("Failed to get cached user by ID %s: %v", userID, err)
+		return nil, fmt.Errorf("failed to get cached user: %w", err)
+	}
+
+	var user User
+	if err := json.Unmarshal([]byte(data), &user); err != nil {
+		logger.Error("Failed to unmarshal cached user %s: %v", userID, err)
+		return nil, fmt.Errorf("failed to unmarshal cached user: %w", err)
+	}
+
+	logger.Debug("Cache hit for user ID %s", userID)
+	return &user, nil
+}
+
+// GetCachedUserByEmail retrieves a user from cache by email
+func (s *Service) GetCachedUserByEmail(ctx context.Context, email string) (*User, error) {
+	logger := slogging.Get()
+	redis := s.dbManager.Redis()
+	builder := db.NewRedisKeyBuilder()
+
+	key := builder.CacheUserByEmailKey(email)
+	data, err := redis.Get(ctx, key)
+	if err != nil {
+		if err.Error() == "redis: nil" {
+			logger.Debug("Cache miss for user email %s", email)
+			return nil, nil // Cache miss
+		}
+		logger.Error("Failed to get cached user by email %s: %v", email, err)
+		return nil, fmt.Errorf("failed to get cached user: %w", err)
+	}
+
+	var user User
+	if err := json.Unmarshal([]byte(data), &user); err != nil {
+		logger.Error("Failed to unmarshal cached user %s: %v", email, err)
+		return nil, fmt.Errorf("failed to unmarshal cached user: %w", err)
+	}
+
+	logger.Debug("Cache hit for user email %s", email)
+	return &user, nil
+}
+
+// GetCachedUserByProvider retrieves a user from cache by provider and provider user ID
+func (s *Service) GetCachedUserByProvider(ctx context.Context, provider, providerUserID string) (*User, error) {
+	logger := slogging.Get()
+	redis := s.dbManager.Redis()
+	builder := db.NewRedisKeyBuilder()
+
+	key := builder.CacheUserByProviderKey(provider, providerUserID)
+	data, err := redis.Get(ctx, key)
+	if err != nil {
+		if err.Error() == "redis: nil" {
+			logger.Debug("Cache miss for user provider %s:%s", provider, providerUserID)
+			return nil, nil // Cache miss
+		}
+		logger.Error("Failed to get cached user by provider %s:%s: %v", provider, providerUserID, err)
+		return nil, fmt.Errorf("failed to get cached user: %w", err)
+	}
+
+	var user User
+	if err := json.Unmarshal([]byte(data), &user); err != nil {
+		logger.Error("Failed to unmarshal cached user %s:%s: %v", provider, providerUserID, err)
+		return nil, fmt.Errorf("failed to unmarshal cached user: %w", err)
+	}
+
+	logger.Debug("Cache hit for user provider %s:%s", provider, providerUserID)
+	return &user, nil
+}
+
+// InvalidateUserCache removes a user from all cache keys
+func (s *Service) InvalidateUserCache(ctx context.Context, user User) error {
+	logger := slogging.Get()
+	redis := s.dbManager.Redis()
+	builder := db.NewRedisKeyBuilder()
+
+	// Delete all three cache keys
+	keys := []string{
+		builder.CacheUserKey(user.InternalUUID),
+		builder.CacheUserByEmailKey(user.Email),
+		builder.CacheUserByProviderKey(user.Provider, user.ProviderUserID),
+	}
+
+	for _, key := range keys {
+		if err := redis.Del(ctx, key); err != nil {
+			logger.Error("Failed to invalidate user cache key %s: %v", key, err)
+			return fmt.Errorf("failed to invalidate user cache: %w", err)
+		}
+	}
+
+	logger.Debug("Invalidated user cache for %s", user.InternalUUID)
+	return nil
 }
 
 // deriveIssuer derives the issuer URL from the OAuth callback URL

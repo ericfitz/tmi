@@ -63,9 +63,19 @@ func (b *RedisKeyBuilder) RateLimitAPIKey(apiKey, endpoint string) string {
 
 // Cache keys
 
-// CacheUserKey builds a user cache key
+// CacheUserKey builds a user cache key by internal UUID
 func (b *RedisKeyBuilder) CacheUserKey(userID string) string {
 	return fmt.Sprintf("cache:user:%s", userID)
+}
+
+// CacheUserByEmailKey builds a user cache key by email
+func (b *RedisKeyBuilder) CacheUserByEmailKey(email string) string {
+	return fmt.Sprintf("cache:user:email:%s", email)
+}
+
+// CacheUserByProviderKey builds a user cache key by provider and provider user ID
+func (b *RedisKeyBuilder) CacheUserByProviderKey(provider, providerUserID string) string {
+	return fmt.Sprintf("cache:user:provider:%s:%s", provider, providerUserID)
 }
 
 // CacheThreatModelKey builds a threat model cache key

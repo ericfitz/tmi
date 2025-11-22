@@ -496,11 +496,12 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 	logger := slogging.Get()
 	logger.Debug("Retrieving inherited authorization data for threat model %s", threatModelID)
 
-	// Query threat model to get owner
+	// Query threat model to get owner (joining with users table to get email from internal_uuid)
 	threatModelQuery := `
-		SELECT owner_email, created_by
-		FROM threat_models 
-		WHERE id = $1
+		SELECT u.email, tm.created_by
+		FROM threat_models tm
+		JOIN users u ON tm.owner_internal_uuid = u.internal_uuid
+		WHERE tm.id = $1
 	`
 
 	var ownerEmail, createdBy string

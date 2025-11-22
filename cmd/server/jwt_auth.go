@@ -135,10 +135,10 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 		return fmt.Errorf("invalid token claims")
 	}
 
-	// Extract user ID (sub claim)
+	// Extract provider user ID (sub claim contains provider's user ID, NOT internal UUID)
 	if sub, ok := claims["sub"].(string); ok {
-		logger.Debug("Authenticated user ID: %s", sub)
-		c.Set("userID", sub)
+		logger.Debug("Authenticated provider user ID: %s", sub)
+		c.Set("userID", sub) // For backward compatibility, this is provider_user_id
 
 		// Extract role if present
 		if roleValue, hasRole := claims["role"]; hasRole {
@@ -164,11 +164,12 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 			}
 		}
 
-		// Extract IdP if present
+		// Extract IdP (provider) if present
 		if idpValue, hasIdP := claims["idp"]; hasIdP {
 			if idp, ok := idpValue.(string); ok {
 				logger.Debug("User IdP from token: %s", idp)
 				c.Set("userIdP", idp)
+				c.Set("userProvider", idp) // Set both for compatibility
 			}
 		}
 
@@ -186,7 +187,7 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 			}
 		}
 
-		// Fetch full user object if auth handlers are available
+		// Fetch full user object using provider + provider_user_id
 		if err := e.fetchAndSetUserObject(c); err != nil {
 			logger.Debug("Failed to fetch full user object: %v", err)
 			// Continue execution even if we can't fetch the full user object
@@ -204,7 +205,7 @@ func (e *ClaimsExtractor) fetchAndSetUserObject(c *gin.Context) error {
 
 	logger := slogging.GetContextLogger(c)
 
-	// Get the auth service from the handlers to fetch user by ID
+	// Get the auth service from the handlers to fetch user by provider + provider_user_id
 	dbManager := auth.GetDatabaseManager()
 	if dbManager == nil {
 		return fmt.Errorf("database manager not available")
@@ -215,7 +216,26 @@ func (e *ClaimsExtractor) fetchAndSetUserObject(c *gin.Context) error {
 		return fmt.Errorf("failed to create auth service for user lookup: %w", err)
 	}
 
-	// If we have email from claims, use it. Otherwise try to get user by ID
+	// Get provider and provider_user_id from context
+	provider := c.GetString("userProvider")
+	providerUserID := c.GetString("userID") // This contains provider_user_id from JWT sub claim
+
+	if provider != "" && providerUserID != "" {
+		// Look up user by provider + provider_user_id (uses cache if available)
+		user, err := service.GetUserByProviderID(c.Request.Context(), provider, providerUserID)
+		if err != nil {
+			return fmt.Errorf("failed to fetch user by provider %s:%s: %w", provider, providerUserID, err)
+		}
+
+		// Set the full user object in context using auth package's expected key
+		c.Set(string(auth.UserContextKey), user)
+		// Also set the internal UUID for handlers that need it
+		c.Set("userInternalUUID", user.InternalUUID)
+		logger.Debug("Full user object set in context for user: %s (internal_uuid: %s)", user.Email, user.InternalUUID)
+		return nil
+	}
+
+	// Fallback: If we have email from claims, use it
 	if email := c.GetString("userEmail"); email != "" {
 		user, err := service.GetUserByEmail(c.Request.Context(), email)
 		if err != nil {
@@ -224,11 +244,13 @@ func (e *ClaimsExtractor) fetchAndSetUserObject(c *gin.Context) error {
 
 		// Set the full user object in context using auth package's expected key
 		c.Set(string(auth.UserContextKey), user)
-		logger.Debug("Full user object set in context for user: %s", user.Email)
+		// Also set the internal UUID for handlers that need it
+		c.Set("userInternalUUID", user.InternalUUID)
+		logger.Debug("Full user object set in context for user: %s (internal_uuid: %s)", user.Email, user.InternalUUID)
+		return nil
 	}
-	// TODO: Add GetUserByID method to service
 
-	return nil
+	return fmt.Errorf("insufficient claims to fetch user object")
 }
 
 // JWTAuthenticator orchestrates the JWT authentication process
