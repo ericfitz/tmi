@@ -19,10 +19,13 @@ type AddonInvocation struct {
 	ThreatModelID   uuid.UUID  `json:"threat_model_id"`
 	ObjectType      string     `json:"object_type,omitempty"`
 	ObjectID        *uuid.UUID `json:"object_id,omitempty"`
-	InvokedBy       uuid.UUID  `json:"invoked_by"`
-	Payload         string     `json:"payload"`        // JSON string
-	Status          string     `json:"status"`         // pending, in_progress, completed, failed
-	StatusPercent   int        `json:"status_percent"` // 0-100
+	InvokedByUUID   uuid.UUID  `json:"invoked_by_uuid"`  // Internal user UUID (for rate limiting, quotas)
+	InvokedByID     string     `json:"invoked_by_id"`    // Provider-assigned user ID (for API responses)
+	InvokedByEmail  string     `json:"invoked_by_email"` // User email
+	InvokedByName   string     `json:"invoked_by_name"`  // User display name
+	Payload         string     `json:"payload"`          // JSON string
+	Status          string     `json:"status"`           // pending, in_progress, completed, failed
+	StatusPercent   int        `json:"status_percent"`   // 0-100
 	StatusMessage   string     `json:"status_message,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	StatusUpdatedAt time.Time  `json:"status_updated_at"`
@@ -121,16 +124,16 @@ func (s *AddonInvocationRedisStore) Create(ctx context.Context, invocation *Addo
 
 	// Track active invocation for user if status is pending/in_progress
 	if invocation.Status == InvocationStatusPending || invocation.Status == InvocationStatusInProgress {
-		activeKey := s.buildActiveUserKey(invocation.InvokedBy)
+		activeKey := s.buildActiveUserKey(invocation.InvokedByUUID)
 		err = s.redis.Set(ctx, activeKey, invocation.ID.String(), time.Hour)
 		if err != nil {
-			logger.Error("Failed to track active invocation for user %s: %v", invocation.InvokedBy, err)
+			logger.Error("Failed to track active invocation for user %s: %v", invocation.InvokedByUUID, err)
 			// Don't fail the create operation for this
 		}
 	}
 
 	logger.Info("Invocation created: id=%s, addon_id=%s, user=%s, status=%s",
-		invocation.ID, invocation.AddonID, invocation.InvokedBy, invocation.Status)
+		invocation.ID, invocation.AddonID, invocation.InvokedByID, invocation.Status)
 
 	return nil
 }
@@ -186,10 +189,10 @@ func (s *AddonInvocationRedisStore) Update(ctx context.Context, invocation *Addo
 
 	// Update active tracking if status changed to completed/failed
 	if invocation.Status == InvocationStatusCompleted || invocation.Status == InvocationStatusFailed {
-		activeKey := s.buildActiveUserKey(invocation.InvokedBy)
+		activeKey := s.buildActiveUserKey(invocation.InvokedByUUID)
 		err = s.redis.Del(ctx, activeKey)
 		if err != nil {
-			logger.Error("Failed to clear active invocation for user %s: %v", invocation.InvokedBy, err)
+			logger.Error("Failed to clear active invocation for user %s: %v", invocation.InvokedByUUID, err)
 			// Don't fail the update for this
 		}
 	}
@@ -246,7 +249,7 @@ func (s *AddonInvocationRedisStore) List(ctx context.Context, userID *uuid.UUID,
 		}
 
 		// Apply filters
-		if userID != nil && invocation.InvokedBy != *userID {
+		if userID != nil && invocation.InvokedByUUID != *userID {
 			continue
 		}
 		if status != "" && invocation.Status != status {

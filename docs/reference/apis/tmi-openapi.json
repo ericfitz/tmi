@@ -2883,7 +2883,7 @@
         "required": [
           "id",
           "email",
-          "display_name"
+          "name"
         ],
         "properties": {
           "id": {
@@ -2898,7 +2898,7 @@
             "description": "User email address",
             "maxLength": 320
           },
-          "display_name": {
+          "name": {
             "type": "string",
             "description": "User display name",
             "pattern": "^[\\u0020-\\uFFFF]{1,256}$",
@@ -2908,7 +2908,7 @@
         "example": {
           "id": "550e8400-e29b-41d4-a716-446655440010",
           "email": "alice@example.com",
-          "display_name": "Alice Anderson"
+          "name": "Alice Anderson"
         }
       },
       "Participant": {
@@ -4310,7 +4310,7 @@
           "invoked_by": {
             "id": "550e8400-e29b-41d4-a716-446655440010",
             "email": "alice@example.com",
-            "display_name": "Alice Anderson"
+            "name": "Alice Anderson"
           },
           "status": "completed",
           "status_percent": 100,
@@ -4448,7 +4448,7 @@
               "invoked_by": {
                 "id": "user-12345",
                 "email": "alice@example.com",
-                "display_name": "Alice Anderson"
+                "name": "Alice Anderson"
               }
             }
           ]

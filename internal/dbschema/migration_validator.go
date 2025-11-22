@@ -269,7 +269,7 @@ func (v *MigrationBasedValidator) validateDatabaseConsistency(result *SchemaVali
 
 	// Check that essential tables exist
 	essentialTables := []string{
-		"users", "user_providers", "threat_models", "threat_model_access",
+		"users", "threat_models", "threat_model_access",
 		"threats", "diagrams", "schema_migrations",
 	}
 

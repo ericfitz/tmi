@@ -3,10 +3,20 @@ package api
 import (
 	"encoding/json"
 
+	"github.com/ericfitz/tmi/auth"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Helper functions to convert between internal Addon types and OpenAPI-generated types
+
+// authUserToAPIUser converts auth.User to api.User (OpenAPI generated type)
+func authUserToAPIUser(u auth.User) User {
+	return User{
+		Id:    u.ID,
+		Email: openapi_types.Email(u.Email),
+		Name:  u.Name,
+	}
+}
 
 // toStringPtr converts a string to a pointer
 func toStringPtr(s string) *string {
@@ -127,12 +137,16 @@ func addonToResponse(addon *Addon) AddonResponse {
 // invocationToResponse converts internal AddonInvocation to OpenAPI InvocationResponse
 func invocationToResponse(inv *AddonInvocation) InvocationResponse {
 	return InvocationResponse{
-		Id:              inv.ID,
-		AddonId:         inv.AddonID,
-		ThreatModelId:   inv.ThreatModelID,
-		ObjectType:      toStringPtr(inv.ObjectType),
-		ObjectId:        inv.ObjectID,
-		InvokedBy:       inv.InvokedBy,
+		Id:            inv.ID,
+		AddonId:       inv.AddonID,
+		ThreatModelId: inv.ThreatModelID,
+		ObjectType:    toStringPtr(inv.ObjectType),
+		ObjectId:      inv.ObjectID,
+		InvokedBy: User{
+			Id:    inv.InvokedByID,
+			Email: openapi_types.Email(inv.InvokedByEmail),
+			Name:  inv.InvokedByName,
+		},
 		Payload:         toStringPtr(inv.Payload),
 		Status:          statusToInvocationResponseStatus(inv.Status),
 		StatusPercent:   inv.StatusPercent,

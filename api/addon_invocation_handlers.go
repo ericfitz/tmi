@@ -39,11 +39,12 @@ func InvokeAddon(c *gin.Context) {
 		return
 	}
 
-	// Get user ID from context
-	var userID uuid.UUID
+	// Get user UUID from context (internal ID for rate limiting, etc.)
+	var userUUID uuid.UUID
 	if userIDInterface, exists := c.Get("userID"); exists {
 		if userIDStr, ok := userIDInterface.(string); ok {
-			userID, err = uuid.Parse(userIDStr)
+			var err error
+			userUUID, err = uuid.Parse(userIDStr)
 			if err != nil {
 				logger.Error("Invalid user ID in context: %s", userIDStr)
 				HandleRequestError(c, &RequestError{
@@ -55,7 +56,7 @@ func InvokeAddon(c *gin.Context) {
 			}
 		}
 	}
-	if userID == uuid.Nil {
+	if userUUID == uuid.Nil {
 		logger.Error("User ID not found in context for email: %s", userEmail)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
@@ -63,6 +64,24 @@ func InvokeAddon(c *gin.Context) {
 			Message: "User ID not available",
 		})
 		return
+	}
+
+	// Get provider-assigned user ID (the ID from the identity provider, stored in auth.User.ID)
+	var providerUserID string
+	// The JWT sub claim contains our internal UUID, but auth.User.ID contains the provider ID
+	// For now, we'll use the userEmail as a fallback and fetch the real ID from the user object
+	// This should ideally come from the JWT or context
+	providerUserID = userEmail // Temporary: use email until we fetch from auth.User
+
+	// Get user display name from context
+	var userName string
+	if userNameInterface, exists := c.Get("userDisplayName"); exists {
+		if nameStr, ok := userNameInterface.(string); ok {
+			userName = nameStr
+		}
+	}
+	if userName == "" {
+		userName = userEmail // Fallback to email if no name
 	}
 
 	// Parse request
@@ -124,21 +143,21 @@ func InvokeAddon(c *gin.Context) {
 	// Check rate limits
 	if GlobalAddonRateLimiter != nil {
 		// Check active invocation limit (1 concurrent)
-		if err := GlobalAddonRateLimiter.CheckActiveInvocationLimit(c.Request.Context(), userID); err != nil {
-			logger.Warn("Active invocation limit exceeded for user %s", userID)
+		if err := GlobalAddonRateLimiter.CheckActiveInvocationLimit(c.Request.Context(), userUUID); err != nil {
+			logger.Warn("Active invocation limit exceeded for user %s", userUUID)
 			HandleRequestError(c, err)
 			return
 		}
 
 		// Check hourly rate limit
-		if err := GlobalAddonRateLimiter.CheckHourlyRateLimit(c.Request.Context(), userID); err != nil {
-			logger.Warn("Hourly rate limit exceeded for user %s", userID)
+		if err := GlobalAddonRateLimiter.CheckHourlyRateLimit(c.Request.Context(), userUUID); err != nil {
+			logger.Warn("Hourly rate limit exceeded for user %s", userUUID)
 			HandleRequestError(c, err)
 			return
 		}
 
 		// Record invocation in sliding window
-		if err := GlobalAddonRateLimiter.RecordInvocation(c.Request.Context(), userID); err != nil {
+		if err := GlobalAddonRateLimiter.RecordInvocation(c.Request.Context(), userUUID); err != nil {
 			logger.Error("Failed to record invocation for rate limiting: %v", err)
 			// Continue despite error - don't block the invocation
 		}
@@ -151,7 +170,10 @@ func InvokeAddon(c *gin.Context) {
 		ThreatModelID:   req.ThreatModelId,
 		ObjectType:      toObjectTypeString(req.ObjectType),
 		ObjectID:        req.ObjectId,
-		InvokedBy:       userID,
+		InvokedByUUID:   userUUID,
+		InvokedByID:     providerUserID,
+		InvokedByEmail:  userEmail,
+		InvokedByName:   userName,
 		Payload:         payloadToString(req.Payload),
 		Status:          "pending",
 		StatusPercent:   0,
@@ -184,7 +206,7 @@ func InvokeAddon(c *gin.Context) {
 	}
 
 	logger.Info("Add-on invoked: addon_id=%s, invocation_id=%s, user=%s",
-		addonID, invocation.ID, userID)
+		addonID, invocation.ID, userUUID)
 
 	c.JSON(http.StatusAccepted, response)
 }
