@@ -317,6 +317,11 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 		testNode, _ := CreateNode(cellID, Process, 100, 150, 80, 40)
 		msg := DiagramOperationMessage{
 			MessageType: "diagram_operation",
+			InitiatingUser: User{
+				Id:    "test-user-id",
+				Email: openapi_types.Email("test@example.com"),
+				Name:  "Test User",
+			},
 			OperationID: uuid.New().String(),
 			Operation: CellPatchOperation{
 				Type: "patch",

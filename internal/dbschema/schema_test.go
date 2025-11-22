@@ -11,7 +11,6 @@ func TestGetExpectedSchema(t *testing.T) {
 	// Test that we have the expected number of tables
 	expectedTables := []string{
 		"users",
-		"user_providers",
 		"threat_models",
 		"threat_model_access",
 		"threats",
@@ -48,7 +47,7 @@ func TestGetExpectedSchema(t *testing.T) {
 	}
 
 	expectedUserColumns := []string{
-		"id", "name", "email", "created_at", "modified_at", "last_login",
+		"internal_uuid", "provider", "provider_user_id", "name", "email", "created_at", "modified_at", "last_login",
 	}
 
 	if len(usersTable.Columns) < len(expectedUserColumns) {
@@ -67,14 +66,14 @@ func TestGetExpectedSchema(t *testing.T) {
 		}
 	}
 
-	// Test that the ID column is properly configured
-	idCol, exists := columnMap["id"]
+	// Test that the internal_uuid column is properly configured
+	idCol, exists := columnMap["internal_uuid"]
 	if !exists {
-		t.Fatal("ID column not found in users table")
+		t.Fatal("internal_uuid column not found in users table")
 	}
 
 	if !strings.EqualFold(idCol.DataType, "uuid") {
-		t.Errorf("Expected ID column to be UUID, got %s", idCol.DataType)
+		t.Errorf("Expected internal_uuid column to be UUID, got %s", idCol.DataType)
 	}
 
 	if idCol.IsNullable {

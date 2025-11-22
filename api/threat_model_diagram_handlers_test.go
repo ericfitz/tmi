@@ -669,7 +669,9 @@ func TestPostThreatModelDiagramCollaborate(t *testing.T) {
 		assert.True(t, ok)
 		user, ok := participant["user"].(map[string]interface{})
 		assert.True(t, ok)
-		assert.Equal(t, "test@example.com", user["user_id"])
+		// User struct has "id" field (provider_user_id), not "user_id"
+		assert.NotNil(t, user["id"], "User should have an id field")
+		assert.Equal(t, "test@example.com", user["email"])
 	}
 }
 

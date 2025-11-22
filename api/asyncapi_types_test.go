@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -241,6 +242,11 @@ func TestMessageParser(t *testing.T) {
 
 		originalMsg := DiagramOperationMessage{
 			MessageType: MessageTypeDiagramOperation,
+			InitiatingUser: User{
+				Id:    "test-user-id",
+				Email: openapi_types.Email("test@example.com"),
+				Name:  "Test User",
+			},
 			OperationID: operationID,
 			Operation: CellPatchOperation{
 				Type: "patch",
