@@ -673,7 +673,7 @@ func (s *ThreatModelDatabaseStore) Count() int {
 
 func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string) ([]Authorization, error) {
 	query := `
-		SELECT subject, subject_type, idp, role
+		SELECT subject_internal_uuid, subject_type, idp, role
 		FROM threat_model_access
 		WHERE threat_model_id = $1`
 
@@ -988,9 +988,9 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 		}
 
 		query := `
-			INSERT INTO threat_model_access (threat_model_id, subject, subject_type, idp, role, created_at, modified_at)
+			INSERT INTO threat_model_access (threat_model_id, subject_internal_uuid, subject_type, idp, role, created_at, modified_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			ON CONFLICT (threat_model_id, subject, subject_type, idp)
+			ON CONFLICT (threat_model_id, subject_internal_uuid, subject_type)
 			DO UPDATE SET role = $5, modified_at = $7`
 
 		now := time.Now().UTC()
