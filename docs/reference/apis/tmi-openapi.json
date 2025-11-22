@@ -11,12 +11,33 @@
   },
   "servers": [
     {
-      "description": "Production server",
-      "url": "https://tmi.example.com"
+      "description": "Production server (HTTPS only)",
+      "url": "https://tmi.example.com",
+      "x-environment": "production"
     },
     {
-      "description": "Local development server",
-      "url": "http://localhost:8080"
+      "description": "Heroku deployment (HTTPS via TLS-terminating proxy)",
+      "url": "https://{app-name}.herokuapp.com",
+      "variables": {
+        "app-name": {
+          "default": "tmi-app",
+          "description": "Heroku application name"
+        }
+      },
+      "x-environment": "production",
+      "x-tls-termination": "proxy"
+    },
+    {
+      "description": "Local development server (HTTP on localhost only)",
+      "url": "http://localhost:{port}",
+      "variables": {
+        "port": {
+          "default": "8080",
+          "description": "Local server port"
+        }
+      },
+      "x-environment": "development",
+      "x-localhost-only": true
     }
   ],
   "components": {
@@ -4552,6 +4573,181 @@
           }
         }
       }
+    },
+    "parameters": {
+      "ThreatModelId": {
+        "name": "threat_model_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Threat model identifier"
+      },
+      "DiagramId": {
+        "name": "diagram_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Diagram identifier"
+      },
+      "ThreatId": {
+        "name": "threat_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Threat identifier"
+      },
+      "AssetId": {
+        "name": "asset_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Asset identifier"
+      },
+      "DocumentId": {
+        "name": "document_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Document identifier"
+      },
+      "NoteId": {
+        "name": "note_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Note identifier"
+      },
+      "RepositoryId": {
+        "name": "repository_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Repository identifier"
+      },
+      "MetadataKey": {
+        "name": "key",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "description": "Metadata key"
+      },
+      "GenericId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Resource identifier"
+      },
+      "WebhookId": {
+        "name": "webhook_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Webhook subscription identifier"
+      },
+      "DeliveryId": {
+        "name": "delivery_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Webhook delivery identifier"
+      },
+      "PaginationLimit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        },
+        "description": "Maximum number of results to return"
+      },
+      "PaginationOffset": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "description": "Number of results to skip"
+      },
+      "CreatedAfter": {
+        "name": "created_after",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "description": "Filter results created after this timestamp (ISO 8601)"
+      },
+      "CreatedBefore": {
+        "name": "created_before",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "description": "Filter results created before this timestamp (ISO 8601)"
+      },
+      "ModifiedAfter": {
+        "name": "modified_after",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "description": "Filter results modified after this timestamp (ISO 8601)"
+      },
+      "ModifiedBefore": {
+        "name": "modified_before",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "description": "Filter results modified before this timestamp (ISO 8601)"
+      }
     }
   },
   "paths": {
@@ -4596,7 +4792,8 @@
               "tracking_method": "Source IP address"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/.well-known/openid-configuration": {
@@ -4764,7 +4961,8 @@
               "tracking_method": "Source IP address"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/.well-known/oauth-authorization-server": {
@@ -4883,7 +5081,8 @@
               "tracking_method": "Source IP address"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/.well-known/jwks.json": {
@@ -4969,7 +5168,8 @@
               "tracking_method": "Source IP address"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/.well-known/oauth-protected-resource": {
@@ -5013,7 +5213,8 @@
               "tracking_method": "Source IP address"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/oauth2/introspect": {
@@ -5171,7 +5372,8 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "parameters": null
       }
     },
     "/oauth2/providers": {
@@ -5279,7 +5481,8 @@
               "quota_source": "user_api_quotas"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/oauth2/providers/{idp}/groups": {
@@ -5864,7 +6067,8 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "parameters": null
       }
     },
     "/oauth2/userinfo": {
@@ -5980,7 +6184,8 @@
               "quota_source": "user_api_quotas"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/oauth2/callback": {
@@ -6201,7 +6406,8 @@
               "quota_source": "user_api_quotas"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/collaboration/sessions": {
@@ -6307,7 +6513,8 @@
               "quota_source": "user_api_quotas"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/threat_models": {
@@ -6325,22 +6532,10 @@
         ],
         "parameters": [
           {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "default": 20
-            },
-            "description": "Number of threat models to return"
+            "$ref": "#/components/parameters/PaginationLimit"
           },
           {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "default": 0
-            },
-            "description": "Pagination offset"
+            "$ref": "#/components/parameters/PaginationOffset"
           },
           {
             "name": "owner",
@@ -6383,48 +6578,16 @@
             "description": "Filter by issue URI (partial match)"
           },
           {
-            "name": "created_after",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$",
-              "maxLength": 64
-            },
-            "description": "Filter threat models created after this date (RFC3339 format)"
+            "$ref": "#/components/parameters/CreatedAfter"
           },
           {
-            "name": "created_before",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$",
-              "maxLength": 64
-            },
-            "description": "Filter threat models created before this date (RFC3339 format)"
+            "$ref": "#/components/parameters/CreatedBefore"
           },
           {
-            "name": "modified_after",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$",
-              "maxLength": 64
-            },
-            "description": "Filter threat models modified after this date (RFC3339 format)"
+            "$ref": "#/components/parameters/ModifiedAfter"
           },
           {
-            "name": "modified_before",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$",
-              "maxLength": 64
-            },
-            "description": "Filter threat models modified before this date (RFC3339 format)"
+            "$ref": "#/components/parameters/ModifiedBefore"
           },
           {
             "name": "status",
@@ -6562,7 +6725,8 @@
               "quota_source": "user_api_quotas"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/threat_models/{threat_model_id}": {
@@ -6580,16 +6744,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model to retrieve (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "responses": {
@@ -6646,16 +6801,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model to update (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -6725,16 +6871,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model to update (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -6838,16 +6975,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model to delete (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "responses": {
@@ -6899,37 +7027,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            },
-            "description": "Maximum number of threats to return"
+            "$ref": "#/components/parameters/PaginationLimit"
           },
           {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            },
-            "description": "Number of threats to skip"
+            "$ref": "#/components/parameters/PaginationOffset"
           },
           {
             "name": "sort",
@@ -7083,48 +7187,16 @@
             "description": "Filter threats with score less than or equal to this value"
           },
           {
-            "name": "created_after",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$",
-              "maxLength": 64
-            },
-            "description": "Filter threats created after this date (RFC3339 format)"
+            "$ref": "#/components/parameters/CreatedAfter"
           },
           {
-            "name": "created_before",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$",
-              "maxLength": 64
-            },
-            "description": "Filter threats created before this date (RFC3339 format)"
+            "$ref": "#/components/parameters/CreatedBefore"
           },
           {
-            "name": "modified_after",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$",
-              "maxLength": 64
-            },
-            "description": "Filter threats modified after this date (RFC3339 format)"
+            "$ref": "#/components/parameters/ModifiedAfter"
           },
           {
-            "name": "modified_before",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$",
-              "maxLength": 64
-            },
-            "description": "Filter threats modified before this date (RFC3339 format)"
+            "$ref": "#/components/parameters/ModifiedBefore"
           }
         ],
         "responses": {
@@ -7243,16 +7315,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -7324,28 +7387,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "threat_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat (UUID)"
+            "$ref": "#/components/parameters/ThreatId"
           }
         ],
         "responses": {
@@ -7402,28 +7447,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "threat_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat (UUID)"
+            "$ref": "#/components/parameters/ThreatId"
           }
         ],
         "requestBody": {
@@ -7493,28 +7520,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "threat_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat (UUID)"
+            "$ref": "#/components/parameters/ThreatId"
           }
         ],
         "requestBody": {
@@ -7713,28 +7722,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "threat_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat (UUID)"
+            "$ref": "#/components/parameters/ThreatId"
           }
         ],
         "responses": {
@@ -7786,28 +7777,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "threat_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat (UUID)"
+            "$ref": "#/components/parameters/ThreatId"
           }
         ],
         "responses": {
@@ -7868,28 +7841,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "threat_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat (UUID)"
+            "$ref": "#/components/parameters/ThreatId"
           }
         ],
         "requestBody": {
@@ -7961,39 +7916,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "threat_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat (UUID)"
+            "$ref": "#/components/parameters/ThreatId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to retrieve"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -8050,39 +7979,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "threat_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat (UUID)"
+            "$ref": "#/components/parameters/ThreatId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to update"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "requestBody": {
@@ -8164,39 +8067,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "threat_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat (UUID)"
+            "$ref": "#/components/parameters/ThreatId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to delete"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -8248,28 +8125,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "threat_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat (UUID)"
+            "$ref": "#/components/parameters/ThreatId"
           }
         ],
         "requestBody": {
@@ -8347,28 +8206,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "threat_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat (UUID)"
+            "$ref": "#/components/parameters/ThreatId"
           }
         ],
         "requestBody": {
@@ -8448,16 +8289,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -8577,16 +8409,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -8685,16 +8508,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -8831,16 +8645,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
             "name": "threat_ids",
@@ -8941,37 +8746,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            },
-            "description": "Maximum number of documents to return"
+            "$ref": "#/components/parameters/PaginationLimit"
           },
           {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            },
-            "description": "Number of documents to skip"
+            "$ref": "#/components/parameters/PaginationOffset"
           }
         ],
         "responses": {
@@ -9081,16 +8862,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -9211,28 +8983,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the document (UUID)"
+            "$ref": "#/components/parameters/DocumentId"
           }
         ],
         "responses": {
@@ -9289,28 +9043,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the document (UUID)"
+            "$ref": "#/components/parameters/DocumentId"
           }
         ],
         "requestBody": {
@@ -9380,28 +9116,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the document (UUID)"
+            "$ref": "#/components/parameters/DocumentId"
           }
         ],
         "responses": {
@@ -9446,28 +9164,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "maxLength": 36
-            },
-            "description": "Document ID"
+            "$ref": "#/components/parameters/DocumentId"
           }
         ],
         "requestBody": {
@@ -9576,28 +9276,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the document (UUID)"
+            "$ref": "#/components/parameters/DocumentId"
           }
         ],
         "responses": {
@@ -9658,28 +9340,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the document (UUID)"
+            "$ref": "#/components/parameters/DocumentId"
           }
         ],
         "requestBody": {
@@ -9751,39 +9415,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the document (UUID)"
+            "$ref": "#/components/parameters/DocumentId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to retrieve"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -9840,39 +9478,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the document (UUID)"
+            "$ref": "#/components/parameters/DocumentId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to update"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "requestBody": {
@@ -9954,39 +9566,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the document (UUID)"
+            "$ref": "#/components/parameters/DocumentId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to delete"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -10038,28 +9624,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the document (UUID)"
+            "$ref": "#/components/parameters/DocumentId"
           }
         ],
         "requestBody": {
@@ -10137,28 +9705,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the document (UUID)"
+            "$ref": "#/components/parameters/DocumentId"
           }
         ],
         "requestBody": {
@@ -10238,16 +9788,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -10406,16 +9947,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -10576,37 +10108,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            },
-            "description": "Maximum number of sources to return"
+            "$ref": "#/components/parameters/PaginationLimit"
           },
           {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            },
-            "description": "Number of sources to skip"
+            "$ref": "#/components/parameters/PaginationOffset"
           }
         ],
         "responses": {
@@ -10723,16 +10231,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -10804,28 +10303,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the source reference (UUID)"
+            "$ref": "#/components/parameters/RepositoryId"
           }
         ],
         "responses": {
@@ -10882,28 +10363,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the source reference (UUID)"
+            "$ref": "#/components/parameters/RepositoryId"
           }
         ],
         "requestBody": {
@@ -10973,28 +10436,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the source reference (UUID)"
+            "$ref": "#/components/parameters/RepositoryId"
           }
         ],
         "responses": {
@@ -11039,28 +10484,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "maxLength": 36
-            },
-            "description": "Repository ID"
+            "$ref": "#/components/parameters/RepositoryId"
           }
         ],
         "requestBody": {
@@ -11169,28 +10596,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the source reference (UUID)"
+            "$ref": "#/components/parameters/RepositoryId"
           }
         ],
         "responses": {
@@ -11251,28 +10660,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the source reference (UUID)"
+            "$ref": "#/components/parameters/RepositoryId"
           }
         ],
         "requestBody": {
@@ -11344,39 +10735,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the source reference (UUID)"
+            "$ref": "#/components/parameters/RepositoryId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to retrieve"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -11433,39 +10798,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the source reference (UUID)"
+            "$ref": "#/components/parameters/RepositoryId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to update"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "requestBody": {
@@ -11547,39 +10886,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the source reference (UUID)"
+            "$ref": "#/components/parameters/RepositoryId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to delete"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -11631,28 +10944,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the source reference (UUID)"
+            "$ref": "#/components/parameters/RepositoryId"
           }
         ],
         "requestBody": {
@@ -11730,28 +11025,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the source reference (UUID)"
+            "$ref": "#/components/parameters/RepositoryId"
           }
         ],
         "requestBody": {
@@ -11831,16 +11108,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -11999,16 +11267,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -12169,16 +11428,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "responses": {
@@ -12239,16 +11489,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -12320,27 +11561,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to retrieve"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -12397,27 +11621,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to update"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "requestBody": {
@@ -12499,27 +11706,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to delete"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -12571,16 +11761,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -12658,16 +11839,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -12747,37 +11919,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            },
-            "description": "Maximum number of items to return"
+            "$ref": "#/components/parameters/PaginationLimit"
           },
           {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            },
-            "description": "Number of items to skip"
+            "$ref": "#/components/parameters/PaginationOffset"
           }
         ],
         "responses": {
@@ -12838,16 +11986,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -12919,28 +12058,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           }
         ],
         "responses": {
@@ -12997,28 +12118,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           }
         ],
         "requestBody": {
@@ -13088,28 +12191,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           }
         ],
         "requestBody": {
@@ -13260,28 +12345,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           }
         ],
         "responses": {
@@ -13333,28 +12400,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           }
         ],
         "responses": {
@@ -13411,28 +12460,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           }
         ],
         "responses": {
@@ -13521,28 +12552,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           }
         ],
         "responses": {
@@ -13594,28 +12607,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           }
         ],
         "responses": {
@@ -13676,28 +12671,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           }
         ],
         "requestBody": {
@@ -13769,39 +12746,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 256,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to retrieve"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -13858,39 +12809,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 256,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to update"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "requestBody": {
@@ -13972,39 +12897,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 256,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to delete"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -14056,28 +12955,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           }
         ],
         "requestBody": {
@@ -14155,28 +13036,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "diagram_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the diagram (UUID)"
+            "$ref": "#/components/parameters/DiagramId"
           }
         ],
         "requestBody": {
@@ -14362,7 +13225,8 @@
               "quota_source": "user_api_quotas"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/threat_models/{threat_model_id}/notes": {
@@ -14380,37 +13244,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            },
-            "description": "Maximum number of notes to return"
+            "$ref": "#/components/parameters/PaginationLimit"
           },
           {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            },
-            "description": "Number of notes to skip"
+            "$ref": "#/components/parameters/PaginationOffset"
           }
         ],
         "responses": {
@@ -14471,16 +13311,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -14552,28 +13383,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the note (UUID)"
+            "$ref": "#/components/parameters/NoteId"
           }
         ],
         "responses": {
@@ -14630,28 +13443,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the note (UUID)"
+            "$ref": "#/components/parameters/NoteId"
           }
         ],
         "requestBody": {
@@ -14721,28 +13516,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the note (UUID)"
+            "$ref": "#/components/parameters/NoteId"
           }
         ],
         "responses": {
@@ -14787,28 +13564,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "maxLength": 36
-            },
-            "description": "Note ID"
+            "$ref": "#/components/parameters/NoteId"
           }
         ],
         "requestBody": {
@@ -14917,28 +13676,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the note (UUID)"
+            "$ref": "#/components/parameters/NoteId"
           }
         ],
         "responses": {
@@ -14999,28 +13740,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the note (UUID)"
+            "$ref": "#/components/parameters/NoteId"
           }
         ],
         "requestBody": {
@@ -15092,39 +13815,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the note (UUID)"
+            "$ref": "#/components/parameters/NoteId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to retrieve"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -15181,39 +13878,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the note (UUID)"
+            "$ref": "#/components/parameters/NoteId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to update"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "requestBody": {
@@ -15295,39 +13966,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the note (UUID)"
+            "$ref": "#/components/parameters/NoteId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 255,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key to delete"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -15379,28 +14024,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the note (UUID)"
+            "$ref": "#/components/parameters/NoteId"
           }
         ],
         "requestBody": {
@@ -15478,28 +14105,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the note (UUID)"
+            "$ref": "#/components/parameters/NoteId"
           }
         ],
         "requestBody": {
@@ -15579,37 +14188,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            },
-            "description": "Maximum number of assets to return"
+            "$ref": "#/components/parameters/PaginationLimit"
           },
           {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            },
-            "description": "Number of assets to skip"
+            "$ref": "#/components/parameters/PaginationOffset"
           }
         ],
         "responses": {
@@ -15670,16 +14255,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -15751,16 +14327,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -15838,16 +14405,7 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           }
         ],
         "requestBody": {
@@ -15927,28 +14485,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "asset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the asset (UUID)"
+            "$ref": "#/components/parameters/AssetId"
           }
         ],
         "responses": {
@@ -16005,28 +14545,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "asset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the asset (UUID)"
+            "$ref": "#/components/parameters/AssetId"
           }
         ],
         "requestBody": {
@@ -16096,28 +14618,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "asset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the asset (UUID)"
+            "$ref": "#/components/parameters/AssetId"
           }
         ],
         "responses": {
@@ -16162,28 +14666,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "asset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "maxLength": 36
-            },
-            "description": "Asset ID"
+            "$ref": "#/components/parameters/AssetId"
           }
         ],
         "requestBody": {
@@ -16292,28 +14778,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "asset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the asset (UUID)"
+            "$ref": "#/components/parameters/AssetId"
           }
         ],
         "responses": {
@@ -16374,28 +14842,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "asset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the asset (UUID)"
+            "$ref": "#/components/parameters/AssetId"
           }
         ],
         "requestBody": {
@@ -16467,39 +14917,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "asset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the asset (UUID)"
+            "$ref": "#/components/parameters/AssetId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 128,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -16556,39 +14980,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "asset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the asset (UUID)"
+            "$ref": "#/components/parameters/AssetId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 128,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "requestBody": {
@@ -16658,39 +15056,13 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "asset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the asset (UUID)"
+            "$ref": "#/components/parameters/AssetId"
           },
           {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 128,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
-            },
-            "description": "Metadata key"
+            "$ref": "#/components/parameters/MetadataKey"
           }
         ],
         "responses": {
@@ -16742,28 +15114,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "asset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the asset (UUID)"
+            "$ref": "#/components/parameters/AssetId"
           }
         ],
         "requestBody": {
@@ -16841,28 +15195,10 @@
         ],
         "parameters": [
           {
-            "name": "threat_model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the threat model (UUID)"
+            "$ref": "#/components/parameters/ThreatModelId"
           },
           {
-            "name": "asset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "maxLength": 36,
-              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-            },
-            "description": "Unique identifier of the asset (UUID)"
+            "$ref": "#/components/parameters/AssetId"
           }
         ],
         "requestBody": {
@@ -16974,7 +15310,8 @@
               "quota_source": "user_api_quotas"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/saml/login": {
@@ -17173,7 +15510,8 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "parameters": null
       }
     },
     "/saml/slo": {
@@ -17371,7 +15709,8 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "parameters": null
       }
     },
     "/webhooks/subscriptions": {
@@ -17401,27 +15740,10 @@
             }
           },
           {
-            "name": "offset",
-            "in": "query",
-            "description": "Pagination offset",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            }
+            "$ref": "#/components/parameters/PaginationOffset"
           },
           {
-            "name": "limit",
-            "in": "query",
-            "description": "Pagination limit",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            }
+            "$ref": "#/components/parameters/PaginationLimit"
           }
         ],
         "responses": {
@@ -17607,7 +15929,8 @@
               "quota_source": "webhook_quotas.max_subscriptions"
             }
           ]
-        }
+        },
+        "parameters": null
       }
     },
     "/webhooks/subscriptions/{webhook_id}": {
@@ -17625,16 +15948,7 @@
         ],
         "parameters": [
           {
-            "name": "webhook_id",
-            "in": "path",
-            "description": "Webhook subscription ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "maxLength": 36
-            }
+            "$ref": "#/components/parameters/WebhookId"
           }
         ],
         "responses": {
@@ -17727,16 +16041,7 @@
         ],
         "parameters": [
           {
-            "name": "webhook_id",
-            "in": "path",
-            "description": "Webhook subscription ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "maxLength": 36
-            }
+            "$ref": "#/components/parameters/WebhookId"
           }
         ],
         "responses": {
@@ -17824,16 +16129,7 @@
         ],
         "parameters": [
           {
-            "name": "webhook_id",
-            "in": "path",
-            "description": "Webhook subscription ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "maxLength": 36
-            }
+            "$ref": "#/components/parameters/WebhookId"
           }
         ],
         "requestBody": {
@@ -17950,27 +16246,10 @@
             }
           },
           {
-            "name": "offset",
-            "in": "query",
-            "description": "Pagination offset",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            }
+            "$ref": "#/components/parameters/PaginationOffset"
           },
           {
-            "name": "limit",
-            "in": "query",
-            "description": "Pagination limit",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            }
+            "$ref": "#/components/parameters/PaginationLimit"
           }
         ],
         "responses": {
@@ -18059,16 +16338,7 @@
         ],
         "parameters": [
           {
-            "name": "delivery_id",
-            "in": "path",
-            "description": "Webhook delivery ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "maxLength": 36
-            }
+            "$ref": "#/components/parameters/DeliveryId"
           }
         ],
         "responses": {
@@ -18233,8 +16503,12 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
-        }
+        },
+        "parameters": null
       },
       "get": {
         "operationId": "listAddons",
@@ -18262,25 +16536,10 @@
         },
         "parameters": [
           {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "default": 50,
-              "minimum": 1,
-              "maximum": 500
-            },
-            "description": "Number of results per page"
+            "$ref": "#/components/parameters/PaginationLimit"
           },
           {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "default": 0,
-              "minimum": 0
-            },
-            "description": "Pagination offset"
+            "$ref": "#/components/parameters/PaginationOffset"
           },
           {
             "name": "threat_model_id",
@@ -18312,6 +16571,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         }
       }
@@ -18343,14 +16605,7 @@
         },
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "description": "Add-on identifier"
+            "$ref": "#/components/parameters/GenericId"
           }
         ],
         "responses": {
@@ -18383,6 +16638,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         }
       },
@@ -18412,14 +16670,7 @@
         },
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "description": "Add-on identifier"
+            "$ref": "#/components/parameters/GenericId"
           }
         ],
         "responses": {
@@ -18465,6 +16716,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         }
       }
@@ -18496,14 +16750,7 @@
         },
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "description": "Add-on identifier"
+            "$ref": "#/components/parameters/GenericId"
           }
         ],
         "requestBody": {
@@ -18597,25 +16844,10 @@
         },
         "parameters": [
           {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "default": 50,
-              "minimum": 1,
-              "maximum": 500
-            },
-            "description": "Number of results per page"
+            "$ref": "#/components/parameters/PaginationLimit"
           },
           {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "default": 0,
-              "minimum": 0
-            },
-            "description": "Pagination offset"
+            "$ref": "#/components/parameters/PaginationOffset"
           },
           {
             "name": "status",
@@ -18661,6 +16893,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         }
       }
@@ -18692,14 +16927,7 @@
         },
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "description": "Invocation identifier"
+            "$ref": "#/components/parameters/GenericId"
           }
         ],
         "responses": {
@@ -18742,6 +16970,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         }
       }
@@ -18761,14 +16992,7 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "description": "Invocation identifier"
+            "$ref": "#/components/parameters/GenericId"
           },
           {
             "name": "X-Webhook-Signature",
@@ -18840,7 +17064,22 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     }
