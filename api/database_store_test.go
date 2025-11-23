@@ -129,31 +129,39 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 		mock.ExpectQuery("SELECT (.+) FROM threat_models").WithArgs(testID).WillReturnRows(rows)
 
 		// Mock enrichUserPrincipal for owner
-		ownerRows := sqlmock.NewRows([]string{"internal_uuid", "provider", "provider_user_id", "email", "name"}).
-			AddRow(ownerUUID.String(), "test", "owner@example.com", "owner@example.com", "Owner User")
+		ownerRows := sqlmock.NewRows([]string{"provider", "provider_user_id", "name", "email"}).
+			AddRow("test", "owner@example.com", "Owner User", "owner@example.com")
 		mock.ExpectQuery("SELECT (.+) FROM users WHERE internal_uuid").WithArgs(ownerUUID.String()).WillReturnRows(ownerRows)
 
 		// Mock enrichUserPrincipal for created_by
-		createdByRows := sqlmock.NewRows([]string{"internal_uuid", "provider", "provider_user_id", "email", "name"}).
-			AddRow(createdByUUID.String(), "test", "creator@example.com", "creator@example.com", "Creator User")
+		createdByRows := sqlmock.NewRows([]string{"provider", "provider_user_id", "name", "email"}).
+			AddRow("test", "creator@example.com", "Creator User", "creator@example.com")
 		mock.ExpectQuery("SELECT (.+) FROM users WHERE internal_uuid").WithArgs(createdByUUID.String()).WillReturnRows(createdByRows)
 
-		// Mock transaction commit
-		mock.ExpectCommit()
-
-		// Mock authorization query with new dual-FK structure
-		authRows := sqlmock.NewRows([]string{"subject", "subject_type", "role"}).
-			AddRow("owner@example.com", "user", "owner").
-			AddRow("reader@example.com", "user", "reader")
+		// Mock authorization query (now uses same transaction)
+		authUserUUID1 := uuid.New()
+		authUserUUID2 := uuid.New()
+		authRows := sqlmock.NewRows([]string{"user_internal_uuid", "group_internal_uuid", "subject_type", "role"}).
+			AddRow(authUserUUID1.String(), nil, "user", "owner").
+			AddRow(authUserUUID2.String(), nil, "user", "reader")
 		mock.ExpectQuery("SELECT (.+) FROM threat_model_access").WithArgs(testID).WillReturnRows(authRows)
 
-		// Mock metadata query
+		// Mock enrichment for authorization users
+		authUser1Rows := sqlmock.NewRows([]string{"provider", "provider_user_id", "name", "email"}).
+			AddRow("test", "owner@example.com", "Owner User", "owner@example.com")
+		mock.ExpectQuery("SELECT (.+) FROM users WHERE internal_uuid").WithArgs(authUserUUID1.String()).WillReturnRows(authUser1Rows)
+
+		authUser2Rows := sqlmock.NewRows([]string{"provider", "provider_user_id", "name", "email"}).
+			AddRow("test", "reader@example.com", "Reader User", "reader@example.com")
+		mock.ExpectQuery("SELECT (.+) FROM users WHERE internal_uuid").WithArgs(authUserUUID2.String()).WillReturnRows(authUser2Rows)
+
+		// Mock metadata query (called before tx.Commit but uses s.db.Query, not tx.Query)
 		metaRows := sqlmock.NewRows([]string{"key", "value"}).
 			AddRow("priority", "high").
 			AddRow("status", "active")
 		mock.ExpectQuery("SELECT (.+) FROM metadata").WithArgs(testID).WillReturnRows(metaRows)
 
-		// Mock threats query
+		// Mock threats query (called before tx.Commit but uses s.db.Query, not tx.Query)
 		threatRows := sqlmock.NewRows([]string{
 			"id", "name", "description", "severity", "mitigation", "diagram_id", "cell_id", "asset_id",
 			"priority", "mitigated", "status", "threat_type", "score", "issue_uri",
@@ -165,11 +173,14 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 		)
 		mock.ExpectQuery("SELECT (.+) FROM threats").WithArgs(testID).WillReturnRows(threatRows)
 
-		// Mock diagrams query
+		// Mock diagrams query (called before tx.Commit but uses s.db.Query, not tx.Query)
 		diagramRows := sqlmock.NewRows([]string{
 			"id", "name", "type", "cells", "metadata", "created_at", "modified_at",
 		})
 		mock.ExpectQuery("SELECT (.+) FROM diagrams").WithArgs(testID).WillReturnRows(diagramRows)
+
+		// Mock transaction commit (happens at end of Get function via defer)
+		mock.ExpectCommit()
 
 		result, err := store.Get(testID)
 
@@ -341,7 +352,6 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 		store := NewThreatModelDatabaseStore(db)
 		testModel := createTestThreatModelDB()
 		testID := uuid.New().String()
-		testUUID := uuid.New().String()
 
 		mock.ExpectBegin()
 
@@ -350,17 +360,22 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 			WithArgs(testID).
 			WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(pq.Array([]string{})))
 
-		// Mock user lookup query (resolveUserIdentifierToUUID)
-		// First try as UUID - will fail since email is not a valid UUID
-		// Then try as provider_user_id - will return the user's internal_uuid
+		// Mock user lookup query for owner (resolveUserIdentifierToUUID)
+		ownerUUID := uuid.New().String()
 		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
-			WithArgs(testModel.Owner).
-			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(testUUID))
+			WithArgs(testModel.Owner.ProviderId).
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(ownerUUID))
+
+		// Mock user lookup query for created_by (resolveUserIdentifierToUUID)
+		createdByUUID := uuid.New().String()
+		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
+			WithArgs(testModel.CreatedBy.ProviderId).
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(createdByUUID))
 
 		// Mock UPDATE query
 		mock.ExpectExec("UPDATE threat_models").
 			WithArgs(
-				testID, testModel.Name, testModel.Description, testUUID, testModel.CreatedBy,
+				testID, testModel.Name, testModel.Description, ownerUUID, createdByUUID,
 				"STRIDE", testModel.IssueUri, sqlmock.AnyArg(), sqlmock.AnyArg(), testModel.ModifiedAt,
 			).
 			WillReturnResult(sqlmock.NewResult(0, 1))
@@ -371,12 +386,13 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 0))
 
 		// Mock user lookup for authorization subject (will also resolve)
+		authUserUUID := uuid.New().String()
 		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
 			WithArgs("test@example.com").
-			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(testUUID))
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(authUserUUID))
 
 		mock.ExpectExec("INSERT INTO threat_model_access").
-			WithArgs(testID, testUUID, "user", nil, "owner", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(testID, authUserUUID, nil, "user", "owner", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		// Mock metadata delete and insert
@@ -406,7 +422,6 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 		store := NewThreatModelDatabaseStore(db)
 		testModel := createTestThreatModelDB()
 		testID := uuid.New().String()
-		testUUID := uuid.New().String()
 
 		mock.ExpectBegin()
 		// Mock SELECT query to get current status
@@ -414,10 +429,17 @@ func TestThreatModelDatabaseStore_Update(t *testing.T) {
 			WithArgs(testID).
 			WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(pq.Array([]string{})))
 
-		// Mock user lookup query
+		// Mock user lookup query for owner
+		ownerUUID := uuid.New().String()
 		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
-			WithArgs(testModel.Owner).
-			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(testUUID))
+			WithArgs(testModel.Owner.ProviderId).
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(ownerUUID))
+
+		// Mock user lookup query for created_by
+		createdByUUID := uuid.New().String()
+		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
+			WithArgs(testModel.CreatedBy.ProviderId).
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(createdByUUID))
 
 		mock.ExpectExec("UPDATE threat_models").
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),

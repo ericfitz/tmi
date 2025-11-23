@@ -222,8 +222,8 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 
 	slogging.Get().GetSlogger().Debug("Query successful! Retrieved threat model", "id", tmUUID.String(), "name", name, "owner", owner.Email)
 
-	// Load authorization
-	authorization, err := s.loadAuthorization(id)
+	// Load authorization (pass tx for consistent read)
+	authorization, err := s.loadAuthorization(id, tx)
 	if err != nil {
 		return tm, fmt.Errorf("failed to load authorization: %w", err)
 	}
@@ -339,8 +339,8 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 
 		_ = tx.Commit()
 
-		// Load authorization for filtering
-		authorization, err := s.loadAuthorization(uuid.String())
+		// Load authorization for filtering (no tx - independent call)
+		authorization, err := s.loadAuthorization(uuid.String(), nil)
 		if err != nil {
 			continue
 		}
@@ -451,8 +451,8 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 
 		_ = tx.Commit()
 
-		// Load authorization for filtering
-		authorization, err := s.loadAuthorization(uuid.String())
+		// Load authorization for filtering (no tx - independent call)
+		authorization, err := s.loadAuthorization(uuid.String(), nil)
 		if err != nil {
 			continue
 		}
@@ -713,16 +713,28 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 		return fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner, err)
 	}
 
+	// Resolve created_by identifier to internal_uuid
+	var createdByUUID string
+	if item.CreatedBy != nil {
+		createdByUUID, err = s.resolveUserIdentifierToUUID(tx, item.CreatedBy.ProviderId)
+		if err != nil {
+			return fmt.Errorf("failed to resolve created_by identifier %s: %w", item.CreatedBy, err)
+		}
+	} else {
+		// If CreatedBy is nil, use the owner as creator (fallback)
+		createdByUUID = ownerUUID
+	}
+
 	// Update threat model
 	query := `
 		UPDATE threat_models
-		SET name = $2, description = $3, owner_internal_uuid = $4, created_by = $5,
+		SET name = $2, description = $3, owner_internal_uuid = $4, created_by_internal_uuid = $5,
 		    threat_model_framework = $6, issue_uri = $7, status = $8, status_updated = $9,
 		    modified_at = $10
 		WHERE id = $1`
 
 	result, err := tx.Exec(query,
-		id, item.Name, item.Description, ownerUUID, item.CreatedBy,
+		id, item.Name, item.Description, ownerUUID, createdByUUID,
 		framework, item.IssueUri, item.Status, statusUpdated,
 		item.ModifiedAt,
 	)
@@ -796,19 +808,27 @@ func (s *ThreatModelDatabaseStore) Count() int {
 
 // Helper methods for loading related data
 
-func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string) ([]Authorization, error) {
-	// Start a transaction for consistent reads
-	tx, err := s.db.Begin()
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
+func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string, tx *sql.Tx) ([]Authorization, error) {
+	// Use provided transaction or create a new one
+	var localTx *sql.Tx
+	var err error
+
+	if tx == nil {
+		// Start a transaction for consistent reads
+		localTx, err = s.db.Begin()
 		if err != nil {
-			_ = tx.Rollback()
-		} else {
-			_ = tx.Commit()
+			return nil, fmt.Errorf("failed to begin transaction: %w", err)
 		}
-	}()
+		defer func() {
+			if err != nil {
+				_ = localTx.Rollback()
+			} else {
+				_ = localTx.Commit()
+			}
+		}()
+	} else {
+		localTx = tx
+	}
 
 	query := `
 		SELECT
@@ -820,7 +840,7 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string) ([]Au
 		WHERE threat_model_id = $1
 		ORDER BY role DESC`
 
-	rows, err := tx.Query(query, threatModelId)
+	rows, err := localTx.Query(query, threatModelId)
 	if err != nil {
 		return nil, err
 	}
