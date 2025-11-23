@@ -9,6 +9,7 @@ import (
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // ThreatModelHandler provides handlers for threat model operations
@@ -99,7 +100,18 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		}
 		var createdBy string
 		if tm.CreatedBy != nil {
-			createdBy = *tm.CreatedBy
+			// Use display name or provider_id for created_by
+			if tm.CreatedBy.DisplayName != "" {
+				createdBy = tm.CreatedBy.DisplayName
+			} else {
+				createdBy = tm.CreatedBy.ProviderId
+			}
+		}
+
+		// Use display name or provider_id for owner
+		owner := tm.Owner.DisplayName
+		if owner == "" {
+			owner = tm.Owner.ProviderId
 		}
 
 		items = append(items, TMListItem{
@@ -108,7 +120,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 			Description:          tm.Description,
 			CreatedAt:            createdAt,
 			ModifiedAt:           modifiedAt,
-			Owner:                tm.Owner,
+			Owner:                owner,
 			CreatedBy:            createdBy,
 			ThreatModelFramework: framework,
 			IssueUri:             tm.IssueUri,
@@ -190,6 +202,20 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Get user identity provider from context
+	userIdpInterface, _ := c.Get("userIdP")
+	userIdp, _ := userIdpInterface.(string)
+	if userIdp == "" {
+		userIdp = "unknown" // Fallback
+	}
+
+	// Get user display name from context
+	userDisplayNameInterface, _ := c.Get("userDisplayName")
+	userDisplayName, _ := userDisplayNameInterface.(string)
+	if userDisplayName == "" {
+		userDisplayName = userEmail // Fallback to email
+	}
+
 	// Create new threat model
 	now := time.Now().UTC()
 	threatIDs := []Threat{}
@@ -209,21 +235,32 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// Create authorizations array with owner as first entry
 	authorizations := []Authorization{
 		{
-			Subject: userEmail,
-			Role:    RoleOwner,
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      userIdp,
+			ProviderId:    userEmail,
+			Role:          RoleOwner,
 		},
 	}
 
 	// Add any additional authorization subjects from the request
 	authorizations = append(authorizations, request.Authorization...)
 
+	// Create User object for owner and created_by
+	userObj := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      userIdp,
+		ProviderId:    userEmail,
+		DisplayName:   userDisplayName,
+		Email:         openapi_types.Email(userEmail),
+	}
+
 	tm := ThreatModel{
 		Name:          request.Name,
 		Description:   request.Description,
 		CreatedAt:     &now,
 		ModifiedAt:    &now,
-		Owner:         userEmail,
-		CreatedBy:     &userEmail,
+		Owner:         userObj,
+		CreatedBy:     &userObj,
 		Authorization: authorizations,
 		Metadata:      &[]Metadata{},
 		Threats:       &threatIDs,
@@ -272,7 +309,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 			ThreatModelID: createdTM.Id.String(),
 			ResourceID:    createdTM.Id.String(),
 			ResourceType:  "threat_model",
-			OwnerID:       createdTM.Owner,
+			OwnerID:       createdTM.Owner.ProviderId,
 			Data: map[string]interface{}{
 				"name":        createdTM.Name,
 				"description": createdTM.Description,
@@ -345,11 +382,8 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		return
 	}
 
-	// Determine owner: use provided value or preserve existing
+	// Determine owner: preserve existing (owner changes should go through ownership transfer endpoint)
 	owner := tm.Owner
-	if request.Owner != nil && *request.Owner != "" {
-		owner = *request.Owner
-	}
 
 	// Build full threat model from request
 	updatedTM := ThreatModel{
@@ -385,7 +419,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	}
 
 	// Check if user has owner access for sensitive fields
-	ownerChanging := updatedTM.Owner != "" && updatedTM.Owner != tm.Owner
+	ownerChanging := updatedTM.Owner.ProviderId != "" && updatedTM.Owner.ProviderId != tm.Owner.ProviderId
 	authChanging := (len(updatedTM.Authorization) > 0) && (!authorizationEqual(updatedTM.Authorization, tm.Authorization))
 
 	if ownerChanging || authChanging {
@@ -418,7 +452,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 
 	// Apply ownership transfer rule whenever owner is changing
 	if ownerChanging {
-		updatedTM.Authorization = ApplyOwnershipTransferRule(updatedTM.Authorization, tm.Owner, updatedTM.Owner)
+		updatedTM.Authorization = ApplyOwnershipTransferRule(updatedTM.Authorization, tm.Owner.ProviderId, updatedTM.Owner.ProviderId)
 	}
 
 	// Update in store
@@ -440,7 +474,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 			ThreatModelID: updatedTM.Id.String(),
 			ResourceID:    updatedTM.Id.String(),
 			ResourceType:  "threat_model",
-			OwnerID:       updatedTM.Owner,
+			OwnerID:       updatedTM.Owner.ProviderId,
 			Data: map[string]interface{}{
 				"name":        updatedTM.Name,
 				"description": updatedTM.Description,
@@ -581,7 +615,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 			ThreatModelID: modifiedTM.Id.String(),
 			ResourceID:    modifiedTM.Id.String(),
 			ResourceType:  "threat_model",
-			OwnerID:       modifiedTM.Owner,
+			OwnerID:       modifiedTM.Owner.ProviderId,
 			Data: map[string]interface{}{
 				"name":        modifiedTM.Name,
 				"description": modifiedTM.Description,
@@ -659,7 +693,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 			ThreatModelID: tm.Id.String(),
 			ResourceID:    tm.Id.String(),
 			ResourceType:  "threat_model",
-			OwnerID:       tm.Owner,
+			OwnerID:       tm.Owner.ProviderId,
 			Data: map[string]interface{}{
 				"name": tm.Name,
 			},
@@ -728,11 +762,11 @@ func authorizationEqual(a, b []Authorization) bool {
 	mapB := make(map[string]AuthorizationRole)
 
 	for _, auth := range a {
-		mapA[auth.Subject] = auth.Role
+		mapA[auth.ProviderId] = auth.Role
 	}
 
 	for _, auth := range b {
-		mapB[auth.Subject] = auth.Role
+		mapB[auth.ProviderId] = auth.Role
 	}
 
 	// Check if all entries in mapA exist with same role in mapB
@@ -763,10 +797,10 @@ func validatePatchedThreatModel(original, patched ThreatModel, userEmail string)
 	}
 
 	// 2. Check if user has the owner role (either by being the owner or having the owner role in authorization)
-	hasOwnerRole := (original.Owner == userEmail)
+	hasOwnerRole := (original.Owner.ProviderId == userEmail)
 	if !hasOwnerRole {
 		for _, auth := range original.Authorization {
-			if auth.Subject == userEmail && auth.Role == RoleOwner {
+			if auth.ProviderId == userEmail && auth.Role == RoleOwner {
 				hasOwnerRole = true
 				break
 			}
@@ -790,7 +824,7 @@ func validatePatchedThreatModel(original, patched ThreatModel, userEmail string)
 
 	// 5. Validate authorization entries
 	for _, auth := range patched.Authorization {
-		if auth.Subject == "" {
+		if auth.ProviderId == "" {
 			return fmt.Errorf("authorization subject cannot be empty")
 		}
 	}
@@ -848,7 +882,7 @@ func (h *ThreatModelHandler) applyThreatModelBusinessRules(modifiedTM *ThreatMod
 
 	// Custom rule 1: If owner is changing, add original owner to authorization with owner role
 	if ownerChanging {
-		modifiedTM.Authorization = ApplyOwnershipTransferRule(modifiedTM.Authorization, existingTM.Owner, modifiedTM.Owner)
+		modifiedTM.Authorization = ApplyOwnershipTransferRule(modifiedTM.Authorization, existingTM.Owner.ProviderId, modifiedTM.Owner.ProviderId)
 	}
 
 	return nil

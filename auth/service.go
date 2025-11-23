@@ -80,12 +80,8 @@ type User struct {
 	Provider         string    `json:"provider"`         // OAuth provider: "test", "google", "github", "microsoft", "azure"
 	ProviderUserID   string    `json:"provider_user_id"` // Provider's user ID (from JWT sub claim)
 	Email            string    `json:"email"`
-	Name             string    `json:"name"`
+	Name             string    `json:"name"`             // Display name for UI presentation
 	EmailVerified    bool      `json:"email_verified"`
-	GivenName        string    `json:"given_name,omitempty"`
-	FamilyName       string    `json:"family_name,omitempty"`
-	Picture          string    `json:"picture,omitempty"`
-	Locale           string    `json:"locale,omitempty"`
 	AccessToken      string    `json:"-"`                // OAuth access token (not exposed in JSON)
 	RefreshToken     string    `json:"-"`                // OAuth refresh token (not exposed in JSON)
 	TokenExpiry      time.Time `json:"-"`                // Token expiration time (not exposed in JSON)
@@ -109,10 +105,6 @@ type Claims struct {
 	Email            string   `json:"email"`
 	EmailVerified    bool     `json:"email_verified,omitempty"`
 	Name             string   `json:"name"`
-	GivenName        string   `json:"given_name,omitempty"`
-	FamilyName       string   `json:"family_name,omitempty"`
-	Picture          string   `json:"picture,omitempty"`
-	Locale           string   `json:"locale,omitempty"`
 	IdentityProvider string   `json:"idp,omitempty"`    // Identity provider
 	Groups           []string `json:"groups,omitempty"` // User's groups from IdP
 	jwt.RegisteredClaims
@@ -128,12 +120,8 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 	// If UserInfo is provided, update the user with fresh provider data
 	if userInfo != nil {
 		user.EmailVerified = userInfo.EmailVerified
-		user.GivenName = userInfo.GivenName
-		user.FamilyName = userInfo.FamilyName
-		user.Picture = userInfo.Picture
-		if userInfo.Locale != "" {
-			user.Locale = userInfo.Locale
-		}
+		// Note: GivenName, FamilyName, Picture, Locale are ignored per schema requirements
+
 		// Set IdP and groups from the fresh UserInfo
 		if userInfo.IdP != "" {
 			user.IdentityProvider = userInfo.IdP
@@ -169,10 +157,6 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		Email:            user.Email,
 		EmailVerified:    user.EmailVerified,
 		Name:             user.Name,
-		GivenName:        user.GivenName,
-		FamilyName:       user.FamilyName,
-		Picture:          user.Picture,
-		Locale:           user.Locale,
 		IdentityProvider: user.IdentityProvider,
 		Groups:           user.Groups,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -301,7 +285,7 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 	db := s.dbManager.Postgres().GetDB()
 
 	var user User
-	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, given_name, family_name, picture, locale, access_token, refresh_token, token_expiry, created_at, modified_at, last_login FROM users WHERE email = $1`
+	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login FROM users WHERE email = $1`
 	err = db.QueryRowContext(ctx, query, email).Scan(
 		&user.InternalUUID,
 		&user.Provider,
@@ -309,10 +293,6 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 		&user.Email,
 		&user.Name,
 		&user.EmailVerified,
-		&user.GivenName,
-		&user.FamilyName,
-		&user.Picture,
-		&user.Locale,
 		&user.AccessToken,
 		&user.RefreshToken,
 		&user.TokenExpiry,
@@ -353,7 +333,7 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 	db := s.dbManager.Postgres().GetDB()
 
 	var user User
-	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, given_name, family_name, picture, locale, access_token, refresh_token, token_expiry, created_at, modified_at, last_login FROM users WHERE internal_uuid = $1`
+	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login FROM users WHERE internal_uuid = $1`
 	err = db.QueryRowContext(ctx, query, id).Scan(
 		&user.InternalUUID,
 		&user.Provider,
@@ -361,10 +341,6 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 		&user.Email,
 		&user.Name,
 		&user.EmailVerified,
-		&user.GivenName,
-		&user.FamilyName,
-		&user.Picture,
-		&user.Locale,
 		&user.AccessToken,
 		&user.RefreshToken,
 		&user.TokenExpiry,
@@ -423,14 +399,9 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 		user.ModifiedAt = now
 	}
 
-	// Set default locale if not provided
-	if user.Locale == "" {
-		user.Locale = "en-US"
-	}
-
 	query := `
-		INSERT INTO users (internal_uuid, provider, provider_user_id, email, name, email_verified, given_name, family_name, picture, locale, access_token, refresh_token, token_expiry, created_at, modified_at, last_login)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		INSERT INTO users (internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING internal_uuid
 	`
 
@@ -441,10 +412,6 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 		user.Email,
 		user.Name,
 		user.EmailVerified,
-		user.GivenName,
-		user.FamilyName,
-		user.Picture,
-		user.Locale,
 		user.AccessToken,
 		user.RefreshToken,
 		user.TokenExpiry,
@@ -479,9 +446,8 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 
 	query := `
 		UPDATE users
-		SET email = $2, name = $3, email_verified = $4, given_name = $5, family_name = $6,
-		    picture = $7, locale = $8, access_token = $9, refresh_token = $10, token_expiry = $11,
-		    modified_at = $12, last_login = $13
+		SET email = $2, name = $3, email_verified = $4, access_token = $5, refresh_token = $6, token_expiry = $7,
+		    modified_at = $8, last_login = $9
 		WHERE internal_uuid = $1
 	`
 
@@ -490,10 +456,6 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 		user.Email,
 		user.Name,
 		user.EmailVerified,
-		user.GivenName,
-		user.FamilyName,
-		user.Picture,
-		user.Locale,
 		user.AccessToken,
 		user.RefreshToken,
 		user.TokenExpiry,
@@ -694,7 +656,7 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 
 	var user User
 	query := `
-		SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, given_name, family_name, picture, locale, access_token, refresh_token, token_expiry, created_at, modified_at, last_login
+		SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login
 		FROM users
 		WHERE provider = $1 AND provider_user_id = $2
 	`
@@ -705,10 +667,6 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 		&user.Email,
 		&user.Name,
 		&user.EmailVerified,
-		&user.GivenName,
-		&user.FamilyName,
-		&user.Picture,
-		&user.Locale,
 		&user.AccessToken,
 		&user.RefreshToken,
 		&user.TokenExpiry,
@@ -746,7 +704,7 @@ func (s *Service) GetUserByAnyProviderID(ctx context.Context, providerUserID str
 
 	var user User
 	query := `
-		SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, given_name, family_name, picture, locale, access_token, refresh_token, token_expiry, created_at, modified_at, last_login
+		SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login
 		FROM users
 		WHERE provider_user_id = $1
 		LIMIT 1
@@ -758,10 +716,6 @@ func (s *Service) GetUserByAnyProviderID(ctx context.Context, providerUserID str
 		&user.Email,
 		&user.Name,
 		&user.EmailVerified,
-		&user.GivenName,
-		&user.FamilyName,
-		&user.Picture,
-		&user.Locale,
 		&user.AccessToken,
 		&user.RefreshToken,
 		&user.TokenExpiry,

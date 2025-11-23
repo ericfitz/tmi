@@ -8,6 +8,7 @@ import (
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // ValidateDuplicateSubjects checks for duplicate subjects in authorization list
@@ -15,14 +16,14 @@ func ValidateDuplicateSubjects(authList []Authorization) error {
 	subjectMap := make(map[string]bool)
 
 	for _, auth := range authList {
-		if _, exists := subjectMap[auth.Subject]; exists {
+		if _, exists := subjectMap[auth.ProviderId]; exists {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "invalid_input",
-				Message: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
+				Message: fmt.Sprintf("Duplicate authorization subject: %s", auth.ProviderId),
 			}
 		}
-		subjectMap[auth.Subject] = true
+		subjectMap[auth.ProviderId] = true
 	}
 
 	return nil
@@ -38,7 +39,7 @@ func ApplyOwnershipTransferRule(authList []Authorization, originalOwner, newOwne
 	// Check if the original owner is already in the authorization list
 	originalOwnerFound := false
 	for i := range authList {
-		if authList[i].Subject == originalOwner {
+		if authList[i].ProviderId == originalOwner {
 			// Make sure the original owner has the Owner role
 			authList[i].Role = RoleOwner
 			originalOwnerFound = true
@@ -49,8 +50,10 @@ func ApplyOwnershipTransferRule(authList []Authorization, originalOwner, newOwne
 	// If the original owner isn't in the list, add them
 	if !originalOwnerFound {
 		authList = append(authList, Authorization{
-			Subject: originalOwner,
-			Role:    RoleOwner,
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      "unknown", // TODO: Need provider context
+			ProviderId:    originalOwner,
+			Role:          RoleOwner,
 		})
 	}
 
@@ -85,8 +88,14 @@ func convertInterfaceToAuthList(authList []interface{}) []Authorization {
 	for _, authItem := range authList {
 		if auth, ok := authItem.(map[string]interface{}); ok {
 			var authObj Authorization
-			if subject, ok := auth["subject"].(string); ok {
-				authObj.Subject = subject
+			if providerId, ok := auth["provider_id"].(string); ok {
+				authObj.ProviderId = providerId
+			}
+			if provider, ok := auth["provider"].(string); ok {
+				authObj.Provider = provider
+			}
+			if principalType, ok := auth["principal_type"].(string); ok {
+				authObj.PrincipalType = AuthorizationPrincipalType(principalType)
 			}
 			if role, ok := auth["role"].(string); ok {
 				authObj.Role = Role(role)
@@ -101,7 +110,7 @@ func convertInterfaceToAuthList(authList []interface{}) []Authorization {
 // ValidateAuthorizationEntries validates individual authorization entries
 func ValidateAuthorizationEntries(authList []Authorization) error {
 	for _, auth := range authList {
-		if auth.Subject == "" {
+		if auth.ProviderId == "" {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "invalid_input",
@@ -116,7 +125,7 @@ func ValidateAuthorizationEntries(authList []Authorization) error {
 func ValidateAuthorizationEntriesWithFormat(authList []Authorization) error {
 	for i, auth := range authList {
 		// Validate subject format
-		if auth.Subject == "" {
+		if auth.ProviderId == "" {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "invalid_input",
@@ -124,11 +133,11 @@ func ValidateAuthorizationEntriesWithFormat(authList []Authorization) error {
 			}
 		}
 
-		if len(auth.Subject) > 255 {
+		if len(auth.ProviderId) > 255 {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "invalid_input",
-				Message: fmt.Sprintf("Authorization subject '%s' exceeds maximum length of 255 characters", auth.Subject),
+				Message: fmt.Sprintf("Authorization subject '%s' exceeds maximum length of 255 characters", auth.ProviderId),
 			}
 		}
 
@@ -137,7 +146,7 @@ func ValidateAuthorizationEntriesWithFormat(authList []Authorization) error {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "invalid_input",
-				Message: fmt.Sprintf("Invalid role '%s' for subject '%s'. Must be one of: reader, writer, owner", auth.Role, auth.Subject),
+				Message: fmt.Sprintf("Invalid role '%s' for subject '%s'. Must be one of: reader, writer, owner", auth.Role, auth.ProviderId),
 			}
 		}
 	}
@@ -164,7 +173,7 @@ const (
 // AuthorizationData represents abstracted authorization data for any resource
 type AuthorizationData struct {
 	Type          string          `json:"type"`
-	Owner         string          `json:"owner"`
+	Owner         User            `json:"owner"`
 	Authorization []Authorization `json:"authorization"`
 }
 
@@ -176,8 +185,8 @@ func AccessCheck(principal string, requiredRole Role, authData AuthorizationData
 		return false
 	}
 
-	// Check if principal is the owner
-	if authData.Owner == principal {
+	// Check if principal is the owner (Owner is now a User object)
+	if authData.Owner.ProviderId == principal {
 		// Owner always has access regardless of required role
 		return true
 	}
@@ -189,7 +198,7 @@ func AccessCheck(principal string, requiredRole Role, authData AuthorizationData
 	for _, auth := range authData.Authorization {
 		// For user authorization (default for backward compatibility)
 		// If SubjectType is empty string, assume it's a user for backward compatibility
-		if (auth.SubjectType == "" || auth.SubjectType == AuthorizationSubjectTypeUser) && auth.Subject == principal {
+		if (auth.PrincipalType == "" || auth.PrincipalType == AuthorizationPrincipalTypeUser) && auth.ProviderId == principal {
 			if !found || isHigherRole(auth.Role, highestRole) {
 				highestRole = auth.Role
 				found = true
@@ -210,9 +219,16 @@ func AccessCheck(principal string, requiredRole Role, authData AuthorizationData
 //  1. Try direct match against internal_uuid (primary identifier)
 //  2. Try direct match against provider_user_id (OAuth provider's user ID)
 //  3. Try direct match against email (fallback)
-func matchesUserIdentifier(subject string, userEmail string, userProviderID string, userInternalUUID string) bool {
-	// Check all three identifiers
-	return subject == userInternalUUID || subject == userProviderID || subject == userEmail
+func matchesUserIdentifier(owner User, userEmail string, userProviderID string, userInternalUUID string) bool {
+	// Check if owner matches any of the user identifiers
+	// Owner.ProviderId could be internal_uuid, provider_user_id, or email
+	return owner.ProviderId == userInternalUUID || owner.ProviderId == userProviderID || owner.ProviderId == userEmail
+}
+
+// matchesProviderID checks if a provider_id string matches any user identifier
+func matchesProviderID(providerId string, userEmail string, userProviderID string, userInternalUUID string) bool {
+	// Check if providerId matches any of the user identifiers
+	return providerId == userInternalUUID || providerId == userProviderID || providerId == userEmail
 }
 
 // AccessCheckWithGroups performs authorization check with group support and flexible user matching
@@ -226,24 +242,25 @@ func AccessCheckWithGroups(principal string, principalProviderID string, princip
 // Returns true if the user matches, using flexible matching
 func checkUserMatch(ctx context.Context, authService AuthService, auth Authorization, principal string, principalProviderID string, principalInternalUUID string) bool {
 	// Use flexible matching: email, provider_user_id, or internal_uuid
-	return matchesUserIdentifier(auth.Subject, principal, principalProviderID, principalInternalUUID)
+	return matchesProviderID(auth.ProviderId, principal, principalProviderID, principalInternalUUID)
 }
 
 // checkGroupMatch checks if an authorization entry matches the principal's groups
 // Returns true if the user is a member of the group, handling special pseudo-groups
 func checkGroupMatch(auth Authorization, principal string, principalIdP string, principalGroups []string) bool {
 	// Special handling for "everyone" pseudo-group
-	if auth.Subject == EveryonePseudoGroup {
+	if auth.ProviderId == EveryonePseudoGroup {
 		logger := slogging.Get()
 		logger.Debug("Access granted via 'everyone' pseudo-group with role: %s for user: %s",
 			auth.Role, principal)
 		return true
 	}
 
-	// Normal groups must match both the group name AND the IdP
-	if auth.Idp != nil && *auth.Idp == principalIdP {
+	// Normal groups must match both the group name AND the provider
+	// Provider "*" means provider-independent (matches all providers)
+	if auth.Provider == "*" || auth.Provider == principalIdP {
 		for _, group := range principalGroups {
-			if auth.Subject == group {
+			if auth.ProviderId == group {
 				return true
 			}
 		}
@@ -282,14 +299,14 @@ func AccessCheckWithGroupsAndIdPLookup(ctx context.Context, authService AuthServ
 
 	for _, auth := range authData.Authorization {
 		// Check user authorization
-		if auth.SubjectType == "" || auth.SubjectType == AuthorizationSubjectTypeUser {
+		if auth.PrincipalType == "" || auth.PrincipalType == AuthorizationPrincipalTypeUser {
 			if checkUserMatch(ctx, authService, auth, principal, principalProviderID, principalInternalUUID) {
 				highestRole, found = updateHighestRole(highestRole, auth.Role, found)
 			}
 		}
 
 		// Check group authorization
-		if auth.SubjectType == AuthorizationSubjectTypeGroup {
+		if auth.PrincipalType == AuthorizationPrincipalTypeGroup {
 			if checkGroupMatch(auth, principal, principalIdP, principalGroups) {
 				highestRole, found = updateHighestRole(highestRole, auth.Role, found)
 			}
@@ -363,7 +380,13 @@ func ExtractAuthData(resource interface{}) (AuthorizationData, error) {
 	case DfdDiagram:
 		// For diagrams, use TestFixtures pattern for now
 		if TestFixtures.Owner != "" {
-			authData.Owner = TestFixtures.Owner
+			authData.Owner = User{
+				PrincipalType: UserPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    TestFixtures.Owner,
+				DisplayName:   TestFixtures.Owner,
+				Email:         openapi_types.Email(TestFixtures.Owner),
+			}
 			authData.Authorization = TestFixtures.DiagramAuth
 			return authData, nil
 		}
@@ -542,22 +565,25 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 		}
 
 		// Convert string subject_type to proper enum
-		var authSubjectType AuthorizationSubjectType
+		var authPrincipalType AuthorizationPrincipalType
 		switch subjectType {
 		case "user":
-			authSubjectType = AuthorizationSubjectTypeUser
+			authPrincipalType = AuthorizationPrincipalTypeUser
 		case "group":
-			authSubjectType = AuthorizationSubjectTypeGroup
+			authPrincipalType = AuthorizationPrincipalTypeGroup
 		default:
 			// For backward compatibility, treat empty or unknown as user
-			authSubjectType = AuthorizationSubjectTypeUser
+			authPrincipalType = AuthorizationPrincipalTypeUser
 		}
 
-		// Build authorization entry with proper subject type
+		// Build authorization entry with proper principal type
+		// Note: This function is part of GetInheritedAuthData which needs full refactoring
+		// to properly enrich principal data from database
 		auth := Authorization{
-			Subject:     subject,
-			SubjectType: authSubjectType,
-			Role:        roleType,
+			PrincipalType: authPrincipalType,
+			Provider:      "unknown", // TODO: Need to enrich from database
+			ProviderId:    subject,
+			Role:          roleType,
 		}
 
 		authorization = append(authorization, auth)
@@ -569,9 +595,16 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 	}
 
 	// Build authorization data
+	// TODO: Refactor GetInheritedAuthData to properly enrich owner from database
 	authData := &AuthorizationData{
-		Type:          AuthTypeTMI10,
-		Owner:         ownerEmail,
+		Type: AuthTypeTMI10,
+		Owner: User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "unknown", // TODO: Query from database
+			ProviderId:    ownerEmail,
+			DisplayName:   ownerEmail,
+			Email:         openapi_types.Email(ownerEmail),
+		},
 		Authorization: authorization,
 	}
 

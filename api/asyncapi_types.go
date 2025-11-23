@@ -163,7 +163,7 @@ func (m PresenterDeniedMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterDenied {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterDenied, m.MessageType)
 	}
-	if m.CurrentPresenter.Id == "" {
+	if m.CurrentPresenter.ProviderId == "" {
 		return fmt.Errorf("current_presenter.user_id is required")
 	}
 	return nil
@@ -181,10 +181,10 @@ func (m ChangePresenterMessage) Validate() error {
 	if m.MessageType != MessageTypeChangePresenter {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeChangePresenter, m.MessageType)
 	}
-	if m.InitiatingUser.Id == "" {
+	if m.InitiatingUser.ProviderId == "" {
 		return fmt.Errorf("initiating_user.user_id is required")
 	}
-	if m.NewPresenter.Id == "" {
+	if m.NewPresenter.ProviderId == "" {
 		return fmt.Errorf("new_presenter.user_id is required")
 	}
 	return nil
@@ -201,7 +201,7 @@ func (m RemoveParticipantMessage) Validate() error {
 	if m.MessageType != MessageTypeRemoveParticipant {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeRemoveParticipant, m.MessageType)
 	}
-	if m.RemovedUser.Id == "" {
+	if m.RemovedUser.ProviderId == "" {
 		return fmt.Errorf("removed_user.user_id is required")
 	}
 	return nil
@@ -218,7 +218,7 @@ func (m CurrentPresenterMessage) Validate() error {
 	if m.MessageType != MessageTypeCurrentPresenter {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeCurrentPresenter, m.MessageType)
 	}
-	if m.CurrentPresenter.Id == "" {
+	if m.CurrentPresenter.ProviderId == "" {
 		return fmt.Errorf("current_presenter.user_id is required")
 	}
 	return nil
@@ -405,7 +405,7 @@ func (m UndoRequestMessage) Validate() error {
 	if m.MessageType != MessageTypeUndoRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeUndoRequest, m.MessageType)
 	}
-	if m.InitiatingUser.Id == "" {
+	if m.InitiatingUser.ProviderId == "" {
 		return fmt.Errorf("initiating_user.user_id is required")
 	}
 	return nil
@@ -422,7 +422,7 @@ func (m RedoRequestMessage) Validate() error {
 	if m.MessageType != MessageTypeRedoRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeRedoRequest, m.MessageType)
 	}
-	if m.InitiatingUser.Id == "" {
+	if m.InitiatingUser.ProviderId == "" {
 		return fmt.Errorf("initiating_user.user_id is required")
 	}
 	return nil
@@ -551,7 +551,7 @@ func (m ParticipantJoinedMessage) Validate() error {
 	if m.MessageType != MessageTypeParticipantJoined {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantJoined, m.MessageType)
 	}
-	if m.JoinedUser.Id == "" {
+	if m.JoinedUser.ProviderId == "" {
 		return fmt.Errorf("joined_user.user_id is required")
 	}
 	return nil
@@ -570,7 +570,7 @@ func (m ParticipantLeftMessage) Validate() error {
 	if m.MessageType != MessageTypeParticipantLeft {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantLeft, m.MessageType)
 	}
-	if m.DepartedUser.Id == "" {
+	if m.DepartedUser.ProviderId == "" {
 		return fmt.Errorf("departed_user.user_id is required")
 	}
 	return nil

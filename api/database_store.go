@@ -146,9 +146,29 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	}
 	slogging.Get().Debug("Database ping successful")
 
+	// Try to validate the UUID format first
+	if _, err := uuid.Parse(id); err != nil {
+		slogging.Get().GetSlogger().Error("Invalid UUID format", "id", id, "error", err)
+		return ThreatModel{}, fmt.Errorf("invalid UUID format: %w", err)
+	}
+	slogging.Get().GetSlogger().Debug("UUID format validation passed", "id", id)
+
+	// Start transaction for consistent reads including enrichment
+	tx, err := s.db.Begin()
+	if err != nil {
+		return ThreatModel{}, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		} else {
+			_ = tx.Commit()
+		}
+	}()
+
 	var tm ThreatModel
 	var tmUUID uuid.UUID
-	var name, ownerEmail, createdBy string
+	var name, ownerInternalUUID, createdByInternalUUID string
 	var description, issueUrl *string
 	var threatModelFramework string
 	var status *string
@@ -156,7 +176,7 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	var createdAt, modifiedAt time.Time
 
 	query := `
-		SELECT id, name, description, owner_internal_uuid, created_by,
+		SELECT id, name, description, owner_internal_uuid, created_by_internal_uuid,
 		       threat_model_framework, issue_uri, status, status_updated,
 		       created_at, modified_at
 		FROM threat_models
@@ -165,15 +185,8 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	slogging.Get().GetSlogger().Debug("Executing query", "query", query)
 	slogging.Get().GetSlogger().Debug("Query parameter", "id", id, "type", fmt.Sprintf("%T", id), "length", len(id))
 
-	// Try to validate the UUID format first
-	if _, err := uuid.Parse(id); err != nil {
-		slogging.Get().GetSlogger().Error("Invalid UUID format", "id", id, "error", err)
-		return tm, fmt.Errorf("invalid UUID format: %w", err)
-	}
-	slogging.Get().GetSlogger().Debug("UUID format validation passed", "id", id)
-
-	err := s.db.QueryRow(query, id).Scan(
-		&tmUUID, &name, &description, &ownerEmail, &createdBy,
+	err = tx.QueryRow(query, id).Scan(
+		&tmUUID, &name, &description, &ownerInternalUUID, &createdByInternalUUID,
 		&threatModelFramework, &issueUrl, &status, &statusUpdated,
 		&createdAt, &modifiedAt,
 	)
@@ -189,7 +202,25 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		return tm, fmt.Errorf("failed to get threat model: %w", err)
 	}
 
-	slogging.Get().GetSlogger().Debug("Query successful! Retrieved threat model", "id", tmUUID.String(), "name", name, "owner", ownerEmail)
+	// Enrich owner
+	owner, err := enrichUserPrincipal(tx, ownerInternalUUID)
+	if err != nil {
+		return tm, fmt.Errorf("failed to enrich owner: %w", err)
+	}
+	if owner == nil {
+		return tm, fmt.Errorf("owner user not found for threat model %s", id)
+	}
+
+	// Enrich created_by
+	createdBy, err := enrichUserPrincipal(tx, createdByInternalUUID)
+	if err != nil {
+		return tm, fmt.Errorf("failed to enrich created_by: %w", err)
+	}
+	if createdBy == nil {
+		return tm, fmt.Errorf("created_by user not found for threat model %s", id)
+	}
+
+	slogging.Get().GetSlogger().Debug("Query successful! Retrieved threat model", "id", tmUUID.String(), "name", name, "owner", owner.Email)
 
 	// Load authorization
 	authorization, err := s.loadAuthorization(id)
@@ -225,8 +256,8 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		Id:                   &tmUUID,
 		Name:                 name,
 		Description:          description,
-		Owner:                ownerEmail,
-		CreatedBy:            &createdBy,
+		Owner:                *owner,
+		CreatedBy:            createdBy,
 		ThreatModelFramework: framework,
 		IssueUri:             issueUrl,
 		Status:               status,
@@ -250,7 +281,7 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 	var results []ThreatModel
 
 	query := `
-		SELECT id, name, description, owner_internal_uuid, created_by,
+		SELECT id, name, description, owner_internal_uuid, created_by_internal_uuid,
 		       threat_model_framework, issue_uri, status, status_updated,
 		       created_at, modified_at
 		FROM threat_models
@@ -270,7 +301,8 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 	for rows.Next() {
 		var tm ThreatModel
 		var uuid uuid.UUID
-		var name, ownerEmail, createdBy string
+		var name string
+		var ownerInternalUUID, createdByInternalUUID string
 		var description, issueUrl *string
 		var threatModelFramework string
 		var status *string
@@ -278,13 +310,34 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 		var createdAt, modifiedAt time.Time
 
 		err := rows.Scan(
-			&uuid, &name, &description, &ownerEmail, &createdBy,
+			&uuid, &name, &description, &ownerInternalUUID, &createdByInternalUUID,
 			&threatModelFramework, &issueUrl, &status, &statusUpdated,
 			&createdAt, &modifiedAt,
 		)
 		if err != nil {
 			continue
 		}
+
+		// Begin transaction for consistent enrichment
+		tx, err := s.db.Begin()
+		if err != nil {
+			continue
+		}
+
+		// Enrich owner and created_by from database
+		owner, err := enrichUserPrincipal(tx, ownerInternalUUID)
+		if err != nil || owner == nil {
+			tx.Rollback()
+			continue
+		}
+
+		createdBy, err := enrichUserPrincipal(tx, createdByInternalUUID)
+		if err != nil {
+			tx.Rollback()
+			continue
+		}
+
+		tx.Commit()
 
 		// Load authorization for filtering
 		authorization, err := s.loadAuthorization(uuid.String())
@@ -302,8 +355,8 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 			Id:                   &uuid,
 			Name:                 name,
 			Description:          description,
-			Owner:                ownerEmail,
-			CreatedBy:            &createdBy,
+			Owner:                *owner,
+			CreatedBy:            createdBy,
 			ThreatModelFramework: framework,
 			IssueUri:             issueUrl,
 			Status:               status,
@@ -340,7 +393,7 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 	var results []ThreatModelWithCounts
 
 	query := `
-		SELECT id, name, description, owner_internal_uuid, created_by,
+		SELECT id, name, description, owner_internal_uuid, created_by_internal_uuid,
 		       threat_model_framework, issue_uri, status, status_updated,
 		       created_at, modified_at
 		FROM threat_models
@@ -360,7 +413,8 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 	for rows.Next() {
 		var tm ThreatModel
 		var uuid uuid.UUID
-		var name, ownerEmail, createdBy string
+		var name string
+		var ownerInternalUUID, createdByInternalUUID string
 		var description, issueUrl *string
 		var threatModelFramework string
 		var status *string
@@ -368,13 +422,34 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 		var createdAt, modifiedAt time.Time
 
 		err := rows.Scan(
-			&uuid, &name, &description, &ownerEmail, &createdBy,
+			&uuid, &name, &description, &ownerInternalUUID, &createdByInternalUUID,
 			&threatModelFramework, &issueUrl, &status, &statusUpdated,
 			&createdAt, &modifiedAt,
 		)
 		if err != nil {
 			continue
 		}
+
+		// Begin transaction for consistent enrichment
+		tx, err := s.db.Begin()
+		if err != nil {
+			continue
+		}
+
+		// Enrich owner and created_by from database
+		owner, err := enrichUserPrincipal(tx, ownerInternalUUID)
+		if err != nil || owner == nil {
+			tx.Rollback()
+			continue
+		}
+
+		createdBy, err := enrichUserPrincipal(tx, createdByInternalUUID)
+		if err != nil {
+			tx.Rollback()
+			continue
+		}
+
+		tx.Commit()
 
 		// Load authorization for filtering
 		authorization, err := s.loadAuthorization(uuid.String())
@@ -392,8 +467,8 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 			Id:                   &uuid,
 			Name:                 name,
 			Description:          description,
-			Owner:                ownerEmail,
-			CreatedBy:            &createdBy,
+			Owner:                *owner,
+			CreatedBy:            createdBy,
 			ThreatModelFramework: framework,
 			IssueUri:             issueUrl,
 			Status:               status,
@@ -541,14 +616,14 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 	}
 
 	// Resolve owner identifier (UUID, provider_user_id, or email) to internal_uuid
-	ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner)
+	ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner.ProviderId)
 	if err != nil {
-		return item, fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner, err)
+		return item, fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner.ProviderId, err)
 	}
 
 	// Insert threat model
 	query := `
-		INSERT INTO threat_models (id, name, description, owner_internal_uuid, created_by,
+		INSERT INTO threat_models (id, name, description, owner_internal_uuid, created_by_internal_uuid,
 		                          threat_model_framework, issue_uri, status, status_updated,
 		                          created_at, modified_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
@@ -633,7 +708,7 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 	}
 
 	// Resolve owner identifier (UUID, provider_user_id, or email) to internal_uuid
-	ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner)
+	ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner.ProviderId)
 	if err != nil {
 		return fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner, err)
 	}
@@ -722,16 +797,30 @@ func (s *ThreatModelDatabaseStore) Count() int {
 // Helper methods for loading related data
 
 func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string) ([]Authorization, error) {
+	// Start a transaction for consistent reads
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		} else {
+			_ = tx.Commit()
+		}
+	}()
+
 	query := `
 		SELECT
-			COALESCE(user_internal_uuid::text, group_internal_uuid::text) as subject,
+			user_internal_uuid,
+			group_internal_uuid,
 			subject_type,
 			role
 		FROM threat_model_access
 		WHERE threat_model_id = $1
-		ORDER BY role DESC, subject ASC`
+		ORDER BY role DESC`
 
-	rows, err := s.db.Query(query, threatModelId)
+	rows, err := tx.Query(query, threatModelId)
 	if err != nil {
 		return nil, err
 	}
@@ -744,37 +833,66 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string) ([]Au
 
 	var authorization []Authorization
 	for rows.Next() {
-		var subject, subjectTypeStr, roleStr string
-		if err := rows.Scan(&subject, &subjectTypeStr, &roleStr); err != nil {
+		var userUUID, groupUUID sql.NullString
+		var subjectTypeStr, roleStr string
+		if err := rows.Scan(&userUUID, &groupUUID, &subjectTypeStr, &roleStr); err != nil {
 			continue
 		}
 
 		role := AuthorizationRole(roleStr)
 
-		// Convert string subject_type to proper enum
-		var subjectType AuthorizationSubjectType
-		switch subjectTypeStr {
-		case "user":
-			subjectType = AuthorizationSubjectTypeUser
-		case "group":
-			subjectType = AuthorizationSubjectTypeGroup
-		default:
-			// For backward compatibility, treat empty or unknown as user
-			subjectType = AuthorizationSubjectTypeUser
-		}
+		// Enrich based on subject type
+		if subjectTypeStr == "user" && userUUID.Valid {
+			user, enrichErr := enrichUserPrincipal(tx, userUUID.String)
+			if enrichErr != nil {
+				// Log but continue - graceful degradation
+				slogging.Get().Warn("Failed to enrich user principal: %v", enrichErr)
+				continue
+			}
+			if user == nil {
+				// User not found - skip this authorization entry
+				continue
+			}
 
-		// Map the flag UUID back to "everyone" pseudo-group
-		if subjectTypeStr == "group" && subject == EveryonePseudoGroupUUID {
-			subject = EveryonePseudoGroup
-		}
+			// Create Authorization from User (which extends Principal)
+			auth := Authorization{
+				PrincipalType: AuthorizationPrincipalType(user.PrincipalType),
+				Provider:      user.Provider,
+				ProviderId:    user.ProviderId,
+				Role:          role,
+			}
+			// Set optional fields
+			auth.DisplayName = &user.DisplayName
+			emailPtr := &user.Email
+			auth.Email = emailPtr
 
-		auth := Authorization{
-			Subject:     subject,
-			SubjectType: subjectType,
-			Role:        role,
-		}
+			authorization = append(authorization, auth)
 
-		authorization = append(authorization, auth)
+		} else if subjectTypeStr == "group" && groupUUID.Valid {
+			principal, enrichErr := enrichGroupPrincipal(tx, groupUUID.String)
+			if enrichErr != nil {
+				// Log but continue - graceful degradation
+				slogging.Get().Warn("Failed to enrich group principal: %v", enrichErr)
+				continue
+			}
+			if principal == nil {
+				// Group not found - skip this authorization entry
+				continue
+			}
+
+			// Create Authorization from Principal
+			auth := Authorization{
+				PrincipalType: AuthorizationPrincipalType(principal.PrincipalType),
+				Provider:      principal.Provider,
+				ProviderId:    principal.ProviderId,
+				Role:          role,
+			}
+			// Set optional fields
+			auth.DisplayName = principal.DisplayName
+			auth.Email = principal.Email
+
+			authorization = append(authorization, auth)
+		}
 	}
 
 	return authorization, nil
@@ -1015,7 +1133,7 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 	for _, auth := range authorization {
 		// Determine subject type string for database
 		subjectTypeStr := "user"
-		if auth.SubjectType == AuthorizationSubjectTypeGroup {
+		if auth.PrincipalType == AuthorizationPrincipalTypeGroup {
 			subjectTypeStr = "group"
 		}
 
@@ -1025,26 +1143,27 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 		switch subjectTypeStr {
 		case "user":
 			// Resolve user identifier to internal_uuid
-			resolvedUUID, err := s.resolveUserIdentifierToUUID(tx, auth.Subject)
+			resolvedUUID, err := s.resolveUserIdentifierToUUID(tx, auth.ProviderId)
 			if err != nil {
 				// If resolution fails, keep the original subject value
-				slogging.Get().Debug("Could not resolve user identifier %s to internal_uuid, using as-is: %v", auth.Subject, err)
-				userUUID = auth.Subject
+				slogging.Get().Debug("Could not resolve user identifier %s to internal_uuid, using as-is: %v", auth.ProviderId, err)
+				userUUID = auth.ProviderId
 			} else {
 				userUUID = resolvedUUID
 			}
 			groupUUID = nil
 		case "group":
 			// Handle "everyone" pseudo-group specially
-			if auth.Subject == EveryonePseudoGroup {
+			if auth.ProviderId == EveryonePseudoGroup {
 				groupUUID = EveryonePseudoGroupUUID
 			} else {
 				// Resolve group name to internal_uuid from groups table
-				resolvedUUID, err := s.resolveGroupToUUID(tx, auth.Subject, auth.Idp)
+				// Use Provider field (was Idp)
+				resolvedUUID, err := s.resolveGroupToUUID(tx, auth.ProviderId, &auth.Provider)
 				if err != nil {
-					slogging.Get().Debug("Could not resolve group identifier %s to internal_uuid: %v", auth.Subject, err)
+					slogging.Get().Debug("Could not resolve group identifier %s to internal_uuid: %v", auth.ProviderId, err)
 					// Create group entry if it doesn't exist
-					groupUUID, err = s.ensureGroupExists(tx, auth.Subject, auth.Idp)
+					groupUUID, err = s.ensureGroupExists(tx, auth.ProviderId, &auth.Provider)
 					if err != nil {
 						return fmt.Errorf("failed to ensure group exists: %w", err)
 					}

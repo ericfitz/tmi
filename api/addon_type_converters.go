@@ -10,12 +10,14 @@ import (
 // Helper functions to convert between internal Addon types and OpenAPI-generated types
 
 // authUserToAPIUser converts auth.User to api.User (OpenAPI generated type)
-// Note: API User.Id contains the provider's user ID (from JWT sub claim), not the internal UUID
+// Note: API User uses Principal-based identity with provider + provider_id
 func authUserToAPIUser(u auth.User) User {
 	return User{
-		Id:    u.ProviderUserID, // Provider's user ID (from JWT sub claim)
-		Email: openapi_types.Email(u.Email),
-		Name:  u.Name,
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      u.Provider,
+		ProviderId:    u.ProviderUserID,
+		DisplayName:   u.Name,
+		Email:         openapi_types.Email(u.Email),
 	}
 }
 
@@ -144,9 +146,11 @@ func invocationToResponse(inv *AddonInvocation) InvocationResponse {
 		ObjectType:    toStringPtr(inv.ObjectType),
 		ObjectId:      inv.ObjectID,
 		InvokedBy: User{
-			Id:    inv.InvokedByID,
-			Email: openapi_types.Email(inv.InvokedByEmail),
-			Name:  inv.InvokedByName,
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "unknown", // TODO: Store provider in AddonInvocation
+			ProviderId:    inv.InvokedByID,
+			DisplayName:   inv.InvokedByName,
+			Email:         openapi_types.Email(inv.InvokedByEmail),
 		},
 		Payload:         toStringPtr(inv.Payload),
 		Status:          statusToInvocationResponseStatus(inv.Status),

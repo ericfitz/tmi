@@ -14,9 +14,10 @@ type UserInfoExtractor struct{}
 
 // UserInfo represents extracted user information
 type UserInfo struct {
-	UserID    string
-	UserName  string
-	UserEmail string
+	UserID       string
+	UserName     string
+	UserEmail    string
+	UserProvider string
 }
 
 // ExtractUserInfo extracts user information from the gin context
@@ -48,6 +49,14 @@ func (u *UserInfoExtractor) ExtractUserInfo(c *gin.Context) (*UserInfo, error) {
 		}
 	}
 
+	// Get user provider from context (optional, defaults to "unknown")
+	userProviderStr := "unknown"
+	if userProvider, exists := c.Get("userProvider"); exists {
+		if provider, ok := userProvider.(string); ok && provider != "" {
+			userProviderStr = provider
+		}
+	}
+
 	// If no display name, use email as fallback
 	if userNameStr == "" && userEmailStr != "" {
 		userNameStr = userEmailStr
@@ -59,9 +68,10 @@ func (u *UserInfoExtractor) ExtractUserInfo(c *gin.Context) (*UserInfo, error) {
 	}
 
 	return &UserInfo{
-		UserID:    userIDStr,
-		UserName:  userNameStr,
-		UserEmail: userEmailStr,
+		UserID:       userIDStr,
+		UserName:     userNameStr,
+		UserEmail:    userEmailStr,
+		UserProvider: userProviderStr,
 	}, nil
 }
 

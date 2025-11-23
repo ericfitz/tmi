@@ -93,7 +93,7 @@ func TestOwnerCanChangeOwner(t *testing.T) {
 	// Check that the original owner was preserved in authorization with owner role
 	originalOwnerFound := false
 	for _, auth := range updatedTM.Authorization {
-		if auth.Subject == origTM.Owner {
+		if auth.ProviderId == origTM.Owner {
 			originalOwnerFound = true
 			assert.Equal(t, RoleOwner, auth.Role, "Original owner should have owner role")
 			break
@@ -196,14 +196,14 @@ func TestRejectDuplicateSubjects(t *testing.T) {
 		// Check for duplicate subjects directly
 		subjectMap := make(map[string]bool)
 		for _, auth := range request.Authorization {
-			if _, exists := subjectMap[auth.Subject]; exists {
+			if _, exists := subjectMap[auth.ProviderId]; exists {
 				c.JSON(http.StatusBadRequest, Error{
 					Error:            "invalid_input",
-					ErrorDescription: fmt.Sprintf("Duplicate authorization subject: %s", auth.Subject),
+					ErrorDescription: fmt.Sprintf("Duplicate authorization subject: %s", auth.ProviderId),
 				})
 				return
 			}
-			subjectMap[auth.Subject] = true
+			subjectMap[auth.ProviderId] = true
 		}
 
 		// If we get here, there are no duplicates, so return success

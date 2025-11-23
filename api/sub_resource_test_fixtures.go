@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // SubResourceTestFixtures provides comprehensive test data for sub-resource testing
@@ -85,11 +86,17 @@ func InitSubResourceTestFixtures() {
 		Description: stringPointer("A comprehensive threat model for testing sub-resource operations"),
 		CreatedAt:   &now,
 		ModifiedAt:  &now,
-		Owner:       SubResourceFixtures.OwnerUser,
+		Owner: User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    SubResourceFixtures.OwnerUser,
+			DisplayName:   SubResourceFixtures.OwnerUser,
+			Email:         openapi_types.Email(SubResourceFixtures.OwnerUser),
+		},
 		Authorization: []Authorization{
-			{Subject: SubResourceFixtures.OwnerUser, Role: RoleOwner},
-			{Subject: SubResourceFixtures.WriterUser, Role: RoleWriter},
-			{Subject: SubResourceFixtures.ReaderUser, Role: RoleReader},
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: SubResourceFixtures.OwnerUser, Role: RoleOwner},
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: SubResourceFixtures.WriterUser, Role: RoleWriter},
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: SubResourceFixtures.ReaderUser, Role: RoleReader},
 		},
 	}
 
@@ -243,9 +250,9 @@ func InitSubResourceTestFixtures() {
 
 	// Store authorization data
 	SubResourceFixtures.Authorization = []Authorization{
-		{Subject: SubResourceFixtures.OwnerUser, Role: RoleOwner},
-		{Subject: SubResourceFixtures.WriterUser, Role: RoleWriter},
-		{Subject: SubResourceFixtures.ReaderUser, Role: RoleReader},
+		{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: SubResourceFixtures.OwnerUser, Role: RoleOwner},
+		{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: SubResourceFixtures.WriterUser, Role: RoleWriter},
+		{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: SubResourceFixtures.ReaderUser, Role: RoleReader},
 	}
 
 	SubResourceFixtures.Initialized = true

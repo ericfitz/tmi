@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // AuthTestHelper provides utilities for testing authorization functionality with caching
@@ -285,12 +286,13 @@ func (h *AuthTestHelper) VerifyAuthorizationInheritance(t *testing.T, threatMode
 		// Verify the user has the expected role in threat model auth data
 		found := false
 		for _, auth := range tmAuthData.Authorization {
-			if auth.Subject == userEmail && auth.Role == expectedRole {
+			if auth.ProviderId == userEmail && auth.Role == expectedRole {
 				found = true
 				break
 			}
 		}
-		if !found && tmAuthData.Owner != userEmail {
+		// Owner is now a User object, check against ProviderId (which contains the email)
+		if !found && tmAuthData.Owner.ProviderId != userEmail {
 			t.Errorf("User %s with role %s not found in threat model authorization", userEmail, expectedRole)
 		}
 	}
@@ -384,11 +386,11 @@ func AssertAuthDataEqual(t *testing.T, expected, actual *AuthorizationData) {
 	actualMap := make(map[string]Role)
 
 	for _, auth := range expected.Authorization {
-		expectedMap[auth.Subject] = auth.Role
+		expectedMap[auth.ProviderId] = auth.Role
 	}
 
 	for _, auth := range actual.Authorization {
-		actualMap[auth.Subject] = auth.Role
+		actualMap[auth.ProviderId] = auth.Role
 	}
 
 	for subject, role := range expectedMap {
@@ -405,20 +407,34 @@ func GetTestAuthorizationData(scenario string) *AuthorizationData {
 		InitSubResourceTestFixtures()
 	}
 
+	// Helper to create User from email string
+	createUser := func(email string) User {
+		if email == "" {
+			return User{}
+		}
+		return User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    email,
+			DisplayName:   email,
+			Email:         openapi_types.Email(email),
+		}
+	}
+
 	switch scenario {
 	case "valid_multi_user":
 		return &AuthorizationData{
-			Owner:         SubResourceFixtures.OwnerUser,
+			Owner:         createUser(SubResourceFixtures.OwnerUser),
 			Authorization: SubResourceFixtures.Authorization,
 		}
 	case "owner_only":
 		return &AuthorizationData{
-			Owner:         SubResourceFixtures.OwnerUser,
+			Owner:         createUser(SubResourceFixtures.OwnerUser),
 			Authorization: []Authorization{},
 		}
 	case "empty":
 		return &AuthorizationData{
-			Owner:         "",
+			Owner:         User{},
 			Authorization: []Authorization{},
 		}
 	default:

@@ -37,11 +37,11 @@ func ValidateAuthorizationWithPseudoGroups(authList []Authorization) error {
 }
 
 // NormalizePseudoGroupAuthorization ensures pseudo-group authorization entries
-// have the correct IdP value (nil for cross-IdP pseudo-groups)
+// have the correct Provider value ("*" for cross-provider pseudo-groups)
 func NormalizePseudoGroupAuthorization(auth Authorization) Authorization {
-	if auth.SubjectType == AuthorizationSubjectTypeGroup && IsPseudoGroup(auth.Subject) {
-		// Clear the IdP for pseudo-groups to ensure cross-IdP behavior
-		auth.Idp = nil
+	if auth.PrincipalType == AuthorizationPrincipalTypeGroup && IsPseudoGroup(auth.ProviderId) {
+		// Set Provider to "*" for pseudo-groups to ensure cross-provider behavior
+		auth.Provider = "*"
 	}
 	return auth
 }

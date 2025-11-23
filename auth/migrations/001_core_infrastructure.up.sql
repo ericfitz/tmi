@@ -13,12 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
     provider TEXT NOT NULL,                           -- OAuth provider: "test", "google", "github", "microsoft", "azure"
     provider_user_id TEXT NOT NULL,                   -- Provider's user ID (from JWT sub claim)
     email TEXT NOT NULL,
-    name TEXT NOT NULL,
+    name TEXT NOT NULL,                               -- Display name for UI presentation
     email_verified BOOLEAN DEFAULT FALSE,
-    given_name TEXT,
-    family_name TEXT,
-    picture TEXT,
-    locale TEXT DEFAULT 'en-US',
     access_token TEXT,                                -- OAuth access token
     refresh_token TEXT,                               -- OAuth refresh token
     token_expiry TIMESTAMPTZ,                         -- Token expiration time

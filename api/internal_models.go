@@ -13,11 +13,11 @@ type ThreatModelInternal struct {
 	Id                   *openapi_types.UUID `json:"id,omitempty"`
 	Name                 string              `json:"name"`
 	Description          *string             `json:"description,omitempty"`
-	Owner                string              `json:"owner"`
+	Owner                User                `json:"owner"`
 	ThreatModelFramework string              `json:"threat_model_framework"`
 	CreatedAt            *time.Time          `json:"created_at,omitempty"`
 	ModifiedAt           *time.Time          `json:"modified_at,omitempty"`
-	CreatedBy            *string             `json:"created_by,omitempty"`
+	CreatedBy            *User               `json:"created_by,omitempty"`
 	IssueUri             *string             `json:"issue_uri,omitempty"`
 
 	// Authorization (stored directly since it's small)

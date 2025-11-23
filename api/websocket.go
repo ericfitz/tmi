@@ -144,6 +144,8 @@ type WebSocketClient struct {
 	UserName string
 	// User email from JWT 'email' claim
 	UserEmail string
+	// User identity provider from JWT 'idp' claim
+	UserProvider string
 	// Buffered channel of outbound messages
 	Send chan []byte
 	// Last activity timestamp
@@ -157,9 +159,11 @@ type WebSocketClient struct {
 // toUser converts WebSocketClient user information to a User object for messages
 func (c *WebSocketClient) toUser() User {
 	return User{
-		Id:    c.UserID,
-		Name:  c.UserName,
-		Email: openapi_types.Email(c.UserEmail),
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      c.UserProvider,
+		ProviderId:    c.UserID,
+		DisplayName:   c.UserName,
+		Email:         openapi_types.Email(c.UserEmail),
 	}
 }
 
@@ -813,9 +817,11 @@ func convertClientToParticipant(client *WebSocketClient, _ *DiagramSession, tm *
 
 	return &Participant{
 		User: User{
-			Id:    client.UserID,
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      client.UserProvider,
+			ProviderId:    client.UserID,
 			Email: openapi_types.Email(client.UserEmail),
-			Name:  client.UserName,
+			DisplayName:   client.UserName,
 		},
 		Permissions:  permissions,
 		LastActivity: client.LastActivity,
@@ -1431,8 +1437,10 @@ func (s *DiagramSession) Run() {
 			msg := ParticipantJoinedMessage{
 				MessageType: MessageTypeParticipantJoined,
 				JoinedUser: User{
-					Id:    client.UserID,
-					Name:  client.UserName,
+					PrincipalType: UserPrincipalTypeUser,
+			Provider:      client.UserProvider,
+			ProviderId:    client.UserID,
+					DisplayName:   client.UserName,
 					Email: openapi_types.Email(client.UserEmail),
 				},
 				Timestamp: time.Now().UTC(),
@@ -1475,8 +1483,10 @@ func (s *DiagramSession) Run() {
 			msg := ParticipantLeftMessage{
 				MessageType: MessageTypeParticipantLeft,
 				DepartedUser: User{
-					Id:    client.UserID,
-					Name:  client.UserName,
+					PrincipalType: UserPrincipalTypeUser,
+			Provider:      client.UserProvider,
+			ProviderId:    client.UserID,
+					DisplayName:   client.UserName,
 					Email: openapi_types.Email(client.UserEmail),
 				},
 				Timestamp: time.Now().UTC(),
@@ -1645,6 +1655,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		UserID:       userInfo.UserID,
 		UserName:     userInfo.UserName,
 		UserEmail:    userInfo.UserEmail,
+		UserProvider: userInfo.UserProvider,
 		Send:         make(chan []byte, 256),
 		LastActivity: time.Now().UTC(),
 	}
@@ -1772,9 +1783,11 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 		deniedMsg := PresenterDeniedMessage{
 			MessageType: MessageTypePresenterDenied,
 			CurrentPresenter: User{
-				Id:    "system",
-				Email: "system@tmi",
-				Name:  "System",
+				PrincipalType: UserPrincipalTypeUser,
+				Provider:      "system",
+				ProviderId:    "system",
+				DisplayName:   "System",
+				Email:         "system@tmi",
 			},
 		}
 		s.sendToClient(client, deniedMsg)
@@ -1817,7 +1830,7 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 
 	// Change presenter
 	s.mu.Lock()
-	s.CurrentPresenter = msg.NewPresenter.Id
+	s.CurrentPresenter = msg.NewPresenter.ProviderId
 	s.mu.Unlock()
 
 	// Broadcast new presenter to all clients
@@ -1826,7 +1839,7 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 		CurrentPresenter: msg.NewPresenter,
 	}
 	s.broadcastMessage(broadcastMsg)
-	slogging.Get().Info("Host %s changed presenter to %s in session %s", client.UserID, msg.NewPresenter.Id, s.ID)
+	slogging.Get().Info("Host %s changed presenter to %s in session %s", client.UserID, msg.NewPresenter.ProviderId, s.ID)
 
 	// Also broadcast updated participant list since presenter has changed
 	s.broadcastParticipantsUpdate()
@@ -1859,13 +1872,13 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 	s.mu.RUnlock()
 
 	if client.UserEmail != host {
-		slogging.Get().Info("Non-host attempted to remove participant: %s tried to remove %s", client.UserEmail, msg.RemovedUser.Id)
+		slogging.Get().Info("Non-host attempted to remove participant: %s tried to remove %s", client.UserEmail, msg.RemovedUser.ProviderId)
 		s.sendErrorMessage(client, "unauthorized", "Only the host can remove participants from the session")
 		return
 	}
 
 	// Cannot remove yourself
-	if msg.RemovedUser.Id == client.UserEmail {
+	if msg.RemovedUser.ProviderId == client.UserEmail {
 		slogging.Get().Info("Host %s attempted to remove themselves from session %s", client.UserEmail, s.ID)
 		s.sendErrorMessage(client, "invalid_request", "Host cannot remove themselves from the session")
 		return
@@ -1875,7 +1888,7 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 	var targetClient *WebSocketClient
 	s.mu.RLock()
 	for c := range s.Clients {
-		if c.UserID == msg.RemovedUser.Id {
+		if c.UserID == msg.RemovedUser.ProviderId {
 			targetClient = c
 			break
 		}
@@ -1884,30 +1897,30 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 
 	// Add user to deny list (even if not currently connected)
 	s.mu.Lock()
-	s.DeniedUsers[msg.RemovedUser.Id] = true
+	s.DeniedUsers[msg.RemovedUser.ProviderId] = true
 	s.mu.Unlock()
 
-	slogging.Get().Info("Host %s removed participant %s from session %s", client.UserID, msg.RemovedUser.Id, s.ID)
+	slogging.Get().Info("Host %s removed participant %s from session %s", client.UserID, msg.RemovedUser.ProviderId, s.ID)
 
 	// If the participant is currently connected, disconnect them
 	if targetClient != nil {
-		slogging.Get().Info("Disconnecting removed participant %s from session %s", msg.RemovedUser.Id, s.ID)
+		slogging.Get().Info("Disconnecting removed participant %s from session %s", msg.RemovedUser.ProviderId, s.ID)
 
 		// Send notification to the removed participant
 		s.sendErrorMessage(targetClient, "removed_from_session", "You have been removed from this collaboration session by the host")
 
 		// Close their connection
 		if closeErr := targetClient.Conn.Close(); closeErr != nil {
-			slogging.Get().Debug("Failed to close connection for removed participant %s: %v", msg.RemovedUser.Id, closeErr)
+			slogging.Get().Debug("Failed to close connection for removed participant %s: %v", msg.RemovedUser.ProviderId, closeErr)
 		}
 	}
 
 	// If the removed user was the current presenter, clear presenter
 	s.mu.Lock()
-	if s.CurrentPresenter == msg.RemovedUser.Id {
+	if s.CurrentPresenter == msg.RemovedUser.ProviderId {
 		s.CurrentPresenter = host // Host becomes presenter again (user ID)
 		slogging.Get().Info("Removed participant %s was presenter, host %s is now presenter in session %s",
-			msg.RemovedUser.Id, host, s.ID)
+			msg.RemovedUser.ProviderId, host, s.ID)
 
 		// Broadcast new presenter
 		broadcastMsg := CurrentPresenterMessage{
@@ -1959,12 +1972,12 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	}
 
 	// Find the target user to send the denial
-	targetClient := s.findClientByUserID(msg.CurrentPresenter.Id)
+	targetClient := s.findClientByUserID(msg.CurrentPresenter.ProviderId)
 	if targetClient != nil {
 		s.sendToClient(targetClient, msg)
-		slogging.Get().Info("Host %s denied presenter request from %s in session %s", client.UserID, msg.CurrentPresenter.Id, s.ID)
+		slogging.Get().Info("Host %s denied presenter request from %s in session %s", client.UserID, msg.CurrentPresenter.ProviderId, s.ID)
 	} else {
-		slogging.Get().Info("Target user %s not found for presenter denial in session %s", msg.CurrentPresenter.Id, s.ID)
+		slogging.Get().Info("Target user %s not found for presenter denial in session %s", msg.CurrentPresenter.ProviderId, s.ID)
 	}
 }
 
@@ -2382,21 +2395,21 @@ func (s *DiagramSession) findClientByUserID(userID string) *WebSocketClient {
 // and returns false. Returns true if validation passes.
 func (s *DiagramSession) validateAndEnforceIdentity(client *WebSocketClient, messageUser User, messageType string) bool {
 	// Check if the user is trying to spoof their identity
-	if messageUser.Id != "" && messageUser.Id != client.UserID {
+	if messageUser.ProviderId != "" && messageUser.ProviderId != client.UserID {
 		slogging.Get().Error("SECURITY: User identity spoofing detected - Session: %s, Authenticated User: %s (email: %s), Claimed User: %s (email: %s), Message Type: %s",
-			s.ID, client.UserID, client.UserEmail, messageUser.Id, messageUser.Email, messageType)
+			s.ID, client.UserID, client.UserEmail, messageUser.ProviderId, messageUser.Email, messageType)
 		s.removeAndBlockClient(client, "Identity spoofing attempt detected")
 		return false
 	}
 	if messageUser.Email != "" && string(messageUser.Email) != client.UserEmail {
 		slogging.Get().Error("SECURITY: User identity spoofing detected - Session: %s, Authenticated User: %s (email: %s), Claimed User: %s (email: %s), Message Type: %s",
-			s.ID, client.UserID, client.UserEmail, messageUser.Id, messageUser.Email, messageType)
+			s.ID, client.UserID, client.UserEmail, messageUser.ProviderId, messageUser.Email, messageType)
 		s.removeAndBlockClient(client, "Identity spoofing attempt detected")
 		return false
 	}
-	if messageUser.Name != "" && messageUser.Name != client.UserName {
+	if messageUser.DisplayName != "" && messageUser.DisplayName != client.UserName {
 		slogging.Get().Error("SECURITY: User identity spoofing detected - Session: %s, Authenticated User: %s (email: %s, name: %s), Claimed Name: %s, Message Type: %s",
-			s.ID, client.UserID, client.UserEmail, client.UserName, messageUser.Name, messageType)
+			s.ID, client.UserID, client.UserEmail, client.UserName, messageUser.DisplayName, messageType)
 		s.removeAndBlockClient(client, "Identity spoofing attempt detected")
 		return false
 	}
@@ -2428,9 +2441,11 @@ func (s *DiagramSession) removeAndBlockClient(client *WebSocketClient, reason st
 	leftMsg := ParticipantLeftMessage{
 		MessageType: MessageTypeParticipantLeft,
 		DepartedUser: User{
-			Id:    client.UserID,
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      client.UserProvider,
+			ProviderId:    client.UserID,
 			Email: openapi_types.Email(client.UserEmail),
-			Name:  client.UserName,
+			DisplayName:   client.UserName,
 		},
 	}
 	s.broadcastMessage(leftMsg)

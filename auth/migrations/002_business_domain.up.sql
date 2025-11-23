@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS threat_models (
     owner_internal_uuid UUID NOT NULL REFERENCES users(internal_uuid) ON DELETE RESTRICT,
     name TEXT NOT NULL,
     description TEXT,
-    created_by TEXT NOT NULL,  -- Email for audit trail (denormalized)
+    created_by_internal_uuid UUID NOT NULL REFERENCES users(internal_uuid) ON DELETE RESTRICT,  -- Creator user reference
     threat_model_framework TEXT NOT NULL DEFAULT 'STRIDE'
         CHECK (threat_model_framework IN ('CIA', 'STRIDE', 'LINDDUN', 'DIE', 'PLOT4ai')),
     issue_uri TEXT,
@@ -76,9 +76,10 @@ CREATE TABLE IF NOT EXISTS threats (
 -- Must be created before threat_model_access due to FK dependency
 CREATE TABLE IF NOT EXISTS groups (
     internal_uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    provider TEXT NOT NULL,
-    group_name TEXT NOT NULL,
-    name TEXT,
+    provider TEXT NOT NULL,                           -- Identity provider or "*" for provider-independent groups
+    group_name TEXT NOT NULL,                         -- Group identifier (provider_id in API)
+    name TEXT,                                        -- Display name for UI presentation
+    description TEXT,                                 -- Optional group description
     first_used TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_used TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     usage_count INTEGER DEFAULT 1,
@@ -280,7 +281,7 @@ ON CONFLICT (provider, group_name) DO NOTHING;
 -- Indexes for threat_models
 CREATE INDEX idx_threat_models_owner_internal_uuid ON threat_models(owner_internal_uuid);
 CREATE INDEX idx_threat_models_framework ON threat_models(threat_model_framework);
-CREATE INDEX idx_threat_models_created_by ON threat_models(created_by);
+CREATE INDEX idx_threat_models_created_by ON threat_models(created_by_internal_uuid);
 CREATE INDEX idx_threat_models_owner_created_at ON threat_models(owner_internal_uuid, created_at DESC);
 CREATE INDEX idx_threat_models_status ON threat_models(status) WHERE status IS NOT NULL;
 CREATE INDEX idx_threat_models_status_updated ON threat_models(status_updated);

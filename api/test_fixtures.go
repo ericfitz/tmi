@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // stringPointer returns a pointer to the string value
@@ -98,19 +99,31 @@ func InitTestFixtures() {
 		Description: stringPointer("This is a test threat model"),
 		CreatedAt:   &now,
 		ModifiedAt:  &now,
-		Owner:       TestFixtures.Owner,
+		Owner: User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    TestFixtures.Owner,
+			DisplayName:   TestFixtures.Owner,
+			Email:         openapi_types.Email(TestFixtures.Owner),
+		},
 		Authorization: []Authorization{
 			{
-				Subject: TestFixtures.OwnerUser,
-				Role:    RoleOwner,
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    TestFixtures.OwnerUser,
+				Role:          RoleOwner,
 			},
 			{
-				Subject: TestFixtures.WriterUser,
-				Role:    RoleWriter,
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    TestFixtures.WriterUser,
+				Role:          RoleWriter,
 			},
 			{
-				Subject: TestFixtures.ReaderUser,
-				Role:    RoleReader,
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    TestFixtures.ReaderUser,
+				Role:          RoleReader,
 			},
 		},
 		Metadata: &metadata,
@@ -157,16 +170,22 @@ func InitTestFixtures() {
 	// Store authorization data separately for tests
 	diagramAuth := []Authorization{
 		{
-			Subject: TestFixtures.OwnerUser,
-			Role:    RoleOwner,
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    TestFixtures.OwnerUser,
+			Role:          RoleOwner,
 		},
 		{
-			Subject: TestFixtures.WriterUser,
-			Role:    RoleWriter,
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    TestFixtures.WriterUser,
+			Role:          RoleWriter,
 		},
 		{
-			Subject: TestFixtures.ReaderUser,
-			Role:    RoleReader,
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    TestFixtures.ReaderUser,
+			Role:          RoleReader,
 		},
 	}
 

@@ -1220,10 +1220,8 @@
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
               "created_by": {
-                "type": "string",
-                "description": "User name, email or identifier of the creator of the threat model",
-                "maxLength": 256,
-                "pattern": "^[^<>\"'&]*$",
+                "$ref": "#/components/schemas/User",
+                "description": "User who created the threat model",
                 "readOnly": true
               },
               "documents": {
@@ -1299,19 +1297,36 @@
           "description": "Threats for system X",
           "created_at": "2025-04-06T12:00:00Z",
           "modified_at": "2025-04-06T12:00:00Z",
-          "owner": "user@example.com",
-          "created_by": "user@example.com",
+          "owner": {
+            "principal_type": "user",
+            "provider": "google",
+            "provider_id": "user@example.com",
+            "display_name": "User Example",
+            "email": "user@example.com"
+          },
+          "created_by": {
+            "principal_type": "user",
+            "provider": "google",
+            "provider_id": "user@example.com",
+            "display_name": "User Example",
+            "email": "user@example.com"
+          },
           "threat_model_framework": "STRIDE",
           "authorization": [
             {
-              "subject": "user@example.com",
-              "subject_type": "user",
+              "principal_type": "user",
+              "provider": "google",
+              "provider_id": "user@example.com",
+              "display_name": "User Example",
+              "email": "user@example.com",
               "role": "owner"
             },
             {
-              "subject": "security-team",
-              "subject_type": "group",
-              "idp": "saml_okta",
+              "principal_type": "group",
+              "provider": "saml_okta",
+              "provider_id": "security-team",
+              "display_name": "Security Team",
+              "email": "security-team@example.com",
               "role": "writer"
             }
           ],
@@ -1502,62 +1517,40 @@
         }
       },
       "Authorization": {
-        "type": "object",
-        "description": "Authorization entry defining access permissions for users or groups",
-        "properties": {
-          "subject": {
-            "type": "string",
-            "description": "Internal UUID, or email address or user id for users, or group name for groups",
-            "minLength": 1,
-            "maxLength": 500,
-            "pattern": "^[^<>\"'&]*$",
-            "x-oapi-codegen-extra-tags": {
-              "binding": "required"
-            }
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Principal"
           },
-          "subject_type": {
-            "type": "string",
-            "enum": [
-              "user",
-              "group"
+          {
+            "type": "object",
+            "description": "Authorization entry with principal identity and role",
+            "required": [
+              "role"
             ],
-            "description": "Type of authorization subject: user (individual) or group",
-            "x-oapi-codegen-extra-tags": {
-              "binding": "required"
-            },
-            "maxLength": 1000
-          },
-          "idp": {
-            "type": "string",
-            "description": "Identity provider",
-            "maxLength": 100,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "reader",
-              "writer",
-              "owner"
-            ],
-            "description": "Role: reader (view), writer (edit), owner (full control)",
-            "maxLength": 6,
-            "x-oapi-codegen-extra-tags": {
-              "binding": "required"
+            "properties": {
+              "role": {
+                "type": "string",
+                "enum": [
+                  "reader",
+                  "writer",
+                  "owner"
+                ],
+                "description": "Role: reader (view), writer (edit), owner (full control)",
+                "maxLength": 6,
+                "x-oapi-codegen-extra-tags": {
+                  "binding": "required"
+                }
+              }
             }
           }
-        },
-        "required": [
-          "subject",
-          "subject_type",
-          "role"
         ],
-        "additionalProperties": false,
         "example": {
-          "subject": "alice@example.com",
-          "subject_type": "user",
-          "role": "owner",
-          "idp": "google"
+          "principal_type": "user",
+          "provider": "google",
+          "provider_id": "alice@example.com",
+          "display_name": "Alice Anderson",
+          "email": "alice@example.com",
+          "role": "owner"
         }
       },
       "Metadata": {
@@ -2619,10 +2612,8 @@
             "pattern": "^[^<>]*$"
           },
           "owner": {
-            "type": "string",
-            "description": "Email address of the current owner",
-            "maxLength": 256,
-            "pattern": "^[^<>\"'&]*$"
+            "$ref": "#/components/schemas/User",
+            "description": "Current owner of the threat model"
           },
           "threat_model_framework": {
             "type": "string",
@@ -2879,36 +2870,47 @@
         }
       },
       "User": {
-        "type": "object",
-        "required": [
-          "id",
-          "email",
-          "name"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Provider-assigned user identifier",
-            "pattern": "^[a-zA-Z0-9@.+_-]{1,256}$",
-            "maxLength": 256
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Principal"
           },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "description": "User email address",
-            "maxLength": 320
-          },
-          "name": {
-            "type": "string",
-            "description": "User display name",
-            "pattern": "^[\\u0020-\\uFFFF]{1,256}$",
-            "maxLength": 256
+          {
+            "type": "object",
+            "description": "User principal with required email address",
+            "required": [
+              "email",
+              "display_name"
+            ],
+            "properties": {
+              "principal_type": {
+                "type": "string",
+                "enum": [
+                  "user"
+                ],
+                "description": "Always \"user\" for User objects"
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "description": "User email address (required)",
+                "maxLength": 320
+              },
+              "display_name": {
+                "type": "string",
+                "description": "User full name for display",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^[\\u0020-\\uFFFF]*$"
+              }
+            }
           }
-        },
+        ],
         "example": {
-          "id": "550e8400-e29b-41d4-a716-446655440010",
-          "email": "alice@example.com",
-          "name": "Alice Anderson"
+          "principal_type": "user",
+          "provider": "google",
+          "provider_id": "alice@example.com",
+          "display_name": "Alice Anderson",
+          "email": "alice@example.com"
         }
       },
       "Participant": {
@@ -4452,6 +4454,124 @@
               }
             }
           ]
+        }
+      },
+      "Principal": {
+        "type": "object",
+        "description": "Base identity representation for users and groups with portable, globally-unique identifiers",
+        "required": [
+          "principal_type",
+          "provider",
+          "provider_id"
+        ],
+        "properties": {
+          "principal_type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "group"
+            ],
+            "description": "Type of principal: user (individual) or group"
+          },
+          "provider": {
+            "type": "string",
+            "description": "Identity provider name (e.g., \"google\", \"github\", \"microsoft\", \"test\"). Use \"*\" for provider-independent groups.",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_*-]*$",
+            "maxLength": 100
+          },
+          "provider_id": {
+            "type": "string",
+            "description": "Provider-assigned identifier. For users: provider_user_id (e.g., email or OAuth sub). For groups: group_name.",
+            "minLength": 1,
+            "maxLength": 500,
+            "pattern": "^[^<>\"'&]*$"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Human-readable display name for UI presentation",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email address (required for users, optional for groups)",
+            "maxLength": 320
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "principal_type": "user",
+          "provider": "google",
+          "provider_id": "alice@example.com",
+          "display_name": "Alice Anderson",
+          "email": "alice@example.com"
+        }
+      },
+      "Group": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Principal"
+          },
+          {
+            "type": "object",
+            "description": "Group principal with optional metadata",
+            "required": [
+              "display_name"
+            ],
+            "properties": {
+              "principal_type": {
+                "type": "string",
+                "enum": [
+                  "group"
+                ],
+                "description": "Always \"group\" for Group objects"
+              },
+              "display_name": {
+                "type": "string",
+                "description": "Group display name",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^[\\u0020-\\uFFFF]*$"
+              },
+              "description": {
+                "type": "string",
+                "description": "Optional group description",
+                "maxLength": 1000,
+                "pattern": "^[\\u0020-\\uFFFF]*$"
+              },
+              "first_used": {
+                "type": "string",
+                "format": "date-time",
+                "description": "First time this group was referenced (read-only)",
+                "readOnly": true
+              },
+              "last_used": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Last time this group was referenced (read-only)",
+                "readOnly": true
+              },
+              "usage_count": {
+                "type": "integer",
+                "description": "Number of times this group has been referenced (read-only)",
+                "readOnly": true,
+                "minimum": 0
+              }
+            }
+          }
+        ],
+        "example": {
+          "principal_type": "group",
+          "provider": "google",
+          "provider_id": "security-team",
+          "display_name": "Security Team",
+          "description": "Corporate security team members",
+          "email": "security-team@example.com",
+          "first_used": "2025-04-01T10:00:00Z",
+          "last_used": "2025-04-06T15:30:00Z",
+          "usage_count": 42
         }
       }
     },

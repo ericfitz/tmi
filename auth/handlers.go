@@ -518,24 +518,16 @@ func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, provider
 	user, err := h.service.GetUserByEmail(ctx, email)
 	if err != nil {
 		// Create a new user with provider data
+		// Note: GivenName, FamilyName, Picture, Locale are ignored per schema requirements
 		user = User{
 			Provider:       providerID,
 			ProviderUserID: userInfo.ID,
 			Email:          email,
 			Name:           name,
 			EmailVerified:  userInfo.EmailVerified,
-			GivenName:      userInfo.GivenName,
-			FamilyName:     userInfo.FamilyName,
-			Picture:        userInfo.Picture,
-			Locale:         userInfo.Locale,
 			CreatedAt:      time.Now(),
 			ModifiedAt:     time.Now(),
 			LastLogin:      time.Now(),
-		}
-
-		// Set default locale if not provided
-		if user.Locale == "" {
-			user.Locale = "en-US"
 		}
 
 		user, err = h.service.CreateUser(ctx, user)
@@ -553,22 +545,7 @@ func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, provider
 			user.Name = name
 			updateNeeded = true
 		}
-		if userInfo.GivenName != "" && user.GivenName != userInfo.GivenName {
-			user.GivenName = userInfo.GivenName
-			updateNeeded = true
-		}
-		if userInfo.FamilyName != "" && user.FamilyName != userInfo.FamilyName {
-			user.FamilyName = userInfo.FamilyName
-			updateNeeded = true
-		}
-		if userInfo.Picture != "" && user.Picture != userInfo.Picture {
-			user.Picture = userInfo.Picture
-			updateNeeded = true
-		}
-		if userInfo.Locale != "" && user.Locale != userInfo.Locale {
-			user.Locale = userInfo.Locale
-			updateNeeded = true
-		}
+		// Note: GivenName, FamilyName, Picture, Locale are ignored per schema requirements
 
 		// Always update last login and email verification status
 		user.LastLogin = time.Now()

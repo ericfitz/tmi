@@ -11,21 +11,31 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // APISpecificationComplianceTest ensures API endpoints comply with the OpenAPI specification
 type APISpecificationComplianceTest struct {
-	router      *gin.Engine
-	testContext context.Context
-	testUser    string
+	router       *gin.Engine
+	testContext  context.Context
+	testUser     string
+	testUserObj  User
 }
 
 // NewAPISpecificationComplianceTest creates a new API specification compliance test suite
 func NewAPISpecificationComplianceTest(router *gin.Engine) *APISpecificationComplianceTest {
+	testEmail := "spec_compliance_test@example.com"
 	return &APISpecificationComplianceTest{
 		router:      router,
 		testContext: context.Background(),
-		testUser:    "spec_compliance_test@example.com",
+		testUser:    testEmail,
+		testUserObj: User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    testEmail,
+			DisplayName:   "Spec Compliance Test User",
+			Email:         openapi_types.Email(testEmail),
+		},
 	}
 }
 
@@ -469,11 +479,14 @@ func (act *APISpecificationComplianceTest) createTestThreatModelRequest() Threat
 		Description: stringPointer("Test threat model for API specification compliance"),
 		CreatedAt:   &now,
 		ModifiedAt:  &now,
-		Owner:       act.testUser,
+		Owner:       act.testUserObj,
+		CreatedBy:   &act.testUserObj,
 		Authorization: []Authorization{
 			{
-				Subject: act.testUser,
-				Role:    RoleOwner,
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    act.testUser,
+				Role:          RoleOwner,
 			},
 		},
 	}
