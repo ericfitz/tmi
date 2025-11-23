@@ -10,6 +10,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -591,9 +592,16 @@ func TestCacheWarmer_WarmRecentThreatModels_INTEGRATION(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"user_email", "role"}))
 
 		// Mock cache auth data calls
+		ownerUser := User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    "owner@example.com",
+			DisplayName:   "Owner",
+			Email:         openapi_types.Email("owner@example.com"),
+		}
 		authData := AuthorizationData{
 			Type:          AuthTypeTMI10,
-			Owner:         "owner@example.com",
+			Owner:         ownerUser,
 			Authorization: []Authorization{},
 		}
 		cache.On("CacheAuthData", ctx, threatModelID1, authData).Return(nil)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +19,21 @@ func TestHandleCollaborationSessions(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 	// Setup test data with different permission levels
-	testUser := "test@example.com"
+	testUserEmail := "test@example.com"
+	testUser := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "test",
+		ProviderId:    testUserEmail,
+		DisplayName:   "Test User",
+		Email:         openapi_types.Email(testUserEmail),
+	}
+	otherUser := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "test",
+		ProviderId:    "other@example.com",
+		DisplayName:   "Other User",
+		Email:         openapi_types.Email("other@example.com"),
+	}
 
 	// NOTE: Stores should be initialized via InitializeDatabaseStores() in production
 	// Skip store initialization in tests - they should use database stores
@@ -34,9 +49,15 @@ func TestHandleCollaborationSessions(t *testing.T) {
 	threatModelWithAccess1 := ThreatModel{
 		Name:        "Accessible Model 1",
 		Description: &desc1,
+		Owner:       testUser,
 		CreatedBy:   &testUser, // User created this one (should have owner access)
 		Authorization: []Authorization{
-			{Role: "owner", Subject: testUser},
+			{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    testUserEmail,
+				Role:          RoleOwner,
+			},
 		},
 		CreatedAt:  func() *time.Time { t := time.Now().UTC(); return &t }(),
 		ModifiedAt: func() *time.Time { t := time.Now().UTC(); return &t }(),
@@ -44,10 +65,21 @@ func TestHandleCollaborationSessions(t *testing.T) {
 	threatModelWithAccess2 := ThreatModel{
 		Name:        "Accessible Model 2",
 		Description: &desc2,
-		CreatedBy:   stringPointer("other@example.com"),
+		Owner:       otherUser,
+		CreatedBy:   &otherUser,
 		Authorization: []Authorization{
-			{Role: "owner", Subject: "other@example.com"},
-			{Role: "reader", Subject: testUser}, // User is reader
+			{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "other@example.com",
+				Role:          RoleOwner,
+			},
+			{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    testUserEmail,
+				Role:          RoleReader,
+			},
 		},
 		CreatedAt:  func() *time.Time { t := time.Now().UTC(); return &t }(),
 		ModifiedAt: func() *time.Time { t := time.Now().UTC(); return &t }(),
@@ -55,10 +87,21 @@ func TestHandleCollaborationSessions(t *testing.T) {
 	threatModelWithoutAccess := ThreatModel{
 		Name:        "Inaccessible Model",
 		Description: &desc3,
-		CreatedBy:   stringPointer("other@example.com"),
+		Owner:       otherUser,
+		CreatedBy:   &otherUser,
 		Authorization: []Authorization{
-			{Role: "owner", Subject: "other@example.com"},
-			{Role: "reader", Subject: "someone@example.com"},
+			{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "other@example.com",
+				Role:          RoleOwner,
+			},
+			{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "someone@example.com",
+				Role:          RoleReader,
+			},
 		},
 		CreatedAt:  func() *time.Time { t := time.Now().UTC(); return &t }(),
 		ModifiedAt: func() *time.Time { t := time.Now().UTC(); return &t }(),
@@ -269,7 +312,7 @@ func TestHandleCollaborationSessions(t *testing.T) {
 
 					// Check that participants have user IDs
 					for _, participant := range session.Participants {
-						assert.NotEmpty(t, participant.User.Id, "participant should have user_id")
+						assert.NotEmpty(t, participant.User.ProviderId, "participant should have user_id")
 					}
 				}
 			}
@@ -318,5 +361,5 @@ func TestWebSocketHub_GetActiveSessions(t *testing.T) {
 	session := sessions[0]
 	assert.Equal(t, validDiagramID, session.DiagramId.String())
 	assert.Len(t, session.Participants, 1)
-	assert.Equal(t, "test@example.com", session.Participants[0].User.Id)
+	assert.Equal(t, "test@example.com", session.Participants[0].User.ProviderId)
 }

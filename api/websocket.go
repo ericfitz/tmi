@@ -820,7 +820,7 @@ func convertClientToParticipant(client *WebSocketClient, _ *DiagramSession, tm *
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      client.UserProvider,
 			ProviderId:    client.UserID,
-			Email: openapi_types.Email(client.UserEmail),
+			Email:         openapi_types.Email(client.UserEmail),
 			DisplayName:   client.UserName,
 		},
 		Permissions:  permissions,
@@ -1438,10 +1438,10 @@ func (s *DiagramSession) Run() {
 				MessageType: MessageTypeParticipantJoined,
 				JoinedUser: User{
 					PrincipalType: UserPrincipalTypeUser,
-			Provider:      client.UserProvider,
-			ProviderId:    client.UserID,
+					Provider:      client.UserProvider,
+					ProviderId:    client.UserID,
 					DisplayName:   client.UserName,
-					Email: openapi_types.Email(client.UserEmail),
+					Email:         openapi_types.Email(client.UserEmail),
 				},
 				Timestamp: time.Now().UTC(),
 			}
@@ -1484,10 +1484,10 @@ func (s *DiagramSession) Run() {
 				MessageType: MessageTypeParticipantLeft,
 				DepartedUser: User{
 					PrincipalType: UserPrincipalTypeUser,
-			Provider:      client.UserProvider,
-			ProviderId:    client.UserID,
+					Provider:      client.UserProvider,
+					ProviderId:    client.UserID,
 					DisplayName:   client.UserName,
-					Email: openapi_types.Email(client.UserEmail),
+					Email:         openapi_types.Email(client.UserEmail),
 				},
 				Timestamp: time.Now().UTC(),
 			}
@@ -2444,7 +2444,7 @@ func (s *DiagramSession) removeAndBlockClient(client *WebSocketClient, reason st
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      client.UserProvider,
 			ProviderId:    client.UserID,
-			Email: openapi_types.Email(client.UserEmail),
+			Email:         openapi_types.Email(client.UserEmail),
 			DisplayName:   client.UserName,
 		},
 	}

@@ -243,9 +243,11 @@ func TestMessageParser(t *testing.T) {
 		originalMsg := DiagramOperationMessage{
 			MessageType: MessageTypeDiagramOperation,
 			InitiatingUser: User{
-				Id:    "test-user-id",
-				Email: openapi_types.Email("test@example.com"),
-				Name:  "Test User",
+				PrincipalType: UserPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "test-user-id",
+				Email:         openapi_types.Email("test@example.com"),
+				DisplayName:   "Test User",
 			},
 			OperationID: operationID,
 			Operation: CellPatchOperation{

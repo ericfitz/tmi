@@ -382,8 +382,18 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		return
 	}
 
-	// Determine owner: preserve existing (owner changes should go through ownership transfer endpoint)
+	// Determine owner: use provided owner if specified, otherwise preserve existing
 	owner := tm.Owner
+	if request.Owner != nil && *request.Owner != "" {
+		// Owner is being changed - convert string to User object
+		owner = User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test", // TODO: Get provider from auth context
+			ProviderId:    *request.Owner,
+			DisplayName:   *request.Owner,
+			Email:         openapi_types.Email(*request.Owner),
+		}
+	}
 
 	// Build full threat model from request
 	updatedTM := ThreatModel{

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,9 +18,17 @@ func TestWebSocketAuthorizationValidation(t *testing.T) {
 	InitTestFixtures()
 
 	// Create test users
-	ownerUser := "owner@example.com"
-	readerUser := "reader@example.com"
+	ownerUserEmail := "owner@example.com"
+	readerUserEmail := "reader@example.com"
 	unauthorizedUser := "unauthorized@example.com"
+
+	ownerUser := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "test",
+		ProviderId:    ownerUserEmail,
+		DisplayName:   "Owner User",
+		Email:         openapi_types.Email(ownerUserEmail),
+	}
 
 	// Create a threat model with a diagram
 	threatModel := ThreatModel{
@@ -28,8 +37,18 @@ func TestWebSocketAuthorizationValidation(t *testing.T) {
 		Owner:       ownerUser,
 		CreatedBy:   &ownerUser,
 		Authorization: []Authorization{
-			{Role: "owner", Subject: ownerUser},
-			{Role: "reader", Subject: readerUser},
+			{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    ownerUserEmail,
+				Role:          "owner",
+			},
+			{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    readerUserEmail,
+				Role:          "reader",
+			},
 		},
 		CreatedAt:  func() *time.Time { t := time.Now().UTC(); return &t }(),
 		ModifiedAt: func() *time.Time { t := time.Now().UTC(); return &t }(),
@@ -87,12 +106,12 @@ func TestWebSocketAuthorizationValidation(t *testing.T) {
 	}{
 		{
 			name:           "owner has access to diagram",
-			user:           ownerUser,
+			user:           ownerUserEmail,
 			expectedAccess: true,
 		},
 		{
 			name:           "reader has access to diagram",
-			user:           readerUser,
+			user:           readerUserEmail,
 			expectedAccess: true,
 		},
 		{

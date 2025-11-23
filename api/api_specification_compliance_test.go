@@ -16,10 +16,10 @@ import (
 
 // APISpecificationComplianceTest ensures API endpoints comply with the OpenAPI specification
 type APISpecificationComplianceTest struct {
-	router       *gin.Engine
-	testContext  context.Context
-	testUser     string
-	testUserObj  User
+	router      *gin.Engine
+	testContext context.Context
+	testUser    string
+	testUserObj User
 }
 
 // NewAPISpecificationComplianceTest creates a new API specification compliance test suite

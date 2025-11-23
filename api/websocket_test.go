@@ -459,14 +459,18 @@ func TestWebSocketSecuritySpoofing(t *testing.T) {
 		spoofedMsg := ChangePresenterMessage{
 			MessageType: MessageTypeChangePresenter,
 			InitiatingUser: User{
-				Id:    "host-id",
-				Email: openapi_types.Email(hostEmail),
-				Name:  "Evil Hacker", // Wrong name!
+				PrincipalType: UserPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "host-id",
+				Email:         openapi_types.Email(hostEmail),
+				DisplayName:   "Evil Hacker", // Wrong name!
 			},
 			NewPresenter: User{
-				Id:    "someone-id",
-				Email: openapi_types.Email("someone@example.com"),
-				Name:  "Someone",
+				PrincipalType: UserPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "someone-id",
+				Email:         openapi_types.Email("someone@example.com"),
+				DisplayName:   "Someone",
 			},
 		}
 
@@ -555,10 +559,18 @@ func TestWebSocketMessageFlow(t *testing.T) {
 	diagramID := uuid.New().String()
 	userID := "test@example.com"
 
+	ownerUser := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "test",
+		ProviderId:    userID,
+		DisplayName:   "Test User",
+		Email:         openapi_types.Email(userID),
+	}
+
 	// Create threat model in store
 	tm := ThreatModel{
 		Name:  "Test Threat Model",
-		Owner: userID,
+		Owner: ownerUser,
 	}
 
 	// Set ID

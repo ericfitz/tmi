@@ -80,7 +80,7 @@ type User struct {
 	Provider         string    `json:"provider"`         // OAuth provider: "test", "google", "github", "microsoft", "azure"
 	ProviderUserID   string    `json:"provider_user_id"` // Provider's user ID (from JWT sub claim)
 	Email            string    `json:"email"`
-	Name             string    `json:"name"`             // Display name for UI presentation
+	Name             string    `json:"name"` // Display name for UI presentation
 	EmailVerified    bool      `json:"email_verified"`
 	AccessToken      string    `json:"-"`                // OAuth access token (not exposed in JSON)
 	RefreshToken     string    `json:"-"`                // OAuth refresh token (not exposed in JSON)

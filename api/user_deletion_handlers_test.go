@@ -13,6 +13,7 @@ import (
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -210,13 +211,32 @@ func TestUserDeletion_OwnershipTransfer(t *testing.T) {
 	user2Created, err := authService.CreateUser(ctx, user2)
 	require.NoError(t, err)
 
+	// Create User objects for Owner field
+	owner1User := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "test",
+		ProviderId:    user1.Email,
+		DisplayName:   user1.Name,
+		Email:         openapi_types.Email(user1.Email),
+	}
+
 	// Create threat model owned by user1 with user2 as co-owner
 	tm := ThreatModel{
 		Name:  "Shared Threat Model",
-		Owner: user1.Email,
+		Owner: owner1User,
 		Authorization: []Authorization{
-			{Subject: user1.Email, Role: RoleOwner},
-			{Subject: user2Created.Email, Role: RoleOwner},
+			{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    user1.Email,
+				Role:          RoleOwner,
+			},
+			{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    user2Created.Email,
+				Role:          RoleOwner,
+			},
 		},
 	}
 
@@ -250,7 +270,7 @@ func TestUserDeletion_OwnershipTransfer(t *testing.T) {
 	// Verify threat model still exists with transferred ownership
 	tmAfterDeletion, err := ThreatModelStore.Get(createdTM.Id.String())
 	require.NoError(t, err)
-	assert.Equal(t, user2Created.Email, tmAfterDeletion.Owner, "Ownership should transfer to user2")
+	assert.Equal(t, user2Created.Email, tmAfterDeletion.Owner.ProviderId, "Ownership should transfer to user2")
 
 	// Verify user1 is deleted
 	_, err = authService.GetUserByEmail(ctx, user1.Email)
@@ -262,12 +282,26 @@ func TestUserDeletion_ThreatModelDeletion(t *testing.T) {
 	router, authService, user, accessToken := setupUserDeletionTest(t)
 	ctx := context.Background()
 
+	// Create User object for Owner field
+	ownerUser := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "test",
+		ProviderId:    user.Email,
+		DisplayName:   user.Name,
+		Email:         openapi_types.Email(user.Email),
+	}
+
 	// Create threat model owned only by user
 	tm := ThreatModel{
 		Name:  "Solo Owned Threat Model",
-		Owner: user.Email,
+		Owner: ownerUser,
 		Authorization: []Authorization{
-			{Subject: user.Email, Role: RoleOwner},
+			{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    user.Email,
+				Role:          RoleOwner,
+			},
 		},
 	}
 

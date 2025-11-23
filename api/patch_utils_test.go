@@ -28,7 +28,12 @@ func TestApplyPatchOperations(t *testing.T) {
 		Description: stringPtr("original description"),
 		Owner:       "original-owner",
 		Authorization: []Authorization{
-			{Subject: "user1", Role: RoleReader},
+			{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "user1",
+				Role:          RoleReader,
+			},
 		},
 		CreatedAt:  now,
 		ModifiedAt: now,
@@ -94,9 +99,9 @@ func TestApplyPatchOperations(t *testing.T) {
 			expectError: false,
 			validator: func(t *testing.T, result PatchTestEntity) {
 				assert.Len(t, result.Authorization, 2)
-				assert.Equal(t, "user2", result.Authorization[0].Subject)
+				assert.Equal(t, "user2", result.Authorization[0].ProviderId)
 				assert.Equal(t, RoleWriter, result.Authorization[0].Role)
-				assert.Equal(t, "user3", result.Authorization[1].Subject)
+				assert.Equal(t, "user3", result.Authorization[1].ProviderId)
 				assert.Equal(t, RoleOwner, result.Authorization[1].Role)
 			},
 		},
@@ -448,7 +453,12 @@ func TestPatchWorkflow(t *testing.T) {
 		Name:  "original name",
 		Owner: "original-owner",
 		Authorization: []Authorization{
-			{Subject: "user1", Role: RoleReader},
+			{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "user1",
+				Role:          RoleReader,
+			},
 		},
 		CreatedAt:  now,
 		ModifiedAt: now,

@@ -233,8 +233,8 @@ func TestValidateAuthorizationEntriesFromStruct(t *testing.T) {
 		testStruct := TestAuthRequest{
 			Name: "Test",
 			Authorization: []Authorization{
-				{Subject: "user1@example.com", Role: RoleReader},
-				{Subject: "user2@example.com", Role: RoleWriter},
+				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: "user1@example.com", Role: RoleReader},
+				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: "user2@example.com", Role: RoleWriter},
 			},
 		}
 
@@ -246,7 +246,7 @@ func TestValidateAuthorizationEntriesFromStruct(t *testing.T) {
 		testStruct := TestAuthRequest{
 			Name: "Test",
 			Authorization: []Authorization{
-				{Subject: "user1@example.com", Role: "invalid_role"},
+				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: "user1@example.com", Role: "invalid_role"},
 			},
 		}
 
@@ -259,7 +259,7 @@ func TestValidateAuthorizationEntriesFromStruct(t *testing.T) {
 		testStruct := TestAuthRequest{
 			Name: "Test",
 			Authorization: []Authorization{
-				{Subject: "", Role: RoleReader},
+				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: "", Role: RoleReader},
 			},
 		}
 

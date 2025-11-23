@@ -6,11 +6,21 @@ import (
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	jsonpatch "github.com/evanphx/json-patch"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 func TestDiagramStoreAuth(t *testing.T) {
 	// Initialize test fixtures
 	InitTestFixtures()
+
+	// Create test user
+	testUser := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "test",
+		ProviderId:    "test@example.com",
+		DisplayName:   "Test User",
+		Email:         openapi_types.Email("test@example.com"),
+	}
 
 	// Create a DfdDiagram with the new structure (without Owner and Authorization fields)
 	dUuid := NewUUID()
@@ -25,15 +35,19 @@ func TestDiagramStoreAuth(t *testing.T) {
 	TestFixtures.ThreatModel = ThreatModel{
 		Id:    &tmUuid,
 		Name:  "Parent Threat Model",
-		Owner: "test@example.com",
+		Owner: testUser,
 		Authorization: []Authorization{
 			{
-				Subject: "test@example.com",
-				Role:    RoleOwner,
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "test@example.com",
+				Role:          RoleOwner,
 			},
 			{
-				Subject: "newowner@example.com",
-				Role:    RoleOwner,
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "newowner@example.com",
+				Role:          RoleOwner,
 			},
 		},
 	}
@@ -64,16 +78,27 @@ func TestPatchOperation(t *testing.T) {
 		Cells:      []DfdDiagram_Cells_Item{},
 	}
 
+	// Create test user
+	testUser := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "test",
+		ProviderId:    "test@example.com",
+		DisplayName:   "Test User",
+		Email:         openapi_types.Email("test@example.com"),
+	}
+
 	// Set up the parent threat model with owner and authorization
 	tmUuid := NewUUID()
 	TestFixtures.ThreatModel = ThreatModel{
 		Id:    &tmUuid,
 		Name:  "Parent Threat Model",
-		Owner: "test@example.com",
+		Owner: testUser,
 		Authorization: []Authorization{
 			{
-				Subject: "test@example.com",
-				Role:    RoleOwner,
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "test@example.com",
+				Role:          RoleOwner,
 			},
 		},
 	}

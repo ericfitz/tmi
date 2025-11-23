@@ -55,12 +55,16 @@ func TestOwnerCanChangeOwner(t *testing.T) {
 		// Include only writer and reader users in authorization
 		"authorization": []map[string]interface{}{
 			{
-				"subject": TestFixtures.WriterUser,
-				"role":    "writer",
+				"principal_type": "user",
+				"provider":       "test",
+				"provider_id":    TestFixtures.WriterUser,
+				"role":           "writer",
 			},
 			{
-				"subject": TestFixtures.ReaderUser,
-				"role":    "reader",
+				"principal_type": "user",
+				"provider":       "test",
+				"provider_id":    TestFixtures.ReaderUser,
+				"role":           "reader",
 			},
 		},
 	}
@@ -88,12 +92,12 @@ func TestOwnerCanChangeOwner(t *testing.T) {
 	// Verify the owner was changed
 	updatedTM, err := ThreatModelStore.Get(TestFixtures.ThreatModelID)
 	require.NoError(t, err)
-	assert.Equal(t, newOwner, updatedTM.Owner, "Owner field should be updated to the new owner")
+	assert.Equal(t, newOwner, updatedTM.Owner.ProviderId, "Owner field should be updated to the new owner")
 
 	// Check that the original owner was preserved in authorization with owner role
 	originalOwnerFound := false
 	for _, auth := range updatedTM.Authorization {
-		if auth.ProviderId == origTM.Owner {
+		if auth.ProviderId == origTM.Owner.ProviderId {
 			originalOwnerFound = true
 			assert.Equal(t, RoleOwner, auth.Role, "Original owner should have owner role")
 			break

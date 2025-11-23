@@ -318,9 +318,11 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 		msg := DiagramOperationMessage{
 			MessageType: "diagram_operation",
 			InitiatingUser: User{
-				Id:    "test-user-id",
-				Email: openapi_types.Email("test@example.com"),
-				Name:  "Test User",
+				PrincipalType: UserPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "test-user-id",
+				Email:         openapi_types.Email("test@example.com"),
+				DisplayName:   "Test User",
 			},
 			OperationID: uuid.New().String(),
 			Operation: CellPatchOperation{
@@ -376,9 +378,11 @@ func TestAsyncAPIMessageValidation(t *testing.T) {
 		msg := UndoRequestMessage{
 			MessageType: "undo_request",
 			InitiatingUser: User{
-				Id:    "test-user-id",
-				Email: openapi_types.Email("test@example.com"),
-				Name:  "Test User",
+				PrincipalType: UserPrincipalTypeUser,
+				Provider:      "test",
+				ProviderId:    "test-user-id",
+				Email:         openapi_types.Email("test@example.com"),
+				DisplayName:   "Test User",
 			},
 		}
 
