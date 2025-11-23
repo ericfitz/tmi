@@ -214,9 +214,10 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 		"id": "%s",
 		"name": "Updated Threat Model",
 		"owner": "%s",
+		"threat_model_framework": "STRIDE",
 		"authorization": [
-			{"subject": "%s", "role": "writer"},
-			{"subject": "%s", "role": "reader"}
+			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "writer"},
+			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "reader"}
 		]
 	}`, threatModelID, TestFixtures.OwnerUser, TestFixtures.WriterUser, TestFixtures.WriterUser)
 
@@ -239,9 +240,10 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 		"id": "%s",
 		"name": "Updated Threat Model",
 		"owner": "%s",
+		"threat_model_framework": "STRIDE",
 		"authorization": [
-			{"subject": "%s", "role": "writer"},
-			{"subject": "%s", "role": "reader"}
+			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "writer"},
+			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "reader"}
 		]
 	}`, threatModelID, newOwner, TestFixtures.WriterUser, TestFixtures.ReaderUser)
 
@@ -255,11 +257,11 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 	// Check that the original owner is still in the authorization list with owner role
 	tm, err := ThreatModelStore.Get(threatModelID)
 	assert.NoError(t, err)
-	assert.Equal(t, newOwner, tm.Owner, "Owner should be changed to the new owner")
+	assert.Equal(t, newOwner, tm.Owner.ProviderId, "Owner should be changed to the new owner")
 
 	originalOwnerFound := false
 	for _, auth := range tm.Authorization {
-		if auth.Subject == TestFixtures.OwnerUser {
+		if auth.ProviderId == TestFixtures.OwnerUser {
 			originalOwnerFound = true
 			assert.Equal(t, RoleOwner, auth.Role, "Original owner should have Owner role")
 			break
@@ -274,7 +276,7 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 
 	patchChangeOwner := fmt.Sprintf(`[
 		{"op":"replace","path":"/owner","value":"%s"},
-		{"op":"replace","path":"/authorization","value":[{"subject":"%s","role":"writer"}]},
+		{"op":"replace","path":"/authorization","value":[{"principal_type":"user","provider":"test","provider_id":"%s","role":"writer"}]},
 		{"op":"replace","path":"/name","value":"Patched Model"}
 	]`, newOwner, TestFixtures.WriterUser)
 
@@ -288,11 +290,11 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 	// Check that the original owner is still in the authorization list with owner role
 	tm, err = ThreatModelStore.Get(threatModelID)
 	assert.NoError(t, err)
-	assert.Equal(t, newOwner, tm.Owner, "Owner should be changed to the new owner")
+	assert.Equal(t, newOwner, tm.Owner.ProviderId, "Owner should be changed to the new owner")
 
 	originalOwnerFound = false
 	for _, auth := range tm.Authorization {
-		if auth.Subject == TestFixtures.OwnerUser {
+		if auth.ProviderId == TestFixtures.OwnerUser {
 			originalOwnerFound = true
 			assert.Equal(t, RoleOwner, auth.Role, "Original owner should have Owner role")
 			break

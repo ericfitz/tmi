@@ -69,9 +69,13 @@ func SetupSubEntityIntegrationTest(t *testing.T) *SubEntityIntegrationTestSuite 
 	// Initialize database manager
 	dbManager := db.NewManager()
 	err := dbManager.InitPostgres(postgresConfig)
-	require.NoError(t, err, "Failed to initialize PostgreSQL")
+	if err != nil {
+		t.Skipf("Skipping sub-entity integration test: PostgreSQL not available: %v", err)
+	}
 	err = dbManager.InitRedis(redisConfig)
-	require.NoError(t, err, "Failed to initialize Redis")
+	if err != nil {
+		t.Skipf("Skipping sub-entity integration test: Redis not available: %v", err)
+	}
 
 	// Create auth configuration
 	authConfig := auth.Config{

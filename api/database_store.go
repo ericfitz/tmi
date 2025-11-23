@@ -327,17 +327,17 @@ func (s *ThreatModelDatabaseStore) List(offset, limit int, filter func(ThreatMod
 		// Enrich owner and created_by from database
 		owner, err := enrichUserPrincipal(tx, ownerInternalUUID)
 		if err != nil || owner == nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			continue
 		}
 
 		createdBy, err := enrichUserPrincipal(tx, createdByInternalUUID)
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			continue
 		}
 
-		tx.Commit()
+		_ = tx.Commit()
 
 		// Load authorization for filtering
 		authorization, err := s.loadAuthorization(uuid.String())
@@ -439,17 +439,17 @@ func (s *ThreatModelDatabaseStore) ListWithCounts(offset, limit int, filter func
 		// Enrich owner and created_by from database
 		owner, err := enrichUserPrincipal(tx, ownerInternalUUID)
 		if err != nil || owner == nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			continue
 		}
 
 		createdBy, err := enrichUserPrincipal(tx, createdByInternalUUID)
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			continue
 		}
 
-		tx.Commit()
+		_ = tx.Commit()
 
 		// Load authorization for filtering
 		authorization, err := s.loadAuthorization(uuid.String())

@@ -40,12 +40,16 @@ func TestUpdateThreatModel(t *testing.T) {
 		"threat_model_framework": "STRIDE",
 		"authorization": []map[string]interface{}{
 			{
-				"subject": TestFixtures.WriterUser,
-				"role":    "writer",
+				"principal_type": "user",
+				"provider":       "test",
+				"provider_id":    TestFixtures.WriterUser,
+				"role":           "writer",
 			},
 			{
-				"subject": TestFixtures.ReaderUser,
-				"role":    "reader",
+				"principal_type": "user",
+				"provider":       "test",
+				"provider_id":    TestFixtures.ReaderUser,
+				"role":           "reader",
 			},
 		},
 	}
@@ -112,12 +116,16 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 		"threat_model_framework": "STRIDE", // Required field
 		"authorization": []map[string]interface{}{
 			{
-				"subject": TestFixtures.WriterUser,
-				"role":    "writer",
+				"principal_type": "user",
+				"provider":       "test",
+				"provider_id":    TestFixtures.WriterUser,
+				"role":           "writer",
 			},
 			{
-				"subject": TestFixtures.ReaderUser,
-				"role":    "reader",
+				"principal_type": "user",
+				"provider":       "test",
+				"provider_id":    TestFixtures.ReaderUser,
+				"role":           "reader",
 			},
 		},
 	}
@@ -146,12 +154,12 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 	// Verify the owner was changed
 	tm, err := ThreatModelStore.Get(TestFixtures.ThreatModelID)
 	require.NoError(t, err)
-	assert.Equal(t, newOwner, tm.Owner, "Owner should be updated to the new owner")
+	assert.Equal(t, newOwner, tm.Owner.ProviderId, "Owner should be updated to the new owner")
 
 	// Check that the original owner was preserved in authorization
 	originalOwnerFound := false
 	for _, auth := range tm.Authorization {
-		if auth.Subject == TestFixtures.OwnerUser {
+		if auth.ProviderId == TestFixtures.OwnerUser {
 			originalOwnerFound = true
 			assert.Equal(t, RoleOwner, auth.Role, "Original owner should have owner role")
 			break
@@ -186,12 +194,16 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 		"threat_model_framework": "STRIDE", // Required field
 		"authorization": []map[string]interface{}{
 			{
-				"subject": TestFixtures.WriterUser,
-				"role":    "writer",
+				"principal_type": "user",
+				"provider":       "test",
+				"provider_id":    TestFixtures.WriterUser,
+				"role":           "writer",
 			},
 			{
-				"subject": TestFixtures.WriterUser, // Duplicate subject
-				"role":    "reader",
+				"principal_type": "user",
+				"provider":       "test",
+				"provider_id":    TestFixtures.WriterUser, // Duplicate subject
+				"role":           "reader",
 			},
 		},
 	}
