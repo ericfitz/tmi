@@ -72,18 +72,44 @@ CREATE TABLE IF NOT EXISTS threats (
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create threat_model_access table for authorization (UUID-based subjects)
+-- Create groups table (aligned with users table schema)
+-- Must be created before threat_model_access due to FK dependency
+CREATE TABLE IF NOT EXISTS groups (
+    internal_uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    provider TEXT NOT NULL,
+    group_name TEXT NOT NULL,
+    name TEXT,
+    first_used TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    usage_count INTEGER DEFAULT 1,
+    UNIQUE(provider, group_name)
+);
+
+-- Create threat_model_access table for authorization (dual foreign keys)
 CREATE TABLE IF NOT EXISTS threat_model_access (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     threat_model_id UUID NOT NULL REFERENCES threat_models(id) ON DELETE CASCADE,
-    subject_internal_uuid UUID NOT NULL REFERENCES users(internal_uuid) ON DELETE CASCADE,
-    subject_type TEXT NOT NULL DEFAULT 'user' CHECK (subject_type IN ('user', 'group')),
-    idp TEXT,  -- Identity provider (for groups, optional for users)
+
+    -- Dual foreign keys: exactly one populated based on subject_type
+    user_internal_uuid UUID REFERENCES users(internal_uuid) ON DELETE CASCADE,
+    group_internal_uuid UUID REFERENCES groups(internal_uuid) ON DELETE CASCADE,
+
+    subject_type TEXT NOT NULL CHECK (subject_type IN ('user', 'group')),
+
+    -- Enforce exactly one subject (XOR constraint)
+    CONSTRAINT exactly_one_subject CHECK (
+        (subject_type = 'user' AND user_internal_uuid IS NOT NULL AND group_internal_uuid IS NULL) OR
+        (subject_type = 'group' AND group_internal_uuid IS NOT NULL AND user_internal_uuid IS NULL)
+    ),
+
     role TEXT NOT NULL CHECK (role IN ('owner', 'writer', 'reader')),
     granted_by_internal_uuid UUID REFERENCES users(internal_uuid) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(threat_model_id, subject_internal_uuid, subject_type)
+
+    -- Separate unique constraints for each subject type
+    UNIQUE NULLS NOT DISTINCT (threat_model_id, user_internal_uuid, subject_type),
+    UNIQUE NULLS NOT DISTINCT (threat_model_id, group_internal_uuid, subject_type)
 );
 
 -- Create documents table
@@ -231,25 +257,13 @@ CREATE TABLE IF NOT EXISTS user_api_quotas (
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create authorization_groups table to track groups used in authorizations
-CREATE TABLE IF NOT EXISTS authorization_groups (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    idp TEXT NOT NULL,
-    group_name TEXT NOT NULL,
-    display_name TEXT,
-    first_used TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    last_used TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    usage_count INTEGER DEFAULT 1,
-    UNIQUE(idp, group_name)
-);
-
 -- ============================================================================
 -- INITIAL DATA
 -- ============================================================================
 
 -- Pre-create the "everyone" pseudo-group with the flag UUID
 -- This special group grants access to all authenticated users
-INSERT INTO authorization_groups (id, idp, group_name, display_name, usage_count)
+INSERT INTO groups (internal_uuid, provider, group_name, name, usage_count)
 VALUES (
     '00000000-0000-0000-0000-000000000000'::uuid,
     '*',
@@ -257,7 +271,7 @@ VALUES (
     'Everyone (Pseudo-group)',
     0
 )
-ON CONFLICT (idp, group_name) DO NOTHING;
+ON CONFLICT (provider, group_name) DO NOTHING;
 
 -- ============================================================================
 -- INDEXES
@@ -296,11 +310,11 @@ CREATE INDEX idx_threats_threat_model_modified_at ON threats(threat_model_id, mo
 
 -- Indexes for threat_model_access
 CREATE INDEX idx_threat_model_access_threat_model_id ON threat_model_access(threat_model_id);
-CREATE INDEX idx_threat_model_access_subject_internal_uuid ON threat_model_access(subject_internal_uuid);
+CREATE INDEX idx_threat_model_access_user_internal_uuid ON threat_model_access(user_internal_uuid) WHERE user_internal_uuid IS NOT NULL;
+CREATE INDEX idx_threat_model_access_group_internal_uuid ON threat_model_access(group_internal_uuid) WHERE group_internal_uuid IS NOT NULL;
 CREATE INDEX idx_threat_model_access_subject_type ON threat_model_access(subject_type);
-CREATE INDEX idx_threat_model_access_idp ON threat_model_access(idp) WHERE idp IS NOT NULL;
 CREATE INDEX idx_threat_model_access_role ON threat_model_access(role);
-CREATE INDEX idx_threat_model_access_performance ON threat_model_access(threat_model_id, subject_type, subject_internal_uuid);
+CREATE INDEX idx_threat_model_access_performance ON threat_model_access(threat_model_id, subject_type, user_internal_uuid, group_internal_uuid);
 
 -- Indexes for documents
 CREATE INDEX idx_documents_threat_model_id ON documents(threat_model_id);
@@ -400,10 +414,10 @@ CREATE INDEX idx_addon_invocation_quotas_owner ON addon_invocation_quotas(owner_
 -- Index for user_api_quotas
 CREATE INDEX idx_user_api_quotas_user ON user_api_quotas(user_internal_uuid);
 
--- Indexes for authorization_groups
-CREATE INDEX idx_authorization_groups_idp ON authorization_groups(idp);
-CREATE INDEX idx_authorization_groups_group_name ON authorization_groups(group_name);
-CREATE INDEX idx_authorization_groups_last_used ON authorization_groups(last_used);
+-- Indexes for groups
+CREATE INDEX idx_groups_provider ON groups(provider);
+CREATE INDEX idx_groups_group_name ON groups(group_name);
+CREATE INDEX idx_groups_last_used ON groups(last_used);
 
 -- ============================================================================
 -- CONSTRAINTS
@@ -535,6 +549,22 @@ CREATE TRIGGER webhook_subscription_change_notify
     AFTER INSERT OR UPDATE OR DELETE ON webhook_subscriptions
     FOR EACH ROW
     EXECUTE FUNCTION notify_webhook_subscription_change();
+
+-- Create function to prevent deletion of "everyone" pseudo-group
+CREATE OR REPLACE FUNCTION prevent_everyone_group_deletion()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.internal_uuid = '00000000-0000-0000-0000-000000000000'::uuid THEN
+        RAISE EXCEPTION 'Cannot delete the "everyone" pseudo-group (system reserved)';
+    END IF;
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER prevent_everyone_deletion
+BEFORE DELETE ON groups
+FOR EACH ROW
+EXECUTE FUNCTION prevent_everyone_group_deletion();
 
 -- ============================================================================
 -- SEED DATA

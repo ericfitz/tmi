@@ -76,6 +76,56 @@ func (s *ThreatModelDatabaseStore) resolveUserIdentifierToUUID(tx *sql.Tx, ident
 	return "", fmt.Errorf("user not found with identifier: %s", identifier)
 }
 
+// resolveGroupToUUID attempts to resolve a group identifier to an internal_uuid
+// It looks up the group by provider and group_name in the groups table
+// Returns the internal_uuid or an error if the group cannot be found
+func (s *ThreatModelDatabaseStore) resolveGroupToUUID(tx *sql.Tx, groupName string, idp *string) (string, error) {
+	provider := "*"
+	if idp != nil && *idp != "" {
+		provider = *idp
+	}
+
+	var internalUUID string
+	err := tx.QueryRow(`
+		SELECT internal_uuid
+		FROM groups
+		WHERE provider = $1 AND group_name = $2
+	`, provider, groupName).Scan(&internalUUID)
+
+	if err == sql.ErrNoRows {
+		return "", fmt.Errorf("group not found: %s@%s", groupName, provider)
+	}
+	return internalUUID, err
+}
+
+// ensureGroupExists creates a group entry if it doesn't exist and returns its internal_uuid
+func (s *ThreatModelDatabaseStore) ensureGroupExists(tx *sql.Tx, groupName string, idp *string) (string, error) {
+	provider := "*"
+	if idp != nil && *idp != "" {
+		provider = *idp
+	}
+
+	// Try to insert, get UUID either way
+	var internalUUID uuid.UUID
+	query := `
+		INSERT INTO groups (provider, group_name, name, usage_count)
+		VALUES ($1, $2, $3, 1)
+		ON CONFLICT (provider, group_name)
+		DO UPDATE SET
+			last_used = CURRENT_TIMESTAMP,
+			usage_count = groups.usage_count + 1
+		RETURNING internal_uuid
+	`
+
+	displayName := groupName // Use group_name as display name by default
+	err := tx.QueryRow(query, provider, groupName, displayName).Scan(&internalUUID)
+	if err != nil {
+		return "", fmt.Errorf("failed to ensure group exists: %w", err)
+	}
+
+	return internalUUID.String(), nil
+}
+
 // Get retrieves a threat model by ID
 func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 	s.mutex.RLock()
@@ -673,9 +723,13 @@ func (s *ThreatModelDatabaseStore) Count() int {
 
 func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string) ([]Authorization, error) {
 	query := `
-		SELECT subject_internal_uuid, subject_type, idp, role
+		SELECT
+			COALESCE(user_internal_uuid::text, group_internal_uuid::text) as subject,
+			subject_type,
+			role
 		FROM threat_model_access
-		WHERE threat_model_id = $1`
+		WHERE threat_model_id = $1
+		ORDER BY role DESC, subject ASC`
 
 	rows, err := s.db.Query(query, threatModelId)
 	if err != nil {
@@ -691,8 +745,7 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string) ([]Au
 	var authorization []Authorization
 	for rows.Next() {
 		var subject, subjectTypeStr, roleStr string
-		var idp sql.NullString
-		if err := rows.Scan(&subject, &subjectTypeStr, &idp, &roleStr); err != nil {
+		if err := rows.Scan(&subject, &subjectTypeStr, &roleStr); err != nil {
 			continue
 		}
 
@@ -719,11 +772,6 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string) ([]Au
 			Subject:     subject,
 			SubjectType: subjectType,
 			Role:        role,
-		}
-
-		// Set IdP if present
-		if idp.Valid && idp.String != "" {
-			auth.Idp = &idp.String
 		}
 
 		authorization = append(authorization, auth)
@@ -971,41 +1019,73 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 			subjectTypeStr = "group"
 		}
 
-		// Handle nullable idp field
-		var idpValue interface{}
-		if auth.Idp != nil && *auth.Idp != "" {
-			idpValue = *auth.Idp
-		} else {
-			idpValue = nil
-		}
+		// Determine which FK column to populate based on subject type
+		var userUUID, groupUUID interface{}
 
-		// For user subjects, resolve identifier to internal_uuid
-		// For groups, handle the "everyone" pseudo-group specially
-		subjectValue := auth.Subject
-		if subjectTypeStr == "user" {
+		switch subjectTypeStr {
+		case "user":
+			// Resolve user identifier to internal_uuid
 			resolvedUUID, err := s.resolveUserIdentifierToUUID(tx, auth.Subject)
 			if err != nil {
 				// If resolution fails, keep the original subject value
-				// This allows for forward compatibility with subjects that don't exist yet
 				slogging.Get().Debug("Could not resolve user identifier %s to internal_uuid, using as-is: %v", auth.Subject, err)
+				userUUID = auth.Subject
 			} else {
-				subjectValue = resolvedUUID
+				userUUID = resolvedUUID
 			}
-		} else if subjectTypeStr == "group" && auth.Subject == EveryonePseudoGroup {
-			// Map "everyone" pseudo-group to the flag UUID for database storage
-			subjectValue = EveryonePseudoGroupUUID
+			groupUUID = nil
+		case "group":
+			// Handle "everyone" pseudo-group specially
+			if auth.Subject == EveryonePseudoGroup {
+				groupUUID = EveryonePseudoGroupUUID
+			} else {
+				// Resolve group name to internal_uuid from groups table
+				resolvedUUID, err := s.resolveGroupToUUID(tx, auth.Subject, auth.Idp)
+				if err != nil {
+					slogging.Get().Debug("Could not resolve group identifier %s to internal_uuid: %v", auth.Subject, err)
+					// Create group entry if it doesn't exist
+					groupUUID, err = s.ensureGroupExists(tx, auth.Subject, auth.Idp)
+					if err != nil {
+						return fmt.Errorf("failed to ensure group exists: %w", err)
+					}
+				} else {
+					groupUUID = resolvedUUID
+				}
+			}
+			userUUID = nil
 		}
 
+		// Insert or update authorization with dual FKs
 		query := `
-			INSERT INTO threat_model_access (threat_model_id, subject_internal_uuid, subject_type, idp, role, created_at, modified_at)
+			INSERT INTO threat_model_access (
+				threat_model_id, user_internal_uuid, group_internal_uuid,
+				subject_type, role, created_at, modified_at
+			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			ON CONFLICT (threat_model_id, subject_internal_uuid, subject_type)
-			DO UPDATE SET role = $5, modified_at = $7`
+			ON CONFLICT (threat_model_id, user_internal_uuid, subject_type)
+			WHERE user_internal_uuid IS NOT NULL
+			DO UPDATE SET role = EXCLUDED.role, modified_at = EXCLUDED.modified_at`
 
 		now := time.Now().UTC()
-		_, err := tx.Exec(query, threatModelId, subjectValue, subjectTypeStr, idpValue, string(auth.Role), now, now)
+		_, err := tx.Exec(query, threatModelId, userUUID, groupUUID, subjectTypeStr, string(auth.Role), now, now)
 		if err != nil {
-			return err
+			// Try group conflict resolution if user conflict failed
+			if subjectTypeStr == "group" {
+				query = `
+					INSERT INTO threat_model_access (
+						threat_model_id, user_internal_uuid, group_internal_uuid,
+						subject_type, role, created_at, modified_at
+					)
+					VALUES ($1, $2, $3, $4, $5, $6, $7)
+					ON CONFLICT (threat_model_id, group_internal_uuid, subject_type)
+					WHERE group_internal_uuid IS NOT NULL
+					DO UPDATE SET role = EXCLUDED.role, modified_at = EXCLUDED.modified_at`
+
+				_, err = tx.Exec(query, threatModelId, userUUID, groupUUID, subjectTypeStr, string(auth.Role), now, now)
+			}
+			if err != nil {
+				return err
+			}
 		}
 	}
 

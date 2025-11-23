@@ -494,9 +494,12 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 	}
 
 	// Query threat model access table to get authorization list
-	// Using the modern column structure: subject, subject_type, idp, role
+	// Using dual FK structure: user_internal_uuid, group_internal_uuid, subject_type, role
 	accessQuery := `
-		SELECT subject, subject_type, idp, role
+		SELECT
+			COALESCE(user_internal_uuid::text, group_internal_uuid::text) as subject,
+			subject_type,
+			role
 		FROM threat_model_access
 		WHERE threat_model_id = $1
 		ORDER BY role DESC, subject ASC
@@ -517,10 +520,9 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 	for rows.Next() {
 		var subject string
 		var subjectType string
-		var idp sql.NullString
 		var role string
 
-		if err := rows.Scan(&subject, &subjectType, &idp, &role); err != nil {
+		if err := rows.Scan(&subject, &subjectType, &role); err != nil {
 			logger.Error("Failed to scan threat model access row: %v", err)
 			return nil, fmt.Errorf("failed to scan access row: %w", err)
 		}
@@ -551,16 +553,11 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 			authSubjectType = AuthorizationSubjectTypeUser
 		}
 
-		// Build authorization entry with proper subject type and IdP
+		// Build authorization entry with proper subject type
 		auth := Authorization{
 			Subject:     subject,
 			SubjectType: authSubjectType,
 			Role:        roleType,
-		}
-
-		// Set IdP if present
-		if idp.Valid && idp.String != "" {
-			auth.Idp = &idp.String
 		}
 
 		authorization = append(authorization, auth)

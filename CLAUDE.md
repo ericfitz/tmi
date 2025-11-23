@@ -305,12 +305,15 @@ make start-database
 
 **IMPORTANT: Always use make targets for testing. Never run `go test` commands directly.**
 
+**NOTE: Integration tests are currently out of date. Do not run `make test-integration` unless explicitly requested by the user.**
+
 #### Core Testing
 
 - Unit tests: `make test-unit` (fast tests, no external dependencies)
   - Specific test: `make test-unit name=TestName`
   - Options: `make test-unit count1=true passfail=true`
-- Integration tests: `make test-integration` (requires database, runs with automatic setup/cleanup)
+- Integration tests: **OUT OF DATE - Do not run unless requested**
+  - `make test-integration` (requires database, runs with automatic setup/cleanup)
   - Specific test: `make test-integration name=TestName`
   - Cleanup only: `make clean-everything`
 - Coverage tests: `make test-coverage` (generates combined unit + integration coverage reports)

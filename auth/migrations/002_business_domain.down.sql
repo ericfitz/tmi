@@ -1,7 +1,7 @@
 -- Drop all tables in reverse dependency order
 
--- Drop authorization groups
-DROP TABLE IF EXISTS authorization_groups CASCADE;
+-- Drop groups table
+DROP TABLE IF EXISTS groups CASCADE;
 
 -- Drop quota tables
 DROP TABLE IF EXISTS user_api_quotas CASCADE;

@@ -987,6 +987,12 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	}
 	logger.Info("Database connection verified successfully")
 
+	// Ensure "everyone" pseudo-group exists
+	if err := ensureEveryonePseudoGroup(dbManager.Postgres().GetDB()); err != nil {
+		logger.Error("Failed to ensure everyone pseudo-group: %v", err)
+		os.Exit(1)
+	}
+
 	// Initialize performance monitoring
 	logger.Info("Initializing performance monitoring for collaborative editing")
 	api.InitializePerformanceMonitoring()
@@ -1194,6 +1200,31 @@ func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.W
 	}
 
 	return webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker
+}
+
+// ensureEveryonePseudoGroup ensures the "everyone" pseudo-group exists in the database
+func ensureEveryonePseudoGroup(db *sql.DB) error {
+	logger := slogging.Get()
+
+	query := `
+		INSERT INTO groups (internal_uuid, provider, group_name, name, usage_count)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (provider, group_name) DO NOTHING
+	`
+
+	_, err := db.Exec(query,
+		api.EveryonePseudoGroupUUID,
+		"*",
+		"everyone",
+		"Everyone (Pseudo-group)",
+		0,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to ensure everyone pseudo-group exists: %w", err)
+	}
+
+	logger.Info("Everyone pseudo-group verified/created successfully")
+	return nil
 }
 
 func main() {

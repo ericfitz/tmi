@@ -109,10 +109,10 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 		)
 		mock.ExpectQuery("SELECT (.+) FROM threat_models").WithArgs(testID).WillReturnRows(rows)
 
-		// Mock authorization query
-		authRows := sqlmock.NewRows([]string{"subject", "subject_type", "idp", "role"}).
-			AddRow("owner@example.com", "user", nil, "owner").
-			AddRow("reader@example.com", "user", nil, "reader")
+		// Mock authorization query with new dual-FK structure
+		authRows := sqlmock.NewRows([]string{"subject", "subject_type", "role"}).
+			AddRow("owner@example.com", "user", "owner").
+			AddRow("reader@example.com", "user", "reader")
 		mock.ExpectQuery("SELECT (.+) FROM threat_model_access").WithArgs(testID).WillReturnRows(authRows)
 
 		// Mock metadata query
