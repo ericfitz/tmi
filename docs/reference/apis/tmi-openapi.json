@@ -1507,7 +1507,7 @@
         "properties": {
           "subject": {
             "type": "string",
-            "description": "Email address or user id for users, group name for groups",
+            "description": "Internal UUID, or email address or user id for users, or group name for groups",
             "minLength": 1,
             "maxLength": 500,
             "pattern": "^[^<>\"'&]*$",
@@ -1529,7 +1529,7 @@
           },
           "idp": {
             "type": "string",
-            "description": "Identity provider (required for groups, optional for users)",
+            "description": "Identity provider",
             "maxLength": 100,
             "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
           },
@@ -5755,7 +5755,9 @@
                   "grant_type": {
                     "type": "string",
                     "description": "OAuth 2.0 grant type (RFC 6749)",
-                    "enum": ["authorization_code"],
+                    "enum": [
+                      "authorization_code"
+                    ],
                     "example": "authorization_code"
                   },
                   "code": {
