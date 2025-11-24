@@ -857,7 +857,8 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string, tx *s
 		}
 	}()
 
-	var authorization []Authorization
+	// Initialize as empty slice to ensure JSON marshals to [] instead of null
+	authorization := []Authorization{}
 	for rows.Next() {
 		var userUUID, groupUUID sql.NullString
 		var subjectTypeStr, roleStr string
@@ -1011,7 +1012,8 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 		}
 	}()
 
-	var threats []Threat
+	// Initialize as empty slice to ensure JSON marshals to [] instead of null
+	threats := []Threat{}
 	for rows.Next() {
 		var id, threatModelUuid uuid.UUID
 		var name, threatType string
@@ -1121,11 +1123,14 @@ func (s *ThreatModelDatabaseStore) loadDiagramsDynamically(threatModelId string)
 	}
 
 	if len(diagramIds) == 0 {
-		return nil, nil // No diagrams
+		// Return pointer to empty slice to ensure JSON marshals to [] instead of null
+		emptySlice := []Diagram{}
+		return &emptySlice, nil
 	}
 
 	// Load each diagram from the DiagramStore to ensure single source of truth
-	var diagrams []Diagram
+	// Initialize as empty slice to ensure JSON marshals to [] instead of null
+	diagrams := []Diagram{}
 	for _, diagramId := range diagramIds {
 		diagram, err := DiagramStore.Get(diagramId)
 		if err != nil {
