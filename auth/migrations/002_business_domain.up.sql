@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS assets (
     type TEXT NOT NULL CHECK (type IN ('data', 'hardware', 'software', 'infrastructure', 'service', 'personnel')),
     criticality TEXT,
     classification TEXT[],
-    sensitivity TEXT[],
+    sensitivity TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
