@@ -936,10 +936,14 @@ heroku-setup-dry-run: ## Preview Heroku configuration without applying
 	$(call log_info,"Previewing Heroku configuration (dry-run mode)...")
 	@uv run scripts/setup-heroku-env.py --dry-run
 
-.PHONY: heroku-reset-db
+.PHONY: heroku-reset-db heroku-drop-db
 heroku-reset-db: ## Drop and recreate Heroku database schema (DESTRUCTIVE - deletes all data). Use ARGS="--yes" to skip confirmation
 	$(call log_warning,"This will DELETE ALL DATA in the Heroku database!")
 	@./scripts/heroku-reset-database.sh $(ARGS) tmi-server
+
+heroku-drop-db: ## Drop Heroku database schema leaving it empty (DESTRUCTIVE - deletes all data, no migrations). Use ARGS="--yes" to skip confirmation
+	$(call log_warning,"This will DELETE ALL DATA in the Heroku database and leave it EMPTY!")
+	@./scripts/heroku-drop-database.sh $(ARGS) tmi-server
 
 # ============================================================================
 # Heroku Deployment
