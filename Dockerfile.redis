@@ -29,9 +29,9 @@ RUN apt-get update && \
     rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* /usr/share/locale/*/LC_MESSAGES/*.mo 2>/dev/null || true
 
 # Redis version
-ENV REDIS_VERSION=7.2.4
+ENV REDIS_VERSION=8.4.0
 ENV REDIS_DOWNLOAD_URL=http://download.redis.io/releases/redis-${REDIS_VERSION}.tar.gz
-ENV REDIS_DOWNLOAD_SHA=8d327c7c4c5b56976c2a08dd93ff6c4b49c6e1a2b3c0a83b3a20a0b0b5b8b9c1
+ENV REDIS_DOWNLOAD_SHA=TBD
 
 # Download and compile Redis from source
 RUN wget -O redis.tar.gz "$REDIS_DOWNLOAD_URL" && \
@@ -198,7 +198,7 @@ LABEL security.scan-date="AUTO_GENERATED"
 LABEL security.patch-level="minimal-attack-surface"
 LABEL maintainer="TMI Security Team"
 LABEL org.opencontainers.image.title="TMI Redis Distroless"
-LABEL org.opencontainers.image.description="Redis 7.2.4 on distroless base"
+LABEL org.opencontainers.image.description="Redis 8.4.0 on distroless base"
 
 # Copy Redis runtime from builder
 COPY --from=builder /runtime/ /
@@ -208,7 +208,7 @@ COPY --from=builder /scripts/redis.conf /etc/redis/redis.conf
 
 # Environment variables for Redis
 ENV PATH="/usr/local/bin:$PATH"
-ENV REDIS_VERSION=7.2.4
+ENV REDIS_VERSION=8.4.0
 
 # Note: Directories are created in the builder stage and copied over
 
