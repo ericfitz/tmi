@@ -368,7 +368,7 @@ func TestUpdateThreatModelOwnerChange(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that the owner was changed
-	assert.Equal(t, "newowner@example.com", resultTM.Owner)
+	assert.Equal(t, "newowner@example.com", resultTM.Owner.ProviderId)
 
 	// Check that the original owner is still in the authorization list with owner role
 	foundOriginalOwner := false
@@ -390,8 +390,8 @@ func TestUpdateThreatModelWithDuplicateSubjects(t *testing.T) {
 	updateRequest := map[string]interface{}{
 		"name":                   tm.Name,
 		"description":            tm.Description,
-		"owner":                  tm.Owner,
-		"threat_model_framework": "STRIDE", // Required field
+		"owner":                  tm.Owner.ProviderId, // Send the provider_id string, not the User object
+		"threat_model_framework": "STRIDE",            // Required field
 		"authorization": []map[string]interface{}{
 			{
 				"principal_type": "user", "provider": "test", "provider_id": "test@example.com",
@@ -530,7 +530,13 @@ func TestOwnershipTransferViaPatching(t *testing.T) {
 
 	newOwnerRouter.ServeHTTP(transferPatchW, transferPatchReq)
 
-	// Assert response
+	// Always log response for debugging
+	t.Logf("Transfer ownership PATCH response: status=%d, body=%s", transferPatchW.Code, transferPatchW.Body.String())
+
+	// Assert response - debug if error
+	if transferPatchW.Code != http.StatusOK {
+		t.Logf("Transfer ownership PATCH failed with status %d, body: %s", transferPatchW.Code, transferPatchW.Body.String())
+	}
 	assert.Equal(t, http.StatusOK, transferPatchW.Code)
 
 	var resultTM ThreatModel
@@ -538,7 +544,7 @@ func TestOwnershipTransferViaPatching(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that the owner was changed
-	assert.Equal(t, "newowner@example.com", resultTM.Owner)
+	assert.Equal(t, "newowner@example.com", resultTM.Owner.ProviderId)
 
 	// Check that the original owner is still in the authorization list with owner role
 	foundOriginalOwner := false

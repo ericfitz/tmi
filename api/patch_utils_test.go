@@ -14,7 +14,7 @@ type PatchTestEntity struct {
 	ID            string          `json:"id,omitempty"`
 	Name          string          `json:"name"`
 	Description   *string         `json:"description,omitempty"`
-	Owner         string          `json:"owner"`
+	Owner         User            `json:"owner"`
 	Authorization []Authorization `json:"authorization"`
 	CreatedAt     time.Time       `json:"created_at"`
 	ModifiedAt    time.Time       `json:"modified_at"`
@@ -26,7 +26,13 @@ func TestApplyPatchOperations(t *testing.T) {
 		ID:          "test-id",
 		Name:        "original name",
 		Description: stringPtr("original description"),
-		Owner:       "original-owner",
+		Owner: User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    "original-owner",
+			DisplayName:   "Original Owner",
+			Email:         "original-owner@example.com",
+		},
 		Authorization: []Authorization{
 			{
 				PrincipalType: AuthorizationPrincipalTypeUser,
@@ -85,15 +91,27 @@ func TestApplyPatchOperations(t *testing.T) {
 			},
 			expectError: false,
 			validator: func(t *testing.T, result PatchTestEntity) {
-				assert.Equal(t, "new-owner", result.Owner)
+				// Owner is converted to User object by fixOwnerField
+				assert.Equal(t, "new-owner", result.Owner.ProviderId)
+				assert.Equal(t, "new-owner@example.com", string(result.Owner.Email))
 			},
 		},
 		{
 			name: "replace authorization",
 			operations: []PatchOperation{
 				{Op: "replace", Path: "/authorization", Value: []interface{}{
-					map[string]interface{}{"subject": "user2", "role": "writer"},
-					map[string]interface{}{"subject": "user3", "role": "owner"},
+					map[string]interface{}{
+						"principal_type": "user",
+						"provider":       "test",
+						"provider_id":    "user2",
+						"role":           "writer",
+					},
+					map[string]interface{}{
+						"principal_type": "user",
+						"provider":       "test",
+						"provider_id":    "user3",
+						"role":           "owner",
+					},
 				}},
 			},
 			expectError: false,
@@ -115,7 +133,9 @@ func TestApplyPatchOperations(t *testing.T) {
 			expectError: false,
 			validator: func(t *testing.T, result PatchTestEntity) {
 				assert.Equal(t, "multi name", result.Name)
-				assert.Equal(t, "multi-owner", result.Owner)
+				// Owner is converted to User object by fixOwnerField
+				assert.Equal(t, "multi-owner", result.Owner.ProviderId)
+				assert.Equal(t, "multi-owner@example.com", string(result.Owner.Email))
 				require.NotNil(t, result.Description)
 				assert.Equal(t, "multi description", *result.Description)
 			},
@@ -344,17 +364,29 @@ func TestPreserveCriticalFields(t *testing.T) {
 	earlier := now.Add(-1 * time.Hour)
 
 	original := PatchTestEntity{
-		ID:         "original-id",
-		Name:       "original name",
-		Owner:      "original-owner",
+		ID:   "original-id",
+		Name: "original name",
+		Owner: User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    "original-owner",
+			DisplayName:   "Original Owner",
+			Email:         "original-owner@example.com",
+		},
 		CreatedAt:  earlier,
 		ModifiedAt: earlier,
 	}
 
 	modified := PatchTestEntity{
-		ID:         "modified-id", // Should be preserved
-		Name:       "modified name",
-		Owner:      "modified-owner",
+		ID:   "modified-id", // Should be preserved
+		Name: "modified name",
+		Owner: User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    "modified-owner",
+			DisplayName:   "Modified Owner",
+			Email:         "modified-owner@example.com",
+		},
 		CreatedAt:  now, // Should be preserved
 		ModifiedAt: now,
 	}
@@ -376,13 +408,25 @@ func TestPreserveCriticalFields(t *testing.T) {
 
 func TestValidatePatchedEntity(t *testing.T) {
 	original := PatchTestEntity{
-		Name:  "original",
-		Owner: "original-owner",
+		Name: "original",
+		Owner: User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    "original-owner",
+			DisplayName:   "Original Owner",
+			Email:         "original-owner@example.com",
+		},
 	}
 
 	patched := PatchTestEntity{
-		Name:  "patched",
-		Owner: "patched-owner",
+		Name: "patched",
+		Owner: User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    "patched-owner",
+			DisplayName:   "Patched Owner",
+			Email:         "patched-owner@example.com",
+		},
 	}
 
 	tests := []struct {
@@ -449,9 +493,15 @@ func TestValidatePatchedEntity(t *testing.T) {
 func TestPatchWorkflow(t *testing.T) {
 	now := time.Now().UTC()
 	original := PatchTestEntity{
-		ID:    "test-id",
-		Name:  "original name",
-		Owner: "original-owner",
+		ID:   "test-id",
+		Name: "original name",
+		Owner: User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    "original-owner",
+			DisplayName:   "Original Owner",
+			Email:         "original-owner@example.com",
+		},
 		Authorization: []Authorization{
 			{
 				PrincipalType: AuthorizationPrincipalTypeUser,
@@ -499,7 +549,9 @@ func TestPatchWorkflow(t *testing.T) {
 	assert.Equal(t, original.ID, modified.ID)               // Preserved
 	assert.Equal(t, original.CreatedAt, modified.CreatedAt) // Preserved
 	assert.Equal(t, "patched name", modified.Name)          // Modified
-	assert.Equal(t, "new-owner", modified.Owner)            // Modified
+	// Owner is converted to User object by fixOwnerField
+	assert.Equal(t, "new-owner", modified.Owner.ProviderId)                // Modified
+	assert.Equal(t, "new-owner@example.com", string(modified.Owner.Email)) // Modified
 }
 
 // Helper functions

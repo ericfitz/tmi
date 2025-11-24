@@ -509,16 +509,20 @@ func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"subject": "reader@example.com",
-				"role":    "reader",
+				"principal_type": "user",
+				"provider":       "test",
+				"provider_id":    "reader@example.com",
+				"role":           "reader",
 			},
 		},
 		{
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"subject": "writer@example.com",
-				"role":    "writer",
+				"principal_type": "user",
+				"provider":       "test",
+				"provider_id":    "writer@example.com",
+				"role":           "writer",
 			},
 		},
 	}
@@ -669,8 +673,8 @@ func TestPostThreatModelDiagramCollaborate(t *testing.T) {
 		assert.True(t, ok)
 		user, ok := participant["user"].(map[string]interface{})
 		assert.True(t, ok)
-		// User struct has "id" field (provider_user_id), not "user_id"
-		assert.NotNil(t, user["id"], "User should have an id field")
+		// User struct uses provider_id field (not "id" or "user_id")
+		assert.NotNil(t, user["provider_id"], "User should have a provider_id field")
 		assert.Equal(t, "test@example.com", user["email"])
 	}
 }

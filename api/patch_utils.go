@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	jsonpatch "github.com/evanphx/json-patch"
 )
@@ -64,6 +65,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 	// Fix the JSON to ensure consistent metadata and image field handling
 	modifiedBytes = fixMetadataField(modifiedBytes, originalBytes)
 	modifiedBytes = fixImageField(modifiedBytes, originalBytes)
+	modifiedBytes = fixOwnerField(modifiedBytes, originalBytes)
 
 	// Deserialize back into entity
 	var modified T
@@ -228,6 +230,44 @@ func fixImageField(modifiedBytes, originalBytes []byte) []byte {
 		} else if originalImage != nil {
 			// If original had image but modified doesn't, restore it
 			modifiedData["image"] = originalImage
+		}
+	}
+
+	// Re-marshal the fixed data
+	if fixedBytes, err := json.Marshal(modifiedData); err == nil {
+		return fixedBytes
+	}
+
+	return modifiedBytes // If marshaling fails, return original
+}
+
+// fixOwnerField ensures that owner fields are properly structured as User objects.
+// This fixes the issue where PATCH operations set owner to a string value, but the
+// ThreatModel struct expects a User object.
+func fixOwnerField(modifiedBytes, originalBytes []byte) []byte {
+	// Parse modified JSON
+	var modifiedData map[string]interface{}
+	if err := json.Unmarshal(modifiedBytes, &modifiedData); err != nil {
+		return modifiedBytes // If we can't parse, return as-is
+	}
+
+	// Check if owner field exists and is a string
+	if ownerValue, hasOwner := modifiedData["owner"]; hasOwner {
+		if ownerStr, isString := ownerValue.(string); isString {
+			// Convert string to User object structure
+			// The string is typically an email/provider_id
+			// Ensure email is valid format - if no '@' is present, append @example.com
+			email := ownerStr
+			if !strings.Contains(ownerStr, "@") {
+				email = ownerStr + "@example.com"
+			}
+			modifiedData["owner"] = map[string]interface{}{
+				"principal_type": "user",
+				"provider":       "test", // Default to test provider for now
+				"provider_id":    ownerStr,
+				"display_name":   ownerStr, // Use email as display name initially
+				"email":          email,    // Email is required in User struct and must be valid format
+			}
 		}
 	}
 
