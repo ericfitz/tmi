@@ -621,6 +621,12 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 		return item, fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner.ProviderId, err)
 	}
 
+	// Resolve created_by identifier to internal_uuid
+	createdByUUID, err := s.resolveUserIdentifierToUUID(tx, item.CreatedBy.ProviderId)
+	if err != nil {
+		return item, fmt.Errorf("failed to resolve created_by identifier %s: %w", item.CreatedBy.ProviderId, err)
+	}
+
 	// Insert threat model
 	query := `
 		INSERT INTO threat_models (id, name, description, owner_internal_uuid, created_by_internal_uuid,
@@ -629,7 +635,7 @@ func (s *ThreatModelDatabaseStore) Create(item ThreatModel, idSetter func(Threat
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
 	_, err = tx.Exec(query,
-		id, item.Name, item.Description, ownerUUID, item.CreatedBy,
+		id, item.Name, item.Description, ownerUUID, createdByUUID,
 		framework, item.IssueUri, item.Status, statusUpdated,
 		item.CreatedAt, item.ModifiedAt,
 	)
@@ -863,7 +869,7 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string, tx *s
 
 		// Enrich based on subject type
 		if subjectTypeStr == "user" && userUUID.Valid {
-			user, enrichErr := enrichUserPrincipal(tx, userUUID.String)
+			user, enrichErr := enrichUserPrincipal(localTx, userUUID.String)
 			if enrichErr != nil {
 				// Log but continue - graceful degradation
 				slogging.Get().Warn("Failed to enrich user principal: %v", enrichErr)
@@ -889,7 +895,7 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string, tx *s
 			authorization = append(authorization, auth)
 
 		} else if subjectTypeStr == "group" && groupUUID.Valid {
-			principal, enrichErr := enrichGroupPrincipal(tx, groupUUID.String)
+			principal, enrichErr := enrichGroupPrincipal(localTx, groupUUID.String)
 			if enrichErr != nil {
 				// Log but continue - graceful degradation
 				slogging.Get().Warn("Failed to enrich group principal: %v", enrichErr)
