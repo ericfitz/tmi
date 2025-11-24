@@ -42,6 +42,11 @@ func NewThreatModelDatabaseStore(database *sql.DB) *ThreatModelDatabaseStore {
 	}
 }
 
+// GetDB returns the underlying database connection
+func (s *ThreatModelDatabaseStore) GetDB() *sql.DB {
+	return s.db
+}
+
 // resolveUserIdentifierToUUID attempts to resolve a user identifier to an internal_uuid
 // It tries in order:
 // 1. If the value is a valid UUID, check if it exists as internal_uuid

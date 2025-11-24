@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -547,6 +548,31 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Phase 3.5: Enrich authorization entries (sparse -> complete)
+	// This happens AFTER patch operations but BEFORE validation
+	// First, validate sparse entries (provider + one of provider_id/email)
+	if err := ValidateSparseAuthorizationEntries(modifiedTM.Authorization); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Get database connection for enrichment
+	var db *sql.DB
+	if dbStore, ok := ThreatModelStore.(*ThreatModelDatabaseStore); ok {
+		db = dbStore.GetDB()
+	} else {
+		// Fallback for test environments without database
+		slogging.Get().WithContext(c).Warn("ThreatModelStore is not a database store, skipping enrichment")
+	}
+
+	// Enrich authorization entries if database is available
+	if db != nil {
+		if err := EnrichAuthorizationList(c.Request.Context(), db, modifiedTM.Authorization); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
+	}
+
 	// Phase 4: Preserve critical fields and validate authorization
 	modifiedTM = h.preserveThreatModelCriticalFields(modifiedTM, existingTM)
 
@@ -832,10 +858,11 @@ func validatePatchedThreatModel(original, patched ThreatModel, userEmail string)
 		return fmt.Errorf("name is required")
 	}
 
-	// 5. Validate authorization entries
+	// 5. Validate authorization entries (after enrichment)
+	// Note: This validation happens AFTER enrichment, so ProviderId should be populated
 	for _, auth := range patched.Authorization {
 		if auth.ProviderId == "" {
-			return fmt.Errorf("authorization subject cannot be empty")
+			return fmt.Errorf("authorization subject cannot be empty (enrichment may have failed)")
 		}
 	}
 

@@ -108,6 +108,8 @@ func convertInterfaceToAuthList(authList []interface{}) []Authorization {
 }
 
 // ValidateAuthorizationEntries validates individual authorization entries
+// Note: This function is intended for ENRICHED entries where ProviderId has been populated
+// For sparse/pre-enrichment validation, use ValidateSparseAuthorizationEntries
 func ValidateAuthorizationEntries(authList []Authorization) error {
 	for _, auth := range authList {
 		if auth.ProviderId == "" {
@@ -121,7 +123,55 @@ func ValidateAuthorizationEntries(authList []Authorization) error {
 	return nil
 }
 
+// ValidateSparseAuthorizationEntries validates authorization entries BEFORE enrichment
+// Requires: provider + (provider_id OR email)
+// Does NOT require: display_name (response-only field)
+func ValidateSparseAuthorizationEntries(authList []Authorization) error {
+	for i, auth := range authList {
+		// Validate provider is present
+		if auth.Provider == "" {
+			return &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "validation_failed",
+				Message: fmt.Sprintf("Authorization entry at index %d: 'provider' is required", i),
+			}
+		}
+
+		// Validate that at least one identifier is provided
+		hasProviderID := auth.ProviderId != ""
+		hasEmail := auth.Email != nil && string(*auth.Email) != ""
+
+		if !hasProviderID && !hasEmail {
+			return &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "validation_failed",
+				Message: fmt.Sprintf("Authorization entry at index %d: either 'provider_id' or 'email' must be provided", i),
+			}
+		}
+
+		// Validate role is valid
+		if auth.Role != RoleReader && auth.Role != RoleWriter && auth.Role != RoleOwner {
+			return &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "validation_failed",
+				Message: fmt.Sprintf("Authorization entry at index %d: invalid role '%s'. Must be one of: reader, writer, owner", i, auth.Role),
+			}
+		}
+
+		// Validate display_name is NOT provided (response-only field)
+		if auth.DisplayName != nil && *auth.DisplayName != "" {
+			return &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "validation_failed",
+				Message: fmt.Sprintf("Authorization entry at index %d: 'display_name' cannot be provided in requests (it is a response-only field)", i),
+			}
+		}
+	}
+	return nil
+}
+
 // ValidateAuthorizationEntriesWithFormat validates authorization entries with format checking
+// Note: This function is intended for ENRICHED entries where ProviderId has been populated
 func ValidateAuthorizationEntriesWithFormat(authList []Authorization) error {
 	for i, auth := range authList {
 		// Validate subject format
