@@ -189,8 +189,8 @@ EOF
 RUN chmod +x /scripts/docker-entrypoint.sh && \
     chmod +x /scripts/redis.conf
 
-# Stage 2: Distroless runtime
-FROM gcr.io/distroless/base-debian12
+# Stage 2: Distroless runtime with C++ support (required for Redis 8.x)
+FROM gcr.io/distroless/cc-debian12
 
 # Metadata for tracking
 LABEL security.distroless="true"
