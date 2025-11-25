@@ -1,4 +1,4 @@
-# Multi-stage build for Promtail with dynamic latest release detection
+# Multi-stage distroless build for Promtail with dynamic latest release detection
 # Stage 1: Fetch and extract Promtail binary
 FROM cgr.dev/chainguard/wolfi-base:latest AS fetcher
 
@@ -8,7 +8,7 @@ LABEL security.patch-level="minimal-attack-surface"
 LABEL maintainer="TMI Security Team"
 
 # Install required tools for download and extraction
-RUN apk add --no-cache curl jq unzip
+RUN apk add --no-cache curl jq unzip busybox
 
 # Set working directory
 WORKDIR /tmp
@@ -21,35 +21,38 @@ RUN LATEST_RELEASE_URL=$(curl -s https://api.github.com/repos/grafana/loki/relea
     unzip promtail-linux-arm64.zip && \
     chmod +x promtail-linux-arm64
 
-# Stage 2: Minimal runtime with Chainguard bash base (includes bash and core utils)
-FROM cgr.dev/chainguard/bash:latest
+# Stage 2: Minimal busybox runtime (distroless-style)
+# Uses minimal busybox for small attack surface while maintaining POSIX shell
+FROM busybox:1.36-glibc
 
 # Metadata for tracking security patches
 LABEL security.distroless="true"
 LABEL security.scan-date="AUTO_GENERATED"
 LABEL security.patch-level="minimal-attack-surface"
 LABEL maintainer="TMI Security Team"
-LABEL org.opencontainers.image.title="Promtail (Chainguard bash)"
-LABEL org.opencontainers.image.description="Grafana Promtail log aggregator on Chainguard bash base"
+LABEL org.opencontainers.image.title="Promtail (Minimal)"
+LABEL org.opencontainers.image.description="Grafana Promtail log aggregator on minimal busybox base"
 LABEL org.opencontainers.image.name="tmi/promtail"
 
 # Copy promtail binary from fetcher stage
 COPY --from=fetcher /tmp/promtail-linux-arm64 /promtail
 
-# Copy promtail configuration template (no secrets)
-COPY promtail/config.yaml.template /etc/promtail/config.yaml.template
-
-# Copy entrypoint script for runtime config generation
+# Copy entrypoint script for runtime config generation (POSIX-compliant, no bash/sed needed)
 COPY --chmod=755 promtail/entrypoint.sh /entrypoint.sh
 
 # Set working directory
 WORKDIR /
 
-# Run as non-root user (bash image runs as nonroot by default)
-USER nonroot:nonroot
+# Run as non-root user (busybox nobody user: 65534:65534)
+USER 65534:65534
 
 # Note: LOKI_URL, LOKI_USERNAME, and LOKI_PASSWORD must be provided at runtime
 # via docker run -e or docker-compose environment sections
+#
+# Supported environment variables:
+#   LOKI_URL (required)      - Loki push API URL (e.g., http://loki:3100/loki/api/v1/push)
+#   LOKI_USERNAME (optional) - Basic auth username for Loki
+#   LOKI_PASSWORD (optional) - Basic auth password for Loki
 
 # Run entrypoint script which generates config and starts promtail
 ENTRYPOINT ["/entrypoint.sh"]
