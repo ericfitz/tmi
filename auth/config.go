@@ -310,8 +310,8 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 					},
 				},
 			},
-			Issuer:           envutil.Get("OAUTH_PROVIDERS_MICROSOFT_ISSUER", "https://login.microsoftonline.com/consumers/v2.0"),
-			JWKSURL:          envutil.Get("OAUTH_PROVIDERS_MICROSOFT_JWKS_URL", "https://login.microsoftonline.com/consumers/discovery/v2.0/keys"),
+			Issuer:           envutil.Get("OAUTH_PROVIDERS_MICROSOFT_ISSUER", "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0"),
+			JWKSURL:          envutil.Get("OAUTH_PROVIDERS_MICROSOFT_JWKS_URL", "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/discovery/v2.0/keys"),
 			Scopes:           []string{"openid", "profile", "email", "User.Read"},
 			AdditionalParams: map[string]string{},
 		}
