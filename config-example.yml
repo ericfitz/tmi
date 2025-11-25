@@ -119,8 +119,9 @@ auth:
               given_name_claim: "givenName"
               family_name_claim: "surname"
               email_verified_claim: "true" # Literal value - Microsoft accounts are always verified
-        issuer: "https://login.microsoftonline.com/consumers/v2.0"
-        jwks_url: "https://login.microsoftonline.com/common/discovery/v2.0/keys"
+        # Microsoft's consumer tenant ID (for personal accounts):
+        issuer: "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0"
+        jwks_url: "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/discovery/v2.0/keys"
         scopes:
           - "openid"
           - "profile"
