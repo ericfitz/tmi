@@ -370,9 +370,31 @@ func TestExchangeHandlerValidation(t *testing.T) {
 		expectedError  string
 	}{
 		{
+			name:     "Missing grant_type parameter",
+			provider: "google",
+			requestBody: map[string]interface{}{
+				"code":         "test-auth-code",
+				"redirect_uri": "http://localhost:3000/callback",
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "Invalid request",
+		},
+		{
+			name:     "Invalid grant_type",
+			provider: "google",
+			requestBody: map[string]interface{}{
+				"grant_type":   "client_credentials",
+				"code":         "test-auth-code",
+				"redirect_uri": "http://localhost:3000/callback",
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "invalid_grant",
+		},
+		{
 			name:     "Missing code parameter",
 			provider: "google",
 			requestBody: map[string]interface{}{
+				"grant_type":   "authorization_code",
 				"redirect_uri": "http://localhost:3000/callback",
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -382,7 +404,8 @@ func TestExchangeHandlerValidation(t *testing.T) {
 			name:     "Missing redirect_uri parameter",
 			provider: "google",
 			requestBody: map[string]interface{}{
-				"code": "test-auth-code",
+				"grant_type": "authorization_code",
+				"code":       "test-auth-code",
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "Invalid request",
@@ -391,6 +414,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 			name:     "Invalid provider",
 			provider: "invalid",
 			requestBody: map[string]interface{}{
+				"grant_type":   "authorization_code",
 				"code":         "test-auth-code",
 				"redirect_uri": "http://localhost:3000/callback",
 			},

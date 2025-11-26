@@ -681,6 +681,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	}
 
 	var req struct {
+		GrantType   string `json:"grant_type" binding:"required"`
 		Code        string `json:"code" binding:"required"`
 		State       string `json:"state"`
 		RedirectURI string `json:"redirect_uri" binding:"required"`
@@ -689,6 +690,15 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid request: missing required fields",
+		})
+		return
+	}
+
+	// Validate grant_type is "authorization_code"
+	if req.GrantType != "authorization_code" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_grant",
+			"error_description": "grant_type must be 'authorization_code'",
 		})
 		return
 	}
