@@ -203,7 +203,7 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 
   - **Enhanced Logging**:
     - `YYYY-MM-DDTHH:MM:SS.sssZ <message>` format with detailed flow analysis
-    - Logs all query parameters received from server
+    - Logs OAuth credentials extracted from URL fragments (via JavaScript POST to `/oauth-fragment`)
     - Flow type detection and analysis (`Authorization Code Flow`, `Implicit Flow`, etc.)
     - Complete request/response logging for debugging
   - **Client Integration**:

@@ -617,19 +617,19 @@ func TestClientCallbackURLBuilder(t *testing.T) {
 		{
 			name:           "Simple callback URL",
 			clientCallback: "http://localhost:4200/auth/callback",
-			expectedURL:    "http://localhost:4200/auth/callback?access_token=access_token_123&expires_in=3600&refresh_token=refresh_token_456&state=test_state_789&token_type=Bearer",
+			expectedURL:    "http://localhost:4200/auth/callback#access_token=access_token_123&expires_in=3600&refresh_token=refresh_token_456&state=test_state_789&token_type=Bearer",
 			expectError:    false,
 		},
 		{
 			name:           "Callback URL with existing query params",
 			clientCallback: "http://localhost:4200/auth/callback?existing=param",
-			expectedURL:    "http://localhost:4200/auth/callback?access_token=access_token_123&existing=param&expires_in=3600&refresh_token=refresh_token_456&state=test_state_789&token_type=Bearer",
+			expectedURL:    "http://localhost:4200/auth/callback?existing=param#access_token=access_token_123&expires_in=3600&refresh_token=refresh_token_456&state=test_state_789&token_type=Bearer",
 			expectError:    false,
 		},
 		{
 			name:           "HTTPS callback URL",
 			clientCallback: "https://app.example.com/oauth/callback",
-			expectedURL:    "https://app.example.com/oauth/callback?access_token=access_token_123&expires_in=3600&refresh_token=refresh_token_456&state=test_state_789&token_type=Bearer",
+			expectedURL:    "https://app.example.com/oauth/callback#access_token=access_token_123&expires_in=3600&refresh_token=refresh_token_456&state=test_state_789&token_type=Bearer",
 			expectError:    false,
 		},
 		{
@@ -651,11 +651,15 @@ func TestClientCallbackURLBuilder(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotEmpty(t, result)
 
-				// Parse the result URL to verify all parameters are present
+				// Parse the result URL to verify all parameters are present in fragment
 				parsedURL, err := url.Parse(result)
 				require.NoError(t, err)
 
-				params := parsedURL.Query()
+				// Tokens should be in fragment (after #), not query string
+				fragment := parsedURL.Fragment
+				params, err := url.ParseQuery(fragment)
+				require.NoError(t, err)
+
 				assert.Equal(t, "access_token_123", params.Get("access_token"))
 				assert.Equal(t, "refresh_token_456", params.Get("refresh_token"))
 				assert.Equal(t, "Bearer", params.Get("token_type"))

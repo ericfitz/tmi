@@ -5780,7 +5780,7 @@
             "name": "client_callback",
             "in": "query",
             "required": false,
-            "description": "Client callback URL where TMI should redirect after successful OAuth completion with tokens as query parameters. If not provided, tokens are returned as JSON response.",
+            "description": "Client callback URL where TMI should redirect after successful OAuth completion with tokens in URL fragment (#access_token=...). If not provided, tokens are returned as JSON response. Per OAuth 2.0 implicit flow spec, tokens are in fragments to prevent logging.",
             "schema": {
               "type": "string",
               "format": "uri",
@@ -6409,11 +6409,11 @@
                 "schema": {
                   "type": "string",
                   "format": "uri",
-                  "example": "http://localhost:4200/oauth2/callback?access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&expires_in=3600&token_type=Bearer&state=random_state_abc123",
+                  "example": "http://localhost:4200/oauth2/callback#access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&expires_in=3600&token_type=Bearer&state=random_state_abc123",
                   "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
                   "maxLength": 1000
                 },
-                "description": "Client callback URL with access_token, refresh_token, expires_in, token_type, and state as query parameters"
+                "description": "Client callback URL with access_token, refresh_token, expires_in, token_type, and state in URL fragment (after #)"
               }
             }
           },

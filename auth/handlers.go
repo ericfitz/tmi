@@ -1053,6 +1053,8 @@ func generateRandomState() (string, error) {
 }
 
 // buildClientRedirectURL builds the redirect URL for the client with tokens
+// Tokens are returned in the URL fragment per OAuth 2.0 implicit flow specification
+// to prevent them from being logged in server access logs or browser history
 func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state string) (string, error) {
 	// Parse the client callback URL
 	parsedURL, err := url.Parse(clientCallback)
@@ -1071,28 +1073,20 @@ func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state st
 		return "", fmt.Errorf("invalid client callback URL: scheme must be http or https")
 	}
 
-	// Build query parameters with tokens
-	params := url.Values{}
-	params.Set("access_token", tokenPair.AccessToken)
-	params.Set("refresh_token", tokenPair.RefreshToken)
-	params.Set("expires_in", fmt.Sprintf("%d", tokenPair.ExpiresIn))
-	params.Set("token_type", tokenPair.TokenType)
+	// Build fragment parameters with tokens (per OAuth 2.0 implicit flow spec)
+	fragment := url.Values{}
+	fragment.Set("access_token", tokenPair.AccessToken)
+	fragment.Set("refresh_token", tokenPair.RefreshToken)
+	fragment.Set("expires_in", fmt.Sprintf("%d", tokenPair.ExpiresIn))
+	fragment.Set("token_type", tokenPair.TokenType)
 
-	// Include the original state parameter
+	// Include the original state parameter in fragment
 	if state != "" {
-		params.Set("state", state)
+		fragment.Set("state", state)
 	}
 
-	// Preserve any existing query parameters from client callback URL
-	existingParams := parsedURL.Query()
-	for key, values := range existingParams {
-		for _, value := range values {
-			params.Add(key, value)
-		}
-	}
-
-	// Set the combined query parameters
-	parsedURL.RawQuery = params.Encode()
+	// Set the fragment (tokens are now in URL fragment, not query string)
+	parsedURL.Fragment = fragment.Encode()
 
 	return parsedURL.String(), nil
 }

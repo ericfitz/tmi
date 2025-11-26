@@ -4,6 +4,18 @@
 # dependencies = ["requests>=2.32.0"]
 # ///
 
+"""
+OAuth Client Callback Stub - Development Testing Tool
+
+This stub handles OAuth 2.0 implicit flow callbacks where tokens are delivered
+in URL fragments (#access_token=...). Since fragments are never sent to servers,
+this tool returns HTML/JavaScript that extracts tokens client-side and POSTs
+them back to /oauth-fragment for logging and testing.
+
+Usage: make start-oauth-stub
+API: GET /creds?userid=<user> to retrieve saved credentials
+"""
+
 import http.server
 import socketserver
 import urllib.parse

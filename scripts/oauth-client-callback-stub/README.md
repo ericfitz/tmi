@@ -128,8 +128,10 @@ GET /?code=auth_code_123&state=abc123
 **Implicit Flow Example:**
 
 ```
-GET /?access_token=token_456&token_type=Bearer&expires_in=3600&state=abc123
+GET /#access_token=token_456&token_type=Bearer&expires_in=3600&state=abc123
 ```
+
+**Note:** URL fragments (after `#`) are never sent to servers. The stub returns HTML/JavaScript that extracts tokens client-side and POSTs them to `/oauth-fragment` for logging.
 
 **Special Command:**
 
@@ -229,7 +231,8 @@ YYYY-MM-DDTHH:MM:SS.sssZ <message>
 2025-01-15T10:30:15.124Z   GET / - OAuth callback handler
 2025-01-15T10:30:15.124Z   GET /latest - Latest credentials API
 2025-01-15T10:30:15.124Z   GET /?code=exit - Graceful shutdown
-2025-01-15T10:30:25.456Z [192.168.1.100] GET /?access_token=eyJhbGc...&token_type=Bearer&expires_in=3600&state=AbCdEf123 HTTP/1.1 200 - {"flow_type": "implicit", "credentials_captured": true}
+2025-01-15T10:30:25.456Z [192.168.1.100] GET / HTTP/1.1 200 - Returned HTML for fragment extraction
+2025-01-15T10:30:25.567Z [192.168.1.100] POST /oauth-fragment HTTP/1.1 200 - {"flow_type": "implicit", "credentials_captured": true}
 2025-01-15T10:30:30.789Z [127.0.0.1] GET /latest HTTP/1.1 200 - {"flow_type": "implicit", "access_token": "eyJhbGc...", "token_type": "Bearer", "expires_in": 3600, "state": "AbCdEf123"}
 ```
 
