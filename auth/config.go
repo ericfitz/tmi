@@ -335,6 +335,7 @@ func getEnabledProviderIDs(providers map[string]OAuthProviderConfig) []string {
 // loadSAMLProviders loads SAML provider configurations from environment
 func loadSAMLProviders() map[string]SAMLProviderConfig {
 	logger := slogging.Get()
+	logger.Info("loadSAMLProviders function called - starting provider discovery")
 	logger.Debug("Loading SAML provider configurations")
 	providers := make(map[string]SAMLProviderConfig)
 
@@ -342,6 +343,7 @@ func loadSAMLProviders() map[string]SAMLProviderConfig {
 	// Environment variables follow the pattern: SAML_PROVIDERS_<PROVIDER_ID>_<FIELD>
 	// We scan for _ENABLED variables to discover configured providers
 	providerIDs := envutil.DiscoverProviders("SAML_PROVIDERS_", "_ENABLED")
+	logger.Info("Discovered %d potential SAML provider IDs: %v", len(providerIDs), providerIDs)
 
 	for _, providerID := range providerIDs {
 		prefix := fmt.Sprintf("SAML_PROVIDERS_%s_", providerID)
