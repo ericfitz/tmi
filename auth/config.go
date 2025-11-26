@@ -177,8 +177,11 @@ func LoadConfig() (Config, error) {
 			Providers:   loadOAuthProviders(),
 		},
 		SAML: SAMLConfig{
-			Enabled:   envutil.Get("SAML_ENABLED", "false") == "true",
-			Providers: loadSAMLProviders(),
+			Enabled: envutil.Get("SAML_ENABLED", "false") == "true",
+			Providers: func() map[string]SAMLProviderConfig {
+				logger.Info("About to call loadSAMLProviders() from LoadConfig")
+				return loadSAMLProviders()
+			}(),
 		},
 	}
 
