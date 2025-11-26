@@ -111,6 +111,44 @@ func isHTTPS(r *http.Request) bool {
 	return false
 }
 
+// publicPaths is a map of exact paths that don't require authentication
+var publicPaths = map[string]bool{
+	"/":                                       true,
+	"/api/server-info":                        true,
+	"/oauth2/callback":                        true,
+	"/oauth2/providers":                       true,
+	"/oauth2/refresh":                         true,
+	"/oauth2/authorize":                       true,
+	"/oauth2/revoke":                          true,
+	"/robots.txt":                             true,
+	"/site.webmanifest":                       true,
+	"/favicon.ico":                            true,
+	"/favicon.svg":                            true,
+	"/web-app-manifest-192x192.png":           true,
+	"/web-app-manifest-512x512.png":           true,
+	"/TMI-Logo.svg":                           true,
+	"/android-chrome-192x192.png":             true,
+	"/android-chrome-512x512.png":             true,
+	"/apple-touch-icon.png":                   true,
+	"/favicon-16x16.png":                      true,
+	"/favicon-32x32.png":                      true,
+	"/favicon-96x96.png":                      true,
+	"/.well-known/openid-configuration":       true,
+	"/.well-known/oauth-authorization-server": true,
+	"/.well-known/jwks.json":                  true,
+	"/saml/metadata":                          true,
+	"/saml/acs":                               true,
+	"/saml/slo":                               true,
+	"/saml/login":                             true,
+	"/saml/providers":                         true,
+}
+
+// publicPathPrefixes is a list of path prefixes that don't require authentication
+var publicPathPrefixes = []string{
+	"/oauth2/token",
+	"/static/",
+}
+
 // PublicPathsMiddleware identifies paths that don't require authentication
 func PublicPathsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -122,36 +160,16 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 		logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] Full URL: %s", c.Request.URL.String())
 		logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] Query params: %s", c.Request.URL.RawQuery)
 
-		// Public paths that don't require authentication
-		isPublic := c.Request.URL.Path == "/" ||
-			c.Request.URL.Path == "/api/server-info" ||
-			c.Request.URL.Path == "/oauth2/callback" ||
-			c.Request.URL.Path == "/oauth2/providers" ||
-			c.Request.URL.Path == "/oauth2/refresh" ||
-			c.Request.URL.Path == "/oauth2/authorize" ||
-			strings.HasPrefix(c.Request.URL.Path, "/oauth2/token") ||
-			c.Request.URL.Path == "/oauth2/revoke" ||
-			c.Request.URL.Path == "/robots.txt" ||
-			c.Request.URL.Path == "/site.webmanifest" ||
-			c.Request.URL.Path == "/favicon.ico" ||
-			c.Request.URL.Path == "/favicon.svg" ||
-			c.Request.URL.Path == "/web-app-manifest-192x192.png" ||
-			c.Request.URL.Path == "/web-app-manifest-512x512.png" ||
-			c.Request.URL.Path == "/TMI-Logo.svg" ||
-			c.Request.URL.Path == "/android-chrome-192x192.png" ||
-			c.Request.URL.Path == "/android-chrome-512x512.png" ||
-			c.Request.URL.Path == "/apple-touch-icon.png" ||
-			c.Request.URL.Path == "/favicon-16x16.png" ||
-			c.Request.URL.Path == "/favicon-32x32.png" ||
-			c.Request.URL.Path == "/favicon-96x96.png" ||
-			c.Request.URL.Path == "/.well-known/openid-configuration" ||
-			c.Request.URL.Path == "/.well-known/oauth-authorization-server" ||
-			c.Request.URL.Path == "/.well-known/jwks.json" ||
-			c.Request.URL.Path == "/saml/metadata" ||
-			c.Request.URL.Path == "/saml/acs" ||
-			c.Request.URL.Path == "/saml/slo" ||
-			c.Request.URL.Path == "/saml/login" ||
-			strings.HasPrefix(c.Request.URL.Path, "/static/")
+		// Check if path is public (exact match or prefix match)
+		isPublic := publicPaths[c.Request.URL.Path]
+		if !isPublic {
+			for _, prefix := range publicPathPrefixes {
+				if strings.HasPrefix(c.Request.URL.Path, prefix) {
+					isPublic = true
+					break
+				}
+			}
+		}
 
 		if isPublic {
 			logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] ✅ Public path identified: %s", c.Request.URL.Path)
