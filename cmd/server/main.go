@@ -150,7 +150,8 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 			c.Request.URL.Path == "/saml/metadata" ||
 			c.Request.URL.Path == "/saml/acs" ||
 			c.Request.URL.Path == "/saml/slo" ||
-			c.Request.URL.Path == "/saml/login"
+			c.Request.URL.Path == "/saml/login" ||
+			strings.HasPrefix(c.Request.URL.Path, "/static/")
 
 		if isPublic {
 			logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] ✅ Public path identified: %s", c.Request.URL.Path)
