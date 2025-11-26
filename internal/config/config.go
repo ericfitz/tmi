@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/envutil"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gopkg.in/yaml.v3"
 )
@@ -383,10 +384,19 @@ func overrideStructWithEnv(v reflect.Value) error {
 			continue
 		}
 
-		// Handle maps (for OAuth providers)
+		// Handle maps for provider configurations
 		if field.Kind() == reflect.Map && fieldType.Name == "Providers" {
-			if err := overrideOAuthProviders(field); err != nil {
-				return err
+			// Determine if this is OAuth or SAML providers based on parent struct
+			parentType := v.Type().Name()
+			switch parentType {
+			case "OAuthConfig":
+				if err := overrideOAuthProviders(field); err != nil {
+					return err
+				}
+			case "SAMLConfig":
+				if err := overrideSAMLProviders(field); err != nil {
+					return err
+				}
 			}
 			continue
 		}
@@ -446,6 +456,87 @@ func overrideOAuthProviders(mapField reflect.Value) error {
 		mapField.SetMapIndex(reflect.ValueOf(providerID), reflect.ValueOf(provider))
 	}
 
+	return nil
+}
+
+// overrideSAMLProviders handles environment variable overrides for SAML providers
+func overrideSAMLProviders(mapField reflect.Value) error {
+	logger := slogging.Get()
+	logger.Info("[CONFIG] overrideSAMLProviders called - starting dynamic SAML provider discovery")
+
+	if mapField.IsNil() {
+		logger.Info("[CONFIG] SAML providers map is nil, initializing it")
+		mapField.Set(reflect.MakeMap(mapField.Type()))
+	}
+
+	// Discover SAML providers from environment variables
+	providerIDs := envutil.DiscoverProviders("SAML_PROVIDERS_", "_ENABLED")
+	logger.Info("[CONFIG] Discovered %d SAML provider IDs: %v", len(providerIDs), providerIDs)
+
+	for _, providerID := range providerIDs {
+		envPrefix := fmt.Sprintf("SAML_PROVIDERS_%s_", providerID)
+
+		// Check if this provider is enabled
+		enabledStr := os.Getenv(envPrefix + "ENABLED")
+		if enabledStr != "true" {
+			logger.Info("[CONFIG] SAML provider %s is not enabled (ENABLED=%s), skipping", providerID, enabledStr)
+			continue
+		}
+
+		// Convert provider ID to key (e.g., "ENTRA_TMIDEV_SAML" -> "entra-tmidev-saml")
+		providerKey := envutil.ProviderIDToKey(providerID)
+		logger.Info("[CONFIG] Processing SAML provider: %s (key: %s)", providerID, providerKey)
+
+		// Create new SAML provider config
+		provider := SAMLProviderConfig{
+			ID:                os.Getenv(envPrefix + "ID"),
+			Name:              os.Getenv(envPrefix + "NAME"),
+			Enabled:           true,
+			Icon:              os.Getenv(envPrefix + "ICON"),
+			EntityID:          os.Getenv(envPrefix + "ENTITY_ID"),
+			MetadataURL:       os.Getenv(envPrefix + "METADATA_URL"),
+			MetadataXML:       os.Getenv(envPrefix + "METADATA_XML"),
+			ACSURL:            os.Getenv(envPrefix + "ACS_URL"),
+			SLOURL:            os.Getenv(envPrefix + "SLO_URL"),
+			SPPrivateKey:      os.Getenv(envPrefix + "SP_PRIVATE_KEY"),
+			SPPrivateKeyPath:  os.Getenv(envPrefix + "SP_PRIVATE_KEY_PATH"),
+			SPCertificate:     os.Getenv(envPrefix + "SP_CERTIFICATE"),
+			SPCertificatePath: os.Getenv(envPrefix + "SP_CERTIFICATE_PATH"),
+			IDPMetadataURL:    os.Getenv(envPrefix + "IDP_METADATA_URL"),
+			IDPMetadataXML:    os.Getenv(envPrefix + "IDP_METADATA_XML"),
+			NameIDAttribute:   os.Getenv(envPrefix + "NAME_ID_ATTRIBUTE"),
+			EmailAttribute:    os.Getenv(envPrefix + "EMAIL_ATTRIBUTE"),
+			NameAttribute:     os.Getenv(envPrefix + "NAME_ATTRIBUTE"),
+			GroupsAttribute:   os.Getenv(envPrefix + "GROUPS_ATTRIBUTE"),
+		}
+
+		// Parse boolean fields
+		if val := os.Getenv(envPrefix + "ALLOW_IDP_INITIATED"); val != "" {
+			provider.AllowIDPInitiated = val == "true"
+		}
+		if val := os.Getenv(envPrefix + "FORCE_AUTHN"); val != "" {
+			provider.ForceAuthn = val == "true"
+		}
+		if val := os.Getenv(envPrefix + "SIGN_REQUESTS"); val != "" {
+			provider.SignRequests = val == "true"
+		}
+
+		// Use ID as default if not set
+		if provider.ID == "" {
+			provider.ID = providerKey
+		}
+		if provider.Name == "" {
+			provider.Name = providerKey
+		}
+
+		logger.Info("[CONFIG] Adding SAML provider %s to map (ID: %s, Name: %s, EntityID: %s, ACSURL: %s)",
+			providerKey, provider.ID, provider.Name, provider.EntityID, provider.ACSURL)
+
+		// Set the provider in the map
+		mapField.SetMapIndex(reflect.ValueOf(providerKey), reflect.ValueOf(provider))
+	}
+
+	logger.Info("[CONFIG] SAML provider discovery complete, %d providers in map", mapField.Len())
 	return nil
 }
 
