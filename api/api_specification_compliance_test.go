@@ -178,6 +178,14 @@ func (act *APISpecificationComplianceTest) testAuthEndpoints(t *testing.T) {
 			description:    "Get auth providers should work",
 		},
 		{
+			name:           "GetSAMLProviders",
+			method:         "GET",
+			path:           "/saml/providers",
+			body:           nil,
+			expectedStatus: http.StatusOK,
+			description:    "Get SAML providers should work",
+		},
+		{
 			name:           "GetHealthCheck",
 			method:         "GET",
 			path:           "/",

@@ -63,6 +63,18 @@ type ProviderInfo struct {
 	ClientID    string `json:"client_id"`
 }
 
+// SAMLProviderInfo contains public information about a SAML provider
+type SAMLProviderInfo struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Icon        string `json:"icon"`
+	AuthURL     string `json:"auth_url"`
+	MetadataURL string `json:"metadata_url"`
+	EntityID    string `json:"entity_id"`
+	ACSURL      string `json:"acs_url"`
+	SLOURL      string `json:"slo_url,omitempty"`
+}
+
 // GetProviders returns the available OAuth providers
 func (h *Handlers) GetProviders(c *gin.Context) {
 	providers := make([]ProviderInfo, 0, len(h.config.OAuth.Providers))
@@ -117,6 +129,56 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"providers": providers,
 	})
+}
+
+// GetSAMLProviders returns the available SAML providers
+func (h *Handlers) GetSAMLProviders(c *gin.Context) {
+	// Return empty array if SAML disabled
+	if !h.config.SAML.Enabled {
+		c.JSON(http.StatusOK, gin.H{"providers": []SAMLProviderInfo{}})
+		return
+	}
+
+	providers := make([]SAMLProviderInfo, 0, len(h.config.SAML.Providers))
+	baseURL := getBaseURL(c)
+
+	for id, providerConfig := range h.config.SAML.Providers {
+		// Only include enabled providers
+		if !providerConfig.Enabled {
+			continue
+		}
+
+		// Use provider name or ID as fallback
+		name := providerConfig.Name
+		if name == "" {
+			name = id
+		}
+
+		// Use provider icon or default SAML icon
+		icon := providerConfig.Icon
+		if icon == "" {
+			icon = "fa-solid fa-key"
+		}
+
+		// Build public URLs (using path parameters)
+		authURL := fmt.Sprintf("%s/saml/%s/login", baseURL, id)
+		metadataURL := fmt.Sprintf("%s/saml/%s/metadata", baseURL, id)
+
+		providers = append(providers, SAMLProviderInfo{
+			ID:          id,
+			Name:        name,
+			Icon:        icon,
+			AuthURL:     authURL,
+			MetadataURL: metadataURL,
+			EntityID:    providerConfig.EntityID,
+			ACSURL:      providerConfig.ACSURL,
+			SLOURL:      providerConfig.SLOURL,
+		})
+	}
+
+	// Cache for 1 hour
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.JSON(http.StatusOK, gin.H{"providers": providers})
 }
 
 // getProvider returns a Provider instance for the given provider ID

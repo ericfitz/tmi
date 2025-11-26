@@ -146,6 +146,25 @@ auth:
           - "email"
         additional_params: {}
 
+saml:
+  enabled: false # Enable SAML authentication
+  providers:
+    # Example SAML provider configuration
+    # okta:
+    #   id: "saml_okta"
+    #   name: "Okta"
+    #   enabled: false
+    #   icon: "fa-brands fa-okta" # Font Awesome icon, URL, or path
+    #   entity_id: "https://tmi.example.com"
+    #   acs_url: "https://tmi.example.com/saml/acs"
+    #   slo_url: "https://tmi.example.com/saml/slo"
+    #   idp_metadata_url: "" # Set via env var SAML_IDP_METADATA_URL
+    #   sp_private_key_path: "" # Set via env var SAML_SP_PRIVATE_KEY_PATH
+    #   sp_certificate_path: "" # Set via env var SAML_SP_CERTIFICATE_PATH
+    #   email_attribute: "email"
+    #   name_attribute: "displayName"
+    #   groups_attribute: "groups"
+
 websocket:
   inactivity_timeout_seconds:
     300 # WebSocket inactivity timeout (5 minutes)

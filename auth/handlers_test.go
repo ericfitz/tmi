@@ -172,6 +172,163 @@ func TestGetProvidersDisabledProviders(t *testing.T) {
 	assert.Nil(t, githubProvider)
 }
 
+func TestGetSAMLProvidersHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	config := Config{
+		SAML: SAMLConfig{
+			Enabled: true,
+			Providers: map[string]SAMLProviderConfig{
+				"okta": {
+					ID:       "okta",
+					Name:     "Okta",
+					Enabled:  true,
+					Icon:     "fa-brands fa-okta",
+					EntityID: "https://tmi.example.com",
+					ACSURL:   "https://tmi.example.com/saml/acs",
+					SLOURL:   "https://tmi.example.com/saml/slo",
+				},
+				"azure": {
+					ID:       "azure",
+					Name:     "Azure AD",
+					Enabled:  true,
+					Icon:     "fa-brands fa-microsoft",
+					EntityID: "https://tmi.example.com",
+					ACSURL:   "https://tmi.example.com/saml/acs",
+				},
+			},
+		},
+	}
+
+	handlers := &Handlers{config: config}
+	router.GET("/saml/providers", handlers.GetSAMLProviders)
+
+	req := httptest.NewRequest("GET", "/saml/providers", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string][]map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	providers := response["providers"]
+	assert.Len(t, providers, 2)
+
+	// Verify okta provider
+	oktaProvider := findProviderByID(providers, "okta")
+	require.NotNil(t, oktaProvider)
+	assert.Equal(t, "Okta", oktaProvider["name"])
+	assert.Equal(t, "fa-brands fa-okta", oktaProvider["icon"])
+	assert.Contains(t, oktaProvider["auth_url"], "/saml/okta/login")
+	assert.Contains(t, oktaProvider["metadata_url"], "/saml/okta/metadata")
+	assert.Equal(t, "https://tmi.example.com", oktaProvider["entity_id"])
+	assert.Equal(t, "https://tmi.example.com/saml/acs", oktaProvider["acs_url"])
+
+	// Verify cache header
+	assert.Equal(t, "public, max-age=3600", w.Header().Get("Cache-Control"))
+}
+
+func TestGetSAMLProvidersDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	config := Config{
+		SAML: SAMLConfig{
+			Enabled: true,
+			Providers: map[string]SAMLProviderConfig{
+				"okta": {
+					ID:      "okta",
+					Enabled: false, // Disabled
+				},
+			},
+		},
+	}
+
+	handlers := &Handlers{config: config}
+	router.GET("/saml/providers", handlers.GetSAMLProviders)
+
+	req := httptest.NewRequest("GET", "/saml/providers", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	var response map[string][]map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	assert.NoError(t, err)
+
+	// Disabled providers should be filtered out
+	assert.Empty(t, response["providers"])
+}
+
+func TestGetSAMLProvidersSAMLDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	config := Config{
+		SAML: SAMLConfig{
+			Enabled: false, // SAML completely disabled
+		},
+	}
+
+	handlers := &Handlers{config: config}
+	router.GET("/saml/providers", handlers.GetSAMLProviders)
+
+	req := httptest.NewRequest("GET", "/saml/providers", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string][]map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	assert.NoError(t, err)
+
+	// Should return empty array, not error
+	assert.Empty(t, response["providers"])
+}
+
+func TestGetSAMLProvidersNoSensitiveData(t *testing.T) {
+	// Security test: Verify NO sensitive data in response
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	config := Config{
+		SAML: SAMLConfig{
+			Enabled: true,
+			Providers: map[string]SAMLProviderConfig{
+				"okta": {
+					ID:               "okta",
+					Name:             "Okta",
+					Enabled:          true,
+					SPPrivateKey:     "SENSITIVE_PRIVATE_KEY",
+					SPPrivateKeyPath: "/etc/saml/private.key",
+					IDPMetadataURL:   "https://internal-idp.example.com/metadata",
+					EntityID:         "https://tmi.example.com",
+					ACSURL:           "https://tmi.example.com/saml/acs",
+				},
+			},
+		},
+	}
+
+	handlers := &Handlers{config: config}
+	router.GET("/saml/providers", handlers.GetSAMLProviders)
+
+	req := httptest.NewRequest("GET", "/saml/providers", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	responseBody := w.Body.String()
+
+	// Verify sensitive data is NOT in response
+	assert.NotContains(t, responseBody, "SENSITIVE_PRIVATE_KEY")
+	assert.NotContains(t, responseBody, "/etc/saml/private.key")
+	assert.NotContains(t, responseBody, "internal-idp.example.com")
+	assert.NotContains(t, responseBody, "sp_private_key")
+	assert.NotContains(t, responseBody, "idp_metadata_url")
+}
+
 func TestExchangeHandlerValidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

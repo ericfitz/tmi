@@ -28,6 +28,13 @@ func (a *AuthServiceAdapter) GetProviders(c *gin.Context) {
 	a.handlers.GetProviders(c)
 }
 
+// GetSAMLProviders delegates to auth handlers
+func (a *AuthServiceAdapter) GetSAMLProviders(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] GetSAMLProviders called - delegating to auth.Handlers")
+	a.handlers.GetSAMLProviders(c)
+}
+
 // Authorize delegates to auth handlers
 func (a *AuthServiceAdapter) Authorize(c *gin.Context) {
 	logger := slogging.Get()

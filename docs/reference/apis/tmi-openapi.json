@@ -4573,6 +4573,70 @@
           "last_used": "2025-04-06T15:30:00Z",
           "usage_count": 42
         }
+      },
+      "SAMLProviderInfo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Provider identifier",
+            "maxLength": 1000
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the provider",
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
+          },
+          "icon": {
+            "type": "string",
+            "description": "Icon identifier for the provider (Font Awesome class, URL, or path)",
+            "maxLength": 1000
+          },
+          "auth_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "TMI SAML login endpoint URL",
+            "pattern": "^(https?|wss?|file)://[^\\s]*$",
+            "maxLength": 1024
+          },
+          "metadata_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "SAML service provider metadata URL",
+            "pattern": "^(https?|wss?|file)://[^\\s]*$",
+            "maxLength": 1024
+          },
+          "entity_id": {
+            "type": "string",
+            "description": "Service Provider entity ID",
+            "maxLength": 1000
+          },
+          "acs_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Assertion Consumer Service URL",
+            "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
+            "maxLength": 1024
+          },
+          "slo_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Single Logout URL",
+            "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "icon",
+          "auth_url",
+          "metadata_url",
+          "entity_id",
+          "acs_url"
+        ],
+        "additionalProperties": false
       }
     },
     "responses": {
@@ -17177,6 +17241,60 @@
               "default": 100,
               "configurable": true,
               "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      }
+    },
+    "/saml/providers": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "List available SAML providers",
+        "description": "Returns a list of configured SAML providers available for authentication",
+        "operationId": "getSAMLProviders",
+        "responses": {
+          "200": {
+            "description": "List of available SAML providers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SAMLProviderInfo"
+                      },
+                      "maxItems": 1000
+                    }
+                  },
+                  "required": [
+                    "providers"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [],
+        "x-rate-limit": {
+          "scope": "ip",
+          "tier": "public-discovery",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 10,
+              "configurable": false,
+              "tracking_method": "Source IP address"
             }
           ]
         }

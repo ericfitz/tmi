@@ -117,6 +117,7 @@ type SAMLProviderConfig struct {
 	ID                string `yaml:"id"`
 	Name              string `yaml:"name"`
 	Enabled           bool   `yaml:"enabled"`
+	Icon              string `yaml:"icon"`
 	EntityID          string `yaml:"entity_id" env:"SAML_ENTITY_ID"`
 	MetadataURL       string `yaml:"metadata_url" env:"SAML_METADATA_URL"`
 	MetadataXML       string `yaml:"metadata_xml" env:"SAML_METADATA_XML"`

@@ -298,6 +298,7 @@ func (s *Server) SetAuthFlowRateLimiter(rateLimiter *AuthFlowRateLimiter) {
 // AuthService placeholder - we'll need to create this interface to avoid circular deps
 type AuthService interface {
 	GetProviders(c *gin.Context)
+	GetSAMLProviders(c *gin.Context)
 	Authorize(c *gin.Context)
 	Callback(c *gin.Context)
 	Exchange(c *gin.Context)
@@ -582,6 +583,21 @@ func (s *Server) ProcessSAMLLogoutPost(c *gin.Context) {
 	} else {
 		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
 	}
+}
+
+// GetSAMLProviders implements ServerInterface
+func (s *Server) GetSAMLProviders(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] GetSAMLProviders called")
+
+	if s.authService == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Auth service not configured",
+		})
+		return
+	}
+
+	s.authService.GetSAMLProviders(c)
 }
 
 // GetJWKS returns the JSON Web Key Set for JWT signature verification
