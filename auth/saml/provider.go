@@ -61,15 +61,45 @@ func NewSAMLProvider(config *SAMLConfig) (*SAMLProvider, error) {
 		return nil, fmt.Errorf("failed to fetch IdP metadata: %w", err)
 	}
 
+	// Parse ACS URL
+	acsURL, err := url.Parse(config.ACSURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid ACS URL: %w", err)
+	}
+
+	// Parse metadata URL
+	metadataURLStr := config.EntityID
+	if metadataURLStr == "" {
+		// If no EntityID specified, derive from ACS URL
+		metadataURLStr = acsURL.Scheme + "://" + acsURL.Host + "/saml/metadata"
+	} else if _, parseErr := url.Parse(metadataURLStr); parseErr != nil {
+		// If EntityID is not a valid URL, construct one
+		metadataURLStr = acsURL.Scheme + "://" + acsURL.Host + "/saml/metadata"
+	}
+	metadataURL, err := url.Parse(metadataURLStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid metadata URL: %w", err)
+	}
+
+	// Parse SLO URL if provided
+	var sloURL url.URL
+	if config.SLOURL != "" {
+		parsedSloURL, err := url.Parse(config.SLOURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid SLO URL: %w", err)
+		}
+		sloURL = *parsedSloURL
+	}
+
 	// Create service provider configuration
 	sp := &saml.ServiceProvider{
 		EntityID:          config.EntityID,
 		Key:               privateKey,
 		Certificate:       certificate,
 		IDPMetadata:       idpMetadata,
-		AcsURL:            url.URL{Scheme: "https", Host: config.ACSURL},
-		MetadataURL:       url.URL{Scheme: "https", Host: config.EntityID + "/saml/metadata"},
-		SloURL:            url.URL{Scheme: "https", Host: config.SLOURL},
+		AcsURL:            *acsURL,
+		MetadataURL:       *metadataURL,
+		SloURL:            sloURL,
 		AllowIDPInitiated: config.AllowIDPInitiated,
 		ForceAuthn:        &config.ForceAuthn,
 	}
