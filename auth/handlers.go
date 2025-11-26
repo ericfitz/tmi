@@ -84,29 +84,16 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 			continue
 		}
 
-		var name, icon string
-		switch id {
-		case "google":
-			name = "Google"
-			icon = "fa-brands fa-google"
-		case "github":
-			name = "GitHub"
-			icon = "fa-brands fa-github"
-		case "microsoft":
-			name = "Microsoft"
-			icon = "fa-brands fa-microsoft"
-		case "test":
-			name = "Test Provider"
-			icon = "fa-solid fa-flask-vial"
-		default:
-			name = providerConfig.Name
-			if name == "" {
-				name = id
-			}
-			icon = providerConfig.Icon
-			if icon == "" {
-				icon = id
-			}
+		// Use configured name or fallback to ID
+		name := providerConfig.Name
+		if name == "" {
+			name = id
+		}
+
+		// Use configured icon or fallback to ID
+		icon := providerConfig.Icon
+		if icon == "" {
+			icon = id
 		}
 
 		// Build the authorization URL for this provider (using query parameter format)
