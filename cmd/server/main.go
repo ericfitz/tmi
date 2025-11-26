@@ -113,40 +113,35 @@ func isHTTPS(r *http.Request) bool {
 
 // publicPaths is a map of exact paths that don't require authentication
 var publicPaths = map[string]bool{
-	"/":                                       true,
-	"/api/server-info":                        true,
-	"/oauth2/callback":                        true,
-	"/oauth2/providers":                       true,
-	"/oauth2/refresh":                         true,
-	"/oauth2/authorize":                       true,
-	"/oauth2/revoke":                          true,
-	"/robots.txt":                             true,
-	"/site.webmanifest":                       true,
-	"/favicon.ico":                            true,
-	"/favicon.svg":                            true,
-	"/web-app-manifest-192x192.png":           true,
-	"/web-app-manifest-512x512.png":           true,
-	"/TMI-Logo.svg":                           true,
-	"/android-chrome-192x192.png":             true,
-	"/android-chrome-512x512.png":             true,
-	"/apple-touch-icon.png":                   true,
-	"/favicon-16x16.png":                      true,
-	"/favicon-32x32.png":                      true,
-	"/favicon-96x96.png":                      true,
-	"/.well-known/openid-configuration":       true,
-	"/.well-known/oauth-authorization-server": true,
-	"/.well-known/jwks.json":                  true,
-	"/saml/metadata":                          true,
-	"/saml/acs":                               true,
-	"/saml/slo":                               true,
-	"/saml/login":                             true,
-	"/saml/providers":                         true,
+	"/":                             true,
+	"/api/server-info":              true,
+	"/oauth2/callback":              true,
+	"/oauth2/providers":             true,
+	"/oauth2/refresh":               true,
+	"/oauth2/authorize":             true,
+	"/oauth2/revoke":                true,
+	"/robots.txt":                   true,
+	"/site.webmanifest":             true,
+	"/favicon.ico":                  true,
+	"/favicon.svg":                  true,
+	"/web-app-manifest-192x192.png": true,
+	"/web-app-manifest-512x512.png": true,
+	"/TMI-Logo.svg":                 true,
+	"/android-chrome-192x192.png":   true,
+	"/android-chrome-512x512.png":   true,
+	"/apple-touch-icon.png":         true,
+	"/favicon-16x16.png":            true,
+	"/favicon-32x32.png":            true,
+	"/favicon-96x96.png":            true,
+	// Note: /.well-known/* and /saml/* paths are handled by publicPathPrefixes below
 }
 
 // publicPathPrefixes is a list of path prefixes that don't require authentication
 var publicPathPrefixes = []string{
 	"/oauth2/token",
 	"/static/",
+	"/.well-known/", // All OAuth/OIDC discovery endpoints
+	"/saml/",        // All SAML endpoints including provider-specific routes like /saml/{provider}/login
 }
 
 // PublicPathsMiddleware identifies paths that don't require authentication

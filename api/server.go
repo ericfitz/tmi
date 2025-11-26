@@ -443,9 +443,9 @@ func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 }
 
 // GetSAMLMetadata returns SAML service provider metadata
-func (s *Server) GetSAMLMetadata(c *gin.Context) {
+func (s *Server) GetSAMLMetadata(c *gin.Context, provider string) {
 	logger := slogging.Get()
-	logger.Info("[SERVER_INTERFACE] GetSAMLMetadata called")
+	logger.Info("[SERVER_INTERFACE] GetSAMLMetadata called for provider: %s", provider)
 
 	// Check if auth service is configured
 	if s.authService == nil {
@@ -453,24 +453,18 @@ func (s *Server) GetSAMLMetadata(c *gin.Context) {
 		return
 	}
 
-	// Get provider ID from query parameter
-	providerID := c.Query("provider")
-	if providerID == "" {
-		providerID = "default" // Use default provider if not specified
-	}
-
 	// Delegate to auth service for SAML metadata
 	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
-		authAdapter.GetSAMLMetadata(c, providerID)
+		authAdapter.GetSAMLMetadata(c, provider)
 	} else {
 		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
 	}
 }
 
 // InitiateSAMLLogin starts SAML authentication flow
-func (s *Server) InitiateSAMLLogin(c *gin.Context, params InitiateSAMLLoginParams) {
+func (s *Server) InitiateSAMLLogin(c *gin.Context, provider string, params InitiateSAMLLoginParams) {
 	logger := slogging.Get()
-	logger.Info("[SERVER_INTERFACE] InitiateSAMLLogin called")
+	logger.Info("[SERVER_INTERFACE] InitiateSAMLLogin called for provider: %s", provider)
 
 	// Check if auth service is configured
 	if s.authService == nil {
@@ -478,15 +472,9 @@ func (s *Server) InitiateSAMLLogin(c *gin.Context, params InitiateSAMLLoginParam
 		return
 	}
 
-	// Get provider ID from query parameter
-	providerID := c.Query("provider")
-	if providerID == "" {
-		providerID = "default" // Use default provider if not specified
-	}
-
 	// Delegate to auth service for SAML login
 	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
-		authAdapter.InitiateSAMLLogin(c, providerID, params.ClientCallback)
+		authAdapter.InitiateSAMLLogin(c, provider, params.ClientCallback)
 	} else {
 		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
 	}

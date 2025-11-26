@@ -15431,139 +15431,6 @@
         }
       }
     },
-    "/saml/metadata": {
-      "get": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "Get SAML service provider metadata",
-        "description": "Returns the SP metadata XML for SAML configuration",
-        "operationId": "getSAMLMetadata",
-        "responses": {
-          "200": {
-            "description": "SAML metadata XML",
-            "content": {
-              "application/samlmetadata+xml": {
-                "schema": {
-                  "type": "string",
-                  "format": "xml",
-                  "maxLength": 1000
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Failed to generate metadata",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          }
-        },
-        "security": [],
-        "x-rate-limit": {
-          "scope": "user",
-          "tier": "resource-operations",
-          "limits": [
-            {
-              "type": "requests_per_minute",
-              "default": 100,
-              "configurable": true,
-              "quota_source": "user_api_quotas"
-            }
-          ]
-        }
-      }
-    },
-    "/saml/login": {
-      "get": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "Initiate SAML authentication",
-        "description": "Starts SAML authentication flow by redirecting to IdP",
-        "operationId": "initiateSAMLLogin",
-        "parameters": [
-          {
-            "name": "client_callback",
-            "in": "query",
-            "required": false,
-            "description": "Client callback URL to redirect after authentication",
-            "schema": {
-              "type": "string",
-              "format": "uri",
-              "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
-              "maxLength": 1000
-            }
-          }
-        ],
-        "responses": {
-          "302": {
-            "description": "Redirect to SAML IdP for authentication"
-          },
-          "500": {
-            "description": "Failed to initiate SAML authentication",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          }
-        },
-        "security": [],
-        "x-rate-limit": {
-          "strategy": "multi-scope",
-          "tier": "auth-flows",
-          "scopes": [
-            {
-              "name": "session",
-              "limits": [
-                {
-                  "type": "requests_per_minute",
-                  "default": 5,
-                  "configurable": false,
-                  "tracking_method": "OAuth state parameter or SAML request ID"
-                }
-              ]
-            },
-            {
-              "name": "ip",
-              "limits": [
-                {
-                  "type": "requests_per_minute",
-                  "default": 100,
-                  "configurable": false,
-                  "tracking_method": "Source IP address"
-                }
-              ]
-            },
-            {
-              "name": "user_identifier",
-              "limits": [
-                {
-                  "type": "attempts_per_hour",
-                  "default": 10,
-                  "configurable": false,
-                  "tracking_method": "login_hint parameter or email address"
-                }
-              ]
-            }
-          ],
-          "enforcement": "Most restrictive limit applies"
-        }
-      }
-    },
     "/saml/acs": {
       "post": {
         "tags": [
@@ -17298,6 +17165,159 @@
             }
           ]
         }
+      }
+    },
+    "/saml/{provider}/login": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Initiate SAML authentication",
+        "description": "Starts SAML authentication flow by redirecting to IdP",
+        "operationId": "initiateSAMLLogin",
+        "parameters": [
+          {
+            "name": "client_callback",
+            "in": "query",
+            "required": false,
+            "description": "Client callback URL to redirect after authentication",
+            "schema": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
+              "maxLength": 1000
+            }
+          },
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "description": "SAML provider identifier",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to SAML IdP for authentication"
+          },
+          "500": {
+            "description": "Failed to initiate SAML authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [],
+        "x-rate-limit": {
+          "strategy": "multi-scope",
+          "tier": "auth-flows",
+          "scopes": [
+            {
+              "name": "session",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 5,
+                  "configurable": false,
+                  "tracking_method": "OAuth state parameter or SAML request ID"
+                }
+              ]
+            },
+            {
+              "name": "ip",
+              "limits": [
+                {
+                  "type": "requests_per_minute",
+                  "default": 100,
+                  "configurable": false,
+                  "tracking_method": "Source IP address"
+                }
+              ]
+            },
+            {
+              "name": "user_identifier",
+              "limits": [
+                {
+                  "type": "attempts_per_hour",
+                  "default": 10,
+                  "configurable": false,
+                  "tracking_method": "login_hint parameter or email address"
+                }
+              ]
+            }
+          ],
+          "enforcement": "Most restrictive limit applies"
+        }
+      }
+    },
+    "/saml/{provider}/metadata": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Get SAML service provider metadata",
+        "description": "Returns the SP metadata XML for SAML configuration",
+        "operationId": "getSAMLMetadata",
+        "responses": {
+          "200": {
+            "description": "SAML metadata XML",
+            "content": {
+              "application/samlmetadata+xml": {
+                "schema": {
+                  "type": "string",
+                  "format": "xml",
+                  "maxLength": 1000
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to generate metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [],
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "description": "SAML provider identifier",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     }
   },
