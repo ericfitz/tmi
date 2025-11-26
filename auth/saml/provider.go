@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"encoding/xml"
 	"fmt"
@@ -148,9 +149,15 @@ func (p *SAMLProvider) ValidateIDToken(ctx context.Context, idToken string) (*ID
 
 // ParseResponse parses and validates a SAML response
 func (p *SAMLProvider) ParseResponse(samlResponse string) (*saml.Assertion, error) {
-	// Decode the SAML response
+	// Decode base64-encoded SAML response
+	decodedResponse, err := base64.StdEncoding.DecodeString(samlResponse)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64 SAML response: %w", err)
+	}
+
+	// Unmarshal the XML response
 	response := &saml.Response{}
-	if err := xml.Unmarshal([]byte(samlResponse), response); err != nil {
+	if err := xml.Unmarshal(decodedResponse, response); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal SAML response: %w", err)
 	}
 
