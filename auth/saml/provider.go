@@ -67,15 +67,9 @@ func NewSAMLProvider(config *SAMLConfig) (*SAMLProvider, error) {
 		return nil, fmt.Errorf("invalid ACS URL: %w", err)
 	}
 
-	// Parse metadata URL
-	metadataURLStr := config.EntityID
-	if metadataURLStr == "" {
-		// If no EntityID specified, derive from ACS URL
-		metadataURLStr = acsURL.Scheme + "://" + acsURL.Host + "/saml/metadata"
-	} else if _, parseErr := url.Parse(metadataURLStr); parseErr != nil {
-		// If EntityID is not a valid URL, construct one
-		metadataURLStr = acsURL.Scheme + "://" + acsURL.Host + "/saml/metadata"
-	}
+	// Parse metadata URL - always derive from ACS URL
+	// EntityID is just an identifier and doesn't need to be an HTTP URL
+	metadataURLStr := acsURL.Scheme + "://" + acsURL.Host + "/saml/metadata"
 	metadataURL, err := url.Parse(metadataURLStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid metadata URL: %w", err)
