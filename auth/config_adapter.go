@@ -37,6 +37,10 @@ func ConfigFromUnified(unified *config.Config) Config {
 			CallbackURL: unified.Auth.OAuth.CallbackURL,
 			Providers:   convertOAuthProviders(unified.Auth.OAuth.Providers),
 		},
+		SAML: SAMLConfig{
+			Enabled:   unified.Auth.SAML.Enabled,
+			Providers: convertSAMLProviders(unified.Auth.SAML.Providers),
+		},
 	}
 }
 
@@ -70,6 +74,38 @@ func convertOAuthProviders(unified map[string]config.OAuthProviderConfig) map[st
 			AdditionalParams: provider.AdditionalParams,
 			AuthHeaderFormat: provider.AuthHeaderFormat,
 			AcceptHeader:     provider.AcceptHeader,
+		}
+	}
+
+	return providers
+}
+
+// convertSAMLProviders converts unified SAML providers to auth-specific format
+func convertSAMLProviders(unified map[string]config.SAMLProviderConfig) map[string]SAMLProviderConfig {
+	providers := make(map[string]SAMLProviderConfig)
+
+	for id, provider := range unified {
+		providers[id] = SAMLProviderConfig{
+			ID:                id,
+			Name:              provider.Name,
+			Enabled:           provider.Enabled,
+			Icon:              provider.Icon,
+			EntityID:          provider.EntityID,
+			MetadataURL:       provider.MetadataURL,
+			MetadataXML:       provider.MetadataXML,
+			ACSURL:            provider.ACSURL,
+			SLOURL:            provider.SLOURL,
+			SPPrivateKey:      provider.SPPrivateKey,
+			SPPrivateKeyPath:  provider.SPPrivateKeyPath,
+			SPCertificate:     provider.SPCertificate,
+			SPCertificatePath: provider.SPCertificatePath,
+			IDPMetadataURL:    provider.IDPMetadataURL,
+			IDPMetadataXML:    provider.IDPMetadataXML,
+			AllowIDPInitiated: provider.AllowIDPInitiated,
+			ForceAuthn:        provider.ForceAuthn,
+			SignRequests:      provider.SignRequests,
+			NameIDAttribute:   provider.NameIDAttribute,
+			EmailAttribute:    provider.EmailAttribute,
 		}
 	}
 
