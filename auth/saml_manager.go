@@ -47,6 +47,8 @@ func (m *SAMLManager) InitializeProviders(config SAMLConfig, stateStore StateSto
 			continue
 		}
 
+		logger.Info("Attempting to initialize SAML provider: %s", id)
+
 		// Convert config to SAML config
 		samlConfig := &saml.SAMLConfig{
 			ID:                 id,
