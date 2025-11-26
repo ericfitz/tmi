@@ -15448,13 +15448,13 @@
                   "SAMLResponse": {
                     "type": "string",
                     "description": "Base64-encoded SAML response",
-                    "maxLength": 100000,
+                    "maxLength": 1000,
                     "pattern": "^[\\u0020-\\uFFFF]*$"
                   },
                   "RelayState": {
                     "type": "string",
                     "description": "State parameter for CSRF protection",
-                    "maxLength": 10000,
+                    "maxLength": 1000,
                     "pattern": "^[\\u0020-\\uFFFF]*$"
                   }
                 },
