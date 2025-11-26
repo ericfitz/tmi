@@ -2,7 +2,9 @@ package auth
 
 import (
 	"fmt"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/auth/db"
@@ -213,117 +215,159 @@ func (c *Config) GetJWTDuration() time.Duration {
 	return time.Duration(c.JWT.ExpirationSeconds) * time.Second
 }
 
-// loadOAuthProviders loads OAuth provider configurations
+// loadOAuthProviders loads OAuth provider configurations from environment
 func loadOAuthProviders() map[string]OAuthProviderConfig {
 	logger := slogging.Get()
+	logger.Info("loadOAuthProviders function called - starting provider discovery")
 	logger.Debug("Loading OAuth provider configurations")
 	providers := make(map[string]OAuthProviderConfig)
 
-	// Google OAuth configuration
-	if envutil.Get("OAUTH_PROVIDERS_GOOGLE_ENABLED", "true") == "true" {
-		logger.Debug("Configuring Google OAuth provider")
-		providers["google"] = OAuthProviderConfig{
-			ID:               "google",
-			Name:             "Google",
-			Enabled:          true,
-			Icon:             envutil.Get("OAUTH_PROVIDERS_GOOGLE_ICON", ""),
-			ClientID:         envutil.Get("OAUTH_PROVIDERS_GOOGLE_CLIENT_ID", ""),
-			ClientSecret:     envutil.Get("OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET", ""),
-			AuthorizationURL: envutil.Get("OAUTH_PROVIDERS_GOOGLE_AUTHORIZATION_URL", "https://accounts.google.com/o/oauth2/auth"),
-			TokenURL:         envutil.Get("OAUTH_PROVIDERS_GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
-			UserInfo: []UserInfoEndpoint{
-				{
-					URL:    envutil.Get("OAUTH_PROVIDERS_GOOGLE_USERINFO_URL", "https://www.googleapis.com/oauth2/v3/userinfo"),
-					Claims: map[string]string{}, // Will use defaults
-				},
-			},
-			Issuer:           envutil.Get("OAUTH_PROVIDERS_GOOGLE_ISSUER", "https://accounts.google.com"),
-			JWKSURL:          envutil.Get("OAUTH_PROVIDERS_GOOGLE_JWKS_URL", "https://www.googleapis.com/oauth2/v3/certs"),
-			Scopes:           []string{"openid", "profile", "email"},
-			AdditionalParams: map[string]string{},
-		}
-	}
+	// Dynamically discover OAuth providers from environment variables
+	// Environment variables follow the pattern: OAUTH_PROVIDERS_<PROVIDER_ID>_<FIELD>
+	// We scan for _ENABLED variables to discover configured providers
+	providerIDs := envutil.DiscoverProviders("OAUTH_PROVIDERS_", "_ENABLED")
+	logger.Info("Discovered %d potential OAuth provider IDs: %v", len(providerIDs), providerIDs)
 
-	// GitHub OAuth configuration
-	if envutil.Get("OAUTH_PROVIDERS_GITHUB_ENABLED", "true") == "true" {
-		logger.Debug("Configuring GitHub OAuth provider")
-		providers["github"] = OAuthProviderConfig{
-			ID:               "github",
-			Name:             "GitHub",
-			Enabled:          true,
-			Icon:             envutil.Get("OAUTH_PROVIDERS_GITHUB_ICON", ""),
-			ClientID:         envutil.Get("OAUTH_PROVIDERS_GITHUB_CLIENT_ID", ""),
-			ClientSecret:     envutil.Get("OAUTH_PROVIDERS_GITHUB_CLIENT_SECRET", ""),
-			AuthorizationURL: envutil.Get("OAUTH_PROVIDERS_GITHUB_AUTHORIZATION_URL", "https://github.com/login/oauth/authorize"),
-			TokenURL:         envutil.Get("OAUTH_PROVIDERS_GITHUB_TOKEN_URL", "https://github.com/login/oauth/access_token"),
-			UserInfo: []UserInfoEndpoint{
-				{
-					URL: envutil.Get("OAUTH_PROVIDERS_GITHUB_USERINFO_URL", "https://api.github.com/user"),
-					Claims: map[string]string{
-						"subject_claim": "id",
-						"name_claim":    "name",
-						"picture_claim": "avatar_url",
-					},
-				},
-				{
-					URL: "https://api.github.com/user/emails",
-					Claims: map[string]string{
-						"email_claim":          "[0].email",
-						"email_verified_claim": "[0].verified",
-					},
-				},
-			},
-			Scopes:           []string{"user:email"},
-			AdditionalParams: map[string]string{},
-			AuthHeaderFormat: "token %s",
-			AcceptHeader:     "application/json",
-		}
-	}
+	for _, providerID := range providerIDs {
+		prefix := fmt.Sprintf("OAUTH_PROVIDERS_%s_", providerID)
 
-	// Microsoft OAuth configuration
-	if envutil.Get("OAUTH_PROVIDERS_MICROSOFT_ENABLED", "true") == "true" {
-		logger.Debug("Configuring Microsoft OAuth provider")
-		providers["microsoft"] = OAuthProviderConfig{
-			ID:               "microsoft",
-			Name:             "Microsoft",
-			Enabled:          true,
-			Icon:             envutil.Get("OAUTH_PROVIDERS_MICROSOFT_ICON", ""),
-			ClientID:         envutil.Get("OAUTH_PROVIDERS_MICROSOFT_CLIENT_ID", ""),
-			ClientSecret:     envutil.Get("OAUTH_PROVIDERS_MICROSOFT_CLIENT_SECRET", ""),
-			AuthorizationURL: envutil.Get("OAUTH_PROVIDERS_MICROSOFT_AUTHORIZATION_URL", "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"),
-			TokenURL:         envutil.Get("OAUTH_PROVIDERS_MICROSOFT_TOKEN_URL", "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"),
-			UserInfo: []UserInfoEndpoint{
-				{
-					URL: envutil.Get("OAUTH_PROVIDERS_MICROSOFT_USERINFO_URL", "https://graph.microsoft.com/v1.0/me"),
-					Claims: map[string]string{
-						"subject_claim":        "id",
-						"email_claim":          "mail",
-						"name_claim":           "displayName",
-						"given_name_claim":     "givenName",
-						"family_name_claim":    "surname",
-						"email_verified_claim": "true", // Literal value
-					},
-				},
-				// Optional: fetch group memberships from Microsoft Graph API
-				// Requires "GroupMember.Read.All" or "Directory.Read.All" scope
-				// Note: If the provider returns groups in the standard "groups" claim (RFC 9068),
-				// this additional endpoint is not needed - groups will be extracted automatically
-				{
-					URL: envutil.Get("OAUTH_PROVIDERS_MICROSOFT_GROUPS_URL", ""),
-					Claims: map[string]string{
-						"groups_claim": "value.[*].displayName", // Microsoft Graph API structure
-					},
-				},
-			},
-			Issuer:           envutil.Get("OAUTH_PROVIDERS_MICROSOFT_ISSUER", "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0"),
-			JWKSURL:          envutil.Get("OAUTH_PROVIDERS_MICROSOFT_JWKS_URL", "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/discovery/v2.0/keys"),
-			Scopes:           []string{"openid", "profile", "email", "User.Read"},
-			AdditionalParams: map[string]string{},
+		// Check if provider is enabled
+		if envutil.Get(prefix+"ENABLED", "false") != "true" {
+			logger.Debug("OAuth provider %s is disabled, skipping", providerID)
+			continue
 		}
+
+		// Convert environment variable provider ID to lowercase for use as provider key
+		// e.g., GOOGLE -> google, GITHUB -> github, MICROSOFT -> microsoft
+		providerKey := envutil.ProviderIDToKey(providerID)
+
+		logger.Debug("Loading OAuth provider configuration provider_id=%s provider_key=%s", providerID, providerKey)
+
+		// Build userinfo endpoints array
+		var userInfoEndpoints []UserInfoEndpoint
+
+		// Primary userinfo endpoint (required)
+		primaryURL := envutil.Get(prefix+"USERINFO_URL", "")
+		if primaryURL != "" {
+			endpoint := UserInfoEndpoint{
+				URL:    primaryURL,
+				Claims: parseClaimMappings(prefix + "USERINFO_CLAIMS_"),
+			}
+			userInfoEndpoints = append(userInfoEndpoints, endpoint)
+		}
+
+		// Secondary userinfo endpoint (optional, for providers like GitHub that need multiple endpoints)
+		secondaryURL := envutil.Get(prefix+"USERINFO_SECONDARY_URL", "")
+		if secondaryURL != "" {
+			endpoint := UserInfoEndpoint{
+				URL:    secondaryURL,
+				Claims: parseClaimMappings(prefix + "USERINFO_SECONDARY_CLAIMS_"),
+			}
+			userInfoEndpoints = append(userInfoEndpoints, endpoint)
+		}
+
+		// Additional userinfo endpoint (optional, for providers like Microsoft groups)
+		additionalURL := envutil.Get(prefix+"USERINFO_ADDITIONAL_URL", "")
+		if additionalURL != "" {
+			endpoint := UserInfoEndpoint{
+				URL:    additionalURL,
+				Claims: parseClaimMappings(prefix + "USERINFO_ADDITIONAL_CLAIMS_"),
+			}
+			userInfoEndpoints = append(userInfoEndpoints, endpoint)
+		}
+
+		// Parse scopes (comma-separated)
+		scopesStr := envutil.Get(prefix+"SCOPES", "")
+		var scopes []string
+		if scopesStr != "" {
+			scopes = strings.Split(scopesStr, ",")
+			// Trim whitespace from each scope
+			for i := range scopes {
+				scopes[i] = strings.TrimSpace(scopes[i])
+			}
+		}
+
+		providers[providerKey] = OAuthProviderConfig{
+			ID:               envutil.Get(prefix+"ID", providerKey),
+			Name:             envutil.Get(prefix+"NAME", providerKey),
+			Enabled:          true,
+			Icon:             envutil.Get(prefix+"ICON", ""),
+			ClientID:         envutil.Get(prefix+"CLIENT_ID", ""),
+			ClientSecret:     envutil.Get(prefix+"CLIENT_SECRET", ""),
+			AuthorizationURL: envutil.Get(prefix+"AUTHORIZATION_URL", ""),
+			TokenURL:         envutil.Get(prefix+"TOKEN_URL", ""),
+			UserInfo:         userInfoEndpoints,
+			Issuer:           envutil.Get(prefix+"ISSUER", ""),
+			JWKSURL:          envutil.Get(prefix+"JWKS_URL", ""),
+			Scopes:           scopes,
+			AdditionalParams: parseAdditionalParams(prefix + "ADDITIONAL_PARAMS_"),
+			AuthHeaderFormat: envutil.Get(prefix+"AUTH_HEADER_FORMAT", ""),
+			AcceptHeader:     envutil.Get(prefix+"ACCEPT_HEADER", ""),
+		}
+
+		logger.Info("Loaded OAuth provider configuration provider_key=%s name=%s", providerKey, providers[providerKey].Name)
 	}
 
 	logger.Info("OAuth providers loaded providers_count=%v enabled_providers=%v", len(providers), getEnabledProviderIDs(providers))
 	return providers
+}
+
+// parseClaimMappings parses claim mappings from environment variables with a given prefix
+// For example, with prefix "OAUTH_PROVIDERS_GOOGLE_USERINFO_CLAIMS_":
+//
+//	OAUTH_PROVIDERS_GOOGLE_USERINFO_CLAIMS_SUBJECT_CLAIM=sub
+//	OAUTH_PROVIDERS_GOOGLE_USERINFO_CLAIMS_EMAIL_CLAIM=email
+func parseClaimMappings(prefix string) map[string]string {
+	claims := make(map[string]string)
+
+	// Scan all environment variables for claim mappings
+	for _, env := range os.Environ() {
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := parts[0]
+		value := parts[1]
+
+		if strings.HasPrefix(key, prefix) {
+			// Extract claim name by removing prefix and converting to lowercase
+			claimName := strings.TrimPrefix(key, prefix)
+			claimName = strings.ToLower(claimName)
+			claims[claimName] = value
+		}
+	}
+
+	return claims
+}
+
+// parseAdditionalParams parses additional OAuth parameters from environment variables
+// For example, with prefix "OAUTH_PROVIDERS_GOOGLE_ADDITIONAL_PARAMS_":
+//
+//	OAUTH_PROVIDERS_GOOGLE_ADDITIONAL_PARAMS_ACCESS_TYPE=offline
+//	OAUTH_PROVIDERS_GOOGLE_ADDITIONAL_PARAMS_PROMPT=consent
+func parseAdditionalParams(prefix string) map[string]string {
+	params := make(map[string]string)
+
+	// Scan all environment variables for additional params
+	for _, env := range os.Environ() {
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := parts[0]
+		value := parts[1]
+
+		if strings.HasPrefix(key, prefix) {
+			// Extract param name by removing prefix and converting to lowercase
+			paramName := strings.TrimPrefix(key, prefix)
+			paramName = strings.ToLower(paramName)
+			params[paramName] = value
+		}
+	}
+
+	return params
 }
 
 // getEnabledProviderIDs returns a slice of enabled provider IDs for logging
