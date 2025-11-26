@@ -149,11 +149,11 @@ build-server:
 	@# Read version components
 	@MAJOR=$$(jq -r '.major' .version); \
 	MINOR=$$(jq -r '.minor' .version); \
-	BUILD=$$(jq -r '.build' .version); \
+	PATCH=$$(jq -r '.patch' .version); \
 	go build -tags="dev" \
 		-ldflags "-X github.com/ericfitz/tmi/api.VersionMajor=$$MAJOR \
 		          -X github.com/ericfitz/tmi/api.VersionMinor=$$MINOR \
-		          -X github.com/ericfitz/tmi/api.VersionPatch=$$BUILD \
+		          -X github.com/ericfitz/tmi/api.VersionPatch=$$PATCH \
 		          -X github.com/ericfitz/tmi/api.GitCommit=$(COMMIT) \
 		          -X github.com/ericfitz/tmi/api.BuildDate=$(BUILD_DATE)" \
 		-o bin/tmiserver github.com/ericfitz/tmi/cmd/server
