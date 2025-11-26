@@ -338,31 +338,50 @@ func loadSAMLProviders() map[string]SAMLProviderConfig {
 	logger.Debug("Loading SAML provider configurations")
 	providers := make(map[string]SAMLProviderConfig)
 
-	// Example SAML provider - can be configured via environment variables
-	// For now, we'll provide a test/example configuration
-	if envutil.Get("SAML_PROVIDER_EXAMPLE_ENABLED", "false") == "true" {
-		providers["example"] = SAMLProviderConfig{
-			ID:                "example",
-			Name:              envutil.Get("SAML_PROVIDER_EXAMPLE_NAME", "Example SAML Provider"),
-			Enabled:           true,
-			Icon:              envutil.Get("SAML_PROVIDER_EXAMPLE_ICON", "fa-solid fa-building"),
-			EntityID:          envutil.Get("SAML_PROVIDER_EXAMPLE_ENTITY_ID", "http://localhost:8080/saml/metadata"),
-			ACSURL:            envutil.Get("SAML_PROVIDER_EXAMPLE_ACS_URL", "http://localhost:8080/saml/acs"),
-			SLOURL:            envutil.Get("SAML_PROVIDER_EXAMPLE_SLO_URL", "http://localhost:8080/saml/slo"),
-			SPPrivateKey:      envutil.Get("SAML_PROVIDER_EXAMPLE_SP_PRIVATE_KEY", ""),
-			SPPrivateKeyPath:  envutil.Get("SAML_PROVIDER_EXAMPLE_SP_PRIVATE_KEY_PATH", ""),
-			SPCertificate:     envutil.Get("SAML_PROVIDER_EXAMPLE_SP_CERTIFICATE", ""),
-			SPCertificatePath: envutil.Get("SAML_PROVIDER_EXAMPLE_SP_CERTIFICATE_PATH", ""),
-			IDPMetadataURL:    envutil.Get("SAML_PROVIDER_EXAMPLE_IDP_METADATA_URL", ""),
-			IDPMetadataXML:    envutil.Get("SAML_PROVIDER_EXAMPLE_IDP_METADATA_XML", ""),
-			AllowIDPInitiated: envutil.Get("SAML_PROVIDER_EXAMPLE_ALLOW_IDP_INITIATED", "false") == "true",
-			ForceAuthn:        envutil.Get("SAML_PROVIDER_EXAMPLE_FORCE_AUTHN", "false") == "true",
-			SignRequests:      envutil.Get("SAML_PROVIDER_EXAMPLE_SIGN_REQUESTS", "true") == "true",
-			NameIDAttribute:   envutil.Get("SAML_PROVIDER_EXAMPLE_NAMEID_ATTRIBUTE", ""),
-			EmailAttribute:    envutil.Get("SAML_PROVIDER_EXAMPLE_EMAIL_ATTRIBUTE", "email"),
-			NameAttribute:     envutil.Get("SAML_PROVIDER_EXAMPLE_NAME_ATTRIBUTE", "name"),
-			GroupsAttribute:   envutil.Get("SAML_PROVIDER_EXAMPLE_GROUPS_ATTRIBUTE", "groups"),
+	// Dynamically discover SAML providers from environment variables
+	// Environment variables follow the pattern: SAML_PROVIDERS_<PROVIDER_ID>_<FIELD>
+	// We scan for _ENABLED variables to discover configured providers
+	providerIDs := envutil.DiscoverProviders("SAML_PROVIDERS_", "_ENABLED")
+
+	for _, providerID := range providerIDs {
+		prefix := fmt.Sprintf("SAML_PROVIDERS_%s_", providerID)
+
+		// Check if provider is enabled
+		if envutil.Get(prefix+"ENABLED", "false") != "true" {
+			logger.Debug("SAML provider %s is disabled, skipping", providerID)
+			continue
 		}
+
+		// Convert environment variable provider ID to lowercase for use as provider key
+		// e.g., ENTRA_TMIDEV_SAML -> entra-tmidev-saml
+		providerKey := envutil.ProviderIDToKey(providerID)
+
+		logger.Debug("Loading SAML provider configuration provider_id=%s provider_key=%s", providerID, providerKey)
+
+		providers[providerKey] = SAMLProviderConfig{
+			ID:                envutil.Get(prefix+"ID", providerKey),
+			Name:              envutil.Get(prefix+"NAME", providerKey),
+			Enabled:           true,
+			Icon:              envutil.Get(prefix+"ICON", "fa-solid fa-key"),
+			EntityID:          envutil.Get(prefix+"ENTITY_ID", ""),
+			ACSURL:            envutil.Get(prefix+"ACS_URL", ""),
+			SLOURL:            envutil.Get(prefix+"SLO_URL", ""),
+			SPPrivateKey:      envutil.Get(prefix+"SP_PRIVATE_KEY", ""),
+			SPPrivateKeyPath:  envutil.Get(prefix+"SP_PRIVATE_KEY_PATH", ""),
+			SPCertificate:     envutil.Get(prefix+"SP_CERTIFICATE", ""),
+			SPCertificatePath: envutil.Get(prefix+"SP_CERTIFICATE_PATH", ""),
+			IDPMetadataURL:    envutil.Get(prefix+"IDP_METADATA_URL", ""),
+			IDPMetadataXML:    envutil.Get(prefix+"IDP_METADATA_XML", ""),
+			AllowIDPInitiated: envutil.Get(prefix+"ALLOW_IDP_INITIATED", "false") == "true",
+			ForceAuthn:        envutil.Get(prefix+"FORCE_AUTHN", "false") == "true",
+			SignRequests:      envutil.Get(prefix+"SIGN_REQUESTS", "true") == "true",
+			NameIDAttribute:   envutil.Get(prefix+"NAMEID_ATTRIBUTE", ""),
+			EmailAttribute:    envutil.Get(prefix+"EMAIL_ATTRIBUTE", "email"),
+			NameAttribute:     envutil.Get(prefix+"NAME_ATTRIBUTE", "name"),
+			GroupsAttribute:   envutil.Get(prefix+"GROUPS_ATTRIBUTE", "groups"),
+		}
+
+		logger.Info("Loaded SAML provider configuration provider_key=%s name=%s", providerKey, providers[providerKey].Name)
 	}
 
 	logger.Info("SAML providers loaded providers_count=%v", len(providers))
