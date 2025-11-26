@@ -417,9 +417,9 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 	provider, err := h.getProvider(stateData.ProviderID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not available in production") {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Provider not available"})
+			h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusNotFound, "Provider not available")
 		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusBadRequest, err.Error())
 		}
 		return err
 	}
@@ -428,13 +428,13 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 	ctx = h.setUserHintContext(c, ctx, stateData)
 
 	// Exchange code for tokens and get user info
-	_, userInfo, claims, err := h.exchangeCodeAndGetUser(c, ctx, provider, code)
+	_, userInfo, claims, err := h.exchangeCodeAndGetUser(c, ctx, provider, code, stateData.ClientCallback)
 	if err != nil {
 		return err
 	}
 
 	// Create or get user
-	user, err := h.createOrGetUser(c, ctx, stateData.ProviderID, userInfo, claims)
+	user, err := h.createOrGetUser(c, ctx, stateData.ProviderID, userInfo, claims, stateData.ClientCallback)
 	if err != nil {
 		return err
 	}
@@ -468,20 +468,19 @@ func (h *Handlers) setUserHintContext(c *gin.Context, ctx context.Context, state
 }
 
 // exchangeCodeAndGetUser exchanges OAuth code for tokens and gets user info
-func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, provider Provider, code string) (*TokenResponse, *UserInfo, *IDTokenClaims, error) {
-	slogging.Get().WithContext(c).Debug("About to call ExchangeCode: code=%s has_login_hint_in_context=%v",
+func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, provider Provider, code string, callbackURL string) (*TokenResponse, *UserInfo, *IDTokenClaims, error) {
+	logger := slogging.Get().WithContext(c)
+	logger.Debug("About to call ExchangeCode: code=%s has_login_hint_in_context=%v",
 		code, ctx.Value(userHintContextKey) != nil)
 
 	tokenResponse, err := provider.ExchangeCode(ctx, code)
 	if err != nil {
 		if strings.Contains(err.Error(), "invalid authorization code") ||
 			strings.Contains(err.Error(), "authorization code is required") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			h.redirectWithErrorOAuth(c, callbackURL, http.StatusBadRequest, err.Error())
 		} else {
-			slogging.Get().WithContext(c).Error("Failed to exchange OAuth authorization code for tokens (code prefix: %.10s...): %v", code, err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to exchange code for tokens: %v", err),
-			})
+			logger.Error("Failed to exchange OAuth authorization code for tokens (code prefix: %.10s...): %v", code, err)
+			h.redirectWithErrorOAuth(c, callbackURL, http.StatusInternalServerError, fmt.Sprintf("Failed to exchange code for tokens: %v", err))
 		}
 		return nil, nil, nil, err
 	}
@@ -491,23 +490,20 @@ func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, p
 	if tokenResponse.IDToken != "" {
 		claims, err = provider.ValidateIDToken(ctx, tokenResponse.IDToken)
 		if err != nil {
-			logger := slogging.Get().WithContext(c)
 			logger.Error("Failed to validate ID token: %v", err)
 		}
 	}
 
 	// Get user info
-	slogging.Get().WithContext(c).Debug("About to call GetUserInfo: access_token=%s", tokenResponse.AccessToken)
+	logger.Debug("About to call GetUserInfo: access_token=%s", tokenResponse.AccessToken)
 	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
 	if err != nil {
-		slogging.Get().WithContext(c).Error("Failed to get user info from OAuth provider using access token: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get user info: %v", err),
-		})
+		logger.Error("Failed to get user info from OAuth provider using access token: %v", err)
+		h.redirectWithErrorOAuth(c, callbackURL, http.StatusInternalServerError, fmt.Sprintf("Failed to get user info: %v", err))
 		return nil, nil, nil, err
 	}
 
-	slogging.Get().WithContext(c).Debug("GetUserInfo returned: user_id=%s email=%s name=%s",
+	logger.Debug("GetUserInfo returned: user_id=%s email=%s name=%s",
 		userInfo.ID, userInfo.Email, userInfo.Name)
 
 	return tokenResponse, userInfo, claims, nil
@@ -549,10 +545,10 @@ func (h *Handlers) extractEmailWithFallback(c *gin.Context, providerID string, u
 }
 
 // createOrGetUser creates a new user or gets existing user
-func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, providerID string, userInfo *UserInfo, claims *IDTokenClaims) (User, error) {
+func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, providerID string, userInfo *UserInfo, claims *IDTokenClaims, callbackURL string) (User, error) {
 	email, err := h.extractEmailWithFallback(c, providerID, userInfo, claims)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user email or ID from provider"})
+		h.redirectWithErrorOAuth(c, callbackURL, http.StatusInternalServerError, "Failed to get user email or ID from provider")
 		return User{}, err
 	}
 
@@ -581,9 +577,7 @@ func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, provider
 
 		user, err = h.service.CreateUser(ctx, user)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to create user: %v", err),
-			})
+			h.redirectWithErrorOAuth(c, callbackURL, http.StatusInternalServerError, fmt.Sprintf("Failed to create user: %v", err))
 			return User{}, err
 		}
 	} else {
@@ -638,25 +632,19 @@ func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, 
 	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
 		slogging.Get().WithContext(c).Error("Failed to generate JWT tokens for user %s: %v", user.Email, err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
-		})
+		h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusInternalServerError, fmt.Sprintf("Failed to generate tokens: %v", err))
 		return err
 	}
 
 	// Require client callback URL
 	if stateData.ClientCallback == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "client_callback URL is required",
-		})
+		h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusBadRequest, "client_callback URL is required")
 		return fmt.Errorf("missing client_callback")
 	}
 
 	redirectURL, err := buildClientRedirectURL(stateData.ClientCallback, tokenPair, c.Query("state"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to build redirect URL: %v", err),
-		})
+		h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusInternalServerError, fmt.Sprintf("Failed to build redirect URL: %v", err))
 		return err
 	}
 
@@ -1787,6 +1775,68 @@ func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCa
 	c.Redirect(http.StatusFound, authURL)
 }
 
+// redirectWithError attempts to redirect to client callback URL with error, or returns JSON error if no callback
+// For SAML: uses relayState to retrieve callback URL from state store
+func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayState string, statusCode int, errorMsg string) {
+	logger := slogging.Get()
+
+	// Try to get callback URL - even if state validation failed, we might have stored it
+	callbackURL, _ := h.service.stateStore.GetCallbackURL(ctx, relayState)
+
+	if callbackURL != "" {
+		// Redirect to client with error in fragment
+		redirectURL, err := url.Parse(callbackURL)
+		if err != nil {
+			logger.Error("Invalid callback URL during error redirect: %v", err)
+			c.JSON(statusCode, gin.H{
+				"error": errorMsg,
+			})
+			return
+		}
+
+		// Add error to fragment using OAuth 2.0 error format
+		fragment := fmt.Sprintf("error=saml_error&error_description=%s", url.QueryEscape(errorMsg))
+		redirectURL.Fragment = fragment
+
+		c.Redirect(http.StatusFound, redirectURL.String())
+		return
+	}
+
+	// No callback URL, return JSON error
+	c.JSON(statusCode, gin.H{
+		"error": errorMsg,
+	})
+}
+
+// redirectWithErrorOAuth redirects to client callback URL with error for OAuth flows
+func (h *Handlers) redirectWithErrorOAuth(c *gin.Context, callbackURL string, statusCode int, errorMsg string) {
+	logger := slogging.Get()
+
+	if callbackURL == "" {
+		// No callback URL, return JSON error
+		c.JSON(statusCode, gin.H{
+			"error": errorMsg,
+		})
+		return
+	}
+
+	// Redirect to client with error in fragment
+	redirectURL, err := url.Parse(callbackURL)
+	if err != nil {
+		logger.Error("Invalid callback URL during error redirect: %v", err)
+		c.JSON(statusCode, gin.H{
+			"error": errorMsg,
+		})
+		return
+	}
+
+	// Add error to fragment using OAuth 2.0 error format
+	fragment := fmt.Sprintf("error=oauth_error&error_description=%s", url.QueryEscape(errorMsg))
+	redirectURL.Fragment = fragment
+
+	c.Redirect(http.StatusFound, redirectURL.String())
+}
+
 // ProcessSAMLResponse handles SAML assertion consumer service
 func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlResponse string, relayState string) {
 	logger := slogging.Get()
@@ -1794,18 +1844,14 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 
 	// Check if SAML is enabled
 	if !h.config.SAML.Enabled {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "SAML authentication is not enabled",
-		})
+		h.redirectWithError(c, ctx, relayState, http.StatusNotFound, "SAML authentication is not enabled")
 		return
 	}
 
 	// Get SAML manager
 	samlManager := h.service.GetSAMLManager()
 	if samlManager == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "SAML manager not initialized",
-		})
+		h.redirectWithError(c, ctx, relayState, http.StatusInternalServerError, "SAML manager not initialized")
 		return
 	}
 
@@ -1814,9 +1860,7 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 		storedProviderID, err := h.service.stateStore.ValidateState(ctx, relayState)
 		if err != nil {
 			logger.Error("Invalid SAML relay state: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Invalid or expired state",
-			})
+			h.redirectWithError(c, ctx, relayState, http.StatusBadRequest, "Invalid or expired state")
 			return
 		}
 		// Use the provider ID from the state if not specified
@@ -1829,9 +1873,7 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 	_, tokenPair, err := samlManager.ProcessSAMLResponse(ctx, providerID, samlResponse, relayState)
 	if err != nil {
 		logger.Error("Failed to process SAML response: %v", err)
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": fmt.Sprintf("Authentication failed: %v", err),
-		})
+		h.redirectWithError(c, ctx, relayState, http.StatusUnauthorized, fmt.Sprintf("Authentication failed: %v", err))
 		return
 	}
 
@@ -1842,9 +1884,7 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 		redirectURL, err := url.Parse(callbackURL)
 		if err != nil {
 			logger.Error("Invalid callback URL: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Invalid callback URL",
-			})
+			h.redirectWithError(c, ctx, relayState, http.StatusInternalServerError, "Invalid callback URL")
 			return
 		}
 
