@@ -1777,6 +1777,18 @@ func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCa
 		return
 	}
 
+	// Store client callback URL if provided
+	if clientCallback != nil && *clientCallback != "" {
+		if err := h.service.stateStore.StoreCallbackURL(c.Request.Context(), relayState, *clientCallback, 10*time.Minute); err != nil {
+			logger.Error("Failed to store SAML callback URL: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to initiate SAML authentication",
+			})
+			return
+		}
+		logger.Info("Stored SAML callback URL for relay state: %s -> %s", relayState, *clientCallback)
+	}
+
 	// Redirect to IdP
 	c.Redirect(http.StatusFound, authURL)
 }
