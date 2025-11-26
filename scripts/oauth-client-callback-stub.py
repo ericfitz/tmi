@@ -5,12 +5,18 @@
 # ///
 
 """
-OAuth Client Callback Stub - Development Testing Tool
+OAuth Client Callback Stub - Development Testing Tool for PKCE
 
-This stub handles OAuth 2.0 implicit flow callbacks where tokens are delivered
-in URL fragments (#access_token=...). Since fragments are never sent to servers,
-this tool returns HTML/JavaScript that extracts tokens client-side and POSTs
-them back to /oauth-fragment for logging and testing.
+This stub handles OAuth 2.0 Authorization Code Flow with PKCE. It generates
+PKCE parameters (code_verifier and code_challenge), initiates the OAuth flow,
+receives the authorization code, and exchanges it for tokens using the code_verifier.
+
+PKCE Flow:
+1. Generate code_verifier (cryptographically random string)
+2. Compute code_challenge = BASE64URL(SHA256(code_verifier))
+3. Send code_challenge to authorization endpoint
+4. Receive authorization code
+5. Exchange code + code_verifier for tokens at token endpoint
 
 Usage: make start-oauth-stub
 API: GET /creds?userid=<user> to retrieve saved credentials
@@ -33,6 +39,8 @@ import base64
 import time
 import uuid
 import requests
+import hashlib
+import secrets
 
 # Global flag to control server shutdown
 should_exit = False
@@ -48,8 +56,46 @@ latest_oauth_credentials = {
     "expires_in": None,
 }
 
+# Global storage for PKCE verifiers indexed by state parameter
+pkce_verifiers = {}
+
 # Global logger instance
 logger = None
+
+
+class PKCEHelper:
+    """Helper class for PKCE (Proof Key for Code Exchange) operations."""
+
+    @staticmethod
+    def generate_code_verifier():
+        """
+        Generate a cryptographically random code verifier.
+
+        Returns a 43-character base64url-encoded string (32 random bytes).
+        Per RFC 7636, verifier must be 43-128 characters.
+        """
+        # Generate 32 random bytes
+        verifier_bytes = secrets.token_bytes(32)
+        # Encode as base64url without padding
+        verifier = base64.urlsafe_b64encode(verifier_bytes).decode('utf-8').rstrip('=')
+        return verifier
+
+    @staticmethod
+    def generate_code_challenge(verifier):
+        """
+        Generate S256 code challenge from verifier.
+
+        Args:
+            verifier: The code verifier string
+
+        Returns:
+            base64url(SHA256(verifier)) without padding
+        """
+        # Compute SHA-256 hash of the verifier
+        digest = hashlib.sha256(verifier.encode('utf-8')).digest()
+        # Encode as base64url without padding
+        challenge = base64.urlsafe_b64encode(digest).decode('utf-8').rstrip('=')
+        return challenge
 
 
 def setup_logging():
@@ -141,20 +187,14 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 code = query_params.get("code", [None])[0]
                 state = query_params.get("state", [None])[0]
 
-                # Extract token-related parameters (in case server sends tokens directly)
-                access_token = query_params.get("access_token", [None])[0]
-                refresh_token = query_params.get("refresh_token", [None])[0]
-                token_type = query_params.get("token_type", [None])[0]
-                expires_in = query_params.get("expires_in", [None])[0]
-                
                 # Extract additional OAuth parameters that may help identify the user
                 login_hint = query_params.get("login_hint", [None])[0]
 
-                # Determine flow type and handle authorization code flow specially
-                if code and not access_token:
+                # TMI only supports Authorization Code Flow with PKCE
+                if code:
                     flow_type = "authorization_code"
                     logger.info(
-                        "  FLOW TYPE: Authorization Code Flow (code present, no tokens)"
+                        "  FLOW TYPE: Authorization Code Flow with PKCE"
                     )
                     
                     # For authorization code flow, generate access tokens for testing
@@ -178,19 +218,28 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     
                     # If we have a valid user_id, exchange the code for real tokens using TMI server
                     if user_id and login_hint_user and code:
-                        # Use TMI server's token exchange endpoint to get real tokens
+                        # Use TMI server's token exchange endpoint to get real tokens with PKCE
                         try:
+                            # Retrieve code_verifier for this state (if it exists)
+                            # If not found, generate a new one for testing
+                            code_verifier = pkce_verifiers.get(state)
+                            if not code_verifier:
+                                logger.warning(f"  No PKCE verifier found for state {state}, generating new one for testing")
+                                code_verifier = PKCEHelper.generate_code_verifier()
+
                             token_url = "http://localhost:8080/oauth2/token?idp=test"
                             token_data = {
                                 "grant_type": "authorization_code",
                                 "code": code,
+                                "code_verifier": code_verifier,
                                 "redirect_uri": "http://localhost:8079/"
                             }
-                            
-                            logger.info(f"  Exchanging authorization code for real tokens via TMI server...")
+
+                            logger.info(f"  Exchanging authorization code for real tokens via TMI server (PKCE)...")
                             logger.info(f"    Token URL: {token_url}")
                             logger.info(f"    Code: {code}")
-                            
+                            logger.info(f"    Code Verifier: {code_verifier[:20]}... (length: {len(code_verifier)})")
+
                             # Make the token exchange request to TMI server
                             response = requests.post(
                                 token_url,
@@ -226,18 +275,13 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                             refresh_token = None
                             token_type = "Bearer"
                             expires_in = "3600"
-                
-                elif access_token and not code:
-                    flow_type = "implicit"
-                    logger.info("  FLOW TYPE: Implicit Flow (tokens present, no code)")
-                elif access_token and code:
-                    flow_type = "mixed"
-                    logger.info(
-                        "  FLOW TYPE: Mixed Flow (both code and tokens present)"
-                    )
                 else:
                     flow_type = "unknown"
-                    logger.info("  FLOW TYPE: Unknown or incomplete")
+                    access_token = None
+                    refresh_token = None
+                    token_type = None
+                    expires_in = None
+                    logger.info("  FLOW TYPE: Unknown - no authorization code received")
 
                 # Store the latest OAuth credentials with flow type
                 latest_oauth_credentials.update(
@@ -277,28 +321,6 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                     "state": state,
                                     "ready_for_token_exchange": code is not None,
                                 }
-                        elif flow_type == "implicit":
-                            credentials_to_save = {
-                                "flow_type": "implicit",
-                                "state": state,
-                                "access_token": access_token,
-                                "refresh_token": refresh_token,
-                                "token_type": token_type,
-                                "expires_in": expires_in,
-                                "tokens_ready": access_token is not None,
-                            }
-                        elif flow_type == "mixed":
-                            credentials_to_save = {
-                                "flow_type": "mixed",
-                                "code": code,
-                                "state": state,
-                                "access_token": access_token,
-                                "refresh_token": refresh_token,
-                                "token_type": token_type,
-                                "expires_in": expires_in,
-                                "ready_for_token_exchange": code is not None,
-                                "tokens_ready": access_token is not None,
-                            }
                         else:
                             credentials_to_save = latest_oauth_credentials.copy()
 
@@ -314,67 +336,12 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 logger.info(f"  Expires In: {expires_in}")
                 logger.info(f"  Flow Type: {flow_type}")
 
-                # Handle response based on flow type
-                if flow_type == "unknown" and not code and not access_token:
-                    # Likely implicit flow with tokens in URL fragment
-                    # Return HTML page with JavaScript to extract fragment tokens
-                    html_response = """<!DOCTYPE html>
-<html>
-<head>
-    <title>OAuth Callback Handler</title>
-    <script>
-        function handleOAuthCallback() {
-            // Extract tokens from URL fragment
-            const fragment = window.location.hash.substring(1);
-            const params = new URLSearchParams(fragment);
-            
-            const credentials = {
-                access_token: params.get('access_token'),
-                refresh_token: params.get('refresh_token'),
-                token_type: params.get('token_type'),
-                expires_in: params.get('expires_in'),
-                state: params.get('state')
-            };
-            
-            if (credentials.access_token) {
-                // Send tokens back to server via POST to /oauth-fragment
-                fetch('/oauth-fragment', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(credentials)
-                }).then(() => {
-                    document.body.innerHTML = '<h1>OAuth tokens processed successfully!</h1><p>You can close this window.</p>';
-                }).catch(err => {
-                    console.error('Failed to send tokens:', err);
-                    document.body.innerHTML = '<h1>Error processing OAuth tokens</h1>';
-                });
-            } else {
-                document.body.innerHTML = '<h1>No OAuth tokens found in URL fragment</h1>';
-            }
-        }
-        
-        window.onload = handleOAuthCallback;
-    </script>
-</head>
-<body>
-    <h1>Processing OAuth callback...</h1>
-    <p>Please wait while we process your authentication.</p>
-</body>
-</html>"""
-                    response_body = html_response.encode('utf-8')
-                    self.send_response(200)
-                    self.send_header("Content-type", "text/html")
-                    self.end_headers()
-                    self.wfile.write(response_body)
-                else:
-                    # Traditional flow with tokens/code in query params
-                    response_body = b"Redirect received. Check server logs for details."
-                    self.send_response(200)
-                    self.send_header("Content-type", "text/plain")
-                    self.end_headers()
-                    self.wfile.write(response_body)
+                # Send simple response - authorization code flow always uses query params
+                response_body = b"OAuth callback received. Check server logs for details."
+                self.send_response(200)
+                self.send_header("Content-type", "text/plain")
+                self.end_headers()
+                self.wfile.write(response_body)
 
                 # Log API request
                 logger.info(
@@ -401,33 +368,6 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                         "code": latest_oauth_credentials["code"],
                         "state": latest_oauth_credentials["state"],
                         "ready_for_token_exchange": latest_oauth_credentials["code"]
-                        is not None,
-                    }
-                elif flow_type == "implicit":
-                    # Implicit Flow - client gets tokens directly, no exchange needed
-                    response_data = {
-                        "flow_type": "implicit",
-                        "state": latest_oauth_credentials["state"],
-                        "access_token": latest_oauth_credentials["access_token"],
-                        "refresh_token": latest_oauth_credentials["refresh_token"],
-                        "token_type": latest_oauth_credentials["token_type"],
-                        "expires_in": latest_oauth_credentials["expires_in"],
-                        "tokens_ready": latest_oauth_credentials["access_token"]
-                        is not None,
-                    }
-                elif flow_type == "mixed":
-                    # Mixed flow - return everything
-                    response_data = {
-                        "flow_type": "mixed",
-                        "code": latest_oauth_credentials["code"],
-                        "state": latest_oauth_credentials["state"],
-                        "access_token": latest_oauth_credentials["access_token"],
-                        "refresh_token": latest_oauth_credentials["refresh_token"],
-                        "token_type": latest_oauth_credentials["token_type"],
-                        "expires_in": latest_oauth_credentials["expires_in"],
-                        "ready_for_token_exchange": latest_oauth_credentials["code"]
-                        is not None,
-                        "tokens_ready": latest_oauth_credentials["access_token"]
                         is not None,
                     }
                 else:
@@ -567,125 +507,6 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 # If we can't even send an error response, just log it
                 logger.error("Failed to send error response to client")
 
-    def do_POST(self):
-        """Handle POST requests from JavaScript fragment token extraction."""
-        global latest_oauth_credentials
-        
-        client_ip = self.client_address[0]
-        http_version = self.request_version
-        method = "POST"
-        
-        try:
-            # Parse the URL path
-            parsed_url = urllib.parse.urlparse(self.path)
-            path = parsed_url.path
-            
-            logger.info(f"INCOMING POST REQUEST: {method} {self.path}")
-            logger.info(f"  Path: {path}")
-            
-            # Handle POST to /oauth-fragment (from JavaScript)
-            if path == "/oauth-fragment":
-                # Read the JSON payload
-                content_length = int(self.headers.get('Content-Length', 0))
-                post_data = self.rfile.read(content_length)
-                
-                try:
-                    credentials = json.loads(post_data.decode('utf-8'))
-                    logger.info("  Fragment tokens received from JavaScript:")
-                    
-                    # Extract credentials from JavaScript
-                    access_token = credentials.get('access_token')
-                    refresh_token = credentials.get('refresh_token') 
-                    token_type = credentials.get('token_type')
-                    expires_in = credentials.get('expires_in')
-                    state = credentials.get('state')
-                    
-                    logger.info(f"    Access Token: {access_token}")
-                    logger.info(f"    Refresh Token: {refresh_token}")
-                    logger.info(f"    Token Type: {token_type}")
-                    logger.info(f"    Expires In: {expires_in}")
-                    logger.info(f"    State: {state}")
-                    
-                    if access_token:
-                        # Store the credentials
-                        latest_oauth_credentials.update({
-                            "flow_type": "implicit",
-                            "code": None,
-                            "state": state,
-                            "access_token": access_token,
-                            "refresh_token": refresh_token,
-                            "token_type": token_type,
-                            "expires_in": expires_in,
-                        })
-                        
-                        # Extract user ID and save to file
-                        user_id = extract_user_id_from_credentials(latest_oauth_credentials)
-                        if user_id:
-                            credentials_to_save = {
-                                "flow_type": "implicit",
-                                "state": state,
-                                "access_token": access_token,
-                                "refresh_token": refresh_token,
-                                "token_type": token_type,
-                                "expires_in": expires_in,
-                                "tokens_ready": True,
-                            }
-                            save_credentials_to_file(credentials_to_save, user_id)
-                            logger.info(f"  Saved credentials for user: {user_id}")
-                        
-                        # Send success response
-                        self.send_response(200)
-                        self.send_header("Content-type", "application/json")
-                        self.end_headers()
-                        response = {"status": "success", "message": "Tokens processed successfully"}
-                        self.wfile.write(json.dumps(response).encode())
-                        
-                        logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 200 "Fragment tokens processed"')
-                    else:
-                        # No access token found
-                        self.send_response(400)
-                        self.send_header("Content-type", "application/json")
-                        self.end_headers()
-                        response = {"status": "error", "message": "No access token found in fragment data"}
-                        self.wfile.write(json.dumps(response).encode())
-                        
-                        logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 400 "No access token"')
-                        
-                except json.JSONDecodeError as e:
-                    # Invalid JSON
-                    self.send_response(400)
-                    self.send_header("Content-type", "application/json")
-                    self.end_headers()
-                    response = {"status": "error", "message": f"Invalid JSON: {str(e)}"}
-                    self.wfile.write(json.dumps(response).encode())
-                    
-                    logger.error(f"Invalid JSON in POST data: {str(e)}")
-                    logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 400 "Invalid JSON"')
-            else:
-                # Unknown POST endpoint
-                self.send_response(404)
-                self.send_header("Content-type", "application/json")
-                self.end_headers()
-                response = {"status": "error", "message": "Endpoint not found"}
-                self.wfile.write(json.dumps(response).encode())
-                
-                logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 404 "Endpoint not found"')
-                
-        except Exception as e:
-            # Handle any errors during POST request processing
-            error_msg = f"Server error: {str(e)}"
-            logger.error(f"Error processing POST request: {str(e)}")
-
-            try:
-                self.send_response(500)
-                self.send_header("Content-type", "application/json")
-                self.end_headers()
-                response = {"status": "error", "message": error_msg}
-                self.wfile.write(json.dumps(response).encode())
-                
-                logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 500 "{error_msg}"')
-            except:
-                logger.error("Failed to send error response to client")
 
 
 def run_server(port):

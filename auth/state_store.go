@@ -19,13 +19,21 @@ type StateStore interface {
 	StoreCallbackURL(ctx context.Context, state, callbackURL string, ttl time.Duration) error
 	// DeleteState removes state from store
 	DeleteState(ctx context.Context, state string) error
+	// StorePKCEChallenge stores PKCE code challenge with associated method
+	StorePKCEChallenge(ctx context.Context, state, codeChallenge, challengeMethod string, ttl time.Duration) error
+	// GetPKCEChallenge retrieves PKCE code challenge and method for a state
+	GetPKCEChallenge(ctx context.Context, state string) (challenge, method string, err error)
+	// DeletePKCEChallenge removes PKCE challenge from store
+	DeletePKCEChallenge(ctx context.Context, state string) error
 }
 
 // stateEntry represents a stored state entry
 type stateEntry struct {
-	Data        string
-	CallbackURL string
-	ExpiresAt   time.Time
+	Data            string
+	CallbackURL     string
+	CodeChallenge   string
+	ChallengeMethod string
+	ExpiresAt       time.Time
 }
 
 // InMemoryStateStore implements StateStore using in-memory storage
@@ -142,6 +150,60 @@ func (s *InMemoryStateStore) cleanupExpired() {
 			return
 		}
 	}
+}
+
+// StorePKCEChallenge stores PKCE code challenge with associated method
+func (s *InMemoryStateStore) StorePKCEChallenge(ctx context.Context, state, codeChallenge, challengeMethod string, ttl time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	entry, exists := s.states[state]
+	if !exists {
+		entry = &stateEntry{
+			ExpiresAt: time.Now().Add(ttl),
+		}
+		s.states[state] = entry
+	}
+
+	entry.CodeChallenge = codeChallenge
+	entry.ChallengeMethod = challengeMethod
+
+	return nil
+}
+
+// GetPKCEChallenge retrieves PKCE code challenge and method for a state
+func (s *InMemoryStateStore) GetPKCEChallenge(ctx context.Context, state string) (challenge, method string, err error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	entry, exists := s.states[state]
+	if !exists {
+		return "", "", fmt.Errorf("state not found")
+	}
+
+	if time.Now().After(entry.ExpiresAt) {
+		return "", "", fmt.Errorf("state expired")
+	}
+
+	if entry.CodeChallenge == "" {
+		return "", "", fmt.Errorf("PKCE challenge not found for state")
+	}
+
+	return entry.CodeChallenge, entry.ChallengeMethod, nil
+}
+
+// DeletePKCEChallenge removes PKCE challenge from store
+func (s *InMemoryStateStore) DeletePKCEChallenge(ctx context.Context, state string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	entry, exists := s.states[state]
+	if exists {
+		entry.CodeChallenge = ""
+		entry.ChallengeMethod = ""
+	}
+
+	return nil
 }
 
 // Close stops the cleanup goroutine

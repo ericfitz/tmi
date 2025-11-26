@@ -222,13 +222,14 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	// Validate response_type parameter according to OAuth 2.0/OIDC specification
 	responseType := c.Query("response_type")
+	// PKCE only supports authorization code flow
 	if responseType == "" {
 		responseType = "code" // Default to authorization code flow
 	}
-	if err := h.validateResponseType(responseType); err != nil {
+	if responseType != "code" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "unsupported_response_type",
-			"error_description": err.Error(),
+			"error_description": "Only authorization code flow (response_type=code) is supported with PKCE",
 		})
 		return
 	}
@@ -238,8 +239,43 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	// Get optional login_hint for test provider automation
 	userHint := c.Query("login_hint")
-	slogging.Get().WithContext(c).Debug("OAuth Authorize handler - extracted query parameters: provider=%s, client_callback=%s, login_hint=%s, scope=%s",
-		providerID, clientCallback, userHint, scope)
+
+	// Extract PKCE parameters (required for PKCE flow)
+	codeChallenge := c.Query("code_challenge")
+	codeChallengeMethod := c.Query("code_challenge_method")
+
+	slogging.Get().WithContext(c).Debug("OAuth Authorize handler - extracted query parameters: provider=%s, client_callback=%s, login_hint=%s, scope=%s, code_challenge_method=%s",
+		providerID, clientCallback, userHint, scope, codeChallengeMethod)
+
+	// Validate PKCE parameters
+	if codeChallenge == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "code_challenge parameter is required for PKCE",
+		})
+		return
+	}
+
+	if codeChallengeMethod == "" {
+		codeChallengeMethod = "S256" // Default to S256 if not specified
+	}
+
+	if codeChallengeMethod != "S256" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "Only S256 code_challenge_method is supported",
+		})
+		return
+	}
+
+	// Validate code_challenge format
+	if err := ValidateCodeChallengeFormat(codeChallenge); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": fmt.Sprintf("Invalid code_challenge format: %v", err),
+		})
+		return
+	}
 
 	// Get state parameter from client or generate one if not provided
 	state := c.Query("state")
@@ -260,10 +296,9 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	stateKey := fmt.Sprintf("oauth_state:%s", state)
 	ctx := c.Request.Context()
 
-	// Store provider ID, response type, and optional client callback URL/login_hint
+	// Store provider ID and optional client callback URL/login_hint
 	stateData := map[string]string{
-		"provider":      providerID,
-		"response_type": responseType,
+		"provider": providerID,
 	}
 	if clientCallback != "" {
 		stateData["client_callback"] = clientCallback
@@ -299,19 +334,17 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		return
 	}
 
-	// Handle implicit and hybrid flows for test provider
-	slogging.Get().WithContext(c).Debug("OAuth flow decision: provider=%s, responseType=%s, clientCallback=%s", providerID, responseType, clientCallback)
-	if responseType != "code" && providerID == "test" {
-		slogging.Get().WithContext(c).Debug("Triggering implicit/hybrid flow for test provider")
-		err := h.handleImplicitOrHybridFlow(c, provider, responseType, state, stateData)
-		if err != nil {
-			slogging.Get().WithContext(c).Error("Failed to handle OAuth implicit/hybrid flow (provider: %s, response_type: %s): %v", providerID, responseType, err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to handle implicit/hybrid flow: %v", err),
-			})
-		}
+	// Store PKCE challenge with state
+	err = h.service.stateStore.StorePKCEChallenge(ctx, state, codeChallenge, codeChallengeMethod, 10*time.Minute)
+	if err != nil {
+		slogging.Get().WithContext(c).Error("Failed to store PKCE challenge for state %s: %v", state, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to store PKCE challenge",
+		})
 		return
 	}
+
+	slogging.Get().WithContext(c).Debug("Stored PKCE challenge for state: %s (method: %s)", state, codeChallengeMethod)
 
 	// For authorization code flow, handle client_callback if provided
 	if providerID == "test" && clientCallback != "" {
@@ -324,6 +357,46 @@ func (h *Handlers) Authorize(c *gin.Context) {
 			authCode = fmt.Sprintf("test_auth_code_%d_hint_%s", time.Now().Unix(), encodedHint)
 			slogging.Get().WithContext(c).Debug("Generated auth code with login_hint: %s", userHint)
 		}
+
+		// Bind PKCE challenge to authorization code
+		// Retrieve PKCE challenge from state
+		pkceChallenge, pkceMethod, err := h.service.stateStore.GetPKCEChallenge(ctx, state)
+		if err != nil {
+			slogging.Get().WithContext(c).Error("Failed to retrieve PKCE challenge for state %s: %v", state, err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to retrieve PKCE challenge",
+			})
+			return
+		}
+
+		// Store PKCE challenge with authorization code for later validation
+		codeKey := fmt.Sprintf("pkce:%s", authCode)
+		pkceData := map[string]string{
+			"code_challenge":        pkceChallenge,
+			"code_challenge_method": pkceMethod,
+		}
+		pkceJSON, err := json.Marshal(pkceData)
+		if err != nil {
+			slogging.Get().WithContext(c).Error("Failed to marshal PKCE data for code: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to store PKCE challenge",
+			})
+			return
+		}
+
+		err = h.service.dbManager.Redis().Set(ctx, codeKey, string(pkceJSON), 10*time.Minute)
+		if err != nil {
+			slogging.Get().WithContext(c).Error("Failed to store PKCE challenge for code %s: %v", authCode, err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to store PKCE challenge",
+			})
+			return
+		}
+
+		// Delete PKCE challenge from state (moved to code)
+		_ = h.service.stateStore.DeletePKCEChallenge(ctx, state)
+
+		slogging.Get().WithContext(c).Debug("Bound PKCE challenge to authorization code")
 
 		// Build redirect URL with code and state
 		redirectURL := fmt.Sprintf("%s?code=%s&state=%s", clientCallback, authCode, url.QueryEscape(state))
@@ -339,7 +412,6 @@ func (h *Handlers) Authorize(c *gin.Context) {
 // callbackStateData holds parsed OAuth state information
 type callbackStateData struct {
 	ProviderID     string
-	ResponseType   string
 	ClientCallback string
 	UserHint       string
 }
@@ -393,66 +465,41 @@ func (h *Handlers) parseCallbackState(c *gin.Context, state string) (*callbackSt
 
 	result := &callbackStateData{
 		ProviderID:     stateMap["provider"],
-		ResponseType:   stateMap["response_type"],
 		ClientCallback: stateMap["client_callback"],
 		UserHint:       stateMap["login_hint"],
 	}
 
-	// Default to authorization code flow if not specified
-	if result.ResponseType == "" {
-		result.ResponseType = "code"
-	}
-
-	slogging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, response_type=%s, client_callback=%s, login_hint=%s",
-		result.ProviderID, result.ResponseType, result.ClientCallback, result.UserHint)
+	slogging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, client_callback=%s, login_hint=%s",
+		result.ProviderID, result.ClientCallback, result.UserHint)
 
 	return result, nil
 }
 
-// processOAuthCallback handles the core OAuth callback flow
+// processOAuthCallback handles the core OAuth callback flow for PKCE
+// Returns authorization code to client without exchanging it
 func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *callbackStateData) error {
-	ctx := c.Request.Context()
+	// PKCE flow: Return authorization code to client for token exchange
+	// Client will call /oauth2/token with code and code_verifier
 
-	// Get the provider
-	provider, err := h.getProvider(stateData.ProviderID)
+	// Require client callback URL
+	if stateData.ClientCallback == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "client_callback URL is required",
+		})
+		return fmt.Errorf("missing client_callback")
+	}
+
+	// Build redirect URL with authorization code and state
+	redirectURL, err := buildAuthCodeRedirectURL(stateData.ClientCallback, code, c.Query("state"))
 	if err != nil {
-		if strings.Contains(err.Error(), "not available in production") {
-			h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusNotFound, "Provider not available")
-		} else {
-			h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusBadRequest, err.Error())
-		}
+		h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusInternalServerError, fmt.Sprintf("Failed to build redirect URL: %v", err))
 		return err
 	}
 
-	// Set login_hint context for test provider
-	ctx = h.setUserHintContext(c, ctx, stateData)
-
-	// Exchange code for tokens and get user info
-	_, userInfo, claims, err := h.exchangeCodeAndGetUser(c, ctx, provider, code, stateData.ClientCallback)
-	if err != nil {
-		return err
-	}
-
-	// Create or get user
-	user, err := h.createOrGetUser(c, ctx, stateData.ProviderID, userInfo, claims, stateData.ClientCallback)
-	if err != nil {
-		return err
-	}
-
-	// Link provider to user - DEPRECATED: provider info is now on User struct
-	// This function is now a no-op since provider is stored directly on the user
-	h.linkProviderToUser(ctx, user.InternalUUID, stateData.ProviderID, userInfo, claims)
-
-	// Refetch user with provider ID for token generation
-	userWithProviderID, err := h.service.GetUserWithProviderID(ctx, user.Email)
-	if err != nil {
-		// Fallback to original user if fetch fails
-		slogging.Get().WithContext(c).Error("Failed to get user with provider ID: %v", err)
-		userWithProviderID = user
-	}
-
-	// Generate and return tokens
-	return h.generateAndReturnTokens(c, ctx, userWithProviderID, userInfo, stateData)
+	slogging.Get().WithContext(c).Debug("Redirecting to client with authorization code: %s", redirectURL)
+	c.Redirect(http.StatusFound, redirectURL)
+	return nil
 }
 
 // setUserHintContext adds login_hint to context for test provider
@@ -669,10 +716,10 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	}
 
 	var req struct {
-		GrantType   string `json:"grant_type" binding:"required"`
-		Code        string `json:"code" binding:"required"`
-		State       string `json:"state"` // Optional, accepted but not validated (state validation happens in callback)
-		RedirectURI string `json:"redirect_uri" binding:"required"`
+		GrantType    string `json:"grant_type" binding:"required"`
+		Code         string `json:"code" binding:"required"`
+		CodeVerifier string `json:"code_verifier" binding:"required"`
+		RedirectURI  string `json:"redirect_uri" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -709,10 +756,56 @@ func (h *Handlers) Exchange(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	// Note: State parameter validation happens during the authorization callback,
-	// not during token exchange. The state has already been validated and consumed
-	// by the Callback handler before the client receives the authorization code.
-	// Per OAuth 2.0 spec (RFC 6749), the token endpoint does not use the state parameter.
+	// Validate code_verifier format
+	if err := ValidateCodeVerifierFormat(req.CodeVerifier); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": fmt.Sprintf("Invalid code_verifier format: %v", err),
+		})
+		return
+	}
+
+	// Retrieve PKCE challenge stored with authorization code
+	// The challenge was bound to the code during the authorization callback
+	codeKey := fmt.Sprintf("pkce:%s", req.Code)
+	pkceDataJSON, err := h.service.dbManager.Redis().Get(ctx, codeKey)
+	if err != nil {
+		slogging.Get().WithContext(c).Error("Failed to retrieve PKCE challenge for code (provider: %s): %v", providerID, err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_grant",
+			"error_description": "Authorization code is invalid or expired",
+		})
+		return
+	}
+
+	// Parse PKCE data
+	var pkceData map[string]string
+	if err := json.Unmarshal([]byte(pkceDataJSON), &pkceData); err != nil {
+		slogging.Get().WithContext(c).Error("Failed to parse PKCE data for code: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to validate PKCE challenge",
+		})
+		return
+	}
+
+	codeChallenge := pkceData["code_challenge"]
+	codeChallengeMethod := pkceData["code_challenge_method"]
+
+	// Validate PKCE challenge
+	if err := ValidateCodeChallenge(req.CodeVerifier, codeChallenge, codeChallengeMethod); err != nil {
+		slogging.Get().WithContext(c).Error("PKCE validation failed for code (provider: %s): %v", providerID, err)
+		// Delete the PKCE data to prevent retry attacks
+		_ = h.service.dbManager.Redis().Del(ctx, codeKey)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_grant",
+			"error_description": "PKCE verification failed",
+		})
+		return
+	}
+
+	// Delete the PKCE challenge (one-time use)
+	_ = h.service.dbManager.Redis().Del(ctx, codeKey)
+	slogging.Get().WithContext(c).Debug("PKCE validation successful for code")
 
 	// Exchange authorization code for tokens
 	// Note: login_hint is now encoded directly in the authorization code for test provider
@@ -1043,6 +1136,36 @@ func generateRandomState() (string, error) {
 // buildClientRedirectURL builds the redirect URL for the client with tokens
 // Tokens are returned in the URL fragment per OAuth 2.0 implicit flow specification
 // to prevent them from being logged in server access logs or browser history
+// buildAuthCodeRedirectURL builds redirect URL with authorization code (PKCE flow)
+func buildAuthCodeRedirectURL(clientCallback string, code string, state string) (string, error) {
+	// Parse the client callback URL
+	parsedURL, err := url.Parse(clientCallback)
+	if err != nil {
+		return "", fmt.Errorf("invalid client callback URL: %v", err)
+	}
+
+	// Validate that this is a proper absolute URL for OAuth callbacks
+	if parsedURL.Scheme == "" {
+		return "", fmt.Errorf("invalid client callback URL: missing scheme")
+	}
+	if parsedURL.Host == "" {
+		return "", fmt.Errorf("invalid client callback URL: missing host")
+	}
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return "", fmt.Errorf("invalid client callback URL: scheme must be http or https")
+	}
+
+	// Build query parameters with authorization code (PKCE flow)
+	query := parsedURL.Query()
+	query.Set("code", code)
+	if state != "" {
+		query.Set("state", state)
+	}
+	parsedURL.RawQuery = query.Encode()
+
+	return parsedURL.String(), nil
+}
+
 func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state string) (string, error) {
 	// Parse the client callback URL
 	parsedURL, err := url.Parse(clientCallback)
@@ -1231,7 +1354,7 @@ func (h *Handlers) GetOpenIDConfiguration(c *gin.Context) {
 		UserInfoEndpoint:                  fmt.Sprintf("%s/oauth2/userinfo", baseURL),
 		JWKSURI:                           fmt.Sprintf("%s/.well-known/jwks.json", baseURL),
 		ScopesSupported:                   []string{"openid", "profile", "email"},
-		ResponseTypesSupported:            []string{"code", "token", "id_token", "code token", "code id_token", "code id_token token"},
+		ResponseTypesSupported:            []string{"code"},
 		SubjectTypesSupported:             []string{"public"},
 		IDTokenSigningAlgValuesSupported:  []string{"HS256"},
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_post", "client_secret_basic"},
@@ -1239,9 +1362,10 @@ func (h *Handlers) GetOpenIDConfiguration(c *gin.Context) {
 			"sub", "iss", "aud", "exp", "iat", "email", "email_verified",
 			"name", "given_name", "family_name", "picture", "locale",
 		},
-		GrantTypesSupported:   []string{"authorization_code", "refresh_token"},
-		RevocationEndpoint:    fmt.Sprintf("%s/oauth2/revoke", baseURL),
-		IntrospectionEndpoint: fmt.Sprintf("%s/oauth2/introspect", baseURL),
+		CodeChallengeMethodsSupported: []string{"S256"},
+		GrantTypesSupported:           []string{"authorization_code", "refresh_token"},
+		RevocationEndpoint:            fmt.Sprintf("%s/oauth2/revoke", baseURL),
+		IntrospectionEndpoint:         fmt.Sprintf("%s/oauth2/introspect", baseURL),
 	}
 
 	c.Header("Cache-Control", "public, max-age=3600")
@@ -1258,7 +1382,8 @@ func (h *Handlers) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
 		TokenEndpoint:                     fmt.Sprintf("%s/oauth2/token", baseURL),
 		JWKSURI:                           fmt.Sprintf("%s/.well-known/jwks.json", baseURL),
 		ScopesSupported:                   []string{"openid", "profile", "email"},
-		ResponseTypesSupported:            []string{"code", "token", "id_token", "code token", "code id_token", "code id_token token"},
+		ResponseTypesSupported:            []string{"code"},
+		CodeChallengeMethodsSupported:     []string{"S256"},
 		GrantTypesSupported:               []string{"authorization_code", "refresh_token"},
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_post", "client_secret_basic"},
 		RevocationEndpoint:                fmt.Sprintf("%s/oauth2/revoke", baseURL),
@@ -1394,173 +1519,6 @@ func (h *Handlers) GetJWKS(c *gin.Context) {
 	// Cache the response for 1 hour since keys don't change frequently
 	c.Header("Cache-Control", "public, max-age=3600")
 	c.JSON(http.StatusOK, jwks)
-}
-
-// validateResponseType validates the response_type parameter according to OAuth 2.0/OIDC specification
-func (h *Handlers) validateResponseType(responseType string) error {
-	supportedResponseTypes := map[string]bool{
-		"code":                true, // Authorization Code Flow
-		"token":               true, // Implicit Flow (Access Token only)
-		"id_token":            true, // Implicit Flow (ID Token only)
-		"code token":          true, // Hybrid Flow
-		"code id_token":       true, // Hybrid Flow
-		"code id_token token": true, // Hybrid Flow
-	}
-
-	if !supportedResponseTypes[responseType] {
-		return fmt.Errorf("unsupported response_type: %s. Supported types are: code, token, id_token, and hybrid combinations", responseType)
-	}
-
-	return nil
-}
-
-// handleImplicitOrHybridFlow handles implicit and hybrid flows for test provider
-func (h *Handlers) handleImplicitOrHybridFlow(c *gin.Context, provider Provider, responseType, state string, stateData map[string]string) error {
-	ctx := c.Request.Context()
-
-	// Set login_hint context for test provider if provided
-	if userHint, exists := stateData["login_hint"]; exists && userHint != "" {
-		ctx = context.WithValue(ctx, userHintContextKey, userHint)
-	}
-
-	// For implicit flow with test provider, directly get user info without code exchange
-	// We'll generate a mock access token for the test provider
-	mockTokenResponse := &TokenResponse{
-		AccessToken: "test_implicit_access_token",
-		TokenType:   "Bearer",
-		ExpiresIn:   3600,
-	}
-
-	// Get user info using the mock token
-	userInfo, err := provider.GetUserInfo(ctx, mockTokenResponse.AccessToken)
-	if err != nil {
-		return fmt.Errorf("failed to get user info: %v", err)
-	}
-
-	// Create or get user
-	email := userInfo.Email
-	if email == "" {
-		return fmt.Errorf("no email found for user")
-	}
-
-	name := userInfo.Name
-	if name == "" {
-		name = email
-	}
-
-	user, err := h.service.GetUserByEmail(ctx, email)
-	if err != nil {
-		// Create a new user with provider information
-		providerID := stateData["provider"]
-		if providerID == "" {
-			providerID = "test" // Default to test provider
-		}
-
-		user = User{
-			Provider:       providerID,
-			ProviderUserID: userInfo.ID,
-			Email:          email,
-			Name:           name,
-			CreatedAt:      time.Now(),
-			ModifiedAt:     time.Now(),
-			LastLogin:      time.Now(),
-		}
-
-		user, err = h.service.CreateUser(ctx, user)
-		if err != nil {
-			return fmt.Errorf("failed to create user: %v", err)
-		}
-	}
-
-	// Generate TMI JWT tokens (the provider ID will be used as subject in the JWT)
-	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
-	if err != nil {
-		return fmt.Errorf("failed to generate tokens: %v", err)
-	}
-
-	// For implicit and hybrid flows, return tokens and/or code in the redirect
-	redirectURI := stateData["client_callback"]
-	if redirectURI == "" {
-		// If no client callback, return JSON (fallback)
-		c.JSON(http.StatusOK, tokenPair)
-		return nil
-	}
-
-	var authCode string
-	// For hybrid flows containing "code", generate an authorization code
-	if strings.Contains(responseType, "code") {
-		// Generate a mock authorization code for test provider
-		authCode = fmt.Sprintf("test_hybrid_code_%d", time.Now().UnixNano())
-
-		// Store the code in Redis for later exchange (similar to regular auth code flow)
-		codeKey := fmt.Sprintf("oauth_code:%s", authCode)
-		codeData := map[string]string{
-			"provider":   stateData["provider"],
-			"email":      user.Email,
-			"name":       user.Name,
-			"user_id":    user.InternalUUID,
-			"expires_at": fmt.Sprintf("%d", time.Now().Add(10*time.Minute).Unix()),
-		}
-
-		codeJSON, err := json.Marshal(codeData)
-		if err == nil {
-			_ = h.service.dbManager.Redis().Set(ctx, codeKey, string(codeJSON), 10*time.Minute)
-		}
-	}
-
-	// Build the redirect URL for implicit/hybrid flow
-	redirectURL, err := h.buildImplicitOrHybridFlowRedirect(redirectURI, tokenPair, responseType, state, authCode)
-	if err != nil {
-		return fmt.Errorf("failed to build redirect URL: %v", err)
-	}
-
-	c.Redirect(http.StatusFound, redirectURL)
-	return nil
-}
-
-// buildImplicitOrHybridFlowRedirect builds the redirect URL for implicit/hybrid flows
-func (h *Handlers) buildImplicitOrHybridFlowRedirect(redirectURI string, tokenPair TokenPair, responseType, state, authCode string) (string, error) {
-	parsedURL, err := url.Parse(redirectURI)
-	if err != nil {
-		return "", fmt.Errorf("invalid redirect URI: %v", err)
-	}
-
-	// Handle query parameters for hybrid flows (authorization code)
-	query := parsedURL.Query()
-	if authCode != "" && strings.Contains(responseType, "code") {
-		query.Set("code", authCode)
-		if state != "" {
-			query.Set("state", state)
-		}
-	}
-	parsedURL.RawQuery = query.Encode()
-
-	// Build fragment parameters for tokens (implicit/hybrid flows)
-	fragment := url.Values{}
-
-	if strings.Contains(responseType, "token") {
-		fragment.Set("access_token", tokenPair.AccessToken)
-		fragment.Set("token_type", tokenPair.TokenType)
-		fragment.Set("expires_in", fmt.Sprintf("%d", tokenPair.ExpiresIn))
-	}
-
-	if strings.Contains(responseType, "id_token") {
-		// For this implementation, we'll use the access token as a mock ID token
-		// In a full implementation, you'd generate a proper ID token with different claims
-		fragment.Set("id_token", tokenPair.AccessToken)
-	}
-
-	// For pure implicit flows (no code), include state in fragment
-	if authCode == "" && state != "" {
-		fragment.Set("state", state)
-	}
-
-	// Set the fragment if there are any fragment parameters
-	if len(fragment) > 0 {
-		parsedURL.Fragment = fragment.Encode()
-	}
-
-	return parsedURL.String(), nil
 }
 
 // TokenIntrospectionResponse represents the response from token introspection

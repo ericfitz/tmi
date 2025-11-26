@@ -383,9 +383,10 @@ func TestExchangeHandlerValidation(t *testing.T) {
 			name:     "Invalid grant_type",
 			provider: "google",
 			requestBody: map[string]interface{}{
-				"grant_type":   "client_credentials",
-				"code":         "test-auth-code",
-				"redirect_uri": "http://localhost:3000/callback",
+				"grant_type":    "client_credentials",
+				"code":          "test-auth-code",
+				"code_verifier": "test-code-verifier-123456789012345678901234567890123456789012",
+				"redirect_uri":  "http://localhost:3000/callback",
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "invalid_grant",
@@ -414,9 +415,10 @@ func TestExchangeHandlerValidation(t *testing.T) {
 			name:     "Invalid provider",
 			provider: "invalid",
 			requestBody: map[string]interface{}{
-				"grant_type":   "authorization_code",
-				"code":         "test-auth-code",
-				"redirect_uri": "http://localhost:3000/callback",
+				"grant_type":    "authorization_code",
+				"code":          "test-auth-code",
+				"code_verifier": "test-code-verifier-123456789012345678901234567890123456789012",
+				"redirect_uri":  "http://localhost:3000/callback",
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "Invalid provider: invalid",
@@ -902,13 +904,13 @@ func TestAuthorizeWithScopeValidation(t *testing.T) {
 		},
 		{
 			name:           "Valid scope - openid profile email",
-			url:            "/oauth2/authorize?idp=google&scope=openid%20profile%20email",
-			expectedStatus: http.StatusInternalServerError, // Will fail later due to missing service, but scope validation passes
+			url:            "/oauth2/authorize?idp=google&scope=openid%20profile%20email&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256",
+			expectedStatus: http.StatusInternalServerError, // Will fail later due to missing service, but scope and PKCE validation passes
 		},
 		{
 			name:           "Valid scope - only openid",
-			url:            "/oauth2/authorize?idp=google&scope=openid",
-			expectedStatus: http.StatusInternalServerError, // Will fail later due to missing service, but scope validation passes
+			url:            "/oauth2/authorize?idp=google&scope=openid&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256",
+			expectedStatus: http.StatusInternalServerError, // Will fail later due to missing service, but scope and PKCE validation passes
 		},
 	}
 

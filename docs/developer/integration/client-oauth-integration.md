@@ -1,10 +1,11 @@
 # TMI OAuth Integration Guide for Client Developers
 
-This guide shows how to integrate your client application with TMI's OAuth authentication system. TMI provides a server-side OAuth proxy that handles the complexity of OAuth flows while providing your client with simple JWT tokens.
+This guide shows how to integrate your client application with TMI's OAuth authentication system using **OAuth 2.0 Authorization Code Flow with PKCE** (Proof Key for Code Exchange). TMI implements RFC 7636 for enhanced security without requiring client secrets.
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [PKCE Implementation](#pkce-implementation)
 - [Quick Start](#quick-start)
 - [Provider Discovery](#provider-discovery)
 - [OAuth Flow Implementation](#oauth-flow-implementation)
@@ -17,20 +18,132 @@ This guide shows how to integrate your client application with TMI's OAuth authe
 
 ### Architecture
 
-TMI uses a **server-side OAuth proxy pattern** where:
+TMI implements **OAuth 2.0 Authorization Code Flow with PKCE** (RFC 7636):
 
-1. **Client** discovers available OAuth providers
-2. **Client** redirects users to TMI OAuth endpoints
-3. **TMI server** handles OAuth complexity with providers
-4. **TMI server** returns JWT tokens to your client
-5. **Client** uses JWT tokens for authenticated API calls
+1. **Client** generates PKCE parameters (code_verifier, code_challenge)
+2. **Client** redirects users to TMI OAuth endpoints with code_challenge
+3. **TMI server** stores the challenge and redirects to OAuth provider
+4. **TMI server** receives authorization code from provider
+5. **TMI server** returns authorization code to client
+6. **Client** exchanges code + code_verifier for JWT tokens
+7. **Client** uses JWT tokens for authenticated API calls
 
 ### Benefits
 
-- **No OAuth complexity** in your client code
-- **No client secrets** exposed in browser
-- **Consistent token format** across all OAuth providers
-- **Automatic provider configuration** via API discovery
+- **Enhanced Security**: PKCE prevents authorization code interception attacks
+- **No Client Secrets**: Safe for public clients (SPAs, mobile apps, native apps)
+- **Consistent Token Format**: JWT tokens work across all OAuth providers
+- **Automatic Provider Configuration**: Dynamic provider discovery via API
+- **RFC 7636 Compliant**: Industry-standard PKCE with S256 challenge method
+
+## PKCE Implementation
+
+### What is PKCE?
+
+PKCE (Proof Key for Code Exchange, pronounced "pixy") is a security extension to OAuth 2.0 that prevents authorization code interception attacks. It's essential for public clients that cannot securely store client secrets (SPAs, mobile apps, desktop apps).
+
+### How PKCE Works
+
+```
+1. Client generates code_verifier (random string)
+2. Client computes code_challenge = BASE64URL(SHA256(code_verifier))
+3. Client sends code_challenge to authorization endpoint
+4. Server stores code_challenge with authorization code
+5. Server returns authorization code to client
+6. Client exchanges code + code_verifier for tokens
+7. Server validates: SHA256(code_verifier) == stored code_challenge
+```
+
+### PKCE Helper Functions
+
+Here are the core PKCE functions you'll need in your client application:
+
+**JavaScript/TypeScript:**
+
+```javascript
+class PKCEHelper {
+  // Generate cryptographically secure random code verifier
+  static generateCodeVerifier() {
+    const array = new Uint8Array(32); // 32 bytes = 256 bits
+    crypto.getRandomValues(array);
+    return this.base64URLEncode(array);
+  }
+
+  // Compute S256 challenge from verifier
+  static async generateCodeChallenge(verifier) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(verifier);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return this.base64URLEncode(new Uint8Array(digest));
+  }
+
+  // Base64URL encoding (without padding)
+  static base64URLEncode(buffer) {
+    const base64 = btoa(String.fromCharCode(...buffer));
+    return base64
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+  }
+}
+
+// Example usage:
+const verifier = PKCEHelper.generateCodeVerifier();
+const challenge = await PKCEHelper.generateCodeChallenge(verifier);
+
+console.log('Verifier:', verifier);    // Length: 43 characters
+console.log('Challenge:', challenge);  // Length: 43 characters
+```
+
+**Python:**
+
+```python
+import secrets
+import hashlib
+import base64
+
+class PKCEHelper:
+    @staticmethod
+    def generate_code_verifier():
+        """Generate cryptographically secure random code verifier.
+
+        Returns a 43-character base64url-encoded string (32 random bytes).
+        """
+        # Generate 32 random bytes
+        verifier_bytes = secrets.token_bytes(32)
+        # Encode as base64url without padding
+        verifier = base64.urlsafe_b64encode(verifier_bytes).decode('utf-8').rstrip('=')
+        return verifier
+
+    @staticmethod
+    def generate_code_challenge(verifier):
+        """Generate S256 code challenge from verifier.
+
+        Args:
+            verifier: The code verifier string
+
+        Returns:
+            base64url(SHA256(verifier)) without padding
+        """
+        # Compute SHA-256 hash of the verifier
+        digest = hashlib.sha256(verifier.encode('utf-8')).digest()
+        # Encode as base64url without padding
+        challenge = base64.urlsafe_b64encode(digest).decode('utf-8').rstrip('=')
+        return challenge
+
+# Example usage:
+verifier = PKCEHelper.generate_code_verifier()
+challenge = PKCEHelper.generate_code_challenge(verifier)
+
+print(f'Verifier: {verifier}')    # Length: 43 characters
+print(f'Challenge: {challenge}')  # Length: 43 characters
+```
+
+### PKCE Parameter Requirements
+
+- **code_verifier**: 43-128 characters, [A-Z] / [a-z] / [0-9] / "-" / "." / "_" / "~"
+- **code_challenge**: Base64URL-encoded SHA-256 hash of code_verifier (43 characters)
+- **code_challenge_method**: Must be "S256" (TMI only supports S256, not "plain")
 
 ## Quick Start
 
@@ -139,29 +252,36 @@ const { providers } = await response.json();
 └─────────┘                      └─────────────┘                    └─────────────┘
 ```
 
-### Step 1: Initiate OAuth Flow
+### Step 1: Initiate OAuth Flow with PKCE
 
-**Recommended: With Client Callback (New in v1.1+):**
+**Authorization Code Flow with PKCE (Required):**
 
 ```javascript
-function loginWithGoogle() {
+async function loginWithGoogle() {
   // Get provider info from discovery
   const provider = providers.find((p) => p.id === "google");
 
+  // Generate PKCE parameters
+  const codeVerifier = PKCEHelper.generateCodeVerifier();
+  const codeChallenge = await PKCEHelper.generateCodeChallenge(codeVerifier);
+
   // Generate state for CSRF protection
   const state = generateRandomState();
-  localStorage.setItem("oauth_state", state);
+
+  // Store verifier and state for later use during token exchange
+  sessionStorage.setItem("pkce_verifier", codeVerifier);
+  sessionStorage.setItem("oauth_state", state);
 
   // Define where TMI should redirect after OAuth completion
   const clientCallbackUrl = `${window.location.origin}/oauth2/callback`;
 
-  // Build OAuth URL with client callback
+  // Build OAuth URL with PKCE parameters
   const separator = provider.auth_url.includes("?") ? "&" : "?";
-  const authUrl = `${
-    provider.auth_url
-  }${separator}state=${state}&client_callback=${encodeURIComponent(
-    clientCallbackUrl
-  )}`;
+  const authUrl = `${provider.auth_url}${separator}` +
+    `state=${encodeURIComponent(state)}` +
+    `&client_callback=${encodeURIComponent(clientCallbackUrl)}` +
+    `&code_challenge=${encodeURIComponent(codeChallenge)}` +
+    `&code_challenge_method=S256`;
 
   // Redirect to TMI OAuth endpoint
   window.location.href = authUrl;
@@ -171,7 +291,7 @@ function loginWithGoogle() {
 **For Testing with Predictable Users (Test Provider Only):**
 
 ```javascript
-function loginWithTestProvider(userHint = null) {
+async function loginWithTestProvider(userHint = null) {
   // Get test provider info from discovery
   const provider = providers.find((p) => p.id === "test");
   if (!provider) {
@@ -179,20 +299,27 @@ function loginWithTestProvider(userHint = null) {
     return;
   }
 
+  // Generate PKCE parameters
+  const codeVerifier = PKCEHelper.generateCodeVerifier();
+  const codeChallenge = await PKCEHelper.generateCodeChallenge(codeVerifier);
+
   // Generate state for CSRF protection
   const state = generateRandomState();
-  localStorage.setItem("oauth_state", state);
+
+  // Store verifier and state for later use during token exchange
+  sessionStorage.setItem("pkce_verifier", codeVerifier);
+  sessionStorage.setItem("oauth_state", state);
 
   // Define client callback URL
   const clientCallbackUrl = `${window.location.origin}/oauth2/callback`;
 
-  // Build OAuth URL with optional login_hint for predictable testing
+  // Build OAuth URL with PKCE parameters and optional login_hint
   const separator = provider.auth_url.includes("?") ? "&" : "?";
-  let authUrl = `${
-    provider.auth_url
-  }${separator}state=${state}&client_callback=${encodeURIComponent(
-    clientCallbackUrl
-  )}`;
+  let authUrl = `${provider.auth_url}${separator}` +
+    `state=${encodeURIComponent(state)}` +
+    `&client_callback=${encodeURIComponent(clientCallbackUrl)}` +
+    `&code_challenge=${encodeURIComponent(codeChallenge)}` +
+    `&code_challenge_method=S256`;
 
   // Add login_hint for test automation (test provider only)
   if (userHint) {
@@ -204,49 +331,31 @@ function loginWithTestProvider(userHint = null) {
 }
 
 // Examples:
-// loginWithTestProvider('alice');     // Creates alice@test.tmi
-// loginWithTestProvider('qa-user');   // Creates qa-user@test.tmi
-// loginWithTestProvider();           // Creates random testuser-12345678@test.tmi
-```
-
-**Legacy: Simple Redirect (Still Supported):**
-
-```javascript
-function loginWithGoogle() {
-  // Get provider info from discovery
-  const provider = providers.find((p) => p.id === "google");
-
-  // Simply redirect - TMI handles everything
-  window.location.href = provider.auth_url;
-}
+// await loginWithTestProvider('alice');     // Creates alice@test.tmi
+// await loginWithTestProvider('qa-user');   // Creates qa-user@test.tmi
+// await loginWithTestProvider();            // Creates random testuser-12345678@test.tmi
 ```
 
 ### Step 2: TMI Handles OAuth
 
 TMI server automatically:
 
-- Generates secure state parameters
+- Validates and stores the PKCE code_challenge
 - Redirects to OAuth provider
-- Handles authorization code exchange
-- Creates or updates user accounts
-- Generates JWT tokens
+- Receives authorization code from provider
+- Returns authorization code to client (NOT tokens yet)
 
-### Step 3: Handle Callback
+### Step 3: Handle Authorization Code Callback
 
-**With Client Callback Parameter (Recommended):**
-
-When you include the `client_callback` parameter, TMI will redirect to your specified URL with tokens:
+TMI will redirect to your specified `client_callback` URL with the authorization code:
 
 ```javascript
 // Handle OAuth callback on your client callback page
-// URL will be: http://localhost:4200/auth/callback?access_token=...&refresh_token=...&expires_in=3600&state=...
-function handleOAuthCallback() {
+// URL will be: http://localhost:4200/oauth2/callback?code=...&state=...
+async function handleOAuthCallback() {
   const urlParams = new URLSearchParams(window.location.search);
 
-  const accessToken = urlParams.get("access_token");
-  const refreshToken = urlParams.get("refresh_token");
-  const expiresIn = urlParams.get("expires_in");
-  const tokenType = urlParams.get("token_type");
+  const code = urlParams.get("code");
   const state = urlParams.get("state");
   const error = urlParams.get("error");
 
@@ -256,28 +365,16 @@ function handleOAuthCallback() {
   }
 
   // Verify state parameter (CSRF protection)
-  const storedState = localStorage.getItem("oauth_state");
+  const storedState = sessionStorage.getItem("oauth_state");
   if (state !== storedState) {
     console.error("State mismatch - possible CSRF attack");
     handleOAuthError("invalid_state");
     return;
   }
 
-  // Clear stored state
-  localStorage.removeItem("oauth_state");
-
-  if (accessToken) {
-    // Store tokens securely
-    const expirationTime = Date.now() + parseInt(expiresIn) * 1000;
-    localStorage.setItem("tmi_access_token", accessToken);
-    localStorage.setItem("tmi_refresh_token", refreshToken);
-    localStorage.setItem("tmi_token_expires", expirationTime);
-
-    // Clean URL (remove tokens from address bar)
-    window.history.replaceState({}, document.title, window.location.pathname);
-
-    // Redirect to main application
-    window.location.href = "/dashboard";
+  if (code) {
+    // Exchange authorization code for tokens
+    await exchangeCodeForTokens(code);
   }
 }
 
@@ -287,13 +384,69 @@ if (window.location.pathname === "/oauth2/callback") {
 }
 ```
 
-**Legacy: Direct JSON Response (Still Supported):**
+### Step 4: Exchange Code for Tokens with PKCE
 
-If you don't provide a `client_callback` parameter, TMI returns tokens as JSON:
+After receiving the authorization code, exchange it for JWT tokens using the PKCE verifier:
 
 ```javascript
-// This is the legacy behavior - TMI returns JSON directly
-// Not recommended for browser applications due to URL limitations
+async function exchangeCodeForTokens(code) {
+  // Retrieve stored PKCE verifier
+  const codeVerifier = sessionStorage.getItem("pkce_verifier");
+  if (!codeVerifier) {
+    console.error("PKCE verifier not found - possible session loss");
+    handleOAuthError("missing_verifier");
+    return;
+  }
+
+  // Determine provider ID from original request or store it during Step 1
+  const providerId = sessionStorage.getItem("oauth_provider_id") || "google";
+
+  try {
+    // Exchange code + verifier for tokens
+    const response = await fetch(`http://localhost:8080/oauth2/token?idp=${providerId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        grant_type: "authorization_code",
+        code: code,
+        code_verifier: codeVerifier,
+        redirect_uri: `${window.location.origin}/oauth2/callback`
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error("Token exchange failed:", error);
+      handleOAuthError("token_exchange_failed");
+      return;
+    }
+
+    const tokens = await response.json();
+
+    // Store tokens securely
+    const expirationTime = Date.now() + parseInt(tokens.expires_in) * 1000;
+    localStorage.setItem("tmi_access_token", tokens.access_token);
+    localStorage.setItem("tmi_refresh_token", tokens.refresh_token);
+    localStorage.setItem("tmi_token_expires", expirationTime);
+
+    // Clean up session storage
+    sessionStorage.removeItem("pkce_verifier");
+    sessionStorage.removeItem("oauth_state");
+    sessionStorage.removeItem("oauth_provider_id");
+
+    // Clean URL (remove code from address bar)
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    // Redirect to main application
+    window.location.href = "/dashboard";
+
+  } catch (error) {
+    console.error("Token exchange error:", error);
+    handleOAuthError("network_error");
+  }
+}
 ```
 
 ## Token Management
@@ -697,7 +850,9 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/oauth2/userinfo
 
 ## Complete Example
 
-Here's a complete working example of OAuth integration:
+**Note**: This example has been simplified for readability. For a production-ready implementation with PKCE support, refer to the [PKCE Implementation](#pkce-implementation) section and [Step 1: Initiate OAuth Flow with PKCE](#step-1-initiate-oauth-flow-with-pkce) above.
+
+Here's a simplified example showing the OAuth integration structure:
 
 ```html
 <!DOCTYPE html>

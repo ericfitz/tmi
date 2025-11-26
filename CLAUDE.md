@@ -125,13 +125,14 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 
 ### OAuth Callback Stub
 
-- **OAuth Development Tool**: `make start-oauth-stub` or `uv run scripts/oauth-client-callback-stub.py --port 8079` - Universal OAuth callback handler supporting both Authorization Code and Implicit flows
+- **OAuth Development Tool**: `make start-oauth-stub` or `uv run scripts/oauth-client-callback-stub.py --port 8079` - OAuth callback handler for Authorization Code Flow with PKCE
 
   - **Location**: `scripts/oauth-client-callback-stub.py` (standalone Python script)
-  - **Purpose**: Captures OAuth credentials from TMI server supporting both OAuth2 Authorization Code Flow and Implicit Flow
-  - **Flow Detection**: Automatically detects and handles both OAuth flows:
-    - **Authorization Code Flow**: Receives `code` and `state`, client exchanges code for tokens
-    - **Implicit Flow**: Receives tokens directly (`access_token`, `refresh_token`, etc.)
+  - **Purpose**: Captures OAuth credentials from TMI server using OAuth2 Authorization Code Flow with PKCE (Proof Key for Code Exchange)
+  - **PKCE Support**: Implements RFC 7636 with S256 challenge method:
+    - **Authorization Code Flow with PKCE**: Receives `code` and `state`, exchanges code + verifier for tokens
+    - Automatically generates PKCE parameters (code_verifier, code_challenge)
+    - Validates code_verifier against stored challenge during token exchange
   - **Features**:
     - Three-route HTTP server with OAuth callback handler, credentials API, and user-specific credential retrieval
     - Credential persistence to temporary files for later retrieval by user ID
@@ -150,23 +151,23 @@ TMI uses two complementary tools for comprehensive SBOM generation:
   - **Response Formats**:
 
     ```json
-    // Authorization Code Flow Response
+    // Authorization Code Flow with PKCE - After token exchange
     {
       "flow_type": "authorization_code",
-      "code": "test_auth_code_1234567890",
-      "state": "AbCdEf...",
-      "ready_for_token_exchange": true
-    }
-
-    // Implicit Flow Response (TMI's current implementation)
-    {
-      "flow_type": "implicit",
       "state": "AbCdEf...",
       "access_token": "eyJhbGc...",
       "refresh_token": "uuid-string",
       "token_type": "Bearer",
       "expires_in": "3600",
       "tokens_ready": true
+    }
+
+    // Authorization Code Flow - Before token exchange
+    {
+      "flow_type": "authorization_code",
+      "code": "test_auth_code_1234567890",
+      "state": "AbCdEf...",
+      "ready_for_token_exchange": true
     }
 
     // No data yet
@@ -203,15 +204,14 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 
   - **Enhanced Logging**:
     - `YYYY-MM-DDTHH:MM:SS.sssZ <message>` format with detailed flow analysis
-    - Logs OAuth credentials extracted from URL fragments (via JavaScript POST to `/oauth-fragment`)
-    - Flow type detection and analysis (`Authorization Code Flow`, `Implicit Flow`, etc.)
+    - Logs PKCE parameters (code_verifier, code_challenge) during token exchange
+    - Flow type detection and analysis (Authorization Code Flow with PKCE)
     - Complete request/response logging for debugging
   - **Client Integration**:
-    - **Implicit Flow Clients**: Use `access_token` directly from `/latest` response
-    - **Authorization Code Clients**: Use `code` from `/latest` response for token exchange
+    - **Authorization Code Clients**: Automatically exchanges authorization code + PKCE verifier for tokens
     - **Test Frameworks**: Works with StepCI for automated OAuth flow testing
     - **Development**: Simplifies OAuth integration testing without implementing full callback handlers
-  - **Security**: Development-only tool, binds to localhost, no persistence, handles both OAuth flow types securely
+  - **Security**: Development-only tool, binds to localhost, implements PKCE (RFC 7636) with S256 challenge method
 
 ### WebSocket Test Harness
 
