@@ -683,7 +683,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	var req struct {
 		GrantType   string `json:"grant_type" binding:"required"`
 		Code        string `json:"code" binding:"required"`
-		State       string `json:"state"`
+		State       string `json:"state"` // Optional, accepted but not validated (state validation happens in callback)
 		RedirectURI string `json:"redirect_uri" binding:"required"`
 	}
 
@@ -721,19 +721,10 @@ func (h *Handlers) Exchange(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	// Optional: Verify state parameter if using state validation
-	if req.State != "" {
-		stateKey := fmt.Sprintf("oauth_state:%s", req.State)
-		storedProvider, err := h.service.dbManager.Redis().Get(ctx, stateKey)
-		if err != nil || storedProvider != providerID {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Invalid state parameter",
-			})
-			return
-		}
-		// Clean up state
-		_ = h.service.dbManager.Redis().Del(ctx, stateKey)
-	}
+	// Note: State parameter validation happens during the authorization callback,
+	// not during token exchange. The state has already been validated and consumed
+	// by the Callback handler before the client receives the authorization code.
+	// Per OAuth 2.0 spec (RFC 6749), the token endpoint does not use the state parameter.
 
 	// Exchange authorization code for tokens
 	// Note: login_hint is now encoded directly in the authorization code for test provider
