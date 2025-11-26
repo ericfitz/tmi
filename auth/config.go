@@ -121,6 +121,7 @@ type SAMLProviderConfig struct {
 // LoadConfig loads configuration from environment variables
 func LoadConfig() (Config, error) {
 	logger := slogging.Get()
+	logger.Info("TRACE: LoadConfig() function called - START")
 	logger.Info("Loading authentication configuration from environment variables")
 
 	redisDB, err := strconv.Atoi(envutil.Get("REDIS_DB", "0"))
@@ -186,6 +187,7 @@ func LoadConfig() (Config, error) {
 	}
 
 	logger.Info("Authentication configuration loaded successfully postgres_host=%v redis_host=%v jwt_signing_method=%v oauth_providers_count=%v", config.Postgres.Host, config.Redis.Host, config.JWT.SigningMethod, len(config.OAuth.Providers))
+	logger.Info("TRACE: LoadConfig() function - END - SAML enabled=%v provider_count=%v", config.SAML.Enabled, len(config.SAML.Providers))
 	return config, nil
 }
 
