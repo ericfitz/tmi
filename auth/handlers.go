@@ -490,8 +490,44 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 		return fmt.Errorf("missing client_callback")
 	}
 
+	// Bind PKCE challenge to authorization code for later validation during token exchange
+	// Retrieve PKCE challenge from state
+	ctx := c.Request.Context()
+	state := c.Query("state")
+	pkceChallenge, pkceMethod, err := h.service.stateStore.GetPKCEChallenge(ctx, state)
+	if err != nil {
+		slogging.Get().WithContext(c).Error("Failed to retrieve PKCE challenge for state %s: %v", state, err)
+		h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusInternalServerError, "Failed to retrieve PKCE challenge")
+		return fmt.Errorf("failed to retrieve PKCE challenge: %w", err)
+	}
+
+	// Store PKCE challenge with authorization code for later validation
+	codeKey := fmt.Sprintf("pkce:%s", code)
+	pkceData := map[string]string{
+		"code_challenge":        pkceChallenge,
+		"code_challenge_method": pkceMethod,
+	}
+	pkceJSON, err := json.Marshal(pkceData)
+	if err != nil {
+		slogging.Get().WithContext(c).Error("Failed to marshal PKCE data for code: %v", err)
+		h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusInternalServerError, "Failed to store PKCE challenge")
+		return fmt.Errorf("failed to marshal PKCE data: %w", err)
+	}
+
+	err = h.service.dbManager.Redis().Set(ctx, codeKey, string(pkceJSON), 10*time.Minute)
+	if err != nil {
+		slogging.Get().WithContext(c).Error("Failed to store PKCE challenge for code %s: %v", code, err)
+		h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusInternalServerError, "Failed to store PKCE challenge")
+		return fmt.Errorf("failed to store PKCE challenge: %w", err)
+	}
+
+	// Delete PKCE challenge from state (moved to code)
+	_ = h.service.stateStore.DeletePKCEChallenge(ctx, state)
+
+	slogging.Get().WithContext(c).Debug("Bound PKCE challenge to authorization code")
+
 	// Build redirect URL with authorization code and state
-	redirectURL, err := buildAuthCodeRedirectURL(stateData.ClientCallback, code, c.Query("state"))
+	redirectURL, err := buildAuthCodeRedirectURL(stateData.ClientCallback, code, state)
 	if err != nil {
 		h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusInternalServerError, fmt.Sprintf("Failed to build redirect URL: %v", err))
 		return err
