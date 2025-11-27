@@ -5824,6 +5824,32 @@
               "pattern": "^[a-zA-Z0-9_][a-zA-Z0-9_ ]*[a-zA-Z0-9_]$",
               "maxLength": 256
             }
+          },
+          {
+            "name": "code_challenge",
+            "in": "query",
+            "required": true,
+            "description": "PKCE code challenge (RFC 7636) - Base64url-encoded SHA256 hash of the code_verifier. Must be 43-128 characters using unreserved characters [A-Za-z0-9-._~]. The server associates this with the authorization code for later verification during token exchange.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9\\-._~]{43,128}$",
+              "minLength": 43,
+              "maxLength": 128,
+              "example": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+            }
+          },
+          {
+            "name": "code_challenge_method",
+            "in": "query",
+            "required": true,
+            "description": "PKCE code challenge method (RFC 7636) - Specifies the transformation applied to the code_verifier. Only \"S256\" (SHA256) is supported for security. The \"plain\" method is not supported.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "S256"
+              ],
+              "example": "S256"
+            }
           }
         ],
         "responses": {
@@ -5946,9 +5972,9 @@
                   },
                   "code": {
                     "type": "string",
-                    "description": "Authorization code received from OAuth provider",
+                    "description": "Authorization code received from OAuth provider. Per RFC 6749, can contain any visible ASCII characters (VSCHAR: 0x20-0x7E).",
                     "example": "0AX4XfWiXY2BZ_example_auth_code_from_google",
-                    "pattern": "^[a-zA-Z0-9_=-]*$",
+                    "pattern": "^[\\x20-\\x7E]+$",
                     "maxLength": 512
                   },
                   "state": {
