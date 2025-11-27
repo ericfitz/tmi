@@ -5965,12 +5965,21 @@
                     "example": "https://your-web-app.com/oauth2/callback",
                     "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
                     "maxLength": 1000
+                  },
+                  "code_verifier": {
+                    "type": "string",
+                    "description": "PKCE code verifier (RFC 7636) - High-entropy cryptographic random string used to mitigate authorization code interception attacks. Must be 43-128 characters using [A-Za-z0-9-._~] characters.",
+                    "example": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+                    "pattern": "^[A-Za-z0-9\\-._~]+$",
+                    "minLength": 43,
+                    "maxLength": 128
                   }
                 },
                 "required": [
                   "grant_type",
                   "code",
-                  "redirect_uri"
+                  "redirect_uri",
+                  "code_verifier"
                 ],
                 "additionalProperties": false
               }
