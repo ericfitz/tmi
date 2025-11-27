@@ -125,93 +125,123 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 
 ### OAuth Callback Stub
 
-- **OAuth Development Tool**: `make start-oauth-stub` or `uv run scripts/oauth-client-callback-stub.py --port 8079` - OAuth callback handler for Authorization Code Flow with PKCE
+- **OAuth Testing Harness**: `make start-oauth-stub` or `uv run scripts/oauth-client-callback-stub.py --port 8079` - Comprehensive OAuth test tool with PKCE support
 
   - **Location**: `scripts/oauth-client-callback-stub.py` (standalone Python script)
-  - **Purpose**: Captures OAuth credentials from TMI server using OAuth2 Authorization Code Flow with PKCE (Proof Key for Code Exchange)
-  - **PKCE Support**: Implements RFC 7636 with S256 challenge method:
-    - **Authorization Code Flow with PKCE**: Receives `code` and `state`, exchanges code + verifier for tokens
-    - Automatically generates PKCE parameters (code_verifier, code_challenge)
-    - Validates code_verifier against stored challenge during token exchange
-  - **Features**:
-    - Three-route HTTP server with OAuth callback handler, credentials API, and user-specific credential retrieval
-    - Credential persistence to temporary files for later retrieval by user ID
-    - Automatic flow type detection and appropriate response formatting
-    - Enhanced debugging with detailed parameter logging
-    - Startup cleanup of temporary credential files
+  - **Purpose**: Full-featured OAuth 2.0 testing harness supporting manual flows and fully automated end-to-end testing with PKCE (RFC 7636)
+  - **Smart Defaults**: All parameters optional with intelligent defaults:
+    - `idp`: Defaults to "test" provider
+    - `scopes`: Defaults to "openid profile email"
+    - `state`, `code_verifier`, `code_challenge`: Auto-generated if not provided
+    - Caller-specified values always override defaults
   - **Logging**: Comprehensive structured logging to `/tmp/oauth-stub.log` with RFC3339 timestamps and dual console output
   - **Make Commands**:
     - `make start-oauth-stub` - Start OAuth stub on port 8079
     - `make oauth-stub-stop` - Stop OAuth stub gracefully
-    - `make oauth-stub-status` - Check if OAuth stub is running
-  - **API Routes**:
-    - **Route 1 (`GET /`)**: Receives OAuth redirects, analyzes flow type, stores credentials, saves to `$TMP/<user-id>.json`
-    - **Route 2 (`GET /latest`)**: Returns flow-appropriate JSON response for client integration
-    - **Route 3 (`GET /creds?userid=<userid>`)**: Returns saved credentials for specific user from persistent storage
-  - **Response Formats**:
+    - `make status` - Check if OAuth stub is running
 
-    ```json
-    // Authorization Code Flow with PKCE - After token exchange
-    {
-      "flow_type": "authorization_code",
-      "state": "AbCdEf...",
-      "access_token": "eyJhbGc...",
-      "refresh_token": "uuid-string",
-      "token_type": "Bearer",
-      "expires_in": "3600",
-      "tokens_ready": true
-    }
+  - **API Endpoints**:
 
-    // Authorization Code Flow - Before token exchange
-    {
-      "flow_type": "authorization_code",
-      "code": "test_auth_code_1234567890",
-      "state": "AbCdEf...",
-      "ready_for_token_exchange": true
-    }
+    1. **`POST /oauth/init`** - Initialize OAuth flow with PKCE parameters
+       - Generates state, code_verifier, code_challenge, and authorization URL
+       - All parameters optional (smart defaults applied)
+       - Returns ready-to-use authorization URL with all PKCE parameters
+       - Example:
+         ```bash
+         curl -X POST http://localhost:8079/oauth/init \
+           -H 'Content-Type: application/json' \
+           -d '{"userid": "alice"}'
+         # Response: {"state": "...", "code_challenge": "...", "authorization_url": "http://..."}
+         ```
 
-    // No data yet
-    {
-      "flow_type": "none",
-      "error": "No OAuth data received yet"
-    }
-    ```
+    2. **`POST /refresh`** - Refresh access token using refresh token
+       - Exchanges refresh token for new access/refresh tokens
+       - Supports optional userid and idp parameters
+       - Example:
+         ```bash
+         curl -X POST http://localhost:8079/refresh \
+           -H 'Content-Type: application/json' \
+           -d '{"refresh_token": "uuid", "userid": "alice"}'
+         # Response: {"success": true, "access_token": "...", "refresh_token": "...", ...}
+         ```
 
-  - **Example Integration**:
+    3. **`POST /flows/start`** - Start automated end-to-end OAuth flow
+       - Initiates authorization, handles callback, exchanges tokens automatically
+       - Returns flow_id for polling status
+       - All parameters optional with smart defaults
+       - Example:
+         ```bash
+         curl -X POST http://localhost:8079/flows/start \
+           -H 'Content-Type: application/json' \
+           -d '{"userid": "bob"}'
+         # Response: {"flow_id": "uuid", "status": "...", "poll_url": "/flows/uuid"}
+         ```
+
+    4. **`GET /flows/{flow_id}`** - Poll OAuth flow status and retrieve tokens
+       - Check flow completion status
+       - Retrieve tokens when ready
+       - Example:
+         ```bash
+         curl http://localhost:8079/flows/ae146dae-c67d-4fb4-8b97-469b37c9848e
+         # Response: {"flow_id": "...", "status": "completed", "tokens": {...}, "tokens_ready": true}
+         ```
+
+    5. **`GET /`** - OAuth callback receiver (redirect endpoint)
+       - Receives OAuth redirects from TMI server
+       - Automatically exchanges authorization code for tokens
+       - Updates flow records for e2e flows
+       - Saves credentials to `$TMP/<user-id>.json`
+
+    6. **`GET /latest`** - Get latest OAuth callback data
+       - Returns most recent OAuth redirect details
+       - Useful for manual testing and debugging
+
+    7. **`GET /creds?userid=<userid>`** - Retrieve saved credentials for user
+       - Reads credentials from persistent file storage
+       - Example: `curl "http://localhost:8079/creds?userid=alice"`
+
+  - **Usage Examples**:
 
     ```bash
-    # Start OAuth callback stub
+    # Start OAuth stub
     make start-oauth-stub
 
-    # Initiate OAuth flow with callback stub and login_hint
-    curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_callback=http://localhost:8079/"
+    # Example 1: Manual flow with /oauth/init
+    curl -X POST http://localhost:8079/oauth/init \
+      -H 'Content-Type: application/json' \
+      -d '{"userid": "alice"}' | jq -r '.authorization_url'
+    # Open the returned URL in browser, tokens auto-exchanged on callback
 
-    # Check latest credentials (traditional method)
-    curl http://localhost:8079/latest | jq '.'
+    # Example 2: Fully automated end-to-end flow
+    curl -X POST http://localhost:8079/flows/start \
+      -H 'Content-Type: application/json' \
+      -d '{"userid": "bob"}' | jq '.flow_id'
+    # Poll for completion
+    curl http://localhost:8079/flows/{flow_id} | jq '.tokens'
 
-    # Or retrieve credentials for specific user (new method)
-    curl "http://localhost:8079/creds?userid=alice" | jq '.'
+    # Example 3: Token refresh
+    curl -X POST http://localhost:8079/refresh \
+      -H 'Content-Type: application/json' \
+      -d '{"refresh_token": "uuid", "userid": "alice"}' | jq '.'
 
-    # Monitor detailed logs for debugging flow details
+    # Example 4: Retrieve saved credentials
+    curl "http://localhost:8079/creds?userid=alice" | jq '.access_token'
+
+    # Monitor detailed logs
     tail -f /tmp/oauth-stub.log
 
     # Stop OAuth stub
     make oauth-stub-stop
-
-    # Alternative: Gracefully shutdown via HTTP (for automation)
-    curl "http://localhost:8079/?code=exit"
     ```
 
-  - **Enhanced Logging**:
-    - `YYYY-MM-DDTHH:MM:SS.sssZ <message>` format with detailed flow analysis
-    - Logs PKCE parameters (code_verifier, code_challenge) during token exchange
-    - Flow type detection and analysis (Authorization Code Flow with PKCE)
-    - Complete request/response logging for debugging
-  - **Client Integration**:
-    - **Authorization Code Clients**: Automatically exchanges authorization code + PKCE verifier for tokens
-    - **Test Frameworks**: Works with StepCI for automated OAuth flow testing
-    - **Development**: Simplifies OAuth integration testing without implementing full callback handlers
-  - **Security**: Development-only tool, binds to localhost, implements PKCE (RFC 7636) with S256 challenge method
+  - **Key Features**:
+    - **PKCE Support**: Full RFC 7636 implementation with S256 challenge method
+    - **Smart Defaults**: Minimal configuration required - all parameters optional
+    - **E2E Automation**: Complete flow automation for CI/CD and integration tests
+    - **Token Lifecycle**: Supports both initial authorization and token refresh
+    - **Debugging**: Comprehensive logging of all PKCE parameters and flow states
+    - **Persistence**: Credentials saved to temp files for cross-test retrieval
+  - **Security**: Development-only tool, binds to localhost only
 
 ### WebSocket Test Harness
 

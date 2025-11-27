@@ -7,19 +7,20 @@
 """
 OAuth Client Callback Stub - Development Testing Tool for PKCE
 
-This stub handles OAuth 2.0 Authorization Code Flow with PKCE. It generates
-PKCE parameters (code_verifier and code_challenge), initiates the OAuth flow,
-receives the authorization code, and exchanges it for tokens using the code_verifier.
+This stub provides a comprehensive OAuth 2.0 testing harness with PKCE support.
+It can handle manual flows (callback receiver) or fully automated end-to-end flows.
 
-PKCE Flow:
-1. Generate code_verifier (cryptographically random string)
-2. Compute code_challenge = BASE64URL(SHA256(code_verifier))
-3. Send code_challenge to authorization endpoint
-4. Receive authorization code
-5. Exchange code + code_verifier for tokens at token endpoint
+API Endpoints:
+1. POST /oauth/init - Initialize OAuth flow with PKCE parameters
+2. POST /refresh - Refresh access token using refresh token
+3. POST /flows/start - Start automated end-to-end OAuth flow
+4. GET /flows/{flow_id} - Poll flow status and retrieve tokens
+5. GET /creds?userid=<user> - Retrieve saved credentials for user
+6. GET /latest - Get latest OAuth callback data
+7. GET / - OAuth callback receiver (redirect from TMI server)
 
 Usage: make start-oauth-stub
-API: GET /creds?userid=<user> to retrieve saved credentials
+Docs: See function docstrings for endpoint details
 """
 
 import http.server
@@ -59,8 +60,17 @@ latest_oauth_credentials = {
 # Global storage for PKCE verifiers indexed by state parameter
 pkce_verifiers = {}
 
+# Global storage for OAuth flows (flow_id -> flow_data)
+oauth_flows = {}
+
 # Global logger instance
 logger = None
+
+# Default configuration
+DEFAULT_IDP = "test"
+DEFAULT_SCOPES = "openid profile email"
+DEFAULT_TMI_SERVER = "http://localhost:8080"
+DEFAULT_CALLBACK_URL = "http://localhost:8079/"
 
 
 class PKCEHelper:
@@ -96,6 +106,178 @@ class PKCEHelper:
         # Encode as base64url without padding
         challenge = base64.urlsafe_b64encode(digest).decode('utf-8').rstrip('=')
         return challenge
+
+
+def generate_state():
+    """Generate a cryptographically random state parameter for CSRF protection."""
+    return secrets.token_urlsafe(32)
+
+
+def build_authorization_url(idp, state, code_challenge, scopes, login_hint=None, tmi_server=None):
+    """
+    Build TMI OAuth authorization URL with all required parameters.
+
+    Args:
+        idp: OAuth provider ID (e.g., "test", "google")
+        state: CSRF protection state parameter
+        code_challenge: PKCE code challenge
+        scopes: Space-separated OAuth scopes
+        login_hint: Optional user identity hint for test provider
+        tmi_server: TMI server base URL (defaults to DEFAULT_TMI_SERVER)
+
+    Returns:
+        Complete authorization URL ready for browser redirect
+    """
+    if not tmi_server:
+        tmi_server = DEFAULT_TMI_SERVER
+
+    params = {
+        "idp": idp,
+        "scope": scopes,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+        "state": state,
+        "client_callback": DEFAULT_CALLBACK_URL,
+    }
+
+    if login_hint:
+        params["login_hint"] = login_hint
+
+    query_string = urllib.parse.urlencode(params)
+    return f"{tmi_server}/oauth2/authorize?{query_string}"
+
+
+def create_flow(userid=None, idp=None, scopes=None, state=None, code_verifier=None,
+                code_challenge=None, login_hint=None, tmi_server=None):
+    """
+    Create a new OAuth flow with generated or caller-provided parameters.
+
+    Args:
+        userid: Optional user identifier for credential storage
+        idp: OAuth provider (defaults to DEFAULT_IDP if not specified)
+        scopes: OAuth scopes (defaults to DEFAULT_SCOPES if not specified)
+        state: CSRF state (auto-generated if not specified)
+        code_verifier: PKCE verifier (auto-generated if not specified)
+        code_challenge: PKCE challenge (auto-generated from verifier if not specified)
+        login_hint: User identity hint for test provider
+        tmi_server: TMI server URL (defaults to DEFAULT_TMI_SERVER)
+
+    Returns:
+        Dictionary with flow_id, authorization_url, and flow metadata
+    """
+    global oauth_flows, pkce_verifiers
+
+    # Apply defaults for unspecified parameters
+    if not idp:
+        idp = DEFAULT_IDP
+    if not scopes:
+        scopes = DEFAULT_SCOPES
+    if not state:
+        state = generate_state()
+    if not code_verifier:
+        code_verifier = PKCEHelper.generate_code_verifier()
+    if not code_challenge:
+        code_challenge = PKCEHelper.generate_code_challenge(code_verifier)
+    if not tmi_server:
+        tmi_server = DEFAULT_TMI_SERVER
+
+    # Generate flow ID
+    flow_id = str(uuid.uuid4())
+
+    # Build authorization URL
+    authorization_url = build_authorization_url(
+        idp=idp,
+        state=state,
+        code_challenge=code_challenge,
+        scopes=scopes,
+        login_hint=login_hint or userid,
+        tmi_server=tmi_server
+    )
+
+    # Store PKCE verifier for token exchange
+    pkce_verifiers[state] = code_verifier
+
+    # Create flow record
+    flow_data = {
+        "flow_id": flow_id,
+        "userid": userid,
+        "idp": idp,
+        "scopes": scopes,
+        "state": state,
+        "code_verifier": code_verifier,
+        "code_challenge": code_challenge,
+        "authorization_url": authorization_url,
+        "tmi_server": tmi_server,
+        "status": "initialized",
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "authorization_code": None,
+        "tokens": None,
+        "error": None,
+    }
+
+    oauth_flows[flow_id] = flow_data
+
+    logger.info(f"Created OAuth flow {flow_id} for user {userid or 'anonymous'} with provider {idp}")
+
+    return flow_data
+
+
+def refresh_token(refresh_token_value, userid=None, idp=None, tmi_server=None):
+    """
+    Refresh access token using refresh token.
+
+    Args:
+        refresh_token_value: The refresh token from previous authorization
+        userid: Optional user identifier for logging
+        idp: OAuth provider (defaults to DEFAULT_IDP)
+        tmi_server: TMI server URL (defaults to DEFAULT_TMI_SERVER)
+
+    Returns:
+        Dictionary with new tokens or error information
+    """
+    if not idp:
+        idp = DEFAULT_IDP
+    if not tmi_server:
+        tmi_server = DEFAULT_TMI_SERVER
+
+    token_url = f"{tmi_server}/oauth2/refresh?idp={idp}"
+
+    try:
+        logger.info(f"Refreshing token for user {userid or 'anonymous'} with provider {idp}")
+
+        response = requests.post(
+            token_url,
+            json={"refresh_token": refresh_token_value},
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            token_data = response.json()
+            logger.info(f"Successfully refreshed token for user {userid or 'anonymous'}")
+            return {
+                "success": True,
+                "access_token": token_data.get("access_token"),
+                "refresh_token": token_data.get("refresh_token"),
+                "token_type": token_data.get("token_type", "Bearer"),
+                "expires_in": token_data.get("expires_in", 3600),
+            }
+        else:
+            error_msg = f"Token refresh failed: {response.status_code} - {response.text}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "status_code": response.status_code,
+            }
+
+    except Exception as e:
+        error_msg = f"Token refresh exception: {str(e)}"
+        logger.error(error_msg)
+        return {
+            "success": False,
+            "error": error_msg,
+        }
 
 
 def setup_logging():
@@ -260,6 +442,21 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                 logger.info(f"    Refresh Token: {refresh_token}")
                                 logger.info(f"    Token Type: {token_type}")
                                 logger.info(f"    Expires In: {expires_in}s")
+
+                                # Update flow record if this redirect belongs to a flow
+                                for fid, fdata in oauth_flows.items():
+                                    if fdata.get("state") == state:
+                                        oauth_flows[fid]["status"] = "completed"
+                                        oauth_flows[fid]["tokens"] = {
+                                            "access_token": access_token,
+                                            "refresh_token": refresh_token,
+                                            "token_type": token_type,
+                                            "expires_in": int(expires_in) if expires_in else 3600,
+                                        }
+                                        oauth_flows[fid]["error"] = None  # Clear any timeout errors
+                                        logger.info(f"  Updated flow {fid} with tokens")
+                                        break
+
                             else:
                                 logger.error(f"  Token exchange failed: {response.status_code} - {response.text}")
                                 # Fall back to storing just the code for client to handle
@@ -267,6 +464,15 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                 refresh_token = None
                                 token_type = "Bearer"
                                 expires_in = "3600"
+
+                                # Update flow record with error if this redirect belongs to a flow
+                                for fid, fdata in oauth_flows.items():
+                                    if fdata.get("state") == state:
+                                        oauth_flows[fid]["status"] = "error"
+                                        oauth_flows[fid]["error"] = f"Token exchange failed: {response.status_code}"
+                                        oauth_flows[fid]["authorization_code"] = code
+                                        logger.info(f"  Updated flow {fid} with error")
+                                        break
                                 
                         except Exception as e:
                             logger.error(f"  Failed to exchange authorization code: {e}")
@@ -399,7 +605,56 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 )
                 logger.info(f"Full response: {response_json}")
 
-            # Route 3: API endpoint to retrieve credentials for specific user (/creds)
+            # Route 3: API endpoint to poll OAuth flow status (/flows/{flow_id})
+            elif path.startswith("/flows/"):
+                # Extract flow_id from path
+                flow_id = path.split("/")[-1]
+
+                # Look up flow
+                flow_data = oauth_flows.get(flow_id)
+
+                if not flow_data:
+                    error_msg = f"Flow not found: {flow_id}"
+                    self.send_response(404)
+                    self.send_header("Content-type", "application/json")
+                    self.end_headers()
+                    error_response = {"error": error_msg}
+                    self.wfile.write(json.dumps(error_response).encode())
+                    logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 404 "{error_msg}"')
+                    return
+
+                # Build response based on flow status
+                response_data = {
+                    "flow_id": flow_data["flow_id"],
+                    "status": flow_data["status"],
+                    "created_at": flow_data["created_at"],
+                }
+
+                # Include tokens if available
+                if flow_data.get("tokens"):
+                    response_data["tokens"] = flow_data["tokens"]
+                    response_data["tokens_ready"] = True
+                else:
+                    response_data["tokens_ready"] = False
+
+                # Include error if any
+                if flow_data.get("error"):
+                    response_data["error"] = flow_data["error"]
+
+                # Include authorization code if present (for debugging)
+                if flow_data.get("authorization_code"):
+                    response_data["authorization_code"] = flow_data["authorization_code"]
+
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                response_json = json.dumps(response_data, indent=2)
+                self.wfile.write(response_json.encode())
+
+                logger.info(f"Flow {flow_id} status: {flow_data['status']}")
+                logger.info(f"Response: {response_json}")
+
+            # Route 4: API endpoint to retrieve credentials for specific user (/creds)
             elif path == "/creds":
                 # Extract userid parameter
                 userid_part = query_params.get("userid", [None])[0]
@@ -507,6 +762,195 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 # If we can't even send an error response, just log it
                 logger.error("Failed to send error response to client")
 
+    def do_POST(self):
+        """Handle POST requests for OAuth flow management endpoints."""
+        global oauth_flows
+
+        client_ip = self.client_address[0]
+        http_version = self.request_version
+        method = "POST"
+
+        try:
+            # Parse the URL path
+            parsed_url = urllib.parse.urlparse(self.path)
+            path = parsed_url.path
+
+            logger.info(f"INCOMING REQUEST: {method} {self.path}")
+            logger.info(f"  Path: {path}")
+
+            # Read request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            request_body = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else "{}"
+
+            try:
+                request_data = json.loads(request_body) if request_body else {}
+            except json.JSONDecodeError:
+                self.send_response(400)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                error_response = {"error": "Invalid JSON in request body"}
+                self.wfile.write(json.dumps(error_response).encode())
+                logger.error(f"Invalid JSON in request body: {request_body}")
+                return
+
+            logger.info(f"  Request data: {request_data}")
+
+            # Route 1: POST /oauth/init - Initialize OAuth flow with PKCE
+            if path == "/oauth/init":
+                # Extract parameters (all optional with smart defaults)
+                userid = request_data.get("userid")
+                idp = request_data.get("idp")
+                scopes = request_data.get("scopes")
+                state = request_data.get("state")
+                code_verifier = request_data.get("code_verifier")
+                code_challenge = request_data.get("code_challenge")
+                login_hint = request_data.get("login_hint")
+                tmi_server = request_data.get("tmi_server")
+
+                # Create flow with smart defaults
+                flow_data = create_flow(
+                    userid=userid,
+                    idp=idp,
+                    scopes=scopes,
+                    state=state,
+                    code_verifier=code_verifier,
+                    code_challenge=code_challenge,
+                    login_hint=login_hint,
+                    tmi_server=tmi_server
+                )
+
+                # Return initialization data (exclude sensitive verifier)
+                response_data = {
+                    "state": flow_data["state"],
+                    "code_challenge": flow_data["code_challenge"],
+                    "authorization_url": flow_data["authorization_url"],
+                    "idp": flow_data["idp"],
+                    "scopes": flow_data["scopes"],
+                }
+
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                response_json = json.dumps(response_data, indent=2)
+                self.wfile.write(response_json.encode())
+
+                logger.info(f"OAuth init successful for state {flow_data['state']}")
+                logger.info(f"Response: {response_json}")
+
+            # Route 2: POST /refresh - Refresh access token
+            elif path == "/refresh":
+                refresh_token_value = request_data.get("refresh_token")
+                userid = request_data.get("userid")
+                idp = request_data.get("idp")
+                tmi_server = request_data.get("tmi_server")
+
+                if not refresh_token_value:
+                    self.send_response(400)
+                    self.send_header("Content-type", "application/json")
+                    self.end_headers()
+                    error_response = {"error": "Missing required field: refresh_token"}
+                    self.wfile.write(json.dumps(error_response).encode())
+                    logger.error("Missing refresh_token in request")
+                    return
+
+                # Call refresh helper
+                result = refresh_token(
+                    refresh_token_value=refresh_token_value,
+                    userid=userid,
+                    idp=idp,
+                    tmi_server=tmi_server
+                )
+
+                status_code = 200 if result.get("success") else result.get("status_code", 500)
+                self.send_response(status_code)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                response_json = json.dumps(result, indent=2)
+                self.wfile.write(response_json.encode())
+
+                logger.info(f"Token refresh result: {result.get('success')}")
+
+            # Route 3: POST /flows/start - Start automated e2e OAuth flow
+            elif path == "/flows/start":
+                # Extract parameters (all optional with smart defaults)
+                userid = request_data.get("userid")
+                idp = request_data.get("idp")
+                scopes = request_data.get("scopes")
+                login_hint = request_data.get("login_hint")
+                tmi_server = request_data.get("tmi_server")
+
+                # Create flow
+                flow_data = create_flow(
+                    userid=userid,
+                    idp=idp,
+                    scopes=scopes,
+                    login_hint=login_hint,
+                    tmi_server=tmi_server
+                )
+
+                flow_id = flow_data["flow_id"]
+
+                # Initiate authorization by fetching the authorization URL
+                # This simulates the user clicking the authorization link
+                try:
+                    auth_response = requests.get(flow_data["authorization_url"], allow_redirects=True, timeout=10)
+
+                    if auth_response.status_code == 200:
+                        # Authorization succeeded - the callback should have been triggered
+                        # Update flow status
+                        oauth_flows[flow_id]["status"] = "authorization_completed"
+                        logger.info(f"Flow {flow_id}: Authorization completed successfully")
+                    else:
+                        oauth_flows[flow_id]["status"] = "error"
+                        oauth_flows[flow_id]["error"] = f"Authorization failed: {auth_response.status_code}"
+                        logger.error(f"Flow {flow_id}: Authorization failed with status {auth_response.status_code}")
+
+                except Exception as e:
+                    oauth_flows[flow_id]["status"] = "error"
+                    oauth_flows[flow_id]["error"] = str(e)
+                    logger.error(f"Flow {flow_id}: Authorization request failed: {e}")
+
+                # Return flow info for polling
+                response_data = {
+                    "flow_id": flow_id,
+                    "status": oauth_flows[flow_id]["status"],
+                    "poll_url": f"/flows/{flow_id}",
+                }
+
+                if oauth_flows[flow_id].get("error"):
+                    response_data["error"] = oauth_flows[flow_id]["error"]
+
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                response_json = json.dumps(response_data, indent=2)
+                self.wfile.write(response_json.encode())
+
+                logger.info(f"Started flow {flow_id}")
+                logger.info(f"Response: {response_json}")
+
+            # Unknown POST route
+            else:
+                error_msg = f"Not Found: {path}"
+                self.send_response(404)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                error_response = {"error": error_msg}
+                self.wfile.write(json.dumps(error_response).encode())
+                logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 404 "{error_msg}"')
+
+        except Exception as e:
+            error_msg = f"Server error: {str(e)}"
+            logger.error(f"Error processing POST request: {str(e)}")
+
+            try:
+                self.send_response(500)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                error_response = {"error": error_msg}
+                self.wfile.write(json.dumps(error_response).encode())
+            except:
+                logger.error("Failed to send error response to client")
 
 
 def run_server(port):
