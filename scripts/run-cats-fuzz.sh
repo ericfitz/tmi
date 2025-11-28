@@ -13,6 +13,7 @@ OAUTH_STUB_URL="http://localhost:${OAUTH_STUB_PORT}"
 OPENAPI_SPEC="docs/reference/apis/tmi-openapi.json"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+HTTP_METHODS="POST,PUT,GET,DELETE,PATCH"
 
 # Colors for output
 RED='\033[0;31m'
@@ -76,6 +77,7 @@ check_prerequisites() {
     if ! command -v cats &> /dev/null; then
         error "CATS tool not found. Please install it first."
         error "See: https://github.com/Endava/cats"
+        error "On MacOS with Homebrew, use 'brew install cats'."
         exit 1
     fi
     
@@ -264,6 +266,7 @@ run_cats_fuzz() {
         "--contract=${PROJECT_ROOT}/${OPENAPI_SPEC}"
         "--server=${server}"
         "-H" "Authorization=Bearer ${token}"
+        "-X=${HTTP_METHODS}" 
     )
     
     log "Executing: ${cats_cmd[*]}"
