@@ -12,18 +12,7 @@
   "servers": [
     {
       "description": "Production server (HTTPS only)",
-      "url": "https://tmi.example.com",
-      "x-environment": "production"
-    },
-    {
-      "description": "Heroku deployment (HTTPS via TLS-terminating proxy)",
-      "url": "https://{app-name}.herokuapp.com",
-      "variables": {
-        "app-name": {
-          "default": "tmi-app",
-          "description": "Heroku application name"
-        }
-      },
+      "url": "https://api.tmi.dev",
       "x-environment": "production",
       "x-tls-termination": "proxy"
     },
