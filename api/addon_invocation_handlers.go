@@ -228,29 +228,41 @@ func GetInvocation(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	_, _, err = ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("Authentication failed: %v", err)
 		HandleRequestError(c, err)
 		return
 	}
 
-	// Get user ID
-	var userID uuid.UUID
-	if userIDInterface, exists := c.Get("userID"); exists {
-		if userIDStr, ok := userIDInterface.(string); ok {
-			userID, _ = uuid.Parse(userIDStr)
+	// Get user's internal UUID
+	var userInternalUUID uuid.UUID
+	if internalUUIDInterface, exists := c.Get("userInternalUUID"); exists {
+		if uuidVal, ok := internalUUIDInterface.(uuid.UUID); ok {
+			userInternalUUID = uuidVal
+		} else if uuidStr, ok := internalUUIDInterface.(string); ok {
+			userInternalUUID, _ = uuid.Parse(uuidStr)
 		}
 	}
 
 	// Check if user is admin
 	isAdmin := false
 	if GlobalAdministratorStore != nil {
-		var groups []string
+		provider := c.GetString("userProvider")
+		var groupNames []string
 		if groupsInterface, exists := c.Get("userGroups"); exists {
-			groups, _ = groupsInterface.([]string)
+			groupNames, _ = groupsInterface.([]string)
 		}
-		isAdmin, _ = GlobalAdministratorStore.IsAdmin(c.Request.Context(), &userID, userEmail, groups)
+
+		// Convert group names to UUIDs
+		var groupUUIDs []uuid.UUID
+		if dbStore, ok := GlobalAdministratorStore.(*AdministratorDatabaseStore); ok && len(groupNames) > 0 && provider != "" {
+			groupUUIDs, _ = dbStore.GetGroupUUIDsByNames(c.Request.Context(), provider, groupNames)
+		}
+
+		if provider != "" {
+			isAdmin, _ = GlobalAdministratorStore.IsAdmin(c.Request.Context(), &userInternalUUID, provider, groupUUIDs)
+		}
 	}
 
 	// Get invocation
@@ -266,9 +278,9 @@ func GetInvocation(c *gin.Context) {
 	}
 
 	// Authorization: user can only see their own invocations unless admin
-	if !isAdmin && invocation.InvokedByUUID != userID {
+	if !isAdmin && invocation.InvokedByUUID != userInternalUUID {
 		logger.Warn("User %s attempted to access invocation belonging to %s",
-			userID, invocation.InvokedByUUID)
+			userInternalUUID, invocation.InvokedByUUID)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusForbidden,
 			Code:    "forbidden",
@@ -288,29 +300,41 @@ func ListInvocations(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	_, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("Authentication failed: %v", err)
 		HandleRequestError(c, err)
 		return
 	}
 
-	// Get user ID
-	var userID uuid.UUID
-	if userIDInterface, exists := c.Get("userID"); exists {
-		if userIDStr, ok := userIDInterface.(string); ok {
-			userID, _ = uuid.Parse(userIDStr)
+	// Get user's internal UUID
+	var userInternalUUID uuid.UUID
+	if internalUUIDInterface, exists := c.Get("userInternalUUID"); exists {
+		if uuidVal, ok := internalUUIDInterface.(uuid.UUID); ok {
+			userInternalUUID = uuidVal
+		} else if uuidStr, ok := internalUUIDInterface.(string); ok {
+			userInternalUUID, _ = uuid.Parse(uuidStr)
 		}
 	}
 
 	// Check if user is admin
 	isAdmin := false
 	if GlobalAdministratorStore != nil {
-		var groups []string
+		provider := c.GetString("userProvider")
+		var groupNames []string
 		if groupsInterface, exists := c.Get("userGroups"); exists {
-			groups, _ = groupsInterface.([]string)
+			groupNames, _ = groupsInterface.([]string)
 		}
-		isAdmin, _ = GlobalAdministratorStore.IsAdmin(c.Request.Context(), &userID, userEmail, groups)
+
+		// Convert group names to UUIDs
+		var groupUUIDs []uuid.UUID
+		if dbStore, ok := GlobalAdministratorStore.(*AdministratorDatabaseStore); ok && len(groupNames) > 0 && provider != "" {
+			groupUUIDs, _ = dbStore.GetGroupUUIDsByNames(c.Request.Context(), provider, groupNames)
+		}
+
+		if provider != "" {
+			isAdmin, _ = GlobalAdministratorStore.IsAdmin(c.Request.Context(), &userInternalUUID, provider, groupUUIDs)
+		}
 	}
 
 	// Parse query parameters
@@ -336,7 +360,7 @@ func ListInvocations(c *gin.Context) {
 	// Filter by user unless admin
 	var filterUserID *uuid.UUID
 	if !isAdmin {
-		filterUserID = &userID
+		filterUserID = &userInternalUUID
 	}
 
 	// List invocations

@@ -187,7 +187,26 @@ operator:
   contact: "" # Operator contact info - email/URL (set via env var OPERATOR_CONTACT)
 
 administrators:
-  - subject: "admin@example.com" # Admin user email
-    subject_type: "user" # "user" or "group"
-  # - subject: "admins" # Example group-based admin
+  # Example: Administrator by Google provider ID (preferred method)
+  - provider: "google"                    # OAuth/SAML provider ID (required)
+    provider_id: "101155414856250184779"  # Provider's unique user ID (preferred)
+    email: "admin@example.com"            # Provider's email (optional, for reference)
+    subject_type: "user"                  # "user" or "group" (required)
+
+  # Example: Administrator by email when provider_id not available
+  # - provider: "github"
+  #   email: "admin@example.com"
+  #   subject_type: "user"
+
+  # Example: Group-based administrator
+  # - provider: "microsoft"
+  #   group_name: "platform-admins"
   #   subject_type: "group"
+
+# For Heroku deployments (single administrator only):
+# Set environment variables instead of YAML:
+#   TMI_ADMIN_PROVIDER=google
+#   TMI_ADMIN_PROVIDER_ID=101155414856250184779
+#   TMI_ADMIN_EMAIL=admin@example.com  # Optional
+#   TMI_ADMIN_SUBJECT_TYPE=user  # or "group"
+#   TMI_ADMIN_GROUP_NAME=group-name  # Only for groups

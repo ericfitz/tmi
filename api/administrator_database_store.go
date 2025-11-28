@@ -24,48 +24,59 @@ func (s *AdministratorDatabaseStore) Create(ctx context.Context, admin Administr
 	logger := slogging.Get()
 
 	query := `
-		INSERT INTO administrators (user_id, subject, subject_type, granted_at, granted_by, notes)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (user_id, subject, subject_type) DO UPDATE
+		INSERT INTO administrators (id, user_internal_uuid, group_internal_uuid, subject_type, provider, granted_at, granted_by_internal_uuid, notes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (user_internal_uuid, subject_type) WHERE user_internal_uuid IS NOT NULL DO UPDATE
 		SET granted_at = EXCLUDED.granted_at,
-			granted_by = EXCLUDED.granted_by,
+			granted_by_internal_uuid = EXCLUDED.granted_by_internal_uuid,
+			notes = EXCLUDED.notes
+		ON CONFLICT (group_internal_uuid, subject_type, provider) WHERE group_internal_uuid IS NOT NULL DO UPDATE
+		SET granted_at = EXCLUDED.granted_at,
+			granted_by_internal_uuid = EXCLUDED.granted_by_internal_uuid,
 			notes = EXCLUDED.notes
 	`
 
+	// Generate ID if not set
+	id := admin.ID
+	if id == uuid.Nil {
+		id = uuid.New()
+	}
+
 	_, err := s.db.ExecContext(ctx, query,
-		admin.UserID,
-		admin.Subject,
+		id,
+		admin.UserInternalUUID,
+		admin.GroupInternalUUID,
 		admin.SubjectType,
+		admin.Provider,
 		admin.GrantedAt,
 		admin.GrantedBy,
 		admin.Notes,
 	)
 
 	if err != nil {
-		logger.Error("Failed to create administrator entry: subject=%s, type=%s, error=%v",
-			admin.Subject, admin.SubjectType, err)
+		logger.Error("Failed to create administrator entry: type=%s, provider=%s, user_uuid=%v, group_uuid=%v, error=%v",
+			admin.SubjectType, admin.Provider, admin.UserInternalUUID, admin.GroupInternalUUID, err)
 		return fmt.Errorf("failed to create administrator: %w", err)
 	}
 
-	logger.Info("Administrator created: subject=%s, type=%s, user_id=%s",
-		admin.Subject, admin.SubjectType, admin.UserID)
+	logger.Info("Administrator created: type=%s, provider=%s, user_uuid=%v, group_uuid=%v",
+		admin.SubjectType, admin.Provider, admin.UserInternalUUID, admin.GroupInternalUUID)
 
 	return nil
 }
 
-// Delete removes an administrator entry
-func (s *AdministratorDatabaseStore) Delete(ctx context.Context, userID uuid.UUID, subject string, subjectType string) error {
+// Delete removes an administrator entry by ID
+func (s *AdministratorDatabaseStore) Delete(ctx context.Context, id uuid.UUID) error {
 	logger := slogging.Get()
 
 	query := `
 		DELETE FROM administrators
-		WHERE user_id = $1 AND subject = $2 AND subject_type = $3
+		WHERE id = $1
 	`
 
-	result, err := s.db.ExecContext(ctx, query, userID, subject, subjectType)
+	result, err := s.db.ExecContext(ctx, query, id)
 	if err != nil {
-		logger.Error("Failed to delete administrator entry: subject=%s, type=%s, error=%v",
-			subject, subjectType, err)
+		logger.Error("Failed to delete administrator entry: id=%s, error=%v", id, err)
 		return fmt.Errorf("failed to delete administrator: %w", err)
 	}
 
@@ -76,11 +87,10 @@ func (s *AdministratorDatabaseStore) Delete(ctx context.Context, userID uuid.UUI
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("administrator not found: subject=%s, type=%s", subject, subjectType)
+		return fmt.Errorf("administrator not found: id=%s", id)
 	}
 
-	logger.Info("Administrator deleted: subject=%s, type=%s, user_id=%s",
-		subject, subjectType, userID)
+	logger.Info("Administrator deleted: id=%s", id)
 
 	return nil
 }
@@ -90,9 +100,9 @@ func (s *AdministratorDatabaseStore) List(ctx context.Context) ([]Administrator,
 	logger := slogging.Get()
 
 	query := `
-		SELECT user_id, subject, subject_type, granted_at, granted_by, notes
+		SELECT id, user_internal_uuid, group_internal_uuid, subject_type, provider, granted_at, granted_by_internal_uuid, notes
 		FROM administrators
-		ORDER BY granted_at DESC, subject ASC
+		ORDER BY granted_at DESC
 	`
 
 	rows, err := s.db.QueryContext(ctx, query)
@@ -109,13 +119,17 @@ func (s *AdministratorDatabaseStore) List(ctx context.Context) ([]Administrator,
 	var administrators []Administrator
 	for rows.Next() {
 		var admin Administrator
+		var userUUID sql.NullString
+		var groupUUID sql.NullString
 		var grantedBy sql.NullString
 		var notes sql.NullString
 
 		err := rows.Scan(
-			&admin.UserID,
-			&admin.Subject,
+			&admin.ID,
+			&userUUID,
+			&groupUUID,
 			&admin.SubjectType,
+			&admin.Provider,
 			&admin.GrantedAt,
 			&grantedBy,
 			&notes,
@@ -125,11 +139,23 @@ func (s *AdministratorDatabaseStore) List(ctx context.Context) ([]Administrator,
 			return nil, fmt.Errorf("failed to scan administrator: %w", err)
 		}
 
-		// Handle nullable fields
-		if grantedBy.Valid {
-			grantedByUUID, err := uuid.Parse(grantedBy.String)
+		// Handle nullable UUIDs
+		if userUUID.Valid {
+			parsedUUID, err := uuid.Parse(userUUID.String)
 			if err == nil {
-				admin.GrantedBy = &grantedByUUID
+				admin.UserInternalUUID = &parsedUUID
+			}
+		}
+		if groupUUID.Valid {
+			parsedUUID, err := uuid.Parse(groupUUID.String)
+			if err == nil {
+				admin.GroupInternalUUID = &parsedUUID
+			}
+		}
+		if grantedBy.Valid {
+			parsedUUID, err := uuid.Parse(grantedBy.String)
+			if err == nil {
+				admin.GrantedBy = &parsedUUID
 			}
 		}
 		if notes.Valid {
@@ -149,52 +175,60 @@ func (s *AdministratorDatabaseStore) List(ctx context.Context) ([]Administrator,
 	return administrators, nil
 }
 
-// IsAdmin checks if a user (by email or UUID) or any of their groups is an administrator
-func (s *AdministratorDatabaseStore) IsAdmin(ctx context.Context, userID *uuid.UUID, email string, groups []string) (bool, error) {
+// IsAdmin checks if a user or any of their groups is an administrator
+// Checks by user UUID and provider, or by group UUIDs and provider
+func (s *AdministratorDatabaseStore) IsAdmin(ctx context.Context, userUUID *uuid.UUID, provider string, groupUUIDs []uuid.UUID) (bool, error) {
 	logger := slogging.Get()
 
 	// Build query to check:
-	// 1. User by email (subject_type='user' AND subject=email)
-	// 2. User by UUID (subject_type='user' AND user_id=uuid)
-	// 3. Any group membership (subject_type='group' AND subject IN groups)
+	// 1. User by UUID and provider (subject_type='user' AND user_internal_uuid=uuid AND provider=provider)
+	// 2. Any group by UUID and provider (subject_type='group' AND group_internal_uuid IN groupUUIDs AND provider=provider)
 
 	query := `
 		SELECT EXISTS (
 			SELECT 1 FROM administrators
-			WHERE (subject_type = 'user' AND (subject = $1 OR ($2::uuid IS NOT NULL AND user_id = $2)))
-			   OR (subject_type = 'group' AND subject = ANY($3))
+			WHERE provider = $1
+			AND (
+				(subject_type = 'user' AND $2::uuid IS NOT NULL AND user_internal_uuid = $2)
+				OR (subject_type = 'group' AND group_internal_uuid = ANY($3))
+			)
 		)
 	`
 
 	var isAdmin bool
-	err := s.db.QueryRowContext(ctx, query, email, userID, pqStringArray(groups)).Scan(&isAdmin)
+	err := s.db.QueryRowContext(ctx, query, provider, userUUID, pqUUIDArray(groupUUIDs)).Scan(&isAdmin)
 	if err != nil {
-		logger.Error("Failed to check admin status for email=%s, user_id=%v, groups=%v: %v",
-			email, userID, groups, err)
+		logger.Error("Failed to check admin status for user_uuid=%v, provider=%s, groups=%v: %v",
+			userUUID, provider, groupUUIDs, err)
 		return false, fmt.Errorf("failed to check admin status: %w", err)
 	}
 
-	logger.Debug("Admin check: email=%s, user_id=%v, groups=%v, is_admin=%t",
-		email, userID, groups, isAdmin)
+	logger.Debug("Admin check: user_uuid=%v, provider=%s, groups=%v, is_admin=%t",
+		userUUID, provider, groupUUIDs, isAdmin)
 
 	return isAdmin, nil
 }
 
-// GetBySubject retrieves administrator entries by subject (email or group)
-func (s *AdministratorDatabaseStore) GetBySubject(ctx context.Context, subject string) ([]Administrator, error) {
+// GetByPrincipal retrieves administrator entries by user or group UUID
+func (s *AdministratorDatabaseStore) GetByPrincipal(ctx context.Context, userUUID *uuid.UUID, groupUUID *uuid.UUID, provider string) ([]Administrator, error) {
 	logger := slogging.Get()
 
 	query := `
-		SELECT user_id, subject, subject_type, granted_at, granted_by, notes
+		SELECT id, user_internal_uuid, group_internal_uuid, subject_type, provider, granted_at, granted_by_internal_uuid, notes
 		FROM administrators
-		WHERE subject = $1
+		WHERE provider = $1
+		AND (
+			($2::uuid IS NOT NULL AND user_internal_uuid = $2)
+			OR ($3::uuid IS NOT NULL AND group_internal_uuid = $3)
+		)
 		ORDER BY granted_at DESC
 	`
 
-	rows, err := s.db.QueryContext(ctx, query, subject)
+	rows, err := s.db.QueryContext(ctx, query, provider, userUUID, groupUUID)
 	if err != nil {
-		logger.Error("Failed to get administrators by subject=%s: %v", subject, err)
-		return nil, fmt.Errorf("failed to get administrators by subject: %w", err)
+		logger.Error("Failed to get administrators by principal: user_uuid=%v, group_uuid=%v, provider=%s, error=%v",
+			userUUID, groupUUID, provider, err)
+		return nil, fmt.Errorf("failed to get administrators by principal: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
@@ -205,13 +239,17 @@ func (s *AdministratorDatabaseStore) GetBySubject(ctx context.Context, subject s
 	var administrators []Administrator
 	for rows.Next() {
 		var admin Administrator
+		var userUUIDCol sql.NullString
+		var groupUUIDCol sql.NullString
 		var grantedBy sql.NullString
 		var notes sql.NullString
 
 		err := rows.Scan(
-			&admin.UserID,
-			&admin.Subject,
+			&admin.ID,
+			&userUUIDCol,
+			&groupUUIDCol,
 			&admin.SubjectType,
+			&admin.Provider,
 			&admin.GrantedAt,
 			&grantedBy,
 			&notes,
@@ -221,11 +259,23 @@ func (s *AdministratorDatabaseStore) GetBySubject(ctx context.Context, subject s
 			return nil, fmt.Errorf("failed to scan administrator: %w", err)
 		}
 
-		// Handle nullable fields
-		if grantedBy.Valid {
-			grantedByUUID, err := uuid.Parse(grantedBy.String)
+		// Handle nullable UUIDs
+		if userUUIDCol.Valid {
+			parsedUUID, err := uuid.Parse(userUUIDCol.String)
 			if err == nil {
-				admin.GrantedBy = &grantedByUUID
+				admin.UserInternalUUID = &parsedUUID
+			}
+		}
+		if groupUUIDCol.Valid {
+			parsedUUID, err := uuid.Parse(groupUUIDCol.String)
+			if err == nil {
+				admin.GroupInternalUUID = &parsedUUID
+			}
+		}
+		if grantedBy.Valid {
+			parsedUUID, err := uuid.Parse(grantedBy.String)
+			if err == nil {
+				admin.GrantedBy = &parsedUUID
 			}
 		}
 		if notes.Valid {
@@ -240,13 +290,75 @@ func (s *AdministratorDatabaseStore) GetBySubject(ctx context.Context, subject s
 		return nil, fmt.Errorf("error iterating administrators: %w", err)
 	}
 
-	logger.Debug("Found %d administrators for subject=%s", len(administrators), subject)
+	logger.Debug("Found %d administrators for user_uuid=%v, group_uuid=%v, provider=%s",
+		len(administrators), userUUID, groupUUID, provider)
 
 	return administrators, nil
 }
 
+// GetGroupUUIDsByNames looks up group UUIDs from group names for a given provider
+// This is a helper function for middleware/handlers that receive group names from JWT
+func (s *AdministratorDatabaseStore) GetGroupUUIDsByNames(ctx context.Context, provider string, groupNames []string) ([]uuid.UUID, error) {
+	if len(groupNames) == 0 {
+		return []uuid.UUID{}, nil
+	}
+
+	logger := slogging.Get()
+
+	query := `
+		SELECT internal_uuid
+		FROM groups
+		WHERE provider = $1
+		AND group_name = ANY($2)
+	`
+
+	rows, err := s.db.QueryContext(ctx, query, provider, pqStringArray(groupNames))
+	if err != nil {
+		logger.Error("Failed to look up group UUIDs: provider=%s, group_names=%v, error=%v",
+			provider, groupNames, err)
+		return nil, fmt.Errorf("failed to look up group UUIDs: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			logger.Error("Failed to close rows: %v", closeErr)
+		}
+	}()
+
+	var groupUUIDs []uuid.UUID
+	for rows.Next() {
+		var groupUUID uuid.UUID
+		err := rows.Scan(&groupUUID)
+		if err != nil {
+			logger.Error("Failed to scan group UUID: %v", err)
+			return nil, fmt.Errorf("failed to scan group UUID: %w", err)
+		}
+		groupUUIDs = append(groupUUIDs, groupUUID)
+	}
+
+	if err = rows.Err(); err != nil {
+		logger.Error("Error iterating group UUID rows: %v", err)
+		return nil, fmt.Errorf("error iterating group UUIDs: %w", err)
+	}
+
+	logger.Debug("Looked up %d group UUIDs from %d group names for provider %s",
+		len(groupUUIDs), len(groupNames), provider)
+
+	return groupUUIDs, nil
+}
+
 // pqStringArray converts a Go string slice to a PostgreSQL-compatible array format
 func pqStringArray(arr []string) interface{} {
+	if arr == nil {
+		return nil
+	}
+	if len(arr) == 0 {
+		return "{}"
+	}
+	return arr
+}
+
+// pqUUIDArray converts a Go UUID slice to a PostgreSQL-compatible array format
+func pqUUIDArray(arr []uuid.UUID) interface{} {
 	if arr == nil {
 		return nil
 	}

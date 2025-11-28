@@ -20,6 +20,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
@@ -1008,6 +1009,12 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		os.Exit(1)
 	}
 
+	// Initialize administrators from configuration
+	if err := initializeAdministrators(config, dbManager.Postgres().GetDB()); err != nil {
+		logger.Error("Failed to initialize administrators: %v", err)
+		os.Exit(1)
+	}
+
 	// Initialize performance monitoring
 	logger.Info("Initializing performance monitoring for collaborative editing")
 	api.InitializePerformanceMonitoring()
@@ -1259,6 +1266,102 @@ func ensureEveryonePseudoGroup(db *sql.DB) error {
 
 	logger.Info("Everyone pseudo-group verified/created successfully")
 	return nil
+}
+
+// initializeAdministrators initializes administrators from configuration
+func initializeAdministrators(cfg *config.Config, db *sql.DB) error {
+	logger := slogging.Get()
+	logger.Info("Initializing administrators from configuration")
+
+	if len(cfg.Administrators) == 0 {
+		logger.Warn("No administrators configured - add at least one admin to manage the system")
+		return nil
+	}
+
+	ctx := context.Background()
+	store := api.NewAdministratorDatabaseStore(db)
+
+	for i, adminCfg := range cfg.Administrators {
+		logger.Debug("Processing administrator config[%d]: provider=%s, type=%s", i, adminCfg.Provider, adminCfg.SubjectType)
+
+		var userUUID *uuid.UUID
+		var groupUUID *uuid.UUID
+
+		if adminCfg.SubjectType == "user" {
+			// Look up user by provider + (provider_id OR email)
+			user, err := findUserByProviderIdentity(ctx, db, adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email)
+			if err != nil {
+				logger.Warn("Could not find user for admin config[%d], will be granted admin on first login: provider=%s, provider_id=%s, email=%s",
+					i, adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email)
+				// User doesn't exist yet - they'll become admin on first login
+				// We'll create a placeholder entry that will be updated when they log in
+				continue
+			}
+			userUUID = &user
+		} else if adminCfg.SubjectType == "group" {
+			// Look up group by provider + group_name
+			group, err := findGroupByProviderAndName(ctx, db, adminCfg.Provider, adminCfg.GroupName)
+			if err != nil {
+				logger.Warn("Could not find group for admin config[%d]: provider=%s, group_name=%s, error=%v",
+					i, adminCfg.Provider, adminCfg.GroupName, err)
+				// Group doesn't exist yet - it will be created when first referenced
+				continue
+			}
+			groupUUID = &group
+		}
+
+		// Create administrator entry
+		admin := api.Administrator{
+			ID:                uuid.New(),
+			UserInternalUUID:  userUUID,
+			GroupInternalUUID: groupUUID,
+			SubjectType:       adminCfg.SubjectType,
+			Provider:          adminCfg.Provider,
+			GrantedAt:         time.Now(),
+			GrantedBy:         nil, // System-granted from config
+			Notes:             "Configured via YAML/environment",
+		}
+
+		if err := store.Create(ctx, admin); err != nil {
+			logger.Info("Administrator entry already exists or created: type=%s, provider=%s", adminCfg.SubjectType, adminCfg.Provider)
+		} else {
+			logger.Info("Administrator configured: type=%s, provider=%s, user_uuid=%v, group_uuid=%v",
+				adminCfg.SubjectType, adminCfg.Provider, userUUID, groupUUID)
+		}
+	}
+
+	logger.Info("Administrator initialization complete")
+	return nil
+}
+
+// findUserByProviderIdentity looks up a user by provider and provider_id or email
+func findUserByProviderIdentity(ctx context.Context, db *sql.DB, provider string, providerID string, email string) (uuid.UUID, error) {
+	query := `
+		SELECT internal_uuid FROM users
+		WHERE provider = $1
+		AND (
+			($2 != '' AND provider_user_id = $2)
+			OR ($3 != '' AND email = $3)
+		)
+		LIMIT 1
+	`
+
+	var userUUID uuid.UUID
+	err := db.QueryRowContext(ctx, query, provider, providerID, email).Scan(&userUUID)
+	return userUUID, err
+}
+
+// findGroupByProviderAndName looks up a group by provider and group_name
+func findGroupByProviderAndName(ctx context.Context, db *sql.DB, provider string, groupName string) (uuid.UUID, error) {
+	query := `
+		SELECT internal_uuid FROM groups
+		WHERE provider = $1 AND group_name = $2
+		LIMIT 1
+	`
+
+	var groupUUID uuid.UUID
+	err := db.QueryRowContext(ctx, query, provider, groupName).Scan(&groupUUID)
+	return groupUUID, err
 }
 
 func main() {

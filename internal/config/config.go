@@ -14,14 +14,24 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// AdministratorConfig represents a single administrator entry configuration
+type AdministratorConfig struct {
+	Provider    string `yaml:"provider"`              // OAuth/SAML provider ID (required)
+	ProviderId  string `yaml:"provider_id,omitempty"` // Provider's user ID (for users, preferred)
+	Email       string `yaml:"email,omitempty"`       // Provider's email (for users, fallback)
+	GroupName   string `yaml:"group_name,omitempty"`  // Group name (for groups)
+	SubjectType string `yaml:"subject_type"`          // "user" or "group" (required)
+}
+
 // Config holds all application configuration
 type Config struct {
-	Server    ServerConfig    `yaml:"server"`
-	Database  DatabaseConfig  `yaml:"database"`
-	Auth      AuthConfig      `yaml:"auth"`
-	WebSocket WebSocketConfig `yaml:"websocket"`
-	Logging   LoggingConfig   `yaml:"logging"`
-	Operator  OperatorConfig  `yaml:"operator"`
+	Server         ServerConfig          `yaml:"server"`
+	Database       DatabaseConfig        `yaml:"database"`
+	Auth           AuthConfig            `yaml:"auth"`
+	WebSocket      WebSocketConfig       `yaml:"websocket"`
+	Logging        LoggingConfig         `yaml:"logging"`
+	Operator       OperatorConfig        `yaml:"operator"`
+	Administrators []AdministratorConfig `yaml:"administrators"`
 }
 
 // ServerConfig holds HTTP server configuration
@@ -182,6 +192,29 @@ func Load(configFile string) (*Config, error) {
 	// Override with environment variables
 	if err := overrideWithEnv(config); err != nil {
 		return nil, fmt.Errorf("failed to override with environment variables: %w", err)
+	}
+
+	// Load single administrator from environment variables (Heroku-friendly)
+	if provider := os.Getenv("TMI_ADMIN_PROVIDER"); provider != "" {
+		adminConfig := AdministratorConfig{
+			Provider:    provider,
+			SubjectType: envutil.Get("TMI_ADMIN_SUBJECT_TYPE", "user"),
+		}
+
+		if providerID := os.Getenv("TMI_ADMIN_PROVIDER_ID"); providerID != "" {
+			adminConfig.ProviderId = providerID
+		}
+
+		if email := os.Getenv("TMI_ADMIN_EMAIL"); email != "" {
+			adminConfig.Email = email
+		}
+
+		if groupName := os.Getenv("TMI_ADMIN_GROUP_NAME"); groupName != "" {
+			adminConfig.GroupName = groupName
+		}
+
+		// Add to administrators list (append to any YAML-configured admins)
+		config.Administrators = append(config.Administrators, adminConfig)
 	}
 
 	// Validate configuration
@@ -664,6 +697,50 @@ func (c *Config) Validate() error {
 	// Validate WebSocket configuration
 	if c.WebSocket.InactivityTimeoutSeconds < 15 {
 		return fmt.Errorf("websocket inactivity timeout must be at least 15 seconds")
+	}
+
+	// Validate administrator configuration
+	for i, admin := range c.Administrators {
+		if admin.Provider == "" {
+			return fmt.Errorf("administrator[%d]: provider is required", i)
+		}
+
+		if admin.SubjectType != "user" && admin.SubjectType != "group" {
+			return fmt.Errorf("administrator[%d]: subject_type must be 'user' or 'group'", i)
+		}
+
+		switch admin.SubjectType {
+		case "user":
+			// For users, require either provider_id or email
+			if admin.ProviderId == "" && admin.Email == "" {
+				return fmt.Errorf("administrator[%d]: user-type admin must have either provider_id or email", i)
+			}
+		case "group":
+			// For groups, require group_name
+			if admin.GroupName == "" {
+				return fmt.Errorf("administrator[%d]: group-type admin must have group_name", i)
+			}
+		}
+
+		// Verify provider exists in configured OAuth/SAML providers
+		providerExists := false
+		for providerID, provider := range c.Auth.OAuth.Providers {
+			if providerID == admin.Provider && provider.Enabled {
+				providerExists = true
+				break
+			}
+		}
+		if !providerExists && c.Auth.SAML.Enabled {
+			for providerID, provider := range c.Auth.SAML.Providers {
+				if providerID == admin.Provider && provider.Enabled {
+					providerExists = true
+					break
+				}
+			}
+		}
+		if !providerExists {
+			return fmt.Errorf("administrator[%d]: provider '%s' is not configured or not enabled", i, admin.Provider)
+		}
 	}
 
 	return nil
