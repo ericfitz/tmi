@@ -1041,6 +1041,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		logger.Info("Initializing event emitter for webhook subscriptions")
 		api.InitializeEventEmitter(dbManager.Redis().GetClient(), "tmi:events")
 
+		// Initialize addon invocation store
+		logger.Info("Initializing addon invocation store")
+		api.GlobalAddonInvocationStore = api.NewAddonInvocationRedisStore(dbManager.Redis())
+
 		// Initialize rate limiters
 		logger.Info("Initializing API rate limiter")
 		apiServer.SetAPIRateLimiter(api.NewAPIRateLimiter(dbManager.Redis().GetClient(), api.GlobalUserAPIQuotaStore))

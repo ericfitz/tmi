@@ -11,7 +11,7 @@ DEFAULT_SERVER="http://localhost:8080"
 OAUTH_STUB_PORT=8079
 OAUTH_STUB_URL="http://localhost:${OAUTH_STUB_PORT}"
 OPENAPI_SPEC="docs/reference/apis/tmi-openapi.json"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(command dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 HTTP_METHODS="POST,PUT,GET,DELETE,PATCH"
 
@@ -43,7 +43,7 @@ usage() {
 }
 
 log() {
-    echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" >&2
+    echo -e "${BLUE}[$(command date '+%Y-%m-%d %H:%M:%S')]${NC} $1" >&2
 }
 
 error() {
@@ -60,7 +60,7 @@ warn() {
 
 cleanup() {
     log "Cleaning up..."
-    if pgrep -f "oauth-client-callback-stub" > /dev/null; then
+    if command pgrep -f "oauth-client-callback-stub" > /dev/null; then
         log "Stopping OAuth stub..."
         make -C "${PROJECT_ROOT}" stop-oauth-stub || true
     fi

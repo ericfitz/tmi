@@ -80,6 +80,7 @@ func InitializeDatabaseStores(db *sql.DB) {
 	GlobalWebhookQuotaStore = NewWebhookQuotaDatabaseStore(db)
 	GlobalWebhookUrlDenyListStore = NewWebhookUrlDenyListDatabaseStore(db)
 	GlobalUserAPIQuotaStore = NewUserAPIQuotaDatabaseStore(db)
+	GlobalAddonStore = NewAddonDatabaseStore(db)
 }
 
 // NOTE: InitializeInMemoryStores function removed - all stores now use database implementations
