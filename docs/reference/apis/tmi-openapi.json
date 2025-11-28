@@ -11,12 +11,6 @@
   },
   "servers": [
     {
-      "description": "Production server (HTTPS only)",
-      "url": "https://api.tmi.dev",
-      "x-environment": "production",
-      "x-tls-termination": "proxy"
-    },
-    {
       "description": "Local development server (HTTP on localhost only)",
       "url": "http://localhost:{port}",
       "variables": {
