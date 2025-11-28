@@ -445,11 +445,26 @@ func overrideOAuthProviders(mapField reflect.Value) error {
 		if val := os.Getenv(envPrefix + "ENABLED"); val != "" {
 			provider.Enabled = val == "true"
 		}
+		if val := os.Getenv(envPrefix + "ICON"); val != "" {
+			provider.Icon = val
+		}
 		if val := os.Getenv(envPrefix + "CLIENT_ID"); val != "" {
 			provider.ClientID = val
 		}
 		if val := os.Getenv(envPrefix + "CLIENT_SECRET"); val != "" {
 			provider.ClientSecret = val
+		}
+		if val := os.Getenv(envPrefix + "AUTHORIZATION_URL"); val != "" {
+			provider.AuthorizationURL = val
+		}
+		if val := os.Getenv(envPrefix + "TOKEN_URL"); val != "" {
+			provider.TokenURL = val
+		}
+		if val := os.Getenv(envPrefix + "ISSUER"); val != "" {
+			provider.Issuer = val
+		}
+		if val := os.Getenv(envPrefix + "JWKS_URL"); val != "" {
+			provider.JWKSURL = val
 		}
 
 		// Set the modified provider back to the map
