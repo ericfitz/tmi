@@ -71,6 +71,9 @@ func SecurityHeaders() gin.HandlerFunc {
 		// Referrer Policy
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 
+		// Cache-Control - Prevent caching of sensitive API responses
+		c.Header("Cache-Control", "no-store, no-cache, must-revalidate")
+
 		// Permissions Policy (replaces Feature-Policy)
 		c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 
@@ -804,4 +807,31 @@ func ValidateSubResourceAccessWriter(db *sql.DB, cache *CacheService) gin.Handle
 // ValidateSubResourceAccessOwner creates middleware for owner-only sub-resource access
 func ValidateSubResourceAccessOwner(db *sql.DB, cache *CacheService) gin.HandlerFunc {
 	return ValidateSubResourceAccess(db, cache, RoleOwner)
+}
+
+// JSONErrorHandler middleware converts plain text error responses to JSON format
+// This catches Gin framework errors that bypass application error handling
+func JSONErrorHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+
+		// After handlers execute, check if we have a plain text error response
+		status := c.Writer.Status()
+		if status >= 400 {
+			contentType := c.Writer.Header().Get("Content-Type")
+
+			// If no content type set or it's plain text, ensure JSON format
+			if contentType == "" || strings.Contains(contentType, "text/plain") {
+				// Set proper headers
+				c.Header("Content-Type", "application/json; charset=utf-8")
+				c.Header("Cache-Control", "no-store")
+
+				// Use standard error response format
+				c.JSON(status, Error{
+					Error:            http.StatusText(status),
+					ErrorDescription: "The request could not be processed",
+				})
+			}
+		}
+	}
 }

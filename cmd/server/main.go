@@ -931,9 +931,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		r.Use(slogging.RequestResponseLogger(requestConfig))
 	}
 
-	r.Use(slogging.Recoverer())  // Use our recoverer
-	r.Use(api.SecurityHeaders()) // Add security headers
-	r.Use(api.CORS())
+	r.Use(slogging.Recoverer())                         // Use our recoverer
+	r.Use(api.SecurityHeaders())                        // Add security headers
+	r.Use(api.CORS())                                   // Handle CORS
+	r.Use(api.JSONErrorHandler())                       // Convert plain text errors to JSON
 	r.Use(api.HSTSMiddleware(config.Server.TLSEnabled)) // Add HSTS when TLS is enabled
 	r.Use(api.ContextTimeout(30 * time.Second))
 
@@ -1154,6 +1155,21 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		logger.Info("Adding development-only endpoints")
 		r.GET("/dev/me", DevUserInfoHandler()) // Endpoint to check current user
 	}
+
+	// Handle unsupported HTTP methods with 405 Method Not Allowed
+	r.NoMethod(func(c *gin.Context) {
+		// Get allowed methods for this path (simplified - returns common methods)
+		allowHeader := "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+
+		c.Header("Allow", allowHeader)
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.Header("Cache-Control", "no-store")
+
+		c.JSON(http.StatusMethodNotAllowed, api.Error{
+			Error:            "method_not_allowed",
+			ErrorDescription: fmt.Sprintf("HTTP method %s is not allowed for this resource", c.Request.Method),
+		})
+	})
 
 	return r, apiServer
 }
