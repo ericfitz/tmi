@@ -81,6 +81,7 @@ func InitializeDatabaseStores(db *sql.DB) {
 	GlobalWebhookUrlDenyListStore = NewWebhookUrlDenyListDatabaseStore(db)
 	GlobalUserAPIQuotaStore = NewUserAPIQuotaDatabaseStore(db)
 	GlobalAddonStore = NewAddonDatabaseStore(db)
+	GlobalAdministratorStore = NewAdministratorDatabaseStore(db)
 }
 
 // NOTE: InitializeInMemoryStores function removed - all stores now use database implementations

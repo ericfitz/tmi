@@ -5,13 +5,18 @@
 
 set -euo pipefail
 
+# Ensure basic commands are available - prepend standard paths if not already there
+if [[ ":$PATH:" != *":/usr/bin:"* ]]; then
+    export PATH="/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$PATH"
+fi
+
 # Configuration
 DEFAULT_USER="charlie"
 DEFAULT_SERVER="http://localhost:8080"
 OAUTH_STUB_PORT=8079
 OAUTH_STUB_URL="http://localhost:${OAUTH_STUB_PORT}"
 OPENAPI_SPEC="docs/reference/apis/tmi-openapi.json"
-SCRIPT_DIR="$(cd "$(command dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 HTTP_METHODS="POST,PUT,GET,DELETE,PATCH"
 
@@ -43,7 +48,7 @@ usage() {
 }
 
 log() {
-    echo -e "${BLUE}[$(command date '+%Y-%m-%d %H:%M:%S')]${NC} $1" >&2
+    echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" >&2
 }
 
 error() {
@@ -60,7 +65,7 @@ warn() {
 
 cleanup() {
     log "Cleaning up..."
-    if command pgrep -f "oauth-client-callback-stub" > /dev/null; then
+    if pgrep -f "oauth-client-callback-stub" > /dev/null; then
         log "Stopping OAuth stub..."
         make -C "${PROJECT_ROOT}" stop-oauth-stub || true
     fi
@@ -100,7 +105,7 @@ restart_server_clean() {
     
     # Stop the server if it's running
     log "Stopping TMI server..."
-    make -C "${PROJECT_ROOT}" stop-server || true
+    PATH="$PATH" make -C "${PROJECT_ROOT}" stop-server || true
     
     # Clear log files
     log "Clearing log files..."
@@ -109,7 +114,7 @@ restart_server_clean() {
     
     # Start the server fresh
     log "Starting TMI server..."
-    make -C "${PROJECT_ROOT}" start-dev > /dev/null 2>&1 &
+    PATH="$PATH" make -C "${PROJECT_ROOT}" start-dev > /dev/null 2>&1 &
     
     # Wait for server to be ready
     log "Waiting for server to be ready..."
@@ -135,7 +140,7 @@ start_oauth_stub() {
     fi
     
     # Start the stub
-    make -C "${PROJECT_ROOT}" start-oauth-stub
+    PATH="$PATH" make -C "${PROJECT_ROOT}" start-oauth-stub
     
     # Wait for it to be ready
     for i in {1..10}; do

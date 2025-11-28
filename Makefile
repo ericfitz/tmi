@@ -3,6 +3,13 @@
 
 .PHONY: help list-targets
 
+# Use zsh as the shell with proper PATH
+SHELL := /bin/zsh
+.SHELLFLAGS := -c
+
+# Export PATH to all submakes and shell recipes
+export PATH := /usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$(PATH)
+
 # Default build target
 VERSION := 0.9.0
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "development")
@@ -779,18 +786,18 @@ cats-fuzz-custom:
 
 cats-fuzz-path:
 	$(call log_info,"Running CATS API fuzzing for specific endpoint path...")
-	@if [ -z "$(PATH)" ]; then \
-		echo -e "\033[0;31m[ERROR]\033[0m Please specify PATH variable: make cats-fuzz-path PATH=/addons"; \
+	@if [ -z "$(ENDPOINT)" ]; then \
+		echo -e "\033[0;31m[ERROR]\033[0m Please specify ENDPOINT variable: make cats-fuzz-path ENDPOINT=/addons"; \
 		exit 1; \
 	fi
-	@./scripts/run-cats-fuzz.sh -p "$(PATH)"
+	@./scripts/run-cats-fuzz.sh -p "$(ENDPOINT)"
 
 cats-fuzz-full:
 	$(call log_info,"Running CATS API fuzzing with all custom options...")
 	@ARGS=""; \
 	if [ -n "$(USER)" ]; then ARGS="$$ARGS -u $(USER)"; fi; \
 	if [ -n "$(SERVER)" ]; then ARGS="$$ARGS -s $(SERVER)"; fi; \
-	if [ -n "$(PATH)" ]; then ARGS="$$ARGS -p $(PATH)"; fi; \
+	if [ -n "$(ENDPOINT)" ]; then ARGS="$$ARGS -p $(ENDPOINT)"; fi; \
 	./scripts/run-cats-fuzz.sh $$ARGS
 
 .PHONY: parse-cats-results
