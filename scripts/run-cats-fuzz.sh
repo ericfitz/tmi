@@ -28,11 +28,14 @@ usage() {
     echo "Options:"
     echo "  -u, --user USER      OAuth user login hint (default: ${DEFAULT_USER})"
     echo "  -s, --server URL     TMI server URL (default: ${DEFAULT_SERVER})"
+    echo "  -p, --path PATH      Restrict to specific endpoint path (e.g., /addons, /invocations)"
     echo "  -h, --help           Show this help message"
     echo ""
     echo "Examples:"
     echo "  $0                                    # Use defaults (charlie, localhost:8080)"
     echo "  $0 -u alice -s http://localhost:8080  # Custom user and server"
+    echo "  $0 -p /addons                         # Only test /addons endpoints"
+    echo "  $0 -p /invocations -u alice           # Only test /invocations with user alice"
     echo ""
     echo "Prerequisites:"
     echo "  - TMI server running (make start-dev)"
@@ -252,25 +255,32 @@ EOF
 run_cats_fuzz() {
     local token="$1"
     local server="$2"
-    
+    local path="${3:-}"
+
     log "Running CATS fuzzing..."
     log "Server: ${server}"
     log "OpenAPI Spec: ${OPENAPI_SPEC}"
-    
+
     # Export token as environment variable
     export TMI_ACCESS_TOKEN="${token}"
-    
+
     # Construct and run CATS command
     local cats_cmd=(
         "cats"
         "--contract=${PROJECT_ROOT}/${OPENAPI_SPEC}"
         "--server=${server}"
         "-H" "Authorization=Bearer ${token}"
-        "-X=${HTTP_METHODS}" 
+        "-X=${HTTP_METHODS}"
     )
-    
+
+    # Add path filter if specified
+    if [[ -n "${path}" ]]; then
+        log "Restricting to endpoint path: ${path}"
+        cats_cmd+=("--paths=${path}")
+    fi
+
     log "Executing: ${cats_cmd[*]}"
-    
+
     # Run CATS with the token
     "${cats_cmd[@]}"
 }
@@ -278,7 +288,8 @@ run_cats_fuzz() {
 main() {
     local user="${DEFAULT_USER}"
     local server="${DEFAULT_SERVER}"
-    
+    local path=""
+
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -288,6 +299,10 @@ main() {
                 ;;
             -s|--server)
                 server="$2"
+                shift 2
+                ;;
+            -p|--path)
+                path="$2"
                 shift 2
                 ;;
             -h|--help)
@@ -301,23 +316,26 @@ main() {
                 ;;
         esac
     done
-    
+
     # Set up cleanup trap
     trap cleanup EXIT
-    
+
     log "Starting CATS fuzzing with OAuth integration"
     log "User: ${user}"
     log "Server: ${server}"
-    
+    if [[ -n "${path}" ]]; then
+        log "Path filter: ${path}"
+    fi
+
     check_prerequisites
     restart_server_clean "${server}"
     start_oauth_stub
-    
+
     local access_token
     access_token=$(authenticate_user "${user}" "${server}")
-    
-    run_cats_fuzz "${access_token}" "${server}"
-    
+
+    run_cats_fuzz "${access_token}" "${server}" "${path}"
+
     success "CATS fuzzing completed!"
 }
 

@@ -742,7 +742,7 @@ check-oauth-stub:
 # CATS FUZZING - API Security Testing
 # ============================================================================
 
-.PHONY: cats-fuzz
+.PHONY: cats-fuzz cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full
 cats-fuzz:
 	$(call log_info,"Running CATS API fuzzing with OAuth authentication...")
 	@if ! command -v cats >/dev/null 2>&1; then \
@@ -776,6 +776,22 @@ cats-fuzz-custom:
 		exit 1; \
 	fi
 	@./scripts/run-cats-fuzz.sh -u "$(USER)" -s "$(SERVER)"
+
+cats-fuzz-path:
+	$(call log_info,"Running CATS API fuzzing for specific endpoint path...")
+	@if [ -z "$(PATH)" ]; then \
+		echo -e "\033[0;31m[ERROR]\033[0m Please specify PATH variable: make cats-fuzz-path PATH=/addons"; \
+		exit 1; \
+	fi
+	@./scripts/run-cats-fuzz.sh -p "$(PATH)"
+
+cats-fuzz-full:
+	$(call log_info,"Running CATS API fuzzing with all custom options...")
+	@ARGS=""; \
+	if [ -n "$(USER)" ]; then ARGS="$$ARGS -u $(USER)"; fi; \
+	if [ -n "$(SERVER)" ]; then ARGS="$$ARGS -s $(SERVER)"; fi; \
+	if [ -n "$(PATH)" ]; then ARGS="$$ARGS -p $(PATH)"; fi; \
+	./scripts/run-cats-fuzz.sh $$ARGS
 
 .PHONY: parse-cats-results
 parse-cats-results:  ## Parse CATS test results into SQLite database
