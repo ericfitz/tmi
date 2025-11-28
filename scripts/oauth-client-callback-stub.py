@@ -369,6 +369,29 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 code = query_params.get("code", [None])[0]
                 state = query_params.get("state", [None])[0]
 
+                # Check if code is 'exit' to trigger graceful shutdown BEFORE any processing
+                if code == "exit":
+                    logger.info("Received 'exit' in code parameter, shutting down gracefully...")
+
+                    # Send simple response
+                    response_body = b"OAuth stub shutting down..."
+                    self.send_response(200)
+                    self.send_header("Content-type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(response_body)
+
+                    # Log API request
+                    client_ip = self.client_address[0]
+                    http_version = self.request_version
+                    logger.info(
+                        f'API request: {client_ip} {method} {self.path} {http_version} 200 "Shutdown requested"'
+                    )
+
+                    cleanup_temp_files()
+                    global should_exit
+                    should_exit = True
+                    return
+
                 # Extract additional OAuth parameters that may help identify the user
                 login_hint = query_params.get("login_hint", [None])[0]
 
@@ -553,14 +576,6 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 logger.info(
                     f'API request: {client_ip} {method} {self.path} {http_version} 200 "Redirect received. Check server logs for details."'
                 )
-
-                # Check if code is 'exit' to trigger graceful shutdown
-                if code == "exit":
-                    logger.info(
-                        "Received 'exit' in code parameter, shutting down gracefully..."
-                    )
-                    cleanup_temp_files()
-                    should_exit = True
 
             # Route 2: API endpoint to retrieve latest OAuth credentials (/latest)
             elif path == "/latest":
