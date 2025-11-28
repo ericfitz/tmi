@@ -748,6 +748,7 @@ cats-fuzz:
 	@if ! command -v cats >/dev/null 2>&1; then \
 		$(call log_error,"CATS tool not found. Please install it first."); \
 		$(call log_info,"See: https://github.com/Endava/cats"); \
+		$(call log_info,"On MacOS with Homebrew, use 'brew install cats'."); \
 		exit 1; \
 	fi
 	@./scripts/run-cats-fuzz.sh
