@@ -1115,6 +1115,13 @@ build-server-sbom: build-with-sbom
 validate-openapi:
 	$(call log_info,Validating OpenAPI specification...)
 	@uv run scripts/validate_openapi.py docs/reference/apis/tmi-openapi.json
+	@if command -v cats >/dev/null 2>&1; then \
+		echo -e "$(BLUE)[INFO]$(NC) Running CATS OpenAPI validation..."; \
+		cats validate -d -c docs/reference/apis/tmi-openapi.json; \
+	else \
+		echo -e "$(YELLOW)[WARNING]$(NC) CATS tool not found - skipping CATS validation"; \
+		echo -e "$(BLUE)[INFO]$(NC) Install with: brew install cats"; \
+	fi
 	$(call log_success,OpenAPI specification is valid)
 
 validate-asyncapi:

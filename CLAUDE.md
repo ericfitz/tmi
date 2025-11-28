@@ -121,7 +121,7 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 ### OpenAPI Schema Management
 
 - Use jq to selectively query or modify the openapi schema
-- Validate OpenAPI: `make validate-openapi [file=path/to/spec.json]` (validates OpenAPI specification with comprehensive JSON syntax and detailed analysis)
+- Validate OpenAPI: `make validate-openapi` (validates OpenAPI specification with comprehensive JSON syntax, detailed analysis, and CATS validation)
 
 ### OAuth Callback Stub
 
