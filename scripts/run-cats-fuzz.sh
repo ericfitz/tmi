@@ -149,73 +149,100 @@ start_oauth_stub() {
 authenticate_user() {
     local user="$1"
     local server="$2"
-    
+
     log "Authenticating user: ${user}"
-    
-    # Initiate OAuth flow with proper parameters
-    local auth_url="${server}/oauth2/authorize?idp=test&login_hint=${user}&client_callback=${OAUTH_STUB_URL}/&scope=openid"
-    log "Initiating OAuth flow: ${auth_url}"
-    
-    # Follow redirects to complete the OAuth flow
-    local response
-    if ! response=$(curl -s -L "${auth_url}"); then
-        error "Failed to initiate OAuth flow"
+
+    # Use the new /flows/start endpoint for automated e2e OAuth flow
+    local start_flow_url="${OAUTH_STUB_URL}/flows/start"
+    local flow_request=$(cat <<EOF
+{
+    "userid": "${user}",
+    "idp": "test",
+    "tmi_server": "${server}"
+}
+EOF
+)
+
+    log "Starting automated OAuth flow via ${start_flow_url}"
+
+    # Start the OAuth flow
+    local start_response
+    if ! start_response=$(curl -s -X POST "${start_flow_url}" \
+        -H "Content-Type: application/json" \
+        -d "${flow_request}"); then
+        error "Failed to start OAuth flow"
         exit 1
     fi
-    
-    log "OAuth flow initiated, response received"
-    
-    # Wait for the OAuth callback to be processed
-    log "Waiting for OAuth callback to be processed..."
-    sleep 2
-    
-    # Retrieve credentials with retry
-    local creds_url="${OAUTH_STUB_URL}/creds?userid=${user}"
-    log "Retrieving credentials from: ${creds_url}"
-    
-    local response
-    local retry_count=0
-    local max_retries=3
-    
-    while [ $retry_count -lt $max_retries ]; do
-        if response=$(curl -s "${creds_url}"); then
-            # Check if we got actual credentials (not an error response)
-            if echo "${response}" | grep -q '"access_token"'; then
-                break
-            elif echo "${response}" | grep -q '"error"'; then
-                log "No credentials yet, retrying... (attempt $((retry_count + 1))/${max_retries})"
-                sleep 2
-                retry_count=$((retry_count + 1))
-            else
-                error "Unexpected response format"
-                error "Response: ${response}"
-                exit 1
-            fi
-        else
-            error "Failed to retrieve credentials"
+
+    # Extract flow_id from response
+    local flow_id
+    if ! flow_id=$(echo "${start_response}" | jq -r '.flow_id // empty'); then
+        error "Failed to parse flow_id from response"
+        error "Response: ${start_response}"
+        exit 1
+    fi
+
+    if [[ -z "${flow_id}" || "${flow_id}" == "null" ]]; then
+        error "No flow_id found in response"
+        error "Response: ${start_response}"
+        exit 1
+    fi
+
+    log "Flow started with ID: ${flow_id}"
+
+    # Poll for flow completion
+    local poll_url="${OAUTH_STUB_URL}/flows/${flow_id}"
+    local max_attempts=10
+    local attempt=0
+    local poll_response
+
+    while [ $attempt -lt $max_attempts ]; do
+        attempt=$((attempt + 1))
+        log "Polling flow status (attempt ${attempt}/${max_attempts})..."
+
+        if ! poll_response=$(curl -s "${poll_url}"); then
+            error "Failed to poll flow status"
             exit 1
         fi
+
+        # Check flow status
+        local status
+        status=$(echo "${poll_response}" | jq -r '.status // empty')
+
+        if [[ "${status}" == "completed" ]]; then
+            log "Flow completed successfully"
+            break
+        elif [[ "${status}" == "error" ]]; then
+            local flow_error
+            flow_error=$(echo "${poll_response}" | jq -r '.error // "Unknown error"')
+            error "Flow failed: ${flow_error}"
+            exit 1
+        fi
+
+        # Wait before next poll
+        sleep 2
     done
-    
-    if [ $retry_count -eq $max_retries ]; then
-        error "Failed to retrieve credentials after ${max_retries} attempts"
-        error "Last response: ${response}"
+
+    if [ $attempt -eq $max_attempts ]; then
+        error "Flow did not complete within ${max_attempts} attempts"
+        error "Last status: $(echo "${poll_response}" | jq -r '.status')"
         exit 1
     fi
-    
-    # Extract access token
+
+    # Extract access token from completed flow
     local access_token
-    if ! access_token=$(echo "${response}" | jq -r '.access_token // empty'); then
-        error "Failed to parse credentials response"
+    if ! access_token=$(echo "${poll_response}" | jq -r '.tokens.access_token // empty'); then
+        error "Failed to extract access token from flow response"
+        error "Response: ${poll_response}"
         exit 1
     fi
-    
+
     if [[ -z "${access_token}" || "${access_token}" == "null" ]]; then
-        error "No access token found in response"
-        error "Response: ${response}"
+        error "No access token found in flow response"
+        error "Response: ${poll_response}"
         exit 1
     fi
-    
+
     success "Authentication successful for user: ${user}"
     echo "${access_token}"
 }
