@@ -777,6 +777,20 @@ cats-fuzz-custom:
 	fi
 	@./scripts/run-cats-fuzz.sh -u "$(USER)" -s "$(SERVER)"
 
+.PHONY: parse-cats-results
+parse-cats-results:  ## Parse CATS test results into SQLite database
+	$(call log_info,"Parsing CATS test results into SQLite database...")
+	@if [ ! -d "cats-report" ]; then \
+		$(call log_error,"cats-report/ directory not found. Run 'make cats-fuzz' first."); \
+		exit 1; \
+	fi
+	@uv run scripts/parse-cats-results.py \
+		--input cats-report/ \
+		--output cats-results.db \
+		--create-schema \
+		--batch-size 100
+	$(call log_success,"CATS results parsed to cats-results.db")
+
 
 # ============================================================================
 # CONTAINER SECURITY AND BUILD MANAGEMENT
