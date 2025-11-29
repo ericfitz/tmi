@@ -11,7 +11,9 @@ import (
 type Administrator struct {
 	ID                uuid.UUID  `json:"id"`
 	UserInternalUUID  *uuid.UUID `json:"user_internal_uuid,omitempty"`  // Populated for user-type admins
+	UserEmail         string     `json:"user_email,omitempty"`          // Enriched field - user's email
 	GroupInternalUUID *uuid.UUID `json:"group_internal_uuid,omitempty"` // Populated for group-type admins
+	GroupName         string     `json:"group_name,omitempty"`          // Enriched field - group's name
 	SubjectType       string     `json:"subject_type"`                  // "user" or "group"
 	Provider          string     `json:"provider"`                      // OAuth/SAML provider
 	GrantedAt         time.Time  `json:"granted_at"`

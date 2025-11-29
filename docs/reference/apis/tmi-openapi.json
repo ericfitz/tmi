@@ -4610,6 +4610,94 @@
           "acs_url"
         ],
         "additionalProperties": false
+      },
+      "Administrator": {
+        "type": "object",
+        "required": [
+          "id",
+          "provider",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Administrator grant identifier"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "User ID (if user-based grant)"
+          },
+          "user_email": {
+            "type": "string",
+            "nullable": true,
+            "description": "User email (enriched)"
+          },
+          "group_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Group ID (if group-based grant)"
+          },
+          "group_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Group name (enriched)"
+          },
+          "provider": {
+            "type": "string",
+            "description": "OAuth/SAML provider"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation timestamp"
+          }
+        }
+      },
+      "CreateAdministratorRequest": {
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "User ID to grant admin privileges (mutually exclusive with group_id)"
+          },
+          "group_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Group ID to grant admin privileges (mutually exclusive with user_id)"
+          },
+          "provider": {
+            "type": "string",
+            "description": "OAuth/SAML provider"
+          }
+        }
+      },
+      "ListAdministratorsResponse": {
+        "type": "object",
+        "required": [
+          "administrators",
+          "total"
+        ],
+        "properties": {
+          "administrators": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Administrator"
+            },
+            "description": "List of administrator grants"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of grants matching filter"
+          }
+        }
       }
     },
     "responses": {
@@ -17333,6 +17421,10 @@
     {
       "name": "webhooks",
       "description": "Webhook subscription management"
+    },
+    {
+      "name": "Administrators",
+      "description": "Administrator privilege management (admin-only endpoints)"
     }
   ]
 }

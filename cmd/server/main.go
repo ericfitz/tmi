@@ -1145,20 +1145,26 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	api.RegisterHandlers(r, apiServer)
 	logger.Info("[MAIN_MODULE] OpenAPI route registration completed")
 
-	// Register admin endpoints (protected by JWT middleware, admin role required)
-	adminGroup := r.Group("/admin/quotas")
+	// Register admin endpoints (protected by JWT middleware and administrator middleware)
+	adminGroup := r.Group("/admin")
+	adminGroup.Use(api.AdministratorMiddleware())
 	{
+		// Administrator management
+		adminGroup.GET("/administrators", apiServer.ListAdministrators)
+		adminGroup.POST("/administrators", apiServer.CreateAdministrator)
+		adminGroup.DELETE("/administrators/:id", apiServer.DeleteAdministrator)
+
 		// User API quota management
-		adminGroup.GET("/users/:user_id", apiServer.GetUserAPIQuota)
-		adminGroup.PUT("/users/:user_id", apiServer.UpdateUserAPIQuota)
-		adminGroup.DELETE("/users/:user_id", apiServer.DeleteUserAPIQuota)
+		adminGroup.GET("/quotas/users/:user_id", apiServer.GetUserAPIQuota)
+		adminGroup.PUT("/quotas/users/:user_id", apiServer.UpdateUserAPIQuota)
+		adminGroup.DELETE("/quotas/users/:user_id", apiServer.DeleteUserAPIQuota)
 
 		// Webhook quota management
-		adminGroup.GET("/webhooks/:user_id", apiServer.GetWebhookQuota)
-		adminGroup.PUT("/webhooks/:user_id", apiServer.UpdateWebhookQuota)
-		adminGroup.DELETE("/webhooks/:user_id", apiServer.DeleteWebhookQuota)
+		adminGroup.GET("/quotas/webhooks/:user_id", apiServer.GetWebhookQuota)
+		adminGroup.PUT("/quotas/webhooks/:user_id", apiServer.UpdateWebhookQuota)
+		adminGroup.DELETE("/quotas/webhooks/:user_id", apiServer.DeleteWebhookQuota)
 	}
-	logger.Info("Admin quota management endpoints registered")
+	logger.Info("Admin endpoints registered (administrators, quotas)")
 
 	// Add development routes when in dev mode
 	if config.Logging.IsDev {

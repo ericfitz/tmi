@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 // TokenExtractor handles extracting JWT tokens from requests
@@ -255,6 +257,7 @@ func (e *ClaimsExtractor) fetchAndSetUserObject(c *gin.Context) error {
 
 // JWTAuthenticator orchestrates the JWT authentication process
 type JWTAuthenticator struct {
+	config           *config.Config
 	tokenExtractor   *TokenExtractor
 	tokenValidator   *TokenValidator
 	blacklistChecker *TokenBlacklistChecker
@@ -264,6 +267,7 @@ type JWTAuthenticator struct {
 // NewJWTAuthenticator creates a new JWT authenticator
 func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers) *JWTAuthenticator {
 	return &JWTAuthenticator{
+		config:           cfg,
 		tokenExtractor:   &TokenExtractor{},
 		tokenValidator:   NewTokenValidator(authHandlers),
 		blacklistChecker: NewTokenBlacklistChecker(tokenBlacklist),
@@ -321,6 +325,74 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 			StatusCode:  http.StatusInternalServerError,
 		}
 	}
+
+	// Auto-promotion: If enabled and no administrators exist, promote first user
+	if a.config.Auth.AutoPromoteFirstUser {
+		if err := a.autoPromoteFirstUser(c, logger); err != nil {
+			logger.Warn("Auto-promotion check failed (non-fatal): %v", err)
+			// Don't fail authentication if auto-promotion fails - this is a best-effort feature
+		}
+	}
+
+	return nil
+}
+
+// autoPromoteFirstUser checks if any administrators exist and promotes the current user if none exist
+func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.SimpleLogger) error {
+	// Only check if GlobalAdministratorStore is initialized
+	if api.GlobalAdministratorStore == nil {
+		return fmt.Errorf("GlobalAdministratorStore not initialized")
+	}
+
+	// Check if this is a database store (required for HasAnyAdministrators)
+	dbStore, ok := api.GlobalAdministratorStore.(*api.AdministratorDatabaseStore)
+	if !ok {
+		return fmt.Errorf("GlobalAdministratorStore is not a database store")
+	}
+
+	// Check if any administrators exist
+	hasAdmins, err := dbStore.HasAnyAdministrators(c.Request.Context())
+	if err != nil {
+		return fmt.Errorf("failed to check for existing administrators: %w", err)
+	}
+
+	// If administrators already exist, no auto-promotion needed
+	if hasAdmins {
+		return nil
+	}
+
+	// Get current user information from context
+	userInternalUUID := c.GetString("userInternalUUID")
+	userEmail := c.GetString("userEmail")
+	provider := c.GetString("provider")
+
+	if userInternalUUID == "" || provider == "" {
+		return fmt.Errorf("missing user context (userInternalUUID or provider)")
+	}
+
+	// Parse user UUID
+	userUUID, err := uuid.Parse(userInternalUUID)
+	if err != nil {
+		return fmt.Errorf("invalid user UUID: %w", err)
+	}
+
+	// Create administrator grant for first user
+	admin := api.Administrator{
+		ID:               uuid.New(),
+		UserInternalUUID: &userUUID,
+		SubjectType:      "user",
+		Provider:         provider,
+		Notes:            "Auto-promoted as first administrator",
+	}
+
+	// Create the administrator grant
+	if err := api.GlobalAdministratorStore.Create(c.Request.Context(), admin); err != nil {
+		return fmt.Errorf("failed to create administrator grant: %w", err)
+	}
+
+	// AUDIT LOG: Log auto-promotion
+	logger.Info("[AUDIT] Auto-promoted first user to administrator: grant_id=%s, user_id=%s, email=%s, provider=%s",
+		admin.ID, userInternalUUID, userEmail, provider)
 
 	return nil
 }

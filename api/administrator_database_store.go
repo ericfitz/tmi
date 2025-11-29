@@ -367,3 +367,281 @@ func pqUUIDArray(arr []uuid.UUID) interface{} {
 	}
 	return arr
 }
+
+// Get retrieves a single administrator grant by ID
+func (s *AdministratorDatabaseStore) Get(ctx context.Context, id uuid.UUID) (*Administrator, error) {
+	logger := slogging.Get()
+
+	query := `
+		SELECT id, user_internal_uuid, group_internal_uuid, subject_type, provider, granted_at, granted_by_internal_uuid, notes
+		FROM administrators
+		WHERE id = $1
+	`
+
+	var admin Administrator
+	var userUUID sql.NullString
+	var groupUUID sql.NullString
+	var grantedBy sql.NullString
+	var notes sql.NullString
+
+	err := s.db.QueryRowContext(ctx, query, id).Scan(
+		&admin.ID,
+		&userUUID,
+		&groupUUID,
+		&admin.SubjectType,
+		&admin.Provider,
+		&admin.GrantedAt,
+		&grantedBy,
+		&notes,
+	)
+
+	if err == sql.ErrNoRows {
+		logger.Debug("Administrator not found: id=%s", id)
+		return nil, fmt.Errorf("administrator not found: id=%s", id)
+	}
+	if err != nil {
+		logger.Error("Failed to get administrator: id=%s, error=%v", id, err)
+		return nil, fmt.Errorf("failed to get administrator: %w", err)
+	}
+
+	// Handle nullable UUIDs
+	if userUUID.Valid {
+		parsedUUID, err := uuid.Parse(userUUID.String)
+		if err == nil {
+			admin.UserInternalUUID = &parsedUUID
+		}
+	}
+	if groupUUID.Valid {
+		parsedUUID, err := uuid.Parse(groupUUID.String)
+		if err == nil {
+			admin.GroupInternalUUID = &parsedUUID
+		}
+	}
+	if grantedBy.Valid {
+		parsedUUID, err := uuid.Parse(grantedBy.String)
+		if err == nil {
+			admin.GrantedBy = &parsedUUID
+		}
+	}
+	if notes.Valid {
+		admin.Notes = notes.String
+	}
+
+	logger.Debug("Retrieved administrator: id=%s", id)
+	return &admin, nil
+}
+
+// AdminFilter represents filtering criteria for listing administrators
+type AdminFilter struct {
+	Provider string     // Filter by provider (optional)
+	UserID   *uuid.UUID // Filter by user_id (optional)
+	GroupID  *uuid.UUID // Filter by group_id (optional)
+	Limit    int        // Pagination limit (default 50, max 100)
+	Offset   int        // Pagination offset (default 0)
+}
+
+// ListFiltered retrieves administrator grants with optional filtering
+func (s *AdministratorDatabaseStore) ListFiltered(ctx context.Context, filter AdminFilter) ([]Administrator, error) {
+	logger := slogging.Get()
+
+	// Build query dynamically based on filters
+	query := `
+		SELECT id, user_internal_uuid, group_internal_uuid, subject_type, provider, granted_at, granted_by_internal_uuid, notes
+		FROM administrators
+		WHERE 1=1
+	`
+	args := []interface{}{}
+	argIndex := 1
+
+	// Apply filters
+	if filter.Provider != "" {
+		query += fmt.Sprintf(" AND provider = $%d", argIndex)
+		args = append(args, filter.Provider)
+		argIndex++
+	}
+
+	if filter.UserID != nil {
+		query += fmt.Sprintf(" AND user_internal_uuid = $%d", argIndex)
+		args = append(args, filter.UserID)
+		argIndex++
+	}
+
+	if filter.GroupID != nil {
+		query += fmt.Sprintf(" AND group_internal_uuid = $%d", argIndex)
+		args = append(args, filter.GroupID)
+		argIndex++
+	}
+
+	// Add ordering and pagination
+	query += " ORDER BY granted_at DESC"
+
+	// Apply pagination limits
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50 // Default limit
+	}
+	if limit > 100 {
+		limit = 100 // Max limit
+	}
+
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+	args = append(args, limit, filter.Offset)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		logger.Error("Failed to list administrators with filter: %v", err)
+		return nil, fmt.Errorf("failed to list administrators: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			logger.Error("Failed to close rows: %v", closeErr)
+		}
+	}()
+
+	var administrators []Administrator
+	for rows.Next() {
+		var admin Administrator
+		var userUUID sql.NullString
+		var groupUUID sql.NullString
+		var grantedBy sql.NullString
+		var notes sql.NullString
+
+		err := rows.Scan(
+			&admin.ID,
+			&userUUID,
+			&groupUUID,
+			&admin.SubjectType,
+			&admin.Provider,
+			&admin.GrantedAt,
+			&grantedBy,
+			&notes,
+		)
+		if err != nil {
+			logger.Error("Failed to scan administrator row: %v", err)
+			return nil, fmt.Errorf("failed to scan administrator: %w", err)
+		}
+
+		// Handle nullable UUIDs
+		if userUUID.Valid {
+			parsedUUID, err := uuid.Parse(userUUID.String)
+			if err == nil {
+				admin.UserInternalUUID = &parsedUUID
+			}
+		}
+		if groupUUID.Valid {
+			parsedUUID, err := uuid.Parse(groupUUID.String)
+			if err == nil {
+				admin.GroupInternalUUID = &parsedUUID
+			}
+		}
+		if grantedBy.Valid {
+			parsedUUID, err := uuid.Parse(grantedBy.String)
+			if err == nil {
+				admin.GrantedBy = &parsedUUID
+			}
+		}
+		if notes.Valid {
+			admin.Notes = notes.String
+		}
+
+		administrators = append(administrators, admin)
+	}
+
+	if err = rows.Err(); err != nil {
+		logger.Error("Error iterating administrator rows: %v", err)
+		return nil, fmt.Errorf("error iterating administrators: %w", err)
+	}
+
+	logger.Debug("Listed %d administrators with filter", len(administrators))
+	return administrators, nil
+}
+
+// HasAnyAdministrators returns true if at least one administrator grant exists
+func (s *AdministratorDatabaseStore) HasAnyAdministrators(ctx context.Context) (bool, error) {
+	logger := slogging.Get()
+
+	query := `SELECT EXISTS(SELECT 1 FROM administrators LIMIT 1)`
+
+	var hasAdmins bool
+	err := s.db.QueryRowContext(ctx, query).Scan(&hasAdmins)
+	if err != nil {
+		logger.Error("Failed to check if any administrators exist: %v", err)
+		return false, fmt.Errorf("failed to check administrators: %w", err)
+	}
+
+	logger.Debug("HasAnyAdministrators: %t", hasAdmins)
+	return hasAdmins, nil
+}
+
+// GetUserEmail retrieves email for a user_id (for enrichment in list responses)
+func (s *AdministratorDatabaseStore) GetUserEmail(ctx context.Context, userID uuid.UUID) (string, error) {
+	logger := slogging.Get()
+
+	query := `SELECT email FROM users WHERE id = $1`
+
+	var email string
+	err := s.db.QueryRowContext(ctx, query, userID).Scan(&email)
+	if err == sql.ErrNoRows {
+		logger.Debug("User not found for email lookup: id=%s", userID)
+		return "", nil // Return empty string if user not found
+	}
+	if err != nil {
+		logger.Error("Failed to get user email: id=%s, error=%v", userID, err)
+		return "", fmt.Errorf("failed to get user email: %w", err)
+	}
+
+	return email, nil
+}
+
+// GetGroupName retrieves name for a group_id (for enrichment in list responses)
+func (s *AdministratorDatabaseStore) GetGroupName(ctx context.Context, groupID uuid.UUID, provider string) (string, error) {
+	logger := slogging.Get()
+
+	query := `SELECT group_name FROM groups WHERE internal_uuid = $1 AND provider = $2`
+
+	var groupName string
+	err := s.db.QueryRowContext(ctx, query, groupID, provider).Scan(&groupName)
+	if err == sql.ErrNoRows {
+		logger.Debug("Group not found for name lookup: id=%s, provider=%s", groupID, provider)
+		return "", nil // Return empty string if group not found
+	}
+	if err != nil {
+		logger.Error("Failed to get group name: id=%s, provider=%s, error=%v", groupID, provider, err)
+		return "", fmt.Errorf("failed to get group name: %w", err)
+	}
+
+	return groupName, nil
+}
+
+// EnrichAdministrators adds user_email and group_name to administrator records
+func (s *AdministratorDatabaseStore) EnrichAdministrators(ctx context.Context, admins []Administrator) ([]Administrator, error) {
+	logger := slogging.Get()
+
+	enriched := make([]Administrator, len(admins))
+	for i, admin := range admins {
+		enriched[i] = admin
+
+		// Enrich user-based grants with email
+		if admin.UserInternalUUID != nil {
+			email, err := s.GetUserEmail(ctx, *admin.UserInternalUUID)
+			if err != nil {
+				logger.Warn("Failed to enrich user email for admin %s: %v", admin.ID, err)
+				// Continue with empty email rather than failing
+			}
+			enriched[i].UserEmail = email
+		}
+
+		// Enrich group-based grants with group name
+		if admin.GroupInternalUUID != nil {
+			groupName, err := s.GetGroupName(ctx, *admin.GroupInternalUUID, admin.Provider)
+			if err != nil {
+				logger.Warn("Failed to enrich group name for admin %s: %v", admin.ID, err)
+				// Continue with empty group name rather than failing
+			}
+			enriched[i].GroupName = groupName
+		}
+	}
+
+	logger.Debug("Enriched %d administrator records", len(enriched))
+	return enriched, nil
+}

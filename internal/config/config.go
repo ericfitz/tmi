@@ -74,9 +74,10 @@ type RedisConfig struct {
 
 // AuthConfig holds authentication configuration
 type AuthConfig struct {
-	JWT   JWTConfig   `yaml:"jwt"`
-	OAuth OAuthConfig `yaml:"oauth"`
-	SAML  SAMLConfig  `yaml:"saml"`
+	JWT                  JWTConfig   `yaml:"jwt"`
+	OAuth                OAuthConfig `yaml:"oauth"`
+	SAML                 SAMLConfig  `yaml:"saml"`
+	AutoPromoteFirstUser bool        `yaml:"auto_promote_first_user" env:"AUTH_AUTO_PROMOTE_FIRST_USER"`
 }
 
 // JWTConfig holds JWT configuration
