@@ -217,3 +217,15 @@ func (a *AuthServiceAdapter) IntrospectToken(c *gin.Context) {
 func (a *AuthServiceAdapter) GetService() *auth.Service {
 	return a.handlers.Service()
 }
+
+// IsValidProvider checks if the given provider ID is configured and enabled
+func (a *AuthServiceAdapter) IsValidProvider(idp string) bool {
+	// Check OAuth providers
+	config := a.handlers.Config()
+	if providerConfig, exists := config.OAuth.Providers[idp]; exists {
+		return providerConfig.Enabled
+	}
+
+	// Provider not found or not enabled
+	return false
+}

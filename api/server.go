@@ -305,6 +305,7 @@ type AuthService interface {
 	Refresh(c *gin.Context)
 	Logout(c *gin.Context)
 	Me(c *gin.Context)
+	IsValidProvider(idp string) bool
 }
 
 // Complete ServerInterface Implementation - OpenAPI Generated Methods
@@ -420,6 +421,16 @@ func (s *Server) GetAuthProviders(c *gin.Context) {
 func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetProviderGroups called for IdP: %s", idp)
+
+	// Validate that the provider exists
+	if !s.authService.IsValidProvider(idp) {
+		logger.Debug("[SERVER_INTERFACE] Provider %s not found", idp)
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error:   "not_found",
+			Message: "OAuth provider not found",
+		})
+		return
+	}
 
 	// For now, return a placeholder response
 	// TODO: Implement actual group fetching from provider or cache

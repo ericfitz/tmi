@@ -1117,7 +1117,18 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Add auth flow rate limiting middleware (for OAuth/SAML endpoints)
 	r.Use(api.AuthFlowRateLimitMiddleware(apiServer))
 
+	// Add input validation middleware (BEFORE JWT auth to return proper 4XX codes for malformed requests)
+	// This follows RFC 9110 guidance: validate request structure before checking authentication
+	r.Use(api.MethodNotAllowedHandler())           // Validate HTTP methods (405 for invalid methods)
+	r.Use(api.PathParameterValidationMiddleware()) // Validate path parameters for security
+	r.Use(api.UUIDValidationMiddleware())          // Validate UUID format in path parameters
+	r.Use(api.ContentTypeValidationMiddleware())   // Validate Content-Type (415 for unsupported)
+	r.Use(api.AcceptLanguageMiddleware())          // Handle Accept-Language gracefully
+	r.Use(api.UnicodeNormalizationMiddleware())    // Normalize and reject problematic Unicode
+	r.Use(api.BoundaryValueValidationMiddleware()) // Enhanced validation for boundary values
+
 	// Now add JWT middleware with token blacklist support and auth handlers for user lookup
+	// This runs AFTER basic validation so malformed requests get 4XX, not 401
 	r.Use(JWTMiddleware(config, server.tokenBlacklist, authHandlers)) // JWT auth with public path skipping
 
 	// Add user-based rate limiting middleware (after JWT so user_id is available)
@@ -1140,15 +1151,6 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		c.Set("operatorContact", config.Operator.Contact)
 		c.Next()
 	})
-
-	// Add input validation middleware (before OpenAPI validation)
-	r.Use(api.MethodNotAllowedHandler())           // Validate HTTP methods (405 for invalid methods)
-	r.Use(api.PathParameterValidationMiddleware()) // Validate path parameters for security
-	r.Use(api.UUIDValidationMiddleware())          // Validate UUID format in path parameters
-	r.Use(api.ContentTypeValidationMiddleware())   // Validate Content-Type (415 for unsupported)
-	r.Use(api.AcceptLanguageMiddleware())          // Handle Accept-Language gracefully
-	r.Use(api.UnicodeNormalizationMiddleware())    // Normalize and reject problematic Unicode
-	r.Use(api.BoundaryValueValidationMiddleware()) // Enhanced validation for boundary values
 
 	// Add OpenAPI validation middleware
 	if openAPIValidator, err := api.SetupOpenAPIValidation(); err != nil {

@@ -48,6 +48,11 @@ func (h *Handlers) Service() *Service {
 	return h.service
 }
 
+// Config returns the auth config (getter for unexported field)
+func (h *Handlers) Config() Config {
+	return h.config
+}
+
 // Note: Route registration has been removed. All routes are now registered via OpenAPI
 // specification in api/api.go. The auth handlers are called through the Server's
 // AuthService adapter.
