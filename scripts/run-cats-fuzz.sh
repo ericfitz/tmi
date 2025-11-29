@@ -127,6 +127,11 @@ restart_server_clean() {
     for i in {1..30}; do
         if curl -s "${server}/" &> /dev/null; then
             success "TMI server is ready and logs are clean"
+
+            # Clear rate limit keys from Redis to avoid 429 errors during testing
+            log "Clearing rate limit keys from Redis..."
+            docker exec tmi-redis redis-cli --scan --pattern "auth:ratelimit:ip:*" | xargs -r docker exec -i tmi-redis redis-cli DEL || true
+
             return 0
         fi
         sleep 1
@@ -280,7 +285,14 @@ run_cats_fuzz() {
         "cats"
         "--contract=${PROJECT_ROOT}/${OPENAPI_SPEC}"
         "--server=${server}"
-        "${blackbox}"
+    )
+
+    # Add blackbox flag if set
+    if [[ -n "${blackbox}" ]]; then
+        cats_cmd+=("${blackbox}")
+    fi
+
+    cats_cmd+=(
         "-H" "Authorization=Bearer ${token}"
         "-X=${HTTP_METHODS}"
     )
