@@ -52,9 +52,6 @@ func SecurityHeaders() gin.HandlerFunc {
 		// Prevent clickjacking attacks
 		c.Header("X-Frame-Options", "DENY")
 
-		// Enable the browser's built-in XSS filter (for older browsers)
-		c.Header("X-XSS-Protection", "1; mode=block")
-
 		// Content Security Policy
 		// Check if we're in development mode (can be set via context from config)
 		isDev, exists := c.Get("isDev")
