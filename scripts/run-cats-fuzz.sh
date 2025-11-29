@@ -110,12 +110,12 @@ restart_server_clean() {
     
     # Clear log files
     log "Clearing log files..."
-    rm -f "${PROJECT_ROOT}/logs/*" || true
+    rm -rf "${PROJECT_ROOT}/logs/*" || true
     mkdir -p "${PROJECT_ROOT}/logs" || true
     
     # Clear old cats report data
     log "Clearing old cats reports..."
-    rm -f "${PROJECT_ROOT}/cats-report" || true
+    rm -rf "${PROJECT_ROOT}/cats-report/*" || true
     mkdir -p "${PROJECT_ROOT}/cats-report" || true
 
     # Start the server fresh

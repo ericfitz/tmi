@@ -102,7 +102,7 @@ func sanitizeJSONForUUIDs(jsonBytes []byte) ([]byte, error) {
 	// List of fields that should contain UUIDs
 	uuidFields := []string{
 		"id", "threat_model_id", "diagram_id", "cell_id", "parent_id",
-		"session_id", "cell", "parent", "entity_id",
+		"session_id", "cell", "parent", "entity_id", "webhook_id",
 	}
 
 	for _, field := range uuidFields {
@@ -119,12 +119,27 @@ func sanitizeJSONForUUIDs(jsonBytes []byte) ([]byte, error) {
 	return json.Marshal(rawData)
 }
 
-// isValidUUIDString checks if a string is a valid UUID format
+// isValidUUIDString checks if a string is a valid UUID format (RFC 4122)
+// Validates:
+// - Exact length of 36 characters
+// - Hyphens at positions 8, 13, 18, 23
+// - Only hexadecimal digits (0-9, a-f, A-F) in other positions
+// - Rejects Unicode characters, zero-width characters, and other non-ASCII
 func isValidUUIDString(s string) bool {
+	// First check byte length to reject multi-byte UTF-8 sequences early
 	if len(s) != 36 {
 		return false
 	}
-	// Check basic UUID format: 8-4-4-4-12 hex digits with hyphens
+
+	// Check that all characters are ASCII (reject Unicode like Telugu, Korean, etc.)
+	for _, r := range s {
+		if r > 127 {
+			return false
+		}
+	}
+
+	// Check UUID format: 8-4-4-4-12 hex digits with hyphens
+	// Example: 550e8400-e29b-41d4-a716-446655440000
 	for i, r := range s {
 		switch i {
 		case 8, 13, 18, 23:
@@ -140,7 +155,7 @@ func isValidUUIDString(s string) bool {
 	return true
 }
 
-// isHexDigit checks if a rune is a valid hexadecimal digit
+// isHexDigit checks if a rune is a valid hexadecimal digit (0-9, a-f, A-F)
 func isHexDigit(r rune) bool {
 	return (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
 }

@@ -134,8 +134,8 @@ func CreateAddon(c *gin.Context) {
 	}
 
 	// Parse request
-	var req CreateAddonRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	req, err := ParseRequestBody[CreateAddonRequest](c)
+	if err != nil {
 		logger.Error("Failed to parse create add-on request: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
