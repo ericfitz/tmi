@@ -112,6 +112,24 @@ func isHTTPS(r *http.Request) bool {
 	return false
 }
 
+// getAllowedMethods returns the allowed HTTP methods for a given path
+// This is used in the 405 Method Not Allowed response
+func getAllowedMethods(path string) string {
+	// For most endpoints, GET is typically allowed
+	// This is a simplified implementation - in production, you'd query the router
+	if strings.HasPrefix(path, "/threat_models") {
+		return "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+	}
+	if strings.HasPrefix(path, "/diagrams") {
+		return "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+	}
+	if strings.HasPrefix(path, "/invocations") {
+		return "GET, OPTIONS"
+	}
+	// Default for unknown paths
+	return "GET, POST, OPTIONS"
+}
+
 // publicPaths is a map of exact paths that don't require authentication
 var publicPaths = map[string]bool{
 	"/":                             true,
@@ -936,8 +954,19 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.Use(api.SecurityHeaders())                        // Add security headers
 	r.Use(api.CORS())                                   // Handle CORS
 	r.Use(api.JSONErrorHandler())                       // Convert plain text errors to JSON
+	r.Use(api.AcceptHeaderValidation())                 // Validate Accept header (406 for unsupported types)
 	r.Use(api.HSTSMiddleware(config.Server.TLSEnabled)) // Add HSTS when TLS is enabled
 	r.Use(api.ContextTimeout(30 * time.Second))
+
+	// Configure 405 Method Not Allowed handler
+	r.HandleMethodNotAllowed = true
+	r.NoMethod(func(c *gin.Context) {
+		c.Header("Allow", getAllowedMethods(c.Request.URL.Path))
+		c.JSON(http.StatusMethodNotAllowed, api.Error{
+			Error:            "method_not_allowed",
+			ErrorDescription: "The HTTP method is not supported for this endpoint",
+		})
+	})
 
 	// Serve static files
 	r.Static("/static", "./static")

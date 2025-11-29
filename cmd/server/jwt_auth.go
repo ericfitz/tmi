@@ -282,9 +282,10 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 	// Extract token from request
 	tokenStr, err := a.tokenExtractor.ExtractToken(c)
 	if err != nil {
+		// Use generic error message to avoid leaking implementation details
 		return &AuthError{
 			Code:        "unauthorized",
-			Description: err.Error(),
+			Description: "Authentication required",
 			StatusCode:  http.StatusUnauthorized,
 		}
 	}
@@ -292,9 +293,10 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 	// Validate token
 	token, err := a.tokenValidator.ValidateToken(c, tokenStr)
 	if err != nil {
+		// Use generic error message to avoid leaking implementation details
 		return &AuthError{
 			Code:        "unauthorized",
-			Description: err.Error(),
+			Description: "Authentication required",
 			StatusCode:  http.StatusUnauthorized,
 		}
 	}
@@ -302,9 +304,10 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 	// Check if token is blacklisted
 	if err := a.blacklistChecker.CheckBlacklist(c.Request.Context(), tokenStr); err != nil {
 		if strings.Contains(err.Error(), "revoked") {
+			// Use generic error message to avoid leaking implementation details
 			return &AuthError{
 				Code:        "unauthorized",
-				Description: "Token has been revoked",
+				Description: "Authentication required",
 				StatusCode:  http.StatusUnauthorized,
 			}
 		}

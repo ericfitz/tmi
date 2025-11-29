@@ -4805,6 +4805,76 @@
             }
           }
         }
+      },
+      "BadRequest": {
+        "description": "Bad Request - The request was malformed or contains invalid parameters",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "invalid_uuid": {
+                "summary": "Invalid UUID format",
+                "value": {
+                  "error": "invalid_request",
+                  "error_description": "Invalid format for parameter addon_id: invalid UUID length"
+                }
+              },
+              "invalid_enum": {
+                "summary": "Invalid enum value",
+                "value": {
+                  "error": "invalid_request",
+                  "error_description": "Invalid value for parameter status: must be one of [pending, in_progress, completed, failed]"
+                }
+              },
+              "invalid_type": {
+                "summary": "Invalid parameter type",
+                "value": {
+                  "error": "invalid_request",
+                  "error_description": "Invalid format for parameter limit: must be an integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "MethodNotAllowed": {
+        "description": "Method Not Allowed - The HTTP method is not supported for this endpoint",
+        "headers": {
+          "Allow": {
+            "description": "List of allowed HTTP methods for this endpoint",
+            "schema": {
+              "type": "string",
+              "example": "GET, POST"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "method_not_allowed",
+              "error_description": "The HTTP method is not supported for this endpoint"
+            }
+          }
+        }
+      },
+      "NotAcceptable": {
+        "description": "Not Acceptable - The requested media type is not supported. This API only supports application/json",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "not_acceptable",
+              "error_description": "The requested Accept header media type is not supported. Supported types: application/json"
+            }
+          }
+        }
       }
     },
     "parameters": {
@@ -17022,6 +17092,15 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
           }
         }
       }

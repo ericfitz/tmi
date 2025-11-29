@@ -835,3 +835,44 @@ func JSONErrorHandler() gin.HandlerFunc {
 		}
 	}
 }
+
+// AcceptHeaderValidation middleware validates that the Accept header is application/json
+// Returns 406 Not Acceptable for unsupported media types
+func AcceptHeaderValidation() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get logger from context
+		logger := slogging.GetContextLogger(c)
+
+		// Skip validation for OPTIONS requests (CORS preflight)
+		if c.Request.Method == http.MethodOptions {
+			c.Next()
+			return
+		}
+
+		// Get Accept header
+		acceptHeader := c.GetHeader("Accept")
+
+		// If no Accept header, default to */* which we'll treat as acceptable
+		if acceptHeader == "" {
+			c.Next()
+			return
+		}
+
+		// Check if Accept header includes application/json or */*
+		// We're being lenient and accepting quality parameters
+		acceptsJSON := strings.Contains(acceptHeader, "application/json") ||
+			strings.Contains(acceptHeader, "*/*") ||
+			strings.Contains(acceptHeader, "application/*")
+
+		if !acceptsJSON {
+			logger.Debug("Rejecting request with unsupported Accept header: %s", acceptHeader)
+			c.AbortWithStatusJSON(http.StatusNotAcceptable, Error{
+				Error:            "not_acceptable",
+				ErrorDescription: "The requested Accept header media type is not supported. Supported types: application/json",
+			})
+			return
+		}
+
+		c.Next()
+	}
+}
