@@ -5095,7 +5095,10 @@
               "tracking_method": "Source IP address"
             }
           ]
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "Health Check"
       }
     },
     "/.well-known/openid-configuration": {
@@ -5263,7 +5266,10 @@
               "tracking_method": "Source IP address"
             }
           ]
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "OIDC Discovery"
       }
     },
     "/.well-known/oauth-authorization-server": {
@@ -5382,7 +5388,10 @@
               "tracking_method": "Source IP address"
             }
           ]
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "OIDC Discovery"
       }
     },
     "/.well-known/jwks.json": {
@@ -5468,7 +5477,10 @@
               "tracking_method": "Source IP address"
             }
           ]
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "OIDC Discovery"
       }
     },
     "/.well-known/oauth-protected-resource": {
@@ -5512,7 +5524,10 @@
               "tracking_method": "Source IP address"
             }
           ]
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "OIDC Discovery"
       }
     },
     "/oauth2/introspect": {
@@ -5670,7 +5685,10 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "OAuth Flow"
       }
     },
     "/oauth2/providers": {
@@ -5778,7 +5796,10 @@
               "quota_source": "user_api_quotas"
             }
           ]
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "OAuth Flow"
       }
     },
     "/oauth2/providers/{idp}/groups": {
@@ -6062,7 +6083,10 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "OAuth Flow"
       }
     },
     "/oauth2/token": {
@@ -6257,7 +6281,10 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "OAuth Flow"
       }
     },
     "/oauth2/refresh": {
@@ -6407,7 +6434,10 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "OAuth Flow"
       }
     },
     "/oauth2/userinfo": {
@@ -6636,7 +6666,10 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "OAuth Flow"
       }
     },
     "/oauth2/revoke": {
@@ -15710,7 +15743,10 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "SAML Flow"
       }
     },
     "/saml/slo": {
@@ -15806,7 +15842,10 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "SAML Flow"
       },
       "post": {
         "tags": [
@@ -15908,7 +15947,10 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "SAML Flow"
       }
     },
     "/webhooks/subscriptions": {
@@ -17339,7 +17381,10 @@
               "tracking_method": "Source IP address"
             }
           ]
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "SAML Flow"
       }
     },
     "/saml/{provider}/login": {
@@ -17431,7 +17476,10 @@
             }
           ],
           "enforcement": "Most restrictive limit applies"
-        }
+        },
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "SAML Flow"
       }
     },
     "/saml/{provider}/metadata": {
@@ -17492,7 +17540,10 @@
               "type": "string"
             }
           }
-        ]
+        ],
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "SAML Flow"
       }
     }
   },

@@ -308,6 +308,29 @@ run_cats_fuzz() {
         disable_rate_limits "${user}"
     fi
 
+    # Public endpoints that must be accessible without authentication per RFCs
+    # These endpoints have security:[] in the OpenAPI spec but CATS doesn't
+    # respect this marker for the BypassAuthentication fuzzer, causing false positives.
+    # See: docs/developer/testing/cats-public-endpoints.md
+    local public_paths=(
+        "/"
+        "/.well-known/jwks.json"
+        "/.well-known/oauth-authorization-server"
+        "/.well-known/oauth-protected-resource"
+        "/.well-known/openid-configuration"
+        "/oauth2/authorize"
+        "/oauth2/callback"
+        "/oauth2/introspect"
+        "/oauth2/providers"
+        "/oauth2/refresh"
+        "/oauth2/token"
+        "/saml/acs"
+        "/saml/providers"
+        "/saml/slo"
+        "/saml/{provider}/login"
+        "/saml/{provider}/metadata"
+    )
+
     # Construct and run CATS command
     local cats_cmd=(
         "cats"
@@ -329,6 +352,16 @@ run_cats_fuzz() {
     if [[ -n "${path}" ]]; then
         log "Restricting to endpoint path: ${path}"
         cats_cmd+=("--paths=${path}")
+    else
+        # When testing all endpoints, skip BypassAuthentication fuzzer on public paths
+        # to avoid false positives. These endpoints are intentionally public per RFCs:
+        # - RFC 8414: OAuth 2.0 Authorization Server Metadata (.well-known/*)
+        # - RFC 8693: OAuth 2.0 Token Exchange
+        # - RFC 7517: JSON Web Key (JWK) (jwks.json)
+        log "Skipping BypassAuthentication fuzzer on ${#public_paths[@]} public endpoints"
+        local skip_paths_arg
+        skip_paths_arg=$(IFS=','; echo "${public_paths[*]}")
+        cats_cmd+=("--skipPaths=${skip_paths_arg}")
     fi
 
     log "Executing: ${cats_cmd[*]}"

@@ -122,6 +122,11 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 
 - Use jq to selectively query or modify the openapi schema
 - Validate OpenAPI: `make validate-openapi` (validates OpenAPI specification with comprehensive JSON syntax, detailed analysis, and CATS validation)
+- **Public Endpoints**: TMI has 17 public endpoints (OAuth, OIDC, SAML) marked with vendor extensions (`x-public-endpoint`, `x-authentication-required`, `x-public-endpoint-purpose`)
+  - These endpoints are intentionally accessible without authentication per RFCs (8414, 7517, 6749, SAML 2.0)
+  - CATS fuzzing automatically skips `BypassAuthentication` tests on these paths to avoid false positives
+  - See [docs/developer/testing/cats-public-endpoints.md](docs/developer/testing/cats-public-endpoints.md) for complete documentation
+  - Update script: `./scripts/add-public-endpoint-markers.sh` (automatically adds vendor extensions)
 
 ### OAuth Callback Stub
 
