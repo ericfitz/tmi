@@ -113,6 +113,10 @@ restart_server_clean() {
     #rm -f "${PROJECT_ROOT}/logs/*" || true
     # mkdir -p "${PROJECT_ROOT}/logs" || true
     
+    # Clear old cats report data
+    rm -rf "${PROJECT_ROOT}/cats-report" || true
+    mkdir -p "${PROJECT_ROOT}/cats-report" || true
+
     # Start the server fresh
     # log "Starting TMI server..."
     PATH="$PATH" make -C "${PROJECT_ROOT}" restart-dev > /dev/null 2>&1 &
