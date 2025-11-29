@@ -790,18 +790,20 @@ cats-fuzz-path:
 		echo -e "\033[0;31m[ERROR]\033[0m Please specify ENDPOINT variable: make cats-fuzz-path ENDPOINT=/addons"; \
 		exit 1; \
 	fi
-	@ARGS="-p $(ENDPOINT)"; \
+	@set -e; \
+	ARGS="-p $(ENDPOINT)"; \
 	if [ "$(BLACKBOX)" = "true" ] || [ "$(BLACKBOX)" = "1" ]; then ARGS="$$ARGS -b"; fi; \
-	./scripts/run-cats-fuzz.sh $$ARGS
+	eval "./scripts/run-cats-fuzz.sh $$ARGS"
 
 cats-fuzz-full:
 	$(call log_info,"Running CATS API fuzzing with all custom options...")
-	@ARGS=""; \
+	@set -e; \
+	ARGS=""; \
 	if [ -n "$(USER)" ]; then ARGS="$$ARGS -u $(USER)"; fi; \
 	if [ -n "$(SERVER)" ]; then ARGS="$$ARGS -s $(SERVER)"; fi; \
 	if [ -n "$(ENDPOINT)" ]; then ARGS="$$ARGS -p $(ENDPOINT)"; fi; \
 	if [ "$(BLACKBOX)" = "true" ] || [ "$(BLACKBOX)" = "1" ]; then ARGS="$$ARGS -b"; fi; \
-	./scripts/run-cats-fuzz.sh $$ARGS
+	eval "./scripts/run-cats-fuzz.sh $$ARGS"
 
 .PHONY: parse-cats-results
 parse-cats-results:  ## Parse CATS test results into SQLite database
