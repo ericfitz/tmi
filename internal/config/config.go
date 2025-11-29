@@ -644,12 +644,32 @@ func setFieldFromString(field reflect.Value, value string) error {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
-	// Validate server configuration
+	if err := c.validateServer(); err != nil {
+		return err
+	}
+	if err := c.validateDatabase(); err != nil {
+		return err
+	}
+	if err := c.validateAuth(); err != nil {
+		return err
+	}
+	if err := c.validateWebSocket(); err != nil {
+		return err
+	}
+	if err := c.validateAdministrators(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Config) validateServer() error {
 	if c.Server.Port == "" {
 		return fmt.Errorf("server port is required")
 	}
+	return nil
+}
 
-	// Validate database configuration
+func (c *Config) validateDatabase() error {
 	if c.Database.Postgres.Host == "" {
 		return fmt.Errorf("postgres host is required")
 	}
@@ -669,16 +689,30 @@ func (c *Config) Validate() error {
 	if c.Database.Redis.Port == "" {
 		return fmt.Errorf("redis port is required")
 	}
+	return nil
+}
 
-	// Validate JWT configuration
+func (c *Config) validateAuth() error {
+	if err := c.validateJWT(); err != nil {
+		return err
+	}
+	if err := c.validateOAuth(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Config) validateJWT() error {
 	if c.Auth.JWT.Secret == "" {
 		return fmt.Errorf("jwt secret is required")
 	}
 	if c.Auth.JWT.ExpirationSeconds <= 0 {
 		return fmt.Errorf("jwt expiration must be greater than 0")
 	}
+	return nil
+}
 
-	// Validate OAuth configuration
+func (c *Config) validateOAuth() error {
 	if c.Auth.OAuth.CallbackURL == "" {
 		return fmt.Errorf("oauth callback url is required")
 	}
@@ -694,57 +728,85 @@ func (c *Config) Validate() error {
 	if !hasEnabledProvider {
 		return fmt.Errorf("at least one oauth provider must be enabled and configured")
 	}
+	return nil
+}
 
-	// Validate WebSocket configuration
+func (c *Config) validateWebSocket() error {
 	if c.WebSocket.InactivityTimeoutSeconds < 15 {
 		return fmt.Errorf("websocket inactivity timeout must be at least 15 seconds")
 	}
+	return nil
+}
 
-	// Validate administrator configuration
+func (c *Config) validateAdministrators() error {
 	for i, admin := range c.Administrators {
-		if admin.Provider == "" {
-			return fmt.Errorf("administrator[%d]: provider is required", i)
+		if err := c.validateAdministrator(i, admin); err != nil {
+			return err
 		}
+	}
+	return nil
+}
 
-		if admin.SubjectType != "user" && admin.SubjectType != "group" {
-			return fmt.Errorf("administrator[%d]: subject_type must be 'user' or 'group'", i)
-		}
+func (c *Config) validateAdministrator(index int, admin AdministratorConfig) error {
+	if admin.Provider == "" {
+		return fmt.Errorf("administrator[%d]: provider is required", index)
+	}
 
-		switch admin.SubjectType {
-		case "user":
-			// For users, require either provider_id or email
-			if admin.ProviderId == "" && admin.Email == "" {
-				return fmt.Errorf("administrator[%d]: user-type admin must have either provider_id or email", i)
-			}
-		case "group":
-			// For groups, require group_name
-			if admin.GroupName == "" {
-				return fmt.Errorf("administrator[%d]: group-type admin must have group_name", i)
-			}
-		}
+	if admin.SubjectType != "user" && admin.SubjectType != "group" {
+		return fmt.Errorf("administrator[%d]: subject_type must be 'user' or 'group'", index)
+	}
 
-		// Verify provider exists in configured OAuth/SAML providers
-		providerExists := false
-		for providerID, provider := range c.Auth.OAuth.Providers {
-			if providerID == admin.Provider && provider.Enabled {
-				providerExists = true
-				break
-			}
-		}
-		if !providerExists && c.Auth.SAML.Enabled {
-			for providerID, provider := range c.Auth.SAML.Providers {
-				if providerID == admin.Provider && provider.Enabled {
-					providerExists = true
-					break
-				}
-			}
-		}
-		if !providerExists {
-			return fmt.Errorf("administrator[%d]: provider '%s' is not configured or not enabled", i, admin.Provider)
-		}
+	if err := c.validateAdministratorSubject(index, admin); err != nil {
+		return err
+	}
+
+	if err := c.validateAdministratorProvider(index, admin); err != nil {
+		return err
 	}
 
 	return nil
+}
+
+func (c *Config) validateAdministratorSubject(index int, admin AdministratorConfig) error {
+	switch admin.SubjectType {
+	case "user":
+		// For users, require either provider_id or email
+		if admin.ProviderId == "" && admin.Email == "" {
+			return fmt.Errorf("administrator[%d]: user-type admin must have either provider_id or email", index)
+		}
+	case "group":
+		// For groups, require group_name
+		if admin.GroupName == "" {
+			return fmt.Errorf("administrator[%d]: group-type admin must have group_name", index)
+		}
+	}
+	return nil
+}
+
+func (c *Config) validateAdministratorProvider(index int, admin AdministratorConfig) error {
+	// Verify provider exists in configured OAuth/SAML providers
+	if c.isProviderConfigured(admin.Provider) {
+		return nil
+	}
+	return fmt.Errorf("administrator[%d]: provider '%s' is not configured or not enabled", index, admin.Provider)
+}
+
+func (c *Config) isProviderConfigured(providerID string) bool {
+	// Check OAuth providers
+	for id, provider := range c.Auth.OAuth.Providers {
+		if id == providerID && provider.Enabled {
+			return true
+		}
+	}
+	// Check SAML providers
+	if c.Auth.SAML.Enabled {
+		for id, provider := range c.Auth.SAML.Providers {
+			if id == providerID && provider.Enabled {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // IsTestMode returns true if running in test mode

@@ -23,23 +23,33 @@ func NewAdministratorDatabaseStore(db *sql.DB) *AdministratorDatabaseStore {
 func (s *AdministratorDatabaseStore) Create(ctx context.Context, admin Administrator) error {
 	logger := slogging.Get()
 
-	query := `
-		INSERT INTO administrators (id, user_internal_uuid, group_internal_uuid, subject_type, provider, granted_at, granted_by_internal_uuid, notes)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		ON CONFLICT (user_internal_uuid, subject_type) WHERE user_internal_uuid IS NOT NULL DO UPDATE
-		SET granted_at = EXCLUDED.granted_at,
-			granted_by_internal_uuid = EXCLUDED.granted_by_internal_uuid,
-			notes = EXCLUDED.notes
-		ON CONFLICT (group_internal_uuid, subject_type, provider) WHERE group_internal_uuid IS NOT NULL DO UPDATE
-		SET granted_at = EXCLUDED.granted_at,
-			granted_by_internal_uuid = EXCLUDED.granted_by_internal_uuid,
-			notes = EXCLUDED.notes
-	`
-
 	// Generate ID if not set
 	id := admin.ID
 	if id == uuid.Nil {
 		id = uuid.New()
+	}
+
+	// Use different queries based on subject_type to handle different unique constraints
+	var query string
+	if admin.SubjectType == "user" {
+		query = `
+			INSERT INTO administrators (id, user_internal_uuid, group_internal_uuid, subject_type, provider, granted_at, granted_by_internal_uuid, notes)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (user_internal_uuid, subject_type) DO UPDATE
+			SET granted_at = EXCLUDED.granted_at,
+				granted_by_internal_uuid = EXCLUDED.granted_by_internal_uuid,
+				notes = EXCLUDED.notes,
+				provider = EXCLUDED.provider
+		`
+	} else {
+		query = `
+			INSERT INTO administrators (id, user_internal_uuid, group_internal_uuid, subject_type, provider, granted_at, granted_by_internal_uuid, notes)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (group_internal_uuid, subject_type, provider) DO UPDATE
+			SET granted_at = EXCLUDED.granted_at,
+				granted_by_internal_uuid = EXCLUDED.granted_by_internal_uuid,
+				notes = EXCLUDED.notes
+		`
 	}
 
 	_, err := s.db.ExecContext(ctx, query,

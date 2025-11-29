@@ -105,21 +105,22 @@ restart_server_clean() {
     log "Restarting server with clean logs for CATS fuzzing..."
     
     # Stop the server if it's running
-    #log "Stopping TMI server..."
-    #PATH="$PATH" make -C "${PROJECT_ROOT}" stop-server || true
+    log "Stopping TMI server..."
+    PATH="$PATH" make -C "${PROJECT_ROOT}" stop-server || true
     
     # Clear log files
-    #log "Clearing log files..."
-    #rm -f "${PROJECT_ROOT}/logs/*" || true
-    # mkdir -p "${PROJECT_ROOT}/logs" || true
+    log "Clearing log files..."
+    rm -f "${PROJECT_ROOT}/logs/*" || true
+    mkdir -p "${PROJECT_ROOT}/logs" || true
     
     # Clear old cats report data
-    rm -rf "${PROJECT_ROOT}/cats-report" || true
+    log "Clearing old cats reports..."
+    rm -f "${PROJECT_ROOT}/cats-report" || true
     mkdir -p "${PROJECT_ROOT}/cats-report" || true
 
     # Start the server fresh
-    # log "Starting TMI server..."
-    PATH="$PATH" make -C "${PROJECT_ROOT}" restart-dev > /dev/null 2>&1 &
+    log "Starting TMI server..."
+    PATH="$PATH" make -C "${PROJECT_ROOT}" start-dev > /dev/null 2>&1 &
     
     # Wait for server to be ready
     log "Waiting for server to be ready..."

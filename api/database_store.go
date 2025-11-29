@@ -1211,36 +1211,32 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 		}
 
 		// Insert or update authorization with dual FKs
-		query := `
-			INSERT INTO threat_model_access (
-				threat_model_id, user_internal_uuid, group_internal_uuid,
-				subject_type, role, created_at, modified_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			ON CONFLICT (threat_model_id, user_internal_uuid, subject_type)
-			WHERE user_internal_uuid IS NOT NULL
-			DO UPDATE SET role = EXCLUDED.role, modified_at = EXCLUDED.modified_at`
+		// Use different queries based on subject_type to handle different unique constraints
+		var query string
+		if subjectTypeStr == "user" {
+			query = `
+				INSERT INTO threat_model_access (
+					threat_model_id, user_internal_uuid, group_internal_uuid,
+					subject_type, role, created_at, modified_at
+				)
+				VALUES ($1, $2, $3, $4, $5, $6, $7)
+				ON CONFLICT (threat_model_id, user_internal_uuid, subject_type)
+				DO UPDATE SET role = EXCLUDED.role, modified_at = EXCLUDED.modified_at`
+		} else {
+			query = `
+				INSERT INTO threat_model_access (
+					threat_model_id, user_internal_uuid, group_internal_uuid,
+					subject_type, role, created_at, modified_at
+				)
+				VALUES ($1, $2, $3, $4, $5, $6, $7)
+				ON CONFLICT (threat_model_id, group_internal_uuid, subject_type)
+				DO UPDATE SET role = EXCLUDED.role, modified_at = EXCLUDED.modified_at`
+		}
 
 		now := time.Now().UTC()
 		_, err := tx.Exec(query, threatModelId, userUUID, groupUUID, subjectTypeStr, string(auth.Role), now, now)
 		if err != nil {
-			// Try group conflict resolution if user conflict failed
-			if subjectTypeStr == "group" {
-				query = `
-					INSERT INTO threat_model_access (
-						threat_model_id, user_internal_uuid, group_internal_uuid,
-						subject_type, role, created_at, modified_at
-					)
-					VALUES ($1, $2, $3, $4, $5, $6, $7)
-					ON CONFLICT (threat_model_id, group_internal_uuid, subject_type)
-					WHERE group_internal_uuid IS NOT NULL
-					DO UPDATE SET role = EXCLUDED.role, modified_at = EXCLUDED.modified_at`
-
-				_, err = tx.Exec(query, threatModelId, userUUID, groupUUID, subjectTypeStr, string(auth.Role), now, now)
-			}
-			if err != nil {
-				return err
-			}
+			return err
 		}
 	}
 
