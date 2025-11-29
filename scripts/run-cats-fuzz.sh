@@ -34,6 +34,7 @@ usage() {
     echo "  -u, --user USER      OAuth user login hint (default: ${DEFAULT_USER})"
     echo "  -s, --server URL     TMI server URL (default: ${DEFAULT_SERVER})"
     echo "  -p, --path PATH      Restrict to specific endpoint path (e.g., /addons, /invocations)"
+    echo "  -b, --blackbox       Ignore all error codes other than 500"
     echo "  -h, --help           Show this help message"
     echo ""
     echo "Examples:"
@@ -104,17 +105,17 @@ restart_server_clean() {
     log "Restarting server with clean logs for CATS fuzzing..."
     
     # Stop the server if it's running
-    log "Stopping TMI server..."
-    PATH="$PATH" make -C "${PROJECT_ROOT}" stop-server || true
+    #log "Stopping TMI server..."
+    #PATH="$PATH" make -C "${PROJECT_ROOT}" stop-server || true
     
     # Clear log files
-    log "Clearing log files..."
-    rm -f "${PROJECT_ROOT}/server.log" "${PROJECT_ROOT}/logs/server.log" "${PROJECT_ROOT}/integration-test.log" || true
-    mkdir -p "${PROJECT_ROOT}/logs" || true
+    #log "Clearing log files..."
+    #rm -f "${PROJECT_ROOT}/logs/*" || true
+    # mkdir -p "${PROJECT_ROOT}/logs" || true
     
     # Start the server fresh
-    log "Starting TMI server..."
-    PATH="$PATH" make -C "${PROJECT_ROOT}" start-dev > /dev/null 2>&1 &
+    # log "Starting TMI server..."
+    PATH="$PATH" make -C "${PROJECT_ROOT}" restart-dev > /dev/null 2>&1 &
     
     # Wait for server to be ready
     log "Waiting for server to be ready..."
@@ -274,6 +275,7 @@ run_cats_fuzz() {
         "cats"
         "--contract=${PROJECT_ROOT}/${OPENAPI_SPEC}"
         "--server=${server}"
+        "${blackbox}"
         "-H" "Authorization=Bearer ${token}"
         "-X=${HTTP_METHODS}"
     )
@@ -294,6 +296,7 @@ main() {
     local user="${DEFAULT_USER}"
     local server="${DEFAULT_SERVER}"
     local path=""
+    local blackbox=""
 
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
@@ -309,6 +312,10 @@ main() {
             -p|--path)
                 path="$2"
                 shift 2
+                ;;
+            -b|--blackbox)
+                blackbox="-b"
+                shift 1
                 ;;
             -h|--help)
                 usage
