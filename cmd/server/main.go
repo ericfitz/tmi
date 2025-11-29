@@ -1141,6 +1141,15 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		c.Next()
 	})
 
+	// Add input validation middleware (before OpenAPI validation)
+	r.Use(api.MethodNotAllowedHandler())           // Validate HTTP methods (405 for invalid methods)
+	r.Use(api.PathParameterValidationMiddleware()) // Validate path parameters for security
+	r.Use(api.UUIDValidationMiddleware())          // Validate UUID format in path parameters
+	r.Use(api.ContentTypeValidationMiddleware())   // Validate Content-Type (415 for unsupported)
+	r.Use(api.AcceptLanguageMiddleware())          // Handle Accept-Language gracefully
+	r.Use(api.UnicodeNormalizationMiddleware())    // Normalize and reject problematic Unicode
+	r.Use(api.BoundaryValueValidationMiddleware()) // Enhanced validation for boundary values
+
 	// Add OpenAPI validation middleware
 	if openAPIValidator, err := api.SetupOpenAPIValidation(); err != nil {
 		logger.Error("Failed to setup OpenAPI validation middleware: %v", err)

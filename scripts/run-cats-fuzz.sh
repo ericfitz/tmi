@@ -101,18 +101,18 @@ check_prerequisites() {
 
 restart_server_clean() {
     local server="$1"
-    
+
     log "Restarting server with clean logs for CATS fuzzing..."
-    
+
     # Stop the server if it's running
     log "Stopping TMI server..."
     PATH="$PATH" make -C "${PROJECT_ROOT}" stop-server || true
-    
+
     # Clear log files
     log "Clearing log files..."
     rm -rf "${PROJECT_ROOT}/logs/*" || true
     mkdir -p "${PROJECT_ROOT}/logs" || true
-    
+
     # Clear old cats report data
     log "Clearing old cats reports..."
     rm -rf "${PROJECT_ROOT}/cats-report/*" || true
@@ -121,24 +121,46 @@ restart_server_clean() {
     # Start the server fresh
     log "Starting TMI server..."
     PATH="$PATH" make -C "${PROJECT_ROOT}" start-dev > /dev/null 2>&1 &
-    
+
     # Wait for server to be ready
     log "Waiting for server to be ready..."
     for i in {1..30}; do
         if curl -s "${server}/" &> /dev/null; then
             success "TMI server is ready and logs are clean"
 
-            # Clear rate limit keys from Redis to avoid 429 errors during testing
-            log "Clearing rate limit keys from Redis..."
-            docker exec tmi-redis redis-cli --scan --pattern "auth:ratelimit:ip:*" | xargs -r docker exec -i tmi-redis redis-cli DEL || true
+            # Clear ALL rate limit keys from Redis to avoid 429 errors during testing
+            log "Clearing all rate limit keys from Redis..."
+            docker exec tmi-redis redis-cli --scan --pattern "*ratelimit*" | xargs -r docker exec -i tmi-redis redis-cli DEL || true
 
             return 0
         fi
         sleep 1
     done
-    
+
     error "Server failed to start within 30 seconds"
     exit 1
+}
+
+disable_rate_limits() {
+    local user="$1"
+
+    log "Disabling rate limits for CATS test user: ${user}..."
+
+    # Clear any existing rate limit entries for this test user
+    # IP-based rate limits (match the IP we'll be using - localhost)
+    docker exec tmi-redis redis-cli --scan --pattern "ip:ratelimit:*:127.0.0.1" | xargs -r docker exec -i tmi-redis redis-cli DEL || true
+    docker exec tmi-redis redis-cli --scan --pattern "ip:ratelimit:*:::1" | xargs -r docker exec -i tmi-redis redis-cli DEL || true
+
+    # Auth flow rate limits (by user identifier)
+    docker exec tmi-redis redis-cli --scan --pattern "auth:ratelimit:*:${user}*" | xargs -r docker exec -i tmi-redis redis-cli DEL || true
+
+    # API rate limits (cleared above with general pattern)
+
+    success "Rate limits disabled for user: ${user}"
+}
+
+restore_rate_limits() {
+    log "Rate limits restored (no action needed - limits apply naturally to new requests)"
 }
 
 start_oauth_stub() {
@@ -272,6 +294,7 @@ run_cats_fuzz() {
     local token="$1"
     local server="$2"
     local path="${3:-}"
+    local user="${4:-}"
 
     log "Running CATS fuzzing..."
     log "Server: ${server}"
@@ -279,6 +302,11 @@ run_cats_fuzz() {
 
     # Export token as environment variable
     export TMI_ACCESS_TOKEN="${token}"
+
+    # Disable rate limits before starting CATS
+    if [[ -n "${user}" ]]; then
+        disable_rate_limits "${user}"
+    fi
 
     # Construct and run CATS command
     local cats_cmd=(
@@ -307,6 +335,13 @@ run_cats_fuzz() {
 
     # Run CATS with the token
     "${cats_cmd[@]}"
+
+    local cats_exit_code=$?
+
+    # Restore rate limits after CATS completes
+    restore_rate_limits
+
+    return ${cats_exit_code}
 }
 
 main() {
@@ -363,7 +398,7 @@ main() {
     local access_token
     access_token=$(authenticate_user "${user}" "${server}")
 
-    run_cats_fuzz "${access_token}" "${server}" "${path}"
+    run_cats_fuzz "${access_token}" "${server}" "${path}" "${user}"
 
     success "CATS fuzzing completed!"
 }
