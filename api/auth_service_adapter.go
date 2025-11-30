@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/ericfitz/tmi/auth"
@@ -228,4 +229,60 @@ func (a *AuthServiceAdapter) IsValidProvider(idp string) bool {
 
 	// Provider not found or not enabled
 	return false
+}
+
+// GetProviderGroupsFromCache retrieves all unique groups for a provider from cached user sessions
+func (a *AuthServiceAdapter) GetProviderGroupsFromCache(ctx context.Context, idp string) ([]string, error) {
+	logger := slogging.Get()
+	service := a.GetService()
+
+	// Get the Redis client to scan for user_groups keys
+	dbManager := auth.GetDatabaseManager()
+	if dbManager == nil {
+		logger.Warn("Database manager not available for group fetching")
+		return []string{}, nil
+	}
+
+	redisDB := dbManager.Redis()
+	if redisDB == nil {
+		logger.Warn("Redis not available for group fetching")
+		return []string{}, nil
+	}
+
+	client := redisDB.GetClient()
+
+	// Scan for all user_groups:* keys
+	pattern := "user_groups:*"
+	keys, err := client.Keys(ctx, pattern).Result()
+	if err != nil {
+		logger.Error("Failed to scan for user group keys: %v", err)
+		return nil, err
+	}
+
+	// Collect all unique groups for this IdP
+	groupSet := make(map[string]bool)
+	for _, key := range keys {
+		// Get the cached groups for this user
+		cachedIdP, groups, err := service.GetCachedGroups(ctx, key[len("user_groups:"):])
+		if err != nil {
+			// Skip this user if we can't read their groups
+			continue
+		}
+
+		// Only include groups from the requested IdP
+		if cachedIdP == idp {
+			for _, group := range groups {
+				groupSet[group] = true
+			}
+		}
+	}
+
+	// Convert map to slice
+	uniqueGroups := make([]string, 0, len(groupSet))
+	for group := range groupSet {
+		uniqueGroups = append(uniqueGroups, group)
+	}
+
+	logger.Debug("Found %d unique groups for provider %s", len(uniqueGroups), idp)
+	return uniqueGroups, nil
 }

@@ -420,18 +420,6 @@ func TestDiagramSession(t *testing.T) {
 func TestWebSocketSecuritySpoofing(t *testing.T) {
 	hub := NewWebSocketHubForTests()
 
-	t.Run("PresenterRequestSpoofing", func(t *testing.T) {
-		t.Skip("PresenterRequestMessage no longer contains user data - server uses authenticated client identity")
-	})
-
-	t.Run("PresenterCursorSpoofing", func(t *testing.T) {
-		t.Skip("PresenterCursorMessage no longer contains user data - server uses authenticated client identity")
-	})
-
-	t.Run("PresenterSelectionSpoofing", func(t *testing.T) {
-		t.Skip("PresenterSelectionMessage no longer contains user data - server uses authenticated client identity")
-	})
-
 	t.Run("ChangePresenterSpoofing", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()

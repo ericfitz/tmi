@@ -274,6 +274,32 @@ func (s *Service) RevokeToken(ctx context.Context, refreshToken string) error {
 	return s.dbManager.Redis().Del(ctx, refreshKey)
 }
 
+// InvalidateUserSessions invalidates all sessions for a user
+func (s *Service) InvalidateUserSessions(ctx context.Context, userID string) error {
+	logger := slogging.Get()
+	redisDB := s.dbManager.Redis()
+	client := redisDB.GetClient()
+
+	// Find all session keys for this user using pattern matching
+	pattern := fmt.Sprintf("session:%s:*", userID)
+	keys, err := client.Keys(ctx, pattern).Result()
+	if err != nil {
+		logger.Error("Failed to find session keys for user %s: %v", userID, err)
+		return fmt.Errorf("failed to find user sessions: %w", err)
+	}
+
+	// Delete all session keys
+	if len(keys) > 0 {
+		if err := client.Del(ctx, keys...).Err(); err != nil {
+			logger.Error("Failed to delete sessions for user %s: %v", userID, err)
+			return fmt.Errorf("failed to delete user sessions: %w", err)
+		}
+		logger.Info("Invalidated %d sessions for user %s", len(keys), userID)
+	}
+
+	return nil
+}
+
 // GetUserByEmail gets a user by email
 func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	// Try cache first

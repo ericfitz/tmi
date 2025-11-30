@@ -1245,9 +1245,6 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.WebhookChallengeWorker, *api.WebhookDeliveryWorker, *api.WebhookCleanupWorker) {
 	logger := slogging.Get()
 
-	// Initialize webhook metrics
-	api.InitializeWebhookMetrics()
-
 	// Start webhook workers if database and Redis are available
 	dbManager := auth.GetDatabaseManager()
 	var webhookConsumer *api.WebhookEventConsumer

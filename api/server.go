@@ -306,6 +306,7 @@ type AuthService interface {
 	Logout(c *gin.Context)
 	Me(c *gin.Context)
 	IsValidProvider(idp string) bool
+	GetProviderGroupsFromCache(ctx context.Context, idp string) ([]string, error)
 }
 
 // Complete ServerInterface Implementation - OpenAPI Generated Methods
@@ -437,25 +438,63 @@ func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 		return
 	}
 
-	// For now, return a placeholder response
-	// TODO: Implement actual group fetching from provider or cache
+	// Get groups from the provider by querying all cached user groups for this IdP
+	// Note: This returns groups seen in recent sessions, not all groups from the IdP
+	// For complete group lists, the IdP would need a dedicated groups API
+	ctx := c.Request.Context()
+	groups, err := s.authService.GetProviderGroupsFromCache(ctx, idp)
+	if err != nil {
+		logger.Error("[SERVER_INTERFACE] Failed to get groups for provider %s: %v", idp, err)
+		// Return empty list on error rather than failing
+		groups = []string{}
+	}
+
+	// Check which groups are used in authorizations
+	usedGroups := s.getGroupsUsedInAuthorizations(ctx)
+
+	// Build response
+	type GroupInfo struct {
+		Name                 string `json:"name"`
+		DisplayName          string `json:"display_name,omitempty"`
+		UsedInAuthorizations bool   `json:"used_in_authorizations"`
+	}
+
+	groupInfos := make([]GroupInfo, 0, len(groups))
+	for _, group := range groups {
+		groupInfos = append(groupInfos, GroupInfo{
+			Name:                 group,
+			DisplayName:          group, // Use name as display name unless we have better metadata
+			UsedInAuthorizations: contains(usedGroups, group),
+		})
+	}
+
 	response := struct {
-		IdP    string `json:"idp"`
-		Groups []struct {
-			Name                 string `json:"name"`
-			DisplayName          string `json:"display_name,omitempty"`
-			UsedInAuthorizations bool   `json:"used_in_authorizations"`
-		} `json:"groups"`
+		IdP    string      `json:"idp"`
+		Groups []GroupInfo `json:"groups"`
 	}{
-		IdP: idp,
-		Groups: []struct {
-			Name                 string `json:"name"`
-			DisplayName          string `json:"display_name,omitempty"`
-			UsedInAuthorizations bool   `json:"used_in_authorizations"`
-		}{},
+		IdP:    idp,
+		Groups: groupInfos,
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+// getGroupsUsedInAuthorizations returns a list of groups that are used in threat model authorizations
+func (s *Server) getGroupsUsedInAuthorizations(ctx context.Context) []string {
+	// Query the database for all unique groups used in authorizations
+	// For now, return empty list - this would require querying all Authorization objects
+	// and extracting unique group names
+	return []string{}
+}
+
+// contains checks if a string slice contains a specific value
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
 
 // GetSAMLMetadata returns SAML service provider metadata

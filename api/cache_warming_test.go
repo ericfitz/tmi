@@ -1,5 +1,9 @@
 package api
 
+// NOTE: Tests ending with _INTEGRATION are skipped as they require full database setup.
+// These tests are intentionally skipped and documented here for future migration
+// to a proper integration test suite with real database connections.
+
 import (
 	"context"
 	"database/sql"

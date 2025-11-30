@@ -1930,7 +1930,18 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 		return
 	}
 
-	// TODO: Invalidate user sessions
+	// Invalidate user sessions if user is authenticated
+	// Note: SAML logout requests may not include user context,
+	// so we attempt to invalidate based on JWT if present
+	ctx := c.Request.Context()
+	if userID, exists := c.Get("user_id"); exists {
+		if uid, ok := userID.(string); ok {
+			if err := h.service.InvalidateUserSessions(ctx, uid); err != nil {
+				logger.Warn("Failed to invalidate sessions during SAML logout: %v", err)
+				// Log but don't fail the logout
+			}
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Logout successful",

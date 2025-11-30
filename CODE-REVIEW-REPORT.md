@@ -22,57 +22,11 @@ After scanning **215 Go files**, I found:
 
 ## 🔴 HIGH PRIORITY - Immediate Action Required
 
-### 1. Remove Commented-Out Code
+### 1. ✅ Remove Commented-Out Code (COMPLETED)
 **File:** [auth/handlers.go:1310-1351](auth/handlers.go#L1310-L1351)
+**Status:** ✅ **COMPLETED in commit a6a80a8**
 
-There's a 39-line commented-out function `exchangeCodeForTokens()` marked as "TODO: Currently unused - reserved for future OAuth Authorization Code flow implementation"
-
-```go
-// exchangeCodeForTokens exchanges an authorization code for tokens
-// TODO: Currently unused - reserved for future OAuth Authorization Code flow implementation
-/*
-func exchangeCodeForTokens(ctx context.Context, provider OAuthProviderConfig, code, redirectURI string) (map[string]string, error) {
-	// Prepare the request
-	data := url.Values{}
-	data.Set("grant_type", "authorization_code")
-	data.Set("code", code)
-	data.Set("redirect_uri", redirectURI)
-	data.Set("client_id", provider.ClientID)
-	data.Set("client_secret", provider.ClientSecret)
-
-	// Send the request
-	req, err := http.NewRequestWithContext(ctx, "POST", provider.TokenURL, strings.NewReader(data.Encode()))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer closeBody(resp.Body)
-
-	// Parse the response
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to exchange code: %s", body)
-	}
-
-	var result map[string]string
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
-*/
-```
-
-**Recommendation:** Remove entirely. If needed in the future, it can be retrieved from git history.
+The 39-line commented-out `exchangeCodeForTokens()` function has been removed.
 
 ---
 
@@ -103,92 +57,53 @@ func exchangeCodeForTokens(ctx context.Context, provider OAuthProviderConfig, co
 
 ### Deprecated Functions (Keep for Now, Remove in v1.0)
 
-#### 1. LinkUserProvider() - No-Op Function
+#### 1. ✅ LinkUserProvider() - REMOVED
 **File:** [auth/service.go:596-609](auth/service.go#L596-L609)
+**Status:** ✅ **REMOVED in commit a6a80a8**
 
-```go
-// Deprecated: Use CreateUser or UpdateUser with provider fields instead.
-func (s *Service) LinkUserProvider(ctx context.Context, userID, provider, providerUserID, email string) error {
-	// DEPRECATED: user_providers table has been eliminated
-	// Provider information is now stored directly on users table (provider, provider_user_id fields)
-	// This function is maintained for backward compatibility but performs no operation
-	logger := slogging.Get()
-	logger.Debug("LinkUserProvider called (deprecated no-op): userID=%s, provider=%s", userID, provider)
-	return nil
-}
-```
-
-- **Status:** No-op function kept for backward compatibility
-- **Reason:** User provider linking now handled directly on User struct (provider, provider_user_id fields)
-- **Impact:** LOW - Only called internally for compatibility; can be safely removed in major version
+This no-op function has been removed from the codebase.
 
 ---
 
-#### 2. UnlinkUserProvider() - Intentionally Unsupported
+#### 2. ✅ UnlinkUserProvider() - REMOVED
 **File:** [auth/service.go:611-624](auth/service.go#L611-L624)
+**Status:** ✅ **REMOVED in commit a6a80a8**
 
-```go
-// Deprecated: Provider unlinking is not supported in the new architecture.
-// Each user is tied to exactly one OAuth provider.
-func (s *Service) UnlinkUserProvider(ctx context.Context, userID, provider string) error {
-	// DEPRECATED: user_providers table has been eliminated
-	logger := slogging.Get()
-	logger.Warn("UnlinkUserProvider called (deprecated, not supported): userID=%s, provider=%s", userID, provider)
-	return errors.New("unlinking providers is not supported in the current architecture - each user is tied to one provider")
-}
-```
-
-- **Status:** Returns error, not a true no-op
-- **Reason:** In new architecture, users have single provider; unlinking would require user deletion
-- **Impact:** MEDIUM - Returns error; should be documented as removed
+This function that returned an error has been removed from the codebase.
 
 ---
 
-#### 3. GetUserWithProviderID()
+#### 3. ✅ GetUserWithProviderID() - REMOVED
 **File:** [auth/service.go:374](auth/service.go#L374)
+**Status:** ✅ **REMOVED in commit a6a80a8**
 
-- **Status:** Likely unused
-- **Reason:** Provider ID now on User struct, not separate table
-- **Impact:** LOW - Need to verify usage
+This unused function has been removed from the codebase.
 
 ---
 
 ### Deprecated Struct Fields
 
-#### 1. User.IdentityProvider Field
+#### 1. ✅ User.IdentityProvider Field - REMOVED
 **File:** [auth/service.go:88](auth/service.go#L88)
+**Status:** ✅ **REMOVED in commit a6a80a8**
 
-```go
-IdentityProvider string    `json:"idp,omitempty"`    // DEPRECATED: Use Provider instead (kept for backward compatibility)
-```
-
-- **Status:** Kept for backward compatibility
-- **Replacement:** Use `Provider` field instead
-- **Impact:** LOW - Preserved for client compatibility
+This deprecated field has been removed from the User struct.
 
 ---
 
-#### 2. User Creation in SAML Manager
+#### 2. ✅ User Creation in SAML Manager - CLEANED UP
 **File:** [auth/saml_manager.go:222](auth/saml_manager.go#L222)
+**Status:** ✅ **CLEANED UP in commit a6a80a8**
 
-```go
-IdentityProvider: providerID, // DEPRECATED: kept for backward compatibility
-```
-
-- **Status:** Set for compatibility but not used
-- **Impact:** LOW - Harmless population of deprecated field
+References to setting the deprecated IdentityProvider field have been removed.
 
 ---
 
-#### 3. CellOperation.Component Field
+#### 3. ✅ CellOperation.Component Field - REMOVED
 **File:** [api/websocket.go:1690](api/websocket.go#L1690)
+**Status:** ✅ **REMOVED in commit a6a80a8**
 
-```go
-Component *DfdDiagram_Cells_Item `json:"component,omitempty"` // DEPRECATED
-```
-
-- **Status:** Field marked deprecated in WebSocket messages
-- **Impact:** LOW - Only affects JSON serialization compatibility
+This deprecated field has been removed from WebSocket message structures.
 
 ---
 
@@ -438,16 +353,14 @@ t.Skip("PresenterSelectionMessage no longer contains user data - server uses aut
 
 ### Medium Impact TODOs
 
-#### 1. Webhook Handler Implementation
+#### 1. ✅ Webhook Handler Implementation - COMPLETED
 **File:** [api/webhook_handlers.go:29,341](api/webhook_handlers.go#L29)
+**Status:** ✅ **COMPLETED in commit a6a80a8**
 
-```go
-// TODO: Implement full handler logic
-```
-
-- **Count:** 2 occurrences
-- **Scope:** Webhook handlers
-- **Impact:** MEDIUM - Handlers exist but are stubs
+Both `ListWebhookSubscriptions()` and `ListWebhookDeliveries()` handlers have been fully implemented with:
+- Filtering support (by threat model ID, subscription ID)
+- Pagination (default limit 20, max 100 per OpenAPI spec)
+- Owner verification and access control
 
 ---
 
@@ -576,60 +489,67 @@ Provider: "unknown", // TODO: Query from database
 
 ### Immediate Actions (This Sprint) - Priority: HIGH
 
-1. ✅ **Remove commented-out code** in `auth/handlers.go` (lines 1310-1351)
-   - Takes up space and creates confusion
-   - Can be recovered from git history if needed
+1. ✅ **COMPLETED: Remove commented-out code** in `auth/handlers.go` (lines 1310-1351)
+   - Completed in commit a6a80a8
 
-2. ✅ **Verify CacheMetrics integration**
+2. **Verify CacheMetrics integration**
    - Either remove unused functions or activate the integration
    - 11 functions defined but never called
+   - **STATUS:** NEEDS INVESTIGATION
 
-3. ✅ **Review skipped tests**
+3. **Review skipped tests**
    - Migrate to integration test suite or remove if obsolete
    - Document reasoning for any tests that remain skipped
+   - **STATUS:** NEEDS INVESTIGATION
 
 ---
 
 ### Near-term Actions (Next Quarter) - Priority: MEDIUM
 
-1. 🔧 **Complete webhook handler implementation**
-   - Currently stubbed with "TODO: Implement full handler logic"
+1. ✅ **COMPLETED: Complete webhook handler implementation**
+   - Completed in commit a6a80a8
 
 2. 🔧 **Integrate webhook metrics with OpenTelemetry**
    - 13 TODOs in webhook_metrics.go
+   - **STATUS:** NEEDS IMPLEMENTATION
 
 3. 🔧 **Implement SAML signature validation**
    - Properly validate response signatures and conditions
    - Implement logout request processing
+   - **STATUS:** NEEDS IMPLEMENTATION
 
 4. 🔧 **Complete session invalidation on user deletion**
    - Currently marked as TODO in handlers.go
+   - **STATUS:** NEEDS IMPLEMENTATION
 
 5. 🔧 **Implement actual group fetching from provider**
    - Currently hardcoded/mocked in server.go
+   - **STATUS:** NEEDS IMPLEMENTATION
 
 ---
 
 ### Major Version (v1.0 Breaking Changes) - Priority: LOW
 
-1. 🚀 **Remove deprecated functions:**
-   - `LinkUserProvider()` - No-op function
-   - `UnlinkUserProvider()` - Returns error
-   - `GetUserWithProviderID()` - Likely unused
+1. ✅ **COMPLETED: Remove deprecated functions:**
+   - ✅ `LinkUserProvider()` - Removed in commit a6a80a8
+   - ✅ `UnlinkUserProvider()` - Removed in commit a6a80a8
+   - ✅ `GetUserWithProviderID()` - Removed in commit a6a80a8
 
-2. 🚀 **Remove deprecated struct fields:**
-   - `User.IdentityProvider` field (use `Provider` instead)
-   - `CellOperation.Component` field
-   - `Diagram` schema (use `DfdDiagram` directly)
+2. ✅ **PARTIALLY COMPLETED: Remove deprecated struct fields:**
+   - ✅ `User.IdentityProvider` field - Removed in commit a6a80a8
+   - ✅ `CellOperation.Component` field - Removed in commit a6a80a8
+   - 🚀 `Diagram` schema (use `DfdDiagram` directly) - **STILL PRESENT**
 
 3. 🚀 **Create migration guide:**
-   - Document breaking changes
+   - Document breaking changes from commit a6a80a8
    - Provide migration path for deprecated APIs
    - Update CHANGELOG with all removals
+   - **STATUS:** NEEDS DOCUMENTATION
 
 4. 🚀 **Update OpenAPI specification:**
-   - Add deprecation warnings to OpenAPI spec
+   - Add deprecation warnings to OpenAPI spec for remaining items
    - Document replacement endpoints/schemas
+   - **STATUS:** NEEDS UPDATE
 
 ---
 
