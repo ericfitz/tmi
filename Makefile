@@ -390,7 +390,7 @@ execute-tests-integration:
 clean-logs:
 	$(call log_info,"Cleaning up log files...")
 	@rm -f integration-test.log server.log .server.pid
-	@if [ -d logs ]; then \
+	@if [ -d logs ] && [ -n "$$(ls -A logs 2>/dev/null)" ]; then \
 		echo -e "$(BLUE)[INFO]$(NC) Removing logs/* files"; \
 		rm -rf logs/*; \
 	fi
