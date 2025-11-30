@@ -655,3 +655,53 @@ func (s *AdministratorDatabaseStore) EnrichAdministrators(ctx context.Context, a
 	logger.Debug("Enriched %d administrator records", len(enriched))
 	return enriched, nil
 }
+
+// AdminCheckerAdapter adapts AdministratorDatabaseStore to the auth.AdminChecker interface
+type AdminCheckerAdapter struct {
+	store *AdministratorDatabaseStore
+}
+
+// NewAdminCheckerAdapter creates a new adapter for the auth.AdminChecker interface
+func NewAdminCheckerAdapter(store *AdministratorDatabaseStore) *AdminCheckerAdapter {
+	return &AdminCheckerAdapter{store: store}
+}
+
+// IsAdmin checks if a user is an administrator (implements auth.AdminChecker)
+func (a *AdminCheckerAdapter) IsAdmin(ctx context.Context, userInternalUUID *string, provider string, groupUUIDs []string) (bool, error) {
+	// Convert string UUID to uuid.UUID pointer
+	var userUUID *uuid.UUID
+	if userInternalUUID != nil && *userInternalUUID != "" {
+		parsed, err := uuid.Parse(*userInternalUUID)
+		if err != nil {
+			return false, fmt.Errorf("invalid user UUID: %w", err)
+		}
+		userUUID = &parsed
+	}
+
+	// Convert string UUIDs to uuid.UUID slice
+	uuids := make([]uuid.UUID, 0, len(groupUUIDs))
+	for _, uuidStr := range groupUUIDs {
+		parsed, err := uuid.Parse(uuidStr)
+		if err != nil {
+			return false, fmt.Errorf("invalid group UUID %s: %w", uuidStr, err)
+		}
+		uuids = append(uuids, parsed)
+	}
+
+	return a.store.IsAdmin(ctx, userUUID, provider, uuids)
+}
+
+// GetGroupUUIDsByNames converts group names to UUIDs (implements auth.AdminChecker)
+func (a *AdminCheckerAdapter) GetGroupUUIDsByNames(ctx context.Context, provider string, groupNames []string) ([]string, error) {
+	uuids, err := a.store.GetGroupUUIDsByNames(ctx, provider, groupNames)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert uuid.UUID slice to string slice
+	result := make([]string, len(uuids))
+	for i, u := range uuids {
+		result[i] = u.String()
+	}
+	return result, nil
+}

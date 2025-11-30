@@ -1063,6 +1063,15 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		authServiceAdapter := api.NewAuthServiceAdapter(authHandlers)
 		apiServer.SetAuthService(authServiceAdapter)
 		logger.Info("Auth service adapter configured for OpenAPI integration")
+
+		// Set up admin checker adapter for /users/me endpoint
+		if dbStore, ok := api.GlobalAdministratorStore.(*api.AdministratorDatabaseStore); ok {
+			adminChecker := api.NewAdminCheckerAdapter(dbStore)
+			authHandlers.SetAdminChecker(adminChecker)
+			logger.Info("Admin checker adapter configured for auth handlers")
+		} else {
+			logger.Warn("GlobalAdministratorStore is not a database store - admin status won't be available in /users/me")
+		}
 	} else {
 		logger.Warn("Auth handlers not available - auth endpoints will return errors")
 	}

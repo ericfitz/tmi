@@ -4698,6 +4698,27 @@
             "description": "Total number of grants matching filter"
           }
         }
+      },
+      "UserWithAdminStatus": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/User"
+          },
+          {
+            "type": "object",
+            "description": "User profile with admin status (only returned by GET /users/me)",
+            "properties": {
+              "is_admin": {
+                "type": "boolean",
+                "description": "Whether the user has administrator privileges (computed dynamically based on administrators table)",
+                "example": false
+              }
+            },
+            "required": [
+              "is_admin"
+            ]
+          }
+        ]
       }
     },
     "responses": {
@@ -13567,7 +13588,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/User"
+                  "$ref": "#/components/schemas/UserWithAdminStatus"
                 }
               }
             }

@@ -87,6 +87,7 @@ type User struct {
 	TokenExpiry      time.Time `json:"-"`                // Token expiration time (not exposed in JSON)
 	IdentityProvider string    `json:"idp,omitempty"`    // DEPRECATED: Use Provider instead (kept for backward compatibility)
 	Groups           []string  `json:"groups,omitempty"` // Groups from identity provider (not stored in DB)
+	IsAdmin          bool      `json:"is_admin"`         // Whether user has administrator privileges
 	CreatedAt        time.Time `json:"created_at"`
 	ModifiedAt       time.Time `json:"modified_at"`
 	LastLogin        time.Time `json:"last_login,omitempty"`

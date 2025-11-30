@@ -29,10 +29,17 @@ const (
 	UserContextKey contextKey = "user"
 )
 
+// AdminChecker is an interface for checking if a user is an administrator
+type AdminChecker interface {
+	IsAdmin(ctx context.Context, userInternalUUID *string, provider string, groupUUIDs []string) (bool, error)
+	GetGroupUUIDsByNames(ctx context.Context, provider string, groupNames []string) ([]string, error)
+}
+
 // Handlers provides HTTP handlers for authentication
 type Handlers struct {
-	service *Service
-	config  Config
+	service      *Service
+	config       Config
+	adminChecker AdminChecker
 }
 
 // NewHandlers creates new authentication handlers
@@ -41,6 +48,11 @@ func NewHandlers(service *Service, config Config) *Handlers {
 		service: service,
 		config:  config,
 	}
+}
+
+// SetAdminChecker sets the admin checker for the handlers
+func (h *Handlers) SetAdminChecker(checker AdminChecker) {
+	h.adminChecker = checker
 }
 
 // Service returns the auth service (getter for unexported field)
@@ -1121,6 +1133,41 @@ func (h *Handlers) Me(c *gin.Context) {
 					user.Groups = groups
 					if idp != "" {
 						user.IdentityProvider = idp
+					}
+				}
+			}
+
+			// Check if we should add admin status
+			if addAdminStatus, exists := c.Get("add_admin_status"); exists && addAdminStatus == true {
+				if h.adminChecker != nil {
+					// Get user's internal UUID from context
+					var userInternalUUID *string
+					if uuidInterface, exists := c.Get("userInternalUUID"); exists {
+						if uuidStr, ok := uuidInterface.(string); ok {
+							userInternalUUID = &uuidStr
+						}
+					}
+
+					// Get provider and groups from context
+					provider := c.GetString("userProvider")
+					var groupNames []string
+					if groupsInterface, exists := c.Get("userGroups"); exists {
+						if groupSlice, ok := groupsInterface.([]string); ok {
+							groupNames = groupSlice
+						}
+					}
+
+					// Convert group names to UUIDs for admin check
+					var groupUUIDs []string
+					if len(groupNames) > 0 {
+						if uuids, err := h.adminChecker.GetGroupUUIDsByNames(c.Request.Context(), provider, groupNames); err == nil {
+							groupUUIDs = uuids
+						}
+					}
+
+					// Check admin status
+					if isAdmin, err := h.adminChecker.IsAdmin(c.Request.Context(), userInternalUUID, provider, groupUUIDs); err == nil {
+						user.IsAdmin = isAdmin
 					}
 				}
 			}

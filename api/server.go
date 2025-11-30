@@ -376,16 +376,21 @@ func (s *Server) GetCurrentUser(c *gin.Context) {
 	}
 }
 
-// GetCurrentUserProfile gets current user profile with groups (from /users/me endpoint)
+// GetCurrentUserProfile gets current user profile with groups and admin status (from /users/me endpoint)
 func (s *Server) GetCurrentUserProfile(c *gin.Context) {
 	logger := slogging.Get()
-	logger.Info("[SERVER_INTERFACE] GetCurrentUserProfile called (GET /users/me) - delegating to authService.Me()")
-	if s.authService != nil {
-		// The Me() method will be updated to include groups and IdP
-		s.authService.Me(c)
-	} else {
+	logger.Info("[SERVER_INTERFACE] GetCurrentUserProfile called (GET /users/me)")
+
+	if s.authService == nil {
 		HandleRequestError(c, ServerError("Auth service not configured"))
+		return
 	}
+
+	// Set a flag to indicate we want to add admin status
+	c.Set("add_admin_status", true)
+
+	// Delegate to auth service Me() which handles the user retrieval and groups
+	s.authService.Me(c)
 }
 
 // DeleteUserAccount handles user account deletion (two-step challenge-response)
