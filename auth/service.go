@@ -76,7 +76,7 @@ func (s *Service) GetSAMLManager() *SAMLManager {
 
 // User represents a user in the system
 type User struct {
-	InternalUUID     string    `json:"-"`                // Internal system UUID (NEVER exposed in API responses or JWT)
+	InternalUUID     string    `json:"internal_uuid"`    // Internal system UUID (cached but excluded from API responses via convertUserToAPIResponse)
 	Provider         string    `json:"provider"`         // OAuth provider: "test", "google", "github", "microsoft", "azure"
 	ProviderUserID   string    `json:"provider_user_id"` // Provider's user ID (from JWT sub claim)
 	Email            string    `json:"email"`

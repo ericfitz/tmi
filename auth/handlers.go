@@ -1140,16 +1140,17 @@ func (h *Handlers) Me(c *gin.Context) {
 			// Check if we should add admin status
 			if addAdminStatus, exists := c.Get("add_admin_status"); exists && addAdminStatus == true {
 				if h.adminChecker != nil {
-					// Get user's internal UUID from context
-					var userInternalUUID *string
-					if uuidInterface, exists := c.Get("userInternalUUID"); exists {
-						if uuidStr, ok := uuidInterface.(string); ok {
-							userInternalUUID = &uuidStr
-						}
+					// Get user's internal UUID from the user object (not from context)
+					userInternalUUID := &user.InternalUUID
+
+					// Get provider from user object (prefer it over context)
+					provider := user.Provider
+					if provider == "" {
+						// Fallback to context if not in user object
+						provider = c.GetString("userProvider")
 					}
 
-					// Get provider and groups from context
-					provider := c.GetString("userProvider")
+					// Get groups from context
 					var groupNames []string
 					if groupsInterface, exists := c.Get("userGroups"); exists {
 						if groupSlice, ok := groupsInterface.([]string); ok {
