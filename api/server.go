@@ -518,13 +518,10 @@ func (s *Server) ProcessSAMLResponse(c *gin.Context) {
 		return
 	}
 
-	// Get provider ID - for now, use the first available SAML provider
-	// TODO: Extract provider ID from relay state if we support multiple SAML providers
-	providerID := "entra-tmidev-saml" // Hardcoded for single provider setup
-
 	// Delegate to auth service for SAML response processing
+	// The provider ID will be retrieved from the relay state by the auth handler
 	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
-		authAdapter.ProcessSAMLResponse(c, providerID, samlResponse, relayState)
+		authAdapter.ProcessSAMLResponse(c, "", samlResponse, relayState)
 	} else {
 		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
 	}
