@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/crewjam/saml"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // UserInfo represents user information extracted from SAML assertion
@@ -162,6 +163,21 @@ func ExtractUserInfo(assertion *saml.Assertion, config *SAMLConfig) (*UserInfo, 
 	// Extract attributes from the assertion
 	attributeMap := buildAttributeMap(assertion)
 
+	// DEBUG: Log all received SAML attributes for troubleshooting
+	// This helps diagnose attribute mapping issues with different IdPs
+	logger := slogging.Get()
+	logger.Info("SAML attribute extraction starting for provider: %s", config.ID)
+	logger.Info("SAML assertion contains %d attributes", len(attributeMap))
+	for attrName, attrValues := range attributeMap {
+		logger.Info("SAML attribute: %s = %v", attrName, attrValues)
+	}
+	if config.AttributeMapping != nil {
+		logger.Info("SAML configured attribute mappings:")
+		for key, mapping := range config.AttributeMapping {
+			logger.Info("  %s -> %s", key, mapping)
+		}
+	}
+
 	// Extract user ID with hierarchical priority
 	userInfo.ID, userInfo.IDType = extractUserID(assertion, attributeMap)
 
@@ -174,6 +190,10 @@ func ExtractUserInfo(assertion *saml.Assertion, config *SAMLConfig) (*UserInfo, 
 	// Apply fallbacks for missing fields
 	applyEmailFallback(userInfo, config)
 	applyNameFallback(userInfo)
+
+	// DEBUG: Log extracted user info
+	logger.Info("SAML extracted UserInfo: ID=%s, IDType=%s, Email=%s, Name=%s, GivenName=%s, FamilyName=%s",
+		userInfo.ID, userInfo.IDType, userInfo.Email, userInfo.Name, userInfo.GivenName, userInfo.FamilyName)
 
 	return userInfo, nil
 }
