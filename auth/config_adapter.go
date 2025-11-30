@@ -106,6 +106,8 @@ func convertSAMLProviders(unified map[string]config.SAMLProviderConfig) map[stri
 			SignRequests:      provider.SignRequests,
 			NameIDAttribute:   provider.NameIDAttribute,
 			EmailAttribute:    provider.EmailAttribute,
+			NameAttribute:     provider.NameAttribute,
+			GroupsAttribute:   provider.GroupsAttribute,
 		}
 	}
 
