@@ -33,7 +33,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) Get(id string) (DBWebhookSubscripti
 	var lastSuccessfulUse sql.NullTime
 
 	query := `
-		SELECT id, owner_id, threat_model_id, name, url, events, secret, status,
+		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
 		       last_successful_use, publication_failures
 		FROM webhook_subscriptions
@@ -78,7 +78,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) List(offset, limit int, filter func
 	defer s.mutex.RUnlock()
 
 	query := `
-		SELECT id, owner_id, threat_model_id, name, url, events, secret, status,
+		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
 		       last_successful_use, publication_failures
 		FROM webhook_subscriptions
@@ -101,11 +101,11 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListByOwner(ownerID string, offset,
 	defer s.mutex.RUnlock()
 
 	query := `
-		SELECT id, owner_id, threat_model_id, name, url, events, secret, status,
+		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
 		       last_successful_use, publication_failures
 		FROM webhook_subscriptions
-		WHERE owner_id = $1
+		WHERE owner_internal_uuid = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
 	`
@@ -125,7 +125,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListByThreatModel(threatModelID str
 	defer s.mutex.RUnlock()
 
 	query := `
-		SELECT id, owner_id, threat_model_id, name, url, events, secret, status,
+		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
 		       last_successful_use, publication_failures
 		FROM webhook_subscriptions
@@ -149,11 +149,11 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListActiveByOwner(ownerID string) (
 	defer s.mutex.RUnlock()
 
 	query := `
-		SELECT id, owner_id, threat_model_id, name, url, events, secret, status,
+		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
 		       last_successful_use, publication_failures
 		FROM webhook_subscriptions
-		WHERE owner_id = $1 AND status = 'active'
+		WHERE owner_internal_uuid = $1 AND status = 'active'
 		ORDER BY created_at DESC
 	`
 
@@ -172,7 +172,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListPendingVerification() ([]DBWebh
 	defer s.mutex.RUnlock()
 
 	query := `
-		SELECT id, owner_id, threat_model_id, name, url, events, secret, status,
+		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
 		       last_successful_use, publication_failures
 		FROM webhook_subscriptions
@@ -195,7 +195,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListPendingDelete() ([]DBWebhookSub
 	defer s.mutex.RUnlock()
 
 	query := `
-		SELECT id, owner_id, threat_model_id, name, url, events, secret, status,
+		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
 		       last_successful_use, publication_failures
 		FROM webhook_subscriptions
@@ -218,7 +218,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListIdle(daysIdle int) ([]DBWebhook
 	defer s.mutex.RUnlock()
 
 	query := `
-		SELECT id, owner_id, threat_model_id, name, url, events, secret, status,
+		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
 		       last_successful_use, publication_failures
 		FROM webhook_subscriptions
@@ -244,7 +244,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListBroken(minFailures int, daysSin
 	defer s.mutex.RUnlock()
 
 	query := `
-		SELECT id, owner_id, threat_model_id, name, url, events, secret, status,
+		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
 		       last_successful_use, publication_failures
 		FROM webhook_subscriptions
@@ -278,7 +278,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) Create(item DBWebhookSubscription, 
 
 	query := `
 		INSERT INTO webhook_subscriptions (
-			id, owner_id, threat_model_id, name, url, events, secret, status,
+			id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 			challenge, challenges_sent, created_at, modified_at,
 			last_successful_use, publication_failures
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
@@ -329,7 +329,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) Update(id string, item DBWebhookSub
 
 	query := `
 		UPDATE webhook_subscriptions
-		SET owner_id = $1, threat_model_id = $2, name = $3, url = $4, events = $5,
+		SET owner_internal_uuid = $1, threat_model_id = $2, name = $3, url = $4, events = $5,
 		    secret = $6, status = $7, challenge = $8, challenges_sent = $9,
 		    modified_at = $10, last_successful_use = $11, publication_failures = $12
 		WHERE id = $13
@@ -510,7 +510,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) CountByOwner(ownerID string) (int, 
 	defer s.mutex.RUnlock()
 
 	var count int
-	query := `SELECT COUNT(*) FROM webhook_subscriptions WHERE owner_id = $1`
+	query := `SELECT COUNT(*) FROM webhook_subscriptions WHERE owner_internal_uuid = $1`
 	err := s.db.QueryRow(query, ownerID).Scan(&count)
 	if err != nil {
 		return 0, err
