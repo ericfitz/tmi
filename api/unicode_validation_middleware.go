@@ -108,6 +108,7 @@ func ContentTypeValidationMiddleware() gin.HandlerFunc {
 	supportedContentTypes := map[string]bool{
 		"application/json":                  true,
 		"application/json; charset=utf-8":   true,
+		"application/json-patch+json":       true,
 		"application/x-www-form-urlencoded": true,
 		"multipart/form-data":               true,
 	}
@@ -153,7 +154,7 @@ func ContentTypeValidationMiddleware() gin.HandlerFunc {
 				"error_description": "The Content-Type header specifies an unsupported media type",
 				"details": gin.H{
 					"content_type": contentType,
-					"supported":    []string{"application/json", "application/x-www-form-urlencoded", "multipart/form-data"},
+					"supported":    []string{"application/json", "application/json-patch+json", "application/x-www-form-urlencoded", "multipart/form-data"},
 				},
 			})
 			c.Abort()
