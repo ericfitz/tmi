@@ -536,6 +536,15 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 		providerKey := envutil.ProviderIDToKey(providerID)
 		logger.Info("[CONFIG] Processing SAML provider: %s (key: %s)", providerID, providerKey)
 
+		// Read attribute mapping environment variables
+		nameAttr := os.Getenv(envPrefix + "NAME_ATTRIBUTE")
+		emailAttr := os.Getenv(envPrefix + "EMAIL_ATTRIBUTE")
+		groupsAttr := os.Getenv(envPrefix + "GROUPS_ATTRIBUTE")
+
+		// DEBUG: Log attribute environment variable values
+		logger.Info("[CONFIG] SAML provider %s attribute mappings - NAME_ATTRIBUTE=%q, EMAIL_ATTRIBUTE=%q, GROUPS_ATTRIBUTE=%q",
+			providerID, nameAttr, emailAttr, groupsAttr)
+
 		// Create new SAML provider config
 		provider := SAMLProviderConfig{
 			ID:                os.Getenv(envPrefix + "ID"),
@@ -554,9 +563,9 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 			IDPMetadataURL:    os.Getenv(envPrefix + "IDP_METADATA_URL"),
 			IDPMetadataXML:    os.Getenv(envPrefix + "IDP_METADATA_XML"),
 			NameIDAttribute:   os.Getenv(envPrefix + "NAME_ID_ATTRIBUTE"),
-			EmailAttribute:    os.Getenv(envPrefix + "EMAIL_ATTRIBUTE"),
-			NameAttribute:     os.Getenv(envPrefix + "NAME_ATTRIBUTE"),
-			GroupsAttribute:   os.Getenv(envPrefix + "GROUPS_ATTRIBUTE"),
+			EmailAttribute:    emailAttr,
+			NameAttribute:     nameAttr,
+			GroupsAttribute:   groupsAttr,
 		}
 
 		// Parse boolean fields
