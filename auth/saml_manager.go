@@ -190,23 +190,10 @@ func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, 
 	if err == nil {
 		// User exists, update their info
 		existingUser.Name = userInfo.Name
-		existingUser.IdentityProvider = providerID
 		existingUser.ModifiedAt = time.Now()
 
 		if err := m.service.UpdateUser(ctx, existingUser); err != nil {
 			return nil, fmt.Errorf("failed to update user: %w", err)
-		}
-
-		// Link or update the SAML provider for the existing user - DEPRECATED: provider info on User struct
-		// This code block is now a no-op since provider information is stored directly on users table
-		if userInfo.ID != "" {
-			//nolint:staticcheck // Deprecated function kept for backward compatibility
-			if err := m.service.LinkUserProvider(ctx, existingUser.InternalUUID, providerID, userInfo.ID, userInfo.Email); err != nil {
-				// Log the error but don't fail - user was updated successfully
-				logger := slogging.Get()
-				logger.Warn("failed to link SAML provider to existing user: %v (user_id=%s, provider=%s)",
-					err, existingUser.InternalUUID, providerID)
-			}
 		}
 
 		return &existingUser, nil
@@ -214,32 +201,19 @@ func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, 
 
 	// Create new user
 	newUser := User{
-		InternalUUID:     uuid.New().String(),
-		Provider:         providerID,
-		ProviderUserID:   userInfo.ID, // SAML provider's user ID
-		Email:            userInfo.Email,
-		Name:             userInfo.Name,
-		IdentityProvider: providerID, // DEPRECATED: kept for backward compatibility
-		EmailVerified:    true,       // SAML assertions are considered verified
-		CreatedAt:        time.Now(),
-		ModifiedAt:       time.Now(),
+		InternalUUID:   uuid.New().String(),
+		Provider:       providerID,
+		ProviderUserID: userInfo.ID, // SAML provider's user ID
+		Email:          userInfo.Email,
+		Name:           userInfo.Name,
+		EmailVerified:  true, // SAML assertions are considered verified
+		CreatedAt:      time.Now(),
+		ModifiedAt:     time.Now(),
 	}
 
 	createdUser, err := m.service.CreateUser(ctx, newUser)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	// Link the SAML provider to the newly created user - DEPRECATED: provider info on User struct
-	// This code block is now a no-op since provider information is stored directly on users table
-	if userInfo.ID != "" {
-		//nolint:staticcheck // Deprecated function kept for backward compatibility
-		if err := m.service.LinkUserProvider(ctx, createdUser.InternalUUID, providerID, userInfo.ID, userInfo.Email); err != nil {
-			// Log the error but don't fail - user was created successfully
-			logger := slogging.Get()
-			logger.Warn("failed to link SAML provider to user: %v (user_id=%s, provider=%s)",
-				err, createdUser.InternalUUID, providerID)
-		}
 	}
 
 	return &createdUser, nil

@@ -76,21 +76,20 @@ func (s *Service) GetSAMLManager() *SAMLManager {
 
 // User represents a user in the system
 type User struct {
-	InternalUUID     string    `json:"internal_uuid"`    // Internal system UUID (cached but excluded from API responses via convertUserToAPIResponse)
-	Provider         string    `json:"provider"`         // OAuth provider: "test", "google", "github", "microsoft", "azure"
-	ProviderUserID   string    `json:"provider_user_id"` // Provider's user ID (from JWT sub claim)
-	Email            string    `json:"email"`
-	Name             string    `json:"name"` // Display name for UI presentation
-	EmailVerified    bool      `json:"email_verified"`
-	AccessToken      string    `json:"-"`                // OAuth access token (not exposed in JSON)
-	RefreshToken     string    `json:"-"`                // OAuth refresh token (not exposed in JSON)
-	TokenExpiry      time.Time `json:"-"`                // Token expiration time (not exposed in JSON)
-	IdentityProvider string    `json:"idp,omitempty"`    // DEPRECATED: Use Provider instead (kept for backward compatibility)
-	Groups           []string  `json:"groups,omitempty"` // Groups from identity provider (not stored in DB)
-	IsAdmin          bool      `json:"is_admin"`         // Whether user has administrator privileges
-	CreatedAt        time.Time `json:"created_at"`
-	ModifiedAt       time.Time `json:"modified_at"`
-	LastLogin        time.Time `json:"last_login,omitempty"`
+	InternalUUID   string    `json:"internal_uuid"`    // Internal system UUID (cached but excluded from API responses via convertUserToAPIResponse)
+	Provider       string    `json:"provider"`         // OAuth provider: "test", "google", "github", "microsoft", "azure"
+	ProviderUserID string    `json:"provider_user_id"` // Provider's user ID (from JWT sub claim)
+	Email          string    `json:"email"`
+	Name           string    `json:"name"` // Display name for UI presentation
+	EmailVerified  bool      `json:"email_verified"`
+	AccessToken    string    `json:"-"`                // OAuth access token (not exposed in JSON)
+	RefreshToken   string    `json:"-"`                // OAuth refresh token (not exposed in JSON)
+	TokenExpiry    time.Time `json:"-"`                // Token expiration time (not exposed in JSON)
+	Groups         []string  `json:"groups,omitempty"` // Groups from identity provider (not stored in DB)
+	IsAdmin        bool      `json:"is_admin"`         // Whether user has administrator privileges
+	CreatedAt      time.Time `json:"created_at"`
+	ModifiedAt     time.Time `json:"modified_at"`
+	LastLogin      time.Time `json:"last_login,omitempty"`
 }
 
 // TokenPair contains an access token and a refresh token
@@ -125,7 +124,7 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 
 		// Set IdP and groups from the fresh UserInfo
 		if userInfo.IdP != "" {
-			user.IdentityProvider = userInfo.IdP
+			user.Provider = userInfo.IdP
 			// Cache groups in Redis if available
 			if len(userInfo.Groups) > 0 {
 				if err := s.CacheUserGroups(ctx, user.Email, userInfo.IdP, userInfo.Groups); err != nil {
@@ -158,7 +157,7 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		Email:            user.Email,
 		EmailVerified:    user.EmailVerified,
 		Name:             user.Name,
-		IdentityProvider: user.IdentityProvider,
+		IdentityProvider: user.Provider,
 		Groups:           user.Groups,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    issuer,
@@ -310,9 +309,6 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 		return User{}, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// Set IdentityProvider for backward compatibility
-	user.IdentityProvider = user.Provider
-
 	// Cache the user for future lookups
 	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
 		logger := slogging.Get()
@@ -358,9 +354,6 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 		return User{}, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// Set IdentityProvider for backward compatibility
-	user.IdentityProvider = user.Provider
-
 	// Cache the user for future lookups
 	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
 		logger := slogging.Get()
@@ -369,12 +362,6 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 	}
 
 	return user, nil
-}
-
-// GetUserWithProviderID gets a user by email - DEPRECATED: provider ID is now on User struct
-func (s *Service) GetUserWithProviderID(ctx context.Context, email string) (User, error) {
-	// This function is now just an alias for GetUserByEmail since provider info is on User
-	return s.GetUserByEmail(ctx, email)
 }
 
 // CreateUser creates a new user
@@ -424,9 +411,6 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 	if err != nil {
 		return User{}, fmt.Errorf("failed to create user: %w", err)
 	}
-
-	// Set IdentityProvider for backward compatibility
-	user.IdentityProvider = user.Provider
 
 	// Cache the newly created user
 	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
@@ -593,36 +577,6 @@ func (s *Service) GetUserProviders(ctx context.Context, userID string) ([]UserPr
 	return providers, nil
 }
 
-// LinkUserProvider links an OAuth provider to a user
-// LinkUserProvider is deprecated - provider information is now stored directly on the User struct
-// This function is kept for backward compatibility but is now a no-op.
-// Provider linking happens automatically during user creation via the provider, provider_user_id fields.
-//
-// Deprecated: Use CreateUser or UpdateUser with provider fields instead.
-func (s *Service) LinkUserProvider(ctx context.Context, userID, provider, providerUserID, email string) error {
-	// DEPRECATED: user_providers table has been eliminated
-	// Provider information is now stored directly on users table (provider, provider_user_id fields)
-	// This function is maintained for backward compatibility but performs no operation
-	logger := slogging.Get()
-	logger.Debug("LinkUserProvider called (deprecated no-op): userID=%s, provider=%s", userID, provider)
-	return nil
-}
-
-// UnlinkUserProvider is deprecated - provider information is now stored directly on the User struct
-// With the new architecture, each user has exactly one provider (stored in provider, provider_user_id fields).
-// Unlinking a provider would require deleting the user entirely.
-//
-// Deprecated: Provider unlinking is not supported in the new architecture.
-// Each user is tied to exactly one OAuth provider.
-func (s *Service) UnlinkUserProvider(ctx context.Context, userID, provider string) error {
-	// DEPRECATED: user_providers table has been eliminated
-	// In the new architecture, users have a single provider (provider, provider_user_id fields)
-	// Unlinking a provider is not supported - the user would need to be deleted instead
-	logger := slogging.Get()
-	logger.Warn("UnlinkUserProvider called (deprecated, not supported): userID=%s, provider=%s", userID, provider)
-	return errors.New("unlinking providers is not supported in the current architecture - each user is tied to one provider")
-}
-
 // GetPrimaryProviderID gets the provider user ID for a user
 // Note: In the new architecture, each user has exactly one provider stored directly on the users table
 func (s *Service) GetPrimaryProviderID(ctx context.Context, userID string) (string, error) {
@@ -684,9 +638,6 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 		return User{}, fmt.Errorf("failed to get user by provider ID: %w", err)
 	}
 
-	// Set IdentityProvider for backward compatibility
-	user.IdentityProvider = user.Provider
-
 	// Cache the user for future lookups
 	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
 		logger := slogging.Get()
@@ -732,9 +683,6 @@ func (s *Service) GetUserByAnyProviderID(ctx context.Context, providerUserID str
 	if err != nil {
 		return User{}, fmt.Errorf("failed to get user by provider ID: %w", err)
 	}
-
-	// Set IdentityProvider for backward compatibility
-	user.IdentityProvider = user.Provider
 
 	return user, nil
 }

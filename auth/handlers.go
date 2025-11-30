@@ -710,23 +710,6 @@ func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, provider
 	return user, nil
 }
 
-// linkProviderToUser links the OAuth provider to the user
-func (h *Handlers) linkProviderToUser(ctx context.Context, userID, providerID string, userInfo *UserInfo, claims *IDTokenClaims) {
-	providerUserID := userInfo.ID
-	if providerUserID == "" && claims != nil {
-		providerUserID = claims.Subject
-	}
-
-	if providerUserID != "" {
-		//nolint:staticcheck // Deprecated function kept for backward compatibility
-		err := h.service.LinkUserProvider(ctx, userID, providerID, providerUserID, userInfo.Email)
-		if err != nil {
-			logger := slogging.Get()
-			logger.Error("Failed to link provider: %v (provider: %s, user_id: %s)", err, providerID, userID)
-		}
-	}
-}
-
 // generateAndReturnTokens generates JWT tokens and redirects to client callback
 func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, user User, userInfo *UserInfo, stateData *callbackStateData) error {
 	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
@@ -949,23 +932,6 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		}
 	}
 
-	// Link provider to user - DEPRECATED: provider info is now stored directly on User struct
-	// This code block is now a no-op since provider information (provider, provider_user_id)
-	// is stored directly on the users table
-	providerUserID := userInfo.ID
-	if providerUserID == "" && claims != nil {
-		providerUserID = claims.Subject
-	}
-	if providerUserID != "" {
-		//nolint:staticcheck // Deprecated function kept for backward compatibility
-		err = h.service.LinkUserProvider(ctx, user.InternalUUID, providerID, providerUserID, email)
-		if err != nil {
-			// Log error but continue
-			logger := slogging.Get().WithContext(c)
-			logger.Error("Failed to link user provider: %v (user_id: %s, provider: %s)", err, user.InternalUUID, providerID)
-		}
-	}
-
 	// Generate TMI JWT tokens (the provider ID will be used as subject in the JWT)
 	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
@@ -1132,7 +1098,7 @@ func (h *Handlers) Me(c *gin.Context) {
 				if len(groups) > 0 {
 					user.Groups = groups
 					if idp != "" {
-						user.IdentityProvider = idp
+						user.Provider = idp
 					}
 				}
 			}
@@ -1306,49 +1272,6 @@ func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state st
 
 	return parsedURL.String(), nil
 }
-
-// exchangeCodeForTokens exchanges an authorization code for tokens
-// TODO: Currently unused - reserved for future OAuth Authorization Code flow implementation
-/*
-func exchangeCodeForTokens(ctx context.Context, provider OAuthProviderConfig, code, redirectURI string) (map[string]string, error) {
-	// Prepare the request
-	data := url.Values{}
-	data.Set("grant_type", "authorization_code")
-	data.Set("code", code)
-	data.Set("redirect_uri", redirectURI)
-	data.Set("client_id", provider.ClientID)
-	data.Set("client_secret", provider.ClientSecret)
-
-	// Send the request
-	req, err := http.NewRequestWithContext(ctx, "POST", provider.TokenURL, strings.NewReader(data.Encode()))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer closeBody(resp.Body)
-
-	// Parse the response
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to exchange code: %s", body)
-	}
-
-	var result map[string]string
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
-*/
 
 // validateOAuthScope validates the scope parameter according to OpenID Connect specification
 // Requires at least "openid" scope, supports "profile" and "email", ignores other scopes

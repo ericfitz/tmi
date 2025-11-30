@@ -1686,8 +1686,6 @@ type DiagramOperation struct {
 	Type string `json:"type"`
 	// Component ID (for update/remove)
 	ComponentID string `json:"component_id,omitempty"`
-	// Component data (for add/update)
-	Component *DfdDiagram_Cells_Item `json:"component,omitempty"` // DEPRECATED
 	// Properties to update (for update)
 	Properties map[string]interface{} `json:"properties,omitempty"`
 }

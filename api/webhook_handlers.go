@@ -19,15 +19,73 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user
-	_, _, err := ValidateAuthenticatedUser(c)
+	userID, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
 		return
 	}
 
-	// TODO: Implement full handler logic
-	c.JSON(http.StatusOK, []WebhookSubscription{})
+	// Parse pagination parameters
+	offset := 0
+	limit := 20 // Default limit per OpenAPI spec
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
+	if params.Limit != nil {
+		limit = *params.Limit
+		if limit > 100 {
+			limit = 100 // Cap at maximum per OpenAPI spec
+		}
+	}
+
+	// Get subscriptions for the user
+	var filtered []DBWebhookSubscription
+
+	// If threat model ID is provided, filter by both owner and threat model
+	if params.ThreatModelId != nil {
+		// Get by threat model and then filter by owner
+		tmSubscriptions, tmErr := GlobalWebhookSubscriptionStore.ListByThreatModel(params.ThreatModelId.String(), 0, 0)
+		if tmErr != nil {
+			logger.Error("failed to list subscriptions by threat model: %v", tmErr)
+			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
+			return
+		}
+		// Filter by owner
+		for _, sub := range tmSubscriptions {
+			if sub.OwnerId.String() == userID {
+				filtered = append(filtered, sub)
+			}
+		}
+	} else {
+		// Get all subscriptions for this owner
+		ownerSubscriptions, ownerErr := GlobalWebhookSubscriptionStore.ListByOwner(userID, 0, 0)
+		if ownerErr != nil {
+			logger.Error("failed to list subscriptions by owner: %v", ownerErr)
+			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
+			return
+		}
+		filtered = ownerSubscriptions
+	}
+
+	// Apply pagination to results
+	if offset >= len(filtered) {
+		filtered = []DBWebhookSubscription{}
+	} else {
+		end := offset + limit
+		if end > len(filtered) {
+			end = len(filtered)
+		}
+		filtered = filtered[offset:end]
+	}
+
+	// Convert to API response types (don't include secrets in list)
+	response := make([]WebhookSubscription, 0, len(filtered))
+	for _, sub := range filtered {
+		response = append(response, dbWebhookSubscriptionToAPI(sub, false))
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // CreateWebhookSubscription creates a new webhook subscription
@@ -331,15 +389,92 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user
-	_, _, err := ValidateAuthenticatedUser(c)
+	userID, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
 		return
 	}
 
-	// TODO: Implement full handler logic
-	c.JSON(http.StatusOK, []WebhookDelivery{})
+	// Parse pagination parameters
+	offset := 0
+	limit := 20 // Default limit per OpenAPI spec
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
+	if params.Limit != nil {
+		limit = *params.Limit
+		if limit > 100 {
+			limit = 100 // Cap at maximum per OpenAPI spec
+		}
+	}
+
+	var deliveries []DBWebhookDelivery
+
+	// If subscription ID is provided, get deliveries for that subscription
+	if params.SubscriptionId != nil {
+		// First verify the subscription belongs to the user
+		subscription, subErr := GlobalWebhookSubscriptionStore.Get(params.SubscriptionId.String())
+		if subErr != nil {
+			logger.Error("failed to get subscription %s: %v", params.SubscriptionId, subErr)
+			c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
+			return
+		}
+
+		// Verify ownership
+		if subscription.OwnerId.String() != userID {
+			logger.Warn("user %s attempted to access deliveries for subscription %s owned by %s",
+				userID, params.SubscriptionId, subscription.OwnerId)
+			c.JSON(http.StatusForbidden, Error{Error: "access denied"})
+			return
+		}
+
+		// Get deliveries for this subscription
+		var deliveriesErr error
+		deliveries, deliveriesErr = GlobalWebhookDeliveryStore.ListBySubscription(params.SubscriptionId.String(), offset, limit)
+		if deliveriesErr != nil {
+			logger.Error("failed to list deliveries for subscription %s: %v", params.SubscriptionId, deliveriesErr)
+			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list deliveries"})
+			return
+		}
+	} else {
+		// Get all user's subscriptions first
+		userSubscriptions, subsErr := GlobalWebhookSubscriptionStore.ListByOwner(userID, 0, 0)
+		if subsErr != nil {
+			logger.Error("failed to list subscriptions for user %s: %v", userID, subsErr)
+			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list deliveries"})
+			return
+		}
+
+		// Collect deliveries from all user's subscriptions
+		for _, sub := range userSubscriptions {
+			subDeliveries, delErr := GlobalWebhookDeliveryStore.ListBySubscription(sub.Id.String(), 0, 0)
+			if delErr != nil {
+				logger.Warn("failed to get deliveries for subscription %s: %v", sub.Id, delErr)
+				continue
+			}
+			deliveries = append(deliveries, subDeliveries...)
+		}
+
+		// Apply pagination to the combined results
+		if offset >= len(deliveries) {
+			deliveries = []DBWebhookDelivery{}
+		} else {
+			end := offset + limit
+			if end > len(deliveries) {
+				end = len(deliveries)
+			}
+			deliveries = deliveries[offset:end]
+		}
+	}
+
+	// Convert to API response types
+	response := make([]WebhookDelivery, 0, len(deliveries))
+	for _, delivery := range deliveries {
+		response = append(response, dbWebhookDeliveryToAPI(delivery))
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // GetWebhookDelivery gets a specific webhook delivery
