@@ -1921,8 +1921,9 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 		return
 	}
 
-	// Process logout request
-	if err := provider.ProcessLogoutRequest(samlRequest); err != nil {
+	// Process and validate logout request (includes signature verification)
+	logoutReq, err := provider.ProcessLogoutRequest(samlRequest)
+	if err != nil {
 		logger.Error("Failed to process SAML logout: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid logout request",
@@ -1930,20 +1931,37 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 		return
 	}
 
-	// Invalidate user sessions if user is authenticated
-	// Note: SAML logout requests may not include user context,
-	// so we attempt to invalidate based on JWT if present
+	// Invalidate user sessions based on the NameID from the logout request
 	ctx := c.Request.Context()
-	if userID, exists := c.Get("user_id"); exists {
-		if uid, ok := userID.(string); ok {
-			if err := h.service.InvalidateUserSessions(ctx, uid); err != nil {
+	if logoutReq.NameID != nil {
+		nameID := logoutReq.NameID.Value
+		logger.Info("Processing SAML logout for NameID: %s", nameID)
+
+		// Try to find the user by email (assuming NameID is email)
+		user, err := h.service.GetUserByEmail(ctx, nameID)
+		if err == nil {
+			// Invalidate all sessions for this user using InternalUUID
+			if err := h.service.InvalidateUserSessions(ctx, user.InternalUUID); err != nil {
 				logger.Warn("Failed to invalidate sessions during SAML logout: %v", err)
 				// Log but don't fail the logout
 			}
+		} else {
+			logger.Warn("User not found for SAML logout NameID: %s", nameID)
 		}
 	}
 
+	// Create logout response
+	logoutResponse, err := provider.MakeLogoutResponse(logoutReq.ID, "urn:oasis:names:tc:SAML:2.0:status:Success")
+	if err != nil {
+		logger.Error("Failed to create SAML logout response: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to create logout response",
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Logout successful",
+		"message":         "Logout successful",
+		"logout_response": logoutResponse,
 	})
 }

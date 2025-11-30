@@ -38,7 +38,7 @@ The webhook system consists of four worker threads and supporting infrastructure
 ### Required Services
 
 1. **PostgreSQL** (tested with 13+)
-   - Database schema migration 005_webhooks must be applied
+   - Database schema migration 002_business_domain must be applied
    - Tables: `webhook_subscriptions`, `webhook_deliveries`, `webhook_quotas`, `webhook_url_deny_list`
 
 2. **Redis** (tested with 6+)

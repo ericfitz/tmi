@@ -13,7 +13,7 @@ Authoritative architectural documentation that serves as the foundation for syst
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Web Clients   │◄──►│   Load Balancer  │◄──►│  TMI Server(s)  │
-│  (React/Vue/etc)│    │   (Nginx/HAProxy)│    │   (Go/Echo)     │
+│  (React/Vue/etc)│    │   (Nginx/HAProxy)│    │   (Go/Gin)      │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                                         │
                                                         ▼

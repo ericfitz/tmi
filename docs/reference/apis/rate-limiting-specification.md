@@ -246,7 +246,7 @@ Webhook endpoints enforce **four distinct limits**:
 **Existing Implementation:**
 
 Webhook rate limiting is **fully implemented**:
-- Database table: `webhook_quotas` (see [auth/migrations/005_webhooks.up.sql](../../auth/migrations/005_webhooks.up.sql))
+- Database table: `webhook_quotas` (see [auth/migrations/002_business_domain.up.sql](../../auth/migrations/002_business_domain.up.sql))
 - Rate limiter: [api/webhook_rate_limiter.go](../../../api/webhook_rate_limiter.go)
 - Storage: Redis sorted sets for sliding window algorithm
 - Tests: [api/webhook_rate_limiter_test.go](../../../api/webhook_rate_limiter_test.go)
@@ -356,7 +356,7 @@ CREATE TABLE IF NOT EXISTS webhook_quotas (
 );
 ```
 
-**Location:** [auth/migrations/005_webhooks.up.sql](../../auth/migrations/005_webhooks.up.sql)
+**Location:** [auth/migrations/002_business_domain.up.sql](../../auth/migrations/002_business_domain.up.sql)
 
 #### User API Quotas (Proposed)
 
@@ -586,7 +586,7 @@ async function makeRequestWithRetry(
 
 #### webhook_quotas
 
-See [auth/migrations/005_webhooks.up.sql](../../auth/migrations/005_webhooks.up.sql) for complete schema.
+See [auth/migrations/002_business_domain.up.sql](../../auth/migrations/002_business_domain.up.sql) for complete schema.
 
 **Purpose:** Store per-user webhook rate limits and subscription quotas.
 
@@ -734,7 +734,7 @@ CREATE TRIGGER update_user_api_quotas_modified_at
 
 - [OpenAPI Specification](./tmi-openapi.json) - Full API specification with rate limit extensions
 - [Webhook Rate Limiting](../../../api/webhook_rate_limiter.go) - Implementation reference
-- [Webhook Quotas Migration](../../auth/migrations/005_webhooks.up.sql) - Database schema
+- [Webhook Quotas Migration](../../auth/migrations/002_business_domain.up.sql) - Database schema
 - [Webhook Configuration](../../operator/webhook-configuration.md) - Operator guide
 
 ### Standards and RFCs

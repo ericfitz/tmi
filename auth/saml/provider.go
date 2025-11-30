@@ -147,7 +147,7 @@ func (p *SAMLProvider) ValidateIDToken(ctx context.Context, idToken string) (*ID
 	return nil, fmt.Errorf("SAML provider does not support ID tokens")
 }
 
-// ParseResponse parses and validates a SAML response
+// ParseResponse parses and validates a SAML response with full signature verification
 func (p *SAMLProvider) ParseResponse(samlResponse string) (*saml.Assertion, error) {
 	// Decode base64-encoded SAML response
 	decodedResponse, err := base64.StdEncoding.DecodeString(samlResponse)
@@ -155,23 +155,24 @@ func (p *SAMLProvider) ParseResponse(samlResponse string) (*saml.Assertion, erro
 		return nil, fmt.Errorf("failed to decode base64 SAML response: %w", err)
 	}
 
-	// Unmarshal the XML response
-	response := &saml.Response{}
-	if err := xml.Unmarshal(decodedResponse, response); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal SAML response: %w", err)
+	// Use the service provider's ParseXMLResponse which:
+	// 1. Validates the XML structure
+	// 2. Verifies the digital signature (response or assertion)
+	// 3. Validates conditions (NotBefore, NotOnOrAfter)
+	// 4. Validates audience restrictions
+	// 5. Validates issuer matches expected IdP
+	// 6. Validates destination URL
+	// 7. Handles encrypted assertions (decrypts if SP key provided)
+	//
+	// We use an empty URL since we don't have access to the original request URL here.
+	// The library will fall back to validating against the ACS URL configured in the SP.
+	emptyURL := url.URL{}
+	assertion, err := p.serviceProvider.ParseXMLResponse(decodedResponse, []string{}, emptyURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate SAML response: %w", err)
 	}
 
-	// For now, just return the first assertion if available
-	// TODO: Properly validate the response signature and conditions
-	if response.Assertion != nil {
-		return response.Assertion, nil
-	}
-
-	if response.EncryptedAssertion != nil {
-		return nil, fmt.Errorf("encrypted assertions are not yet supported")
-	}
-
-	return nil, fmt.Errorf("no assertion found in SAML response")
+	return assertion, nil
 }
 
 // ExtractUserInfoFromAssertion extracts user info from a SAML assertion
@@ -217,10 +218,64 @@ func (p *SAMLProvider) InitiateLogin(clientCallback *string) (string, string, er
 	return authURL, state, nil
 }
 
-// ProcessLogoutRequest handles a SAML logout request
-func (p *SAMLProvider) ProcessLogoutRequest(samlRequest string) error {
-	// TODO: Implement logout request processing
-	return nil
+// ProcessLogoutRequest handles a SAML logout request from the IdP
+func (p *SAMLProvider) ProcessLogoutRequest(samlRequest string) (*saml.LogoutRequest, error) {
+	// Decode base64-encoded SAML logout request
+	decodedRequest, err := base64.StdEncoding.DecodeString(samlRequest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64 SAML logout request: %w", err)
+	}
+
+	// Parse the logout request
+	logoutRequest := &saml.LogoutRequest{}
+	if err := xml.Unmarshal(decodedRequest, logoutRequest); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal SAML logout request: %w", err)
+	}
+
+	// Validate basic structure
+	if logoutRequest.Issuer == nil || logoutRequest.Issuer.Value != p.idpMetadata.EntityID {
+		return nil, fmt.Errorf("invalid or missing issuer in logout request")
+	}
+
+	if logoutRequest.NameID == nil {
+		return nil, fmt.Errorf("missing NameID in logout request")
+	}
+
+	// Return the parsed and validated logout request
+	// The caller should:
+	// 1. Invalidate the user's session based on NameID
+	// 2. Send a LogoutResponse back to the IdP
+	return logoutRequest, nil
+}
+
+// MakeLogoutResponse creates a SAML logout response
+func (p *SAMLProvider) MakeLogoutResponse(inResponseTo string, status string) (string, error) {
+	// Create logout response
+	logoutResponse := &saml.LogoutResponse{
+		ID:           fmt.Sprintf("id-%d", time.Now().UnixNano()),
+		InResponseTo: inResponseTo,
+		Version:      "2.0",
+		IssueInstant: time.Now(),
+		Destination:  p.serviceProvider.GetSLOBindingLocation(saml.HTTPPostBinding),
+		Issuer: &saml.Issuer{
+			Value: p.serviceProvider.EntityID,
+		},
+		Status: saml.Status{
+			StatusCode: saml.StatusCode{
+				Value: status, // e.g., "urn:oasis:names:tc:SAML:2.0:status:Success"
+			},
+		},
+	}
+
+	// Marshal to XML
+	responseXML, err := xml.Marshal(logoutResponse)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal logout response: %w", err)
+	}
+
+	// Base64 encode
+	encodedResponse := base64.StdEncoding.EncodeToString(responseXML)
+	return encodedResponse, nil
 }
 
 // loadKeyAndCert loads the SP private key and certificate

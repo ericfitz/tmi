@@ -42,7 +42,7 @@ make lint               # Run code linting
 4. Begin development with hot reloading
 
 ### Key Technologies
-- **Backend**: Go with Echo framework
+- **Backend**: Go with Gin framework
 - **Database**: PostgreSQL with Redis for caching
 - **Authentication**: OAuth 2.0 with JWT tokens
 - **Real-time**: WebSockets for collaborative editing
