@@ -518,9 +518,9 @@ func (s *Server) ProcessSAMLResponse(c *gin.Context) {
 		return
 	}
 
-	// Get provider ID from relay state or default
-	providerID := "default"
-	// TODO: Extract provider ID from relay state if encoded there
+	// Get provider ID - for now, use the first available SAML provider
+	// TODO: Extract provider ID from relay state if we support multiple SAML providers
+	providerID := "entra-tmidev-saml" // Hardcoded for single provider setup
 
 	// Delegate to auth service for SAML response processing
 	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
