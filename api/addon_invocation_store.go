@@ -19,7 +19,7 @@ type AddonInvocation struct {
 	ThreatModelID   uuid.UUID  `json:"threat_model_id"`
 	ObjectType      string     `json:"object_type,omitempty"`
 	ObjectID        *uuid.UUID `json:"object_id,omitempty"`
-	InvokedByUUID   uuid.UUID  `json:"invoked_by_uuid"`  // Internal user UUID (for rate limiting, quotas)
+	InvokedByUUID   uuid.UUID  `json:"-"`                // Internal user UUID (for rate limiting, quotas) - NEVER exposed
 	InvokedByID     string     `json:"invoked_by_id"`    // Provider-assigned user ID (for API responses)
 	InvokedByEmail  string     `json:"invoked_by_email"` // User email
 	InvokedByName   string     `json:"invoked_by_name"`  // User display name
