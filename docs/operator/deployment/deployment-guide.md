@@ -28,7 +28,7 @@ TMI is a Go-based web application that provides collaborative threat modeling ca
 
 ### Development/Build Environment
 
-- Go 1.24 or later
+- Go 1.25.3 or later
 - Git
 - Make (server is managed via makefile targets, e.g. "make dev")
 - Docker (I use Docker desktop locally on my Mac)
@@ -78,7 +78,7 @@ git clone <repository-url>
 cd tmi
 ```
 
-- [Install Go](https://go.dev/doc/install) 1.24 or later
+- [Install Go](https://go.dev/doc/install) 1.25.3 or later
 - Copy config-example.yml to config-development.yml
 - Modify config-development.yml with your OAuth client information, above
 
@@ -105,7 +105,7 @@ GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o tmi-server-windows-amd64.
 
 ```dockerfile
 # Dockerfile (Distroless-based secure build)
-FROM golang:1.21 AS builder
+FROM golang:1.25.3 AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -319,12 +319,14 @@ sudo systemctl restart postgresql
 ```
 
 3. **Database Migrations:**
-   TMI automatically runs database migrations on startup. The migrations are located in `auth/migrations/` and include:
+   TMI automatically runs database migrations on startup via the tmiserver binary. The migrations are located in `auth/migrations/` and include:
 
 - User management tables
 - Threat model and diagram schemas
 - OAuth and session tables
 - Indexes and constraints
+
+**Note:** Migrations run automatically when the tmiserver starts. There is no separate migration binary required - the server handles schema initialization and updates internally.
 
 ### Database Backup & Recovery
 

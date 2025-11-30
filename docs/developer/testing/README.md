@@ -90,15 +90,6 @@ TMI follows a multi-layered testing approach:
 - Security testing considerations
 - Release testing procedures
 
-#### [endpoints-status-codes.md](endpoints-status-codes.md)
-**API response reference** documenting expected endpoint behavior.
-
-**Content includes:**
-- HTTP status code mappings
-- Error response formats
-- Success response patterns
-- Edge case handling
-
 ## Testing Commands
 
 ### Essential Testing Commands

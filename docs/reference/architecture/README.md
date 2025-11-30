@@ -264,20 +264,6 @@ Authoritative architectural documentation that serves as the foundation for syst
 - **Edge Computing**: Regional deployment for low latency
 - **Advanced Caching**: Multi-level caching strategies
 
-## Files in This Directory
-
-### [oauth-flow-diagrams.md](oauth-flow-diagrams.md)
-
-Visual diagrams and detailed explanations of OAuth authentication flows used by TMI, including the implicit flow implementation. Contains sequence diagrams, flow charts, and technical specifications that help AI agents understand the authentication architecture.
-
-**Content includes:**
-
-- OAuth 2.0 Implicit Flow sequence diagrams
-- Authentication state transitions
-- Client-server interaction patterns
-- Error handling flows
-- Security considerations and implementation notes
-
 ## Related Documentation
 
 ### Implementation Guides

@@ -62,7 +62,7 @@ make generate-config   # Create config templates
 ## Prerequisites
 
 ### Required Software
-- Go 1.24 or later
+- Go 1.25.3 or later
 - Docker Desktop (for database containers)
 - Make (for build automation)
 - Git

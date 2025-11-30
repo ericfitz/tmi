@@ -8,26 +8,6 @@ Complete client integration documentation covering OAuth authentication, real-ti
 
 ## Files in this Directory
 
-### [client-integration-guide.md](client-integration-guide.md)
-**Comprehensive client integration guide** for TMI collaborative editing.
-
-**Content includes:**
-- Complete WebSocket collaboration implementation
-- Session management (create/join/leave sessions)
-- Real-time diagram operations and conflict resolution
-- Presenter mode with cursor sharing
-- Authentication flow integration
-- Error handling and recovery patterns
-- Performance optimization techniques
-- TypeScript definitions and examples
-- Testing strategies for collaborative features
-
-**Key Features:**
-- Step-by-step WebSocket integration
-- Echo prevention for collaborative editing
-- State synchronization mechanisms
-- Multi-user session management
-
 ### [client-oauth-integration.md](client-oauth-integration.md)
 **OAuth client integration patterns** for TMI authentication.
 
@@ -247,7 +227,6 @@ When contributing client integration improvements:
 1. **Update relevant integration guides** - Keep documentation current
 2. **Add code examples** - Provide working examples for new patterns
 3. **Test integration patterns** - Verify examples work with current TMI server
-4. **Update TypeScript definitions** - Keep type definitions accurate
-5. **Cross-reference related docs** - Maintain links to related documentation
+4. **Cross-reference related docs** - Maintain links to related documentation
 
 For questions about client integration patterns or to suggest new integration approaches, please create an issue in the project repository.

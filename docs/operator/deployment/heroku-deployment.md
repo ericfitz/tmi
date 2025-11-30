@@ -8,7 +8,8 @@ The TMI server is deployed to Heroku using:
 - **Procfile**: Specifies the command to run the tmiserver binary
 - **.godir**: Tells Heroku to build only the tmiserver package (not other binaries)
 - **app.json**: Defines the Heroku app configuration, environment variables, and required addons
-- **setup-heroku-env.py**: Automated configuration script for environment variables (recommended)
+- **setup-heroku-env.py**: Automated Python configuration script for environment variables (recommended)
+- **configure-heroku-env.sh**: Alternative Bash configuration script
 
 ## Prerequisites
 
@@ -323,59 +324,61 @@ heroku redis:credentials --app my-tmi-server
 
 ## Database Migrations
 
-The TMI server uses golang-migrate for database schema management. You need to run migrations after deployment:
+**Important:** The TMI server automatically runs database migrations on startup. There is no separate migration binary or step required.
 
-### Option 1: Run Migrations via Heroku CLI
+### Automatic Migration Behavior
+
+When the tmiserver binary starts, it:
+
+1. Connects to the PostgreSQL database
+2. Automatically runs all pending migrations from `auth/migrations/`
+3. Creates or updates the schema as needed
+4. Starts the HTTP server after migrations complete
+
+**This means:**
+
+- ✅ No separate `migrate` binary is needed
+- ✅ No manual migration commands required
+- ✅ Schema is always up-to-date when the server starts
+- ✅ Migrations run automatically on every deployment
+
+### Migration Monitoring
+
+To verify migrations ran successfully:
 
 ```bash
-# Use one-off dyno to run migrations
-heroku run bin/migrate up --app my-tmi-server
+# Check server startup logs
+heroku logs --tail --app my-tmi-server | grep -i migration
 
-# Check migration status
-heroku run bin/migrate version --app my-tmi-server
+# You should see log entries like:
+# "Running database migrations from auth/migrations"
+# "Successfully applied X migrations"
 ```
 
-**Note**: This requires the `migrate` binary to be built, which isn't configured by default. See "Building Multiple Binaries" section.
+### Manual Database Inspection
 
-### Option 2: Run Migrations from Local Machine
+If you need to inspect the database schema:
 
 ```bash
-# Connect to Heroku Postgres from local machine
-heroku pg:credentials:url DATABASE --app my-tmi-server
+# Connect to Heroku Postgres
+heroku pg:psql --app my-tmi-server
 
-# Set environment variables locally
-export POSTGRES_HOST=<host>
-export POSTGRES_PORT=5432
-export POSTGRES_USER=<user>
-export POSTGRES_PASSWORD=<password>
-export POSTGRES_DATABASE=<database>
-export POSTGRES_SSL_MODE=require
+# List all tables
+\dt
 
-# Run migrations locally against Heroku database
-make build-migrate
-./bin/migrate up
+# Exit
+\q
 ```
 
-### Option 3: Automatic Migrations (Recommended for Production)
+## Heroku Build Configuration
 
-Modify your Procfile to run migrations on startup:
-
-```
-release: bin/migrate up
-web: bin/tmiserver --config=config-production.yml
-```
-
-**Note**: This requires building both `migrate` and `tmiserver` binaries. See "Building Multiple Binaries" section.
-
-## Building Only tmiserver (Current Configuration)
-
-The `.godir` file contains `tmiserver`, which tells Heroku to build only:
+The Procfile specifies which binary to run:
 
 ```
-github.com/ericfitz/tmi/cmd/server
+web: SERVER_PORT=$PORT bin/server
 ```
 
-This prevents Heroku from building the `migrate` and `check-db` binaries, which speeds up builds and reduces slug size.
+Heroku's Go buildpack automatically builds the `cmd/server` package, creating `bin/server` (which is the tmiserver binary).
 
 ### Verifying the Build
 
@@ -388,53 +391,10 @@ heroku run bash --app my-tmi-server
 # List binaries
 ls -la bin/
 
-# Should only see: tmiserver
+# Should see: server (the tmiserver binary)
 ```
 
-## Building Multiple Binaries
-
-If you need to build multiple binaries (e.g., for migrations), you have two options:
-
-### Option 1: Multi-Binary Procfile (Recommended)
-
-1. **Remove `.godir` file**:
-   ```bash
-   rm .godir
-   ```
-
-2. **Update `app.json`** to build multiple packages:
-   ```json
-   "env": {
-     "GO_INSTALL_PACKAGE_SPEC": {
-       "value": "github.com/ericfitz/tmi/cmd/server github.com/ericfitz/tmi/cmd/migrate",
-       "required": true
-     }
-   }
-   ```
-
-3. **Update Procfile** to run migrations on release:
-   ```
-   release: bin/migrate up
-   web: bin/tmiserver --config=config-production.yml
-   ```
-
-### Option 2: Separate Migration App
-
-Create a separate Heroku app for running migrations:
-
-```bash
-# Create migration app
-heroku create my-tmi-migrations --app my-tmi-server
-
-# Configure to build only migrate binary
-heroku config:set GO_INSTALL_PACKAGE_SPEC=github.com/ericfitz/tmi/cmd/migrate --app my-tmi-migrations
-
-# Deploy
-git push heroku main:main --app my-tmi-migrations
-
-# Run migrations
-heroku run bin/migrate up --app my-tmi-migrations
-```
+**Note:** The `migrate` and `check-db` binaries are **not needed** for Heroku deployments since migrations run automatically via the tmiserver binary.
 
 ## Configuration File
 

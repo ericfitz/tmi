@@ -90,4 +90,4 @@ Set production environment variables:
 - `POSTGRES_PASSWORD` - Database password
 - OAuth client credentials for your production domain
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for complete production setup instructions.
+See [Deployment Guide](../../operator/deployment/deployment-guide.md) for complete production setup instructions.

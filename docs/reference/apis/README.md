@@ -1,73 +1,62 @@
 # API Specifications & Reference
 
-This directory contains the TMI OpenAPI 3.0 specification and all machine-generated artifacts derived from it using SwaggerHub.
+This directory contains the TMI API specifications and workflow definitions.
 
 ## Purpose
 
-This directory serves as the single source of truth for the TMI API specification and houses all generated documentation, client SDKs, and specification variants produced by SwaggerHub.
+This directory serves as the single source of truth for TMI API specifications, including REST APIs, WebSocket protocols, and workflow orchestration patterns.
 
-## Directory Structure
+## Files
 
-### Source Specification
+### REST API Specification
 
-- **`tmi-openapi.json`** - The authoritative OpenAPI 3.0.3 specification (version 1.0.0) for the TMI REST API
+- **`tmi-openapi.json`** - The authoritative OpenAPI 3.0.3 specification for the TMI REST API
+  - Comprehensive REST API documentation
+  - OAuth 2.0 authentication flows
+  - Request/response schemas
+  - Error handling patterns
+  - Public endpoint markers for OAuth/OIDC/SAML endpoints
+
+### WebSocket API Specification
+
 - **`tmi-asyncapi.yml`** - AsyncAPI specification for the WebSocket collaboration protocol
+  - Real-time diagram collaboration
+  - Message schemas for session management
+  - Event-driven communication patterns
+
+### Workflow Specifications
+
 - **`api-workflows.json`** - API workflow definitions and integration patterns
+  - End-to-end workflow sequences
+  - Prerequisite relationships between API calls
+  - OAuth PKCE flow patterns
+  - CRUD operation sequences
 
-### Generated Content
+### Arazzo Workflow Specifications
 
-All subdirectories contain machine-generated artifacts from SwaggerHub based on the `tmi-openapi.json` v1.0.0 specification:
+- **`tmi.arazzo.yaml`** - Arazzo v1.0.0 workflow specification (human-readable YAML)
+- **`tmi.arazzo.json`** - Arazzo v1.0.0 workflow specification (machine-readable JSON)
+  - Generated from OpenAPI + workflow knowledge base
+  - PKCE OAuth flow with code_verifier and code_challenge
+  - 7 complete end-to-end workflows
+  - Prerequisite mapping via dependsOn relationships
+  - See `arazzo-generation.md` for details
 
-#### Documentation Artifacts
-
-- **`dynamic-html-documentation-generated/`** - Interactive HTML documentation with dynamic examples
-- **`html-documentation-generated/`** - Static HTML documentation (format variant 1)
-- **`html2-documentation-generated/`** - Static HTML documentation (format variant 2)
-
-#### Client SDKs
-
-**`sdks-generated/`** contains client libraries for multiple programming languages:
-
-- **`go-client-generated/`** - Go SDK for TMI API integration
-- **`java-client-generated/`** - Java SDK with Maven/Gradle support
-- **`javascript-client-generated/`** - JavaScript/Node.js SDK
-- **`python-client-generated/`** - Python SDK with pip packaging
-
-Each SDK includes:
-- Auto-generated client code from the OpenAPI specification
-- Authentication helpers (OAuth 2.0 Implicit Flow + JWT)
-- Type-safe request/response models
-- Documentation and usage examples
-- Build configuration files
-
-#### OpenAPI Specification Variants
-
-**`openapi-specifications-generated/`** contains processed versions of the source specification:
-
-- **`tmi-openapi-specification-1.0.0-resolved.json`** - All `$ref` references inlined (JSON format)
-- **`tmi-openapi-specification-1.0.0-resolved.yaml`** - All `$ref` references inlined (YAML format)
-- **`tmi-openapi-specification-1.0.0-unresolved.json`** - Original structure with `$ref` references (JSON format)
-- **`tmi-openapi-specification-1.0.0-unresolved.yaml`** - Original structure with `$ref` references (YAML format)
-
-**Resolved vs Unresolved:**
-- **Resolved** specifications inline all references, making them self-contained and easier for tools that don't handle `$ref` resolution
-- **Unresolved** specifications preserve the modular structure with `$ref` pointers, maintaining readability and reusability
-
-## Using the Generated Content
+## Using the Specifications
 
 ### For API Consumers
 
-1. **Quick Reference**: Open any of the HTML documentation directories in a browser for human-readable API docs
-2. **Client Development**: Use the appropriate SDK from `sdks-generated/` for your programming language
-3. **Tool Integration**: Use resolved specifications for tools that need self-contained schemas
-4. **Validation**: Reference the source `tmi-openapi.json` for schema validation against the server
+1. **REST API Reference**: Read `tmi-openapi.json` for endpoint details, schemas, and authentication requirements
+2. **WebSocket Integration**: Consult `tmi-asyncapi.yml` for real-time collaboration protocol
+3. **Workflow Patterns**: Review `api-workflows.json` or Arazzo specifications for complete integration sequences
+4. **Client Development**: Use specifications to generate client SDKs or implement custom integrations
 
 ### For API Developers
 
-1. **Source of Truth**: Always edit `tmi-openapi.json` - never modify generated artifacts
-2. **Regeneration**: After updating the source specification, regenerate all artifacts via SwaggerHub
-3. **Validation**: Use `make validate-openapi` to validate specification changes before committing
-4. **Version Control**: Commit both source specifications and generated artifacts to track API evolution
+1. **Source of Truth**: Always edit the source specification files directly
+2. **Validation**: Use `make validate-openapi` and `make validate-arazzo` to validate changes
+3. **Code Generation**: Run `make generate-api` to regenerate Go server code from OpenAPI
+4. **Workflow Updates**: Run `make generate-arazzo` to regenerate Arazzo specifications from workflows
 
 ## Related Documentation
 
@@ -75,11 +64,13 @@ Each SDK includes:
 
 - [Client Integration Guide](../../developer/integration/client-integration-guide.md) - Using these APIs
 - [OAuth Integration](../../developer/setup/oauth-integration.md) - Authentication setup
+- [Arazzo Generation](arazzo-generation.md) - Workflow specification generation
 
 ### Testing and Quality
 
 - [API Testing](../../developer/testing/api-integration-tests.md) - API testing procedures
 - [Postman Testing](../../developer/testing/postman-comprehensive-testing.md) - Postman collection usage
+- [CATS Public Endpoints](../../developer/testing/cats-public-endpoints.md) - Public endpoint handling
 
 ### Operations and Deployment
 
@@ -90,11 +81,18 @@ Each SDK includes:
 
 When making changes to the TMI API:
 
-1. Update the source `tmi-openapi.json` specification
-2. Validate the changes: `make validate-openapi`
-3. Upload to SwaggerHub and regenerate all artifacts
-4. Download and replace the contents of the generated directories
+1. Update the appropriate source specification:
+   - REST API: `tmi-openapi.json`
+   - WebSocket: `tmi-asyncapi.yml`
+   - Workflows: `api-workflows.json`
+2. Validate the changes:
+   - `make validate-openapi` (OpenAPI)
+   - `make validate-arazzo` (Arazzo)
+3. Regenerate derived artifacts:
+   - `make generate-api` (Go server code)
+   - `make generate-arazzo` (Arazzo workflows)
+4. Test the changes with integration tests
 5. Commit all changes together to maintain consistency
-6. Update the server implementation if the API contract changed
+6. Update server implementation if the API contract changed
 
-For detailed API endpoint documentation, request/response formats, and integration examples, consult the generated HTML documentation or the source OpenAPI specification.
+For detailed API endpoint documentation, request/response formats, and integration examples, consult the OpenAPI specification directly or use tools like Swagger UI or Redoc to render interactive documentation.
