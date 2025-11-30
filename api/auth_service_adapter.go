@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/ericfitz/tmi/auth"
-	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -13,12 +12,14 @@ import (
 // AuthServiceAdapter adapts the auth package's Handlers to implement our AuthService interface
 type AuthServiceAdapter struct {
 	handlers *auth.Handlers
+	service  *auth.Service
 }
 
 // NewAuthServiceAdapter creates a new adapter for auth handlers
 func NewAuthServiceAdapter(handlers *auth.Handlers) *AuthServiceAdapter {
 	return &AuthServiceAdapter{
 		handlers: handlers,
+		service:  handlers.Service(),
 	}
 }
 
@@ -104,33 +105,9 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 		return
 	}
 
-	// Get database manager and fetch user
-	dbManager := auth.GetDatabaseManager()
-	if dbManager == nil {
-		slogging.Get().WithContext(c).Error("AuthServiceAdapter: Database manager not available for user lookup (userName: %s)", userEmail)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Database not available",
-		})
-		return
-	}
-
-	// Create auth service to fetch user
-	authConfig := auth.ConfigFromUnified(&config.Config{
-		Database: config.DatabaseConfig{
-			Postgres: config.PostgresConfig{
-				Host:     "localhost",
-				Port:     "5432",
-				User:     "tmi_dev",
-				Password: "dev123",
-				Database: "tmi_dev",
-				SSLMode:  "disable",
-			},
-		},
-	})
-
-	service, err := auth.NewService(dbManager, authConfig)
-	if err != nil {
-		slogging.Get().WithContext(c).Error("AuthServiceAdapter: Failed to create auth service for user lookup (userName: %s): %v", userEmail, err)
+	// Use the existing auth service to fetch user
+	if a.service == nil {
+		slogging.Get().WithContext(c).Error("AuthServiceAdapter: Auth service not available for user lookup (userName: %s)", userEmail)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Auth service unavailable",
 		})
@@ -138,7 +115,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	}
 
 	// Fetch user by email
-	user, err := service.GetUserByEmail(c.Request.Context(), userEmail)
+	user, err := a.service.GetUserByEmail(c.Request.Context(), userEmail)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "User not found",
