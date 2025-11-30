@@ -1153,7 +1153,43 @@ build-server-sbom: build-with-sbom
 # VALIDATION TARGETS
 # ============================================================================
 
-.PHONY: validate-openapi validate-asyncapi scan-openapi-security
+.PHONY: validate-openapi validate-asyncapi scan-openapi-security arazzo-install arazzo-scaffold arazzo-enhance generate-arazzo validate-arazzo arazzo-all
+
+# ============================================================================
+# ARAZZO WORKFLOW GENERATION
+# ============================================================================
+
+arazzo-install:
+	$(call log_info,Installing Arazzo tooling...)
+	@npm install
+	$(call log_success,Arazzo tools installed)
+
+arazzo-scaffold: arazzo-install
+	$(call log_info,Generating base scaffold with Redocly CLI...)
+	@bash scripts/generate_arazzo_scaffold.sh
+	$(call log_success,Base scaffold generated)
+
+arazzo-enhance:
+	$(call log_info,Enhancing with TMI workflow data...)
+	@uv run scripts/enhance_arazzo_with_workflows.py
+	$(call log_success,Enhanced Arazzo created at docs/reference/apis/tmi.arazzo.{yaml,json})
+
+validate-arazzo:
+	$(call log_info,Validating Arazzo specifications...)
+	@uv run scripts/validate_arazzo.py \
+		docs/reference/apis/tmi.arazzo.yaml \
+		docs/reference/apis/tmi.arazzo.json
+	$(call log_success,Arazzo specifications are valid)
+
+generate-arazzo: arazzo-scaffold arazzo-enhance validate-arazzo
+	$(call log_success,Arazzo specification generation complete)
+
+arazzo-all: arazzo-install generate-arazzo
+	$(call log_success,Complete Arazzo workflow finished)
+
+# ============================================================================
+# OPENAPI/ASYNCAPI VALIDATION
+# ============================================================================
 
 validate-openapi:
 	$(call log_info,Validating OpenAPI specification...)
@@ -1299,6 +1335,14 @@ help:
 	@echo "  wstest                 - Run WebSocket test with 3 terminals (alice, bob, charlie)"
 	@echo "  monitor-wstest         - Run WebSocket test harness with user 'monitor'"
 	@echo "  clean-wstest           - Stop all running WebSocket test instances"
+	@echo ""
+	@echo "Arazzo Workflow Generation:"
+	@echo "  generate-arazzo        - Generate Arazzo workflow specifications (YAML + JSON)"
+	@echo "  validate-arazzo        - Validate generated Arazzo specifications"
+	@echo "  arazzo-scaffold        - Generate base scaffold from OpenAPI (Redocly)"
+	@echo "  arazzo-enhance         - Enhance scaffold with TMI workflow data"
+	@echo "  arazzo-install         - Install Arazzo tooling (Redocly, Spectral)"
+	@echo "  arazzo-all             - Full Arazzo generation pipeline"
 	@echo ""
 	@echo "Validation Targets:"
 	@echo "  validate-openapi       - Validate OpenAPI specification"

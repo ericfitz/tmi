@@ -128,6 +128,37 @@ TMI uses two complementary tools for comprehensive SBOM generation:
   - See [docs/developer/testing/cats-public-endpoints.md](docs/developer/testing/cats-public-endpoints.md) for complete documentation
   - Update script: `./scripts/add-public-endpoint-markers.sh` (automatically adds vendor extensions)
 
+### Arazzo Workflow Generation
+
+TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow sequences and dependencies:
+
+- **Generate Arazzo**: `make generate-arazzo` - Full pipeline (scaffold → enhance → validate)
+- **Install Tools**: `make arazzo-install` - Install Redocly CLI and Spectral
+- **Scaffold Only**: `make arazzo-scaffold` - Generate base scaffold from OpenAPI
+- **Enhance Only**: `make arazzo-enhance` - Add TMI workflow patterns
+- **Validate Only**: `make validate-arazzo` - Validate Arazzo specifications
+- **Complete Setup**: `make arazzo-all` - Install tools + generate specifications
+
+**Key Features**:
+- Automatic PKCE (RFC 7636) OAuth flow generation with `code_verifier` and `code_challenge`
+- Prerequisite mapping from TMI workflows to Arazzo `dependsOn` relationships
+- 7 complete end-to-end workflow sequences (OAuth, CRUD, collaboration, webhooks)
+- Dual output: YAML (human-readable) + JSON (machine-readable)
+- Spectral validation against Arazzo v1.0.0 specification
+
+**Files**:
+- `docs/reference/apis/tmi.arazzo.yaml` - Generated Arazzo specification (YAML)
+- `docs/reference/apis/tmi.arazzo.json` - Generated Arazzo specification (JSON)
+- `docs/reference/apis/api-workflows.json` - TMI workflow knowledge base (source)
+- `docs/reference/apis/arazzo-generation.md` - Complete documentation
+
+**Tools**:
+- Redocly CLI - Scaffold generation from OpenAPI
+- Python enhancement script - Enrichment with TMI workflow patterns
+- Spectral CLI - Arazzo validation with custom TMI rules
+
+**Workflow Coverage**: OAuth PKCE, threat model CRUD, diagram collaboration, threat management, document management, metadata operations, webhooks, and addons.
+
 ### OAuth Callback Stub
 
 - **OAuth Testing Harness**: `make start-oauth-stub` or `uv run scripts/oauth-client-callback-stub.py --port 8079` - Comprehensive OAuth test tool with PKCE support

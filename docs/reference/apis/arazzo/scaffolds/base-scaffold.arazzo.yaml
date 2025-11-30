@@ -1,0 +1,1700 @@
+arazzo: 1.0.1
+info:
+  title: TMI (Threat Modeling Improved) API
+  version: 1.0.0
+sourceDescriptions:
+  - name: tmi-openapi
+    type: openapi
+    url: ../../tmi-openapi.json
+workflows:
+  - workflowId: get-workflow
+    steps:
+      - stepId: get-step
+        operationId: $sourceDescriptions.tmi-openapi.getApiInfo
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-.well-known-openid-configuration-workflow
+    steps:
+      - stepId: get-.well-known-openid-configuration-step
+        operationId: $sourceDescriptions.tmi-openapi.getOpenIDConfiguration
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-.well-known-oauth-authorization-server-workflow
+    steps:
+      - stepId: get-.well-known-oauth-authorization-server-step
+        operationId: $sourceDescriptions.tmi-openapi.getOAuthAuthorizationServerMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-.well-known-jwks.json-workflow
+    steps:
+      - stepId: get-.well-known-jwks.json-step
+        operationId: $sourceDescriptions.tmi-openapi.getJWKS
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-.well-known-oauth-protected-resource-workflow
+    steps:
+      - stepId: get-.well-known-oauth-protected-resource-step
+        operationId: $sourceDescriptions.tmi-openapi.getOAuthProtectedResourceMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-oauth2-introspect-workflow
+    steps:
+      - stepId: post-oauth2-introspect-step
+        operationId: $sourceDescriptions.tmi-openapi.introspectToken
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-oauth2-providers-workflow
+    steps:
+      - stepId: get-oauth2-providers-step
+        operationId: $sourceDescriptions.tmi-openapi.getAuthProviders
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-oauth2-providers-{idp}-groups-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-oauth2-providers-{idp}-groups-step
+        operationId: $sourceDescriptions.tmi-openapi.getProviderGroups
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-oauth2-authorize-workflow
+    steps:
+      - stepId: get-oauth2-authorize-step
+        operationId: $sourceDescriptions.tmi-openapi.authorizeOAuthProvider
+        successCriteria:
+          - condition: $statusCode == 302
+  - workflowId: post-oauth2-token-workflow
+    steps:
+      - stepId: post-oauth2-token-step
+        operationId: $sourceDescriptions.tmi-openapi.exchangeOAuthCode
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-oauth2-refresh-workflow
+    steps:
+      - stepId: post-oauth2-refresh-step
+        operationId: $sourceDescriptions.tmi-openapi.refreshToken
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-oauth2-userinfo-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-oauth2-userinfo-step
+        operationId: $sourceDescriptions.tmi-openapi.getCurrentUser
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-oauth2-callback-workflow
+    steps:
+      - stepId: get-oauth2-callback-step
+        operationId: $sourceDescriptions.tmi-openapi.handleOAuthCallback
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-oauth2-revoke-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-oauth2-revoke-step
+        operationId: $sourceDescriptions.tmi-openapi.logoutUser
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: get-collaboration-sessions-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-collaboration-sessions-step
+        operationId: $sourceDescriptions.tmi-openapi.getCollaborationSessions
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-threat_models-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-step
+        operationId: $sourceDescriptions.tmi-openapi.createThreatModel
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-threat_models-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-step
+        operationId: $sourceDescriptions.tmi-openapi.listThreatModels
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: put-threat_models-{threat_model_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateThreatModel
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-threat_models-{threat_model_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModel
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: patch-threat_models-{threat_model_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: patch-threat_models-{threat_model_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.patchThreatModel
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: delete-threat_models-{threat_model_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: delete-threat_models-{threat_model_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteThreatModel
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: post-threat_models-{threat_model_id}-threats-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-threats-step
+        operationId: $sourceDescriptions.tmi-openapi.createThreatModelThreat
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-threat_models-{threat_model_id}-threats-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-threats-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelThreats
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: put-threat_models-{threat_model_id}-threats-{threat_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-threats-{threat_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateThreatModelThreat
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-threat_models-{threat_model_id}-threats-{threat_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-threats-{threat_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelThreat
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: patch-threat_models-{threat_model_id}-threats-{threat_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: patch-threat_models-{threat_model_id}-threats-{threat_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.patchThreatModelThreat
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: delete-threat_models-{threat_model_id}-threats-{threat_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: delete-threat_models-{threat_model_id}-threats-{threat_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteThreatModelThreat
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: post-threat_models-{threat_model_id}-threats-{threat_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-threats-{threat_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.createThreatMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-threat_models-{threat_model_id}-threats-{threat_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-threats-{threat_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      put-threat_models-{threat_model_id}-threats-{threat_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          put-threat_models-{threat_model_id}-threats-{threat_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateThreatMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      get-threat_models-{threat_model_id}-threats-{threat_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          get-threat_models-{threat_model_id}-threats-{threat_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      delete-threat_models-{threat_model_id}-threats-{threat_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          delete-threat_models-{threat_model_id}-threats-{threat_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteThreatMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: >-
+      post-threat_models-{threat_model_id}-threats-{threat_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          post-threat_models-{threat_model_id}-threats-{threat_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkCreateThreatMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: >-
+      put-threat_models-{threat_model_id}-threats-{threat_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          put-threat_models-{threat_model_id}-threats-{threat_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkUpsertThreatMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-threat_models-{threat_model_id}-threats-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-threats-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkCreateThreatModelThreats
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: put-threat_models-{threat_model_id}-threats-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-threats-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkUpdateThreatModelThreats
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: patch-threat_models-{threat_model_id}-threats-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: patch-threat_models-{threat_model_id}-threats-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkPatchThreatModelThreats
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: delete-threat_models-{threat_model_id}-threats-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: delete-threat_models-{threat_model_id}-threats-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkDeleteThreatModelThreats
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-threat_models-{threat_model_id}-documents-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-documents-step
+        operationId: $sourceDescriptions.tmi-openapi.createThreatModelDocument
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-threat_models-{threat_model_id}-documents-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-documents-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelDocuments
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: put-threat_models-{threat_model_id}-documents-{document_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-documents-{document_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateThreatModelDocument
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-threat_models-{threat_model_id}-documents-{document_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-documents-{document_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelDocument
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: patch-threat_models-{threat_model_id}-documents-{document_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: patch-threat_models-{threat_model_id}-documents-{document_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.patchThreatModelDocument
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: delete-threat_models-{threat_model_id}-documents-{document_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: delete-threat_models-{threat_model_id}-documents-{document_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteThreatModelDocument
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: >-
+      post-threat_models-{threat_model_id}-documents-{document_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          post-threat_models-{threat_model_id}-documents-{document_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.createDocumentMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: >-
+      get-threat_models-{threat_model_id}-documents-{document_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          get-threat_models-{threat_model_id}-documents-{document_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.getDocumentMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      put-threat_models-{threat_model_id}-documents-{document_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          put-threat_models-{threat_model_id}-documents-{document_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateDocumentMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      get-threat_models-{threat_model_id}-documents-{document_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          get-threat_models-{threat_model_id}-documents-{document_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.getDocumentMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      delete-threat_models-{threat_model_id}-documents-{document_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          delete-threat_models-{threat_model_id}-documents-{document_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteDocumentMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: >-
+      post-threat_models-{threat_model_id}-documents-{document_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          post-threat_models-{threat_model_id}-documents-{document_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkCreateDocumentMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: >-
+      put-threat_models-{threat_model_id}-documents-{document_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          put-threat_models-{threat_model_id}-documents-{document_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkUpsertDocumentMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-threat_models-{threat_model_id}-documents-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-documents-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkCreateThreatModelDocuments
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: put-threat_models-{threat_model_id}-documents-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-documents-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkUpsertThreatModelDocuments
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: post-threat_models-{threat_model_id}-repositories-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-repositories-step
+        operationId: $sourceDescriptions.tmi-openapi.createThreatModelRepository
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-threat_models-{threat_model_id}-repositories-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-repositories-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelRepositories
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: put-threat_models-{threat_model_id}-repositories-{repository_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-repositories-{repository_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateThreatModelRepository
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-threat_models-{threat_model_id}-repositories-{repository_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-repositories-{repository_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelRepository
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      patch-threat_models-{threat_model_id}-repositories-{repository_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          patch-threat_models-{threat_model_id}-repositories-{repository_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.patchThreatModelRepository
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      delete-threat_models-{threat_model_id}-repositories-{repository_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          delete-threat_models-{threat_model_id}-repositories-{repository_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteThreatModelRepository
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: >-
+      post-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          post-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.createRepositoryMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: >-
+      get-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          get-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.getRepositoryMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      put-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          put-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateRepositoryMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      get-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          get-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.getRepositoryMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      delete-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          delete-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteRepositoryMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: >-
+      post-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          post-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkCreateRepositoryMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: >-
+      put-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          put-threat_models-{threat_model_id}-repositories-{repository_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkUpsertRepositoryMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-threat_models-{threat_model_id}-repositories-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-repositories-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkCreateThreatModelRepositories
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: put-threat_models-{threat_model_id}-repositories-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-repositories-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkUpsertThreatModelRepositories
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: post-threat_models-{threat_model_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.createThreatModelMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-threat_models-{threat_model_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: put-threat_models-{threat_model_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateThreatModelMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-threat_models-{threat_model_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: delete-threat_models-{threat_model_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: delete-threat_models-{threat_model_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteThreatModelMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: post-threat_models-{threat_model_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkCreateThreatModelMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: put-threat_models-{threat_model_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkUpsertThreatModelMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-threat_models-{threat_model_id}-diagrams-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-diagrams-step
+        operationId: $sourceDescriptions.tmi-openapi.createThreatModelDiagram
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-threat_models-{threat_model_id}-diagrams-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-diagrams-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelDiagrams
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: put-threat_models-{threat_model_id}-diagrams-{diagram_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-diagrams-{diagram_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateThreatModelDiagram
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-threat_models-{threat_model_id}-diagrams-{diagram_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-diagrams-{diagram_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelDiagram
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: patch-threat_models-{threat_model_id}-diagrams-{diagram_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: patch-threat_models-{threat_model_id}-diagrams-{diagram_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.patchThreatModelDiagram
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: delete-threat_models-{threat_model_id}-diagrams-{diagram_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: delete-threat_models-{threat_model_id}-diagrams-{diagram_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteThreatModelDiagram
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: >-
+      post-threat_models-{threat_model_id}-diagrams-{diagram_id}-collaborate-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          post-threat_models-{threat_model_id}-diagrams-{diagram_id}-collaborate-step
+        operationId: $sourceDescriptions.tmi-openapi.createDiagramCollaborationSession
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: >-
+      get-threat_models-{threat_model_id}-diagrams-{diagram_id}-collaborate-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          get-threat_models-{threat_model_id}-diagrams-{diagram_id}-collaborate-step
+        operationId: $sourceDescriptions.tmi-openapi.getDiagramCollaborationSession
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      delete-threat_models-{threat_model_id}-diagrams-{diagram_id}-collaborate-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          delete-threat_models-{threat_model_id}-diagrams-{diagram_id}-collaborate-step
+        operationId: $sourceDescriptions.tmi-openapi.endDiagramCollaborationSession
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: >-
+      post-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          post-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.createDiagramMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: >-
+      get-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          get-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.getDiagramMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      put-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          put-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateDiagramMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      get-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          get-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.getDiagramMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      delete-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          delete-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteDiagramMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: >-
+      post-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          post-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkCreateDiagramMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: >-
+      put-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          put-threat_models-{threat_model_id}-diagrams-{diagram_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkUpsertDiagramMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-users-me-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-users-me-step
+        operationId: $sourceDescriptions.tmi-openapi.getCurrentUserProfile
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: delete-users-me-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: delete-users-me-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteUserAccount
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-threat_models-{threat_model_id}-notes-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-notes-step
+        operationId: $sourceDescriptions.tmi-openapi.createThreatModelNote
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-threat_models-{threat_model_id}-notes-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-notes-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelNotes
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: put-threat_models-{threat_model_id}-notes-{note_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-notes-{note_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateThreatModelNote
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-threat_models-{threat_model_id}-notes-{note_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-notes-{note_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelNote
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: patch-threat_models-{threat_model_id}-notes-{note_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: patch-threat_models-{threat_model_id}-notes-{note_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.patchThreatModelNote
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: delete-threat_models-{threat_model_id}-notes-{note_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: delete-threat_models-{threat_model_id}-notes-{note_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteThreatModelNote
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: post-threat_models-{threat_model_id}-notes-{note_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-notes-{note_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.createNoteMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-threat_models-{threat_model_id}-notes-{note_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-notes-{note_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.getNoteMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      put-threat_models-{threat_model_id}-notes-{note_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          put-threat_models-{threat_model_id}-notes-{note_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateNoteMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      get-threat_models-{threat_model_id}-notes-{note_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          get-threat_models-{threat_model_id}-notes-{note_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.getNoteMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      delete-threat_models-{threat_model_id}-notes-{note_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          delete-threat_models-{threat_model_id}-notes-{note_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteNoteMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: >-
+      post-threat_models-{threat_model_id}-notes-{note_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          post-threat_models-{threat_model_id}-notes-{note_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkCreateNoteMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: put-threat_models-{threat_model_id}-notes-{note_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-notes-{note_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkUpdateNoteMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-threat_models-{threat_model_id}-assets-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-assets-step
+        operationId: $sourceDescriptions.tmi-openapi.createThreatModelAsset
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-threat_models-{threat_model_id}-assets-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-assets-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelAssets
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-threat_models-{threat_model_id}-assets-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-assets-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkCreateThreatModelAssets
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: put-threat_models-{threat_model_id}-assets-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-assets-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkUpsertThreatModelAssets
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: put-threat_models-{threat_model_id}-assets-{asset_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: put-threat_models-{threat_model_id}-assets-{asset_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateThreatModelAsset
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-threat_models-{threat_model_id}-assets-{asset_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-assets-{asset_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelAsset
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: patch-threat_models-{threat_model_id}-assets-{asset_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: patch-threat_models-{threat_model_id}-assets-{asset_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.patchThreatModelAsset
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: delete-threat_models-{threat_model_id}-assets-{asset_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: delete-threat_models-{threat_model_id}-assets-{asset_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteThreatModelAsset
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: post-threat_models-{threat_model_id}-assets-{asset_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-threat_models-{threat_model_id}-assets-{asset_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.createThreatModelAssetMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-threat_models-{threat_model_id}-assets-{asset_id}-metadata-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-threat_models-{threat_model_id}-assets-{asset_id}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelAssetMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      put-threat_models-{threat_model_id}-assets-{asset_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          put-threat_models-{threat_model_id}-assets-{asset_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.updateThreatModelAssetMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      get-threat_models-{threat_model_id}-assets-{asset_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          get-threat_models-{threat_model_id}-assets-{asset_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.getThreatModelAssetMetadataByKey
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: >-
+      delete-threat_models-{threat_model_id}-assets-{asset_id}-metadata-{key}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          delete-threat_models-{threat_model_id}-assets-{asset_id}-metadata-{key}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteThreatModelAssetMetadata
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: >-
+      post-threat_models-{threat_model_id}-assets-{asset_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          post-threat_models-{threat_model_id}-assets-{asset_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkCreateThreatModelAssetMetadata
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: >-
+      put-threat_models-{threat_model_id}-assets-{asset_id}-metadata-bulk-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: >-
+          put-threat_models-{threat_model_id}-assets-{asset_id}-metadata-bulk-step
+        operationId: $sourceDescriptions.tmi-openapi.bulkUpsertThreatModelAssetMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-saml-acs-workflow
+    steps:
+      - stepId: post-saml-acs-step
+        operationId: $sourceDescriptions.tmi-openapi.processSAMLResponse
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-saml-slo-workflow
+    steps:
+      - stepId: post-saml-slo-step
+        operationId: $sourceDescriptions.tmi-openapi.processSAMLLogoutPost
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-saml-slo-workflow
+    steps:
+      - stepId: get-saml-slo-step
+        operationId: $sourceDescriptions.tmi-openapi.processSAMLLogout
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-webhooks-subscriptions-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-webhooks-subscriptions-step
+        operationId: $sourceDescriptions.tmi-openapi.createWebhookSubscription
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-webhooks-subscriptions-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-webhooks-subscriptions-step
+        operationId: $sourceDescriptions.tmi-openapi.listWebhookSubscriptions
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-webhooks-subscriptions-{webhook_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-webhooks-subscriptions-{webhook_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.getWebhookSubscription
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: delete-webhooks-subscriptions-{webhook_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: delete-webhooks-subscriptions-{webhook_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteWebhookSubscription
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: post-webhooks-subscriptions-{webhook_id}-test-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-webhooks-subscriptions-{webhook_id}-test-step
+        operationId: $sourceDescriptions.tmi-openapi.testWebhookSubscription
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-webhooks-deliveries-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-webhooks-deliveries-step
+        operationId: $sourceDescriptions.tmi-openapi.listWebhookDeliveries
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-webhooks-deliveries-{delivery_id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-webhooks-deliveries-{delivery_id}-step
+        operationId: $sourceDescriptions.tmi-openapi.getWebhookDelivery
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-addons-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-addons-step
+        operationId: $sourceDescriptions.tmi-openapi.createAddon
+        successCriteria:
+          - condition: $statusCode == 201
+  - workflowId: get-addons-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-addons-step
+        operationId: $sourceDescriptions.tmi-openapi.listAddons
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-addons-{id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-addons-{id}-step
+        operationId: $sourceDescriptions.tmi-openapi.getAddon
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: delete-addons-{id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: delete-addons-{id}-step
+        operationId: $sourceDescriptions.tmi-openapi.deleteAddon
+        successCriteria:
+          - condition: $statusCode == 204
+  - workflowId: post-addons-{id}-invoke-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-addons-{id}-invoke-step
+        operationId: $sourceDescriptions.tmi-openapi.invokeAddon
+        successCriteria:
+          - condition: $statusCode == 202
+  - workflowId: get-invocations-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-invocations-step
+        operationId: $sourceDescriptions.tmi-openapi.listInvocations
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-invocations-{id}-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: get-invocations-{id}-step
+        operationId: $sourceDescriptions.tmi-openapi.getInvocation
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: post-invocations-{id}-status-workflow
+    inputs:
+      $ref: '#/components/inputs/bearerAuth'
+    parameters:
+      - name: Authorization
+        value: Bearer {$inputs.bearerAuth}
+        in: header
+    steps:
+      - stepId: post-invocations-{id}-status-step
+        operationId: $sourceDescriptions.tmi-openapi.updateInvocationStatus
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-saml-providers-workflow
+    steps:
+      - stepId: get-saml-providers-step
+        operationId: $sourceDescriptions.tmi-openapi.getSAMLProviders
+        successCriteria:
+          - condition: $statusCode == 200
+  - workflowId: get-saml-{provider}-login-workflow
+    steps:
+      - stepId: get-saml-{provider}-login-step
+        operationId: $sourceDescriptions.tmi-openapi.initiateSAMLLogin
+        successCriteria:
+          - condition: $statusCode == 302
+  - workflowId: get-saml-{provider}-metadata-workflow
+    steps:
+      - stepId: get-saml-{provider}-metadata-step
+        operationId: $sourceDescriptions.tmi-openapi.getSAMLMetadata
+        successCriteria:
+          - condition: $statusCode == 200
+components:
+  inputs:
+    bearerAuth:
+      type: object
+      properties:
+        bearerAuth:
+          type: string
+          description: JWT Authentication token for ${name}
+          format: password
