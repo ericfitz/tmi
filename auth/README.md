@@ -93,11 +93,19 @@ import (
 )
 
 func main() {
+	// Load unified configuration
+	config, err := config.Load()
+	if err != nil {
+		panic(err)
+	}
+
 	// Create a new Gin router
 	router := gin.Default()
 
-	// Initialize the authentication system
-	if err := auth.InitAuth(router); err != nil {
+	// Initialize the authentication system with unified config
+	// NOTE: Use InitAuthWithConfig, NOT the deprecated InitAuth function
+	authHandlers, err := auth.InitAuthWithConfig(router, config)
+	if err != nil {
 		panic(err)
 	}
 

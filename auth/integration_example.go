@@ -18,23 +18,29 @@ func IntegrationExample() {
 	fmt.Println("This is an example of how to integrate the authentication system with the main application.")
 	fmt.Println("To integrate the authentication system, make the following changes to cmd/server/main.go:")
 
-	fmt.Println("\n1. Import the auth package:")
+	fmt.Println("\n1. Import the required packages:")
 	fmt.Print(`
 import (
 	// ... existing imports
-	"github.com/ericfitz/tmi/oauth2"
+	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/config"
 )`)
 
-	fmt.Println("\n2. Replace the existing JWT middleware with the new auth middleware:")
+	fmt.Println("\n2. Load unified configuration and initialize auth with it:")
 	printExample(`
-// Replace this:
-r.Use(PublicPathsMiddleware())
-r.Use(JWTMiddleware())
-
-// With this:
-if err := auth.InitAuth(r); err != nil {
-	logger.Error("Failed to initialize authentication system: %%v", err)
+// Load unified configuration (contains all settings including auth)
+config, err := config.Load()
+if err != nil {
+	logger.Error("Failed to load configuration: %%v", err)
 	os.Exit(1)
+}
+
+// Initialize authentication system with unified config
+// NOTE: Use InitAuthWithConfig, NOT the deprecated InitAuth function
+authHandlers, err := auth.InitAuthWithConfig(router, config)
+if err != nil {
+	logger.Error("Failed to initialize authentication system: %%v", err)
+	// Continue anyway for development purposes
 }`)
 
 	fmt.Println("\n3. Remove the existing auth handlers from the Server struct:")
@@ -44,20 +50,17 @@ func (s *Server) GetAuthLogin(c *gin.Context) { ... }
 func (s *Server) GetAuthCallback(c *gin.Context) { ... }
 func (s *Server) PostAuthLogout(c *gin.Context) { ... }`)
 
-	fmt.Println("\n4. Update the setupRouter function to use the new auth middleware:")
+	fmt.Println("\n4. Update the setupRouter function to use unified config:")
 	printExample(`
-func setupRouter(config Config) (*gin.Engine, *api.Server) {
+func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// ... existing code
 
-	// Security middleware with public path handling
-	// Remove these lines:
-	// r.Use(PublicPathsMiddleware())
-	// r.Use(JWTMiddleware())
-
-	// Initialize authentication system
-	if err := auth.InitAuth(r); err != nil {
+	// Initialize authentication system with unified config
+	logger := slogging.Get()
+	authHandlers, err := auth.InitAuthWithConfig(r, config)
+	if err != nil {
 		logger.Error("Failed to initialize authentication system: %%v", err)
-		os.Exit(1)
+		// Continue anyway for development purposes
 	}
 
 	// ... rest of the function
@@ -77,31 +80,31 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/ericfitz/tmi/api"
-	"github.com/ericfitz/tmi/oauth2"
+	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
-// ... existing code
+func main() {
+	// Load unified configuration from environment variables
+	cfg, err := config.Load()
+	if err != nil {
+		panic(err)
+	}
 
-func setupRouter(config Config) (*gin.Engine, *api.Server) {
-	// Create a gin router without default middleware
+	// Create a gin router
 	r := gin.New()
 
 	// Configure gin based on log level
-	if config.Server.LogLevel == "debug" {
+	if cfg.Logging.Level == "debug" {
 		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
@@ -115,75 +118,57 @@ func setupRouter(config Config) (*gin.Engine, *api.Server) {
 
 	// Serve static files
 	r.Static("/static", "./static")
-	r.StaticFile("/favicon.ico", "./static/favicon.ico")
-	r.StaticFile("/site.webmanifest", "./static/site.webmanifest")
-	r.StaticFile("/web-app-manifest-192x192.png", "./static/web-app-manifest-192x192.png")
-	r.StaticFile("/web-app-manifest-512x512.png", "./static/web-app-manifest-512x512.png")
-	r.StaticFile("/favicon.svg", "./static/favicon.svg")
 
-	// Initialize authentication system
+	// Initialize authentication system with unified config
+	// NOTE: This loads OAuth and SAML providers from environment variables
 	logger := slogging.Get()
-	if err := auth.InitAuth(r); err != nil {
+	authHandlers, err := auth.InitAuthWithConfig(r, cfg)
+	if err != nil {
 		logger.Error("Failed to initialize authentication system: %%v", err)
-		os.Exit(1)
+		// Continue anyway for development purposes
 	}
 
-	// Create API server with handlers
+	// Create API server
 	apiServer := api.NewServer()
-
-	// Add server middleware to make API server available in context
-	r.Use(func(c *gin.Context) {
-		c.Set("server", apiServer)
-		c.Next()
-	})
 
 	// Apply entity-specific middleware
 	r.Use(api.ThreatModelMiddleware())
 	r.Use(api.DiagramMiddleware())
 
-	// Setup server with handlers
-	server := &Server{
-		config: config,
-	}
-
-	// Register generated routes with our server implementation
+	// Register routes
 	api.RegisterHandlers(r, apiServer)
-
-	// Register WebSocket and custom routes
 	apiServer.RegisterHandlers(r)
 
-	// Add development routes when in dev mode
-	if config.Logging.IsDev {
-		logger.Info("Adding development-only endpoints")
-		r.GET("/dev/me", DevUserInfoHandler()) // Endpoint to check current user
+	// Create HTTP server
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
 	}
 
-	return r, apiServer
-}
-
-func main() {
-	// ... existing code
+	// Start server in a goroutine
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("Server error: %%v", err)
+		}
+	}()
 
 	// Wait for interrupt signal
-	<-ctx.Done()
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
 
-	// Restore default behavior on the interrupt signal and notify user of shutdown
-	stop()
 	logger.Info("Shutting down server...")
 
 	// Shutdown authentication system
-	logger.Info("Shutting down authentication system...")
-	if err := auth.Shutdown(nil); err != nil {
-		logger.Error("Error shutting down authentication system: %%v", err)
+	if err := auth.Shutdown(context.Background()); err != nil {
+		logger.Error("Error shutting down authentication: %%v", err)
 	}
 
-	// Create a deadline for the shutdown
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	// Gracefully shutdown the server
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		logger.Error("Server forced to shutdown: %%s", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Error("Server forced to shutdown: %%v", err)
 		os.Exit(1)
 	}
 
