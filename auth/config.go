@@ -181,10 +181,11 @@ func LoadConfig() (Config, error) {
 		},
 		SAML: SAMLConfig{
 			Enabled: envutil.Get("SAML_ENABLED", "false") == "true",
-			Providers: func() map[string]SAMLProviderConfig {
-				logger.Info("About to call loadSAMLProviders() from LoadConfig")
-				return loadSAMLProviders()
-			}(),
+			// NOTE: SAML provider configuration is loaded via the unified config system
+			// in internal/config/config.go, not here. This field will be populated
+			// by auth/config_adapter.go:convertSAMLProviders() when using InitAuthWithConfig().
+			// If using the deprecated InitAuth() function, providers will not be loaded.
+			Providers: make(map[string]SAMLProviderConfig),
 		},
 	}
 
@@ -381,70 +382,12 @@ func getEnabledProviderIDs(providers map[string]OAuthProviderConfig) []string {
 	return enabled
 }
 
-// loadSAMLProviders loads SAML provider configurations from environment
-func loadSAMLProviders() map[string]SAMLProviderConfig {
-	logger := slogging.Get()
-	logger.Info("loadSAMLProviders function called - starting provider discovery")
-	logger.Debug("Loading SAML provider configurations")
-	providers := make(map[string]SAMLProviderConfig)
-
-	// Dynamically discover SAML providers from environment variables
-	// Environment variables follow the pattern: SAML_PROVIDERS_<PROVIDER_ID>_<FIELD>
-	// We scan for _ENABLED variables to discover configured providers
-	providerIDs := envutil.DiscoverProviders("SAML_PROVIDERS_", "_ENABLED")
-	logger.Info("Discovered %d potential SAML provider IDs: %v", len(providerIDs), providerIDs)
-
-	for _, providerID := range providerIDs {
-		prefix := fmt.Sprintf("SAML_PROVIDERS_%s_", providerID)
-
-		// Check if provider is enabled
-		if envutil.Get(prefix+"ENABLED", "false") != "true" {
-			logger.Debug("SAML provider %s is disabled, skipping", providerID)
-			continue
-		}
-
-		// Convert environment variable provider ID to lowercase for use as provider key
-		// e.g., ENTRA_TMIDEV_SAML -> entra-tmidev-saml
-		providerKey := envutil.ProviderIDToKey(providerID)
-
-		logger.Debug("Loading SAML provider configuration provider_id=%s provider_key=%s", providerID, providerKey)
-
-		// DEBUG: Log environment variable lookups for attribute mappings
-		nameAttr := envutil.Get(prefix+"NAME_ATTRIBUTE", "name")
-		emailAttr := envutil.Get(prefix+"EMAIL_ATTRIBUTE", "email")
-		groupsAttr := envutil.Get(prefix+"GROUPS_ATTRIBUTE", "groups")
-		logger.Debug("SAML provider %s attribute env vars - prefix=%q, NAME_ATTRIBUTE=%q, EMAIL_ATTRIBUTE=%q, GROUPS_ATTRIBUTE=%q",
-			providerID, prefix, nameAttr, emailAttr, groupsAttr)
-
-		providers[providerKey] = SAMLProviderConfig{
-			ID:                envutil.Get(prefix+"ID", providerKey),
-			Name:              envutil.Get(prefix+"NAME", providerKey),
-			Enabled:           true,
-			Icon:              envutil.Get(prefix+"ICON", ""),
-			EntityID:          envutil.Get(prefix+"ENTITY_ID", ""),
-			ACSURL:            envutil.Get(prefix+"ACS_URL", ""),
-			SLOURL:            envutil.Get(prefix+"SLO_URL", ""),
-			SPPrivateKey:      envutil.Get(prefix+"SP_PRIVATE_KEY", ""),
-			SPPrivateKeyPath:  envutil.Get(prefix+"SP_PRIVATE_KEY_PATH", ""),
-			SPCertificate:     envutil.Get(prefix+"SP_CERTIFICATE", ""),
-			SPCertificatePath: envutil.Get(prefix+"SP_CERTIFICATE_PATH", ""),
-			IDPMetadataURL:    envutil.Get(prefix+"IDP_METADATA_URL", ""),
-			IDPMetadataXML:    envutil.Get(prefix+"IDP_METADATA_XML", ""),
-			AllowIDPInitiated: envutil.Get(prefix+"ALLOW_IDP_INITIATED", "false") == "true",
-			ForceAuthn:        envutil.Get(prefix+"FORCE_AUTHN", "false") == "true",
-			SignRequests:      envutil.Get(prefix+"SIGN_REQUESTS", "true") == "true",
-			NameIDAttribute:   envutil.Get(prefix+"NAMEID_ATTRIBUTE", ""),
-			EmailAttribute:    emailAttr,
-			NameAttribute:     nameAttr,
-			GroupsAttribute:   groupsAttr,
-		}
-
-		logger.Info("Loaded SAML provider configuration provider_key=%s name=%s", providerKey, providers[providerKey].Name)
-	}
-
-	logger.Info("SAML providers loaded providers_count=%v", len(providers))
-	return providers
-}
+// NOTE: SAML provider configuration loading has been moved to the unified config system.
+// See internal/config/config.go:overrideSAMLProviders() for the actual implementation.
+// The conversion from unified config to auth config happens in auth/config_adapter.go:convertSAMLProviders().
+//
+// DEPRECATED: loadSAMLProviders() has been removed. Use InitAuthWithConfig() instead of InitAuth()
+// to ensure SAML providers are loaded correctly from environment variables.
 
 // ValidateConfig validates the configuration
 func (c *Config) ValidateConfig() error {
