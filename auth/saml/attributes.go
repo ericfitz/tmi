@@ -166,15 +166,15 @@ func ExtractUserInfo(assertion *saml.Assertion, config *SAMLConfig) (*UserInfo, 
 	// DEBUG: Log all received SAML attributes for troubleshooting
 	// This helps diagnose attribute mapping issues with different IdPs
 	logger := slogging.Get()
-	logger.Info("SAML attribute extraction starting for provider: %s", config.ID)
-	logger.Info("SAML assertion contains %d attributes", len(attributeMap))
+	logger.Debug("SAML attribute extraction starting for provider: %s", config.ID)
+	logger.Debug("SAML assertion contains %d attributes", len(attributeMap))
 	for attrName, attrValues := range attributeMap {
-		logger.Info("SAML attribute: %s = %v", attrName, attrValues)
+		logger.Debug("SAML attribute: %s = %v", attrName, attrValues)
 	}
 	if config.AttributeMapping != nil {
-		logger.Info("SAML configured attribute mappings:")
+		logger.Debug("SAML configured attribute mappings:")
 		for key, mapping := range config.AttributeMapping {
-			logger.Info("  %s -> %s", key, mapping)
+			logger.Debug("  %s -> %s", key, mapping)
 		}
 	}
 
@@ -192,7 +192,7 @@ func ExtractUserInfo(assertion *saml.Assertion, config *SAMLConfig) (*UserInfo, 
 	applyNameFallback(userInfo)
 
 	// DEBUG: Log extracted user info
-	logger.Info("SAML extracted UserInfo: ID=%s, IDType=%s, Email=%s, Name=%s, GivenName=%s, FamilyName=%s",
+	logger.Debug("SAML extracted UserInfo: ID=%s, IDType=%s, Email=%s, Name=%s, GivenName=%s, FamilyName=%s",
 		userInfo.ID, userInfo.IDType, userInfo.Email, userInfo.Name, userInfo.GivenName, userInfo.FamilyName)
 
 	return userInfo, nil
