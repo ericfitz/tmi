@@ -49,6 +49,10 @@ func (m *SAMLManager) InitializeProviders(config SAMLConfig, stateStore StateSto
 
 		logger.Info("Attempting to initialize SAML provider: %s", id)
 
+		// DEBUG: Log raw provider config values
+		logger.Debug("SAML provider %s raw config - EmailAttribute: %q, NameAttribute: %q, GroupsAttribute: %q",
+			id, providerConfig.EmailAttribute, providerConfig.NameAttribute, providerConfig.GroupsAttribute)
+
 		// Convert config to SAML config
 		samlConfig := &saml.SAMLConfig{
 			ID:                 id,
@@ -73,6 +77,9 @@ func (m *SAMLManager) InitializeProviders(config SAMLConfig, stateStore StateSto
 				"name":  providerConfig.NameAttribute,
 			},
 		}
+
+		// DEBUG: Log created AttributeMapping
+		logger.Debug("SAML provider %s created AttributeMapping: %+v", id, samlConfig.AttributeMapping)
 
 		// Create SAML provider
 		provider, err := saml.NewSAMLProvider(samlConfig)

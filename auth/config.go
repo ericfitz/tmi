@@ -409,6 +409,13 @@ func loadSAMLProviders() map[string]SAMLProviderConfig {
 
 		logger.Debug("Loading SAML provider configuration provider_id=%s provider_key=%s", providerID, providerKey)
 
+		// DEBUG: Log environment variable lookups for attribute mappings
+		nameAttr := envutil.Get(prefix+"NAME_ATTRIBUTE", "name")
+		emailAttr := envutil.Get(prefix+"EMAIL_ATTRIBUTE", "email")
+		groupsAttr := envutil.Get(prefix+"GROUPS_ATTRIBUTE", "groups")
+		logger.Debug("SAML provider %s attribute env vars - prefix=%q, NAME_ATTRIBUTE=%q, EMAIL_ATTRIBUTE=%q, GROUPS_ATTRIBUTE=%q",
+			providerID, prefix, nameAttr, emailAttr, groupsAttr)
+
 		providers[providerKey] = SAMLProviderConfig{
 			ID:                envutil.Get(prefix+"ID", providerKey),
 			Name:              envutil.Get(prefix+"NAME", providerKey),
@@ -427,9 +434,9 @@ func loadSAMLProviders() map[string]SAMLProviderConfig {
 			ForceAuthn:        envutil.Get(prefix+"FORCE_AUTHN", "false") == "true",
 			SignRequests:      envutil.Get(prefix+"SIGN_REQUESTS", "true") == "true",
 			NameIDAttribute:   envutil.Get(prefix+"NAMEID_ATTRIBUTE", ""),
-			EmailAttribute:    envutil.Get(prefix+"EMAIL_ATTRIBUTE", "email"),
-			NameAttribute:     envutil.Get(prefix+"NAME_ATTRIBUTE", "name"),
-			GroupsAttribute:   envutil.Get(prefix+"GROUPS_ATTRIBUTE", "groups"),
+			EmailAttribute:    emailAttr,
+			NameAttribute:     nameAttr,
+			GroupsAttribute:   groupsAttr,
 		}
 
 		logger.Info("Loaded SAML provider configuration provider_key=%s name=%s", providerKey, providers[providerKey].Name)
