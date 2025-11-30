@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -157,6 +158,40 @@ func ContentTypeValidationMiddleware() gin.HandlerFunc {
 			})
 			c.Abort()
 			return
+		}
+
+		c.Next()
+	}
+}
+
+// DuplicateHeaderValidationMiddleware rejects requests with duplicate critical security headers
+// Per RFC 7230 Section 3.2.2, duplicate headers are only allowed if the header is defined
+// as a comma-separated list or is a known exception (like Set-Cookie).
+// Duplicate security-critical headers can enable various attacks including request smuggling,
+// authentication bypass, and cache poisoning.
+func DuplicateHeaderValidationMiddleware() gin.HandlerFunc {
+	// Headers that MUST NOT appear multiple times per RFC 7230 and security best practices
+	criticalHeaders := []string{
+		"Authorization",  // Multiple auth tokens could cause confusion about which identity to use
+		"Host",           // Ambiguous host routing can lead to cache poisoning
+		"Content-Type",   // Ambiguous content type can bypass validation
+		"Content-Length", // Multiple Content-Length headers enable HTTP request smuggling (Go already rejects these)
+	}
+
+	return func(c *gin.Context) {
+		logger := slogging.Get().WithContext(c)
+
+		for _, header := range criticalHeaders {
+			values := c.Request.Header.Values(header)
+			if len(values) > 1 {
+				logger.Warn("Rejected request with duplicate %s header: %d instances found", header, len(values))
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error":  "duplicate_header",
+					"detail": fmt.Sprintf("Multiple %s headers not allowed", header),
+				})
+				c.Abort()
+				return
+			}
 		}
 
 		c.Next()
