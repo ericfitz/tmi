@@ -1172,7 +1172,10 @@ func (h *Handlers) Me(c *gin.Context) {
 				}
 			}
 
-			c.JSON(http.StatusOK, user)
+			// Convert auth.User to OpenAPI UserWithAdminStatus type
+			// This ensures field names match the API spec (provider_id instead of provider_user_id)
+			response := convertUserToAPIResponse(user)
+			c.JSON(http.StatusOK, response)
 			return
 		}
 	}
@@ -1185,6 +1188,19 @@ func (h *Handlers) Me(c *gin.Context) {
 }
 
 // Helper functions
+
+// convertUserToAPIResponse converts auth.User to a map matching the OpenAPI UserWithAdminStatus schema
+// This ensures field names match the API spec (provider_id instead of provider_user_id)
+func convertUserToAPIResponse(user User) map[string]interface{} {
+	return map[string]interface{}{
+		"principal_type": "user",
+		"provider":       user.Provider,
+		"provider_id":    user.ProviderUserID, // Map ProviderUserID to provider_id
+		"display_name":   user.Name,
+		"email":          user.Email,
+		"is_admin":       user.IsAdmin,
+	}
+}
 
 // getBaseURL constructs the base URL for the current request
 func getBaseURL(c *gin.Context) string {
