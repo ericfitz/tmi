@@ -90,7 +90,7 @@ func (s *GroupDatabaseStore) List(ctx context.Context, filter GroupFilter) ([]Gr
 	if filter.Offset > 0 {
 		query += fmt.Sprintf(" OFFSET $%d", argPos)
 		args = append(args, filter.Offset)
-		argPos++
+		// argPos++ // Last use of argPos, no need to increment
 	}
 
 	// Execute query
@@ -301,7 +301,7 @@ func (s *GroupDatabaseStore) Count(ctx context.Context, filter GroupFilter) (int
 	if filter.GroupName != "" {
 		query += fmt.Sprintf(" AND LOWER(group_name) LIKE LOWER($%d)", argPos)
 		args = append(args, "%"+filter.GroupName+"%")
-		argPos++
+		// argPos++ // Last use of argPos before non-parameterized query
 	}
 
 	if filter.UsedInAuthorizations != nil {

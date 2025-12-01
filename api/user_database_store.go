@@ -27,7 +27,7 @@ func NewUserDatabaseStore(db *sql.DB, authService *auth.Service) *UserDatabaseSt
 }
 
 // List returns users with optional filtering and pagination
-func (s *UserDatabaseStore) List(ctx context.Context, filter UserFilter) ([]User, error) {
+func (s *UserDatabaseStore) List(ctx context.Context, filter UserFilter) ([]AdminUser, error) {
 	logger := slogging.Get()
 
 	// Build query with filters
@@ -108,7 +108,7 @@ func (s *UserDatabaseStore) List(ctx context.Context, filter UserFilter) ([]User
 	if filter.Offset > 0 {
 		query += fmt.Sprintf(" OFFSET $%d", argPos)
 		args = append(args, filter.Offset)
-		argPos++
+		// argPos++ // Last use of argPos, no need to increment
 	}
 
 	// Execute query
@@ -123,9 +123,9 @@ func (s *UserDatabaseStore) List(ctx context.Context, filter UserFilter) ([]User
 	}()
 
 	// Scan results
-	users := []User{}
+	users := []AdminUser{}
 	for rows.Next() {
-		var user User
+		var user AdminUser
 		var lastLogin sql.NullTime
 
 		err := rows.Scan(
@@ -158,11 +158,11 @@ func (s *UserDatabaseStore) List(ctx context.Context, filter UserFilter) ([]User
 }
 
 // Get retrieves a user by internal UUID
-func (s *UserDatabaseStore) Get(ctx context.Context, internalUUID uuid.UUID) (*User, error) {
+func (s *UserDatabaseStore) Get(ctx context.Context, internalUUID uuid.UUID) (*AdminUser, error) {
 	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified,
 	          created_at, modified_at, last_login FROM users WHERE internal_uuid = $1`
 
-	var user User
+	var user AdminUser
 	var lastLogin sql.NullTime
 
 	err := s.db.QueryRowContext(ctx, query, internalUUID).Scan(
@@ -192,11 +192,11 @@ func (s *UserDatabaseStore) Get(ctx context.Context, internalUUID uuid.UUID) (*U
 }
 
 // GetByProviderAndID retrieves a user by provider and provider_user_id
-func (s *UserDatabaseStore) GetByProviderAndID(ctx context.Context, provider string, providerUserID string) (*User, error) {
+func (s *UserDatabaseStore) GetByProviderAndID(ctx context.Context, provider string, providerUserID string) (*AdminUser, error) {
 	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified,
 	          created_at, modified_at, last_login FROM users WHERE provider = $1 AND provider_user_id = $2`
 
-	var user User
+	var user AdminUser
 	var lastLogin sql.NullTime
 
 	err := s.db.QueryRowContext(ctx, query, provider, providerUserID).Scan(
@@ -226,7 +226,7 @@ func (s *UserDatabaseStore) GetByProviderAndID(ctx context.Context, provider str
 }
 
 // Update updates user metadata (email, name, email_verified)
-func (s *UserDatabaseStore) Update(ctx context.Context, user User) error {
+func (s *UserDatabaseStore) Update(ctx context.Context, user AdminUser) error {
 	query := `UPDATE users SET email = $1, name = $2, email_verified = $3, modified_at = $4
 	          WHERE internal_uuid = $5`
 
@@ -318,7 +318,7 @@ func (s *UserDatabaseStore) Count(ctx context.Context, filter UserFilter) (int, 
 	if filter.LastLoginBefore != nil {
 		query += fmt.Sprintf(" AND last_login <= $%d", argPos)
 		args = append(args, *filter.LastLoginBefore)
-		argPos++
+		// argPos++ // Last use of argPos before non-parameterized query
 	}
 
 	var count int
@@ -331,14 +331,14 @@ func (s *UserDatabaseStore) Count(ctx context.Context, filter UserFilter) (int, 
 }
 
 // EnrichUsers adds related data to users (admin status, groups, threat model counts)
-func (s *UserDatabaseStore) EnrichUsers(ctx context.Context, users []User) ([]User, error) {
+func (s *UserDatabaseStore) EnrichUsers(ctx context.Context, users []AdminUser) ([]AdminUser, error) {
 	logger := slogging.Get()
 
 	if len(users) == 0 {
 		return users, nil
 	}
 
-	enriched := make([]User, len(users))
+	enriched := make([]AdminUser, len(users))
 	copy(enriched, users)
 
 	for i := range enriched {

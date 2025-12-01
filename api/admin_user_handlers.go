@@ -183,7 +183,7 @@ func (s *Server) GetAdminUser(c *gin.Context) {
 	}
 
 	// Enrich with related data
-	enriched, err := GlobalUserStore.EnrichUsers(c.Request.Context(), []User{*user})
+	enriched, err := GlobalUserStore.EnrichUsers(c.Request.Context(), []AdminUser{*user})
 	if err != nil {
 		logger.Warn("Failed to enrich user: %v", err)
 		// Return non-enriched user
