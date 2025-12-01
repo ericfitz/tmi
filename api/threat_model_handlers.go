@@ -573,6 +573,14 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		}
 	}
 
+	// CRITICAL: Validate for duplicates AFTER enrichment
+	// Enrichment converts different identifiers (email, provider_id) to internal_uuid
+	// which can create duplicates if the same user was specified multiple ways
+	if err := ValidateDuplicateSubjects(modifiedTM.Authorization); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
 	// Phase 4: Preserve critical fields and validate authorization
 	modifiedTM = h.preserveThreatModelCriticalFields(modifiedTM, existingTM)
 
