@@ -565,12 +565,26 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		slogging.Get().WithContext(c).Warn("ThreatModelStore is not a database store, skipping enrichment")
 	}
 
+	// Debug log authorization BEFORE enrichment
+	slogging.Get().WithContext(c).Debug("[PATCH] Authorization BEFORE enrichment: %d entries", len(modifiedTM.Authorization))
+	for i, auth := range modifiedTM.Authorization {
+		slogging.Get().WithContext(c).Debug("[PATCH] Auth[%d] BEFORE: type=%s provider=%s provider_id=%s role=%s",
+			i, auth.PrincipalType, auth.Provider, auth.ProviderId, auth.Role)
+	}
+
 	// Enrich authorization entries if database is available
 	if db != nil {
 		if err := EnrichAuthorizationList(c.Request.Context(), db, modifiedTM.Authorization); err != nil {
 			HandleRequestError(c, err)
 			return
 		}
+	}
+
+	// Debug log authorization AFTER enrichment
+	slogging.Get().WithContext(c).Debug("[PATCH] Authorization AFTER enrichment: %d entries", len(modifiedTM.Authorization))
+	for i, auth := range modifiedTM.Authorization {
+		slogging.Get().WithContext(c).Debug("[PATCH] Auth[%d] AFTER: type=%s provider=%s provider_id=%s role=%s",
+			i, auth.PrincipalType, auth.Provider, auth.ProviderId, auth.Role)
 	}
 
 	// CRITICAL: Validate for duplicates AFTER enrichment
