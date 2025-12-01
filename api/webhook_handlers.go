@@ -18,11 +18,25 @@ import (
 func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubscriptionsParams) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user
-	userID, _, err := ValidateAuthenticatedUser(c)
+	// Get authenticated user email for logging
+	_, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
+		return
+	}
+
+	// Get user's internal UUID from context (set by JWT middleware)
+	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
+	if !exists {
+		logger.Error("userInternalUUID not found in context")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+		return
+	}
+	userID, ok := userInternalUUIDInterface.(string)
+	if !ok || userID == "" {
+		logger.Error("userInternalUUID is not a valid string")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
 		return
 	}
 
@@ -91,11 +105,25 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user
-	userID, _, err := ValidateAuthenticatedUser(c)
+	// Get authenticated user email for logging
+	_, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
+		return
+	}
+
+	// Get user's internal UUID from context (set by JWT middleware)
+	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
+	if !exists {
+		logger.Error("userInternalUUID not found in context")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+		return
+	}
+	userID, ok := userInternalUUIDInterface.(string)
+	if !ok || userID == "" {
+		logger.Error("userInternalUUID is not a valid string")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
 		return
 	}
 
@@ -217,11 +245,25 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user
-	userID, _, err := ValidateAuthenticatedUser(c)
+	// Get authenticated user email for logging
+	_, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
+		return
+	}
+
+	// Get user's internal UUID from context (set by JWT middleware)
+	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
+	if !exists {
+		logger.Error("userInternalUUID not found in context")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+		return
+	}
+	userID, ok := userInternalUUIDInterface.(string)
+	if !ok || userID == "" {
+		logger.Error("userInternalUUID is not a valid string")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
 		return
 	}
 
@@ -250,11 +292,25 @@ func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.
 func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user
-	userID, _, err := ValidateAuthenticatedUser(c)
+	// Get authenticated user email for logging
+	_, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
+		return
+	}
+
+	// Get user's internal UUID from context (set by JWT middleware)
+	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
+	if !exists {
+		logger.Error("userInternalUUID not found in context")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+		return
+	}
+	userID, ok := userInternalUUIDInterface.(string)
+	if !ok || userID == "" {
+		logger.Error("userInternalUUID is not a valid string")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
 		return
 	}
 
@@ -299,11 +355,25 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user
-	userID, _, err := ValidateAuthenticatedUser(c)
+	// Get authenticated user email for logging
+	_, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
+		return
+	}
+
+	// Get user's internal UUID from context (set by JWT middleware)
+	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
+	if !exists {
+		logger.Error("userInternalUUID not found in context")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+		return
+	}
+	userID, ok := userInternalUUIDInterface.(string)
+	if !ok || userID == "" {
+		logger.Error("userInternalUUID is not a valid string")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
 		return
 	}
 
@@ -387,11 +457,25 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliveriesParams) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user
-	userID, _, err := ValidateAuthenticatedUser(c)
+	// Get authenticated user email for logging
+	_, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
+		return
+	}
+
+	// Get user's internal UUID from context (set by JWT middleware)
+	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
+	if !exists {
+		logger.Error("userInternalUUID not found in context")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+		return
+	}
+	userID, ok := userInternalUUIDInterface.(string)
+	if !ok || userID == "" {
+		logger.Error("userInternalUUID is not a valid string")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
 		return
 	}
 
@@ -480,11 +564,25 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user
-	userID, _, err := ValidateAuthenticatedUser(c)
+	// Get authenticated user email for logging
+	_, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
+		return
+	}
+
+	// Get user's internal UUID from context (set by JWT middleware)
+	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
+	if !exists {
+		logger.Error("userInternalUUID not found in context")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+		return
+	}
+	userID, ok := userInternalUUIDInterface.(string)
+	if !ok || userID == "" {
+		logger.Error("userInternalUUID is not a valid string")
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
 		return
 	}
 
