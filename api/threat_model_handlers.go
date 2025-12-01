@@ -565,10 +565,10 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		slogging.Get().WithContext(c).Warn("ThreatModelStore is not a database store, skipping enrichment")
 	}
 
-	// Debug log authorization BEFORE enrichment
-	slogging.Get().WithContext(c).Debug("[PATCH] Authorization BEFORE enrichment: %d entries", len(modifiedTM.Authorization))
+	// Log authorization BEFORE enrichment
+	slogging.Get().WithContext(c).Info("[PATCH] Authorization BEFORE enrichment: %d entries", len(modifiedTM.Authorization))
 	for i, auth := range modifiedTM.Authorization {
-		slogging.Get().WithContext(c).Debug("[PATCH] Auth[%d] BEFORE: type=%s provider=%s provider_id=%s role=%s",
+		slogging.Get().WithContext(c).Info("[PATCH] Auth[%d] BEFORE: type=%s provider=%s provider_id=%s role=%s",
 			i, auth.PrincipalType, auth.Provider, auth.ProviderId, auth.Role)
 	}
 
@@ -580,10 +580,10 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		}
 	}
 
-	// Debug log authorization AFTER enrichment
-	slogging.Get().WithContext(c).Debug("[PATCH] Authorization AFTER enrichment: %d entries", len(modifiedTM.Authorization))
+	// Log authorization AFTER enrichment
+	slogging.Get().WithContext(c).Info("[PATCH] Authorization AFTER enrichment: %d entries", len(modifiedTM.Authorization))
 	for i, auth := range modifiedTM.Authorization {
-		slogging.Get().WithContext(c).Debug("[PATCH] Auth[%d] AFTER: type=%s provider=%s provider_id=%s role=%s",
+		slogging.Get().WithContext(c).Info("[PATCH] Auth[%d] AFTER: type=%s provider=%s provider_id=%s role=%s",
 			i, auth.PrincipalType, auth.Provider, auth.ProviderId, auth.Role)
 	}
 
