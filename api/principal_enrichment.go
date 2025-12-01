@@ -14,7 +14,8 @@ import (
 func enrichUserPrincipal(tx *sql.Tx, internalUUID string) (*User, error) {
 	logger := slogging.Get()
 
-	var provider, providerID, displayName, emailStr string
+	var provider, displayName, emailStr string
+	var providerUserID sql.NullString
 
 	query := `
 		SELECT provider, provider_user_id, name, email
@@ -24,7 +25,7 @@ func enrichUserPrincipal(tx *sql.Tx, internalUUID string) (*User, error) {
 
 	err := tx.QueryRow(query, internalUUID).Scan(
 		&provider,
-		&providerID,
+		&providerUserID,
 		&displayName,
 		&emailStr,
 	)
@@ -36,6 +37,15 @@ func enrichUserPrincipal(tx *sql.Tx, internalUUID string) (*User, error) {
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to enrich user principal: %w", err)
+	}
+
+	// For ProviderId: use provider_user_id if available, otherwise use email
+	// This handles sparse users (provider_user_id is NULL until first login)
+	var providerID string
+	if providerUserID.Valid && providerUserID.String != "" {
+		providerID = providerUserID.String
+	} else {
+		providerID = emailStr
 	}
 
 	return &User{

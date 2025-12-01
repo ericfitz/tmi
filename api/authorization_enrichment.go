@@ -105,7 +105,9 @@ func EnrichAuthorizationEntry(ctx context.Context, db *sql.DB, auth *Authorizati
 	}
 
 	// Enrich the Authorization entry with database values
-	auth.ProviderId = internalUUID // Use internal_uuid as the canonical identifier
+	// NOTE: Do NOT set auth.ProviderId = internalUUID!
+	// ProviderId should remain as the user-provided identifier (email or OAuth sub)
+	// The database_store.go saveAuthorizationTx() will resolve it to internal_uuid when saving
 	auth.Provider = provider
 	if auth.Email == nil || string(*auth.Email) == "" {
 		emailAddr := openapi_types.Email(email)
@@ -119,8 +121,8 @@ func EnrichAuthorizationEntry(ctx context.Context, db *sql.DB, auth *Authorizati
 	if providerUserID.Valid {
 		providerIDStr = providerUserID.String
 	}
-	logger.Debug("Enriched authorization entry: provider=%s, internal_uuid=%s, provider_user_id=%s, email=%s, name=%s",
-		provider, internalUUID, providerIDStr, email, name)
+	logger.Debug("Enriched authorization entry: provider=%s, internal_uuid=%s, provider_user_id=%s, email=%s, name=%s, keeping provider_id=%s",
+		provider, internalUUID, providerIDStr, email, name, auth.ProviderId)
 
 	return nil
 }
