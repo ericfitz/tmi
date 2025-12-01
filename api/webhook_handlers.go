@@ -40,6 +40,9 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 		return
 	}
 
+	// Check if user is an administrator (administrators can see all subscriptions)
+	isAdmin, _ := IsUserAdministrator(c)
+
 	// Parse pagination parameters
 	offset := 0
 	limit := 20 // Default limit per OpenAPI spec
@@ -56,39 +59,56 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 	// Get subscriptions for the user
 	var subscriptions []DBWebhookSubscription
 
-	// If threat model ID is provided, filter by both owner and threat model
-	if params.ThreatModelId != nil {
-		// Get by threat model with pagination, then filter by owner in-memory
-		// This is acceptable because threat model subscriptions are typically small
-		allTMSubscriptions, tmErr := GlobalWebhookSubscriptionStore.ListByThreatModel(params.ThreatModelId.String(), 0, 1000)
-		if tmErr != nil {
-			logger.Error("failed to list subscriptions by threat model: %v", tmErr)
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
-			return
-		}
-		// Filter by owner
-		for _, sub := range allTMSubscriptions {
-			if sub.OwnerId.String() == userID {
-				subscriptions = append(subscriptions, sub)
+	if isAdmin {
+		// Administrators can see all subscriptions
+		if params.ThreatModelId != nil {
+			// Filter by threat model only
+			allSubs, tmErr := GlobalWebhookSubscriptionStore.ListByThreatModel(params.ThreatModelId.String(), offset, limit)
+			if tmErr != nil {
+				logger.Error("failed to list subscriptions by threat model: %v", tmErr)
+				c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
+				return
 			}
-		}
-		// Apply pagination in-memory after filtering
-		if offset >= len(subscriptions) {
-			subscriptions = []DBWebhookSubscription{}
+			subscriptions = allSubs
 		} else {
-			end := offset + limit
-			if end > len(subscriptions) {
-				end = len(subscriptions)
-			}
-			subscriptions = subscriptions[offset:end]
+			// Get all subscriptions with pagination (nil filter = no filtering)
+			subscriptions = GlobalWebhookSubscriptionStore.List(offset, limit, nil)
 		}
 	} else {
-		// Get subscriptions for this owner with database-level pagination
-		subscriptions, err = GlobalWebhookSubscriptionStore.ListByOwner(userID, offset, limit)
-		if err != nil {
-			logger.Error("failed to list subscriptions by owner: %v", err)
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
-			return
+		// Non-admin users only see their own subscriptions
+		if params.ThreatModelId != nil {
+			// Get by threat model with pagination, then filter by owner in-memory
+			// This is acceptable because threat model subscriptions are typically small
+			allTMSubscriptions, tmErr := GlobalWebhookSubscriptionStore.ListByThreatModel(params.ThreatModelId.String(), 0, 1000)
+			if tmErr != nil {
+				logger.Error("failed to list subscriptions by threat model: %v", tmErr)
+				c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
+				return
+			}
+			// Filter by owner
+			for _, sub := range allTMSubscriptions {
+				if sub.OwnerId.String() == userID {
+					subscriptions = append(subscriptions, sub)
+				}
+			}
+			// Apply pagination in-memory after filtering
+			if offset >= len(subscriptions) {
+				subscriptions = []DBWebhookSubscription{}
+			} else {
+				end := offset + limit
+				if end > len(subscriptions) {
+					end = len(subscriptions)
+				}
+				subscriptions = subscriptions[offset:end]
+			}
+		} else {
+			// Get subscriptions for this owner with database-level pagination
+			subscriptions, err = GlobalWebhookSubscriptionStore.ListByOwner(userID, offset, limit)
+			if err != nil {
+				logger.Error("failed to list subscriptions by owner: %v", err)
+				c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
+				return
+			}
 		}
 	}
 
@@ -267,6 +287,9 @@ func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.
 		return
 	}
 
+	// Check if user is an administrator
+	isAdmin, _ := IsUserAdministrator(c)
+
 	// Get subscription from database
 	subscription, err := GlobalWebhookSubscriptionStore.Get(webhookId.String())
 	if err != nil {
@@ -275,8 +298,8 @@ func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.
 		return
 	}
 
-	// Verify ownership
-	if subscription.OwnerId.String() != userID {
+	// Verify ownership (admins can access any subscription)
+	if !isAdmin && subscription.OwnerId.String() != userID {
 		logger.Warn("user %s attempted to access subscription %s owned by %s", userID, webhookId, subscription.OwnerId)
 		c.JSON(http.StatusForbidden, Error{Error: "access denied"})
 		return
@@ -314,8 +337,11 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 		return
 	}
 
-	// Check rate limits if webhook rate limiter is available
-	if s.webhookRateLimiter != nil {
+	// Check if user is an administrator
+	isAdmin, _ := IsUserAdministrator(c)
+
+	// Check rate limits if webhook rate limiter is available (skip for admins)
+	if !isAdmin && s.webhookRateLimiter != nil {
 		// Check subscription request rate limit (applies to both create and delete)
 		if err := s.webhookRateLimiter.CheckSubscriptionRequestLimit(c.Request.Context(), userID); err != nil {
 			logger.Warn("subscription request rate limit exceeded for user %s: %v", userID, err)
@@ -332,8 +358,8 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 		return
 	}
 
-	// Verify ownership
-	if subscription.OwnerId.String() != userID {
+	// Verify ownership (admins can delete any subscription)
+	if !isAdmin && subscription.OwnerId.String() != userID {
 		logger.Warn("user %s attempted to delete subscription %s owned by %s", userID, webhookId, subscription.OwnerId)
 		c.JSON(http.StatusForbidden, Error{Error: "access denied"})
 		return
@@ -377,6 +403,9 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 		return
 	}
 
+	// Check if user is an administrator
+	isAdmin, _ := IsUserAdministrator(c)
+
 	// Parse optional request body
 	var input WebhookTestRequest
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -392,8 +421,8 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 		return
 	}
 
-	// Verify ownership
-	if subscription.OwnerId.String() != userID {
+	// Verify ownership (admins can test any subscription)
+	if !isAdmin && subscription.OwnerId.String() != userID {
 		logger.Warn("user %s attempted to test subscription %s owned by %s", userID, webhookId, subscription.OwnerId)
 		c.JSON(http.StatusForbidden, Error{Error: "access denied"})
 		return
@@ -479,6 +508,9 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 		return
 	}
 
+	// Check if user is an administrator
+	isAdmin, _ := IsUserAdministrator(c)
+
 	// Parse pagination parameters
 	offset := 0
 	limit := 20 // Default limit per OpenAPI spec
@@ -496,7 +528,7 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 
 	// If subscription ID is provided, get deliveries for that subscription
 	if params.SubscriptionId != nil {
-		// First verify the subscription belongs to the user
+		// First verify the subscription exists
 		subscription, subErr := GlobalWebhookSubscriptionStore.Get(params.SubscriptionId.String())
 		if subErr != nil {
 			logger.Error("failed to get subscription %s: %v", params.SubscriptionId, subErr)
@@ -504,8 +536,8 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 			return
 		}
 
-		// Verify ownership
-		if subscription.OwnerId.String() != userID {
+		// Verify ownership (admins can access any subscription's deliveries)
+		if !isAdmin && subscription.OwnerId.String() != userID {
 			logger.Warn("user %s attempted to access deliveries for subscription %s owned by %s",
 				userID, params.SubscriptionId, subscription.OwnerId)
 			c.JSON(http.StatusForbidden, Error{Error: "access denied"})
@@ -521,22 +553,35 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 			return
 		}
 	} else {
-		// Get all user's subscriptions first
-		userSubscriptions, subsErr := GlobalWebhookSubscriptionStore.ListByOwner(userID, 0, 0)
-		if subsErr != nil {
-			logger.Error("failed to list subscriptions for user %s: %v", userID, subsErr)
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list deliveries"})
-			return
-		}
-
-		// Collect deliveries from all user's subscriptions
-		for _, sub := range userSubscriptions {
-			subDeliveries, delErr := GlobalWebhookDeliveryStore.ListBySubscription(sub.Id.String(), 0, 0)
-			if delErr != nil {
-				logger.Warn("failed to get deliveries for subscription %s: %v", sub.Id, delErr)
-				continue
+		if isAdmin {
+			// Admins see deliveries from all subscriptions
+			allSubscriptions := GlobalWebhookSubscriptionStore.List(0, 0, nil)
+			for _, sub := range allSubscriptions {
+				subDeliveries, delErr := GlobalWebhookDeliveryStore.ListBySubscription(sub.Id.String(), 0, 0)
+				if delErr != nil {
+					logger.Warn("failed to get deliveries for subscription %s: %v", sub.Id, delErr)
+					continue
+				}
+				deliveries = append(deliveries, subDeliveries...)
 			}
-			deliveries = append(deliveries, subDeliveries...)
+		} else {
+			// Get all user's subscriptions first
+			userSubscriptions, subsErr := GlobalWebhookSubscriptionStore.ListByOwner(userID, 0, 0)
+			if subsErr != nil {
+				logger.Error("failed to list subscriptions for user %s: %v", userID, subsErr)
+				c.JSON(http.StatusInternalServerError, Error{Error: "failed to list deliveries"})
+				return
+			}
+
+			// Collect deliveries from all user's subscriptions
+			for _, sub := range userSubscriptions {
+				subDeliveries, delErr := GlobalWebhookDeliveryStore.ListBySubscription(sub.Id.String(), 0, 0)
+				if delErr != nil {
+					logger.Warn("failed to get deliveries for subscription %s: %v", sub.Id, delErr)
+					continue
+				}
+				deliveries = append(deliveries, subDeliveries...)
+			}
 		}
 
 		// Apply pagination to the combined results
@@ -586,6 +631,9 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 		return
 	}
 
+	// Check if user is an administrator
+	isAdmin, _ := IsUserAdministrator(c)
+
 	// Get delivery from database
 	delivery, err := GlobalWebhookDeliveryStore.Get(deliveryId.String())
 	if err != nil {
@@ -594,7 +642,7 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 		return
 	}
 
-	// Get subscription to verify ownership
+	// Get subscription to verify ownership (admins can access any delivery)
 	subscription, err := GlobalWebhookSubscriptionStore.Get(delivery.SubscriptionId.String())
 	if err != nil {
 		logger.Error("failed to get subscription for delivery %s: %v", deliveryId, err)
@@ -602,8 +650,8 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 		return
 	}
 
-	// Verify ownership
-	if subscription.OwnerId.String() != userID {
+	// Verify ownership (admins can access any delivery)
+	if !isAdmin && subscription.OwnerId.String() != userID {
 		logger.Warn("user %s attempted to access delivery %s owned by %s", userID, deliveryId, subscription.OwnerId)
 		c.JSON(http.StatusForbidden, Error{Error: "access denied"})
 		return

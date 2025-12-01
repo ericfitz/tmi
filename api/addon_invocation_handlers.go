@@ -245,25 +245,8 @@ func GetInvocation(c *gin.Context) {
 		}
 	}
 
-	// Check if user is admin
-	isAdmin := false
-	if GlobalAdministratorStore != nil {
-		provider := c.GetString("userProvider")
-		var groupNames []string
-		if groupsInterface, exists := c.Get("userGroups"); exists {
-			groupNames, _ = groupsInterface.([]string)
-		}
-
-		// Convert group names to UUIDs
-		var groupUUIDs []uuid.UUID
-		if dbStore, ok := GlobalAdministratorStore.(*AdministratorDatabaseStore); ok && len(groupNames) > 0 && provider != "" {
-			groupUUIDs, _ = dbStore.GetGroupUUIDsByNames(c.Request.Context(), provider, groupNames)
-		}
-
-		if provider != "" {
-			isAdmin, _ = GlobalAdministratorStore.IsAdmin(c.Request.Context(), &userInternalUUID, provider, groupUUIDs)
-		}
-	}
+	// Check if user is an administrator
+	isAdmin, _ := IsUserAdministrator(c)
 
 	// Get invocation
 	invocation, err := GlobalAddonInvocationStore.Get(c.Request.Context(), invocationID)
@@ -317,25 +300,8 @@ func ListInvocations(c *gin.Context) {
 		}
 	}
 
-	// Check if user is admin
-	isAdmin := false
-	if GlobalAdministratorStore != nil {
-		provider := c.GetString("userProvider")
-		var groupNames []string
-		if groupsInterface, exists := c.Get("userGroups"); exists {
-			groupNames, _ = groupsInterface.([]string)
-		}
-
-		// Convert group names to UUIDs
-		var groupUUIDs []uuid.UUID
-		if dbStore, ok := GlobalAdministratorStore.(*AdministratorDatabaseStore); ok && len(groupNames) > 0 && provider != "" {
-			groupUUIDs, _ = dbStore.GetGroupUUIDsByNames(c.Request.Context(), provider, groupNames)
-		}
-
-		if provider != "" {
-			isAdmin, _ = GlobalAdministratorStore.IsAdmin(c.Request.Context(), &userInternalUUID, provider, groupUUIDs)
-		}
-	}
+	// Check if user is an administrator
+	isAdmin, _ := IsUserAdministrator(c)
 
 	// Parse query parameters
 	limit := 50
