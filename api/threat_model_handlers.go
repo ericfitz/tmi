@@ -568,8 +568,12 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// Log authorization BEFORE enrichment
 	slogging.Get().WithContext(c).Info("[PATCH] Authorization BEFORE enrichment: %d entries", len(modifiedTM.Authorization))
 	for i, auth := range modifiedTM.Authorization {
-		slogging.Get().WithContext(c).Info("[PATCH] Auth[%d] BEFORE: type=%s provider=%s provider_id=%s role=%s",
-			i, auth.PrincipalType, auth.Provider, auth.ProviderId, auth.Role)
+		emailStr := "<nil>"
+		if auth.Email != nil {
+			emailStr = string(*auth.Email)
+		}
+		slogging.Get().WithContext(c).Info("[PATCH] Auth[%d] BEFORE: type=%s provider=%s provider_id=%s email=%s role=%s",
+			i, auth.PrincipalType, auth.Provider, auth.ProviderId, emailStr, auth.Role)
 	}
 
 	// Enrich authorization entries if database is available
