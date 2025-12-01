@@ -109,8 +109,9 @@ CREATE TABLE IF NOT EXISTS threat_model_access (
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     -- Separate unique constraints for each subject type
-    UNIQUE NULLS NOT DISTINCT (threat_model_id, user_internal_uuid, subject_type),
-    UNIQUE NULLS NOT DISTINCT (threat_model_id, group_internal_uuid, subject_type)
+    -- Note: NOT using NULLS NOT DISTINCT to allow multiple NULL values
+    UNIQUE (threat_model_id, user_internal_uuid, subject_type),
+    UNIQUE (threat_model_id, group_internal_uuid, subject_type)
 );
 
 -- Create documents table
@@ -217,15 +218,32 @@ CREATE TABLE IF NOT EXISTS webhook_url_deny_list (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create administrators table
+-- Create administrators table with dual foreign key pattern
 CREATE TABLE IF NOT EXISTS administrators (
-    user_internal_uuid UUID NOT NULL REFERENCES users(internal_uuid) ON DELETE CASCADE,
-    subject TEXT NOT NULL,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+    -- Dual foreign keys: exactly one populated based on subject_type
+    user_internal_uuid UUID REFERENCES users(internal_uuid) ON DELETE CASCADE,
+    group_internal_uuid UUID REFERENCES groups(internal_uuid) ON DELETE CASCADE,
+
     subject_type TEXT NOT NULL CHECK (subject_type IN ('user', 'group')),
+
+    -- Provider field for principal matching (especially important for groups)
+    provider TEXT NOT NULL,
+
+    -- Enforce exactly one subject (XOR constraint)
+    CONSTRAINT exactly_one_admin_subject CHECK (
+        (subject_type = 'user' AND user_internal_uuid IS NOT NULL AND group_internal_uuid IS NULL) OR
+        (subject_type = 'group' AND group_internal_uuid IS NOT NULL AND user_internal_uuid IS NULL)
+    ),
+
     granted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     granted_by_internal_uuid UUID REFERENCES users(internal_uuid) ON DELETE SET NULL,
     notes TEXT,
-    PRIMARY KEY (user_internal_uuid, subject, subject_type)
+
+    -- Ensure uniqueness: one admin entry per user or group
+    UNIQUE (user_internal_uuid, subject_type),
+    UNIQUE (group_internal_uuid, subject_type, provider)
 );
 
 -- Create addons table
@@ -400,8 +418,9 @@ CREATE INDEX idx_webhook_deliveries_created ON webhook_deliveries(created_at);
 CREATE INDEX idx_webhook_url_deny_list_pattern_type ON webhook_url_deny_list(pattern_type);
 
 -- Indexes for administrators
-CREATE INDEX idx_administrators_subject ON administrators(subject);
-CREATE INDEX idx_administrators_subject_type ON administrators(subject_type);
+CREATE INDEX idx_administrators_user ON administrators(user_internal_uuid) WHERE user_internal_uuid IS NOT NULL;
+CREATE INDEX idx_administrators_group ON administrators(group_internal_uuid, provider) WHERE group_internal_uuid IS NOT NULL;
+CREATE INDEX idx_administrators_provider ON administrators(provider);
 CREATE INDEX idx_administrators_granted_at ON administrators(granted_at DESC);
 
 -- Indexes for addons

@@ -233,6 +233,8 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		return tm, fmt.Errorf("failed to load authorization: %w", err)
 	}
 
+	slogging.Get().Debug("[DB-STORE] Loaded %d authorization entries for threat model %s", len(authorization), id)
+
 	// Load metadata
 	metadata, err := s.loadMetadata(id)
 	if err != nil {
@@ -762,6 +764,11 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 	}
 
 	// Update authorization
+	slogging.Get().Debug("[DB-STORE] Updating authorization for threat model %s with %d entries", id, len(item.Authorization))
+	for i, auth := range item.Authorization {
+		slogging.Get().Debug("[DB-STORE]   Entry %d: type=%s, provider=%s, provider_id=%s, role=%s",
+			i, auth.PrincipalType, auth.Provider, auth.ProviderId, auth.Role)
+	}
 	if err := s.updateAuthorizationTx(tx, id, item.Authorization); err != nil {
 		return fmt.Errorf("failed to update authorization: %w", err)
 	}
@@ -851,8 +858,10 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string, tx *s
 		WHERE threat_model_id = $1
 		ORDER BY role DESC`
 
+	slogging.Get().Debug("[DB-STORE] loadAuthorization: Querying authorization for threat model %s", threatModelId)
 	rows, err := localTx.Query(query, threatModelId)
 	if err != nil {
+		slogging.Get().Error("[DB-STORE] loadAuthorization: Query failed: %v", err)
 		return nil, err
 	}
 	defer func() {
@@ -864,27 +873,36 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string, tx *s
 
 	// Initialize as empty slice to ensure JSON marshals to [] instead of null
 	authorization := []Authorization{}
+	rowCount := 0
 	for rows.Next() {
+		rowCount++
 		var userUUID, groupUUID sql.NullString
 		var subjectTypeStr, roleStr string
 		if err := rows.Scan(&userUUID, &groupUUID, &subjectTypeStr, &roleStr); err != nil {
+			slogging.Get().Error("[DB-STORE] loadAuthorization: Failed to scan row %d: %v", rowCount, err)
 			continue
 		}
+
+		slogging.Get().Debug("[DB-STORE] loadAuthorization: Row %d - user_uuid=%v, group_uuid=%v, subject_type=%s, role=%s",
+			rowCount, userUUID, groupUUID, subjectTypeStr, roleStr)
 
 		role := AuthorizationRole(roleStr)
 
 		// Enrich based on subject type
 		if subjectTypeStr == "user" && userUUID.Valid {
+			slogging.Get().Debug("[DB-STORE] loadAuthorization: Enriching user principal with internal_uuid=%s", userUUID.String)
 			user, enrichErr := enrichUserPrincipal(localTx, userUUID.String)
 			if enrichErr != nil {
 				// Log but continue - graceful degradation
-				slogging.Get().Warn("Failed to enrich user principal: %v", enrichErr)
+				slogging.Get().Warn("[DB-STORE] loadAuthorization: Failed to enrich user principal %s: %v", userUUID.String, enrichErr)
 				continue
 			}
 			if user == nil {
 				// User not found - skip this authorization entry
+				slogging.Get().Warn("[DB-STORE] loadAuthorization: User principal %s not found - SKIPPING authorization entry", userUUID.String)
 				continue
 			}
+			slogging.Get().Debug("[DB-STORE] loadAuthorization: Successfully enriched user - provider=%s, provider_id=%s", user.Provider, user.ProviderId)
 
 			// Create Authorization from User (which extends Principal)
 			auth := Authorization{
@@ -1234,12 +1252,17 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 		}
 
 		now := time.Now().UTC()
+		slogging.Get().Debug("[DB-STORE] saveAuthorizationTx: Inserting entry - threat_model_id=%s, user_uuid=%v, group_uuid=%v, subject_type=%s, role=%s",
+			threatModelId, userUUID, groupUUID, subjectTypeStr, auth.Role)
 		_, err := tx.Exec(query, threatModelId, userUUID, groupUUID, subjectTypeStr, string(auth.Role), now, now)
 		if err != nil {
+			slogging.Get().Error("[DB-STORE] saveAuthorizationTx: Failed to insert authorization entry: %v", err)
 			return err
 		}
+		slogging.Get().Debug("[DB-STORE] saveAuthorizationTx: Successfully inserted authorization entry")
 	}
 
+	slogging.Get().Debug("[DB-STORE] saveAuthorizationTx: Successfully saved all %d authorization entries", len(authorization))
 	return nil
 }
 
@@ -1267,13 +1290,17 @@ func (s *ThreatModelDatabaseStore) saveMetadataTx(tx *sql.Tx, threatModelId stri
 }
 
 func (s *ThreatModelDatabaseStore) updateAuthorizationTx(tx *sql.Tx, threatModelId string, authorization []Authorization) error {
+	slogging.Get().Debug("[DB-STORE] updateAuthorizationTx: Deleting existing authorization for threat model %s", threatModelId)
 	// Delete existing authorization
-	_, err := tx.Exec(`DELETE FROM threat_model_access WHERE threat_model_id = $1`, threatModelId)
+	result, err := tx.Exec(`DELETE FROM threat_model_access WHERE threat_model_id = $1`, threatModelId)
 	if err != nil {
 		return err
 	}
+	rowsDeleted, _ := result.RowsAffected()
+	slogging.Get().Debug("[DB-STORE] updateAuthorizationTx: Deleted %d existing authorization entries", rowsDeleted)
 
 	// Insert new authorization
+	slogging.Get().Debug("[DB-STORE] updateAuthorizationTx: Inserting %d new authorization entries", len(authorization))
 	return s.saveAuthorizationTx(tx, threatModelId, authorization)
 }
 

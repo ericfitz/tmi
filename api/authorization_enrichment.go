@@ -66,7 +66,9 @@ func EnrichAuthorizationEntry(ctx context.Context, db *sql.DB, auth *Authorizati
 	}
 
 	// Query the database
-	var internalUUID, provider, providerUserID, email, name string
+	// Note: provider_user_id can be NULL for sparse users (created before first OAuth login)
+	var internalUUID, provider, email, name string
+	var providerUserID sql.NullString
 	err := db.QueryRowContext(ctx, query, queryParam, auth.Provider).Scan(
 		&internalUUID, &provider, &providerUserID, &email, &name,
 	)
@@ -113,8 +115,12 @@ func EnrichAuthorizationEntry(ctx context.Context, db *sql.DB, auth *Authorizati
 		auth.DisplayName = &name
 	}
 
-	logger.Debug("Enriched authorization entry: provider=%s, internal_uuid=%s, email=%s, name=%s",
-		provider, internalUUID, email, name)
+	providerIDStr := "<null>"
+	if providerUserID.Valid {
+		providerIDStr = providerUserID.String
+	}
+	logger.Debug("Enriched authorization entry: provider=%s, internal_uuid=%s, provider_user_id=%s, email=%s, name=%s",
+		provider, internalUUID, providerIDStr, email, name)
 
 	return nil
 }
@@ -132,30 +138,45 @@ func performSparseUserInsert(ctx context.Context, db *sql.DB, auth *Authorizatio
 		providerUserID = auth.ProviderId
 	}
 
-	// If we only have email, use it as provider_user_id temporarily
-	if providerUserID == "" && email != "" {
-		providerUserID = email
-	}
-
-	// If we only have provider_user_id, we can't populate email (leave it null)
-	// The OAuth flow will populate it later
-
-	logger.Info("Creating sparse user record: provider=%s, provider_user_id=%s, email=%s",
-		auth.Provider, providerUserID, email)
-
-	insertQuery := `
-		INSERT INTO users (provider, provider_user_id, email, name, email_verified, created_at, modified_at)
-		VALUES ($1, $2, NULLIF($3, ''), COALESCE(NULLIF($4, ''), $3), false, NOW(), NOW())
-		ON CONFLICT (provider, provider_user_id) DO NOTHING
-	`
-
 	// Use email as fallback name if no name provided
 	displayName := ""
 	if auth.DisplayName != nil {
 		displayName = *auth.DisplayName
 	}
+	if displayName == "" && email != "" {
+		displayName = email
+	}
 
-	_, err := db.ExecContext(ctx, insertQuery, auth.Provider, providerUserID, email, displayName)
+	// Sparse users can be created with just email (provider_user_id will be null until first login)
+	logger.Info("Creating sparse user record: provider=%s, provider_user_id=%s, email=%s",
+		auth.Provider, providerUserID, email)
+
+	// Use different insert strategy based on what we have
+	var err error
+	if providerUserID != "" {
+		// Have provider_user_id - insert with ON CONFLICT on (provider, provider_user_id)
+		query := `
+			INSERT INTO users (provider, provider_user_id, email, name, email_verified, created_at, modified_at)
+			VALUES ($1, $2, NULLIF($3, ''), $4, false, NOW(), NOW())
+			ON CONFLICT (provider, provider_user_id) DO NOTHING
+		`
+		_, err = db.ExecContext(ctx, query, auth.Provider, providerUserID, email, displayName)
+	} else if email != "" {
+		// Only have email - insert with ON CONFLICT on (provider, email)
+		query := `
+			INSERT INTO users (provider, provider_user_id, email, name, email_verified, created_at, modified_at)
+			VALUES ($1, NULL, $2, $3, false, NOW(), NOW())
+			ON CONFLICT (provider, email) DO NOTHING
+		`
+		_, err = db.ExecContext(ctx, query, auth.Provider, email, displayName)
+	} else {
+		return &RequestError{
+			Status:  400,
+			Code:    "validation_failed",
+			Message: "either provider_id or email must be provided for sparse user creation",
+		}
+	}
+
 	if err != nil {
 		logger.Error("Failed to insert sparse user record: %v", err)
 		return &RequestError{

@@ -11,7 +11,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS users (
     internal_uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     provider TEXT NOT NULL,                           -- OAuth provider: "test", "google", "github", "microsoft", "azure"
-    provider_user_id TEXT NOT NULL,                   -- Provider's user ID (from JWT sub claim)
+    provider_user_id TEXT,                            -- Provider's user ID (from JWT sub claim) - nullable for sparse users
     email TEXT NOT NULL,
     name TEXT NOT NULL,                               -- Display name for UI presentation
     email_verified BOOLEAN DEFAULT FALSE,
@@ -22,9 +22,11 @@ CREATE TABLE IF NOT EXISTS users (
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMPTZ,
 
-    -- Unique constraint: one user per (provider, provider_user_id) combination
-    -- This enforces our business logic: each provider account is a separate user
-    UNIQUE(provider, provider_user_id)
+    -- Unique constraints:
+    -- 1. One user per (provider, provider_user_id) for OAuth-authenticated users
+    -- 2. One user per (provider, email) for sparse users (created before first login)
+    UNIQUE NULLS NOT DISTINCT (provider, provider_user_id),
+    UNIQUE (provider, email)
 );
 
 -- Create indexes for users

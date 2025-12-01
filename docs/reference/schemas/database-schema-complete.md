@@ -6,15 +6,14 @@
 
 ## Overview
 
-The TMI database schema is implemented through three sequential migrations that build a comprehensive data model for collaborative threat modeling. The schema supports OAuth authentication, role-based access control (RBAC), real-time collaboration, webhook integrations, and multi-framework threat modeling.
+The TMI database schema is implemented through two sequential migrations that build a comprehensive data model for collaborative threat modeling. The schema supports OAuth authentication, role-based access control (RBAC), real-time collaboration, webhook integrations, multi-framework threat modeling, and sparse user creation (users added to authorization before first login).
 
 ### Migration Structure
 
 | Migration | Purpose | Key Tables |
 |-----------|---------|------------|
-| **001_core_infrastructure.up.sql** | Authentication, session management, collaboration | users, refresh_tokens, collaboration_sessions, session_participants |
-| **002_business_domain.up.sql** | Business logic, RBAC, webhooks, addons | threat_models, diagrams, threats, assets, groups, threat_model_access, webhook_*, addons |
-| **003_administrator_provider_fields.up.sql** | Administrator management with dual foreign keys | administrators (restructured) |
+| **001_core_infrastructure.up.sql** | Authentication, session management, collaboration, sparse user support | users (with nullable provider_user_id), refresh_tokens, collaboration_sessions, session_participants |
+| **002_business_domain.up.sql** | Business logic, RBAC, webhooks, addons, administrator management | threat_models, diagrams, threats, assets, groups, threat_model_access, administrators, webhook_*, addons |
 
 ### Key Design Patterns
 
@@ -33,11 +32,13 @@ The TMI database schema is implemented through three sequential migrations that 
 
 User accounts from OAuth providers. Each provider account is treated as a separate user identity.
 
+Supports **sparse users**: Users can be created before first OAuth login with just email and provider. The `provider_user_id` is populated on first successful OAuth login.
+
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | internal_uuid | UUID | PRIMARY KEY, DEFAULT uuid_generate_v4() | Internal user identifier |
 | provider | TEXT | NOT NULL | OAuth provider: "test", "google", "github", "microsoft", "azure" |
-| provider_user_id | TEXT | NOT NULL | Provider's user ID (from JWT sub claim) |
+| provider_user_id | TEXT | NULL | Provider's user ID (from JWT sub claim) - NULL for sparse users until first login |
 | email | TEXT | NOT NULL | User email address |
 | name | TEXT | NOT NULL | Display name for UI presentation |
 | email_verified | BOOLEAN | DEFAULT FALSE | Email verification status |
@@ -49,7 +50,8 @@ User accounts from OAuth providers. Each provider account is treated as a separa
 | last_login | TIMESTAMPTZ | NULL | Last successful login timestamp |
 
 **Unique Constraints:**
-- `UNIQUE(provider, provider_user_id)` - One user per provider account
+- `UNIQUE NULLS NOT DISTINCT (provider, provider_user_id)` - One user per provider account (for authenticated users)
+- `UNIQUE (provider, email)` - One user per provider email (for sparse users)
 
 **Indexes:**
 - `idx_users_provider_lookup` - (provider, provider_user_id) for authentication lookups
@@ -59,6 +61,10 @@ User accounts from OAuth providers. Each provider account is treated as a separa
 
 **Usage Notes:**
 - Users are provider-scoped: alice@google and alice@github are different users
+- **Sparse Users**: Can be created with email only before first OAuth login
+  - Created when adding users to threat model authorization before they've logged in
+  - `provider_user_id` is NULL until first OAuth login
+  - OAuth handler populates `provider_user_id` on first login for sparse users
 - Tokens are stored for OAuth refresh flows
 - last_login is updated on successful authentication
 
@@ -371,8 +377,8 @@ Role-based access control (RBAC) for threat models. Supports both user and group
   - subject_type = 'group': group_internal_uuid NOT NULL, user_internal_uuid NULL
 
 **Unique Constraints:**
-- `UNIQUE NULLS NOT DISTINCT (threat_model_id, user_internal_uuid, subject_type)` - One role per user
-- `UNIQUE NULLS NOT DISTINCT (threat_model_id, group_internal_uuid, subject_type)` - One role per group
+- `UNIQUE (threat_model_id, user_internal_uuid, subject_type)` - One role per user
+- `UNIQUE (threat_model_id, group_internal_uuid, subject_type)` - One role per group
 
 **Indexes:**
 - `idx_threat_model_access_threat_model_id` - Threat model ACL lookups
@@ -777,8 +783,8 @@ Administrator privileges for users and groups, supporting dual foreign keys.
   - subject_type = 'group': group_internal_uuid NOT NULL, user_internal_uuid NULL
 
 **Unique Constraints:**
-- `UNIQUE NULLS NOT DISTINCT (user_internal_uuid, subject_type)` - One admin record per user
-- `UNIQUE NULLS NOT DISTINCT (group_internal_uuid, subject_type, provider)` - One admin record per group/provider
+- `UNIQUE (user_internal_uuid, subject_type)` - One admin record per user
+- `UNIQUE (group_internal_uuid, subject_type, provider)` - One admin record per group/provider
 
 **Indexes:**
 - `idx_administrators_user` - User admin lookups (partial WHERE user_internal_uuid IS NOT NULL)
@@ -1048,9 +1054,8 @@ CONSTRAINT exactly_one_subject CHECK (
 
 | Version | Migration | Date | Description |
 |---------|-----------|------|-------------|
-| 1 | 001_core_infrastructure.up.sql | Initial | Users, authentication, collaboration sessions |
-| 2 | 002_business_domain.up.sql | Initial | Threat models, RBAC, webhooks, addons |
-| 3 | 003_administrator_provider_fields.up.sql | Initial | Administrator table restructure with dual foreign keys |
+| 1 | 001_core_infrastructure.up.sql | Initial | Users (with sparse user support), authentication, collaboration sessions |
+| 2 | 002_business_domain.up.sql | Initial | Threat models, RBAC, webhooks, addons, administrators (with dual foreign keys) |
 
 ---
 

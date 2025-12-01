@@ -567,9 +567,18 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 
 	// Enrich authorization entries if database is available
 	if db != nil {
+		slogging.Get().WithContext(c).Debug("[HANDLER] Enriching %d authorization entries before save", len(modifiedTM.Authorization))
+		for i, auth := range modifiedTM.Authorization {
+			slogging.Get().WithContext(c).Debug("[HANDLER]   Before enrich %d: type=%s, provider=%s, provider_id=%s, role=%s",
+				i, auth.PrincipalType, auth.Provider, auth.ProviderId, auth.Role)
+		}
 		if err := EnrichAuthorizationList(c.Request.Context(), db, modifiedTM.Authorization); err != nil {
 			HandleRequestError(c, err)
 			return
+		}
+		for i, auth := range modifiedTM.Authorization {
+			slogging.Get().WithContext(c).Debug("[HANDLER]   After enrich %d: type=%s, provider=%s, provider_id=%s, role=%s",
+				i, auth.PrincipalType, auth.Provider, auth.ProviderId, auth.Role)
 		}
 	}
 

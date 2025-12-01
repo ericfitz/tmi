@@ -922,8 +922,24 @@ func (h *Handlers) Exchange(c *gin.Context) {
 			return
 		}
 	} else {
-		// Update last login
+		// User exists - update last login and populate provider_user_id if sparse user
 		user.LastLogin = time.Now()
+
+		// CRITICAL: If this is a sparse user (provider_user_id is empty), populate it now
+		if user.ProviderUserID == "" {
+			logger := slogging.Get().WithContext(c)
+			logger.Info("Completing sparse user record: populating provider_user_id=%s for user %s (email: %s)",
+				userInfo.ID, user.InternalUUID, user.Email)
+			user.ProviderUserID = userInfo.ID
+			// Also update name and email_verified from OAuth claims if available
+			if name != "" {
+				user.Name = name
+			}
+			if claims != nil && claims.EmailVerified {
+				user.EmailVerified = true
+			}
+		}
+
 		err = h.service.UpdateUser(ctx, user)
 		if err != nil {
 			// Log error but continue
