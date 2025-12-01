@@ -1197,11 +1197,18 @@ func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId
 		switch subjectTypeStr {
 		case "user":
 			// Resolve user identifier to internal_uuid
-			resolvedUUID, err := s.resolveUserIdentifierToUUID(tx, auth.ProviderId)
+			// Determine which identifier to use for resolution
+			// Prefer provider_id (OAuth sub), fall back to email if provider_id is empty
+			identifier := auth.ProviderId
+			if identifier == "" && auth.Email != nil {
+				identifier = string(*auth.Email)
+			}
+
+			resolvedUUID, err := s.resolveUserIdentifierToUUID(tx, identifier)
 			if err != nil {
 				// If resolution fails, keep the original subject value
-				slogging.Get().Debug("Could not resolve user identifier %s to internal_uuid, using as-is: %v", auth.ProviderId, err)
-				userUUID = auth.ProviderId
+				slogging.Get().Debug("Could not resolve user identifier %s to internal_uuid, using as-is: %v", identifier, err)
+				userUUID = identifier
 			} else {
 				userUUID = resolvedUUID
 			}
