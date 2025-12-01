@@ -40,48 +40,47 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 	}
 
 	// Get subscriptions for the user
-	var filtered []DBWebhookSubscription
+	var subscriptions []DBWebhookSubscription
 
 	// If threat model ID is provided, filter by both owner and threat model
 	if params.ThreatModelId != nil {
-		// Get by threat model and then filter by owner
-		tmSubscriptions, tmErr := GlobalWebhookSubscriptionStore.ListByThreatModel(params.ThreatModelId.String(), 0, 0)
+		// Get by threat model with pagination, then filter by owner in-memory
+		// This is acceptable because threat model subscriptions are typically small
+		allTMSubscriptions, tmErr := GlobalWebhookSubscriptionStore.ListByThreatModel(params.ThreatModelId.String(), 0, 1000)
 		if tmErr != nil {
 			logger.Error("failed to list subscriptions by threat model: %v", tmErr)
 			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
 			return
 		}
 		// Filter by owner
-		for _, sub := range tmSubscriptions {
+		for _, sub := range allTMSubscriptions {
 			if sub.OwnerId.String() == userID {
-				filtered = append(filtered, sub)
+				subscriptions = append(subscriptions, sub)
 			}
 		}
+		// Apply pagination in-memory after filtering
+		if offset >= len(subscriptions) {
+			subscriptions = []DBWebhookSubscription{}
+		} else {
+			end := offset + limit
+			if end > len(subscriptions) {
+				end = len(subscriptions)
+			}
+			subscriptions = subscriptions[offset:end]
+		}
 	} else {
-		// Get all subscriptions for this owner
-		ownerSubscriptions, ownerErr := GlobalWebhookSubscriptionStore.ListByOwner(userID, 0, 0)
-		if ownerErr != nil {
-			logger.Error("failed to list subscriptions by owner: %v", ownerErr)
+		// Get subscriptions for this owner with database-level pagination
+		subscriptions, err = GlobalWebhookSubscriptionStore.ListByOwner(userID, offset, limit)
+		if err != nil {
+			logger.Error("failed to list subscriptions by owner: %v", err)
 			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
 			return
 		}
-		filtered = ownerSubscriptions
-	}
-
-	// Apply pagination to results
-	if offset >= len(filtered) {
-		filtered = []DBWebhookSubscription{}
-	} else {
-		end := offset + limit
-		if end > len(filtered) {
-			end = len(filtered)
-		}
-		filtered = filtered[offset:end]
 	}
 
 	// Convert to API response types (don't include secrets in list)
-	response := make([]WebhookSubscription, 0, len(filtered))
-	for _, sub := range filtered {
+	response := make([]WebhookSubscription, 0, len(subscriptions))
+	for _, sub := range subscriptions {
 		response = append(response, dbWebhookSubscriptionToAPI(sub, false))
 	}
 

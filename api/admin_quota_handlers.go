@@ -3,22 +3,17 @@ package api
 import (
 	"net/http"
 
+	openapi_types "github.com/oapi-codegen/runtime/types"
+
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // GetUserAPIQuota retrieves the API quota for a specific user (admin only)
-func (s *Server) GetUserAPIQuota(c *gin.Context) {
+func (s *Server) GetUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	_ = slogging.Get().WithContext(c)
 
-	// Get user ID from path parameter
-	userIDParam := c.Param("user_id")
-	userID, err := uuid.Parse(userIDParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid user ID format"})
-		return
-	}
+	userID := userId
 
 	// Get quota (or default)
 	quota := GlobalUserAPIQuotaStore.GetOrDefault(userID.String())
@@ -27,16 +22,10 @@ func (s *Server) GetUserAPIQuota(c *gin.Context) {
 }
 
 // UpdateUserAPIQuota creates or updates the API quota for a specific user (admin only)
-func (s *Server) UpdateUserAPIQuota(c *gin.Context) {
+func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get user ID from path parameter
-	userIDParam := c.Param("user_id")
-	userID, err := uuid.Parse(userIDParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid user ID format"})
-		return
-	}
+	userID := userId
 
 	// Parse request body
 	var req struct {
@@ -94,16 +83,10 @@ func (s *Server) UpdateUserAPIQuota(c *gin.Context) {
 }
 
 // DeleteUserAPIQuota deletes the API quota for a specific user, reverting to defaults (admin only)
-func (s *Server) DeleteUserAPIQuota(c *gin.Context) {
+func (s *Server) DeleteUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get user ID from path parameter
-	userIDParam := c.Param("user_id")
-	userID, err := uuid.Parse(userIDParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid user ID format"})
-		return
-	}
+	userID := userId
 
 	// Delete quota
 	if err := GlobalUserAPIQuotaStore.Delete(userID.String()); err != nil {
@@ -122,16 +105,10 @@ func (s *Server) DeleteUserAPIQuota(c *gin.Context) {
 }
 
 // GetWebhookQuota retrieves the webhook quota for a specific user (admin only)
-func (s *Server) GetWebhookQuota(c *gin.Context) {
+func (s *Server) GetWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	_ = slogging.Get().WithContext(c)
 
-	// Get user ID from path parameter
-	userIDParam := c.Param("user_id")
-	userID, err := uuid.Parse(userIDParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid user ID format"})
-		return
-	}
+	userID := userId
 
 	// Get quota (or default)
 	quota := GlobalWebhookQuotaStore.GetOrDefault(userID.String())
@@ -140,16 +117,10 @@ func (s *Server) GetWebhookQuota(c *gin.Context) {
 }
 
 // UpdateWebhookQuota creates or updates the webhook quota for a specific user (admin only)
-func (s *Server) UpdateWebhookQuota(c *gin.Context) {
+func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get user ID from path parameter
-	userIDParam := c.Param("user_id")
-	userID, err := uuid.Parse(userIDParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid user ID format"})
-		return
-	}
+	userID := userId
 
 	// Parse request body
 	var req struct {
@@ -168,7 +139,7 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context) {
 	existingQuota, err := GlobalWebhookQuotaStore.Get(userID.String())
 	if err != nil {
 		// Doesn't exist, create new one
-		newQuota := WebhookQuota{
+		newQuota := DBWebhookQuota{
 			OwnerId:                          userID,
 			MaxSubscriptions:                 req.MaxSubscriptions,
 			MaxEventsPerMinute:               req.MaxEventsPerMinute,
@@ -213,16 +184,10 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context) {
 }
 
 // DeleteWebhookQuota deletes the webhook quota for a specific user, reverting to defaults (admin only)
-func (s *Server) DeleteWebhookQuota(c *gin.Context) {
+func (s *Server) DeleteWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get user ID from path parameter
-	userIDParam := c.Param("user_id")
-	userID, err := uuid.Parse(userIDParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid user ID format"})
-		return
-	}
+	userID := userId
 
 	// Delete quota
 	if err := GlobalWebhookQuotaStore.Delete(userID.String()); err != nil {

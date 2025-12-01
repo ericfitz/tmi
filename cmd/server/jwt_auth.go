@@ -380,7 +380,7 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 	}
 
 	// Create administrator grant for first user
-	admin := api.Administrator{
+	admin := api.DBAdministrator{
 		ID:               uuid.New(),
 		UserInternalUUID: &userUUID,
 		SubjectType:      "user",

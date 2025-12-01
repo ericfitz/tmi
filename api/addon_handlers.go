@@ -288,7 +288,8 @@ func ListAddons(c *gin.Context) {
 	}
 
 	// Convert to response format
-	var responses []AddonResponse
+	// Initialize with empty slice instead of nil to ensure JSON serializes as [] not null
+	responses := make([]AddonResponse, 0, len(addons))
 	for _, addon := range addons {
 		responses = append(responses, addonToResponse(&addon))
 	}

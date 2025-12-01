@@ -3,7 +3,9 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"strconv"
+	"time"
+
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -11,70 +13,39 @@ import (
 )
 
 // ListAdministrators handles GET /admin/administrators
-func (s *Server) ListAdministrators(c *gin.Context) {
+func (s *Server) ListAdministrators(c *gin.Context, params ListAdministratorsParams) {
 	logger := slogging.Get().WithContext(c)
 
-	// Parse query parameters
-	provider := c.Query("provider")
-	userIDStr := c.Query("user_id")
-	groupIDStr := c.Query("group_id")
-	limitStr := c.DefaultQuery("limit", "50")
-	offsetStr := c.DefaultQuery("offset", "0")
+	// Set defaults
+	limit := 50
+	offset := 0
 
-	// Parse limit and offset
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 0 {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_limit",
-			Message: "limit must be a non-negative integer",
-		})
-		return
+	if params.Limit != nil {
+		limit = *params.Limit
 	}
-
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_offset",
-			Message: "offset must be a non-negative integer",
-		})
-		return
+	if params.Offset != nil {
+		offset = *params.Offset
 	}
 
 	// Build filter
 	filter := AdminFilter{
-		Provider: provider,
-		Limit:    limit,
-		Offset:   offset,
+		Limit:  limit,
+		Offset: offset,
 	}
 
-	// Parse optional user_id filter
-	if userIDStr != "" {
-		userID, err := uuid.Parse(userIDStr)
-		if err != nil {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_user_id",
-				Message: "user_id must be a valid UUID",
-			})
-			return
-		}
-		filter.UserID = &userID
+	// Set optional provider filter
+	if params.Provider != nil {
+		filter.Provider = *params.Provider
 	}
 
-	// Parse optional group_id filter
-	if groupIDStr != "" {
-		groupID, err := uuid.Parse(groupIDStr)
-		if err != nil {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_group_id",
-				Message: "group_id must be a valid UUID",
-			})
-			return
-		}
-		filter.GroupID = &groupID
+	// Set optional user_id filter
+	if params.UserId != nil {
+		filter.UserID = params.UserId
+	}
+
+	// Set optional group_id filter
+	if params.GroupId != nil {
+		filter.GroupID = params.GroupId
 	}
 
 	// Get administrators from store
@@ -98,10 +69,16 @@ func (s *Server) ListAdministrators(c *gin.Context) {
 			enriched = admins
 		}
 
+		// Convert to API type
+		apiAdmins := make([]Administrator, 0, len(enriched))
+		for i := range enriched {
+			apiAdmins = append(apiAdmins, enriched[i].ToAPI())
+		}
+
 		// Return response
-		c.JSON(http.StatusOK, gin.H{
-			"administrators": enriched,
-			"total":          len(enriched),
+		c.JSON(http.StatusOK, ListAdministratorsResponse{
+			Administrators: apiAdmins,
+			Total:          len(apiAdmins),
 		})
 	} else {
 		logger.Error("GlobalAdministratorStore is not a database store")
@@ -111,13 +88,6 @@ func (s *Server) ListAdministrators(c *gin.Context) {
 			Message: "Administrator store not properly initialized",
 		})
 	}
-}
-
-// CreateAdministratorRequest represents the request body for creating an administrator
-type CreateAdministratorRequest struct {
-	UserID   *uuid.UUID `json:"user_id,omitempty"`
-	GroupID  *uuid.UUID `json:"group_id,omitempty"`
-	Provider string     `json:"provider" binding:"required"`
 }
 
 // CreateAdministrator handles POST /admin/administrators
@@ -136,7 +106,7 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 	}
 
 	// Validate: exactly one of user_id or group_id must be set
-	if req.UserID == nil && req.GroupID == nil {
+	if req.UserId == nil && req.GroupId == nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_request",
@@ -145,7 +115,7 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 		return
 	}
 
-	if req.UserID != nil && req.GroupID != nil {
+	if req.UserId != nil && req.GroupId != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_request",
@@ -158,17 +128,18 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 	actorUserID := c.GetString("userInternalUUID")
 	actorEmail := c.GetString("userEmail")
 
-	// Create administrator grant
-	admin := Administrator{
-		ID:       uuid.New(),
-		Provider: req.Provider,
+	// Create administrator grant (using internal DBAdministrator type)
+	admin := DBAdministrator{
+		ID:        uuid.New(),
+		Provider:  req.Provider,
+		GrantedAt: time.Now().UTC(),
 	}
 
-	if req.UserID != nil {
-		admin.UserInternalUUID = req.UserID
+	if req.UserId != nil {
+		admin.UserInternalUUID = req.UserId
 		admin.SubjectType = "user"
 	} else {
-		admin.GroupInternalUUID = req.GroupID
+		admin.GroupInternalUUID = req.GroupId
 		admin.SubjectType = "group"
 	}
 
@@ -203,7 +174,7 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 
 	// Enrich response with email/group name
 	if dbStore, ok := GlobalAdministratorStore.(*AdministratorDatabaseStore); ok {
-		enriched, err := dbStore.EnrichAdministrators(c.Request.Context(), []Administrator{admin})
+		enriched, err := dbStore.EnrichAdministrators(c.Request.Context(), []DBAdministrator{admin})
 		if err == nil && len(enriched) > 0 {
 			admin = enriched[0]
 		}
@@ -213,27 +184,19 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 	logger.Info("[AUDIT] Administrator grant created: grant_id=%s, user_id=%v, group_id=%v, provider=%s, created_by=%s (email=%s)",
 		admin.ID, admin.UserInternalUUID, admin.GroupInternalUUID, admin.Provider, actorUserID, actorEmail)
 
-	c.JSON(http.StatusCreated, admin)
+	// Convert to API type for response
+	c.JSON(http.StatusCreated, admin.ToAPI())
 }
 
 // DeleteAdministrator handles DELETE /admin/administrators/{id}
-func (s *Server) DeleteAdministrator(c *gin.Context) {
+func (s *Server) DeleteAdministrator(c *gin.Context, id openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Parse ID from path parameter
-	idParam := c.Param("id")
-	grantID, err := uuid.Parse(idParam)
-	if err != nil {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_id",
-			Message: "ID must be a valid UUID",
-		})
-		return
-	}
+	grantID := id
 
 	// Get the administrator grant to check self-revocation
-	var adminGrant *Administrator
+	var adminGrant *DBAdministrator
+	var err error
 	if dbStore, ok := GlobalAdministratorStore.(*AdministratorDatabaseStore); ok {
 		adminGrant, err = dbStore.Get(c.Request.Context(), grantID)
 		if err != nil {

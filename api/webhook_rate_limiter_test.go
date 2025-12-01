@@ -21,7 +21,7 @@ func TestWebhookRateLimiter_CheckSubscriptionLimit(t *testing.T) {
 
 	// Initialize quota store with default values
 	GlobalWebhookQuotaStore = &mockQuotaStore{
-		quotas: map[string]WebhookQuota{
+		quotas: map[string]DBWebhookQuota{
 			ownerID: {
 				OwnerId:          uuid.MustParse(ownerID),
 				MaxSubscriptions: 2,
@@ -97,7 +97,7 @@ func TestWebhookRateLimiter_CheckEventPublicationLimit(t *testing.T) {
 
 	// Initialize quota store
 	GlobalWebhookQuotaStore = &mockQuotaStore{
-		quotas: map[string]WebhookQuota{
+		quotas: map[string]DBWebhookQuota{
 			ownerID: {
 				OwnerId:            uuid.MustParse(ownerID),
 				MaxEventsPerMinute: 5,
@@ -119,22 +119,22 @@ func TestWebhookRateLimiter_CheckEventPublicationLimit(t *testing.T) {
 
 // Mock quota store for testing
 type mockQuotaStore struct {
-	quotas map[string]WebhookQuota
+	quotas map[string]DBWebhookQuota
 }
 
-func (m *mockQuotaStore) Get(ownerID string) (WebhookQuota, error) {
+func (m *mockQuotaStore) Get(ownerID string) (DBWebhookQuota, error) {
 	if quota, ok := m.quotas[ownerID]; ok {
 		return quota, nil
 	}
-	return WebhookQuota{}, nil
+	return DBWebhookQuota{}, nil
 }
 
-func (m *mockQuotaStore) GetOrDefault(ownerID string) WebhookQuota {
+func (m *mockQuotaStore) GetOrDefault(ownerID string) DBWebhookQuota {
 	if quota, ok := m.quotas[ownerID]; ok {
 		return quota
 	}
 	ownerUUID, _ := uuid.Parse(ownerID)
-	return WebhookQuota{
+	return DBWebhookQuota{
 		OwnerId:                          ownerUUID,
 		MaxSubscriptions:                 DefaultMaxSubscriptions,
 		MaxEventsPerMinute:               DefaultMaxEventsPerMinute,
@@ -143,12 +143,12 @@ func (m *mockQuotaStore) GetOrDefault(ownerID string) WebhookQuota {
 	}
 }
 
-func (m *mockQuotaStore) Create(item WebhookQuota) (WebhookQuota, error) {
+func (m *mockQuotaStore) Create(item DBWebhookQuota) (DBWebhookQuota, error) {
 	m.quotas[item.OwnerId.String()] = item
 	return item, nil
 }
 
-func (m *mockQuotaStore) Update(ownerID string, item WebhookQuota) error {
+func (m *mockQuotaStore) Update(ownerID string, item DBWebhookQuota) error {
 	m.quotas[ownerID] = item
 	return nil
 }

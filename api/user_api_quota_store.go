@@ -2,25 +2,14 @@ package api
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
 
-// UserAPIQuota represents per-user API rate limits
-type UserAPIQuota struct {
-	UserId               uuid.UUID `json:"user_id"`
-	MaxRequestsPerMinute int       `json:"max_requests_per_minute"`
-	MaxRequestsPerHour   *int      `json:"max_requests_per_hour,omitempty"`
-	CreatedAt            time.Time `json:"created_at"`
-	ModifiedAt           time.Time `json:"modified_at"`
-}
-
-// SetCreatedAt implements WithTimestamps
+// SetCreatedAt implements WithTimestamps for UserAPIQuota
 func (q *UserAPIQuota) SetCreatedAt(t time.Time) {
 	q.CreatedAt = t
 }
 
-// SetModifiedAt implements WithTimestamps
+// SetModifiedAt implements WithTimestamps for UserAPIQuota
 func (q *UserAPIQuota) SetModifiedAt(t time.Time) {
 	q.ModifiedAt = t
 }

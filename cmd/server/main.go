@@ -1193,28 +1193,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /auth/providers -> GetAuthProviders")
 	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /collaboration/sessions -> GetCollaborationSessions")
 	api.RegisterHandlers(r, apiServer)
-	logger.Info("[MAIN_MODULE] OpenAPI route registration completed")
-
-	// Register admin endpoints (protected by JWT middleware and administrator middleware)
-	adminGroup := r.Group("/admin")
-	adminGroup.Use(api.AdministratorMiddleware())
-	{
-		// Administrator management
-		adminGroup.GET("/administrators", apiServer.ListAdministrators)
-		adminGroup.POST("/administrators", apiServer.CreateAdministrator)
-		adminGroup.DELETE("/administrators/:id", apiServer.DeleteAdministrator)
-
-		// User API quota management
-		adminGroup.GET("/quotas/users/:user_id", apiServer.GetUserAPIQuota)
-		adminGroup.PUT("/quotas/users/:user_id", apiServer.UpdateUserAPIQuota)
-		adminGroup.DELETE("/quotas/users/:user_id", apiServer.DeleteUserAPIQuota)
-
-		// Webhook quota management
-		adminGroup.GET("/quotas/webhooks/:user_id", apiServer.GetWebhookQuota)
-		adminGroup.PUT("/quotas/webhooks/:user_id", apiServer.UpdateWebhookQuota)
-		adminGroup.DELETE("/quotas/webhooks/:user_id", apiServer.DeleteWebhookQuota)
-	}
-	logger.Info("Admin endpoints registered (administrators, quotas)")
+	logger.Info("[MAIN_MODULE] OpenAPI route registration completed (includes admin endpoints)")
 
 	// Add development routes when in dev mode
 	if config.Logging.IsDev {
@@ -1364,7 +1343,7 @@ func initializeAdministrators(cfg *config.Config, db *sql.DB) error {
 		}
 
 		// Create administrator entry
-		admin := api.Administrator{
+		admin := api.DBAdministrator{
 			ID:                uuid.New(),
 			UserInternalUUID:  userUUID,
 			GroupInternalUUID: groupUUID,

@@ -985,11 +985,11 @@ func NewWebhookQuotaDatabaseStore(db *sql.DB) *WebhookQuotaDatabaseStore {
 }
 
 // Get retrieves a webhook quota by owner ID
-func (s *WebhookQuotaDatabaseStore) Get(ownerID string) (WebhookQuota, error) {
+func (s *WebhookQuotaDatabaseStore) Get(ownerID string) (DBWebhookQuota, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	var quota WebhookQuota
+	var quota DBWebhookQuota
 
 	query := `
 		SELECT owner_id, max_subscriptions, max_events_per_minute,
@@ -1006,22 +1006,22 @@ func (s *WebhookQuotaDatabaseStore) Get(ownerID string) (WebhookQuota, error) {
 	)
 
 	if err == sql.ErrNoRows {
-		return WebhookQuota{}, fmt.Errorf("webhook quota not found")
+		return DBWebhookQuota{}, fmt.Errorf("webhook quota not found")
 	}
 	if err != nil {
-		return WebhookQuota{}, err
+		return DBWebhookQuota{}, err
 	}
 
 	return quota, nil
 }
 
 // GetOrDefault retrieves a quota or returns default values
-func (s *WebhookQuotaDatabaseStore) GetOrDefault(ownerID string) WebhookQuota {
+func (s *WebhookQuotaDatabaseStore) GetOrDefault(ownerID string) DBWebhookQuota {
 	quota, err := s.Get(ownerID)
 	if err != nil {
 		// Return default quota
 		ownerUUID, _ := uuid.Parse(ownerID)
-		return WebhookQuota{
+		return DBWebhookQuota{
 			OwnerId:                          ownerUUID,
 			MaxSubscriptions:                 DefaultMaxSubscriptions,
 			MaxEventsPerMinute:               DefaultMaxEventsPerMinute,
@@ -1033,7 +1033,7 @@ func (s *WebhookQuotaDatabaseStore) GetOrDefault(ownerID string) WebhookQuota {
 }
 
 // Create creates a new webhook quota
-func (s *WebhookQuotaDatabaseStore) Create(item WebhookQuota) (WebhookQuota, error) {
+func (s *WebhookQuotaDatabaseStore) Create(item DBWebhookQuota) (DBWebhookQuota, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -1056,14 +1056,14 @@ func (s *WebhookQuotaDatabaseStore) Create(item WebhookQuota) (WebhookQuota, err
 	)
 
 	if err != nil {
-		return WebhookQuota{}, err
+		return DBWebhookQuota{}, err
 	}
 
 	return item, nil
 }
 
 // Update updates an existing webhook quota
-func (s *WebhookQuotaDatabaseStore) Update(ownerID string, item WebhookQuota) error {
+func (s *WebhookQuotaDatabaseStore) Update(ownerID string, item DBWebhookQuota) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 

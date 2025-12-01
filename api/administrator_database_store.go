@@ -20,7 +20,7 @@ func NewAdministratorDatabaseStore(db *sql.DB) *AdministratorDatabaseStore {
 }
 
 // Create adds a new administrator entry
-func (s *AdministratorDatabaseStore) Create(ctx context.Context, admin Administrator) error {
+func (s *AdministratorDatabaseStore) Create(ctx context.Context, admin DBAdministrator) error {
 	logger := slogging.Get()
 
 	// Generate ID if not set
@@ -106,7 +106,7 @@ func (s *AdministratorDatabaseStore) Delete(ctx context.Context, id uuid.UUID) e
 }
 
 // List returns all administrator entries
-func (s *AdministratorDatabaseStore) List(ctx context.Context) ([]Administrator, error) {
+func (s *AdministratorDatabaseStore) List(ctx context.Context) ([]DBAdministrator, error) {
 	logger := slogging.Get()
 
 	query := `
@@ -126,9 +126,9 @@ func (s *AdministratorDatabaseStore) List(ctx context.Context) ([]Administrator,
 		}
 	}()
 
-	var administrators []Administrator
+	var administrators []DBAdministrator
 	for rows.Next() {
-		var admin Administrator
+		var admin DBAdministrator
 		var userUUID sql.NullString
 		var groupUUID sql.NullString
 		var grantedBy sql.NullString
@@ -220,7 +220,7 @@ func (s *AdministratorDatabaseStore) IsAdmin(ctx context.Context, userUUID *uuid
 }
 
 // GetByPrincipal retrieves administrator entries by user or group UUID
-func (s *AdministratorDatabaseStore) GetByPrincipal(ctx context.Context, userUUID *uuid.UUID, groupUUID *uuid.UUID, provider string) ([]Administrator, error) {
+func (s *AdministratorDatabaseStore) GetByPrincipal(ctx context.Context, userUUID *uuid.UUID, groupUUID *uuid.UUID, provider string) ([]DBAdministrator, error) {
 	logger := slogging.Get()
 
 	query := `
@@ -246,9 +246,9 @@ func (s *AdministratorDatabaseStore) GetByPrincipal(ctx context.Context, userUUI
 		}
 	}()
 
-	var administrators []Administrator
+	var administrators []DBAdministrator
 	for rows.Next() {
-		var admin Administrator
+		var admin DBAdministrator
 		var userUUIDCol sql.NullString
 		var groupUUIDCol sql.NullString
 		var grantedBy sql.NullString
@@ -379,7 +379,7 @@ func pqUUIDArray(arr []uuid.UUID) interface{} {
 }
 
 // Get retrieves a single administrator grant by ID
-func (s *AdministratorDatabaseStore) Get(ctx context.Context, id uuid.UUID) (*Administrator, error) {
+func (s *AdministratorDatabaseStore) Get(ctx context.Context, id uuid.UUID) (*DBAdministrator, error) {
 	logger := slogging.Get()
 
 	query := `
@@ -388,7 +388,7 @@ func (s *AdministratorDatabaseStore) Get(ctx context.Context, id uuid.UUID) (*Ad
 		WHERE id = $1
 	`
 
-	var admin Administrator
+	var admin DBAdministrator
 	var userUUID sql.NullString
 	var groupUUID sql.NullString
 	var grantedBy sql.NullString
@@ -451,7 +451,7 @@ type AdminFilter struct {
 }
 
 // ListFiltered retrieves administrator grants with optional filtering
-func (s *AdministratorDatabaseStore) ListFiltered(ctx context.Context, filter AdminFilter) ([]Administrator, error) {
+func (s *AdministratorDatabaseStore) ListFiltered(ctx context.Context, filter AdminFilter) ([]DBAdministrator, error) {
 	logger := slogging.Get()
 
 	// Build query dynamically based on filters
@@ -508,9 +508,9 @@ func (s *AdministratorDatabaseStore) ListFiltered(ctx context.Context, filter Ad
 		}
 	}()
 
-	var administrators []Administrator
+	var administrators []DBAdministrator
 	for rows.Next() {
-		var admin Administrator
+		var admin DBAdministrator
 		var userUUID sql.NullString
 		var groupUUID sql.NullString
 		var grantedBy sql.NullString
@@ -624,10 +624,10 @@ func (s *AdministratorDatabaseStore) GetGroupName(ctx context.Context, groupID u
 }
 
 // EnrichAdministrators adds user_email and group_name to administrator records
-func (s *AdministratorDatabaseStore) EnrichAdministrators(ctx context.Context, admins []Administrator) ([]Administrator, error) {
+func (s *AdministratorDatabaseStore) EnrichAdministrators(ctx context.Context, admins []DBAdministrator) ([]DBAdministrator, error) {
 	logger := slogging.Get()
 
-	enriched := make([]Administrator, len(admins))
+	enriched := make([]DBAdministrator, len(admins))
 	for i, admin := range admins {
 		enriched[i] = admin
 

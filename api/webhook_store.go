@@ -48,8 +48,9 @@ type DBWebhookDelivery struct {
 	DeliveredAt    *time.Time `json:"delivered_at,omitempty"`
 }
 
-// WebhookQuota represents per-owner rate limits
-type WebhookQuota struct {
+// DBWebhookQuota represents per-owner rate limits with database timestamps
+// This is the internal database model; the API uses the generated WebhookQuota type
+type DBWebhookQuota struct {
 	OwnerId                          uuid.UUID `json:"owner_id"`
 	MaxSubscriptions                 int       `json:"max_subscriptions"`
 	MaxEventsPerMinute               int       `json:"max_events_per_minute"`
@@ -59,13 +60,13 @@ type WebhookQuota struct {
 	ModifiedAt                       time.Time `json:"modified_at"`
 }
 
-// SetCreatedAt implements WithTimestamps
-func (w *WebhookQuota) SetCreatedAt(t time.Time) {
+// SetCreatedAt implements WithTimestamps for DBWebhookQuota
+func (w *DBWebhookQuota) SetCreatedAt(t time.Time) {
 	w.CreatedAt = t
 }
 
-// SetModifiedAt implements WithTimestamps
-func (w *WebhookQuota) SetModifiedAt(t time.Time) {
+// SetModifiedAt implements WithTimestamps for DBWebhookQuota
+func (w *DBWebhookQuota) SetModifiedAt(t time.Time) {
 	w.ModifiedAt = t
 }
 
@@ -117,10 +118,10 @@ type WebhookDeliveryStoreInterface interface {
 
 // WebhookQuotaStoreInterface defines operations for webhook quotas
 type WebhookQuotaStoreInterface interface {
-	Get(ownerID string) (WebhookQuota, error)
-	GetOrDefault(ownerID string) WebhookQuota
-	Create(item WebhookQuota) (WebhookQuota, error)
-	Update(ownerID string, item WebhookQuota) error
+	Get(ownerID string) (DBWebhookQuota, error)
+	GetOrDefault(ownerID string) DBWebhookQuota
+	Create(item DBWebhookQuota) (DBWebhookQuota, error)
+	Update(ownerID string, item DBWebhookQuota) error
 	Delete(ownerID string) error
 }
 

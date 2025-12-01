@@ -21,7 +21,7 @@ type cachedUserAPIQuota struct {
 }
 
 type cachedWebhookQuota struct {
-	quota     WebhookQuota
+	quota     DBWebhookQuota
 	expiresAt time.Time
 }
 
@@ -67,7 +67,7 @@ func (c *QuotaCache) GetUserAPIQuota(userID string, store UserAPIQuotaStoreInter
 }
 
 // GetWebhookQuota retrieves a webhook quota from cache or store
-func (c *QuotaCache) GetWebhookQuota(userID string, store WebhookQuotaStoreInterface) WebhookQuota {
+func (c *QuotaCache) GetWebhookQuota(userID string, store WebhookQuotaStoreInterface) DBWebhookQuota {
 	c.mutex.RLock()
 	cached, exists := c.webhookQuotas[userID]
 	c.mutex.RUnlock()
