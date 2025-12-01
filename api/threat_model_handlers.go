@@ -880,10 +880,14 @@ func validatePatchedThreatModel(original, patched ThreatModel, userEmail string)
 	}
 
 	// 5. Validate authorization entries (after enrichment)
-	// Note: This validation happens AFTER enrichment, so ProviderId should be populated
+	// Authorization entries must have either provider_id OR email to identify the subject
+	// Groups use provider_id, users can use either provider_id (OAuth sub) or email
 	for _, auth := range patched.Authorization {
-		if auth.ProviderId == "" {
-			return fmt.Errorf("authorization subject cannot be empty (enrichment may have failed)")
+		hasProviderID := auth.ProviderId != ""
+		hasEmail := auth.Email != nil && string(*auth.Email) != ""
+
+		if !hasProviderID && !hasEmail {
+			return fmt.Errorf("authorization subject must have either provider_id or email")
 		}
 	}
 
