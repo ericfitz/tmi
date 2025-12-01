@@ -557,12 +557,13 @@ func TestOwnershipTransferViaPatching(t *testing.T) {
 	assert.True(t, foundOriginalOwner, "Original owner should still have owner role in authorization")
 }
 
-// TestDuplicateSubjectViaPatching tests that patching with duplicate subjects is rejected
+// TestDuplicateSubjectViaPatching tests that patching the same user multiple times
+// successfully updates their role (idempotent behavior)
 func TestDuplicateSubjectViaPatching(t *testing.T) {
 	r := setupThreatModelRouter()
-	tm := createTestThreatModel(t, r, "Duplicate Subject Patch Test", "Testing duplicate subject validation in patching")
+	tm := createTestThreatModel(t, r, "Role Update Test", "Testing that patching same user updates their role")
 
-	// Add a user first
+	// Add alice as reader first
 	patchOps := []PatchOperation{
 		{
 			Op:   "add",
@@ -581,34 +582,41 @@ func TestDuplicateSubjectViaPatching(t *testing.T) {
 	r.ServeHTTP(patchW, patchReq)
 	assert.Equal(t, http.StatusOK, patchW.Code)
 
-	// Now try to add the same user again with a different role
-	duplicatePatchOps := []PatchOperation{
+	// Now patch alice again with writer role - this should succeed and update the role
+	updatePatchOps := []PatchOperation{
 		{
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com", // Duplicate subject
-				"role": "writer",
+				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com",
+				"role": "writer", // Updated role
 			},
 		},
 	}
 
-	duplicatePatchBody, _ := json.Marshal(duplicatePatchOps)
-	duplicatePatchReq, _ := http.NewRequest("PATCH", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(duplicatePatchBody))
-	duplicatePatchReq.Header.Set("Content-Type", "application/json")
-	duplicatePatchW := httptest.NewRecorder()
-	r.ServeHTTP(duplicatePatchW, duplicatePatchReq)
+	updatePatchBody, _ := json.Marshal(updatePatchOps)
+	updatePatchReq, _ := http.NewRequest("PATCH", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(updatePatchBody))
+	updatePatchReq.Header.Set("Content-Type", "application/json")
+	updatePatchW := httptest.NewRecorder()
+	r.ServeHTTP(updatePatchW, updatePatchReq)
 
-	// Decoding the patch operation and applying it would create a threat model with duplicate subjects,
-	// which should be caught and rejected
-	assert.Equal(t, http.StatusBadRequest, duplicatePatchW.Code)
+	// This should succeed - duplicates are handled gracefully by database ON CONFLICT
+	assert.Equal(t, http.StatusOK, updatePatchW.Code)
 
-	var errResp Error
-	err := json.Unmarshal(duplicatePatchW.Body.Bytes(), &errResp)
+	// Verify the result has alice with writer role (not reader)
+	var updatedTM ThreatModel
+	err := json.Unmarshal(updatePatchW.Body.Bytes(), &updatedTM)
 	require.NoError(t, err)
 
-	assert.Equal(t, "invalid_input", errResp.Error)
-	assert.Contains(t, errResp.ErrorDescription, "Duplicate authorization subject")
+	// Find alice in the authorization list
+	aliceFound := false
+	for _, auth := range updatedTM.Authorization {
+		if auth.ProviderId == "alice@example.com" {
+			aliceFound = true
+			assert.Equal(t, RoleWriter, auth.Role, "Alice's role should be updated to writer")
+		}
+	}
+	assert.True(t, aliceFound, "Alice should be in the authorization list")
 }
 
 // TestReadWriteDeletePermissions tests access levels for different operations

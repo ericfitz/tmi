@@ -17,8 +17,17 @@ import (
 // The function will lookup the user in the database and fill in missing fields.
 // For new users (not yet in database), it performs a sparse insert that will be
 // completed when the user logs in via OAuth.
+//
+// Group principals are skipped (no enrichment needed).
 func EnrichAuthorizationEntry(ctx context.Context, db *sql.DB, auth *Authorization) error {
 	logger := slogging.Get()
+
+	// Skip enrichment for group principals - they don't have user records
+	if auth.PrincipalType == "group" {
+		logger.Debug("Skipping enrichment for group principal: provider=%s, provider_id=%s",
+			auth.Provider, auth.ProviderId)
+		return nil
+	}
 
 	// Validate required fields
 	if auth.Provider == "" {

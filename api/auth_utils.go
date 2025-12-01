@@ -11,22 +11,132 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// ValidateDuplicateSubjects checks for duplicate subjects in authorization list
+// ValidateDuplicateSubjects checks for duplicate subjects in authorization list.
+// Should be called BEFORE enrichment to catch obvious client mistakes.
+//
+// This validation is intentionally lenient - it only catches cases where the API caller
+// specified the exact same user with the exact same identifiers multiple times.
+// It does NOT catch cases where the same user is specified with different identifiers
+// (e.g., once by email, once by provider_id) because those are resolved later during
+// enrichment and database save, where ON CONFLICT gracefully handles them.
+//
+// Duplicate Detection Logic:
+// A user subject A is a duplicate of user subject B if:
+//
+// Case 1: Both have provider_id values
+//   - (A.provider == B.provider) AND (A.provider_id == B.provider_id)
+//   - This identifies the same OAuth/SAML user identity
+//
+// Case 2: Both lack provider_id values
+//   - (A.provider == B.provider) AND (A.provider_id is empty) AND (B.provider_id is empty)
+//     AND (A.email == B.email)
+//   - This identifies the same user by email when OAuth sub is not yet known
+//
+// For group principals, always use (provider, provider_id) as the unique key.
+//
+// Note: internal_uuid is never present in API requests/responses, so we cannot use it
+// for duplicate detection. The database ON CONFLICT clauses handle internal_uuid resolution
+// gracefully, allowing the same user to be specified multiple ways without error.
 func ValidateDuplicateSubjects(authList []Authorization) error {
 	subjectMap := make(map[string]bool)
 
 	for _, auth := range authList {
-		if _, exists := subjectMap[auth.ProviderId]; exists {
+		// Build unique key based on principal type and available identifiers
+		var uniqueKey string
+
+		if auth.PrincipalType == AuthorizationPrincipalTypeGroup {
+			// For groups, always use (provider, provider_id)
+			uniqueKey = fmt.Sprintf("group:%s:%s", auth.Provider, auth.ProviderId)
+		} else {
+			// For users, choose identifier based on what's available
+			if auth.ProviderId != "" {
+				// Case 1: provider_id is present - use (provider, provider_id)
+				uniqueKey = fmt.Sprintf("user:%s:id:%s", auth.Provider, auth.ProviderId)
+			} else {
+				// Case 2: provider_id is empty - use (provider, email)
+				emailStr := ""
+				if auth.Email != nil {
+					emailStr = string(*auth.Email)
+				}
+				uniqueKey = fmt.Sprintf("user:%s:email:%s", auth.Provider, emailStr)
+			}
+		}
+
+		if _, exists := subjectMap[uniqueKey]; exists {
+			// Build user-friendly error message
+			displaySubject := auth.ProviderId
+			if displaySubject == "" && auth.Email != nil {
+				displaySubject = string(*auth.Email)
+			}
 			return &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "invalid_input",
-				Message: fmt.Sprintf("Duplicate authorization subject: %s", auth.ProviderId),
+				Message: fmt.Sprintf("Duplicate authorization subject: %s", displaySubject),
 			}
 		}
-		subjectMap[auth.ProviderId] = true
+		subjectMap[uniqueKey] = true
 	}
 
 	return nil
+}
+
+// DeduplicateAuthorizationList removes duplicate authorization entries, keeping the last occurrence.
+// This mimics database ON CONFLICT behavior where the latest value wins.
+//
+// Deduplication uses the same logic as ValidateDuplicateSubjects:
+// - For groups: (provider, provider_id)
+// - For users with provider_id: (provider, provider_id)
+// - For users without provider_id: (provider, email)
+//
+// When duplicates are found, the LAST occurrence is kept (latest wins), which matches
+// the behavior of applying multiple PATCH operations where the final role should be used.
+func DeduplicateAuthorizationList(authList []Authorization) []Authorization {
+	if len(authList) <= 1 {
+		return authList
+	}
+
+	// Build a map from unique key to the index of the LAST occurrence
+	lastOccurrence := make(map[string]int)
+
+	for i, auth := range authList {
+		// Build unique key using same logic as ValidateDuplicateSubjects
+		var uniqueKey string
+
+		if auth.PrincipalType == AuthorizationPrincipalTypeGroup {
+			uniqueKey = fmt.Sprintf("group:%s:%s", auth.Provider, auth.ProviderId)
+		} else {
+			if auth.ProviderId != "" {
+				uniqueKey = fmt.Sprintf("user:%s:id:%s", auth.Provider, auth.ProviderId)
+			} else {
+				emailStr := ""
+				if auth.Email != nil {
+					emailStr = string(*auth.Email)
+				}
+				uniqueKey = fmt.Sprintf("user:%s:email:%s", auth.Provider, emailStr)
+			}
+		}
+
+		// Always update to latest index (last occurrence wins)
+		lastOccurrence[uniqueKey] = i
+	}
+
+	// Build result containing only the last occurrence of each unique subject
+	result := make([]Authorization, 0, len(lastOccurrence))
+	included := make(map[int]bool)
+
+	// Mark indices to include
+	for _, idx := range lastOccurrence {
+		included[idx] = true
+	}
+
+	// Preserve original order by iterating through original list
+	for i, auth := range authList {
+		if included[i] {
+			result = append(result, auth)
+		}
+	}
+
+	return result
 }
 
 // ApplyOwnershipTransferRule applies the business rule that when ownership changes,

@@ -556,6 +556,11 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Note: Duplicate validation is NOT done here for PATCH operations.
+	// Applying multiple patches for the same user is allowed - the database ON CONFLICT
+	// will handle it gracefully by updating the role to the latest value.
+	// This allows API callers to modify user roles incrementally without error.
+
 	// Get database connection for enrichment
 	var db *sql.DB
 	if dbStore, ok := ThreatModelStore.(*ThreatModelDatabaseStore); ok {
@@ -582,13 +587,12 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		}
 	}
 
-	// CRITICAL: Validate for duplicates AFTER enrichment
-	// Enrichment converts different identifiers (email, provider_id) to internal_uuid
-	// which can create duplicates if the same user was specified multiple ways
-	if err := ValidateDuplicateSubjects(modifiedTM.Authorization); err != nil {
-		HandleRequestError(c, err)
-		return
-	}
+	// Phase 3.6: Deduplicate authorization entries
+	// For in-memory storage: This ensures that patching the same user multiple times
+	// results in a single entry with the latest role (mimics database ON CONFLICT behavior).
+	// For database storage: This is a no-op since the database handles it, but it
+	// provides consistent behavior and cleaner response data.
+	modifiedTM.Authorization = DeduplicateAuthorizationList(modifiedTM.Authorization)
 
 	// Phase 4: Preserve critical fields and validate authorization
 	modifiedTM = h.preserveThreatModelCriticalFields(modifiedTM, existingTM)
@@ -927,12 +931,9 @@ func (h *ThreatModelHandler) preserveThreatModelCriticalFields(modified, origina
 
 // applyThreatModelBusinessRules applies threat model-specific business rules
 func (h *ThreatModelHandler) applyThreatModelBusinessRules(modifiedTM *ThreatModel, existingTM ThreatModel, ownerChanging, authChanging bool) error {
-	// Check for duplicate authorization subjects
-	if authChanging || ownerChanging {
-		if err := ValidateDuplicateSubjects(modifiedTM.Authorization); err != nil {
-			return err
-		}
-	}
+	// Note: Post-enrichment duplicate detection removed.
+	// The database ON CONFLICT will handle duplicates gracefully after internal_uuid resolution.
+	// Pre-enrichment validation already caught obvious client mistakes.
 
 	// Custom rule 1: If owner is changing, add original owner to authorization with owner role
 	if ownerChanging {
