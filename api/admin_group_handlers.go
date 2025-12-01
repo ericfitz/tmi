@@ -3,70 +3,74 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // ListAdminGroups handles GET /admin/groups
-func (s *Server) ListAdminGroups(c *gin.Context) {
+func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 	logger := slogging.Get().WithContext(c)
 
-	// Parse query parameters
-	provider := c.Query("provider")
-	groupName := c.Query("name")
-	usedInAuthStr := c.Query("used_in_authorizations")
-	limitStr := c.DefaultQuery("limit", "50")
-	offsetStr := c.DefaultQuery("offset", "0")
-	sortBy := c.DefaultQuery("sort_by", "last_used")
-	sortOrder := c.DefaultQuery("sort_order", "desc")
-
-	// Parse limit and offset
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 0 || limit > 200 {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_limit",
-			Message: "limit must be between 0 and 200",
-		})
-		return
+	// Extract parameters with defaults
+	limit := 50
+	if params.Limit != nil {
+		limit = *params.Limit
+		if limit < 0 || limit > 200 {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_limit",
+				Message: "limit must be between 0 and 200",
+			})
+			return
+		}
 	}
 
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_offset",
-			Message: "offset must be a non-negative integer",
-		})
-		return
+	offset := 0
+	if params.Offset != nil {
+		offset = *params.Offset
+		if offset < 0 {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_offset",
+				Message: "offset must be a non-negative integer",
+			})
+			return
+		}
+	}
+
+	sortBy := "group_name"
+	if params.SortBy != nil {
+		sortBy = string(*params.SortBy)
+	}
+
+	sortOrder := "asc"
+	if params.SortOrder != nil {
+		sortOrder = string(*params.SortOrder)
+	}
+
+	provider := ""
+	if params.Provider != nil {
+		provider = *params.Provider
+	}
+
+	groupName := ""
+	if params.GroupName != nil {
+		groupName = *params.GroupName
 	}
 
 	// Build filter
 	filter := GroupFilter{
-		Provider:  provider,
-		GroupName: groupName,
-		Limit:     limit,
-		Offset:    offset,
-		SortBy:    sortBy,
-		SortOrder: sortOrder,
-	}
-
-	// Parse optional used_in_authorizations filter
-	if usedInAuthStr != "" {
-		usedInAuth, err := strconv.ParseBool(usedInAuthStr)
-		if err != nil {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_used_in_authorizations",
-				Message: "used_in_authorizations must be true or false",
-			})
-			return
-		}
-		filter.UsedInAuthorizations = &usedInAuth
+		Provider:             provider,
+		GroupName:            groupName,
+		UsedInAuthorizations: params.UsedInAuthorizations,
+		Limit:                limit,
+		Offset:               offset,
+		SortBy:               sortBy,
+		SortOrder:            sortOrder,
 	}
 
 	// Get groups from store
@@ -105,12 +109,11 @@ func (s *Server) ListAdminGroups(c *gin.Context) {
 }
 
 // GetAdminGroup handles GET /admin/groups/{internal_uuid}
-func (s *Server) GetAdminGroup(c *gin.Context) {
+func (s *Server) GetAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Parse internal_uuid from path parameter
-	internalUUIDStr := c.Param("internal_uuid")
-	internalUUID, err := uuid.Parse(internalUUIDStr)
+	// Convert openapi_types.UUID to google/uuid
+	internalUUID, err := uuid.Parse(internalUuid.String())
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
@@ -156,13 +159,7 @@ func (s *Server) GetAdminGroup(c *gin.Context) {
 	}
 }
 
-// CreateAdminGroupRequest represents the request body for creating a group
-type CreateAdminGroupRequest struct {
-	Provider    string `json:"provider" binding:"required"`
-	GroupName   string `json:"group_name" binding:"required"`
-	Name        string `json:"name,omitempty"`
-	Description string `json:"description,omitempty"`
-}
+// Note: CreateAdminGroupRequest is now generated from OpenAPI spec in api.go
 
 // CreateAdminGroup handles POST /admin/groups
 func (s *Server) CreateAdminGroup(c *gin.Context) {
@@ -193,13 +190,18 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 	actorUserID := c.GetString("userInternalUUID")
 	actorEmail := c.GetString("userEmail")
 
-	// Create group
+	// Create group (provider-independent groups use "*")
+	description := ""
+	if req.Description != nil {
+		description = *req.Description
+	}
+
 	group := Group{
 		InternalUUID: uuid.New(),
-		Provider:     req.Provider,
+		Provider:     "*", // Provider-independent group
 		GroupName:    req.GroupName,
 		Name:         req.Name,
-		Description:  req.Description,
+		Description:  description,
 		FirstUsed:    time.Now().UTC(),
 		LastUsed:     time.Now().UTC(),
 		UsageCount:   1,
@@ -232,19 +234,14 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 	c.JSON(http.StatusCreated, group)
 }
 
-// UpdateAdminGroupRequest represents the request body for updating a group
-type UpdateAdminGroupRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-}
+// Note: UpdateAdminGroupRequest is now generated from OpenAPI spec in api.go
 
 // UpdateAdminGroup handles PATCH /admin/groups/{internal_uuid}
-func (s *Server) UpdateAdminGroup(c *gin.Context) {
+func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Parse internal_uuid from path parameter
-	internalUUIDStr := c.Param("internal_uuid")
-	internalUUID, err := uuid.Parse(internalUUIDStr)
+	// Convert openapi_types.UUID to google/uuid
+	internalUUID, err := uuid.Parse(internalUuid.String())
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
@@ -338,21 +335,12 @@ func (s *Server) UpdateAdminGroup(c *gin.Context) {
 }
 
 // DeleteAdminGroup handles DELETE /admin/groups?provider={provider}&group_name={group_name}
-func (s *Server) DeleteAdminGroup(c *gin.Context) {
+func (s *Server) DeleteAdminGroup(c *gin.Context, params DeleteAdminGroupParams) {
 	logger := slogging.Get().WithContext(c)
 
-	// Parse query parameters
-	provider := c.Query("provider")
-	groupName := c.Query("group_name")
-
-	if provider == "" || groupName == "" {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "missing_parameters",
-			Message: "Both provider and group_name query parameters are required",
-		})
-		return
-	}
+	// Extract parameters (both are required by OpenAPI spec)
+	provider := params.Provider
+	groupName := params.GroupName
 
 	// Get actor information for audit logging (for future implementation)
 	actorUserID := c.GetString("userInternalUUID")

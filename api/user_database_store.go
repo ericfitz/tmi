@@ -129,9 +129,9 @@ func (s *UserDatabaseStore) List(ctx context.Context, filter UserFilter) ([]Admi
 		var lastLogin sql.NullTime
 
 		err := rows.Scan(
-			&user.InternalUUID,
+			&user.InternalUuid,
 			&user.Provider,
-			&user.ProviderUserID,
+			&user.ProviderUserId,
 			&user.Email,
 			&user.Name,
 			&user.EmailVerified,
@@ -166,9 +166,9 @@ func (s *UserDatabaseStore) Get(ctx context.Context, internalUUID uuid.UUID) (*A
 	var lastLogin sql.NullTime
 
 	err := s.db.QueryRowContext(ctx, query, internalUUID).Scan(
-		&user.InternalUUID,
+		&user.InternalUuid,
 		&user.Provider,
-		&user.ProviderUserID,
+		&user.ProviderUserId,
 		&user.Email,
 		&user.Name,
 		&user.EmailVerified,
@@ -200,9 +200,9 @@ func (s *UserDatabaseStore) GetByProviderAndID(ctx context.Context, provider str
 	var lastLogin sql.NullTime
 
 	err := s.db.QueryRowContext(ctx, query, provider, providerUserID).Scan(
-		&user.InternalUUID,
+		&user.InternalUuid,
 		&user.Provider,
-		&user.ProviderUserID,
+		&user.ProviderUserId,
 		&user.Email,
 		&user.Name,
 		&user.EmailVerified,
@@ -235,7 +235,7 @@ func (s *UserDatabaseStore) Update(ctx context.Context, user AdminUser) error {
 		user.Name,
 		user.EmailVerified,
 		time.Now().UTC(),
-		user.InternalUUID,
+		user.InternalUuid,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
@@ -263,13 +263,13 @@ func (s *UserDatabaseStore) Delete(ctx context.Context, provider string, provide
 	}
 
 	// Delegate to auth service DeleteUserAndData (same as DELETE /users/me)
-	result, err := s.authService.DeleteUserAndData(ctx, user.Email)
+	result, err := s.authService.DeleteUserAndData(ctx, string(user.Email))
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete user: %w", err)
 	}
 
 	logger.Info("[AUDIT] Admin user deletion: provider=%s, provider_user_id=%s, email=%s, transferred=%d, deleted=%d",
-		provider, providerUserID, user.Email, result.ThreatModelsTransferred, result.ThreatModelsDeleted)
+		provider, providerUserID, string(user.Email), result.ThreatModelsTransferred, result.ThreatModelsDeleted)
 
 	return &DeletionStats{
 		ThreatModelsTransferred: result.ThreatModelsTransferred,
@@ -345,21 +345,21 @@ func (s *UserDatabaseStore) EnrichUsers(ctx context.Context, users []AdminUser) 
 		user := &enriched[i]
 
 		// Check admin status
-		isAdmin, err := GlobalAdministratorStore.IsAdmin(ctx, &user.InternalUUID, user.Provider, nil)
+		isAdmin, err := GlobalAdministratorStore.IsAdmin(ctx, &user.InternalUuid, user.Provider, nil)
 		if err != nil {
-			logger.Warn("Failed to check admin status for user %s: %v", user.InternalUUID, err)
+			logger.Warn("Failed to check admin status for user %s: %v", user.InternalUuid, err)
 		} else {
-			user.IsAdmin = isAdmin
+			user.IsAdmin = &isAdmin
 		}
 
 		// Count active threat models owned by user
 		countQuery := `SELECT COUNT(*) FROM threat_models WHERE owner_internal_uuid = $1`
 		var count int
-		err = s.db.QueryRowContext(ctx, countQuery, user.InternalUUID).Scan(&count)
+		err = s.db.QueryRowContext(ctx, countQuery, user.InternalUuid).Scan(&count)
 		if err != nil {
-			logger.Warn("Failed to count threat models for user %s: %v", user.InternalUUID, err)
+			logger.Warn("Failed to count threat models for user %s: %v", user.InternalUuid, err)
 		} else {
-			user.ActiveThreatModels = count
+			user.ActiveThreatModels = &count
 		}
 
 		// Note: Groups are not stored in database, they come from JWT claims

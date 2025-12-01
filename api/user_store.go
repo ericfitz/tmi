@@ -7,23 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// AdminUser represents a user in the system with admin management fields
-type AdminUser struct {
-	InternalUUID   uuid.UUID  `json:"internal_uuid"`
-	Provider       string     `json:"provider"`
-	ProviderUserID string     `json:"provider_user_id"`
-	Email          string     `json:"email"`
-	Name           string     `json:"name"`
-	EmailVerified  bool       `json:"email_verified"`
-	CreatedAt      time.Time  `json:"created_at"`
-	ModifiedAt     time.Time  `json:"modified_at"`
-	LastLogin      *time.Time `json:"last_login,omitempty"`
-
-	// Enriched fields (not in database)
-	IsAdmin            bool     `json:"is_admin,omitempty"`
-	Groups             []string `json:"groups,omitempty"`
-	ActiveThreatModels int      `json:"active_threat_models,omitempty"`
-}
+// Note: AdminUser type is now generated from OpenAPI spec in api.go
 
 // UserFilter defines filtering options for user queries
 type UserFilter struct {

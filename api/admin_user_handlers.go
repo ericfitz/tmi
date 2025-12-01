@@ -3,112 +3,76 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"strconv"
-	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // ListAdminUsers handles GET /admin/users
-func (s *Server) ListAdminUsers(c *gin.Context) {
+func (s *Server) ListAdminUsers(c *gin.Context, params ListAdminUsersParams) {
 	logger := slogging.Get().WithContext(c)
 
-	// Parse query parameters
-	provider := c.Query("provider")
-	email := c.Query("email")
-	createdAfterStr := c.Query("created_after")
-	createdBeforeStr := c.Query("created_before")
-	lastLoginAfterStr := c.Query("last_login_after")
-	lastLoginBeforeStr := c.Query("last_login_before")
-	limitStr := c.DefaultQuery("limit", "50")
-	offsetStr := c.DefaultQuery("offset", "0")
-	sortBy := c.DefaultQuery("sort_by", "created_at")
-	sortOrder := c.DefaultQuery("sort_order", "desc")
-
-	// Parse limit and offset
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 0 || limit > 200 {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_limit",
-			Message: "limit must be between 0 and 200",
-		})
-		return
+	// Extract parameters with defaults
+	limit := 50
+	if params.Limit != nil {
+		limit = *params.Limit
+		if limit < 0 || limit > 200 {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_limit",
+				Message: "limit must be between 0 and 200",
+			})
+			return
+		}
 	}
 
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_offset",
-			Message: "offset must be a non-negative integer",
-		})
-		return
+	offset := 0
+	if params.Offset != nil {
+		offset = *params.Offset
+		if offset < 0 {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_offset",
+				Message: "offset must be a non-negative integer",
+			})
+			return
+		}
+	}
+
+	sortBy := "created_at"
+	if params.SortBy != nil {
+		sortBy = string(*params.SortBy)
+	}
+
+	sortOrder := "desc"
+	if params.SortOrder != nil {
+		sortOrder = string(*params.SortOrder)
+	}
+
+	provider := ""
+	if params.Provider != nil {
+		provider = *params.Provider
+	}
+
+	email := ""
+	if params.Email != nil {
+		email = *params.Email
 	}
 
 	// Build filter
 	filter := UserFilter{
-		Provider:  provider,
-		Email:     email,
-		Limit:     limit,
-		Offset:    offset,
-		SortBy:    sortBy,
-		SortOrder: sortOrder,
-	}
-
-	// Parse optional date filters
-	if createdAfterStr != "" {
-		createdAfter, err := time.Parse(time.RFC3339, createdAfterStr)
-		if err != nil {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_created_after",
-				Message: "created_after must be in RFC3339 format",
-			})
-			return
-		}
-		filter.CreatedAfter = &createdAfter
-	}
-
-	if createdBeforeStr != "" {
-		createdBefore, err := time.Parse(time.RFC3339, createdBeforeStr)
-		if err != nil {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_created_before",
-				Message: "created_before must be in RFC3339 format",
-			})
-			return
-		}
-		filter.CreatedBefore = &createdBefore
-	}
-
-	if lastLoginAfterStr != "" {
-		lastLoginAfter, err := time.Parse(time.RFC3339, lastLoginAfterStr)
-		if err != nil {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_last_login_after",
-				Message: "last_login_after must be in RFC3339 format",
-			})
-			return
-		}
-		filter.LastLoginAfter = &lastLoginAfter
-	}
-
-	if lastLoginBeforeStr != "" {
-		lastLoginBefore, err := time.Parse(time.RFC3339, lastLoginBeforeStr)
-		if err != nil {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_last_login_before",
-				Message: "last_login_before must be in RFC3339 format",
-			})
-			return
-		}
-		filter.LastLoginBefore = &lastLoginBefore
+		Provider:        provider,
+		Email:           email,
+		CreatedAfter:    params.CreatedAfter,
+		CreatedBefore:   params.CreatedBefore,
+		LastLoginAfter:  params.LastLoginAfter,
+		LastLoginBefore: params.LastLoginBefore,
+		Limit:           limit,
+		Offset:          offset,
+		SortBy:          sortBy,
+		SortOrder:       sortOrder,
 	}
 
 	// Get users from store
@@ -147,12 +111,11 @@ func (s *Server) ListAdminUsers(c *gin.Context) {
 }
 
 // GetAdminUser handles GET /admin/users/{internal_uuid}
-func (s *Server) GetAdminUser(c *gin.Context) {
+func (s *Server) GetAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Parse internal_uuid from path parameter
-	internalUUIDStr := c.Param("internal_uuid")
-	internalUUID, err := uuid.Parse(internalUUIDStr)
+	// Convert openapi_types.UUID to google/uuid
+	internalUUID, err := uuid.Parse(internalUuid.String())
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
@@ -198,20 +161,14 @@ func (s *Server) GetAdminUser(c *gin.Context) {
 	}
 }
 
-// UpdateAdminUserRequest represents the request body for updating a user
-type UpdateAdminUserRequest struct {
-	Email         *string `json:"email,omitempty"`
-	Name          *string `json:"name,omitempty"`
-	EmailVerified *bool   `json:"email_verified,omitempty"`
-}
+// Note: UpdateAdminUserRequest is now generated from OpenAPI spec in api.go
 
 // UpdateAdminUser handles PATCH /admin/users/{internal_uuid}
-func (s *Server) UpdateAdminUser(c *gin.Context) {
+func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Parse internal_uuid from path parameter
-	internalUUIDStr := c.Param("internal_uuid")
-	internalUUID, err := uuid.Parse(internalUUIDStr)
+	// Convert openapi_types.UUID to google/uuid
+	internalUUID, err := uuid.Parse(internalUuid.String())
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
@@ -260,7 +217,7 @@ func (s *Server) UpdateAdminUser(c *gin.Context) {
 	changes := []string{}
 
 	// Apply updates
-	if req.Email != nil && *req.Email != user.Email {
+	if req.Email != nil && string(*req.Email) != string(user.Email) {
 		changes = append(changes, fmt.Sprintf("email: %s -> %s", user.Email, *req.Email))
 		user.Email = *req.Email
 	}
@@ -303,28 +260,19 @@ func (s *Server) UpdateAdminUser(c *gin.Context) {
 
 	// AUDIT LOG: Log update with actor details and changes
 	logger.Info("[AUDIT] User updated: internal_uuid=%s, provider=%s, provider_user_id=%s, email=%s, updated_by=%s (email=%s), changes=[%v]",
-		user.InternalUUID, user.Provider, user.ProviderUserID, user.Email, actorUserID, actorEmail, changes)
+		user.InternalUuid, user.Provider, user.ProviderUserId, user.Email, actorUserID, actorEmail, changes)
 
 	// Return updated user
 	c.JSON(http.StatusOK, user)
 }
 
-// DeleteAdminUser handles DELETE /admin/users?provider={provider}&provider_id={provider_id}
-func (s *Server) DeleteAdminUser(c *gin.Context) {
+// DeleteAdminUser handles DELETE /admin/users?provider={provider}&provider_user_id={provider_user_id}
+func (s *Server) DeleteAdminUser(c *gin.Context, params DeleteAdminUserParams) {
 	logger := slogging.Get().WithContext(c)
 
-	// Parse query parameters
-	provider := c.Query("provider")
-	providerID := c.Query("provider_id")
-
-	if provider == "" || providerID == "" {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "missing_parameters",
-			Message: "Both provider and provider_id query parameters are required",
-		})
-		return
-	}
+	// Extract parameters (both are required by OpenAPI spec)
+	provider := params.Provider
+	providerID := params.ProviderUserId
 
 	// Get actor information for audit logging
 	actorUserID := c.GetString("userInternalUUID")

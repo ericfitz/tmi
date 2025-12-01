@@ -78,8 +78,8 @@ func (s *Server) ListSAMLUsers(c *gin.Context, idp string) {
 	samlUsers := make([]SAMLUser, 0, len(users))
 	for _, user := range users {
 		samlUser := SAMLUser{
-			InternalUUID: user.InternalUUID.String(),
-			Email:        user.Email,
+			InternalUUID: user.InternalUuid.String(),
+			Email:        string(user.Email),
 			Name:         user.Name,
 		}
 		if user.LastLogin != nil {
