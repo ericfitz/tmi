@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -159,6 +161,13 @@ func InvokeAddon(c *gin.Context) {
 		if err := GlobalAddonRateLimiter.RecordInvocation(c.Request.Context(), userUUID); err != nil {
 			logger.Error("Failed to record invocation for rate limiting: %v", err)
 			// Continue despite error - don't block the invocation
+		}
+
+		// Check deduplication window (5 seconds) to prevent accidental double-clicks
+		if err := checkInvocationDeduplication(c.Request.Context(), addonID, userUUID); err != nil {
+			logger.Warn("Duplicate invocation detected for user %s, addon %s", userUUID, addonID)
+			HandleRequestError(c, err)
+			return
 		}
 	}
 
@@ -526,6 +535,16 @@ func UpdateInvocationStatus(c *gin.Context) {
 		return
 	}
 
+	// Reset timeout count on successful completion
+	if invocation.Status == InvocationStatusCompleted && GlobalWebhookSubscriptionStore != nil {
+		if err := GlobalWebhookSubscriptionStore.ResetTimeouts(webhook.Id.String()); err != nil {
+			logger.Error("Failed to reset timeout count for webhook %s: %v", webhook.Id, err)
+			// Don't fail the status update for this
+		} else {
+			logger.Debug("Reset timeout count for webhook %s after successful invocation completion", webhook.Id)
+		}
+	}
+
 	// Return response
 	response := UpdateInvocationStatusResponse{
 		Id:              invocation.ID,
@@ -538,4 +557,38 @@ func UpdateInvocationStatus(c *gin.Context) {
 		invocationID, req.Status, req.StatusPercent)
 
 	c.JSON(http.StatusOK, response)
+}
+
+// checkInvocationDeduplication checks if the same user has invoked the same addon within the deduplication window
+func checkInvocationDeduplication(ctx context.Context, addonID uuid.UUID, userID uuid.UUID) error {
+	logger := slogging.Get()
+
+	if GlobalAddonRateLimiter == nil || GlobalAddonRateLimiter.redis == nil {
+		logger.Warn("Redis not available for deduplication check")
+		return nil // Allow invocation if Redis is not available
+	}
+
+	// Create deduplication key
+	dedupKey := fmt.Sprintf("addon:dedup:%s:%s", addonID.String(), userID.String())
+
+	// Try to set the key with NX (only if not exists) and 5-second TTL
+	client := GlobalAddonRateLimiter.redis.GetClient()
+	success, err := client.SetNX(ctx, dedupKey, "1", 5*time.Second).Result()
+	if err != nil {
+		logger.Error("Failed to check deduplication: %v", err)
+		return nil // Allow invocation on error - better than blocking legitimate requests
+	}
+
+	if !success {
+		// Key already exists, this is a duplicate invocation
+		logger.Debug("Duplicate invocation blocked: addon=%s, user=%s", addonID, userID)
+		return &RequestError{
+			Status:  http.StatusTooManyRequests,
+			Code:    "duplicate_invocation",
+			Message: "You just invoked this add-on. Please wait a few seconds before invoking again.",
+		}
+	}
+
+	logger.Debug("Deduplication check passed: addon=%s, user=%s", addonID, userID)
+	return nil
 }

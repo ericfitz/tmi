@@ -1267,7 +1267,19 @@ func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.W
 			logger.Error("Failed to start webhook cleanup worker: %v", err)
 		}
 
-		logger.Info("Webhook workers started successfully")
+		// Start addon invocation worker
+		api.GlobalAddonInvocationWorker = api.NewAddonInvocationWorker()
+		if err := api.GlobalAddonInvocationWorker.Start(ctx); err != nil {
+			logger.Error("Failed to start addon invocation worker: %v", err)
+		}
+
+		// Start addon invocation cleanup worker
+		api.GlobalAddonInvocationCleanupWorker = api.NewAddonInvocationCleanupWorker()
+		if err := api.GlobalAddonInvocationCleanupWorker.Start(ctx); err != nil {
+			logger.Error("Failed to start addon invocation cleanup worker: %v", err)
+		}
+
+		logger.Info("Webhook and addon workers started successfully")
 	} else {
 		logger.Warn("Database not available, webhook workers disabled")
 	}

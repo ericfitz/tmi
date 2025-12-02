@@ -35,7 +35,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) Get(id string) (DBWebhookSubscripti
 	query := `
 		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
-		       last_successful_use, publication_failures
+		       last_successful_use, publication_failures, timeout_count
 		FROM webhook_subscriptions
 		WHERE id = $1
 	`
@@ -44,7 +44,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) Get(id string) (DBWebhookSubscripti
 		&sub.Id, &sub.OwnerId, &threatModelId, &sub.Name, &sub.Url,
 		pq.Array(&sub.Events), &secret, &sub.Status, &challenge,
 		&sub.ChallengesSent, &sub.CreatedAt, &sub.ModifiedAt,
-		&lastSuccessfulUse, &sub.PublicationFailures,
+		&lastSuccessfulUse, &sub.PublicationFailures, &sub.TimeoutCount,
 	)
 
 	if err == sql.ErrNoRows {
@@ -80,7 +80,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) List(offset, limit int, filter func
 	query := `
 		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
-		       last_successful_use, publication_failures
+		       last_successful_use, publication_failures, timeout_count
 		FROM webhook_subscriptions
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
@@ -103,7 +103,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListByOwner(ownerID string, offset,
 	query := `
 		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
-		       last_successful_use, publication_failures
+		       last_successful_use, publication_failures, timeout_count
 		FROM webhook_subscriptions
 		WHERE owner_internal_uuid = $1
 		ORDER BY created_at DESC
@@ -127,7 +127,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListByThreatModel(threatModelID str
 	query := `
 		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
-		       last_successful_use, publication_failures
+		       last_successful_use, publication_failures, timeout_count
 		FROM webhook_subscriptions
 		WHERE threat_model_id = $1
 		ORDER BY created_at DESC
@@ -151,7 +151,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListActiveByOwner(ownerID string) (
 	query := `
 		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
-		       last_successful_use, publication_failures
+		       last_successful_use, publication_failures, timeout_count
 		FROM webhook_subscriptions
 		WHERE owner_internal_uuid = $1 AND status = 'active'
 		ORDER BY created_at DESC
@@ -174,7 +174,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListPendingVerification() ([]DBWebh
 	query := `
 		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
-		       last_successful_use, publication_failures
+		       last_successful_use, publication_failures, timeout_count
 		FROM webhook_subscriptions
 		WHERE status = 'pending_verification'
 		ORDER BY created_at ASC
@@ -197,7 +197,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListPendingDelete() ([]DBWebhookSub
 	query := `
 		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
-		       last_successful_use, publication_failures
+		       last_successful_use, publication_failures, timeout_count
 		FROM webhook_subscriptions
 		WHERE status = 'pending_delete'
 		ORDER BY modified_at ASC
@@ -220,7 +220,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListIdle(daysIdle int) ([]DBWebhook
 	query := `
 		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
-		       last_successful_use, publication_failures
+		       last_successful_use, publication_failures, timeout_count
 		FROM webhook_subscriptions
 		WHERE status = 'active'
 		  AND (
@@ -246,7 +246,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) ListBroken(minFailures int, daysSin
 	query := `
 		SELECT id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 		       challenge, challenges_sent, created_at, modified_at,
-		       last_successful_use, publication_failures
+		       last_successful_use, publication_failures, timeout_count
 		FROM webhook_subscriptions
 		WHERE status = 'active'
 		  AND publication_failures >= $1
@@ -280,7 +280,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) Create(item DBWebhookSubscription, 
 		INSERT INTO webhook_subscriptions (
 			id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 			challenge, challenges_sent, created_at, modified_at,
-			last_successful_use, publication_failures
+			last_successful_use, publication_failures, timeout_count
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
 
@@ -467,6 +467,60 @@ func (s *DBWebhookSubscriptionDatabaseStore) UpdatePublicationStats(id string, s
 	return nil
 }
 
+// IncrementTimeouts increments the timeout count for a webhook subscription
+func (s *DBWebhookSubscriptionDatabaseStore) IncrementTimeouts(id string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	query := `
+		UPDATE webhook_subscriptions
+		SET timeout_count = timeout_count + 1, modified_at = $1
+		WHERE id = $2
+	`
+
+	result, err := s.db.Exec(query, time.Now().UTC(), id)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("webhook subscription not found")
+	}
+
+	return nil
+}
+
+// ResetTimeouts resets the timeout count to 0 for a webhook subscription
+func (s *DBWebhookSubscriptionDatabaseStore) ResetTimeouts(id string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	query := `
+		UPDATE webhook_subscriptions
+		SET timeout_count = 0, modified_at = $1
+		WHERE id = $2
+	`
+
+	result, err := s.db.Exec(query, time.Now().UTC(), id)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("webhook subscription not found")
+	}
+
+	return nil
+}
+
 // Delete deletes a webhook subscription
 func (s *DBWebhookSubscriptionDatabaseStore) Delete(id string) error {
 	s.mutex.Lock()
@@ -533,7 +587,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) scanSubscriptions(rows *sql.Rows, f
 			&sub.Id, &sub.OwnerId, &threatModelId, &sub.Name, &sub.Url,
 			pq.Array(&sub.Events), &secret, &sub.Status, &challenge,
 			&sub.ChallengesSent, &sub.CreatedAt, &sub.ModifiedAt,
-			&lastSuccessfulUse, &sub.PublicationFailures,
+			&lastSuccessfulUse, &sub.PublicationFailures, &sub.TimeoutCount,
 		)
 
 		if err != nil {

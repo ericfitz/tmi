@@ -219,6 +219,14 @@ func (m *mockSubscriptionStore) UpdatePublicationStats(id string, success bool) 
 	return nil
 }
 
+func (m *mockSubscriptionStore) IncrementTimeouts(id string) error {
+	return nil
+}
+
+func (m *mockSubscriptionStore) ResetTimeouts(id string) error {
+	return nil
+}
+
 func (m *mockSubscriptionStore) Delete(id string) error {
 	return nil
 }

@@ -29,6 +29,7 @@ type AddonInvocation struct {
 	StatusMessage   string     `json:"status_message,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	StatusUpdatedAt time.Time  `json:"status_updated_at"`
+	LastActivityAt  time.Time  `json:"last_activity_at"` // Track last activity for timeout detection
 }
 
 // Invocation status constants
@@ -41,6 +42,9 @@ const (
 
 // AddonInvocationTTL is the Redis TTL for invocations (7 days)
 const AddonInvocationTTL = 7 * 24 * time.Hour
+
+// AddonInvocationTimeout is the inactivity timeout for invocations (15 minutes)
+const AddonInvocationTimeout = 15 * time.Minute
 
 // AddonInvocationStore defines the interface for invocation storage operations
 type AddonInvocationStore interface {
@@ -66,6 +70,9 @@ type AddonInvocationStore interface {
 
 	// Delete removes an invocation (for cleanup)
 	Delete(ctx context.Context, id uuid.UUID) error
+
+	// ListStale retrieves invocations that have timed out (no activity for AddonInvocationTimeout)
+	ListStale(ctx context.Context, timeout time.Duration) ([]AddonInvocation, error)
 }
 
 // AddonInvocationRedisStore implements AddonInvocationStore using Redis
@@ -102,10 +109,12 @@ func (s *AddonInvocationRedisStore) Create(ctx context.Context, invocation *Addo
 	}
 
 	// Set timestamps
+	now := time.Now()
 	if invocation.CreatedAt.IsZero() {
-		invocation.CreatedAt = time.Now()
+		invocation.CreatedAt = now
 	}
 	invocation.StatusUpdatedAt = invocation.CreatedAt
+	invocation.LastActivityAt = now
 
 	// Serialize to JSON
 	data, err := json.Marshal(invocation)
@@ -169,8 +178,10 @@ func (s *AddonInvocationRedisStore) Get(ctx context.Context, id uuid.UUID) (*Add
 func (s *AddonInvocationRedisStore) Update(ctx context.Context, invocation *AddonInvocation) error {
 	logger := slogging.Get()
 
-	// Update status timestamp
-	invocation.StatusUpdatedAt = time.Now()
+	// Update status timestamp and activity timestamp
+	now := time.Now()
+	invocation.StatusUpdatedAt = now
+	invocation.LastActivityAt = now
 
 	// Serialize to JSON
 	data, err := json.Marshal(invocation)
@@ -373,6 +384,62 @@ func (s *AddonInvocationRedisStore) Delete(ctx context.Context, id uuid.UUID) er
 	logger.Info("Invocation deleted: id=%s", id)
 
 	return nil
+}
+
+// ListStale retrieves invocations that have timed out (no activity for the specified timeout)
+func (s *AddonInvocationRedisStore) ListStale(ctx context.Context, timeout time.Duration) ([]AddonInvocation, error) {
+	logger := slogging.Get()
+
+	// Scan for all invocation keys
+	pattern := "addon:invocation:*"
+	var cursor uint64
+	var staleInvocations []AddonInvocation
+
+	client := s.redis.GetClient()
+	cutoffTime := time.Now().Add(-timeout)
+
+	for {
+		var keys []string
+		var newCursor uint64
+		keys, newCursor, err := client.Scan(ctx, cursor, pattern, 100).Result()
+		if err != nil {
+			logger.Error("Failed to scan invocation keys: %v", err)
+			return nil, fmt.Errorf("failed to scan invocations: %w", err)
+		}
+
+		// Check each invocation
+		for _, key := range keys {
+			data, err := s.redis.Get(ctx, key)
+			if err != nil {
+				if err == redis.Nil {
+					continue // Key expired between scan and get
+				}
+				logger.Error("Failed to get invocation from key %s: %v", key, err)
+				continue
+			}
+
+			var invocation AddonInvocation
+			if err := json.Unmarshal([]byte(data), &invocation); err != nil {
+				logger.Error("Failed to unmarshal invocation from key %s: %v", key, err)
+				continue
+			}
+
+			// Check if invocation is stale (pending or in_progress, and no activity for timeout duration)
+			if (invocation.Status == InvocationStatusPending || invocation.Status == InvocationStatusInProgress) &&
+				invocation.LastActivityAt.Before(cutoffTime) {
+				staleInvocations = append(staleInvocations, invocation)
+			}
+		}
+
+		cursor = newCursor
+		if cursor == 0 {
+			break
+		}
+	}
+
+	logger.Debug("Found %d stale invocations (timeout: %v)", len(staleInvocations), timeout)
+
+	return staleInvocations, nil
 }
 
 // GlobalAddonInvocationStore is the global singleton for invocation storage

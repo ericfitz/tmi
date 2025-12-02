@@ -22,6 +22,7 @@ type DBWebhookSubscription struct {
 	ModifiedAt          time.Time  `json:"modified_at"`
 	LastSuccessfulUse   *time.Time `json:"last_successful_use,omitempty"`
 	PublicationFailures int        `json:"publication_failures"`
+	TimeoutCount        int        `json:"timeout_count"` // Count of consecutive addon invocation timeouts
 }
 
 // SetCreatedAt implements WithTimestamps
@@ -95,6 +96,8 @@ type WebhookSubscriptionStoreInterface interface {
 	UpdateStatus(id string, status string) error
 	UpdateChallenge(id string, challenge string, challengesSent int) error
 	UpdatePublicationStats(id string, success bool) error
+	IncrementTimeouts(id string) error
+	ResetTimeouts(id string) error
 	Delete(id string) error
 	Count() int
 	CountByOwner(ownerID string) (int, error)
