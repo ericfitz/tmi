@@ -184,6 +184,32 @@ administrators:
 - Administrators inserted/updated in database
 - Subject matching used for authorization checks
 
+## Authorization Model
+
+Add-ons have a mixed authorization model to support platform extensibility:
+
+| Operation | Non-Admin Users | Administrators |
+|-----------|----------------|----------------|
+| **List add-ons** | All add-ons (public visibility) | All add-ons |
+| **Get add-on** | All add-ons (public visibility) | All add-ons |
+| **Create add-on** | Not allowed | Admin only |
+| **Delete add-on** | Not allowed | Admin only |
+| **Invoke add-on** | Yes (any add-on) | Yes |
+| **List invocations** | Own invocations only | All invocations |
+| **Get invocation** | Own invocations only | All invocations |
+
+**Key Points:**
+
+- **Public Discovery**: All authenticated users can list and view add-on details to enable discovery of platform extensions
+- **Admin Control**: Only administrators can register and delete add-ons
+- **User Invocation**: Any authenticated user can invoke any add-on
+- **Invocation Privacy**: Users can only see their own invocation status; administrators can see all invocations
+- **Rate Limits**: Apply to all users (including admins) for invocations
+
+**Rationale for Public Visibility:**
+
+Add-ons are designed as discoverable platform extensions. Users need to see available add-ons to invoke them. This is similar to app stores or plugin marketplaces where discovery is public but installation/management is restricted.
+
 ## API Specification
 
 ### Administrator-Only Endpoints

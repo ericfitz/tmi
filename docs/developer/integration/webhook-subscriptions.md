@@ -274,19 +274,40 @@ Content-Type: application/json
 }
 ```
 
+## Authorization Model
+
+Webhook subscriptions use owner-based authorization with administrator bypass:
+
+| Operation | Non-Admin Users | Administrators |
+|-----------|----------------|----------------|
+| **List subscriptions** | Own subscriptions only | All subscriptions |
+| **Get subscription** | Own subscriptions only | All subscriptions |
+| **Create subscription** | Yes (becomes owner) | Yes |
+| **Delete subscription** | Own subscriptions only | All subscriptions |
+| **Test subscription** | Own subscriptions only | All subscriptions |
+| **List deliveries** | Own subscriptions only | All subscriptions |
+| **Get delivery** | Own subscriptions only | All subscriptions |
+
+**Key Points:**
+
+- **Ownership**: Subscriptions are owned by the user who creates them (`owner_id`)
+- **Non-admin users**: Can only view and manage their own webhook subscriptions
+- **Administrators**: Can view, test, and delete all webhook subscriptions across all users
+- **Rate limits**: Apply to non-admin users; administrators bypass rate limiting
+
 ## API Endpoints
 
 ### Subscriptions
 
-- `POST /webhook/subscriptions` - Create subscription
-- `GET /webhook/subscriptions` - List subscriptions (owner-scoped)
-- `GET /webhook/subscriptions/{id}` - Get subscription details
-- `DELETE /webhook/subscriptions/{id}` - Delete subscription
+- `POST /webhook/subscriptions` - Create subscription (authenticated users)
+- `GET /webhook/subscriptions` - List subscriptions (owner-scoped for users, all for admins)
+- `GET /webhook/subscriptions/{id}` - Get subscription details (owner or admin)
+- `DELETE /webhook/subscriptions/{id}` - Delete subscription (owner or admin)
 
 ### Deliveries
 
-- `GET /webhook/deliveries` - List delivery records (owner-scoped)
-- `GET /webhook/deliveries/{id}` - Get delivery details
+- `GET /webhook/deliveries` - List delivery records (owner-scoped for users, all for admins)
+- `GET /webhook/deliveries/{id}` - Get delivery details (owner or admin)
 
 ### Deny List (Admin Only)
 
