@@ -141,6 +141,8 @@ The cleanup worker (runs hourly) deletes subscriptions in `pending_delete` statu
 
 ## Event Types
 
+TMI supports 28 webhook event types covering CRUD operations across 9 resource categories. All event types follow the pattern `{resource}.{action}`.
+
 ### Threat Model Events
 
 - `threat_model.created`: New threat model created
@@ -158,6 +160,42 @@ The cleanup worker (runs hourly) deletes subscriptions in `pending_delete` statu
 - `document.created`: New document uploaded
 - `document.updated`: Document modified
 - `document.deleted`: Document deleted
+
+### Note Events
+
+- `note.created`: New note created
+- `note.updated`: Note modified
+- `note.deleted`: Note deleted
+
+### Repository Events
+
+- `repository.created`: New repository created
+- `repository.updated`: Repository modified
+- `repository.deleted`: Repository deleted
+
+### Asset Events
+
+- `asset.created`: New asset created
+- `asset.updated`: Asset modified
+- `asset.deleted`: Asset deleted
+
+### Threat Events
+
+- `threat.created`: New threat created
+- `threat.updated`: Threat modified
+- `threat.deleted`: Threat deleted
+
+### Metadata Events
+
+- `metadata.created`: New metadata created
+- `metadata.updated`: Metadata modified
+- `metadata.deleted`: Metadata deleted
+
+### Addon Events
+
+- `addon.invoked`: Add-on invocation triggered (see [Add-on Development Guide](../addons/addon-development-guide.md))
+
+**Note**: All event types are defined in the OpenAPI schema as `WebhookEventType` and in the codebase at [api/events.go](../../../api/events.go).
 
 ## Security
 

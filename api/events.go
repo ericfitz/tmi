@@ -52,6 +52,9 @@ const (
 	EventMetadataCreated = "metadata.created"
 	EventMetadataUpdated = "metadata.updated"
 	EventMetadataDeleted = "metadata.deleted"
+
+	// Addon Events
+	EventAddonInvoked = "addon.invoked"
 )
 
 // EventPayload represents the structure of an event emitted to Redis

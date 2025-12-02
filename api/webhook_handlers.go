@@ -667,12 +667,18 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 
 // dbWebhookSubscriptionToAPI converts a database webhook subscription to API response type
 func dbWebhookSubscriptionToAPI(db DBWebhookSubscription, includeSecret bool) WebhookSubscription {
+	// Convert []string to []WebhookEventType
+	events := make([]WebhookEventType, len(db.Events))
+	for i, event := range db.Events {
+		events[i] = WebhookEventType(event)
+	}
+
 	response := WebhookSubscription{
 		Id:                  db.Id,
 		OwnerId:             db.OwnerId,
 		Name:                db.Name,
 		Url:                 db.Url,
-		Events:              db.Events,
+		Events:              events,
 		Status:              WebhookSubscriptionStatus(db.Status),
 		CreatedAt:           db.CreatedAt,
 		ModifiedAt:          db.ModifiedAt,
@@ -703,7 +709,7 @@ func dbWebhookDeliveryToAPI(db DBWebhookDelivery) WebhookDelivery {
 	response := WebhookDelivery{
 		Id:             db.Id,
 		SubscriptionId: db.SubscriptionId,
-		EventType:      WebhookDeliveryEventType(db.EventType),
+		EventType:      WebhookEventType(db.EventType),
 		Status:         WebhookDeliveryStatus(db.Status),
 		Attempts:       db.Attempts,
 		CreatedAt:      db.CreatedAt,

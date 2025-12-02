@@ -3616,13 +3616,11 @@
           "events": {
             "type": "array",
             "items": {
-              "type": "string",
-              "pattern": "^[\\u0020-\\uFFFF]*$",
-              "maxLength": 1000
+              "$ref": "#/components/schemas/WebhookEventType"
             },
             "minItems": 1,
-            "description": "List of event types to subscribe to",
-            "maxItems": 1000
+            "maxItems": 1000,
+            "description": "List of event types to subscribe to. See WebhookEventType for available events."
           },
           "secret": {
             "type": "string",
@@ -3780,36 +3778,7 @@
             "maxLength": 36
           },
           "event_type": {
-            "type": "string",
-            "enum": [
-              "threat_model.created",
-              "threat_model.updated",
-              "threat_model.deleted",
-              "diagram.created",
-              "diagram.updated",
-              "diagram.deleted",
-              "document.created",
-              "document.updated",
-              "document.deleted",
-              "note.created",
-              "note.updated",
-              "note.deleted",
-              "repository.created",
-              "repository.updated",
-              "repository.deleted",
-              "asset.created",
-              "asset.updated",
-              "asset.deleted",
-              "threat.created",
-              "threat.updated",
-              "threat.deleted",
-              "metadata.created",
-              "metadata.updated",
-              "metadata.deleted",
-              "addon.invoked"
-            ],
-            "description": "Webhook event type following {resource}.{action} pattern",
-            "maxLength": 1000
+            "$ref": "#/components/schemas/WebhookEventType"
           },
           "payload": {
             "type": "object",
@@ -5153,6 +5122,83 @@
             "minimum": 0,
             "description": "Total number of active users for this provider"
           }
+        }
+      },
+      "WebhookEventType": {
+        "type": "string",
+        "enum": [
+          "threat_model.created",
+          "threat_model.updated",
+          "threat_model.deleted",
+          "diagram.created",
+          "diagram.updated",
+          "diagram.deleted",
+          "document.created",
+          "document.updated",
+          "document.deleted",
+          "note.created",
+          "note.updated",
+          "note.deleted",
+          "repository.created",
+          "repository.updated",
+          "repository.deleted",
+          "asset.created",
+          "asset.updated",
+          "asset.deleted",
+          "threat.created",
+          "threat.updated",
+          "threat.deleted",
+          "metadata.created",
+          "metadata.updated",
+          "metadata.deleted",
+          "addon.invoked"
+        ],
+        "description": "Webhook event type following {resource}.{action} pattern. CRUD events are emitted for resource lifecycle changes (created, updated, deleted). The addon.invoked event is emitted when an add-on is invoked.",
+        "maxLength": 1000,
+        "x-event-categories": {
+          "threat_model": [
+            "threat_model.created",
+            "threat_model.updated",
+            "threat_model.deleted"
+          ],
+          "diagram": [
+            "diagram.created",
+            "diagram.updated",
+            "diagram.deleted"
+          ],
+          "document": [
+            "document.created",
+            "document.updated",
+            "document.deleted"
+          ],
+          "note": [
+            "note.created",
+            "note.updated",
+            "note.deleted"
+          ],
+          "repository": [
+            "repository.created",
+            "repository.updated",
+            "repository.deleted"
+          ],
+          "asset": [
+            "asset.created",
+            "asset.updated",
+            "asset.deleted"
+          ],
+          "threat": [
+            "threat.created",
+            "threat.updated",
+            "threat.deleted"
+          ],
+          "metadata": [
+            "metadata.created",
+            "metadata.updated",
+            "metadata.deleted"
+          ],
+          "addon": [
+            "addon.invoked"
+          ]
         }
       }
     },
