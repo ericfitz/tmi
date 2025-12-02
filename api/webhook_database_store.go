@@ -281,7 +281,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) Create(item DBWebhookSubscription, 
 			id, owner_internal_uuid, threat_model_id, name, url, events, secret, status,
 			challenge, challenges_sent, created_at, modified_at,
 			last_successful_use, publication_failures, timeout_count
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	`
 
 	var threatModelId interface{}
@@ -308,7 +308,7 @@ func (s *DBWebhookSubscriptionDatabaseStore) Create(item DBWebhookSubscription, 
 		item.Id, item.OwnerId, threatModelId, item.Name, item.Url,
 		pq.Array(item.Events), secret, item.Status, challenge,
 		item.ChallengesSent, item.CreatedAt, item.ModifiedAt,
-		lastSuccessfulUse, item.PublicationFailures,
+		lastSuccessfulUse, item.PublicationFailures, item.TimeoutCount,
 	)
 
 	if err != nil {
