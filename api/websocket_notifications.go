@@ -35,7 +35,7 @@ const (
 // NotificationMessage is the base structure for all notification messages
 type NotificationMessage struct {
 	MessageType NotificationMessageType `json:"message_type"`
-	UserID      string                  `json:"user_id"` // User who triggered the event
+	UserID      string                  `json:"user_id"` // internal_uuid of user who triggered the event
 	Timestamp   time.Time               `json:"timestamp"`
 	Data        interface{}             `json:"data,omitempty"` // Type-specific data
 }

@@ -137,10 +137,10 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 		return fmt.Errorf("invalid token claims")
 	}
 
-	// Extract provider user ID (sub claim contains provider's user ID, NOT internal UUID)
+	// Extract provider user ID (sub claim contains provider's user ID, NOT internal_uuid)
 	if sub, ok := claims["sub"].(string); ok {
 		logger.Debug("Authenticated provider user ID: %s", sub)
-		c.Set("userID", sub) // For backward compatibility, this is provider_user_id
+		c.Set("userID", sub) // For backward compatibility, this contains provider_user_id (from JWT sub)
 
 		// Extract role if present
 		if roleValue, hasRole := claims["role"]; hasRole {

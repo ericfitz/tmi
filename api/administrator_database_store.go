@@ -444,8 +444,8 @@ func (s *AdministratorDatabaseStore) Get(ctx context.Context, id uuid.UUID) (*DB
 // AdminFilter represents filtering criteria for listing administrators
 type AdminFilter struct {
 	Provider string     // Filter by provider (optional)
-	UserID   *uuid.UUID // Filter by user_id (optional)
-	GroupID  *uuid.UUID // Filter by group_id (optional)
+	UserID   *uuid.UUID // Filter by user_internal_uuid (optional)
+	GroupID  *uuid.UUID // Filter by group_internal_uuid (optional)
 	Limit    int        // Pagination limit (default 50, max 100)
 	Offset   int        // Pagination offset (default 0)
 }
@@ -583,7 +583,7 @@ func (s *AdministratorDatabaseStore) HasAnyAdministrators(ctx context.Context) (
 	return hasAdmins, nil
 }
 
-// GetUserEmail retrieves email for a user_id (for enrichment in list responses)
+// GetUserEmail retrieves email for an internal_uuid (for enrichment in list responses)
 func (s *AdministratorDatabaseStore) GetUserEmail(ctx context.Context, userID uuid.UUID) (string, error) {
 	logger := slogging.Get()
 

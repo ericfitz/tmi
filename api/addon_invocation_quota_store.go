@@ -52,9 +52,9 @@ func (s *AddonInvocationQuotaDatabaseStore) GetOrDefault(ctx context.Context, ow
 	logger := slogging.Get()
 
 	query := `
-		SELECT owner_id, max_active_invocations, max_invocations_per_hour, created_at, modified_at
+		SELECT owner_internal_uuid, max_active_invocations, max_invocations_per_hour, created_at, modified_at
 		FROM addon_invocation_quotas
-		WHERE owner_id = $1
+		WHERE owner_internal_uuid = $1
 	`
 
 	quota := &AddonInvocationQuota{}
@@ -94,9 +94,9 @@ func (s *AddonInvocationQuotaDatabaseStore) Set(ctx context.Context, quota *Addo
 	logger := slogging.Get()
 
 	query := `
-		INSERT INTO addon_invocation_quotas (owner_id, max_active_invocations, max_invocations_per_hour, created_at, modified_at)
+		INSERT INTO addon_invocation_quotas (owner_internal_uuid, max_active_invocations, max_invocations_per_hour, created_at, modified_at)
 		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (owner_id) DO UPDATE
+		ON CONFLICT (owner_internal_uuid) DO UPDATE
 		SET max_active_invocations = EXCLUDED.max_active_invocations,
 			max_invocations_per_hour = EXCLUDED.max_invocations_per_hour,
 			modified_at = EXCLUDED.modified_at
@@ -126,7 +126,7 @@ func (s *AddonInvocationQuotaDatabaseStore) Set(ctx context.Context, quota *Addo
 func (s *AddonInvocationQuotaDatabaseStore) Delete(ctx context.Context, ownerID uuid.UUID) error {
 	logger := slogging.Get()
 
-	query := `DELETE FROM addon_invocation_quotas WHERE owner_id = $1`
+	query := `DELETE FROM addon_invocation_quotas WHERE owner_internal_uuid = $1`
 
 	result, err := s.db.ExecContext(ctx, query, ownerID)
 	if err != nil {

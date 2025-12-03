@@ -28,10 +28,10 @@ func (s *UserAPIQuotaDatabaseStore) Get(userID string) (UserAPIQuota, error) {
 	var maxRequestsPerHour sql.NullInt64
 
 	query := `
-		SELECT user_id, max_requests_per_minute, max_requests_per_hour,
+		SELECT user_internal_uuid, max_requests_per_minute, max_requests_per_hour,
 		       created_at, modified_at
 		FROM user_api_quotas
-		WHERE user_id = $1
+		WHERE user_internal_uuid = $1
 	`
 
 	err := s.db.QueryRow(query, userID).Scan(
@@ -82,7 +82,7 @@ func (s *UserAPIQuotaDatabaseStore) Create(item UserAPIQuota) (UserAPIQuota, err
 
 	query := `
 		INSERT INTO user_api_quotas (
-			user_id, max_requests_per_minute, max_requests_per_hour,
+			user_internal_uuid, max_requests_per_minute, max_requests_per_hour,
 			created_at, modified_at
 		) VALUES ($1, $2, $3, $4, $5)
 	`
@@ -119,7 +119,7 @@ func (s *UserAPIQuotaDatabaseStore) Update(userID string, item UserAPIQuota) err
 		UPDATE user_api_quotas
 		SET max_requests_per_minute = $1, max_requests_per_hour = $2,
 		    modified_at = $3
-		WHERE user_id = $4
+		WHERE user_internal_uuid = $4
 	`
 
 	var maxRequestsPerHour interface{}
@@ -154,7 +154,7 @@ func (s *UserAPIQuotaDatabaseStore) Delete(userID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	query := `DELETE FROM user_api_quotas WHERE user_id = $1`
+	query := `DELETE FROM user_api_quotas WHERE user_internal_uuid = $1`
 
 	result, err := s.db.Exec(query, userID)
 	if err != nil {

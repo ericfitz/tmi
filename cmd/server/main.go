@@ -1149,7 +1149,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// This runs AFTER basic validation so malformed requests get 4XX, not 401
 	r.Use(JWTMiddleware(config, server.tokenBlacklist, authHandlers)) // JWT auth with public path skipping
 
-	// Add user-based rate limiting middleware (after JWT so user_id is available)
+	// Add user-based rate limiting middleware (after JWT so internal_uuid is available)
 	r.Use(api.RateLimitMiddleware(apiServer))
 
 	// Add server middleware to make API server available in context

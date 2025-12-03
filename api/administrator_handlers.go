@@ -38,12 +38,12 @@ func (s *Server) ListAdministrators(c *gin.Context, params ListAdministratorsPar
 		filter.Provider = *params.Provider
 	}
 
-	// Set optional user_id filter
+	// Set optional user_internal_uuid filter
 	if params.UserId != nil {
 		filter.UserID = params.UserId
 	}
 
-	// Set optional group_id filter
+	// Set optional group_internal_uuid filter
 	if params.GroupId != nil {
 		filter.GroupID = params.GroupId
 	}
@@ -105,7 +105,7 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 		return
 	}
 
-	// Validate: exactly one of user_id or group_id must be set
+	// Validate: exactly one of user_internal_uuid or group_internal_uuid must be set
 	if req.UserId == nil && req.GroupId == nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
