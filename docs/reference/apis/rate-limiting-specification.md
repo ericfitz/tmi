@@ -1,8 +1,8 @@
 # TMI API Rate Limiting Specification
 
-**Version:** 1.0.0
-**Last Updated:** 2025-11-21
-**Status:** Specification (Implementation Pending)
+**Version:** 2.0.0
+**Last Updated:** 2025-12-03
+**Status:** Fully Implemented
 
 ## Overview
 
@@ -25,7 +25,7 @@ This document provides comprehensive details about the rate limiting strategy do
 
 ## Rate Limiting Strategy
 
-TMI uses a **tiered rate limiting approach** with four distinct tiers:
+TMI uses a **tiered rate limiting approach** with five distinct tiers:
 
 | Tier | Name | Scope | Configurable | Endpoint Count |
 |------|------|-------|--------------|----------------|
@@ -33,6 +33,7 @@ TMI uses a **tiered rate limiting approach** with four distinct tiers:
 | 2 | Auth Flows | Multi-scope | No | 9 |
 | 3 | Resource Operations | User | Yes | 112 |
 | 4 | Webhooks | User | Yes | 7 |
+| 5 | Addon Invocations | User | Yes (DB) | 3 |
 
 ### Design Principles
 
@@ -261,6 +262,73 @@ Webhook rate limiting is **fully implemented**:
 
 ---
 
+### Tier 5: Addon Invocations
+
+**Applies to:** Add-on invocation endpoints for executing custom code against threat models.
+
+**Endpoints:**
+- `/addons/{addon_id}/invoke` (POST)
+- `/addons/invocations/{invocation_id}` (GET)
+- `/addons/invocations/{invocation_id}` (DELETE)
+
+**Rate Limit Configuration:**
+```yaml
+scope: user
+tier: addon-invocations
+limits:
+  - type: max_active_invocations
+    default: 1
+    configurable: true
+    quota_source: addon_invocation_quotas.max_active_invocations
+  - type: invocations_per_hour
+    default: 10
+    configurable: true
+    quota_source: addon_invocation_quotas.max_invocations_per_hour
+tracking_method: Sliding window with Redis sorted sets
+```
+
+**Enforcement Details:**
+
+1. **Active Invocation Limit** (1 concurrent)
+   - Prevents users from running multiple addons simultaneously
+   - Checked before creating new invocation
+   - Releases when invocation completes or times out
+
+2. **Hourly Rate Limit** (10/hour)
+   - Sliding window using Redis sorted sets
+   - Prevents addon abuse and resource exhaustion
+   - Old entries automatically cleaned up
+
+**Database Schema:**
+
+Table: `addon_invocation_quotas`
+
+```sql
+CREATE TABLE IF NOT EXISTS addon_invocation_quotas (
+    owner_id UUID PRIMARY KEY,
+    max_active_invocations INT NOT NULL DEFAULT 1,
+    max_invocations_per_hour INT NOT NULL DEFAULT 10,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (owner_id) REFERENCES users(internal_uuid) ON DELETE CASCADE
+);
+```
+
+**Implementation Status:**
+- ✅ Database table created
+- ✅ `GlobalAddonInvocationQuotaStore` initialized
+- ✅ `GlobalAddonRateLimiter` created and integrated
+- ✅ Rate limiting enforced in addon invocation handlers
+- ❌ Admin API endpoints for managing quotas (not yet implemented)
+
+**Rationale:**
+- Addons execute custom code and consume significant resources
+- Single concurrent invocation prevents resource exhaustion
+- Hourly limit prevents abuse while allowing reasonable automation
+- Database-backed quotas allow per-user customization for power users
+
+---
+
 ## Multi-Scope Rate Limiting
 
 ### Overview
@@ -394,19 +462,118 @@ func (rl *RateLimiter) getQuotaOrDefault(userID string) Quota {
 }
 ```
 
-### Admin API Endpoints (Proposed)
+### Admin API Endpoints (Implemented)
 
-To manage user quotas, operators would use admin endpoints:
+To manage user quotas, operators use these admin endpoints:
 
+**User API Quotas:**
 ```
-GET    /admin/quotas/users/{user_id}        # Get user's quota
-PUT    /admin/quotas/users/{user_id}        # Set custom quota
-DELETE /admin/quotas/users/{user_id}        # Reset to defaults
-GET    /admin/quotas/webhooks/{user_id}     # Get webhook quota
-PUT    /admin/quotas/webhooks/{user_id}     # Set webhook quota
+GET    /admin/users/{user_id}/quota/api    # Get user's API quota
+PUT    /admin/users/{user_id}/quota/api    # Create/update custom quota
+DELETE /admin/users/{user_id}/quota/api    # Reset to defaults
 ```
 
-**Note:** Admin endpoints not yet implemented.
+**Webhook Quotas:**
+```
+GET    /admin/users/{user_id}/quota/webhook    # Get webhook quota
+PUT    /admin/users/{user_id}/quota/webhook    # Create/update webhook quota
+DELETE /admin/users/{user_id}/quota/webhook    # Reset to defaults
+```
+
+**Implementation Details:**
+- ✅ All endpoints fully implemented in `api/admin_quota_handlers.go`
+- ✅ Requires administrator authentication (enforced by middleware)
+- ✅ Automatically invalidates quota cache on update/delete
+- ✅ Returns updated quota immediately after modification
+- ❌ Addon invocation quota admin endpoints not yet implemented
+
+---
+
+## Quota Caching
+
+### Overview
+
+To avoid database queries on every API request, TMI implements an in-memory quota cache with automatic expiration and invalidation.
+
+### Cache Implementation
+
+**Global Instance:** `GlobalQuotaCache` (initialized in `main.go`)
+
+**Configuration:**
+- **TTL:** 60 seconds (configurable)
+- **Storage:** In-memory maps with read-write mutex
+- **Cleanup:** Automatic background goroutine removes expired entries
+
+**Cached Data:**
+- User API quotas (`map[string]*cachedUserAPIQuota`)
+- Webhook quotas (`map[string]*cachedWebhookQuota`)
+
+### Cache Behavior
+
+**On Cache Miss:**
+1. Fetch quota from database via store interface
+2. Store in cache with expiration timestamp (now + TTL)
+3. Return quota to caller
+
+**On Cache Hit:**
+1. Check if entry is expired (`time.Now().Before(expiresAt)`)
+2. If not expired: Return cached quota
+3. If expired: Fetch from database and update cache
+
+### Cache Invalidation
+
+**Per-User Invalidation (Primary):**
+```go
+GlobalQuotaCache.InvalidateUserAPIQuota(userID)  // Removes specific user's API quota
+GlobalQuotaCache.InvalidateWebhookQuota(userID)  // Removes specific user's webhook quota
+```
+
+**Automatic Invalidation:**
+- Called automatically when admin updates user quota via PUT endpoint
+- Called automatically when admin deletes user quota via DELETE endpoint
+- Ensures quota changes take effect immediately (within cache check)
+
+**Global Invalidation (Available but not exposed):**
+```go
+GlobalQuotaCache.InvalidateAll()  // Clears all cached quotas
+```
+
+### Performance Impact
+
+**Without Caching:**
+- Database query on every API request
+- ~5-10ms latency per request
+- Increased database load
+
+**With Caching:**
+- Database query only on cache miss (every 60 seconds per user)
+- ~0.1ms latency for cache hits
+- 99%+ reduction in database queries
+
+**Trade-off:**
+- Quota changes take up to 60 seconds to propagate (or immediate with invalidation)
+- Small memory overhead (negligible for typical user counts)
+
+### Implementation Details
+
+**Location:** `api/quota_cache.go`
+
+**Key Features:**
+- Thread-safe with `sync.RWMutex`
+- Automatic cleanup goroutine prevents memory leaks
+- Graceful shutdown via `Stop()` method
+- Falls back to database on cache failure
+
+**Usage Pattern:**
+```go
+// In rate limiter
+var quota UserAPIQuota
+if GlobalQuotaCache != nil {
+    quota = GlobalQuotaCache.GetUserAPIQuota(userID, r.quotaStore)
+} else {
+    quota = r.quotaStore.GetOrDefault(userID)
+}
+```
 
 ---
 
@@ -597,11 +764,11 @@ See [auth/migrations/002_business_domain.up.sql](../../auth/migrations/002_busin
 - `max_subscription_requests_per_minute` - API request rate (default: 10)
 - `max_subscription_requests_per_day` - Daily API quota (default: 20)
 
-### Proposed Tables
-
 #### user_api_quotas
 
 **Purpose:** Store per-user API rate limits for resource operations.
+
+**Status:** ✅ Fully implemented (table exists in database)
 
 **Schema:**
 ```sql
@@ -628,51 +795,111 @@ CREATE TRIGGER update_user_api_quotas_modified_at
     EXECUTE FUNCTION update_modified_at_column();
 ```
 
+#### addon_invocation_quotas
+
+**Purpose:** Store per-user addon invocation rate limits.
+
+**Status:** ✅ Fully implemented (table exists in database)
+
+**Schema:**
+```sql
+CREATE TABLE IF NOT EXISTS addon_invocation_quotas (
+    owner_id UUID PRIMARY KEY,
+    max_active_invocations INT NOT NULL DEFAULT 1,
+    max_invocations_per_hour INT NOT NULL DEFAULT 10,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (owner_id) REFERENCES users(internal_uuid) ON DELETE CASCADE
+);
+```
+
 ---
 
 ## Implementation Notes
 
 ### Current Status
 
-**Implemented:**
+**Fully Implemented:**
 - ✅ OpenAPI specification with `x-rate-limit` extensions
 - ✅ 429 response component with proper headers
+- ✅ API rate limiter (Redis-based sliding window)
 - ✅ Webhook rate limiter (Redis-based sliding window)
-- ✅ Webhook quota database storage
-- ✅ Comprehensive test coverage for webhook rate limiting
+- ✅ Addon invocation rate limiter (active + hourly limits)
+- ✅ `user_api_quotas` database table and store
+- ✅ `webhook_quotas` database table and store
+- ✅ `addon_invocation_quotas` database table and store
+- ✅ Quota caching system with 60s TTL
+- ✅ Cache invalidation on quota updates
+- ✅ Rate limiting middleware (`RateLimitMiddleware`)
+- ✅ Middleware registered in router (main.go:1153)
+- ✅ Admin API for user API quota management
+- ✅ Admin API for webhook quota management
+- ✅ Rate limit headers (X-RateLimit-*)
+- ✅ Comprehensive test coverage for rate limiting
+
+**Partially Implemented:**
+- ⚠️ Multi-scope rate limiter for auth flows (code exists, not fully integrated)
+- ⚠️ IP-based rate limiting for public endpoints (code exists)
+- ⚠️ Auth flow rate limiting (code exists, basic integration)
 
 **Not Yet Implemented:**
-- ❌ Rate limiting middleware for non-webhook endpoints
-- ❌ `user_api_quotas` database table
-- ❌ Multi-scope rate limiter for auth flows
-- ❌ Integration of webhook rate limiter into HTTP handlers
-- ❌ Admin API for quota management
+- ❌ Admin API for addon invocation quota management
 - ❌ Observability/metrics for rate limit hits
+- ❌ Full integration of multi-scope auth flow limiting
+- ❌ Webhook rate limiter integration into HTTP handlers (code ready but not wired up)
 
-### Implementation Roadmap
+### Middleware Integration
 
-**Phase 1: Foundation** (Complete)
+**Rate Limit Middleware** (`api/rate_limit_middleware.go`):
+- Registered globally in router: `r.Use(api.RateLimitMiddleware(apiServer))` (main.go:1153)
+- Applied to all authenticated endpoints
+- Skips public discovery endpoints (`/`, `/.well-known/*`)
+- Skips auth flow endpoints (OAuth, SAML)
+- Extracts user ID from JWT context
+- Checks per-minute and per-hour limits
+- Returns HTTP 429 with retry-after on limit exceeded
+- Adds rate limit headers to all responses
+- Fails open on errors (allows request, logs warning)
+
+**IP Rate Limit Middleware** (`api/ip_and_auth_rate_limit_middleware.go`):
+- Registered: `r.Use(api.IPRateLimitMiddleware(apiServer))` (main.go:1132)
+- Protects public endpoints from IP-based abuse
+- 10 requests/minute per IP address
+- Uses Redis sorted sets for distributed tracking
+
+**Auth Flow Rate Limit Middleware** (`api/ip_and_auth_rate_limit_middleware.go`):
+- Registered: `r.Use(api.AuthFlowRateLimitMiddleware(apiServer))` (main.go:1135)
+- Applies to OAuth and SAML endpoints
+- Multi-scope tracking (session, IP, user identifier)
+- Prevents credential stuffing and auth flow abuse
+
+### Implementation Timeline
+
+**Phase 1: Foundation** ✅ Complete (Nov 2025)
 - ✅ Design rate limiting strategy
 - ✅ Document in OpenAPI specification
 - ✅ Create comprehensive documentation
 
-**Phase 2: Infrastructure** (Next)
-- Create `user_api_quotas` migration
-- Implement generic rate limiter middleware
-- Add multi-scope rate limiter for auth flows
-- Create quota store interface and implementations
+**Phase 2: Infrastructure** ✅ Complete (Dec 2025)
+- ✅ Create `user_api_quotas` migration
+- ✅ Create `addon_invocation_quotas` migration
+- ✅ Implement rate limiter middleware
+- ✅ Implement quota store interfaces and database implementations
+- ✅ Implement quota caching system
 
-**Phase 3: Integration**
-- Integrate rate limiting middleware into server
-- Hook webhook rate limiter into HTTP handlers
-- Add rate limit header injection
-- Test end-to-end
+**Phase 3: Integration** ✅ Complete (Dec 2025)
+- ✅ Integrate rate limiting middleware into server
+- ✅ Add rate limit header injection
+- ✅ Test end-to-end with real Redis and PostgreSQL
+- ✅ Integrate addon rate limiting into handlers
 
-**Phase 4: Operations**
-- Implement admin API for quota management
-- Add Prometheus metrics
-- Create operational runbook
-- Document quota adjustment procedures
+**Phase 4: Operations** 🚧 In Progress
+- ✅ Implement admin API for API quota management
+- ✅ Implement admin API for webhook quota management
+- ❌ Implement admin API for addon quota management
+- ❌ Add Prometheus metrics
+- ❌ Create operational runbook
+- ❌ Document quota adjustment procedures
 
 ### Technology Stack
 
