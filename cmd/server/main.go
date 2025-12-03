@@ -1023,7 +1023,12 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	}
 
 	logger.Info("Using database-backed stores for data persistence")
-	api.InitializeDatabaseStores(dbManager.Postgres().GetDB())
+	// Create auth service adapter for user store initialization
+	var authServiceAdapter *api.AuthServiceAdapter
+	if authHandlers != nil {
+		authServiceAdapter = api.NewAuthServiceAdapter(authHandlers)
+	}
+	api.InitializeDatabaseStores(dbManager.Postgres().GetDB(), authServiceAdapter)
 
 	// Test database connection
 	if err := dbManager.Postgres().GetDB().Ping(); err != nil {
@@ -1058,9 +1063,8 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		apiServer:    apiServer,
 	}
 
-	// Set up auth service adapter for OpenAPI integration
-	if authHandlers != nil {
-		authServiceAdapter := api.NewAuthServiceAdapter(authHandlers)
+	// Set up auth service adapter for OpenAPI integration (reuse the one created during store initialization)
+	if authServiceAdapter != nil {
 		apiServer.SetAuthService(authServiceAdapter)
 		logger.Info("Auth service adapter configured for OpenAPI integration")
 

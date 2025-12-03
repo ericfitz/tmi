@@ -4,8 +4,14 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/ericfitz/tmi/auth"
 	"github.com/google/uuid"
 )
+
+// AuthServiceGetter defines an interface for getting the auth service
+type AuthServiceGetter interface {
+	GetService() *auth.Service
+}
 
 // WithTimestamps is a mixin interface for entities with timestamps
 type WithTimestamps interface {
@@ -66,7 +72,7 @@ var GlobalThreatStore ThreatStore
 var GlobalMetadataStore MetadataStore
 
 // InitializeDatabaseStores initializes stores with database implementations
-func InitializeDatabaseStores(db *sql.DB) {
+func InitializeDatabaseStores(db *sql.DB, authService interface{}) {
 	ThreatModelStore = NewThreatModelDatabaseStore(db)
 	DiagramStore = NewDiagramDatabaseStore(db)
 	GlobalDocumentStore = NewDatabaseDocumentStore(db, nil, nil)
@@ -84,6 +90,14 @@ func InitializeDatabaseStores(db *sql.DB) {
 	GlobalAdministratorStore = NewAdministratorDatabaseStore(db)
 	GlobalGroupStore = NewGroupDatabaseStore(db)
 	GlobalGroupMemberStore = NewGroupMemberDatabaseStore(db)
+
+	// Initialize GlobalUserStore if auth service is available
+	if authService != nil {
+		// Type assertion to get the concrete auth.Service type
+		if svc, ok := authService.(AuthServiceGetter); ok {
+			GlobalUserStore = NewUserDatabaseStore(db, svc.GetService())
+		}
+	}
 }
 
 // NOTE: InitializeInMemoryStores function removed - all stores now use database implementations
