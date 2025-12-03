@@ -81,14 +81,18 @@ start-database:
 	if [ -z "$$DATABASE" ]; then DATABASE="tmi_dev"; fi; \
 	IMAGE="$(INFRASTRUCTURE_POSTGRES_IMAGE)"; \
 	if [ -z "$$IMAGE" ]; then IMAGE="tmi/tmi-postgresql:latest"; fi; \
+	DATA_DIR="$$HOME/Projects/tmi-postgres-data"; \
+	mkdir -p "$$DATA_DIR"; \
 	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
 		echo -e "$(BLUE)[INFO]$(NC) Creating new PostgreSQL container..."; \
+		echo -e "$(BLUE)[INFO]$(NC) Mounting data directory: $$DATA_DIR"; \
 		docker run -d \
 			--name $$CONTAINER \
 			-p 127.0.0.1:$$PORT:5432 \
 			-e POSTGRES_USER=$$USER \
 			-e POSTGRES_PASSWORD=$$PASSWORD \
 			-e POSTGRES_DB=$$DATABASE \
+			-v "$$DATA_DIR:/var/lib/postgresql/data" \
 			$$IMAGE; \
 	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
 		echo -e "$(BLUE)[INFO]$(NC) Starting existing PostgreSQL container..."; \
