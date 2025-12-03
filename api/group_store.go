@@ -67,3 +67,6 @@ type GroupStore interface {
 
 // GlobalGroupStore is the global singleton for group storage
 var GlobalGroupStore GroupStore
+
+// GlobalGroupMemberStore is the global singleton for group membership storage
+var GlobalGroupMemberStore *GroupMemberDatabaseStore

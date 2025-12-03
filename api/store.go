@@ -82,6 +82,8 @@ func InitializeDatabaseStores(db *sql.DB) {
 	GlobalUserAPIQuotaStore = NewUserAPIQuotaDatabaseStore(db)
 	GlobalAddonStore = NewAddonDatabaseStore(db)
 	GlobalAdministratorStore = NewAdministratorDatabaseStore(db)
+	GlobalGroupStore = NewGroupDatabaseStore(db)
+	GlobalGroupMemberStore = NewGroupMemberDatabaseStore(db)
 }
 
 // NOTE: InitializeInMemoryStores function removed - all stores now use database implementations
