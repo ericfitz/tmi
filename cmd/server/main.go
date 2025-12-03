@@ -1335,13 +1335,26 @@ func initializeAdministrators(cfg *config.Config, db *sql.DB) error {
 			// Look up user by provider + (provider_id OR email)
 			user, err := findUserByProviderIdentity(ctx, db, adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email)
 			if err != nil {
-				logger.Warn("Could not find user for admin config[%d], will be granted admin on first login: provider=%s, provider_id=%s, email=%s",
-					i, adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email)
-				// User doesn't exist yet - they'll become admin on first login
-				// We'll create a placeholder entry that will be updated when they log in
-				continue
+				// User doesn't exist - attempt to create if we have required fields
+				if adminCfg.Email == "" {
+					logger.Warn("Cannot create user for admin config[%d]: email is required but not provided", i)
+					continue
+				}
+
+				// Create the user with available information
+				createdUser, createErr := createUserForAdministrator(ctx, db, adminCfg)
+				if createErr != nil {
+					logger.Error("Failed to create user for admin config[%d]: provider=%s, provider_id=%s, email=%s, error=%v",
+						i, adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email, createErr)
+					continue
+				}
+
+				logger.Info("Created user for configured administrator: provider=%s, provider_id=%s, email=%s, internal_uuid=%s",
+					adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email, createdUser)
+				userUUID = &createdUser
+			} else {
+				userUUID = &user
 			}
-			userUUID = &user
 		} else if adminCfg.SubjectType == "group" {
 			// Look up group by provider + group_name
 			group, err := findGroupByProviderAndName(ctx, db, adminCfg.Provider, adminCfg.GroupName)
@@ -1393,6 +1406,45 @@ func findUserByProviderIdentity(ctx context.Context, db *sql.DB, provider string
 	var userUUID uuid.UUID
 	err := db.QueryRowContext(ctx, query, provider, providerID, email).Scan(&userUUID)
 	return userUUID, err
+}
+
+// createUserForAdministrator creates a new user record for a configured administrator
+func createUserForAdministrator(ctx context.Context, db *sql.DB, adminCfg config.AdministratorConfig) (uuid.UUID, error) {
+	logger := slogging.Get()
+
+	// Generate internal UUID for the new user
+	internalUUID := uuid.New()
+
+	// Derive a name from the email if not provided
+	name := adminCfg.Email
+	if idx := strings.Index(name, "@"); idx > 0 {
+		name = name[:idx] // Use email prefix as name
+	}
+
+	// Insert user into database
+	query := `
+		INSERT INTO users (internal_uuid, provider, provider_user_id, email, name, email_verified, created_at, modified_at)
+		VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		RETURNING internal_uuid
+	`
+
+	var returnedUUID uuid.UUID
+	err := db.QueryRowContext(ctx, query,
+		internalUUID,
+		adminCfg.Provider,
+		adminCfg.ProviderId, // Can be empty string if not provided
+		adminCfg.Email,
+		name,
+		false, // email_verified defaults to false
+	).Scan(&returnedUUID)
+
+	if err != nil {
+		logger.Error("Failed to insert user for administrator: provider=%s, email=%s, error=%v",
+			adminCfg.Provider, adminCfg.Email, err)
+		return uuid.Nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	return returnedUUID, nil
 }
 
 // findGroupByProviderAndName looks up a group by provider and group_name

@@ -361,6 +361,7 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 
 	// If administrators already exist, no auto-promotion needed
 	if hasAdmins {
+		logger.Debug("Auto-promotion skipped: administrators already exist")
 		return nil
 	}
 
@@ -372,6 +373,8 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 	if userInternalUUID == "" || provider == "" {
 		return fmt.Errorf("missing user context (userInternalUUID or provider)")
 	}
+
+	logger.Info("Auto-promoting first user to administrator: email=%s, provider=%s", userEmail, provider)
 
 	// Parse user UUID
 	userUUID, err := uuid.Parse(userInternalUUID)
@@ -390,11 +393,13 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 
 	// Create the administrator grant
 	if err := api.GlobalAdministratorStore.Create(c.Request.Context(), admin); err != nil {
+		logger.Error("Failed to auto-promote first user to administrator: email=%s, provider=%s, error=%v",
+			userEmail, provider, err)
 		return fmt.Errorf("failed to create administrator grant: %w", err)
 	}
 
-	// AUDIT LOG: Log auto-promotion
-	logger.Info("[AUDIT] Auto-promoted first user to administrator: grant_id=%s, user_id=%s, email=%s, provider=%s",
+	// AUDIT LOG: Log auto-promotion success
+	logger.Info("[AUDIT] Successfully auto-promoted first user to administrator: grant_id=%s, user_id=%s, email=%s, provider=%s",
 		admin.ID, userInternalUUID, userEmail, provider)
 
 	return nil
