@@ -1174,6 +1174,18 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.Use(api.ThreatModelMiddleware())
 	r.Use(api.DiagramMiddleware())
 
+	// Apply administrator middleware to admin routes
+	// This middleware checks if authenticated users have admin privileges
+	r.Use(func(c *gin.Context) {
+		// Only apply admin middleware to /admin/* paths
+		if strings.HasPrefix(c.Request.URL.Path, "/admin") {
+			api.AdministratorMiddleware()(c)
+		} else {
+			c.Next()
+		}
+	})
+	logger.Info("Administrator middleware configured for /admin/* paths")
+
 	// Register WebSocket and custom non-REST routes
 	logger.Info("Registering WebSocket and custom routes")
 	apiServer.RegisterHandlers(r)
@@ -1193,7 +1205,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /auth/providers -> GetAuthProviders")
 	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /collaboration/sessions -> GetCollaborationSessions")
 	api.RegisterHandlers(r, apiServer)
-	logger.Info("[MAIN_MODULE] OpenAPI route registration completed (includes admin endpoints)")
+	logger.Info("[MAIN_MODULE] OpenAPI route registration completed (includes admin endpoints with AdministratorMiddleware)")
 
 	// Add development routes when in dev mode
 	if config.Logging.IsDev {
