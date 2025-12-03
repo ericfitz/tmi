@@ -1086,6 +1086,49 @@ func (s *WebhookQuotaDatabaseStore) GetOrDefault(ownerID string) DBWebhookQuota 
 	return quota
 }
 
+// List retrieves all webhook quotas with pagination
+func (s *WebhookQuotaDatabaseStore) List(offset, limit int) ([]DBWebhookQuota, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	query := `
+		SELECT owner_id, max_subscriptions, max_events_per_minute,
+		       max_subscription_requests_per_minute, max_subscription_requests_per_day,
+		       created_at, modified_at
+		FROM webhook_quotas
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`
+
+	rows, err := s.db.Query(query, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var quotas []DBWebhookQuota
+	for rows.Next() {
+		var quota DBWebhookQuota
+
+		err := rows.Scan(
+			&quota.OwnerId, &quota.MaxSubscriptions, &quota.MaxEventsPerMinute,
+			&quota.MaxSubscriptionRequestsPerMinute, &quota.MaxSubscriptionRequestsPerDay,
+			&quota.CreatedAt, &quota.ModifiedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		quotas = append(quotas, quota)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return quotas, nil
+}
+
 // Create creates a new webhook quota
 func (s *WebhookQuotaDatabaseStore) Create(item DBWebhookQuota) (DBWebhookQuota, error) {
 	s.mutex.Lock()

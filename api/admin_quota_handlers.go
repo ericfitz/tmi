@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -8,6 +9,31 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
+
+// ListUserAPIQuotas retrieves all custom user API quotas (admin only)
+func (s *Server) ListUserAPIQuotas(c *gin.Context, params ListUserAPIQuotasParams) {
+	logger := slogging.Get().WithContext(c)
+
+	// Set default values if not provided
+	limit := 50
+	offset := 0
+	if params.Limit != nil {
+		limit = *params.Limit
+	}
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
+
+	// Get quotas
+	quotas, err := GlobalUserAPIQuotaStore.List(offset, limit)
+	if err != nil {
+		logger.Error("failed to list user API quotas: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to list quotas"})
+		return
+	}
+
+	c.JSON(http.StatusOK, quotas)
+}
 
 // GetUserAPIQuota retrieves the API quota for a specific user (admin only)
 func (s *Server) GetUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
@@ -102,6 +128,31 @@ func (s *Server) DeleteUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 
 	logger.Info("deleted user API quota for user %s (reverted to defaults)", userID)
 	c.Status(http.StatusNoContent)
+}
+
+// ListWebhookQuotas retrieves all custom webhook quotas (admin only)
+func (s *Server) ListWebhookQuotas(c *gin.Context, params ListWebhookQuotasParams) {
+	logger := slogging.Get().WithContext(c)
+
+	// Set default values if not provided
+	limit := 50
+	offset := 0
+	if params.Limit != nil {
+		limit = *params.Limit
+	}
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
+
+	// Get quotas
+	quotas, err := GlobalWebhookQuotaStore.List(offset, limit)
+	if err != nil {
+		logger.Error("failed to list webhook quotas: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to list quotas"})
+		return
+	}
+
+	c.JSON(http.StatusOK, quotas)
 }
 
 // GetWebhookQuota retrieves the webhook quota for a specific user (admin only)
@@ -202,5 +253,127 @@ func (s *Server) DeleteWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	}
 
 	logger.Info("deleted webhook quota for user %s (reverted to defaults)", userID)
+	c.Status(http.StatusNoContent)
+}
+
+// ListAddonInvocationQuotas retrieves all custom addon invocation quotas (admin only)
+func (s *Server) ListAddonInvocationQuotas(c *gin.Context, params ListAddonInvocationQuotasParams) {
+	logger := slogging.Get().WithContext(c)
+
+	// Set default values if not provided
+	limit := 50
+	offset := 0
+	if params.Limit != nil {
+		limit = *params.Limit
+	}
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
+
+	// Get quotas
+	quotas, err := GlobalAddonInvocationQuotaStore.List(context.Background(), offset, limit)
+	if err != nil {
+		logger.Error("failed to list addon invocation quotas: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to list quotas"})
+		return
+	}
+
+	// Convert to API response format
+	responseQuotas := make([]AddonInvocationQuota, len(quotas))
+	for i, q := range quotas {
+		responseQuotas[i] = *q
+	}
+
+	c.JSON(http.StatusOK, responseQuotas)
+}
+
+// GetAddonInvocationQuota retrieves the addon invocation quota for a specific user (admin only)
+func (s *Server) GetAddonInvocationQuota(c *gin.Context, userId openapi_types.UUID) {
+	logger := slogging.Get().WithContext(c)
+
+	userID := userId
+
+	// Get quota (or default)
+	quota, err := GlobalAddonInvocationQuotaStore.GetOrDefault(context.Background(), userID)
+	if err != nil {
+		logger.Error("failed to get addon invocation quota for %s: %v", userID, err)
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get quota"})
+		return
+	}
+
+	c.JSON(http.StatusOK, quota)
+}
+
+// UpdateAddonInvocationQuota creates or updates the addon invocation quota for a specific user (admin only)
+func (s *Server) UpdateAddonInvocationQuota(c *gin.Context, userId openapi_types.UUID) {
+	logger := slogging.Get().WithContext(c)
+
+	userID := userId
+
+	// Parse request body
+	var req struct {
+		MaxActiveInvocations  int `json:"max_active_invocations" binding:"required,min=1"`
+		MaxInvocationsPerHour int `json:"max_invocations_per_hour" binding:"required,min=1"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, Error{Error: "invalid request body: " + err.Error()})
+		return
+	}
+
+	// Try to get existing quota
+	existingQuota, err := GlobalAddonInvocationQuotaStore.Get(context.Background(), userID)
+	isNew := err != nil
+
+	// Create new quota structure
+	newQuota := &AddonInvocationQuota{
+		OwnerId:               userID,
+		MaxActiveInvocations:  req.MaxActiveInvocations,
+		MaxInvocationsPerHour: req.MaxInvocationsPerHour,
+	}
+
+	// Preserve timestamps if updating
+	if !isNew {
+		newQuota.CreatedAt = existingQuota.CreatedAt
+	}
+
+	// Set quota
+	if err := GlobalAddonInvocationQuotaStore.Set(context.Background(), newQuota); err != nil {
+		logger.Error("failed to set addon invocation quota for %s: %v", userID, err)
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to set quota"})
+		return
+	}
+
+	// Get final quota
+	finalQuota, err := GlobalAddonInvocationQuotaStore.GetOrDefault(context.Background(), userID)
+	if err != nil {
+		logger.Error("failed to retrieve addon invocation quota for %s: %v", userID, err)
+		c.JSON(http.StatusInternalServerError, Error{Error: "failed to retrieve quota"})
+		return
+	}
+
+	logger.Info("set addon invocation quota for user %s: active=%d, hourly=%d", userID, req.MaxActiveInvocations, req.MaxInvocationsPerHour)
+
+	if isNew {
+		c.JSON(http.StatusCreated, finalQuota)
+	} else {
+		c.JSON(http.StatusOK, finalQuota)
+	}
+}
+
+// DeleteAddonInvocationQuota deletes the addon invocation quota for a specific user, reverting to defaults (admin only)
+func (s *Server) DeleteAddonInvocationQuota(c *gin.Context, userId openapi_types.UUID) {
+	logger := slogging.Get().WithContext(c)
+
+	userID := userId
+
+	// Delete quota
+	if err := GlobalAddonInvocationQuotaStore.Delete(context.Background(), userID); err != nil {
+		logger.Error("failed to delete addon invocation quota for %s: %v", userID, err)
+		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
+		return
+	}
+
+	logger.Info("deleted addon invocation quota for user %s (reverted to defaults)", userID)
 	c.Status(http.StatusNoContent)
 }

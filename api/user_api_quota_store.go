@@ -18,6 +18,7 @@ func (q *UserAPIQuota) SetModifiedAt(t time.Time) {
 type UserAPIQuotaStoreInterface interface {
 	Get(userID string) (UserAPIQuota, error)
 	GetOrDefault(userID string) UserAPIQuota
+	List(offset, limit int) ([]UserAPIQuota, error)
 	Create(item UserAPIQuota) (UserAPIQuota, error)
 	Update(userID string, item UserAPIQuota) error
 	Delete(userID string) error

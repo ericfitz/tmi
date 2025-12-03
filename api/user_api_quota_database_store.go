@@ -71,6 +71,54 @@ func (s *UserAPIQuotaDatabaseStore) GetOrDefault(userID string) UserAPIQuota {
 	return quota
 }
 
+// List retrieves all user API quotas with pagination
+func (s *UserAPIQuotaDatabaseStore) List(offset, limit int) ([]UserAPIQuota, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	query := `
+		SELECT user_internal_uuid, max_requests_per_minute, max_requests_per_hour,
+		       created_at, modified_at
+		FROM user_api_quotas
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`
+
+	rows, err := s.db.Query(query, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var quotas []UserAPIQuota
+	for rows.Next() {
+		var quota UserAPIQuota
+		var maxRequestsPerHour sql.NullInt64
+
+		err := rows.Scan(
+			&quota.UserId, &quota.MaxRequestsPerMinute, &maxRequestsPerHour,
+			&quota.CreatedAt, &quota.ModifiedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Handle nullable max_requests_per_hour
+		if maxRequestsPerHour.Valid {
+			val := int(maxRequestsPerHour.Int64)
+			quota.MaxRequestsPerHour = &val
+		}
+
+		quotas = append(quotas, quota)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return quotas, nil
+}
+
 // Create creates a new user API quota
 func (s *UserAPIQuotaDatabaseStore) Create(item UserAPIQuota) (UserAPIQuota, error) {
 	s.mutex.Lock()

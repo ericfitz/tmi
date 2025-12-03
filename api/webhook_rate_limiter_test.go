@@ -158,6 +158,14 @@ func (m *mockQuotaStore) Delete(ownerID string) error {
 	return nil
 }
 
+func (m *mockQuotaStore) List(offset, limit int) ([]DBWebhookQuota, error) {
+	var result []DBWebhookQuota
+	for _, quota := range m.quotas {
+		result = append(result, quota)
+	}
+	return result, nil
+}
+
 // Mock subscription store for testing
 type mockSubscriptionStore struct {
 	countByOwner int

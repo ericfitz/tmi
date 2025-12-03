@@ -10,15 +10,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// AddonInvocationQuota represents per-user rate limits for add-on invocations
-type AddonInvocationQuota struct {
-	OwnerID               uuid.UUID `json:"owner_id"`
-	MaxActiveInvocations  int       `json:"max_active_invocations"`
-	MaxInvocationsPerHour int       `json:"max_invocations_per_hour"`
-	CreatedAt             time.Time `json:"created_at"`
-	ModifiedAt            time.Time `json:"modified_at"`
-}
-
 // Default quota values
 const (
 	DefaultMaxActiveInvocations  = 1
@@ -27,8 +18,14 @@ const (
 
 // AddonInvocationQuotaStore defines the interface for quota storage operations
 type AddonInvocationQuotaStore interface {
+	// Get retrieves quota for a user, returns error if not found
+	Get(ctx context.Context, ownerID uuid.UUID) (*AddonInvocationQuota, error)
+
 	// GetOrDefault retrieves quota for a user, or returns defaults if not set
 	GetOrDefault(ctx context.Context, ownerID uuid.UUID) (*AddonInvocationQuota, error)
+
+	// List retrieves all custom quotas (non-default) with pagination
+	List(ctx context.Context, offset, limit int) ([]*AddonInvocationQuota, error)
 
 	// Set creates or updates quota for a user
 	Set(ctx context.Context, quota *AddonInvocationQuota) error
@@ -47,6 +44,41 @@ func NewAddonInvocationQuotaDatabaseStore(db *sql.DB) *AddonInvocationQuotaDatab
 	return &AddonInvocationQuotaDatabaseStore{db: db}
 }
 
+// Get retrieves quota for a user, returns error if not found
+func (s *AddonInvocationQuotaDatabaseStore) Get(ctx context.Context, ownerID uuid.UUID) (*AddonInvocationQuota, error) {
+	logger := slogging.Get()
+
+	query := `
+		SELECT owner_internal_uuid, max_active_invocations, max_invocations_per_hour, created_at, modified_at
+		FROM addon_invocation_quotas
+		WHERE owner_internal_uuid = $1
+	`
+
+	quota := &AddonInvocationQuota{}
+	err := s.db.QueryRowContext(ctx, query, ownerID).Scan(
+		&quota.OwnerId,
+		&quota.MaxActiveInvocations,
+		&quota.MaxInvocationsPerHour,
+		&quota.CreatedAt,
+		&quota.ModifiedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		logger.Debug("No quota found for owner_id=%s", ownerID)
+		return nil, fmt.Errorf("quota not found for owner_id=%s", ownerID)
+	}
+
+	if err != nil {
+		logger.Error("Failed to get quota for owner_id=%s: %v", ownerID, err)
+		return nil, fmt.Errorf("failed to get quota: %w", err)
+	}
+
+	logger.Debug("Retrieved quota for owner_id=%s: active=%d, hourly=%d",
+		ownerID, quota.MaxActiveInvocations, quota.MaxInvocationsPerHour)
+
+	return quota, nil
+}
+
 // GetOrDefault retrieves quota for a user, or returns defaults if not set
 func (s *AddonInvocationQuotaDatabaseStore) GetOrDefault(ctx context.Context, ownerID uuid.UUID) (*AddonInvocationQuota, error) {
 	logger := slogging.Get()
@@ -59,7 +91,7 @@ func (s *AddonInvocationQuotaDatabaseStore) GetOrDefault(ctx context.Context, ow
 
 	quota := &AddonInvocationQuota{}
 	err := s.db.QueryRowContext(ctx, query, ownerID).Scan(
-		&quota.OwnerID,
+		&quota.OwnerId,
 		&quota.MaxActiveInvocations,
 		&quota.MaxInvocationsPerHour,
 		&quota.CreatedAt,
@@ -70,7 +102,7 @@ func (s *AddonInvocationQuotaDatabaseStore) GetOrDefault(ctx context.Context, ow
 		// Return defaults
 		logger.Debug("No quota found for owner_id=%s, using defaults", ownerID)
 		return &AddonInvocationQuota{
-			OwnerID:               ownerID,
+			OwnerId:               ownerID,
 			MaxActiveInvocations:  DefaultMaxActiveInvocations,
 			MaxInvocationsPerHour: DefaultMaxInvocationsPerHour,
 			CreatedAt:             time.Now(),
@@ -89,6 +121,51 @@ func (s *AddonInvocationQuotaDatabaseStore) GetOrDefault(ctx context.Context, ow
 	return quota, nil
 }
 
+// List retrieves all addon invocation quotas with pagination
+func (s *AddonInvocationQuotaDatabaseStore) List(ctx context.Context, offset, limit int) ([]*AddonInvocationQuota, error) {
+	logger := slogging.Get()
+
+	query := `
+		SELECT owner_internal_uuid, max_active_invocations, max_invocations_per_hour, created_at, modified_at
+		FROM addon_invocation_quotas
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`
+
+	rows, err := s.db.QueryContext(ctx, query, limit, offset)
+	if err != nil {
+		logger.Error("Failed to list quotas: %v", err)
+		return nil, fmt.Errorf("failed to list quotas: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var quotas []*AddonInvocationQuota
+	for rows.Next() {
+		quota := &AddonInvocationQuota{}
+		err := rows.Scan(
+			&quota.OwnerId,
+			&quota.MaxActiveInvocations,
+			&quota.MaxInvocationsPerHour,
+			&quota.CreatedAt,
+			&quota.ModifiedAt,
+		)
+		if err != nil {
+			logger.Error("Failed to scan quota row: %v", err)
+			return nil, fmt.Errorf("failed to scan quota: %w", err)
+		}
+		quotas = append(quotas, quota)
+	}
+
+	if err = rows.Err(); err != nil {
+		logger.Error("Error iterating quota rows: %v", err)
+		return nil, fmt.Errorf("error iterating quotas: %w", err)
+	}
+
+	logger.Debug("Listed %d addon invocation quotas (offset=%d, limit=%d)", len(quotas), offset, limit)
+
+	return quotas, nil
+}
+
 // Set creates or updates quota for a user
 func (s *AddonInvocationQuotaDatabaseStore) Set(ctx context.Context, quota *AddonInvocationQuota) error {
 	logger := slogging.Get()
@@ -104,7 +181,7 @@ func (s *AddonInvocationQuotaDatabaseStore) Set(ctx context.Context, quota *Addo
 	`
 
 	err := s.db.QueryRowContext(ctx, query,
-		quota.OwnerID,
+		quota.OwnerId,
 		quota.MaxActiveInvocations,
 		quota.MaxInvocationsPerHour,
 		quota.CreatedAt,
@@ -112,12 +189,12 @@ func (s *AddonInvocationQuotaDatabaseStore) Set(ctx context.Context, quota *Addo
 	).Scan(&quota.CreatedAt, &quota.ModifiedAt)
 
 	if err != nil {
-		logger.Error("Failed to set quota for owner_id=%s: %v", quota.OwnerID, err)
+		logger.Error("Failed to set quota for owner_id=%s: %v", quota.OwnerId, err)
 		return fmt.Errorf("failed to set quota: %w", err)
 	}
 
 	logger.Info("Quota set for owner_id=%s: active=%d, hourly=%d",
-		quota.OwnerID, quota.MaxActiveInvocations, quota.MaxInvocationsPerHour)
+		quota.OwnerId, quota.MaxActiveInvocations, quota.MaxInvocationsPerHour)
 
 	return nil
 }
