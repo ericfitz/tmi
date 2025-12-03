@@ -90,6 +90,7 @@ func InitializeDatabaseStores(db *sql.DB, authService interface{}) {
 	GlobalAdministratorStore = NewAdministratorDatabaseStore(db)
 	GlobalGroupStore = NewGroupDatabaseStore(db)
 	GlobalGroupMemberStore = NewGroupMemberDatabaseStore(db)
+	GlobalAddonInvocationQuotaStore = NewAddonInvocationQuotaDatabaseStore(db)
 
 	// Initialize GlobalUserStore if auth service is available
 	if authService != nil {

@@ -1107,6 +1107,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		logger.Info("Initializing auth flow rate limiter")
 		apiServer.SetAuthFlowRateLimiter(api.NewAuthFlowRateLimiter(dbManager.Redis().GetClient()))
 
+		// Initialize addon rate limiter
+		logger.Info("Initializing addon rate limiter")
+		api.GlobalAddonRateLimiter = api.NewAddonRateLimiter(dbManager.Redis(), api.GlobalAddonInvocationQuotaStore)
+
 		// Initialize quota cache for dynamic adjustment (60 second TTL)
 		logger.Info("Initializing quota cache with 60 second TTL")
 		api.InitializeQuotaCache(60 * time.Second)
