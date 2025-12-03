@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +14,18 @@ import (
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// addWebhookRateLimitHeaders adds rate limit headers to webhook responses
+func (s *Server) addWebhookRateLimitHeaders(c *gin.Context, userID string) {
+	if s.webhookRateLimiter != nil {
+		limit, remaining, resetAt, err := s.webhookRateLimiter.GetSubscriptionRateLimitInfo(c.Request.Context(), userID)
+		if err == nil {
+			c.Header("X-RateLimit-Limit", fmt.Sprintf("%d", limit))
+			c.Header("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
+			c.Header("X-RateLimit-Reset", fmt.Sprintf("%d", resetAt))
+		}
+	}
+}
 
 // ListWebhookSubscriptions lists webhook subscriptions for the authenticated user
 func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubscriptionsParams) {
@@ -149,17 +162,42 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 
 	// Check rate limits if webhook rate limiter is available
 	if s.webhookRateLimiter != nil {
+		// Add rate limit headers
+		s.addWebhookRateLimitHeaders(c, userID)
+
 		// Check subscription count limit
 		if err := s.webhookRateLimiter.CheckSubscriptionLimit(c.Request.Context(), userID); err != nil {
 			logger.Warn("subscription limit check failed for user %s: %v", userID, err)
-			c.JSON(http.StatusTooManyRequests, Error{Error: err.Error()})
+			// Get quota for retry-after calculation
+			quota := GlobalWebhookQuotaStore.GetOrDefault(userID)
+			c.Header("Retry-After", "60")
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"code":    "rate_limit_exceeded",
+				"message": err.Error(),
+				"details": gin.H{
+					"limit":       quota.MaxSubscriptions,
+					"window":      "total",
+					"retry_after": 60,
+				},
+			})
 			return
 		}
 
 		// Check subscription request rate limit
 		if err := s.webhookRateLimiter.CheckSubscriptionRequestLimit(c.Request.Context(), userID); err != nil {
 			logger.Warn("subscription request rate limit exceeded for user %s: %v", userID, err)
-			c.JSON(http.StatusTooManyRequests, Error{Error: err.Error()})
+			// Get quota for retry-after calculation
+			quota := GlobalWebhookQuotaStore.GetOrDefault(userID)
+			c.Header("Retry-After", "60")
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"code":    "rate_limit_exceeded",
+				"message": err.Error(),
+				"details": gin.H{
+					"limit":       quota.MaxSubscriptionRequestsPerMinute,
+					"window":      "minute",
+					"retry_after": 60,
+				},
+			})
 			return
 		}
 	}
@@ -342,10 +380,24 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 
 	// Check rate limits if webhook rate limiter is available (skip for admins)
 	if !isAdmin && s.webhookRateLimiter != nil {
+		// Add rate limit headers
+		s.addWebhookRateLimitHeaders(c, userID)
+
 		// Check subscription request rate limit (applies to both create and delete)
 		if err := s.webhookRateLimiter.CheckSubscriptionRequestLimit(c.Request.Context(), userID); err != nil {
 			logger.Warn("subscription request rate limit exceeded for user %s: %v", userID, err)
-			c.JSON(http.StatusTooManyRequests, Error{Error: err.Error()})
+			// Get quota for retry-after calculation
+			quota := GlobalWebhookQuotaStore.GetOrDefault(userID)
+			c.Header("Retry-After", "60")
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"code":    "rate_limit_exceeded",
+				"message": err.Error(),
+				"details": gin.H{
+					"limit":       quota.MaxSubscriptionRequestsPerMinute,
+					"window":      "minute",
+					"retry_after": 60,
+				},
+			})
 			return
 		}
 	}

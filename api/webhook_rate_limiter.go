@@ -199,3 +199,41 @@ func (r *WebhookRateLimiter) recordInWindow(ctx context.Context, key string, tim
 	_, err := pipe.Exec(ctx)
 	return err
 }
+
+// GetSubscriptionRateLimitInfo returns current subscription request rate limit status
+func (r *WebhookRateLimiter) GetSubscriptionRateLimitInfo(ctx context.Context, ownerID string) (limit int, remaining int, resetAt int64, err error) {
+	logger := slogging.Get()
+
+	if r.redisClient == nil {
+		logger.Warn("Redis not available, returning default subscription rate limit info")
+		return DefaultMaxSubscriptionRequestsPerMinute, DefaultMaxSubscriptionRequestsPerMinute, time.Now().Unix() + 60, nil
+	}
+
+	// Get quota for owner
+	quota := GlobalWebhookQuotaStore.GetOrDefault(ownerID)
+
+	// Get current count in the minute window
+	now := time.Now().Unix()
+	windowStart := now - 60
+	perMinuteKey := fmt.Sprintf("webhook:ratelimit:sub:minute:%s", ownerID)
+
+	count, err := r.redisClient.ZCount(ctx, perMinuteKey, fmt.Sprintf("%d", windowStart), "+inf").Result()
+	if err != nil {
+		logger.Error("failed to get subscription rate limit count for owner %s: %v", ownerID, err)
+		return quota.MaxSubscriptionRequestsPerMinute, quota.MaxSubscriptionRequestsPerMinute, now + 60, nil
+	}
+
+	remaining = quota.MaxSubscriptionRequestsPerMinute - int(count)
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	// Calculate reset time (oldest entry + window duration)
+	oldestScore, err := r.redisClient.ZRangeWithScores(ctx, perMinuteKey, 0, 0).Result()
+	resetAt = now + 60 // Default to 60 seconds from now
+	if err == nil && len(oldestScore) > 0 {
+		resetAt = int64(oldestScore[0].Score) + 60
+	}
+
+	return quota.MaxSubscriptionRequestsPerMinute, remaining, resetAt, nil
+}
