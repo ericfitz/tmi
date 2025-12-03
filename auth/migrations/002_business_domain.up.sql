@@ -177,6 +177,7 @@ CREATE TABLE IF NOT EXISTS webhook_subscriptions (
         CHECK (status IN ('pending_verification', 'active', 'pending_delete')),
     challenge TEXT,
     challenges_sent INT NOT NULL DEFAULT 0,
+    timeout_count INT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_successful_use TIMESTAMPTZ,
@@ -200,7 +201,7 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
 
 -- Create webhook_quotas table for per-owner rate limits
 CREATE TABLE IF NOT EXISTS webhook_quotas (
-    owner_internal_uuid UUID PRIMARY KEY REFERENCES users(internal_uuid) ON DELETE CASCADE,
+    owner_id UUID PRIMARY KEY REFERENCES users(internal_uuid) ON DELETE CASCADE,
     max_subscriptions INT NOT NULL DEFAULT 10,
     max_events_per_minute INT NOT NULL DEFAULT 12,
     max_subscription_requests_per_minute INT NOT NULL DEFAULT 10,
@@ -274,6 +275,19 @@ CREATE TABLE IF NOT EXISTS user_api_quotas (
     max_requests_per_hour INT DEFAULT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create group_members table for user-group relationships
+CREATE TABLE IF NOT EXISTS group_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    group_internal_uuid UUID NOT NULL REFERENCES groups(internal_uuid) ON DELETE CASCADE,
+    user_internal_uuid UUID NOT NULL REFERENCES users(internal_uuid) ON DELETE CASCADE,
+    added_by_internal_uuid UUID REFERENCES users(internal_uuid) ON DELETE SET NULL,
+    added_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT,
+
+    -- Ensure one membership record per user-group pair
+    UNIQUE (group_internal_uuid, user_internal_uuid)
 );
 
 -- ============================================================================
@@ -439,6 +453,13 @@ CREATE INDEX idx_groups_provider ON groups(provider);
 CREATE INDEX idx_groups_group_name ON groups(group_name);
 CREATE INDEX idx_groups_last_used ON groups(last_used);
 
+-- Indexes for group_members
+CREATE INDEX idx_group_members_user ON group_members(user_internal_uuid);
+CREATE INDEX idx_group_members_group ON group_members(group_internal_uuid);
+CREATE INDEX idx_group_members_added_by ON group_members(added_by_internal_uuid) WHERE added_by_internal_uuid IS NOT NULL;
+CREATE INDEX idx_group_members_added_at ON group_members(added_at DESC);
+CREATE INDEX idx_group_members_group_added_at ON group_members(group_internal_uuid, added_at DESC);
+
 -- ============================================================================
 -- CONSTRAINTS
 -- ============================================================================
@@ -585,6 +606,22 @@ CREATE TRIGGER prevent_everyone_deletion
 BEFORE DELETE ON groups
 FOR EACH ROW
 EXECUTE FUNCTION prevent_everyone_group_deletion();
+
+-- Create function to prevent adding members to "everyone" pseudo-group
+CREATE OR REPLACE FUNCTION prevent_everyone_group_membership()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.group_internal_uuid = '00000000-0000-0000-0000-000000000000'::uuid THEN
+        RAISE EXCEPTION 'Cannot add members to the "everyone" pseudo-group (system reserved)';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER prevent_everyone_membership
+BEFORE INSERT OR UPDATE ON group_members
+FOR EACH ROW
+EXECUTE FUNCTION prevent_everyone_group_membership();
 
 -- ============================================================================
 -- SEED DATA
