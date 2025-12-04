@@ -48,8 +48,8 @@ func TestAuthorizationCodeFlowRestrictedInProduction(t *testing.T) {
 
 	// Ensure we're simulating production mode
 	originalMode := os.Getenv("TMI_BUILD_MODE")
-	os.Setenv("TMI_BUILD_MODE", "production")
-	defer os.Setenv("TMI_BUILD_MODE", originalMode)
+	_ = os.Setenv("TMI_BUILD_MODE", "production")
+	defer func() { _ = os.Setenv("TMI_BUILD_MODE", originalMode) }()
 
 	config := OAuthProviderConfig{
 		ID:       "tmi",
