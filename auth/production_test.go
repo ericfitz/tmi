@@ -3,28 +3,78 @@
 package auth
 
 import (
-	"strings"
+	"context"
+	"os"
 	"testing"
 )
 
-func TestTestProviderNotAvailableInProduction(t *testing.T) {
+func TestTMIProviderAvailableInProduction(t *testing.T) {
+	// TMI provider should be available in all builds (including production)
+	// Both "test" and "tmi" provider IDs are accepted as aliases
+
+	testCases := []struct {
+		name       string
+		providerID string
+	}{
+		{"test alias", "test"},
+		{"tmi provider", "tmi"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := OAuthProviderConfig{
+				ID:       tc.providerID,
+				Name:     "TMI Provider",
+				Enabled:  true,
+				ClientID: "test-client-id",
+				TokenURL: "http://localhost:8080/oauth2/token",
+			}
+
+			provider, err := NewProvider(config, "http://localhost:8080/oauth2/callback")
+
+			if err != nil {
+				t.Errorf("Expected TMI provider to be available in production, but got error: %v", err)
+			}
+			if provider == nil {
+				t.Error("Expected non-nil provider for TMI provider in production")
+			}
+		})
+	}
+}
+
+func TestAuthorizationCodeFlowRestrictedInProduction(t *testing.T) {
+	// Authorization Code flow should be restricted in production builds
+	// This is controlled by TMI_BUILD_MODE environment variable
+
+	// Ensure we're simulating production mode
+	originalMode := os.Getenv("TMI_BUILD_MODE")
+	os.Setenv("TMI_BUILD_MODE", "production")
+	defer os.Setenv("TMI_BUILD_MODE", originalMode)
+
 	config := OAuthProviderConfig{
-		ID:       "test",
-		Name:     "Test Provider",
+		ID:       "tmi",
+		Name:     "TMI Provider",
 		Enabled:  true,
 		ClientID: "test-client-id",
+		TokenURL: "http://localhost:8080/oauth2/token",
 	}
 
-	// This should return an error in production builds (not panic)
 	provider, err := NewProvider(config, "http://localhost:8080/oauth2/callback")
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	// Attempt to use Authorization Code flow (should fail in production)
+	testProvider, ok := provider.(*TestProvider)
+	if !ok {
+		t.Fatal("Expected TestProvider type")
+	}
+
+	ctx := context.Background()
+	_, err = testProvider.ExchangeCode(ctx, "test-code")
 
 	if err == nil {
-		t.Error("Expected error when using test provider in production, but no error occurred")
+		t.Error("Expected error when using Authorization Code flow in production, but no error occurred")
 	}
-	if provider != nil {
-		t.Error("Expected nil provider when test provider is not available in production")
-	}
-	if !strings.Contains(err.Error(), "not available in production") {
-		t.Errorf("Expected error to contain 'not available in production', got: %s", err.Error())
-	}
+	// Note: The actual error check depends on the implementation in test_provider.go
 }

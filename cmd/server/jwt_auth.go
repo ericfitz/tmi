@@ -138,9 +138,33 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 	}
 
 	// Extract provider user ID (sub claim contains provider's user ID, NOT internal_uuid)
+	// For service accounts, sub format is: "sa:{credential_id}:{owner_provider_user_id}"
 	if sub, ok := claims["sub"].(string); ok {
-		logger.Debug("Authenticated provider user ID: %s", sub)
-		c.Set("userID", sub) // For backward compatibility, this contains provider_user_id (from JWT sub)
+		// Check if this is a service account token
+		if strings.HasPrefix(sub, "sa:") {
+			// Parse service account subject: "sa:{credential_id}:{owner_provider_user_id}"
+			parts := strings.SplitN(sub, ":", 3)
+			if len(parts) == 3 {
+				credentialID := parts[1]
+				ownerProviderUserID := parts[2]
+
+				// Set service account context
+				c.Set("isServiceAccount", true)
+				c.Set("serviceAccountCredentialID", credentialID)
+				c.Set("userID", ownerProviderUserID) // Owner's provider user ID
+
+				logger.Debug("Service account authenticated: credential_id=%s, owner=%s", credentialID, ownerProviderUserID)
+			} else {
+				logger.Warn("Invalid service account subject format: %s", sub)
+				c.Set("isServiceAccount", false)
+				c.Set("userID", sub)
+			}
+		} else {
+			// Regular user token
+			c.Set("isServiceAccount", false)
+			c.Set("userID", sub) // For backward compatibility, this contains provider_user_id (from JWT sub)
+			logger.Debug("Authenticated provider user ID: %s", sub)
+		}
 
 		// Extract role if present
 		if roleValue, hasRole := claims["role"]; hasRole {
