@@ -228,8 +228,15 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 	}
 
 	// AUDIT LOG: Log creation with actor details
-	logger.Info("[AUDIT] Group created: internal_uuid=%s, provider=%s, group_name=%s, created_by=%s (email=%s)",
-		group.InternalUUID, group.Provider, group.GroupName, actorUserID, actorEmail)
+	auditLogger := NewAuditLogger()
+	auditCtx := &AuditContext{
+		ActorUserID: actorUserID,
+		ActorEmail:  actorEmail,
+	}
+	auditLogger.LogCreate(auditCtx, "Group", group.InternalUUID.String(), map[string]interface{}{
+		"provider":   group.Provider,
+		"group_name": group.GroupName,
+	})
 
 	c.JSON(http.StatusCreated, group)
 }
@@ -327,8 +334,12 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	}
 
 	// AUDIT LOG: Log update with actor details and changes
-	logger.Info("[AUDIT] Group updated: internal_uuid=%s, provider=%s, group_name=%s, updated_by=%s (email=%s), changes=[%v]",
-		group.InternalUUID, group.Provider, group.GroupName, actorUserID, actorEmail, changes)
+	auditLogger := NewAuditLogger()
+	auditCtx := &AuditContext{
+		ActorUserID: actorUserID,
+		ActorEmail:  actorEmail,
+	}
+	auditLogger.LogUpdate(auditCtx, "Group", group.InternalUUID.String(), changes)
 
 	// Return updated group
 	c.JSON(http.StatusOK, group)

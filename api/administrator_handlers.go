@@ -181,8 +181,12 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 	}
 
 	// AUDIT LOG: Log creation with actor details
-	logger.Info("[AUDIT] Administrator grant created: grant_id=%s, user_id=%v, group_id=%v, provider=%s, created_by=%s (email=%s)",
-		admin.ID, admin.UserInternalUUID, admin.GroupInternalUUID, admin.Provider, actorUserID, actorEmail)
+	auditLogger := NewAuditLogger()
+	auditCtx := &AuditContext{
+		ActorUserID: actorUserID,
+		ActorEmail:  actorEmail,
+	}
+	auditLogger.LogAdministratorGrantCreated(auditCtx, admin.ID.String(), admin.UserInternalUUID, admin.GroupInternalUUID, admin.Provider)
 
 	// Convert to API type for response
 	c.JSON(http.StatusCreated, admin.ToAPI())
@@ -254,8 +258,12 @@ func (s *Server) DeleteAdministrator(c *gin.Context, id openapi_types.UUID) {
 	}
 
 	// AUDIT LOG: Log deletion with actor details and affected principal BEFORE deleting
-	logger.Info("[AUDIT] Administrator grant deleted: grant_id=%s, user_id=%v, group_id=%v, provider=%s, deleted_by=%s (email=%s)",
-		grantID, adminGrant.UserInternalUUID, adminGrant.GroupInternalUUID, adminGrant.Provider, currentUserID, actorEmail)
+	auditLogger := NewAuditLogger()
+	auditCtx := &AuditContext{
+		ActorUserID: currentUserID,
+		ActorEmail:  actorEmail,
+	}
+	auditLogger.LogAdministratorGrantDeleted(auditCtx, grantID.String(), adminGrant.UserInternalUUID, adminGrant.GroupInternalUUID, adminGrant.Provider)
 
 	// Delete the grant
 	err = GlobalAdministratorStore.Delete(c.Request.Context(), grantID)

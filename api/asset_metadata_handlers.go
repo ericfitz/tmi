@@ -32,18 +32,12 @@ func (h *AssetMetadataHandler) GetAssetMetadata(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetAssetMetadata - retrieving metadata for asset")
 
-	// Extract asset ID from URL
-	assetID := c.Param("asset_id")
-	if assetID == "" {
-		HandleRequestError(c, InvalidIDError("Missing asset ID"))
-		return
+	// Extract and validate asset ID
+	assetUUID, err := ExtractUUID(c, "asset_id")
+	if err != nil {
+		return // Error response already sent
 	}
-
-	// Validate asset ID format
-	if _, err := ParseUUID(assetID); err != nil {
-		HandleRequestError(c, InvalidIDError("Invalid asset ID format, must be a valid UUID"))
-		return
-	}
+	assetID := assetUUID.String()
 
 	// Get authenticated user
 	userEmail, _, err := ValidateAuthenticatedUser(c)
@@ -72,22 +66,17 @@ func (h *AssetMetadataHandler) GetAssetMetadataByKey(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetAssetMetadataByKey - retrieving specific metadata entry")
 
-	// Extract asset ID and key from URL
-	assetID := c.Param("asset_id")
-	key := c.Param("key")
-
-	if assetID == "" {
-		HandleRequestError(c, InvalidIDError("Missing asset ID"))
-		return
+	// Extract and validate asset ID
+	assetUUID, err := ExtractUUID(c, "asset_id")
+	if err != nil {
+		return // Error response already sent
 	}
+	assetID := assetUUID.String()
+
+	// Extract metadata key
+	key := c.Param("key")
 	if key == "" {
 		HandleRequestError(c, InvalidInputError("Missing metadata key"))
-		return
-	}
-
-	// Validate asset ID format
-	if _, err := ParseUUID(assetID); err != nil {
-		HandleRequestError(c, InvalidIDError("Invalid asset ID format, must be a valid UUID"))
 		return
 	}
 
