@@ -970,6 +970,7 @@ func (h *Handlers) Token(c *gin.Context) {
 		RefreshToken string `json:"refresh_token" form:"refresh_token"`
 		RedirectURI  string `json:"redirect_uri" form:"redirect_uri"`
 		ClientID     string `json:"client_id" form:"client_id"`
+		ClientSecret string `json:"client_secret" form:"client_secret"`
 	}
 
 	if err := c.ShouldBind(&req); err != nil {
@@ -1008,6 +1009,36 @@ func (h *Handlers) Token(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": fmt.Sprintf("Failed to refresh token: %v", err),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, tokenPair)
+
+	case "client_credentials":
+		// Handle client credentials grant (RFC 6749 Section 4.4)
+		if req.ClientID == "" || req.ClientSecret == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_request",
+				"error_description": "Missing client_id or client_secret parameter",
+			})
+			return
+		}
+
+		// Exchange client credentials for access token
+		tokenPair, err := h.service.HandleClientCredentialsGrant(c.Request.Context(), req.ClientID, req.ClientSecret)
+		if err != nil {
+			// Use standard OAuth error codes
+			if err.Error() == "invalid_client" {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error":             "invalid_client",
+					"error_description": "Client authentication failed",
+				})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":             "server_error",
+				"error_description": "Failed to process client credentials grant",
 			})
 			return
 		}
@@ -1407,7 +1438,7 @@ func (h *Handlers) GetOpenIDConfiguration(c *gin.Context) {
 			"name", "given_name", "family_name", "picture", "locale",
 		},
 		CodeChallengeMethodsSupported: []string{"S256"},
-		GrantTypesSupported:           []string{"authorization_code", "refresh_token"},
+		GrantTypesSupported:           []string{"authorization_code", "refresh_token", "client_credentials"},
 		RevocationEndpoint:            fmt.Sprintf("%s/oauth2/revoke", baseURL),
 		IntrospectionEndpoint:         fmt.Sprintf("%s/oauth2/introspect", baseURL),
 	}
@@ -1428,7 +1459,7 @@ func (h *Handlers) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
 		ScopesSupported:                   []string{"openid", "profile", "email"},
 		ResponseTypesSupported:            []string{"code"},
 		CodeChallengeMethodsSupported:     []string{"S256"},
-		GrantTypesSupported:               []string{"authorization_code", "refresh_token"},
+		GrantTypesSupported:               []string{"authorization_code", "refresh_token", "client_credentials"},
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_post", "client_secret_basic"},
 		RevocationEndpoint:                fmt.Sprintf("%s/oauth2/revoke", baseURL),
 		IntrospectionEndpoint:             fmt.Sprintf("%s/oauth2/introspect", baseURL),
