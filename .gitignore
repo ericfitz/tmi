@@ -79,3 +79,4 @@ ws-test-harness/*.log
 postman/test-results
 postman/test-results/**
 scripts/configure-heroku-env.sh
+.dedupe/

@@ -1,5 +1,3 @@
-//go:build dev || test
-
 package auth
 
 import (
@@ -11,6 +9,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -19,7 +18,9 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// TestProvider implements a test-only OAuth provider that always succeeds
+// TestProvider implements the TMI internal OAuth provider
+// In dev/test builds (TMI_BUILD_MODE=dev|test): supports Authorization Code flow with ephemeral user creation
+// In production builds: Only supports Client Credentials Grant for machine-to-machine authentication
 type TestProvider struct {
 	*BaseProvider
 	clientSecret string
@@ -28,7 +29,7 @@ type TestProvider struct {
 // NewTestProvider creates a new test OAuth provider
 func NewTestProvider(config OAuthProviderConfig, callbackURL string) *TestProvider {
 	// Use a fixed well-known secret for testing
-	testSecret := "test-oauth-secret-12345"
+	testSecret := "test-oauth-secret-12345" // #nosec G101 -- This is intentionally a well-known test secret
 
 	baseConfig := &oauth2.Config{
 		ClientID:     config.ClientID,
@@ -80,6 +81,14 @@ func (p *TestProvider) GetAuthorizationURL(state string) string {
 
 // ExchangeCode validates the authorization code and returns tokens only for valid codes
 func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenResponse, error) {
+	// Check if this is a production build - authorization code flow (ephemeral user creation) is disabled in production
+	// Client Credentials Grant is allowed in all builds (production + dev/test)
+	if !isDevOrTestBuild() {
+		logger := slogging.Get()
+		logger.Warn("Authorization code flow not supported for TMI provider in production (use client credentials grant instead)")
+		return nil, fmt.Errorf("authorization code flow not supported for TMI provider in production (use client credentials grant instead)")
+	}
+
 	// Validate authorization code format for test provider
 	// Valid codes should start with "test_auth_code_" followed by a timestamp or "stepci"
 	if code == "" {
@@ -341,4 +350,12 @@ func (p *TestProvider) generateDisplayName(username string) string {
 
 	// Add "(Test User)" suffix to indicate it's from test provider
 	return fmt.Sprintf("%s (Test User)", displayName)
+}
+
+// isDevOrTestBuild checks if the current build mode allows ephemeral user creation
+// Returns true if TMI_BUILD_MODE environment variable is set to "dev" or "test"
+// Returns false for production builds (where TMI_BUILD_MODE is unset or set to other values)
+func isDevOrTestBuild() bool {
+	buildMode := os.Getenv("TMI_BUILD_MODE")
+	return buildMode == "dev" || buildMode == "test"
 }
