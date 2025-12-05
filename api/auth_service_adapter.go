@@ -58,6 +58,13 @@ func (a *AuthServiceAdapter) Exchange(c *gin.Context) {
 	a.handlers.Exchange(c)
 }
 
+// Token delegates to auth handlers (supports all grant types and content types)
+func (a *AuthServiceAdapter) Token(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] Token called - delegating to auth.Handlers")
+	a.handlers.Token(c)
+}
+
 // Refresh delegates to auth handlers
 func (a *AuthServiceAdapter) Refresh(c *gin.Context) {
 	logger := slogging.Get()

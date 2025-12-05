@@ -302,6 +302,7 @@ type AuthService interface {
 	Authorize(c *gin.Context)
 	Callback(c *gin.Context)
 	Exchange(c *gin.Context)
+	Token(c *gin.Context)
 	Refresh(c *gin.Context)
 	Logout(c *gin.Context)
 	Me(c *gin.Context)
@@ -742,7 +743,9 @@ func (s *Server) ExchangeOAuthCode(c *gin.Context, params ExchangeOAuthCodeParam
 	}
 	logger.Info("[SERVER_INTERFACE] ExchangeOAuthCode called for provider: %s", providerStr)
 	if s.authService != nil {
-		s.authService.Exchange(c)
+		// Use Token handler which supports all grant types (authorization_code, client_credentials, refresh_token)
+		// and both JSON and form-urlencoded content types
+		s.authService.Token(c)
 	} else {
 		HandleRequestError(c, ServerError("Auth service not configured"))
 	}

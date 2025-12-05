@@ -752,15 +752,17 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	}
 
 	var req struct {
-		GrantType    string `json:"grant_type" binding:"required"`
-		Code         string `json:"code" binding:"required"`
-		CodeVerifier string `json:"code_verifier" binding:"required"`
-		RedirectURI  string `json:"redirect_uri" binding:"required"`
+		GrantType    string `json:"grant_type" form:"grant_type" binding:"required"`
+		Code         string `json:"code" form:"code" binding:"required"`
+		CodeVerifier string `json:"code_verifier" form:"code_verifier" binding:"required"`
+		RedirectURI  string `json:"redirect_uri" form:"redirect_uri" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	// Support both JSON and form-urlencoded content types
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request: missing required fields",
+			"error":             "invalid_request",
+			"error_description": "Missing required fields for authorization_code grant",
 		})
 		return
 	}
@@ -982,18 +984,17 @@ func (h *Handlers) Token(c *gin.Context) {
 
 	switch req.GrantType {
 	case "authorization_code":
-		// Handle authorization code grant
+		// Handle authorization code grant - delegate to Exchange handler
 		if req.Code == "" || req.RedirectURI == "" {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Missing code or redirect_uri parameter",
+				"error":             "invalid_request",
+				"error_description": "Missing code or redirect_uri parameter for authorization_code grant",
 			})
 			return
 		}
 
-		// This is handled by the Callback handler
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Use the /oauth2/callback endpoint for authorization code grant",
-		})
+		// Delegate to Exchange handler which handles the full authorization code flow with PKCE
+		h.Exchange(c)
 
 	case "refresh_token":
 		// Handle refresh token grant

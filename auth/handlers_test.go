@@ -377,7 +377,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 				"redirect_uri": "http://localhost:3000/callback",
 			},
 			expectedStatus: http.StatusBadRequest,
-			expectedError:  "Invalid request",
+			expectedError:  "invalid_request",
 		},
 		{
 			name:     "Invalid grant_type",
@@ -399,7 +399,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 				"redirect_uri": "http://localhost:3000/callback",
 			},
 			expectedStatus: http.StatusBadRequest,
-			expectedError:  "Invalid request",
+			expectedError:  "invalid_request",
 		},
 		{
 			name:     "Missing redirect_uri parameter",
@@ -409,7 +409,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 				"code":       "test-auth-code",
 			},
 			expectedStatus: http.StatusBadRequest,
-			expectedError:  "Invalid request",
+			expectedError:  "invalid_request",
 		},
 		{
 			name:     "Invalid provider",
