@@ -828,19 +828,29 @@ parse-cats-results:  ## Parse CATS test results into SQLite database
 # CONTAINER SECURITY AND BUILD MANAGEMENT
 # ============================================================================
 
-.PHONY: build-containers scan-containers report-containers
+.PHONY: build-containers scan-containers report-containers update-docker-scout
+
+# Update Docker Scout CLI
+update-docker-scout:
+	$(call log_info,Updating Docker Scout CLI...)
+	@curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh -o install-scout.sh
+	@sh install-scout.sh
+	@rm -f install-scout.sh
+	$(call log_success,Docker Scout CLI updated successfully)
 
 # Build containers with vulnerability patching
 build-containers:
 	$(call log_info,Building containers with vulnerability patching...)
+	@$(MAKE) -f $(MAKEFILE_LIST) update-docker-scout
 	@./scripts/build-containers.sh
 	$(call log_success,Containers built successfully)
 
 # Run security scan on existing containers
 scan-containers:
 	$(call log_info,Running security scans on container images...)
+	@$(MAKE) -f $(MAKEFILE_LIST) update-docker-scout
 	@if ! command -v docker scout >/dev/null 2>&1; then \
-		$(call log_error,Docker Scout not available. Please install Docker Scout CLI); \
+		$(call log_error,Docker Scout not available after update. Installation may have failed); \
 		exit 1; \
 	fi
 	@mkdir -p security-reports
@@ -1311,6 +1321,7 @@ help:
 	@echo "  clean-dev              - Clean development environment"
 	@echo ""
 	@echo "Container Management (Docker Scout Integration):"
+	@echo "  update-docker-scout          - Update Docker Scout CLI to latest version"
 	@echo "  build-containers             - Build containers with vulnerability patching"
 	@echo "  scan-containers              - Scan existing containers for vulnerabilities"
 	@echo "  report-containers            - Generate comprehensive security report"
