@@ -35,3 +35,4 @@ COMMENT ON COLUMN client_credentials.name IS 'Human-readable name for the creden
 COMMENT ON COLUMN client_credentials.is_active IS 'Whether credential is active (soft delete)';
 COMMENT ON COLUMN client_credentials.last_used_at IS 'Last token exchange timestamp';
 COMMENT ON COLUMN client_credentials.expires_at IS 'Optional expiration timestamp (NULL = no expiration)';
+
