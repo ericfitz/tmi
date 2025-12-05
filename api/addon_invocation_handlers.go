@@ -213,8 +213,9 @@ func InvokeAddon(c *gin.Context) {
 		CreatedAt:    invocation.CreatedAt,
 	}
 
-	logger.Info("Add-on invoked: addon_id=%s, invocation_id=%s, user=%s",
-		addonID, invocation.ID, userUUID)
+	userIdentity := GetUserIdentityForLogging(c)
+	logger.Info("Add-on invoked: addon_id=%s, invocation_id=%s, %s",
+		addonID, invocation.ID, userIdentity)
 
 	c.JSON(http.StatusAccepted, response)
 }

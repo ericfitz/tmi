@@ -291,7 +291,8 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 		return
 	}
 
-	logger.Info("created webhook subscription %s for user %s", created.Id, userID)
+	userIdentity := GetUserIdentityForLogging(c)
+	logger.Info("created webhook subscription %s for %s", created.Id, userIdentity)
 
 	// Convert to API response type
 	response := dbWebhookSubscriptionToAPI(created, true) // Include secret in creation response
@@ -424,7 +425,8 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 		return
 	}
 
-	logger.Info("deleted webhook subscription %s for user %s", webhookId, userID)
+	userIdentity := GetUserIdentityForLogging(c)
+	logger.Info("deleted webhook subscription %s for %s", webhookId, userIdentity)
 
 	c.Status(http.StatusNoContent)
 }
@@ -522,7 +524,8 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 		return
 	}
 
-	logger.Info("created test delivery %s for subscription %s", created.Id, webhookId)
+	userIdentity := GetUserIdentityForLogging(c)
+	logger.Info("created test delivery %s for subscription %s by %s", created.Id, webhookId, userIdentity)
 
 	// Return response with delivery ID
 	message := "Test delivery created and queued for sending"

@@ -78,15 +78,17 @@ func NewProvider(config OAuthProviderConfig, callbackURL string) (Provider, erro
 	logger.Debug("Creating OAuth provider: %s (%s)", config.ID, config.Name)
 
 	switch config.ID {
-	case "test":
-		// Special case for integrated test provider
-		logger.Debug("Creating test provider")
+	case "test", "tmi":
+		// TMI internal OAuth provider (formerly "test" provider)
+		// In dev/test builds: Supports Authorization Code flow with ephemeral user creation
+		// In production builds: Only supports Client Credentials Grant
+		logger.Debug("Creating TMI provider provider_id=%v", config.ID)
 		provider := newTestProvider(config, callbackURL)
 		if provider == nil {
-			logger.Error("Test provider not available in production builds provider_id=%v", config.ID)
-			return nil, fmt.Errorf("test provider is not available in production builds")
+			logger.Error("TMI provider creation failed provider_id=%v", config.ID)
+			return nil, fmt.Errorf("TMI provider creation failed")
 		}
-		logger.Info("Test provider created successfully provider_id=%v", config.ID)
+		logger.Info("TMI provider created successfully provider_id=%v", config.ID)
 		return provider, nil
 	default:
 		if config.Issuer != "" && config.JWKSURL != "" {

@@ -649,6 +649,159 @@ curl "http://localhost:8080/oauth2/authorize?idp=test"
 curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_callback=http://localhost:8079/"
 ```
 
+### Client Credentials Grant (Machine-to-Machine Authentication)
+
+TMI supports OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4) for machine-to-machine authentication, enabling webhooks, addons, and automation tools to access TMI APIs without user interaction.
+
+**Overview**:
+- **Purpose**: Provide service account authentication for webhooks, addons, CI/CD pipelines, and automation scripts
+- **Pattern**: Similar to GitHub Personal Access Tokens (PAT) - secret only shown once at creation
+- **Access Model**: Client credentials grant full API access equivalent to the user who created them
+- **Identity**: Service account tokens use distinct identity format in logs for clear audit trails
+- **Quota**: Default limit of 10 credentials per user (configurable via admin quota system)
+
+**TMI Provider**:
+- **Provider IDs**: Both "test" and "tmi" work as aliases in all builds
+- **Dev/Test Mode**: Supports both Authorization Code flow (ephemeral users) and Client Credentials Grant
+- **Production Mode**: Only supports Client Credentials Grant (Authorization Code flow disabled)
+- **Configuration**: Set `TMI_BUILD_MODE=dev` or `TMI_BUILD_MODE=production` in environment
+
+**API Endpoints**:
+
+1. **Create Client Credential** - `POST /client-credentials`
+   - Creates a new client credential (client_id + client_secret)
+   - Client secret only returned once (cannot be retrieved later)
+   - Optional expiration date
+   - Requires JWT authentication
+   - Example:
+     ```bash
+     curl -X POST http://localhost:8080/client-credentials \
+       -H "Authorization: Bearer $JWT_TOKEN" \
+       -H "Content-Type: application/json" \
+       -d '{
+         "name": "AWS Lambda Security Scanner",
+         "description": "Automated security scanning webhook",
+         "expires_at": "2026-12-31T23:59:59Z"
+       }'
+     # Response includes client_secret (ONLY TIME IT'S VISIBLE)
+     ```
+
+2. **List Client Credentials** - `GET /client-credentials`
+   - Returns all credentials owned by authenticated user
+   - Does NOT include client secrets
+   - Shows last_used_at, is_active status
+   - Example:
+     ```bash
+     curl http://localhost:8080/client-credentials \
+       -H "Authorization: Bearer $JWT_TOKEN"
+     ```
+
+3. **Delete Client Credential** - `DELETE /client-credentials/{id}`
+   - Permanently deletes a credential
+   - Immediately invalidates all tokens issued with that credential
+   - Example:
+     ```bash
+     curl -X DELETE http://localhost:8080/client-credentials/{uuid} \
+       -H "Authorization: Bearer $JWT_TOKEN"
+     ```
+
+**Token Exchange** (OAuth 2.0 Client Credentials Grant):
+
+```bash
+# Exchange client credentials for access token
+curl -X POST http://localhost:8080/oauth2/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=tmi_cc_..." \
+  -d "client_secret=..."
+
+# Response:
+{
+  "access_token": "eyJhbGc...",
+  "token_type": "Bearer",
+  "expires_in": 3600
+}
+# Note: No refresh_token per RFC 6749 Section 4.4.3
+```
+
+**Using Service Account Tokens**:
+
+```bash
+# Use access token to call TMI APIs
+curl http://localhost:8080/threat-models \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# Service account can perform same operations as the user who created it
+curl -X POST http://localhost:8080/threat-models \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "New Threat Model", "description": "Created by automation"}'
+```
+
+**Security Characteristics**:
+- **Client ID Format**: `tmi_cc_{base64url(16_random_bytes)}` - easily identifiable in logs
+- **Client Secret**: 32 bytes (43 chars base64url) - cryptographically secure random
+- **Secret Storage**: bcrypt hashed (cost 10) in database
+- **Secret Visibility**: Plaintext secret only returned at creation time (GitHub PAT pattern)
+- **Token Lifetime**: Access tokens expire (default 1 hour), no refresh tokens
+- **Revocation**: Deleting credential immediately invalidates all issued tokens
+- **Subject Claim**: JWT subject format `sa:{credential_id}:{owner_provider_user_id}`
+
+**Service Account Identity**:
+- **JWT Subject**: `sa:{credential_id}:{owner_provider_user_id}` (e.g., `sa:123e4567-e89b:alice@example.com`)
+- **Display Name**: `[Service Account] {credential_name}` (e.g., `[Service Account] AWS Lambda Scanner`)
+- **Log Format**: Clearly distinguishes service accounts from human users in audit logs
+- **Context Variables**: Middleware sets `isServiceAccount=true` and `serviceAccountCredentialID`
+
+**Use Case Example** (AWS Lambda Webhook):
+```bash
+# 1. User creates webhook subscription for repo events
+curl -X POST http://localhost:8080/webhooks \
+  -H "Authorization: Bearer $USER_JWT" \
+  -d '{"events": ["repo.add"], "url": "https://lambda.amazonaws.com/scanner"}'
+
+# 2. User creates client credential for Lambda
+curl -X POST http://localhost:8080/client-credentials \
+  -H "Authorization: Bearer $USER_JWT" \
+  -d '{"name": "AWS Security Scanner"}' \
+  > lambda-creds.json
+
+# 3. Store client_id and client_secret in Lambda environment variables
+export CLIENT_ID=$(jq -r '.client_id' lambda-creds.json)
+export CLIENT_SECRET=$(jq -r '.client_secret' lambda-creds.json)
+
+# 4. Lambda receives webhook, exchanges credentials for token
+TOKEN=$(curl -X POST http://localhost:8080/oauth2/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=$CLIENT_ID" \
+  -d "client_secret=$CLIENT_SECRET" \
+  | jq -r '.access_token')
+
+# 5. Lambda uses token to read threat model and create threats
+curl http://localhost:8080/threat-models/{id} \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -X POST http://localhost:8080/threat-models/{id}/threats \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name": "SQL Injection", "severity": "High"}'
+
+# Logs show: "[Service Account] AWS Security Scanner" performed actions
+```
+
+**Quota Management**:
+- Default: 10 credentials per user
+- Configurable via existing quota system
+- Checked before credential creation
+- Only active credentials count toward quota
+
+**Best Practices**:
+1. Create separate credentials for each automation/integration
+2. Use descriptive names for easy identification in logs
+3. Set expiration dates for temporary automations
+4. Rotate credentials periodically by creating new ones and deleting old
+5. Delete credentials immediately if compromised
+6. Monitor `last_used_at` to identify unused credentials
+
 ## Python Development Memories
 
 - Run python scripts with uv. When creating python scripts, add uv toml to the script for automatic package management.

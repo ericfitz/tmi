@@ -14,6 +14,7 @@ import (
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Service provides authentication and authorization functionality
@@ -963,4 +964,96 @@ func (s *Service) ClearUserGroups(ctx context.Context, email string) error {
 	}
 
 	return nil
+}
+
+// HandleClientCredentialsGrant processes OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4)
+// Returns an access token for machine-to-machine authentication
+func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, clientSecret string) (*TokenPair, error) {
+	logger := slogging.Get()
+
+	// 1. Validate client credentials
+	creds, err := s.GetClientCredentialByClientID(ctx, clientID)
+	if err != nil {
+		logger.Warn("Client credentials not found: client_id=%s", clientID)
+		return nil, fmt.Errorf("invalid_client")
+	}
+
+	// 2. Verify client secret (bcrypt)
+	if err := bcrypt.CompareHashAndPassword([]byte(creds.ClientSecretHash), []byte(clientSecret)); err != nil {
+		logger.Warn("Invalid client secret for client_id=%s", clientID)
+		return nil, fmt.Errorf("invalid_client")
+	}
+
+	// 3. Check if credential is active and not expired
+	if !creds.IsActive {
+		logger.Warn("Inactive client credential: client_id=%s", clientID)
+		return nil, fmt.Errorf("invalid_client")
+	}
+
+	if creds.ExpiresAt != nil && time.Now().After(*creds.ExpiresAt) {
+		logger.Warn("Expired client credential: client_id=%s, expires_at=%v", clientID, creds.ExpiresAt)
+		return nil, fmt.Errorf("invalid_client")
+	}
+
+	// 4. Load owner user from database
+	owner, err := s.GetUserByID(ctx, creds.OwnerUUID.String())
+	if err != nil {
+		logger.Error("Failed to load owner user: uuid=%s, error=%v", creds.OwnerUUID, err)
+		return nil, fmt.Errorf("server_error")
+	}
+
+	// 5. Generate JWT with service account identity
+	// Subject format: "sa:{credential_id}:{owner_provider_user_id}"
+	subject := fmt.Sprintf("sa:%s:%s", creds.ID.String(), owner.ProviderUserID)
+
+	claims := Claims{
+		Email:            owner.Email,
+		Name:             fmt.Sprintf("[Service Account] %s", creds.Name),
+		IdentityProvider: "tmi",
+		Groups:           owner.Groups,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   subject,
+			Issuer:    s.getIssuer(),
+			Audience:  jwt.ClaimStrings{s.getIssuer()},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(s.config.JWT.ExpirationSeconds) * time.Second)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	accessToken, err := s.keyManager.CreateToken(&claims)
+	if err != nil {
+		logger.Error("Failed to generate JWT: error=%v", err)
+		return nil, fmt.Errorf("server_error")
+	}
+
+	// 6. Update last_used_at timestamp
+	if err := s.UpdateClientCredentialLastUsed(ctx, creds.ID); err != nil {
+		logger.Warn("Failed to update last_used_at: client_id=%s, error=%v", clientID, err)
+		// Don't fail the request if we can't update timestamp
+	}
+
+	// 7. Log service account token issuance
+	logger.Info("Service account token issued: client_id=%s, name=%s, owner=%s",
+		clientID, creds.Name, owner.Email)
+
+	// 8. Return token response (no refresh token for CCG per RFC 6749 Section 4.4.3)
+	return &TokenPair{
+		AccessToken: accessToken,
+		TokenType:   "Bearer",
+		ExpiresIn:   s.config.JWT.ExpirationSeconds,
+		// Note: RefreshToken intentionally omitted for Client Credentials Grant
+	}, nil
+}
+
+// getIssuer returns the JWT issuer URL
+func (s *Service) getIssuer() string {
+	// Use the callback URL base as the issuer
+	if s.config.OAuth.CallbackURL != "" {
+		if parsedURL, err := url.Parse(s.config.OAuth.CallbackURL); err == nil {
+			return fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
+		}
+	}
+	// Fallback to default
+	return "http://localhost:8080"
 }
