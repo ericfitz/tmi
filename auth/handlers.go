@@ -902,8 +902,12 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	}
 
 	// Get or create user
+	logger := slogging.Get().WithContext(c)
+	logger.Info("OAuth handler: calling GetUserByEmail for email=%s, provider=%s, provider_user_id=%s",
+		email, providerID, userInfo.ID)
 	user, err := h.service.GetUserByEmail(ctx, email)
 	if err != nil {
+		logger.Info("OAuth handler: GetUserByEmail returned error (user not found, will create): %v", err)
 		// Create new user
 		user = User{
 			Provider:       providerID,
@@ -915,15 +919,20 @@ func (h *Handlers) Exchange(c *gin.Context) {
 			LastLogin:      time.Now(),
 		}
 
+		logger.Info("OAuth handler: creating new user with email=%s, provider=%s, provider_user_id=%s",
+			user.Email, user.Provider, user.ProviderUserID)
 		user, err = h.service.CreateUser(ctx, user)
 		if err != nil {
-			slogging.Get().WithContext(c).Error("Failed to create new user in database during callback (email: %s, name: %s): %v", user.Email, user.Name, err)
+			logger.Error("Failed to create new user in database during callback (email: %s, name: %s): %v", user.Email, user.Name, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to create user: %v", err),
 			})
 			return
 		}
+		logger.Info("OAuth handler: successfully created new user with uuid=%s", user.InternalUUID)
 	} else {
+		logger.Info("OAuth handler: GetUserByEmail SUCCESS - found existing user uuid=%s, provider=%s, provider_user_id=%s",
+			user.InternalUUID, user.Provider, user.ProviderUserID)
 		// User exists - update last login and populate provider_user_id if sparse user
 		user.LastLogin = time.Now()
 
@@ -1108,8 +1117,12 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	}
 
 	// Get or create user
+	logger := slogging.Get().WithContext(c)
+	logger.Info("OAuth handler: calling GetUserByEmail for email=%s, provider=%s, provider_user_id=%s",
+		email, providerID, userInfo.ID)
 	user, err := h.service.GetUserByEmail(ctx, email)
 	if err != nil {
+		logger.Info("OAuth handler: GetUserByEmail returned error (user not found, will create): %v", err)
 		// Create new user
 		user = User{
 			Provider:       providerID,
@@ -1121,15 +1134,20 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 			LastLogin:      time.Now(),
 		}
 
+		logger.Info("OAuth handler: creating new user with email=%s, provider=%s, provider_user_id=%s",
+			user.Email, user.Provider, user.ProviderUserID)
 		user, err = h.service.CreateUser(ctx, user)
 		if err != nil {
-			slogging.Get().WithContext(c).Error("Failed to create new user in database during callback (email: %s, name: %s): %v", user.Email, user.Name, err)
+			logger.Error("Failed to create new user in database during callback (email: %s, name: %s): %v", user.Email, user.Name, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to create user: %v", err),
 			})
 			return
 		}
+		logger.Info("OAuth handler: successfully created new user with uuid=%s", user.InternalUUID)
 	} else {
+		logger.Info("OAuth handler: GetUserByEmail SUCCESS - found existing user uuid=%s, provider=%s, provider_user_id=%s",
+			user.InternalUUID, user.Provider, user.ProviderUserID)
 		// User exists - update last login and populate provider_user_id if sparse user
 		user.LastLogin = time.Now()
 

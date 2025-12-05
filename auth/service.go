@@ -303,16 +303,22 @@ func (s *Service) InvalidateUserSessions(ctx context.Context, userID string) err
 
 // GetUserByEmail gets a user by email
 func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	logger := slogging.Get()
+	logger.Info("GetUserByEmail called for email=%s", email)
+
 	// Try cache first
 	cachedUser, err := s.GetCachedUserByEmail(ctx, email)
 	if err == nil && cachedUser != nil {
+		logger.Info("GetUserByEmail: cache HIT for email=%s, user_uuid=%s", email, cachedUser.InternalUUID)
 		return *cachedUser, nil
 	}
+	logger.Info("GetUserByEmail: cache MISS for email=%s (err=%v)", email, err)
 
 	db := s.dbManager.Postgres().GetDB()
 
 	var user User
 	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login FROM users WHERE email = $1`
+	logger.Info("GetUserByEmail: executing database query for email=%s", email)
 	err = db.QueryRowContext(ctx, query, email).Scan(
 		&user.InternalUUID,
 		&user.Provider,
@@ -329,16 +335,20 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 	)
 
 	if err == sql.ErrNoRows {
+		logger.Info("GetUserByEmail: user NOT FOUND in database for email=%s", email)
 		return User{}, errors.New("user not found")
 	}
 
 	if err != nil {
+		logger.Error("GetUserByEmail: database scan FAILED for email=%s: %v", email, err)
 		return User{}, fmt.Errorf("failed to get user: %w", err)
 	}
 
+	logger.Info("GetUserByEmail: database scan SUCCESS for email=%s, user_uuid=%s, provider=%s, provider_user_id=%s",
+		email, user.InternalUUID, user.Provider, user.ProviderUserID)
+
 	// Cache the user for future lookups
 	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
-		logger := slogging.Get()
 		logger.Warn("Failed to cache user after lookup: %v", cacheErr)
 		// Don't fail the request, just log the cache error
 	}
