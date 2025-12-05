@@ -200,7 +200,7 @@ migrate-database:
 	elif [ -f "./migrate" ]; then \
 		./migrate up; \
 	else \
-		cd cmd/migrate && go run main.go --env ../../.env.dev up; \
+		cd cmd/migrate && go run main.go --config ../../config-development.yml; \
 	fi
 	$(call log_success,"Database migrations completed")
 

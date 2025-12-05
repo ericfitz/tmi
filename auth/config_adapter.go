@@ -41,6 +41,7 @@ func ConfigFromUnified(unified *config.Config) Config {
 			Enabled:   unified.Auth.SAML.Enabled,
 			Providers: convertSAMLProviders(unified.Auth.SAML.Providers),
 		},
+		BuildMode: unified.Auth.BuildMode,
 	}
 }
 

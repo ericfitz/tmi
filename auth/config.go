@@ -14,11 +14,12 @@ import (
 
 // Config holds all authentication configuration
 type Config struct {
-	Postgres PostgresConfig
-	Redis    RedisConfig
-	JWT      JWTConfig
-	OAuth    OAuthConfig
-	SAML     SAMLConfig
+	Postgres  PostgresConfig
+	Redis     RedisConfig
+	JWT       JWTConfig
+	OAuth     OAuthConfig
+	SAML      SAMLConfig
+	BuildMode string // dev, test, or production
 }
 
 // PostgresConfig holds PostgreSQL configuration

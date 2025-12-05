@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -34,6 +35,13 @@ func NewService(dbManager *db.Manager, config Config) (*Service, error) {
 
 	if err := config.ValidateConfig(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
+	// Set TMI_BUILD_MODE from config if specified (ensures config overrides environment)
+	if config.BuildMode != "" {
+		if err := os.Setenv("TMI_BUILD_MODE", config.BuildMode); err != nil {
+			return nil, fmt.Errorf("failed to set TMI_BUILD_MODE: %w", err)
+		}
 	}
 
 	// Initialize JWT key manager

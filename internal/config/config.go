@@ -78,6 +78,7 @@ type AuthConfig struct {
 	OAuth                OAuthConfig `yaml:"oauth"`
 	SAML                 SAMLConfig  `yaml:"saml"`
 	AutoPromoteFirstUser bool        `yaml:"auto_promote_first_user" env:"AUTH_AUTO_PROMOTE_FIRST_USER"`
+	BuildMode            string      `yaml:"build_mode" env:"TMI_BUILD_MODE"` // dev, test, or production
 }
 
 // JWTConfig holds JWT configuration

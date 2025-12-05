@@ -58,6 +58,8 @@
 .DS_Store
 config-development.yml
 config-production.yml
+config-test.yml
+config-integration-test.yml
 coverage/
 coverage_html/
 security-reports/

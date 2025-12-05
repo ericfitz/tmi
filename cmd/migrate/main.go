@@ -9,34 +9,36 @@ import (
 	"strings"
 
 	"github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/dbschema"
 	"github.com/ericfitz/tmi/internal/slogging"
 	_ "github.com/jackc/pgx/v4/stdlib"
-	"github.com/joho/godotenv"
 )
 
 func main() {
 	// Command line flags
 	var (
-		envFile = flag.String("env", ".env.dev", "Path to environment file")
-		down    = flag.Bool("down", false, "Run down migrations")
-		steps   = flag.Int("steps", 0, "Number of migration steps (0 = all)")
+		configFile = flag.String("config", "config-development.yml", "Path to configuration file")
+		down       = flag.Bool("down", false, "Run down migrations")
+		steps      = flag.Int("steps", 0, "Number of migration steps (0 = all)")
 	)
 	flag.Parse()
 
-	// Load environment variables
-	if err := godotenv.Load(*envFile); err != nil {
-		slogging.Get().Warn("Could not load env file %s: %v", *envFile, err)
+	// Load configuration from YAML file
+	cfg, err := config.Load(*configFile)
+	if err != nil {
+		slogging.Get().Error("Failed to load config file %s: %v", *configFile, err)
+		os.Exit(1)
 	}
 
-	// Create database configuration
+	// Create database configuration from unified config
 	pgConfig := db.PostgresConfig{
-		Host:     getEnv("POSTGRES_HOST", "localhost"),
-		Port:     getEnv("POSTGRES_PORT", "5432"),
-		User:     getEnv("POSTGRES_USER", "postgres"),
-		Password: getEnv("POSTGRES_PASSWORD", "postgres"),
-		Database: getEnv("POSTGRES_DB", "tmi"),
-		SSLMode:  getEnv("POSTGRES_SSLMODE", "disable"),
+		Host:     cfg.Database.Postgres.Host,
+		Port:     cfg.Database.Postgres.Port,
+		User:     cfg.Database.Postgres.User,
+		Password: cfg.Database.Postgres.Password,
+		Database: cfg.Database.Postgres.Database,
+		SSLMode:  cfg.Database.Postgres.SSLMode,
 	}
 
 	// Create database manager
