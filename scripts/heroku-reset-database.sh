@@ -78,8 +78,8 @@ echo -e "${BLUE}Step 2/3: Running migrations...${NC}"
 echo -e "${YELLOW}Applying database migrations...${NC}"
 
 # Run migrations and stream output (no capture to variable)
-# On Heroku, the binary is named 'server' and located in /app/bin
-heroku run -a "$APP_NAME" '/app/bin/server migrate'
+# On Heroku, the migrate binary is located in /app/bin
+heroku run -a "$APP_NAME" '/app/bin/migrate'
 
 echo ""
 echo -e "${GREEN}✓ Migrations completed${NC}"
