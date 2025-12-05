@@ -77,20 +77,20 @@ func (s *Service) GetSAMLManager() *SAMLManager {
 
 // User represents a user in the system
 type User struct {
-	InternalUUID   string    `json:"internal_uuid"`    // Internal system UUID (cached but excluded from API responses via convertUserToAPIResponse)
-	Provider       string    `json:"provider"`         // OAuth provider: "test", "google", "github", "microsoft", "azure"
-	ProviderUserID string    `json:"provider_user_id"` // Provider's user ID (from JWT sub claim)
-	Email          string    `json:"email"`
-	Name           string    `json:"name"` // Display name for UI presentation
-	EmailVerified  bool      `json:"email_verified"`
-	AccessToken    string    `json:"-"`                // OAuth access token (not exposed in JSON)
-	RefreshToken   string    `json:"-"`                // OAuth refresh token (not exposed in JSON)
-	TokenExpiry    time.Time `json:"-"`                // Token expiration time (not exposed in JSON)
-	Groups         []string  `json:"groups,omitempty"` // Groups from identity provider (not stored in DB)
-	IsAdmin        bool      `json:"is_admin"`         // Whether user has administrator privileges
-	CreatedAt      time.Time `json:"created_at"`
-	ModifiedAt     time.Time `json:"modified_at"`
-	LastLogin      time.Time `json:"last_login,omitempty"`
+	InternalUUID   string     `json:"internal_uuid"`    // Internal system UUID (cached but excluded from API responses via convertUserToAPIResponse)
+	Provider       string     `json:"provider"`         // OAuth provider: "test", "google", "github", "microsoft", "azure"
+	ProviderUserID string     `json:"provider_user_id"` // Provider's user ID (from JWT sub claim)
+	Email          string     `json:"email"`
+	Name           string     `json:"name"` // Display name for UI presentation
+	EmailVerified  bool       `json:"email_verified"`
+	AccessToken    *string    `json:"-"`                // OAuth access token (not exposed in JSON) - nullable
+	RefreshToken   *string    `json:"-"`                // OAuth refresh token (not exposed in JSON) - nullable
+	TokenExpiry    *time.Time `json:"-"`                // Token expiration time (not exposed in JSON) - nullable
+	Groups         []string   `json:"groups,omitempty"` // Groups from identity provider (not stored in DB)
+	IsAdmin        bool       `json:"is_admin"`         // Whether user has administrator privileges
+	CreatedAt      time.Time  `json:"created_at"`
+	ModifiedAt     time.Time  `json:"modified_at"`
+	LastLogin      time.Time  `json:"last_login,omitempty"`
 }
 
 // TokenPair contains an access token and a refresh token
