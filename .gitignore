@@ -80,3 +80,5 @@ postman/test-results
 postman/test-results/**
 scripts/configure-heroku-env.sh
 .dedupe/
+**/__pycache__/
+**/*.pyc
