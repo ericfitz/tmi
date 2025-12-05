@@ -425,77 +425,90 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     if user_id and login_hint_user and code:
                         # Use TMI server's token exchange endpoint to get real tokens with PKCE
                         try:
-                            # Retrieve code_verifier for this state (if it exists)
-                            # If not found, generate a new one for testing
+                            # Retrieve code_verifier for this state (required for PKCE)
                             code_verifier = pkce_verifiers.get(state)
                             if not code_verifier:
-                                logger.warning(f"  No PKCE verifier found for state {state}, generating new one for testing")
-                                code_verifier = PKCEHelper.generate_code_verifier()
-
-                            token_url = "http://localhost:8080/oauth2/token?idp=test"
-                            token_data = {
-                                "grant_type": "authorization_code",
-                                "code": code,
-                                "code_verifier": code_verifier,
-                                "redirect_uri": "http://localhost:8079/"
-                            }
-
-                            logger.info(f"  Exchanging authorization code for real tokens via TMI server (PKCE)...")
-                            logger.info(f"    Token URL: {token_url}")
-                            logger.info(f"    Code: {code}")
-                            logger.info(f"    Code Verifier: {code_verifier[:20]}... (length: {len(code_verifier)})")
-
-                            # Make the token exchange request to TMI server
-                            response = requests.post(
-                                token_url,
-                                json=token_data,
-                                headers={"Content-Type": "application/json"},
-                                timeout=10
-                            )
-                            
-                            if response.status_code == 200:
-                                token_response = response.json()
-                                access_token = token_response.get("access_token")
-                                refresh_token = token_response.get("refresh_token") 
-                                token_type = token_response.get("token_type", "Bearer")
-                                expires_in = str(token_response.get("expires_in", 3600))
-                                
-                                logger.info(f"  Successfully exchanged code for real tokens:")
-                                logger.info(f"    Access Token: {access_token[:50] if access_token else 'None'}...")
-                                logger.info(f"    Refresh Token: {refresh_token}")
-                                logger.info(f"    Token Type: {token_type}")
-                                logger.info(f"    Expires In: {expires_in}s")
-
-                                # Update flow record if this redirect belongs to a flow
+                                logger.error(f"  PKCE verifier not found for state {state} - cannot exchange code without verifier")
+                                logger.error(f"  This likely means the OAuth flow was not initiated through this stub")
+                                logger.error(f"  Available states: {list(pkce_verifiers.keys())}")
+                                # Update flow with error if this belongs to a tracked flow
                                 for fid, fdata in oauth_flows.items():
                                     if fdata.get("state") == state:
-                                        oauth_flows[fid]["status"] = "completed"
-                                        oauth_flows[fid]["tokens"] = {
-                                            "access_token": access_token,
-                                            "refresh_token": refresh_token,
-                                            "token_type": token_type,
-                                            "expires_in": int(expires_in) if expires_in else 3600,
-                                        }
-                                        oauth_flows[fid]["error"] = None  # Clear any timeout errors
-                                        logger.info(f"  Updated flow {fid} with tokens")
+                                        oauth_flows[fid]["status"] = "error"
+                                        oauth_flows[fid]["error"] = "PKCE verifier not found - flow was not initiated through this stub"
+                                        oauth_flows[fid]["authorization_code"] = code
                                         break
-
-                            else:
-                                logger.error(f"  Token exchange failed: {response.status_code} - {response.text}")
-                                # Fall back to storing just the code for client to handle
+                                # Skip token exchange - just store the code
                                 access_token = None
                                 refresh_token = None
                                 token_type = "Bearer"
                                 expires_in = "3600"
+                            else:
+                                # PKCE verifier found - proceed with token exchange
+                                token_url = "http://localhost:8080/oauth2/token?idp=test"
+                                token_data = {
+                                    "grant_type": "authorization_code",
+                                    "code": code,
+                                    "code_verifier": code_verifier,
+                                    "redirect_uri": "http://localhost:8079/"
+                                }
 
-                                # Update flow record with error if this redirect belongs to a flow
-                                for fid, fdata in oauth_flows.items():
-                                    if fdata.get("state") == state:
-                                        oauth_flows[fid]["status"] = "error"
-                                        oauth_flows[fid]["error"] = f"Token exchange failed: {response.status_code}"
-                                        oauth_flows[fid]["authorization_code"] = code
-                                        logger.info(f"  Updated flow {fid} with error")
-                                        break
+                                logger.info(f"  Exchanging authorization code for real tokens via TMI server (PKCE)...")
+                                logger.info(f"    Token URL: {token_url}")
+                                logger.info(f"    Code: {code}")
+                                logger.info(f"    Code Verifier: {code_verifier[:20]}... (length: {len(code_verifier)})")
+
+                                # Make the token exchange request to TMI server
+                                response = requests.post(
+                                    token_url,
+                                    json=token_data,
+                                    headers={"Content-Type": "application/json"},
+                                    timeout=10
+                                )
+
+                                if response.status_code == 200:
+                                    token_response = response.json()
+                                    access_token = token_response.get("access_token")
+                                    refresh_token = token_response.get("refresh_token")
+                                    token_type = token_response.get("token_type", "Bearer")
+                                    expires_in = str(token_response.get("expires_in", 3600))
+
+                                    logger.info(f"  Successfully exchanged code for real tokens:")
+                                    logger.info(f"    Access Token: {access_token[:50] if access_token else 'None'}...")
+                                    logger.info(f"    Refresh Token: {refresh_token}")
+                                    logger.info(f"    Token Type: {token_type}")
+                                    logger.info(f"    Expires In: {expires_in}s")
+
+                                    # Update flow record if this redirect belongs to a flow
+                                    for fid, fdata in oauth_flows.items():
+                                        if fdata.get("state") == state:
+                                            oauth_flows[fid]["status"] = "completed"
+                                            oauth_flows[fid]["tokens"] = {
+                                                "access_token": access_token,
+                                                "refresh_token": refresh_token,
+                                                "token_type": token_type,
+                                                "expires_in": int(expires_in) if expires_in else 3600,
+                                            }
+                                            oauth_flows[fid]["error"] = None  # Clear any timeout errors
+                                            logger.info(f"  Updated flow {fid} with tokens")
+                                            break
+
+                                else:
+                                    logger.error(f"  Token exchange failed: {response.status_code} - {response.text}")
+                                    # Fall back to storing just the code for client to handle
+                                    access_token = None
+                                    refresh_token = None
+                                    token_type = "Bearer"
+                                    expires_in = "3600"
+
+                                    # Update flow record with error if this redirect belongs to a flow
+                                    for fid, fdata in oauth_flows.items():
+                                        if fdata.get("state") == state:
+                                            oauth_flows[fid]["status"] = "error"
+                                            oauth_flows[fid]["error"] = f"Token exchange failed: {response.status_code}"
+                                            oauth_flows[fid]["authorization_code"] = code
+                                            logger.info(f"  Updated flow {fid} with error")
+                                            break
                                 
                         except Exception as e:
                             logger.error(f"  Failed to exchange authorization code: {e}")
