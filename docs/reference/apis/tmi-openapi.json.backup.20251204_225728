@@ -6856,8 +6856,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "Exchange OAuth credentials for JWT tokens",
-        "description": "Provider-neutral endpoint to exchange OAuth credentials for TMI JWT tokens. Supports three grant types: (1) authorization_code for OAuth provider flows (Google, GitHub, Microsoft), (2) client_credentials for machine-to-machine authentication (RFC 6749 Section 4.4), and (3) refresh_token for token renewal. Accepts both application/json and application/x-www-form-urlencoded content types.",
+        "summary": "Exchange OAuth authorization code for JWT tokens",
+        "description": "Provider-neutral endpoint to exchange OAuth authorization codes for TMI JWT tokens. Supports Google, GitHub, and Microsoft OAuth providers.",
         "operationId": "exchangeOAuthCode",
         "parameters": [
           {
@@ -6883,9 +6883,7 @@
                     "type": "string",
                     "description": "OAuth 2.0 grant type (RFC 6749)",
                     "enum": [
-                      "authorization_code",
-                      "client_credentials",
-                      "refresh_token"
+                      "authorization_code"
                     ],
                     "example": "authorization_code"
                   },
@@ -6894,16 +6892,14 @@
                     "description": "Authorization code received from OAuth provider. Per RFC 6749, can contain any visible ASCII characters (VSCHAR: 0x20-0x7E).",
                     "example": "0AX4XfWiXY2BZ_example_auth_code_from_google",
                     "pattern": "^[\\x20-\\x7E]+$",
-                    "maxLength": 512,
-                    "nullable": true
+                    "maxLength": 512
                   },
                   "state": {
                     "type": "string",
                     "description": "State parameter for CSRF protection (optional but recommended)",
                     "example": "random_state_value_abc123",
                     "pattern": "^[a-zA-Z0-9_=-]*$",
-                    "maxLength": 256,
-                    "nullable": true
+                    "maxLength": 256
                   },
                   "redirect_uri": {
                     "type": "string",
@@ -6911,8 +6907,7 @@
                     "description": "Redirect URI used in the authorization request (must match exactly)",
                     "example": "https://your-web-app.com/oauth2/callback",
                     "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
-                    "maxLength": 1000,
-                    "nullable": true
+                    "maxLength": 1000
                   },
                   "code_verifier": {
                     "type": "string",
@@ -6920,91 +6915,16 @@
                     "example": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
                     "pattern": "^[A-Za-z0-9\\-._~]+$",
                     "minLength": 43,
-                    "maxLength": 128,
-                    "nullable": true
-                  },
-                  "client_id": {
-                    "type": "string",
-                    "description": "Client identifier (required for client_credentials grant)",
-                    "example": "tmi_cc_AbCdEf123456",
-                    "nullable": true
-                  },
-                  "client_secret": {
-                    "type": "string",
-                    "description": "Client secret (required for client_credentials grant)",
-                    "example": "secret_value",
-                    "nullable": true
-                  },
-                  "refresh_token": {
-                    "type": "string",
-                    "description": "Refresh token (required for refresh_token grant)",
-                    "example": "refresh_token_value",
-                    "nullable": true
+                    "maxLength": 128
                   }
                 },
                 "required": [
-                  "grant_type"
+                  "grant_type",
+                  "code",
+                  "redirect_uri",
+                  "code_verifier"
                 ],
                 "additionalProperties": false
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "grant_type": {
-                    "type": "string",
-                    "description": "OAuth 2.0 grant type (RFC 6749)",
-                    "enum": [
-                      "authorization_code",
-                      "client_credentials",
-                      "refresh_token"
-                    ],
-                    "example": "client_credentials"
-                  },
-                  "code": {
-                    "type": "string",
-                    "description": "Authorization code (required for authorization_code grant)",
-                    "example": "0AX4XfWiXY2BZ_example_auth_code",
-                    "nullable": true
-                  },
-                  "client_id": {
-                    "type": "string",
-                    "description": "Client identifier (required for client_credentials grant)",
-                    "example": "tmi_cc_AbCdEf123456",
-                    "nullable": true
-                  },
-                  "client_secret": {
-                    "type": "string",
-                    "description": "Client secret (required for client_credentials grant)",
-                    "example": "secret_value",
-                    "nullable": true
-                  },
-                  "refresh_token": {
-                    "type": "string",
-                    "description": "Refresh token (required for refresh_token grant)",
-                    "example": "refresh_token_value",
-                    "nullable": true
-                  },
-                  "redirect_uri": {
-                    "type": "string",
-                    "description": "Redirect URI (required for authorization_code grant)",
-                    "nullable": true
-                  },
-                  "code_verifier": {
-                    "type": "string",
-                    "description": "PKCE code verifier (required for authorization_code grant)",
-                    "nullable": true
-                  },
-                  "state": {
-                    "type": "string",
-                    "description": "State parameter for CSRF protection",
-                    "nullable": true
-                  }
-                },
-                "required": [
-                  "grant_type"
-                ]
               }
             }
           }
