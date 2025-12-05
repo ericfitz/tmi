@@ -55,10 +55,10 @@ func TestClientCredentialIDGeneration(t *testing.T) {
 		// Verify it only contains URL-safe characters
 		idPart := strings.TrimPrefix(clientID, "tmi_cc_")
 		for _, char := range idPart {
-			if !((char >= 'a' && char <= 'z') ||
-				(char >= 'A' && char <= 'Z') ||
-				(char >= '0' && char <= '9') ||
-				char == '-' || char == '_') {
+			if (char < 'a' || char > 'z') &&
+				(char < 'A' || char > 'Z') &&
+				(char < '0' || char > '9') &&
+				char != '-' && char != '_' {
 				t.Errorf("client_id contains non-URL-safe character '%c' in %s", char, idPart)
 			}
 		}
@@ -104,10 +104,10 @@ func TestClientSecretGeneration(t *testing.T) {
 
 		// Verify it only contains URL-safe characters
 		for _, char := range clientSecret {
-			if !((char >= 'a' && char <= 'z') ||
-				(char >= 'A' && char <= 'Z') ||
-				(char >= '0' && char <= '9') ||
-				char == '-' || char == '_') {
+			if (char < 'a' || char > 'z') &&
+				(char < 'A' || char > 'Z') &&
+				(char < '0' || char > '9') &&
+				char != '-' && char != '_' {
 				t.Errorf("client_secret contains non-URL-safe character '%c' in %s", char, clientSecret)
 			}
 		}
