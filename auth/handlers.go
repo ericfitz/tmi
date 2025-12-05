@@ -964,11 +964,218 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	c.JSON(http.StatusOK, tokenPair)
 }
 
+// handleAuthorizationCodeGrant handles the authorization code grant flow with PKCE
+// This is called by both Token (for /oauth2/token) and Exchange (for backward compatibility)
+func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifier, redirectURI string) {
+	// Get provider ID from query parameter
+	providerID := c.Query("idp")
+	if providerID == "" {
+		// In non-production builds, default to "test" provider for convenience
+		if defaultProviderID := getDefaultProviderID(); defaultProviderID != "" {
+			slogging.Get().WithContext(c).Debug("No idp parameter provided, defaulting to provider: %s", defaultProviderID)
+			providerID = defaultProviderID
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Missing required parameter: idp",
+			})
+			return
+		}
+	}
+
+	// Get the provider
+	provider, err := h.getProvider(providerID)
+	if err != nil {
+		// Return 404 for unavailable providers (like test provider in production)
+		if strings.Contains(err.Error(), "not available in production") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Provider not available",
+			})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("Invalid provider: %s", providerID),
+			})
+		}
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// Validate code_verifier format
+	if err := ValidateCodeVerifierFormat(codeVerifier); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": fmt.Sprintf("Invalid code_verifier format: %v", err),
+		})
+		return
+	}
+
+	// Retrieve PKCE challenge stored with authorization code
+	// The challenge was bound to the code during the authorization callback
+	codeKey := fmt.Sprintf("pkce:%s", code)
+	pkceDataJSON, err := h.service.dbManager.Redis().Get(ctx, codeKey)
+	if err != nil {
+		slogging.Get().WithContext(c).Error("Failed to retrieve PKCE challenge for code (provider: %s): %v", providerID, err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_grant",
+			"error_description": "Authorization code is invalid or expired",
+		})
+		return
+	}
+
+	// Parse PKCE data
+	var pkceData map[string]string
+	if err := json.Unmarshal([]byte(pkceDataJSON), &pkceData); err != nil {
+		slogging.Get().WithContext(c).Error("Failed to parse PKCE data for code: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to validate PKCE challenge",
+		})
+		return
+	}
+
+	codeChallenge := pkceData["code_challenge"]
+	codeChallengeMethod := pkceData["code_challenge_method"]
+
+	// Validate PKCE challenge
+	if err := ValidateCodeChallenge(codeVerifier, codeChallenge, codeChallengeMethod); err != nil {
+		slogging.Get().WithContext(c).Error("PKCE validation failed for code (provider: %s): %v", providerID, err)
+		// Delete the PKCE data to prevent retry attacks
+		_ = h.service.dbManager.Redis().Del(ctx, codeKey)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_grant",
+			"error_description": "PKCE verification failed",
+		})
+		return
+	}
+
+	// Delete the PKCE challenge (one-time use)
+	_ = h.service.dbManager.Redis().Del(ctx, codeKey)
+	slogging.Get().WithContext(c).Debug("PKCE validation successful for code")
+
+	// Exchange authorization code for tokens
+	// Note: login_hint is now encoded directly in the authorization code for test provider
+	tokenResponse, err := provider.ExchangeCode(ctx, code)
+	if err != nil {
+		// Check if it's an invalid code error (client error) vs server error
+		if strings.Contains(err.Error(), "invalid authorization code") ||
+			strings.Contains(err.Error(), "authorization code is required") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+		} else {
+			slogging.Get().WithContext(c).Error("Failed to exchange authorization code for tokens in callback (provider: %s, code prefix: %.10s...): %v", providerID, code, err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("Failed to exchange authorization code: %v", err),
+			})
+		}
+		return
+	}
+
+	// Validate ID token if present
+	var claims *IDTokenClaims
+	if tokenResponse.IDToken != "" {
+		claims, err = provider.ValidateIDToken(ctx, tokenResponse.IDToken)
+		if err != nil {
+			// Log error but continue - we can get user info from userinfo endpoint
+			logger := slogging.Get().WithContext(c)
+			logger.Error("Failed to validate ID token: %v", err)
+		}
+	}
+
+	// Get user info from provider
+	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
+	if err != nil {
+		slogging.Get().WithContext(c).Error("Failed to get user info from OAuth provider in exchange (provider: %s): %v", providerID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get user info: %v", err),
+		})
+		return
+	}
+
+	// Extract email from userInfo or claims with fallback
+	email, err := h.extractEmailWithFallback(c, providerID, userInfo, claims)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user email or ID from provider"})
+		return
+	}
+
+	// Extract name
+	name := userInfo.Name
+	if name == "" && claims != nil {
+		name = claims.Name
+	}
+	if name == "" {
+		name = email
+	}
+
+	// Get or create user
+	user, err := h.service.GetUserByEmail(ctx, email)
+	if err != nil {
+		// Create new user
+		user = User{
+			Provider:       providerID,
+			ProviderUserID: userInfo.ID,
+			Email:          email,
+			Name:           name,
+			CreatedAt:      time.Now(),
+			ModifiedAt:     time.Now(),
+			LastLogin:      time.Now(),
+		}
+
+		user, err = h.service.CreateUser(ctx, user)
+		if err != nil {
+			slogging.Get().WithContext(c).Error("Failed to create new user in database during callback (email: %s, name: %s): %v", user.Email, user.Name, err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("Failed to create user: %v", err),
+			})
+			return
+		}
+	} else {
+		// User exists - update last login and populate provider_user_id if sparse user
+		user.LastLogin = time.Now()
+
+		// CRITICAL: If this is a sparse user (provider_user_id is empty), populate it now
+		if user.ProviderUserID == "" {
+			logger := slogging.Get().WithContext(c)
+			logger.Info("Completing sparse user record: populating provider_user_id=%s for user %s (email: %s)",
+				userInfo.ID, user.InternalUUID, user.Email)
+			user.ProviderUserID = userInfo.ID
+			// Also update name and email_verified from OAuth claims if available
+			if name != "" {
+				user.Name = name
+			}
+			if claims != nil && claims.EmailVerified {
+				user.EmailVerified = true
+			}
+		}
+
+		err = h.service.UpdateUser(ctx, user)
+		if err != nil {
+			// Log error but continue
+			logger := slogging.Get().WithContext(c)
+			logger.Error("Failed to update user last login: %v (user_id: %s)", err, user.InternalUUID)
+		}
+	}
+
+	// Generate TMI JWT tokens (the provider ID will be used as subject in the JWT)
+	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
+	if err != nil {
+		slogging.Get().WithContext(c).Error("Failed to generate JWT tokens for user %s: %v", user.Email, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
+		})
+		return
+	}
+
+	// Return TMI tokens
+	c.JSON(http.StatusOK, tokenPair)
+}
+
 // Token exchanges an authorization code for tokens
 func (h *Handlers) Token(c *gin.Context) {
 	var req struct {
 		GrantType    string `json:"grant_type" form:"grant_type"`
 		Code         string `json:"code" form:"code"`
+		CodeVerifier string `json:"code_verifier" form:"code_verifier"`
 		RefreshToken string `json:"refresh_token" form:"refresh_token"`
 		RedirectURI  string `json:"redirect_uri" form:"redirect_uri"`
 		ClientID     string `json:"client_id" form:"client_id"`
@@ -984,17 +1191,17 @@ func (h *Handlers) Token(c *gin.Context) {
 
 	switch req.GrantType {
 	case "authorization_code":
-		// Handle authorization code grant - delegate to Exchange handler
-		if req.Code == "" || req.RedirectURI == "" {
+		// Handle authorization code grant with PKCE inline (don't delegate to Exchange to avoid double body read)
+		if req.Code == "" || req.RedirectURI == "" || req.CodeVerifier == "" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":             "invalid_request",
-				"error_description": "Missing code or redirect_uri parameter for authorization_code grant",
+				"error_description": "Missing required fields for authorization_code grant",
 			})
 			return
 		}
 
-		// Delegate to Exchange handler which handles the full authorization code flow with PKCE
-		h.Exchange(c)
+		// Call handleAuthorizationCodeGrant which contains the Exchange logic
+		h.handleAuthorizationCodeGrant(c, req.Code, req.CodeVerifier, req.RedirectURI)
 
 	case "refresh_token":
 		// Handle refresh token grant
