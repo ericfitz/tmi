@@ -664,15 +664,16 @@ func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, provider
 	if err != nil {
 		// Create a new user with provider data
 		// Note: GivenName, FamilyName, Picture, Locale are ignored per schema requirements
+		nowTime := time.Now()
 		user = User{
 			Provider:       providerID,
 			ProviderUserID: userInfo.ID,
 			Email:          email,
 			Name:           name,
 			EmailVerified:  userInfo.EmailVerified,
-			CreatedAt:      time.Now(),
-			ModifiedAt:     time.Now(),
-			LastLogin:      time.Now(),
+			CreatedAt:      nowTime,
+			ModifiedAt:     nowTime,
+			LastLogin:      &nowTime,
 		}
 
 		user, err = h.service.CreateUser(ctx, user)
@@ -691,7 +692,8 @@ func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, provider
 		// Note: GivenName, FamilyName, Picture, Locale are ignored per schema requirements
 
 		// Always update last login and email verification status
-		user.LastLogin = time.Now()
+		now := time.Now()
+		user.LastLogin = &now
 		user.ModifiedAt = time.Now()
 		if userInfo.EmailVerified {
 			user.EmailVerified = true
@@ -909,14 +911,15 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	if err != nil {
 		logger.Info("OAuth handler: GetUserByEmail returned error (user not found, will create): %v", err)
 		// Create new user
+		nowTime := time.Now()
 		user = User{
 			Provider:       providerID,
 			ProviderUserID: userInfo.ID,
 			Email:          email,
 			Name:           name,
-			CreatedAt:      time.Now(),
-			ModifiedAt:     time.Now(),
-			LastLogin:      time.Now(),
+			CreatedAt:      nowTime,
+			ModifiedAt:     nowTime,
+			LastLogin:      &nowTime,
 		}
 
 		logger.Info("OAuth handler: creating new user with email=%s, provider=%s, provider_user_id=%s",
@@ -934,7 +937,8 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		logger.Info("OAuth handler: GetUserByEmail SUCCESS - found existing user uuid=%s, provider=%s, provider_user_id=%s",
 			user.InternalUUID, user.Provider, user.ProviderUserID)
 		// User exists - update last login and populate provider_user_id if sparse user
-		user.LastLogin = time.Now()
+		now := time.Now()
+		user.LastLogin = &now
 
 		// CRITICAL: If this is a sparse user (provider_user_id is empty), populate it now
 		if user.ProviderUserID == "" {
@@ -1124,14 +1128,15 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	if err != nil {
 		logger.Info("OAuth handler: GetUserByEmail returned error (user not found, will create): %v", err)
 		// Create new user
+		nowTime := time.Now()
 		user = User{
 			Provider:       providerID,
 			ProviderUserID: userInfo.ID,
 			Email:          email,
 			Name:           name,
-			CreatedAt:      time.Now(),
-			ModifiedAt:     time.Now(),
-			LastLogin:      time.Now(),
+			CreatedAt:      nowTime,
+			ModifiedAt:     nowTime,
+			LastLogin:      &nowTime,
 		}
 
 		logger.Info("OAuth handler: creating new user with email=%s, provider=%s, provider_user_id=%s",
@@ -1149,7 +1154,8 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 		logger.Info("OAuth handler: GetUserByEmail SUCCESS - found existing user uuid=%s, provider=%s, provider_user_id=%s",
 			user.InternalUUID, user.Provider, user.ProviderUserID)
 		// User exists - update last login and populate provider_user_id if sparse user
-		user.LastLogin = time.Now()
+		now := time.Now()
+		user.LastLogin = &now
 
 		// CRITICAL: If this is a sparse user (provider_user_id is empty), populate it now
 		if user.ProviderUserID == "" {

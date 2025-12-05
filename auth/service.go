@@ -90,7 +90,7 @@ type User struct {
 	IsAdmin        bool       `json:"is_admin"`         // Whether user has administrator privileges
 	CreatedAt      time.Time  `json:"created_at"`
 	ModifiedAt     time.Time  `json:"modified_at"`
-	LastLogin      time.Time  `json:"last_login,omitempty"`
+	LastLogin      *time.Time `json:"last_login,omitempty"` // nullable - may be NULL for auto-created admin users
 }
 
 // TokenPair contains an access token and a refresh token
@@ -259,7 +259,8 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 	}
 
 	// Update the last login time
-	user.LastLogin = time.Now()
+	now := time.Now()
+	user.LastLogin = &now
 	if err := s.UpdateUser(ctx, user); err != nil {
 		// Log the error but continue
 		slogging.Get().Error("Failed to update user last login: %v", err)
