@@ -4623,6 +4623,11 @@
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp"
+          },
+          "user_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "User display name (enriched)"
           }
         }
       },

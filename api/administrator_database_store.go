@@ -583,24 +583,23 @@ func (s *AdministratorDatabaseStore) HasAnyAdministrators(ctx context.Context) (
 	return hasAdmins, nil
 }
 
-// GetUserEmail retrieves email for an internal_uuid (for enrichment in list responses)
-func (s *AdministratorDatabaseStore) GetUserEmail(ctx context.Context, userID uuid.UUID) (string, error) {
+// GetUserDetails retrieves email and name for an internal_uuid (for enrichment in list responses)
+func (s *AdministratorDatabaseStore) GetUserDetails(ctx context.Context, userID uuid.UUID) (email string, name string, err error) {
 	logger := slogging.Get()
 
-	query := `SELECT email FROM users WHERE id = $1`
+	query := `SELECT email, name FROM users WHERE internal_uuid = $1`
 
-	var email string
-	err := s.db.QueryRowContext(ctx, query, userID).Scan(&email)
+	err = s.db.QueryRowContext(ctx, query, userID).Scan(&email, &name)
 	if err == sql.ErrNoRows {
-		logger.Debug("User not found for email lookup: id=%s", userID)
-		return "", nil // Return empty string if user not found
+		logger.Debug("User not found for details lookup: internal_uuid=%s", userID)
+		return "", "", nil // Return empty strings if user not found
 	}
 	if err != nil {
-		logger.Error("Failed to get user email: id=%s, error=%v", userID, err)
-		return "", fmt.Errorf("failed to get user email: %w", err)
+		logger.Error("Failed to get user details: internal_uuid=%s, error=%v", userID, err)
+		return "", "", fmt.Errorf("failed to get user details: %w", err)
 	}
 
-	return email, nil
+	return email, name, nil
 }
 
 // GetGroupName retrieves name for a group_id (for enrichment in list responses)
@@ -623,7 +622,7 @@ func (s *AdministratorDatabaseStore) GetGroupName(ctx context.Context, groupID u
 	return groupName, nil
 }
 
-// EnrichAdministrators adds user_email and group_name to administrator records
+// EnrichAdministrators adds user_email, user_name, and group_name to administrator records
 func (s *AdministratorDatabaseStore) EnrichAdministrators(ctx context.Context, admins []DBAdministrator) ([]DBAdministrator, error) {
 	logger := slogging.Get()
 
@@ -631,14 +630,15 @@ func (s *AdministratorDatabaseStore) EnrichAdministrators(ctx context.Context, a
 	for i, admin := range admins {
 		enriched[i] = admin
 
-		// Enrich user-based grants with email
+		// Enrich user-based grants with email and name
 		if admin.UserInternalUUID != nil {
-			email, err := s.GetUserEmail(ctx, *admin.UserInternalUUID)
+			email, name, err := s.GetUserDetails(ctx, *admin.UserInternalUUID)
 			if err != nil {
-				logger.Warn("Failed to enrich user email for admin %s: %v", admin.ID, err)
-				// Continue with empty email rather than failing
+				logger.Warn("Failed to enrich user details for admin %s: %v", admin.ID, err)
+				// Continue with empty fields rather than failing
 			}
 			enriched[i].UserEmail = email
+			enriched[i].UserName = name
 		}
 
 		// Enrich group-based grants with group name
