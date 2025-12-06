@@ -1507,7 +1507,7 @@ type Error struct {
 
 		// Suggestion Human-readable suggestion for resolving the error
 		Suggestion *string `json:"suggestion,omitempty"`
-	} `json:"details"`
+	} `json:"details,omitempty"`
 
 	// Error Error code
 	Error string `json:"error"`

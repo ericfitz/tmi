@@ -63,7 +63,7 @@ func TestCustomRecoveryMiddleware(t *testing.T) {
 			// Check response
 			assert.Equal(t, http.StatusInternalServerError, w.Code)
 
-			var response ErrorResponse
+			var response Error
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			assert.NoError(t, err)
 			assert.Equal(t, "internal_server_error", response.Error)
@@ -76,10 +76,10 @@ func TestCustomRecoveryMiddleware(t *testing.T) {
 
 			if tc.expectDetails {
 				// In debug mode, should have more specific error message
-				assert.Contains(t, response.Message, "Server panic")
+				assert.Contains(t, response.ErrorDescription, "Server panic")
 			} else {
 				// In production, should have generic message
-				assert.Equal(t, "An unexpected error occurred. Please try again later.", response.Message)
+				assert.Equal(t, "An unexpected error occurred. Please try again later.", response.ErrorDescription)
 			}
 		})
 	}
@@ -94,9 +94,9 @@ func TestFilterStackTraceFromBody(t *testing.T) {
 	}{
 		{
 			name:     "No stack trace",
-			input:    `{"error": "validation_error", "message": "Invalid input"}`,
+			input:    `{"error": "validation_error", "error_description": "Invalid input"}`,
 			logLevel: "info",
-			expected: `{"error": "validation_error", "message": "Invalid input"}`,
+			expected: `{"error": "validation_error", "error_description": "Invalid input"}`,
 		},
 		{
 			name: "Stack trace in production",

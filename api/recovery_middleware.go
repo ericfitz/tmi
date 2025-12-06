@@ -30,19 +30,19 @@ func CustomRecoveryMiddleware() gin.HandlerFunc {
 				isDevelopment := gin.Mode() == gin.DebugMode || strings.ToLower(os.Getenv("LOG_LEVEL")) == "debug"
 
 				// Prepare the error response
-				var errorResponse ErrorResponse
+				var errorResponse Error
 
 				if isDevelopment {
 					// In development, provide more details (but still no full stack trace)
-					errorResponse = ErrorResponse{
-						Error:   "internal_server_error",
-						Message: fmt.Sprintf("Server panic: %v", err),
+					errorResponse = Error{
+						Error:            "internal_server_error",
+						ErrorDescription: fmt.Sprintf("Server panic: %v", err),
 					}
 				} else {
 					// In production, provide minimal information
-					errorResponse = ErrorResponse{
-						Error:   "internal_server_error",
-						Message: "An unexpected error occurred. Please try again later.",
+					errorResponse = Error{
+						Error:            "internal_server_error",
+						ErrorDescription: "An unexpected error occurred. Please try again later.",
 					}
 				}
 

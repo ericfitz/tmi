@@ -109,9 +109,8 @@ type ValidationError struct {
 	Message string `json:"message"`
 }
 
-// ErrorResponse is a standardized error response
-type ErrorResponse struct {
-	Error       string            `json:"error"`
-	Message     string            `json:"message"`
-	Validations []ValidationError `json:"validations,omitempty"`
-}
+// ErrorResponse is deprecated. Use the OpenAPI-generated Error type instead.
+// This type has been replaced with api.Error which uses error_description field
+// per OpenAPI specification requirements.
+// Deprecated: Use Error from api.go (OpenAPI-generated)
+type ErrorResponse = Error

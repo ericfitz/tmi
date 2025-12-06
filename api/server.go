@@ -432,9 +432,9 @@ func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 	// Validate that the provider exists
 	if !s.authService.IsValidProvider(idp) {
 		logger.Debug("[SERVER_INTERFACE] Provider %s not found", idp)
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error:   "not_found",
-			Message: "OAuth provider not found",
+		c.JSON(http.StatusNotFound, Error{
+			Error:            "not_found",
+			ErrorDescription: "OAuth provider not found",
 		})
 		return
 	}

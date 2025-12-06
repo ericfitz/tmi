@@ -324,11 +324,12 @@ func (act *APISpecificationComplianceTest) TestErrorResponseCompatibility(t *tes
 			if resp.StatusCode >= 400 {
 				var errorResp map[string]interface{}
 				if err := json.NewDecoder(resp.Body).Decode(&errorResp); err == nil {
-					// Check for common error fields
+					// Check for required OpenAPI Error schema fields
 					if _, hasError := errorResp["error"]; !hasError {
-						if _, hasMessage := errorResp["message"]; !hasMessage {
-							t.Error("Error response should have 'error' or 'message' field")
-						}
+						t.Error("Error response must have 'error' field per OpenAPI schema")
+					}
+					if _, hasErrorDesc := errorResp["error_description"]; !hasErrorDesc {
+						t.Error("Error response must have 'error_description' field per OpenAPI schema")
 					}
 				}
 			}
