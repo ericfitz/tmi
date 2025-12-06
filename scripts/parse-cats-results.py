@@ -289,18 +289,18 @@ class CATSResultsParser:
     def create_schema(self):
         """Create all tables, indexes, and views"""
         logger.info("Creating database schema...")
-        with self.transaction():
-            # Create tables
-            self.conn.executescript(self.SCHEMA_SQL)
-            logger.info("Tables created")
 
-            # Create indexes
-            self.conn.executescript(self.INDEX_SQL)
-            logger.info("Indexes created")
+        # Create tables (executescript auto-commits, so run separately)
+        self.conn.executescript(self.SCHEMA_SQL)
+        logger.info("Tables created")
 
-            # Create views
-            self.conn.executescript(self.VIEWS_SQL)
-            logger.info("Views created")
+        # Create indexes (executescript auto-commits, so run separately)
+        self.conn.executescript(self.INDEX_SQL)
+        logger.info("Indexes created")
+
+        # Create views (executescript auto-commits, so run separately)
+        self.conn.executescript(self.VIEWS_SQL)
+        logger.info("Views created")
 
         logger.info("Schema creation complete")
 
