@@ -753,8 +753,13 @@ check-oauth-stub:
 # CATS FUZZING - API Security Testing
 # ============================================================================
 
-.PHONY: cats-fuzz cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
-cats-fuzz:
+.PHONY: cats-fuzz-prep cats-fuzz cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
+
+cats-fuzz-prep:  ## Prepare database for CATS fuzzing (grant admin privileges to test user)
+	$(call log_info,"Preparing database for CATS fuzzing...")
+	@./scripts/cats-prepare-database.sh
+
+cats-fuzz: cats-fuzz-prep
 	$(call log_info,"Running CATS API fuzzing with OAuth authentication...")
 	@if ! command -v cats >/dev/null 2>&1; then \
 		$(call log_error,"CATS tool not found. Please install it first."); \
