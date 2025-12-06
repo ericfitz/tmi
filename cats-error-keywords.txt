@@ -1,0 +1,211 @@
+# Custom Error Leaks Keywords for TMI CATS Fuzzing
+#
+# This file excludes standard OAuth 2.0 error terms that legitimately appear
+# in 401/403 responses per RFC 6749. These are NOT security vulnerabilities
+# or information leaks - they are required protocol responses.
+#
+# Excluded terms (appear in RFC 6749 responses):
+#   - Unauthorized (standard 401 response)
+#   - Forbidden (standard 403 response)
+#   - InvalidToken (OAuth error code)
+#   - InvalidGrant (OAuth error code)
+#   - AuthenticationFailed (OAuth error description)
+#   - AuthenticationError (OAuth error description)
+#   - AuthorizationError (OAuth error description)
+#
+# All other error keywords from CATS defaults are retained below.
+
+# HTTP Error Patterns
+StackTrace
+BadRequest
+InternalServerError
+ServiceUnavailable
+Timeout
+PermissionDenied
+MethodNotAllowed
+ResourceNotFound
+RateLimitExceeded
+ClientError
+ServerError
+ConnectionTimeout
+SSLHandshakeError
+ConnectionRefused
+MalformedRequest
+MissingParameter
+InvalidResponse
+TransactionFailed
+InvalidHeader
+
+# Database & Query Errors
+DatabaseError
+QueryTimeout
+DataLossError
+PDOException
+SQLException
+
+# Request/Response Errors
+RequestEntityTooLarge
+TooManyRequests
+UnsupportedMediaType
+UnprocessableEntity
+DataIntegrityViolation
+
+# API & Network Errors
+APIKeyError
+ConnectionError
+AssertionError
+BrokenPipeError
+PermissionError
+
+# Java Exceptions
+NullPointerException
+ArrayIndexOutOfBoundsException
+StringIndexOutOfBoundsException
+IllegalArgumentException
+NumberFormatException
+IllegalStateException
+ClassCastException
+UnsupportedOperationException
+InterruptedException
+ConcurrentModificationException
+FileNotFoundException
+IOException
+NoSuchElementException
+IndexOutOfBoundsException
+TypeCastException
+ClassNotFoundException
+NoSuchMethodException
+InvocationTargetException
+InstantiationException
+
+# Kotlin Exceptions
+KotlinNullPointerException
+KotlinIllegalArgumentException
+
+# C# Exceptions
+ArgumentNullException
+InvalidOperationException
+TaskCanceledException
+FileLoadException
+UnauthorizedAccessException
+KeyNotFoundException
+SecurityException
+ArgumentOutOfRangeException
+DirectoryNotFoundException
+OperationCanceledException
+StackOverflowException
+FormatException
+NotImplementedException
+InvalidCastException
+TimeoutException
+OverflowException
+DivideByZeroException
+ObjectDisposedException
+IndexOutOfRangeException
+
+# Python Exceptions
+FileNotFoundError
+StopIteration
+MemoryError
+FloatingPointError
+ValueError
+KeyError
+AttributeError
+IndexError
+ModuleNotFoundError
+ZeroDivisionError
+ImportError
+IOError
+RuntimeError
+
+# Ruby/Rails Errors
+NameError
+EOFError
+StandardError
+ThreadError
+NoMethodError
+ArgumentError
+LoadError
+Timeout::Error
+EncodingError
+SystemExit
+
+# JavaScript/Node.js Errors
+ReferenceError
+SyntaxError
+TypeError
+RangeError
+EvalError
+UncaughtException
+UnhandledRejection
+ProcessError
+HeapOverflow
+TimeoutError
+ENOTFOUND
+
+# PHP Exceptions
+FatalError
+ParseError
+Notice
+DivisionByZeroError
+MemoryLimitExceeded
+ErrorException
+
+# Swift/iOS Errors
+InvalidArgument
+OutOfMemoryError
+UnexpectedValueException
+IndexOutOfRange
+UnexpectedNil
+TypeMismatch
+OutOfBounds
+
+# Rust Errors
+InvalidArgumentError
+NilPointerDereference
+ChannelClosedError
+DivideByZeroError
+UnwrapError
+Segfault
+DivideByZero
+DecodingError
+KeyDecodingError
+
+# Go Runtime Errors
+invalid memory address or nil pointer dereference
+deadlock
+panic
+runtime error
+json: cannot unmarshal
+unexpected end of JSON
+fatal error: stack overflow
+index out of range
+
+# C++ Exceptions
+std::exception
+std::runtime_error
+std::invalid_argument
+std::length_error
+std::overflow_error
+std::underflow_error
+std::domain_error
+std::out_of_range
+std::bad_alloc
+MemoryLeak
+StackOverflow
+SIGSEGV
+SIGABRT
+std::range_error
+std::logic_error
+SegmentationFault
+
+# Unix/Linux Error Codes
+ECONNREFUSED
+EADDRINUSE
+EPIPE
+ETIMEDOUT
+EPERM
+ENETUNREACH
+ECONNRESET
+EEXIST
+EISDIR

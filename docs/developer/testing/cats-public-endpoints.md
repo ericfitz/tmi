@@ -17,9 +17,66 @@ Testing these endpoints for authentication bypass creates false positives, as re
 
 ## Solution Architecture
 
-TMI uses a **two-phase approach** to handle public endpoints:
+TMI uses a **multi-layered approach** to reduce false positives in CATS security testing:
 
-### Phase 1: CATS Script Configuration (Immediate)
+### UUID Field Skipping
+
+CATS automatically skips all fields with `format: uuid` in the OpenAPI specification to avoid false positives from UUID validation fuzzers. This prevents tests that inject invalid characters into UUID fields from being flagged as errors when the API correctly returns 4xx responses.
+
+**Implementation**: The `--skipFieldFormat=uuid` flag in [scripts/run-cats-fuzz.sh](../../../scripts/run-cats-fuzz.sh) instructs CATS to skip replacement fuzzers (like `AbugidasInStringFields`, `ControlCharsInFields`, etc.) for all UUID-formatted fields.
+
+**Rationale**: UUID fields have strict format requirements (RFC 4122). When CATS injects invalid characters into a UUID field and the API returns 400/403, this is **correct behavior**, not a vulnerability. Skipping these tests eliminates this category of false positives.
+
+### Pagination Field Skipping
+
+CATS tests pagination parameters with extreme values to detect boundary handling issues. However, some pagination behaviors are **correct** and should not be flagged as errors.
+
+**Problem**: When CATS sends extreme offset values (e.g., `offset=9223372036854775807`), the API correctly returns:
+- `200 OK` (request succeeded)
+- Empty result array (no items at that offset)
+- Preserved offset value in response
+
+This is **standard pagination behavior** - not a bug or vulnerability. Major APIs (GitHub, Stripe, Slack) behave identically.
+
+**Solution**: TMI skips the `offset` field from extreme value fuzzers to avoid false positives.
+
+**Implementation**: The `--skipField=offset` flag in [scripts/run-cats-fuzz.sh](../../../scripts/run-cats-fuzz.sh) excludes the offset parameter from boundary testing fuzzers like `ExtremePositiveNumbersInIntegerFields`.
+
+**Rationale**:
+- Extreme offsets don't cause crashes, timeouts, or resource exhaustion
+- Returning empty results is the RESTful response (not 4XX errors)
+- This is industry-standard pagination behavior
+- The `limit` parameter is still tested (negative/extreme limits should fail validation)
+
+### Error Leak Keywords Customization
+
+CATS checks response bodies for error keywords that might indicate information leakage. However, some keywords are **legitimate** in standard protocol responses and should not be flagged as security issues.
+
+**Problem**: CATS default error keywords include terms like "Unauthorized" and "Forbidden" which are:
+- **Required** in OAuth 2.0 error responses (RFC 6749)
+- **Standard** HTTP status text
+- **Not** information leaks or security vulnerabilities
+
+**Solution**: TMI uses a custom error keywords file ([cats-error-keywords.txt](../../../cats-error-keywords.txt)) that excludes legitimate OAuth/auth terms while retaining detection of actual error leaks.
+
+**Excluded Keywords** (legitimate in auth responses):
+- `Unauthorized` - Standard 401 response term
+- `Forbidden` - Standard 403 response term
+- `InvalidToken` - OAuth error code (RFC 6749)
+- `InvalidGrant` - OAuth error code (RFC 6749)
+- `AuthenticationFailed` - OAuth error description
+- `AuthenticationError` - OAuth error description
+- `AuthorizationError` - OAuth error description
+
+**Retained Keywords**: All other error patterns (stack traces, Java/Python/C# exceptions, database errors, etc.) are still detected to identify genuine information leaks.
+
+**Implementation**: The `--errorLeaksKeywords` flag in [scripts/run-cats-fuzz.sh](../../../scripts/run-cats-fuzz.sh) points to the custom keywords file.
+
+### Public Endpoint Skipping
+
+TMI also handles public endpoints that must be accessible without authentication:
+
+#### Phase 1: CATS Script Configuration (Immediate)
 
 The [scripts/run-cats-fuzz.sh](../../../scripts/run-cats-fuzz.sh) script explicitly skips public endpoints using the `--skipPaths` flag:
 
@@ -50,7 +107,7 @@ cats_cmd+=("--skipPaths=${skip_paths_arg}")
 
 **When This Applies**: Only when running full CATS fuzzing (no specific path filter). If you specify a specific path with `-p/--path`, the skip logic is bypassed to allow targeted testing.
 
-### Phase 2: OpenAPI Schema Markers (Future-Proof)
+#### Phase 2: OpenAPI Schema Markers (Future-Proof)
 
 All public endpoints in [tmi-openapi.json](../../reference/apis/tmi-openapi.json) are marked with vendor extensions:
 
@@ -171,6 +228,74 @@ curl -i http://localhost:8080/.well-known/openid-configuration
 curl -i http://localhost:8080/threat_models
 ```
 
+## Maintaining Error Keywords
+
+### Adding Keywords
+
+If you discover new error patterns that should be detected, add them to [cats-error-keywords.txt](../../../cats-error-keywords.txt):
+
+```bash
+# Edit the file and add the keyword on a new line
+echo "NewErrorPattern" >> cats-error-keywords.txt
+```
+
+### Excluding Keywords
+
+If a keyword causes false positives in legitimate responses:
+
+1. **Verify it's legitimate**: Confirm the keyword appears in standard protocol responses (check RFCs)
+2. **Remove from file**: Delete or comment out the line in [cats-error-keywords.txt](../../../cats-error-keywords.txt)
+3. **Document the reason**: Add a comment explaining why it's excluded
+
+**Example**:
+```bash
+# Excluded: Standard OAuth 2.0 error term per RFC 6749
+# Unauthorized
+```
+
+### Syncing with CATS Defaults
+
+CATS may add new error keywords in future releases. To sync:
+
+1. Check CATS source: [WordUtils.java](https://github.com/Endava/cats/blob/main/src/main/java/com/endava/cats/util/WordUtils.java)
+2. Compare with [cats-error-keywords.txt](../../../cats-error-keywords.txt)
+3. Add new keywords while preserving TMI exclusions
+
+## Additional CATS Configuration
+
+### Other Field Formats
+
+In addition to UUID fields, CATS can skip other field formats if they generate false positives:
+
+```bash
+# Skip multiple formats at once
+--skipFieldFormat=uuid,date-time,email,uri,ipv4,ipv6
+
+# Skip specific field names
+--skipField=created_at,modified_at,internal_uuid
+
+# Skip all tests on specific fields (prefix with !)
+--skipField=!password,!secret_key
+```
+
+**TMI Current Configuration**:
+- Format skipping: `--skipFieldFormat=uuid` (all UUID fields)
+- Field skipping: `--skipField=offset` (pagination offset parameter)
+
+These can be extended if other formats or fields generate false positives.
+
+### Fuzzer-Specific Configuration
+
+To skip specific fuzzers entirely, use `--skipFuzzers`:
+
+```bash
+# Skip specific fuzzers
+cats --skipFuzzers=AbugidasInStringFields,ControlCharsInFields ...
+
+# View all available fuzzers
+cats --list
+```
+
 ## Future Improvements
 
 **CATS Issue #185**: We've filed an issue requesting the ability to include/exclude (skip) tests based on OpenAPI tags:
@@ -189,6 +314,7 @@ curl -i http://localhost:8080/threat_models
 
 ## Related Files
 
-- [scripts/run-cats-fuzz.sh](../../../scripts/run-cats-fuzz.sh) - CATS fuzzing script with public endpoint handling
-- [scripts/add-public-endpoint-markers.sh](../../../scripts/add-public-endpoint-markers.sh) - Script to add vendor extensions
-- [docs/reference/apis/tmi-openapi.json](../../reference/apis/tmi-openapi.json) - OpenAPI specification with vendor extensions
+- [scripts/run-cats-fuzz.sh](../../../scripts/run-cats-fuzz.sh) - CATS fuzzing script with UUID skipping, error keyword customization, and public endpoint handling
+- [cats-error-keywords.txt](../../../cats-error-keywords.txt) - Custom error leak keywords file (excludes OAuth/auth terms)
+- [scripts/add-public-endpoint-markers.sh](../../../scripts/add-public-endpoint-markers.sh) - Script to add vendor extensions to OpenAPI spec
+- [docs/reference/apis/tmi-openapi.json](../../reference/apis/tmi-openapi.json) - OpenAPI specification with vendor extensions and UUID formats

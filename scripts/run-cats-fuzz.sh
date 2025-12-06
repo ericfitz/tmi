@@ -16,6 +16,7 @@ DEFAULT_SERVER="http://localhost:8080"
 OAUTH_STUB_PORT=8079
 OAUTH_STUB_URL="http://localhost:${OAUTH_STUB_PORT}"
 OPENAPI_SPEC="docs/reference/apis/tmi-openapi.json"
+ERROR_KEYWORDS_FILE="cats-error-keywords.txt"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 HTTP_METHODS="POST,PUT,GET,DELETE,PATCH"
@@ -74,14 +75,21 @@ cleanup() {
 
 check_prerequisites() {
     log "Checking prerequisites..."
-    
+
     # Check if we're in the right directory
     if [[ ! -f "${PROJECT_ROOT}/${OPENAPI_SPEC}" ]]; then
         error "OpenAPI spec not found at ${PROJECT_ROOT}/${OPENAPI_SPEC}"
         error "Please run this script from the TMI project root or ensure the OpenAPI spec exists"
         exit 1
     fi
-    
+
+    # Check if custom error keywords file exists
+    if [[ ! -f "${PROJECT_ROOT}/${ERROR_KEYWORDS_FILE}" ]]; then
+        error "Error keywords file not found at ${PROJECT_ROOT}/${ERROR_KEYWORDS_FILE}"
+        error "This file is required to suppress false positive error leak detections"
+        exit 1
+    fi
+
     # Check if CATS is installed
     if ! command -v cats &> /dev/null; then
         error "CATS tool not found. Please install it first."
@@ -89,13 +97,13 @@ check_prerequisites() {
         error "On MacOS with Homebrew, use 'brew install cats'."
         exit 1
     fi
-    
+
     # Check if TMI server is running
     if ! curl -s "${DEFAULT_SERVER}/" &> /dev/null; then
         warn "TMI server might not be running at ${DEFAULT_SERVER}"
         warn "Consider running 'make start-dev' first"
     fi
-    
+
     success "Prerequisites check completed"
 }
 
@@ -299,6 +307,9 @@ run_cats_fuzz() {
     log "Running CATS fuzzing..."
     log "Server: ${server}"
     log "OpenAPI Spec: ${OPENAPI_SPEC}"
+    log "Error Keywords: ${ERROR_KEYWORDS_FILE} (excludes standard OAuth/auth terms)"
+    log "Skipping UUID format fields to avoid false positives with malformed UUIDs"
+    log "Skipping 'offset' field - extreme values return empty results (200), not errors"
 
     # Export token as environment variable
     export TMI_ACCESS_TOKEN="${token}"
@@ -336,6 +347,7 @@ run_cats_fuzz() {
         "cats"
         "--contract=${PROJECT_ROOT}/${OPENAPI_SPEC}"
         "--server=${server}"
+        "--errorLeaksKeywords=${PROJECT_ROOT}/${ERROR_KEYWORDS_FILE}"
     )
 
     # Add blackbox flag if set
@@ -346,6 +358,8 @@ run_cats_fuzz() {
     cats_cmd+=(
         "-H" "Authorization=Bearer ${token}"
         "-X=${HTTP_METHODS}"
+        "--skipFieldFormat=uuid"
+        "--skipField=offset"
     )
 
     # Add path filter if specified
