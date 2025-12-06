@@ -763,7 +763,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 		}
 
 		for client := range session.Clients {
-			participant := convertClientToParticipant(client, session, tm)
+			participant := convertClientToParticipant(nil, client, session, tm)
 			if participant != nil {
 				participants = append(participants, *participant)
 			}
@@ -795,7 +795,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 }
 
 // convertClientToParticipant converts a WebSocket client to a Participant
-func convertClientToParticipant(client *WebSocketClient, _ *DiagramSession, tm *ThreatModel) *Participant {
+func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *DiagramSession, tm *ThreatModel) *Participant {
 	// Get user's session permissions using existing auth system
 	var permissions ParticipantPermissions
 	if tm != nil {
@@ -804,7 +804,7 @@ func convertClientToParticipant(client *WebSocketClient, _ *DiagramSession, tm *
 		if permissionCheckID == "" {
 			permissionCheckID = client.UserID
 		}
-		permsPtr := getSessionPermissionsForUser(permissionCheckID, tm)
+		permsPtr := getSessionPermissionsForUser(c, permissionCheckID, tm)
 		if permsPtr == nil {
 			// User is unauthorized
 			return nil
@@ -829,17 +829,32 @@ func convertClientToParticipant(client *WebSocketClient, _ *DiagramSession, tm *
 }
 
 // getSessionPermissionsForUser determines session permissions using the existing auth system
-func getSessionPermissionsForUser(userName string, tm *ThreatModel) *ParticipantPermissions {
+func getSessionPermissionsForUser(c *gin.Context, userName string, tm *ThreatModel) *ParticipantPermissions {
 	// Use the existing AccessCheck system to determine permissions
 	// Check for writer/resource owner access first (highest permission)
-	hasWriterAccess, err := CheckResourceAccess(userName, tm, RoleWriter)
+	var hasWriterAccess bool
+	var err error
+	if c != nil {
+		// Use context-aware check that includes provider ID, groups, etc.
+		hasWriterAccess, err = CheckResourceAccessFromContext(c, userName, tm, RoleWriter)
+	} else {
+		// Fallback to basic check when context not available
+		hasWriterAccess, err = CheckResourceAccess(userName, tm, RoleWriter)
+	}
 	if err == nil && hasWriterAccess {
 		permissions := ParticipantPermissionsWriter
 		return &permissions
 	}
 
 	// Check for reader access (lowest permission that grants session access)
-	hasReaderAccess, err := CheckResourceAccess(userName, tm, RoleReader)
+	var hasReaderAccess bool
+	if c != nil {
+		// Use context-aware check that includes provider ID, groups, etc.
+		hasReaderAccess, err = CheckResourceAccessFromContext(c, userName, tm, RoleReader)
+	} else {
+		// Fallback to basic check when context not available
+		hasReaderAccess, err = CheckResourceAccess(userName, tm, RoleReader)
+	}
 	if err == nil && hasReaderAccess {
 		permissions := ParticipantPermissionsReader
 		return &permissions
@@ -895,7 +910,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 
 	// First, add users from active WebSocket clients
 	for client := range session.Clients {
-		participant := convertClientToParticipant(client, session, &tm)
+		participant := convertClientToParticipant(c, client, session, &tm)
 		if participant != nil {
 			participants = append(participants, *participant)
 			processedUsers[client.UserID] = true
@@ -903,6 +918,8 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 	}
 
 	// Finally, ensure current user is included if not already processed
+	// Note: The caller (handler) has already validated the current user has access to the threat model,
+	// so we don't need to check authorization again here. We just need to determine their permission level.
 	if currentUser != "" && !processedUsers[currentUser] {
 		// Create a temporary client for the current user
 		tempClient := &WebSocketClient{
@@ -910,14 +927,15 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 			UserEmail: currentUser, // Using currentUser as email for backwards compatibility
 			UserName:  currentUser, // Default to user ID if name not available
 		}
-		participant := convertClientToParticipant(tempClient, session, &tm)
-		if participant == nil {
-			// Current user is unauthorized
-			return nil, fmt.Errorf("user %s is not authorized to access this threat model", currentUser)
+		participant := convertClientToParticipant(c, tempClient, session, &tm)
+		if participant != nil {
+			// Set the last activity to now since this is a new participant
+			participant.LastActivity = time.Now().UTC()
+			participants = append(participants, *participant)
 		}
-		// Set the last activity to now since this is a new participant
-		participant.LastActivity = time.Now().UTC()
-		participants = append(participants, *participant)
+		// If participant is nil, it means we couldn't determine their permission level,
+		// but that's OK - they just won't appear in the participants list.
+		// The handler has already validated they can access the session.
 	}
 
 	// Convert session ID to UUID
@@ -1000,7 +1018,7 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 		participants := make([]Participant, 0, len(session.Clients))
 
 		for client := range session.Clients {
-			participant := convertClientToParticipant(client, session, &tm)
+			participant := convertClientToParticipant(c, client, session, &tm)
 			if participant != nil {
 				participants = append(participants, *participant)
 			}
@@ -2536,7 +2554,7 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 			if permissionCheckID == "" {
 				permissionCheckID = client.UserID
 			}
-			perms := getSessionPermissionsForUser(permissionCheckID, tm)
+			perms := getSessionPermissionsForUser(nil, permissionCheckID, tm)
 			if perms == nil {
 				// User is unauthorized, skip them
 				slogging.Get().Debug("Skipping user %s (%s) - no permissions found for threat model %s", client.UserID, permissionCheckID, tm.Id)
@@ -2612,7 +2630,7 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 			if permissionCheckID == "" {
 				permissionCheckID = c.UserID
 			}
-			perms := getSessionPermissionsForUser(permissionCheckID, tm)
+			perms := getSessionPermissionsForUser(nil, permissionCheckID, tm)
 			if perms == nil {
 				// User is unauthorized, skip them
 				slogging.Get().Debug("Skipping user %s (%s) - no permissions found for threat model %s", c.UserID, permissionCheckID, tm.Id)
