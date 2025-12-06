@@ -6654,6 +6654,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -7382,6 +7392,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -7606,6 +7626,32 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "200": {
+            "description": "Success - Token successfully revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Token revoked successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -7637,55 +7683,11 @@
         ],
         "responses": {
           "200": {
-            "description": "List of active collaboration sessions",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CollaborationSession"
-                  },
-                  "maxItems": 1000
-                },
-                "examples": {
-                  "active_sessions": {
-                    "summary": "Multiple active sessions",
-                    "value": [
-                      {
-                        "session_id": "550e8400-e29b-41d4-a716-446655440000",
-                        "host": "alice@example.com",
-                        "presenter": "alice@example.com",
-                        "threat_model_id": "987f6543-e89b-12d3-a456-426614174000",
-                        "threat_model_name": "E-commerce Platform",
-                        "diagram_id": "123e4567-e89b-12d3-a456-426614174000",
-                        "diagram_name": "Data Flow Diagram",
-                        "participants": [
-                          {
-                            "user": {
-                              "user_id": "oauth2|google|118354289635789012345",
-                              "email": "alice@example.com",
-                              "name": "Alice Smith"
-                            },
-                            "last_activity": "2024-01-20T14:30:00Z",
-                            "permissions": "writer"
-                          },
-                          {
-                            "user": {
-                              "user_id": "oauth2|github|67890",
-                              "email": "bob@example.com",
-                              "name": "Bob Johnson"
-                            },
-                            "last_activity": "2024-01-20T14:35:00Z",
-                            "permissions": "reader"
-                          }
-                        ]
-                      }
-                    ]
-                  },
-                  "no_sessions": {
-                    "summary": "No active sessions",
-                    "value": []
-                  }
+                  "type": "object"
                 }
               }
             }
@@ -7712,6 +7714,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -7856,6 +7868,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -7913,7 +7935,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -7982,6 +8011,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -8036,7 +8075,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -8140,7 +8186,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -8206,6 +8259,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -8496,6 +8559,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -8550,7 +8623,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -8628,6 +8708,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -8685,7 +8775,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -8887,7 +8984,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -8956,6 +9060,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -9022,6 +9136,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -9079,7 +9203,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -9160,6 +9291,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -9232,7 +9373,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -9304,6 +9452,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -9371,7 +9529,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -9452,7 +9617,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -9574,7 +9746,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -9678,7 +9857,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -10043,6 +10229,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -10146,7 +10342,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -10224,6 +10427,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -10281,7 +10494,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -10350,6 +10570,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -10437,7 +10667,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -10521,6 +10758,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -10578,7 +10825,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -10659,6 +10913,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -10731,7 +10995,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -10803,6 +11074,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -10870,7 +11151,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -10951,7 +11239,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -11112,7 +11407,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -11271,7 +11573,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -11412,6 +11721,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -11466,7 +11785,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -11544,6 +11870,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -11601,7 +11937,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -11670,6 +12013,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -11757,7 +12110,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -11841,6 +12201,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -11898,7 +12268,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -11979,6 +12356,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -12051,7 +12438,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -12123,6 +12517,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -12190,7 +12594,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -12271,7 +12682,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -12432,7 +12850,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -12591,7 +13016,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -12670,6 +13102,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -12724,7 +13166,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -12802,6 +13251,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -12871,7 +13330,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -12940,6 +13406,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -13004,7 +13480,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -13082,7 +13565,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -13167,6 +13657,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -13221,7 +13721,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -13299,6 +13806,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -13356,7 +13873,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -13507,7 +14031,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -13579,6 +14110,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -13641,6 +14182,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -13786,6 +14337,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -13852,6 +14413,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -13909,7 +14480,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -13990,6 +14568,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -14062,7 +14650,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -14134,6 +14729,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -14201,7 +14806,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -14282,7 +14894,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -14422,6 +15041,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -14491,6 +15120,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -14545,7 +15184,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -14623,6 +15269,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -14680,7 +15336,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -14749,6 +15412,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -14836,7 +15509,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -14920,6 +15600,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -14977,7 +15667,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -15058,6 +15755,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -15130,7 +15837,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -15202,6 +15916,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -15269,7 +15993,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -15350,7 +16081,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -15435,6 +16173,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -15489,7 +16237,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -15569,7 +16324,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -15647,7 +16409,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -15725,6 +16494,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -15782,7 +16561,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -15851,6 +16637,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -15938,7 +16734,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -16022,6 +16825,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -16079,7 +16892,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -16160,6 +16980,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -16220,7 +17050,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -16292,6 +17129,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -16359,7 +17206,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -16440,7 +17294,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/Error"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -16865,6 +17726,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -16932,7 +17803,7 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -17075,6 +17946,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -17161,6 +18042,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -17266,6 +18157,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -17370,6 +18271,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -17465,6 +18376,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -17546,7 +18467,7 @@
             }
           },
           "400": {
-            "description": "Bad request - validation failed",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -17566,7 +18487,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - administrator access required",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -17633,11 +18554,11 @@
         ],
         "responses": {
           "200": {
-            "description": "List of add-ons",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ListAddonsResponse"
+                  "type": "object"
                 }
               }
             }
@@ -17654,6 +18575,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -17721,6 +18652,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -17768,7 +18709,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - administrator access required",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -17799,6 +18740,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -17855,7 +18806,7 @@
             }
           },
           "400": {
-            "description": "Bad request - validation failed or payload too large",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -17955,11 +18906,11 @@
         ],
         "responses": {
           "200": {
-            "description": "List of invocations",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ListInvocationsResponse"
+                  "type": "object"
                 }
               }
             }
@@ -17978,7 +18929,14 @@
             "$ref": "#/components/responses/TooManyRequests"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "405": {
             "$ref": "#/components/responses/MethodNotAllowed"
@@ -18062,6 +19020,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -18115,7 +19083,7 @@
             }
           },
           "400": {
-            "description": "Bad request - invalid status transition or validation failed",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -18472,7 +19440,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -18483,6 +19451,16 @@
           },
           "500": {
             "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -18528,7 +19506,7 @@
             }
           },
           "400": {
-            "description": "Bad request - Invalid request body or parameters",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -18548,7 +19526,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -18631,7 +19609,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator or attempting self-revocation",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -18721,7 +19699,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -18805,7 +19783,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -18825,7 +19803,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -18896,7 +19874,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -18976,7 +19954,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -19072,7 +20050,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -19092,7 +20070,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -19163,7 +20141,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -19314,7 +20292,7 @@
             }
           },
           "400": {
-            "description": "Bad request - Invalid query parameters",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -19334,7 +20312,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -19395,7 +20373,7 @@
             "description": "User deleted successfully (no content)"
           },
           "400": {
-            "description": "Bad request - Missing or invalid parameters",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -19415,7 +20393,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -19505,7 +20483,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -19583,7 +20561,7 @@
             }
           },
           "400": {
-            "description": "Bad request - Invalid UUID or request body",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -19603,7 +20581,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -19737,7 +20715,7 @@
             }
           },
           "400": {
-            "description": "Bad request - Invalid query parameters",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -19757,7 +20735,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -19813,7 +20791,7 @@
             }
           },
           "400": {
-            "description": "Bad request - Invalid request body",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -19833,7 +20811,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -19915,7 +20893,7 @@
             }
           },
           "400": {
-            "description": "Bad request - Missing or invalid parameters",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -19935,7 +20913,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -20005,7 +20983,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -20083,7 +21061,7 @@
             }
           },
           "400": {
-            "description": "Bad request - Invalid UUID or request body",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -20103,7 +21081,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -20163,17 +21141,17 @@
         ],
         "responses": {
           "200": {
-            "description": "List of active users for the SAML provider",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SAMLUserListResponse"
+                  "type": "object"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request - Invalid provider (must start with \"saml_\")",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -20274,7 +21252,7 @@
             }
           },
           "400": {
-            "description": "Bad request - Invalid UUID or query parameters",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -20294,7 +21272,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -20372,7 +21350,7 @@
             }
           },
           "400": {
-            "description": "Bad request - Invalid UUID or request body",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -20392,7 +21370,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator, or attempting to add to 'everyone' group",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -20495,7 +21473,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator, or attempting to modify 'everyone' group",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -20591,7 +21569,17 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -20667,7 +21655,17 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -20743,7 +21741,17 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -20813,7 +21821,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -20897,7 +21905,7 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -20917,7 +21925,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -20988,7 +21996,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - User is not an administrator",
+            "description": "Forbidden - Insufficient permissions to access this resource",
             "content": {
               "application/json": {
                 "schema": {
@@ -21057,17 +22065,17 @@
         },
         "responses": {
           "201": {
-            "description": "Client credential created successfully",
+            "description": "Created - Resource successfully created",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ClientCredentialResponse"
+                  "type": "object"
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid request parameters",
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -21112,20 +22120,27 @@
         ],
         "responses": {
           "200": {
-            "description": "List of client credentials (without secrets)",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ClientCredentialInfo"
-                  }
+                  "type": "object"
                 }
               }
             }
           },
           "401": {
             "description": "Unauthorized - missing or invalid JWT token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
             "content": {
               "application/json": {
                 "schema": {
@@ -21164,7 +22179,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Client credential deleted successfully"
+            "description": "No Content - Resource successfully deleted"
           },
           "400": {
             "description": "Invalid credential ID format",
