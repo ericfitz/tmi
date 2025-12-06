@@ -83,13 +83,6 @@ check_prerequisites() {
         exit 1
     fi
 
-    # Check if custom error keywords file exists
-    if [[ ! -f "${PROJECT_ROOT}/${ERROR_KEYWORDS_FILE}" ]]; then
-        error "Error keywords file not found at ${PROJECT_ROOT}/${ERROR_KEYWORDS_FILE}"
-        error "This file is required to suppress false positive error leak detections"
-        exit 1
-    fi
-
     # Check if CATS is installed
     if ! command -v cats &> /dev/null; then
         error "CATS tool not found. Please install it first."
@@ -307,7 +300,7 @@ run_cats_fuzz() {
     log "Running CATS fuzzing..."
     log "Server: ${server}"
     log "OpenAPI Spec: ${OPENAPI_SPEC}"
-    log "Error Keywords: ${ERROR_KEYWORDS_FILE} (excludes standard OAuth/auth terms)"
+    log "Using CATS default error leak detection keywords"
     log "Skipping UUID format fields to avoid false positives with malformed UUIDs"
     log "Skipping 'offset' field - extreme values return empty results (200), not errors"
 
@@ -347,7 +340,6 @@ run_cats_fuzz() {
         "cats"
         "--contract=${PROJECT_ROOT}/${OPENAPI_SPEC}"
         "--server=${server}"
-        "--errorLeaksKeywords=${PROJECT_ROOT}/${ERROR_KEYWORDS_FILE}"
     )
 
     # Add blackbox flag if set

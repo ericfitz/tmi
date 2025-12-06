@@ -128,6 +128,30 @@ TMI uses two complementary tools for comprehensive SBOM generation:
   - See [docs/developer/testing/cats-public-endpoints.md](docs/developer/testing/cats-public-endpoints.md) for complete documentation
   - Update script: `./scripts/add-public-endpoint-markers.sh` (automatically adds vendor extensions)
 
+### CATS API Fuzzing
+
+CATS (Contract-driven Automatic Testing Suite) performs security fuzzing of the TMI API:
+
+- **Run Fuzzing**: `make cats-fuzz` - Full API fuzzing with OAuth authentication (default user: charlie)
+- **Custom User**: `make cats-fuzz-user USER=alice` - Fuzz with specific OAuth user
+- **Custom Server**: `make cats-fuzz-server SERVER=http://example.com` - Fuzz against different server
+- **Specific Endpoint**: `make cats-fuzz-path ENDPOINT=/addons` - Test only specific endpoint
+- **Parse Results**: `make parse-cats-results` - Import CATS JSON results into SQLite database
+- **Query Results**: `make query-cats-results` - Display summary statistics (excludes OAuth false positives)
+- **Full Analysis**: `make analyze-cats-results` - Parse and query in one command
+
+**OAuth False Positives**: CATS may flag legitimate 401/403 OAuth responses as "errors". The parse script automatically detects and filters these:
+- Uses `is_oauth_false_positive` flag to mark expected auth responses
+- `test_results_filtered_view` excludes false positives for cleaner analysis
+- See [docs/developer/testing/cats-oauth-false-positives.md](docs/developer/testing/cats-oauth-false-positives.md) for details
+
+**Key Features**:
+- Automatic OAuth authentication flow with test provider
+- Rate limit handling (automatically cleared before testing)
+- Public endpoint awareness (skips auth tests on RFC-compliant public endpoints)
+- UUID field skipping (avoids false positives with malformed UUIDs)
+- Structured analysis with SQLite database and views
+
 ### Arazzo Workflow Generation
 
 TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow sequences and dependencies:

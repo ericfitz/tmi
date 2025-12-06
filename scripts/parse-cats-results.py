@@ -79,6 +79,7 @@ class CATSResultsParser:
         result_reason TEXT,
         result_details TEXT,
         source_file TEXT NOT NULL,
+        is_oauth_false_positive BOOLEAN DEFAULT 0,
         FOREIGN KEY (result_type_id) REFERENCES result_types(id),
         FOREIGN KEY (fuzzer_id) REFERENCES fuzzers(id),
         FOREIGN KEY (server_id) REFERENCES servers(id),
@@ -136,6 +137,7 @@ class CATSResultsParser:
     CREATE INDEX IF NOT EXISTS idx_tests_test_number ON tests(test_number);
     CREATE INDEX IF NOT EXISTS idx_tests_result_fuzzer ON tests(result_type_id, fuzzer_id);
     CREATE INDEX IF NOT EXISTS idx_tests_fuzzer_path ON tests(fuzzer_id, path_id);
+    CREATE INDEX IF NOT EXISTS idx_tests_oauth_false_positive ON tests(is_oauth_false_positive);
 
     -- Indexes on requests table
     CREATE INDEX IF NOT EXISTS idx_requests_test_id ON requests(test_id);
@@ -157,7 +159,7 @@ class CATSResultsParser:
     """
 
     VIEWS_SQL = """
-    -- Simplified test results view
+    -- Simplified test results view (includes all tests)
     CREATE VIEW IF NOT EXISTS test_results_view AS
     SELECT
         t.test_id,
@@ -174,7 +176,8 @@ class CATSResultsParser:
         t.scenario,
         t.expected_result,
         t.result_reason,
-        t.source_file
+        t.source_file,
+        t.is_oauth_false_positive
     FROM tests t
     JOIN result_types rt ON t.result_type_id = rt.id
     JOIN fuzzers f ON t.fuzzer_id = f.id
@@ -183,6 +186,12 @@ class CATSResultsParser:
     JOIN requests req ON t.id = req.test_id
     JOIN http_methods m ON req.http_method_id = m.id
     JOIN responses r ON t.id = r.test_id;
+
+    -- Filtered test results view (excludes OAuth false positives)
+    CREATE VIEW IF NOT EXISTS test_results_filtered_view AS
+    SELECT *
+    FROM test_results_view
+    WHERE is_oauth_false_positive = 0;
 
     -- Fuzzer statistics view
     CREATE VIEW IF NOT EXISTS fuzzer_stats_view AS
@@ -443,6 +452,39 @@ class CATSResultsParser:
         except ValueError:
             return 0
 
+    def is_oauth_auth_false_positive(self, data: Dict) -> bool:
+        """
+        Detect OAuth/Auth false positives.
+
+        These are legitimate RFC-compliant protocol responses that CATS may flag
+        as errors due to keywords like "Unauthorized", "Forbidden", "InvalidToken", etc.
+
+        Criteria for OAuth false positive:
+        - Response code is 401 or 403
+        - Result reason contains OAuth/auth keywords
+        - These are EXPECTED and CORRECT responses per RFCs 6749, 8414, etc.
+        """
+        # OAuth/auth error keywords that are legitimate protocol responses
+        oauth_keywords = [
+            'unauthorized', 'forbidden', 'invalidtoken', 'invalidgrant',
+            'authenticationfailed', 'authenticationerror', 'authorizationerror',
+            'invalid_token', 'invalid_grant', 'access_denied'
+        ]
+
+        response_code = data.get('response', {}).get('responseCode', 0)
+        result_reason = (data.get('resultReason') or '').lower()
+        result_details = (data.get('resultDetails') or '').lower()
+
+        # Check if this is a 401/403 response with OAuth keywords
+        if response_code in [401, 403]:
+            # Check result reason and details for OAuth keywords
+            text_to_check = f"{result_reason} {result_details}"
+            for keyword in oauth_keywords:
+                if keyword in text_to_check:
+                    return True
+
+        return False
+
     def insert_test_record(self, data: Dict, source_file: str):
         """Insert complete test record (test + request + response + headers)"""
         # Get or create lookup values
@@ -457,13 +499,16 @@ class CATSResultsParser:
         # Extract test number
         test_number = self.extract_test_number(data['testId'])
 
+        # Detect OAuth/auth false positives
+        is_oauth_fp = self.is_oauth_auth_false_positive(data)
+
         # Insert test
         cursor = self.conn.execute('''
             INSERT INTO tests (
                 test_id, test_number, trace_id, scenario, expected_result,
                 result_type_id, fuzzer_id, server_id, path_id,
-                result_reason, result_details, source_file
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                result_reason, result_details, source_file, is_oauth_false_positive
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data['testId'],
             test_number,
@@ -476,7 +521,8 @@ class CATSResultsParser:
             path_id,
             data.get('resultReason'),
             data.get('resultDetails'),
-            source_file
+            source_file,
+            1 if is_oauth_fp else 0
         ))
         test_id = cursor.lastrowid
 
@@ -630,6 +676,23 @@ class CATSResultsParser:
             GROUP BY rt.name
         ''')
         logger.info("Result distribution:")
+        for name, count in cursor.fetchall():
+            logger.info(f"  {name}: {count}")
+
+        # OAuth false positive count
+        cursor.execute('SELECT COUNT(*) FROM tests WHERE is_oauth_false_positive = 1')
+        oauth_fp_count = cursor.fetchone()[0]
+        logger.info(f"OAuth/Auth false positives (expected 401/403): {oauth_fp_count}")
+
+        # Result distribution excluding OAuth false positives
+        cursor.execute('''
+            SELECT rt.name, COUNT(*) as count
+            FROM tests t
+            JOIN result_types rt ON t.result_type_id = rt.id
+            WHERE t.is_oauth_false_positive = 0
+            GROUP BY rt.name
+        ''')
+        logger.info("Result distribution (excluding OAuth false positives):")
         for name, count in cursor.fetchall():
             logger.info(f"  {name}: {count}")
 

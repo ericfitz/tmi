@@ -753,7 +753,7 @@ check-oauth-stub:
 # CATS FUZZING - API Security Testing
 # ============================================================================
 
-.PHONY: cats-fuzz cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full
+.PHONY: cats-fuzz cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
 cats-fuzz:
 	$(call log_info,"Running CATS API fuzzing with OAuth authentication...")
 	@if ! command -v cats >/dev/null 2>&1; then \
@@ -822,6 +822,19 @@ parse-cats-results:  ## Parse CATS test results into SQLite database
 		--create-schema \
 		--batch-size 100
 	$(call log_success,"CATS results parsed to cats-results.db")
+
+.PHONY: query-cats-results
+query-cats-results:  ## Query parsed CATS results (excludes OAuth false positives)
+	$(call log_info,"Querying CATS test results...")
+	@if [ ! -f "cats-results.db" ]; then \
+		$(call log_error,"cats-results.db not found. Run 'make parse-cats-results' first."); \
+		exit 1; \
+	fi
+	@./scripts/query-cats-results.sh cats-results.db
+
+.PHONY: analyze-cats-results
+analyze-cats-results: parse-cats-results query-cats-results  ## Parse and query CATS results
+	$(call log_success,"CATS analysis complete")
 
 
 # ============================================================================
