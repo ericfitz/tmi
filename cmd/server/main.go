@@ -1212,7 +1212,12 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /auth/me -> GetCurrentUser")
 	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /auth/providers -> GetAuthProviders")
 	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /collaboration/sessions -> GetCollaborationSessions")
-	api.RegisterHandlers(r, apiServer)
+
+	// Use RegisterHandlersWithOptions to provide custom error handler for parameter binding errors
+	// This ensures all validation errors return JSON responses per OpenAPI spec
+	api.RegisterHandlersWithOptions(r, apiServer, api.GinServerOptions{
+		ErrorHandler: api.GinServerErrorHandler,
+	})
 	logger.Info("[MAIN_MODULE] OpenAPI route registration completed (includes admin endpoints with AdministratorMiddleware)")
 
 	// Add development routes when in dev mode

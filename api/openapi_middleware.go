@@ -60,6 +60,49 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 	HandleRequestError(c, tmiError)
 }
 
+// GinServerErrorHandler converts parameter binding errors to TMI's error format
+// This is used by the oapi-codegen generated server wrapper to handle parameter binding errors
+func GinServerErrorHandler(c *gin.Context, err error, statusCode int) {
+	requestID := getRequestID(c)
+	logger := slogging.GetContextLogger(c)
+
+	// Log the parameter binding error
+	logger.Error("PARAMETER_BINDING_FAILED [%s] %s %s -> %d: %s",
+		requestID, c.Request.Method, c.Request.URL.Path, statusCode, err.Error())
+
+	// Convert to TMI error format
+	var tmiError error
+	errorMessage := err.Error()
+	messageLower := strings.ToLower(errorMessage)
+
+	switch statusCode {
+	case http.StatusBadRequest:
+		// Check if it's an enum validation error
+		if strings.Contains(messageLower, "enum") ||
+			strings.Contains(messageLower, "invalid value") {
+			tmiError = InvalidInputError(fmt.Sprintf("Invalid parameter value: %s", errorMessage))
+		} else if strings.Contains(messageLower, "required") {
+			tmiError = InvalidInputError(fmt.Sprintf("Missing required parameter: %s", errorMessage))
+		} else if strings.Contains(messageLower, "format") ||
+			strings.Contains(messageLower, "pattern") {
+			tmiError = InvalidIDError(errorMessage)
+		} else {
+			tmiError = InvalidInputError(errorMessage)
+		}
+	case http.StatusUnprocessableEntity:
+		tmiError = InvalidInputError(errorMessage)
+	default:
+		tmiError = ServerError(errorMessage)
+	}
+
+	// Log the final error being returned to client
+	requestError := tmiError.(*RequestError)
+	logger.Error("PARAMETER_ERROR_CONVERTED [%s] Code: %s, Message: %s",
+		requestID, requestError.Code, requestError.Message)
+
+	HandleRequestError(c, tmiError)
+}
+
 // SetupOpenAPIValidation creates and returns OpenAPI validation middleware
 func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 	swagger, err := GetSwagger()
