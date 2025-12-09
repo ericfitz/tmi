@@ -124,7 +124,11 @@ func statusFromUpdateRequestStatus(s UpdateInvocationStatusRequestStatus) string
 }
 
 // addonToResponse converts internal Addon to OpenAPI AddonResponse
+// Returns a zero-value AddonResponse if addon is nil (defensive programming)
 func addonToResponse(addon *Addon) AddonResponse {
+	if addon == nil {
+		return AddonResponse{}
+	}
 	return AddonResponse{
 		Id:            addon.ID,
 		CreatedAt:     addon.CreatedAt,
@@ -138,7 +142,11 @@ func addonToResponse(addon *Addon) AddonResponse {
 }
 
 // invocationToResponse converts internal AddonInvocation to OpenAPI InvocationResponse
+// Returns a zero-value InvocationResponse if inv is nil (defensive programming)
 func invocationToResponse(inv *AddonInvocation) InvocationResponse {
+	if inv == nil {
+		return InvocationResponse{}
+	}
 	return InvocationResponse{
 		Id:            inv.ID,
 		AddonId:       inv.AddonID,

@@ -23,8 +23,20 @@ func CustomRecoveryMiddleware() gin.HandlerFunc {
 				// Get logger with context
 				logger := slogging.GetContextLogger(c)
 
+				// Capture CATS fuzzer information and request context for debugging
+				fuzzer := c.GetHeader("X-CATS-Fuzzer")
+				requestID := c.GetHeader("X-Request-ID")
+				path := c.Request.URL.Path
+				method := c.Request.Method
+
 				// Log the panic internally with full details for debugging
-				logger.Error("PANIC recovered: %v\nStack Trace:\n%s", err, stack)
+				if fuzzer != "" {
+					logger.Error("PANIC recovered: %v\nFuzzer: %s\nRequest ID: %s\nPath: %s %s\nStack Trace:\n%s",
+						err, fuzzer, requestID, method, path, stack)
+				} else {
+					logger.Error("PANIC recovered: %v\nRequest ID: %s\nPath: %s %s\nStack Trace:\n%s",
+						err, requestID, method, path, stack)
+				}
 
 				// Determine if we're in development mode
 				isDevelopment := gin.Mode() == gin.DebugMode || strings.ToLower(os.Getenv("LOG_LEVEL")) == "debug"

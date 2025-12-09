@@ -37,9 +37,24 @@ func (s *Server) ListUserAPIQuotas(c *gin.Context, params ListUserAPIQuotasParam
 
 // GetUserAPIQuota retrieves the API quota for a specific user (admin only)
 func (s *Server) GetUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
-	_ = slogging.Get().WithContext(c)
+	logger := slogging.Get().WithContext(c)
 
 	userID := userId
+
+	// Validate user ID format (should be done by OpenAPI, but defensive check)
+	if userID.String() == "" {
+		logger.Error("Invalid user ID in GetUserAPIQuota: empty UUID")
+		c.JSON(http.StatusBadRequest, Error{Error: "invalid user ID format"})
+		return
+	}
+
+	// Get quota (or default) with panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("Panic in GetUserAPIQuota for user %s: %v", userID, r)
+			c.JSON(http.StatusInternalServerError, Error{Error: "failed to retrieve quota"})
+		}
+	}()
 
 	// Get quota (or default)
 	quota := GlobalUserAPIQuotaStore.GetOrDefault(userID.String())
@@ -157,11 +172,25 @@ func (s *Server) ListWebhookQuotas(c *gin.Context, params ListWebhookQuotasParam
 
 // GetWebhookQuota retrieves the webhook quota for a specific user (admin only)
 func (s *Server) GetWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
-	_ = slogging.Get().WithContext(c)
+	logger := slogging.Get().WithContext(c)
 
 	userID := userId
 
-	// Get quota (or default)
+	// Validate user ID format (should be done by OpenAPI, but defensive check)
+	if userID.String() == "" {
+		logger.Error("Invalid user ID in GetWebhookQuota: empty UUID")
+		c.JSON(http.StatusBadRequest, Error{Error: "invalid user ID format"})
+		return
+	}
+
+	// Get quota (or default) with error handling
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("Panic in GetWebhookQuota for user %s: %v", userID, r)
+			c.JSON(http.StatusInternalServerError, Error{Error: "failed to retrieve quota"})
+		}
+	}()
+
 	quota := GlobalWebhookQuotaStore.GetOrDefault(userID.String())
 
 	c.JSON(http.StatusOK, quota)
@@ -292,6 +321,21 @@ func (s *Server) GetAddonInvocationQuota(c *gin.Context, userId openapi_types.UU
 	logger := slogging.Get().WithContext(c)
 
 	userID := userId
+
+	// Validate user ID format (should be done by OpenAPI, but defensive check)
+	if userID.String() == "" {
+		logger.Error("Invalid user ID in GetAddonInvocationQuota: empty UUID")
+		c.JSON(http.StatusBadRequest, Error{Error: "invalid user ID format"})
+		return
+	}
+
+	// Get quota (or default) with panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("Panic in GetAddonInvocationQuota for user %s: %v", userID, r)
+			c.JSON(http.StatusInternalServerError, Error{Error: "failed to retrieve quota"})
+		}
+	}()
 
 	// Get quota (or default)
 	quota, err := GlobalAddonInvocationQuotaStore.GetOrDefault(context.Background(), userID)

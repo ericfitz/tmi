@@ -136,23 +136,21 @@ func GetAddon(c *gin.Context) {
 func ListAddons(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
-	// Parse query parameters
+	// Parse query parameters with safe defaults
 	limit := 50 // default
 	offset := 0 // default
 
+	// Use SafeParseInt to prevent crashes from malformed input
 	if limitStr := c.Query("limit"); limitStr != "" {
-		if parsedLimit, err := parsePositiveInt(limitStr); err == nil {
-			if parsedLimit > 500 {
-				parsedLimit = 500 // max limit
-			}
-			limit = parsedLimit
+		parsedLimit := SafeParseInt(limitStr, 50)
+		if parsedLimit > 500 {
+			parsedLimit = 500 // max limit
 		}
+		limit = parsedLimit
 	}
 
 	if offsetStr := c.Query("offset"); offsetStr != "" {
-		if parsedOffset, err := parsePositiveInt(offsetStr); err == nil {
-			offset = parsedOffset
-		}
+		offset = SafeParseInt(offsetStr, 0)
 	}
 
 	// Optional threat model filter
