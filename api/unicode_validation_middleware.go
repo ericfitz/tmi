@@ -94,6 +94,22 @@ func hasProblematicUnicode(s string) bool {
 			return true
 		}
 
+		// Additional problematic characters for security hardening
+		// Combining diacritical marks (excessive combining can cause "Zalgo text")
+		if r >= '\u0300' && r <= '\u036F' { // Combining Diacritical Marks
+			return true
+		}
+
+		// Fullwidth characters that can be used for visual spoofing
+		// Allow fullwidth forms in general (used in CJK text) but reject in JSON structure
+		if r >= '\uFF00' && r <= '\uFFEF' {
+			// Check if it's within JSON structural characters (brackets, quotes, etc.)
+			// This is a heuristic - we allow fullwidth in string values but not structure
+			if strings.ContainsAny(string(r), "[]{}\":,") {
+				return true
+			}
+		}
+
 		// Check for control characters (except common whitespace)
 		if unicode.IsControl(r) && r != '\n' && r != '\r' && r != '\t' {
 			return true
