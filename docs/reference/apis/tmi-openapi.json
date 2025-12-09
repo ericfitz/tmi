@@ -18558,7 +18558,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/ListAddonsResponse"
                 }
               }
             }
@@ -18910,7 +18910,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/ListInvocationsResponse"
                 }
               }
             }
