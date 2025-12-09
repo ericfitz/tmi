@@ -8269,6 +8269,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict - Cannot delete threat model while a diagram has an active collaboration session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -13896,6 +13906,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - Cannot modify diagram while collaboration session is active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -14057,6 +14077,16 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - Cannot modify diagram while collaboration session is active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -14113,6 +14143,16 @@
           },
           "400": {
             "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Cannot delete diagram while collaboration session is active",
             "content": {
               "application/json": {
                 "schema": {
