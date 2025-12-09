@@ -22069,7 +22069,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/ClientCredentialResponse"
                 }
               }
             }
@@ -22124,7 +22124,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientCredentialInfo"
+                  }
                 }
               }
             }
