@@ -291,6 +291,42 @@ EOF
     echo "${access_token}"
 }
 
+create_test_data() {
+    local token="$1"
+    local server="$2"
+    local user="${3:-}"
+
+    log "Creating test data for CATS fuzzing..."
+
+    # Check if cats-create-test-data.sh exists
+    local test_data_script="${PROJECT_ROOT}/scripts/cats-create-test-data.sh"
+    if [[ ! -f "${test_data_script}" ]]; then
+        error "Test data script not found: ${test_data_script}"
+        return 1
+    fi
+
+    # Check if script is executable
+    if [[ ! -x "${test_data_script}" ]]; then
+        log "Making test data script executable..."
+        chmod +x "${test_data_script}"
+    fi
+
+    # Run test data creation script
+    if ! "${test_data_script}" --token="${token}" --server="${server}" --user="${user}"; then
+        error "Failed to create test data"
+        return 1
+    fi
+
+    # Verify reference file was created
+    if [[ ! -f "${PROJECT_ROOT}/cats-test-data.json" ]]; then
+        error "Test data reference file not found: ${PROJECT_ROOT}/cats-test-data.json"
+        return 1
+    fi
+
+    success "Test data created successfully"
+    return 0
+}
+
 run_cats_fuzz() {
     local token="$1"
     local server="$2"
@@ -352,6 +388,7 @@ run_cats_fuzz() {
         "-X=${HTTP_METHODS}"
         "--skipFieldFormat=uuid"
         "--skipField=offset"
+        "--refData=${PROJECT_ROOT}/cats-test-data.json"
     )
 
     # Add path filter if specified
@@ -436,6 +473,9 @@ main() {
 
     local access_token
     access_token=$(authenticate_user "${user}" "${server}")
+
+    # Create test data before running CATS
+    create_test_data "${access_token}" "${server}" "${user}"
 
     run_cats_fuzz "${access_token}" "${server}" "${path}" "${user}"
 
