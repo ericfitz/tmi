@@ -837,6 +837,8 @@ parse-cats-results:  ## Parse CATS test results into SQLite database
 		$(call log_error,"cats-report/ directory not found. Run 'make cats-fuzz' first."); \
 		exit 1; \
 	fi
+	$(call log_info,"Cleaning old SQLite database...")
+	@rm -f cats-results.db cats-results.db-shm cats-results.db-wal
 	@uv run scripts/parse-cats-results.py \
 		--input cats-report/ \
 		--output cats-results.db \
