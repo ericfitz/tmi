@@ -419,6 +419,10 @@ clean-files:
 		done; \
 	fi
 	@$(MAKE) -f $(MAKEFILE_LIST) clean-logs
+	$(call log_info,"Cleaning CATS artifacts...")
+	@rm -rf cats-report
+	@rm -f cats-results.db cats-results.db-shm cats-results.db-wal
+	@rm -f cats-test-data.json
 	$(call log_success,"File cleanup completed")
 
 clean-containers:

@@ -114,10 +114,11 @@ restart_server_clean() {
     rm -rf "${PROJECT_ROOT}/logs/*" || true
     mkdir -p "${PROJECT_ROOT}/logs" || true
 
-    # Clear old cats report data
-    log "Clearing old cats reports..."
+    # Clear old cats report data and test data file
+    log "Clearing old cats reports and test data..."
     rm -rf "${PROJECT_ROOT}/cats-report/*" || true
     mkdir -p "${PROJECT_ROOT}/cats-report" || true
+    rm -f "${PROJECT_ROOT}/cats-test-data.json" || true
 
     # Start the server fresh
     log "Starting TMI server..."
