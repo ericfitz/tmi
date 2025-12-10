@@ -221,6 +221,9 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	now := time.Now().UTC()
 	threatIDs := []Threat{}
 
+	// Strip response-only fields from authorization entries before validation
+	request.Authorization = StripResponseOnlyAuthFields(request.Authorization)
+
 	// Validate authorization entries with format checking
 	if err := ValidateAuthorizationEntriesWithFormat(request.Authorization); err != nil {
 		HandleRequestError(c, err)
@@ -356,6 +359,9 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		HandleRequestError(c, err)
 		return
 	}
+
+	// Strip response-only fields from authorization entries before validation
+	request.Authorization = StripResponseOnlyAuthFields(request.Authorization)
 
 	// Validate authorization entries with format checking
 	if err := ValidateAuthorizationEntriesWithFormat(request.Authorization); err != nil {
@@ -550,6 +556,11 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 
 	// Phase 3.5: Enrich authorization entries (sparse -> complete)
 	// This happens AFTER patch operations but BEFORE validation
+
+	// Strip response-only fields (like display_name) from authorization entries
+	// This allows clients to send back authorization data they received from the server
+	modifiedTM.Authorization = StripResponseOnlyAuthFields(modifiedTM.Authorization)
+
 	// First, validate sparse entries (provider + one of provider_id/email)
 	if err := ValidateSparseAuthorizationEntries(modifiedTM.Authorization); err != nil {
 		HandleRequestError(c, err)

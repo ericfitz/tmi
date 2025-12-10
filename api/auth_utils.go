@@ -233,9 +233,24 @@ func ValidateAuthorizationEntries(authList []Authorization) error {
 	return nil
 }
 
+// StripResponseOnlyAuthFields strips response-only fields from authorization entries
+// This should be called before validation to allow clients to send back authorization
+// data they received from the server (which includes response-only fields)
+func StripResponseOnlyAuthFields(authList []Authorization) []Authorization {
+	result := make([]Authorization, len(authList))
+	for i, auth := range authList {
+		// Copy the authorization entry but clear response-only fields
+		result[i] = auth
+		result[i].DisplayName = nil // display_name is response-only, always clear it
+	}
+	return result
+}
+
 // ValidateSparseAuthorizationEntries validates authorization entries BEFORE enrichment
 // Requires: provider + (provider_id OR email)
 // Does NOT require: display_name (response-only field)
+// Note: Call StripResponseOnlyAuthFields() before this function if the authorization
+// data came from a client that may have included response-only fields
 func ValidateSparseAuthorizationEntries(authList []Authorization) error {
 	for i, auth := range authList {
 		// Validate provider is present
