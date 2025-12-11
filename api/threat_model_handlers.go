@@ -516,6 +516,22 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	}
 	slogging.Get().WithContext(c).Debug("[HANDLER] Successfully parsed PATCH request with %d operations", len(operations))
 
+	// TEMPORARY DEBUG: Log patch operations to see if display_name is being sent
+	for i, op := range operations {
+		slogging.Get().WithContext(c).Info("[HANDLER] PATCH operation %d: op=%s, path=%s", i, op.Op, op.Path)
+		if op.Path == "/authorization" {
+			slogging.Get().WithContext(c).Info("[HANDLER] Authorization patch detected - value type: %T", op.Value)
+			// Log the actual authorization data to see if display_name is present
+			if authArray, ok := op.Value.([]interface{}); ok {
+				for j, authItem := range authArray {
+					if authMap, ok := authItem.(map[string]interface{}); ok {
+						slogging.Get().WithContext(c).Info("[HANDLER]   Auth entry %d: %+v", j, authMap)
+					}
+				}
+			}
+		}
+	}
+
 	// Validate patch operations against prohibited fields
 	prohibitedPaths := []string{
 		"/id", "/created_at", "/modified_at", "/created_by",
