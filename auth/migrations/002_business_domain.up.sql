@@ -65,11 +65,14 @@ CREATE TABLE IF NOT EXISTS threats (
     priority TEXT DEFAULT 'Medium',
     mitigated BOOLEAN DEFAULT FALSE,
     status TEXT DEFAULT 'Active',
-    threat_type TEXT DEFAULT 'Unspecified',
+    threat_type TEXT[] NOT NULL DEFAULT '{}'::TEXT[],  -- Array of threat types for multiple classifications
     mitigation TEXT,
     issue_uri TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Constraints for threat_type array
+    CONSTRAINT threat_type_no_empty_strings CHECK (NOT ('' = ANY(threat_type))),
+    CONSTRAINT threat_type_max_items CHECK (array_length(threat_type, 1) IS NULL OR array_length(threat_type, 1) <= 20)
 );
 
 -- Create groups table (aligned with users table schema)
@@ -334,7 +337,7 @@ CREATE INDEX idx_threats_asset_id ON threats(asset_id);
 CREATE INDEX idx_threats_priority ON threats(priority);
 CREATE INDEX idx_threats_mitigated ON threats(mitigated);
 CREATE INDEX idx_threats_status ON threats(status);
-CREATE INDEX idx_threats_threat_type ON threats(threat_type);
+CREATE INDEX idx_threats_threat_type_gin ON threats USING GIN (threat_type);  -- GIN index for efficient array containment queries
 CREATE INDEX idx_threats_score ON threats(score);
 CREATE INDEX idx_threats_name ON threats(name);
 CREATE INDEX idx_threats_modified_at ON threats(modified_at);
@@ -570,6 +573,11 @@ CREATE TRIGGER update_addon_invocation_quotas_modified_at
 
 CREATE TRIGGER update_user_api_quotas_modified_at
     BEFORE UPDATE ON user_api_quotas
+    FOR EACH ROW
+    EXECUTE FUNCTION update_modified_at_column();
+
+CREATE TRIGGER update_client_credentials_modified_at
+    BEFORE UPDATE ON client_credentials
     FOR EACH ROW
     EXECUTE FUNCTION update_modified_at_column();
 

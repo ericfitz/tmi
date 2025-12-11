@@ -4,6 +4,9 @@
 DROP TABLE IF EXISTS session_participants CASCADE;
 DROP TABLE IF EXISTS collaboration_sessions CASCADE;
 
+-- Drop client_credentials table
+DROP TABLE IF EXISTS client_credentials CASCADE;
+
 -- Drop refresh_tokens table
 DROP TABLE IF EXISTS refresh_tokens CASCADE;
 
