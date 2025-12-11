@@ -281,8 +281,29 @@ func (s *GroupDatabaseStore) Update(ctx context.Context, group Group) error {
 
 // Delete deletes a group by provider and group_name (placeholder - returns error)
 func (s *GroupDatabaseStore) Delete(ctx context.Context, provider string, groupName string) error {
-	// Placeholder implementation - returns not implemented error
-	return fmt.Errorf("group deletion not implemented (501)")
+	logger := slogging.Get()
+
+	// Delete the group by provider and group_name
+	query := `DELETE FROM groups WHERE provider = $1 AND group_name = $2`
+
+	result, err := s.db.ExecContext(ctx, query, provider, groupName)
+	if err != nil {
+		logger.Error("Failed to delete group: provider=%s, group_name=%s, error=%v", provider, groupName, err)
+		return fmt.Errorf("failed to delete group: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		logger.Error("Failed to get rows affected after delete: %v", err)
+		return fmt.Errorf("failed to verify deletion: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("group not found")
+	}
+
+	logger.Info("Group deleted: provider=%s, group_name=%s", provider, groupName)
+	return nil
 }
 
 // Count returns total count of groups matching the filter

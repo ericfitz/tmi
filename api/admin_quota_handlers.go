@@ -79,6 +79,18 @@ func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 		return
 	}
 
+	// Validate quota bounds
+	if err := ValidateQuotaValue(req.MaxRequestsPerMinute, 1, MaxRequestsPerMinute, "max_requests_per_minute"); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	if req.MaxRequestsPerHour != nil {
+		if err := ValidateQuotaValue(*req.MaxRequestsPerHour, 1, MaxRequestsPerHour, "max_requests_per_hour"); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
+	}
+
 	// Try to get existing quota
 	existingQuota, err := GlobalUserAPIQuotaStore.Get(userID.String())
 	if err != nil {
@@ -212,6 +224,24 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, Error{Error: "invalid request body: " + err.Error()})
+		return
+	}
+
+	// Validate quota bounds
+	if err := ValidateQuotaValue(req.MaxSubscriptions, 1, MaxSubscriptions, "max_subscriptions"); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	if err := ValidateQuotaValue(req.MaxEventsPerMinute, 1, MaxEventsPerMinute, "max_events_per_minute"); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	if err := ValidateQuotaValue(req.MaxSubscriptionRequestsPerMinute, 1, MaxSubscriptionRequestsPerMinute, "max_subscription_requests_per_minute"); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	if err := ValidateQuotaValue(req.MaxSubscriptionRequestsPerDay, 1, MaxSubscriptionRequestsPerDay, "max_subscription_requests_per_day"); err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -362,6 +392,16 @@ func (s *Server) UpdateAddonInvocationQuota(c *gin.Context, userId openapi_types
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, Error{Error: "invalid request body: " + err.Error()})
+		return
+	}
+
+	// Validate quota bounds
+	if err := ValidateQuotaValue(req.MaxActiveInvocations, 1, MaxActiveInvocations, "max_active_invocations"); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	if err := ValidateQuotaValue(req.MaxInvocationsPerHour, 1, MaxInvocationsPerHour, "max_invocations_per_hour"); err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 

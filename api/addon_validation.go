@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 // TMI object types taxonomy (valid values for objects field)
@@ -137,6 +139,11 @@ func ValidateAddonName(name string) error {
 		}
 	}
 
+	// Check for problematic Unicode characters
+	if err := ValidateUnicodeContent(name, "name"); err != nil {
+		return err
+	}
+
 	// Check for HTML injection patterns
 	if err := checkHTMLInjection(name, "name"); err != nil {
 		return err
@@ -150,6 +157,11 @@ func ValidateAddonDescription(description string) error {
 	if description == "" {
 		// Empty description is allowed
 		return nil
+	}
+
+	// Check for problematic Unicode characters
+	if err := ValidateUnicodeContent(description, "description"); err != nil {
+		return err
 	}
 
 	// Check for HTML injection patterns
@@ -189,6 +201,64 @@ func checkHTMLInjection(value, fieldName string) error {
 				Status:  400,
 				Code:    "invalid_input",
 				Message: fmt.Sprintf("Field '%s' contains potentially unsafe content (%s)", fieldName, pattern),
+			}
+		}
+	}
+
+	return nil
+}
+
+// ValidateUnicodeContent checks for problematic Unicode that might slip through middleware
+func ValidateUnicodeContent(value, fieldName string) error {
+	if value == "" {
+		return nil
+	}
+
+	// Check if NFC normalization changes the string (indicates decomposed characters)
+	normalized := norm.NFC.String(value)
+	if normalized != value {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains non-normalized Unicode characters", fieldName),
+		}
+	}
+
+	// Explicit check for characters that middleware should catch
+	for _, r := range value {
+		// Zero-width characters
+		if r == '\u200B' || r == '\u200C' || r == '\u200D' || r == '\uFEFF' {
+			return &RequestError{
+				Status:  400,
+				Code:    "invalid_input",
+				Message: fmt.Sprintf("Field '%s' contains zero-width characters", fieldName),
+			}
+		}
+
+		// Bidirectional overrides
+		if (r >= '\u202A' && r <= '\u202E') || (r >= '\u2066' && r <= '\u2069') {
+			return &RequestError{
+				Status:  400,
+				Code:    "invalid_input",
+				Message: fmt.Sprintf("Field '%s' contains bidirectional text control characters", fieldName),
+			}
+		}
+
+		// Hangul filler
+		if r == '\u3164' {
+			return &RequestError{
+				Status:  400,
+				Code:    "invalid_input",
+				Message: fmt.Sprintf("Field '%s' contains Hangul filler characters", fieldName),
+			}
+		}
+
+		// Combining marks (Zalgo)
+		if r >= '\u0300' && r <= '\u036F' {
+			return &RequestError{
+				Status:  400,
+				Code:    "invalid_input",
+				Message: fmt.Sprintf("Field '%s' contains excessive combining diacritical marks", fieldName),
 			}
 		}
 	}
