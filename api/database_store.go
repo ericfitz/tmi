@@ -11,6 +11,7 @@ import (
 	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/lib/pq"
 )
 
 // DatabaseStore provides a database-backed store implementation
@@ -1039,7 +1040,8 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 	threats := []Threat{}
 	for rows.Next() {
 		var id, threatModelUuid uuid.UUID
-		var name, threatType string
+		var name string
+		var threatType pq.StringArray
 		var priority, status *string
 		var description, severityStr, mitigation *string
 		var diagramIdStr, cellIdStr, assetIdStr *string
@@ -1108,7 +1110,7 @@ func (s *ThreatModelDatabaseStore) loadThreats(threatModelId string) ([]Threat, 
 			Priority:      priority,
 			Mitigated:     mitigated,
 			Status:        status,
-			ThreatType:    threatType,
+			ThreatType:    []string(threatType),
 			Score:         scoreFloat32,
 			IssueUri:      issueUrl,
 			Metadata:      metadata,

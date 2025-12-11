@@ -229,7 +229,7 @@ func createTestThreatForWarming() Threat {
 		ThreatModelId: uuidPointer(uuid.New()),
 		Priority:      strPtr("High"),
 		Status:        strPtr("Open"),
-		ThreatType:    "Test",
+		ThreatType:    []string{"Test"},
 		Mitigated:     boolPtr(false),
 	}
 }

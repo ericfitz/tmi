@@ -30,7 +30,7 @@ func createTestThreatModelDB() ThreatModel {
 			ThreatModelId: &id,
 			Priority:      strPtr("High"),
 			Status:        strPtr("Open"),
-			ThreatType:    "Injection",
+			ThreatType:    []string{"Injection"},
 			Mitigated:     boolPtr(false),
 		},
 	}
@@ -168,7 +168,7 @@ func TestThreatModelDatabaseStore_Get(t *testing.T) {
 			"created_at", "modified_at",
 		}).AddRow(
 			uuid.New(), "SQL Injection", "Database attack", "high", "Use prepared statements", nil, nil, nil,
-			"High", false, "Open", "Injection", nil, nil,
+			"High", false, "Open", pq.StringArray{"Injection"}, nil, nil,
 			time.Now(), time.Now(),
 		)
 		mock.ExpectQuery("SELECT (.+) FROM threats").WithArgs(testID).WillReturnRows(threatRows)

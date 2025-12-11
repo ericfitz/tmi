@@ -116,7 +116,7 @@ func InitSubResourceTestFixtures() {
 		Severity:      stringPointer("High"),
 		Priority:      stringPointer("high"),
 		Status:        stringPointer("active"),
-		ThreatType:    "Injection",
+		ThreatType:    []string{"Injection"},
 		Mitigated:     boolPointer(false),
 	}
 
@@ -132,7 +132,7 @@ func InitSubResourceTestFixtures() {
 		Severity:      stringPointer("Medium"),
 		Priority:      stringPointer("medium"),
 		Status:        stringPointer("identified"),
-		ThreatType:    "Cross-Site Scripting",
+		ThreatType:    []string{"Cross-Site Scripting"},
 		Mitigated:     boolPointer(false),
 	}
 
@@ -281,7 +281,7 @@ func CreateTestThreatWithMetadata(threatModelID string, metadata []Metadata) Thr
 		Severity:      stringPointer("Medium"),
 		Priority:      stringPointer("Medium"),
 		Status:        stringPointer("Open"),
-		ThreatType:    "Test",
+		ThreatType:    []string{"Test"},
 		Mitigated:     boolPointer(false),
 	}
 }

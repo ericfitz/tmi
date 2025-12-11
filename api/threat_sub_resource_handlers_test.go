@@ -249,7 +249,7 @@ func TestCreateThreat(t *testing.T) {
 			"description": "A threat created for testing",
 			"severity":    "high",
 			"status":      "identified",
-			"threat_type": "spoofing",
+			"threat_type": []string{"spoofing"},
 			"priority":    "high",
 			"mitigated":   false,
 		}
@@ -259,7 +259,7 @@ func TestCreateThreat(t *testing.T) {
 			Description: stringPtr("A threat created for testing"),
 			Severity:    stringPtr("High"),
 			Status:      stringPtr("identified"),
-			ThreatType:  "spoofing",
+			ThreatType:  []string{"spoofing"},
 			Priority:    stringPtr("high"),
 			Mitigated:   boolPtr(false),
 		}
@@ -342,7 +342,7 @@ func TestUpdateThreat(t *testing.T) {
 			"description": "An updated threat description",
 			"severity":    "critical",
 			"status":      "mitigated",
-			"threat_type": "spoofing",
+			"threat_type": []string{"spoofing"},
 			"priority":    "critical",
 			"mitigated":   true,
 		}

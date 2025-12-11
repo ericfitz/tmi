@@ -83,7 +83,7 @@ func InitTestFixtures() {
 			Severity:      stringPointer("High"),
 			Priority:      stringPointer("High"),
 			Status:        stringPointer("Open"),
-			ThreatType:    "Injection",
+			ThreatType:    []string{"Injection"},
 			Mitigated:     boolPointer(false),
 			Metadata:      &metadata,
 		},

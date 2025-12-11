@@ -2785,10 +2785,18 @@
             "pattern": "^[\\u0020-\\uFFFF]*$"
           },
           "threat_type": {
-            "type": "string",
-            "description": "Type or category of the threat",
-            "maxLength": 256,
-            "pattern": "^[\\u0020-\\uFFFF]*$"
+            "type": "array",
+            "description": "Types or categories of the threat. Supports multiple classifications within the same framework (e.g., ['Spoofing', 'Tampering']). Empty array indicates no types assigned.",
+            "items": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[\\u0020-\\uFFFF]*$",
+              "minLength": 1
+            },
+            "minItems": 0,
+            "maxItems": 20,
+            "uniqueItems": true,
+            "default": []
           },
           "metadata": {
             "type": "array",
@@ -8353,11 +8361,14 @@
             "name": "threat_type",
             "in": "query",
             "schema": {
-              "type": "string",
-              "maxLength": 1000,
-              "pattern": "^[\\u0020-\\uFFFF]*$"
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             },
-            "description": "Filter by threat type (exact match)"
+            "description": "Filter by threat types (AND logic). Threat must contain ALL specified types. Example: ?threat_type=Tampering&threat_type=Spoofing",
+            "style": "form",
+            "explode": true
           },
           {
             "name": "severity",

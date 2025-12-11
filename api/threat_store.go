@@ -10,6 +10,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // ThreatFilter defines filtering criteria for threats
@@ -17,7 +18,7 @@ type ThreatFilter struct {
 	// Basic filters
 	Name        *string
 	Description *string
-	ThreatType  *string
+	ThreatType  []string
 	Severity    *string
 	Priority    *string
 	Status      *string
@@ -129,7 +130,7 @@ func (s *DatabaseThreatStore) Create(ctx context.Context, threat *Threat) error 
 		threat.Description,
 		threat.Severity,
 		threat.Mitigation,
-		threat.ThreatType,
+		pq.Array(threat.ThreatType),
 		threat.Status,
 		threat.Priority,
 		threat.Mitigated,
@@ -213,7 +214,7 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 		&description,
 		&threat.Severity,
 		&mitigation,
-		&threat.ThreatType,
+		pq.Array(&threat.ThreatType),
 		&threat.Status,
 		&threat.Priority,
 		&threat.Mitigated,
@@ -313,7 +314,7 @@ func (s *DatabaseThreatStore) Update(ctx context.Context, threat *Threat) error 
 		threat.Description,
 		threat.Severity,
 		threat.Mitigation,
-		threat.ThreatType,
+		pq.Array(threat.ThreatType),
 		threat.Status,
 		threat.Priority,
 		threat.Mitigated,
@@ -623,6 +624,47 @@ func (s *DatabaseThreatStore) applyPatchOperation(threat *Threat, op PatchOperat
 		case "remove":
 			threat.Score = nil
 		}
+	case "/threat_type":
+		switch op.Op {
+		case "replace":
+			if types, ok := op.Value.([]interface{}); ok {
+				stringTypes := make([]string, 0, len(types))
+				for _, t := range types {
+					if str, ok := t.(string); ok {
+						stringTypes = append(stringTypes, str)
+					} else {
+						return fmt.Errorf("invalid type in threat_type array")
+					}
+				}
+				threat.ThreatType = stringTypes
+			} else {
+				return fmt.Errorf("threat_type replace requires array")
+			}
+		case "add":
+			if newType, ok := op.Value.(string); ok {
+				// Check for duplicates
+				for _, existing := range threat.ThreatType {
+					if existing == newType {
+						return nil // Silently ignore duplicates
+					}
+				}
+				threat.ThreatType = append(threat.ThreatType, newType)
+			} else {
+				return fmt.Errorf("threat_type add requires string value")
+			}
+		case "remove":
+			if removeType, ok := op.Value.(string); ok {
+				filtered := make([]string, 0, len(threat.ThreatType))
+				for _, t := range threat.ThreatType {
+					if t != removeType {
+						filtered = append(filtered, t)
+					}
+				}
+				threat.ThreatType = filtered
+			} else {
+				return fmt.Errorf("threat_type remove requires string value")
+			}
+		}
 	default:
 		return fmt.Errorf("unsupported patch path: %s", op.Path)
 	}
@@ -708,7 +750,7 @@ func (s *DatabaseThreatStore) BulkCreate(ctx context.Context, threats []Threat) 
 			threat.Description,
 			threat.Severity,
 			threat.Mitigation,
-			threat.ThreatType,
+			pq.Array(threat.ThreatType),
 			threat.Status,
 			threat.Priority,
 			threat.Mitigated,
@@ -811,7 +853,7 @@ func (s *DatabaseThreatStore) BulkUpdate(ctx context.Context, threats []Threat) 
 			threat.Description,
 			threat.Severity,
 			threat.Mitigation,
-			threat.ThreatType,
+			pq.Array(threat.ThreatType),
 			threat.Status,
 			threat.Priority,
 			threat.Mitigated,
@@ -955,7 +997,7 @@ func (s *DatabaseThreatStore) saveMetadata(ctx context.Context, threatID string,
 
 // shouldUseCache determines if the query is simple enough to use caching
 func (s *DatabaseThreatStore) shouldUseCache(filter ThreatFilter) bool {
-	return filter.Name == nil && filter.Description == nil && filter.ThreatType == nil &&
+	return filter.Name == nil && filter.Description == nil && len(filter.ThreatType) == 0 &&
 		filter.Severity == nil && filter.Priority == nil && filter.Status == nil &&
 		filter.DiagramID == nil && filter.CellID == nil &&
 		filter.ScoreGT == nil && filter.ScoreLT == nil && filter.ScoreEQ == nil &&
@@ -1036,9 +1078,10 @@ func (s *DatabaseThreatStore) buildWhereClause(filter ThreatFilter, startIndex i
 	}
 
 	// Enum filters
-	if filter.ThreatType != nil {
-		conditions = append(conditions, fmt.Sprintf(" AND threat_type = $%d", argIndex))
-		args = append(args, *filter.ThreatType)
+	if len(filter.ThreatType) > 0 {
+		// @> operator: "threat_type contains ALL filter elements"
+		conditions = append(conditions, fmt.Sprintf(" AND threat_type @> $%d", argIndex))
+		args = append(args, pq.Array(filter.ThreatType))
 		argIndex++
 	}
 
@@ -1196,7 +1239,7 @@ func (s *DatabaseThreatStore) scanSingleThreat(rows *sql.Rows) (Threat, error) {
 		&description,
 		&threat.Severity,
 		&mitigation,
-		&threat.ThreatType,
+		pq.Array(&threat.ThreatType),
 		&threat.Status,
 		&threat.Priority,
 		&threat.Mitigated,

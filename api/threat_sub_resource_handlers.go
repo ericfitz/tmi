@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/uuidgen"
@@ -143,8 +144,24 @@ func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params 
 	if params.Description != nil {
 		filter.Description = params.Description
 	}
-	if params.ThreatType != nil {
-		filter.ThreatType = params.ThreatType
+	if params.ThreatType != nil && len(*params.ThreatType) > 0 {
+		types := *params.ThreatType
+
+		// Validation: Max 10 filter types
+		if len(types) > 10 {
+			HandleRequestError(c, InvalidInputError("Maximum 10 threat types in filter"))
+			return
+		}
+
+		// Validation: No empty strings
+		for _, t := range types {
+			if strings.TrimSpace(t) == "" {
+				HandleRequestError(c, InvalidInputError("Threat type cannot be empty"))
+				return
+			}
+		}
+
+		filter.ThreatType = types
 	}
 	if params.Severity != nil {
 		severityStr := string(*params.Severity)
