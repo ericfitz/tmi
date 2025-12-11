@@ -313,7 +313,8 @@ create_test_data() {
     fi
 
     # Run test data creation script
-    if ! "${test_data_script}" --token="${token}" --server="${server}" --user="${user}"; then
+    # Note: cats-create-test-data.sh handles authentication internally via OAuth stub
+    if ! "${test_data_script}" --server "${server}" --user "${user}"; then
         error "Failed to create test data"
         return 1
     fi
@@ -389,7 +390,7 @@ run_cats_fuzz() {
         "-X=${HTTP_METHODS}"
         "--skipFieldFormat=uuid"
         "--skipField=offset"
-        "--refData=${PROJECT_ROOT}/cats-test-data.json"
+        "--refData=${PROJECT_ROOT}/cats-test-data.yml"
     )
 
     # Add path filter if specified

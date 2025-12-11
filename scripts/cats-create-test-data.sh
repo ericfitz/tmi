@@ -173,7 +173,17 @@ create_threat_model() {
         -d '{
             "name": "CATS Test Threat Model",
             "description": "Created by cats-create-test-data.sh for comprehensive API fuzzing. DO NOT DELETE.",
-            "version": "1.0"
+            "threat_model_framework": "STRIDE",
+            "metadata": [
+                {
+                    "key": "version",
+                    "value": "1.0"
+                },
+                {
+                    "key": "purpose",
+                    "value": "cats-fuzzing-test-data"
+                }
+            ]
         }')
 
     TM_ID=$(echo "${RESPONSE}" | jq -r '.id' 2>/dev/null)
@@ -196,7 +206,9 @@ create_threat() {
         -d '{
             "name": "CATS Test Threat",
             "description": "Test threat for CATS fuzzing",
+            "threat_type": ["Tampering", "Information Disclosure"],
             "severity": "high",
+            "priority": "high",
             "status": "identified"
         }')
 
@@ -218,9 +230,8 @@ create_diagram() {
         -H "Authorization: Bearer ${JWT_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{
-            "title": "CATS Test Diagram",
-            "diagram_type": "STRIDE",
-            "version": 1
+            "name": "CATS Test Diagram",
+            "type": "DFD-1.0.0"
         }')
 
     DIAGRAM_ID=$(echo "${RESPONSE}" | jq -r '.id' 2>/dev/null)
@@ -242,8 +253,8 @@ create_document() {
         -H "Content-Type: application/json" \
         -d '{
             "name": "CATS Test Document",
-            "content": "Test document content for CATS fuzzing",
-            "content_type": "text/plain"
+            "uri": "https://docs.example.com/cats-test-document.pdf",
+            "description": "Test document for CATS fuzzing"
         }')
 
     DOC_ID=$(echo "${RESPONSE}" | jq -r '.id' 2>/dev/null)
@@ -266,7 +277,7 @@ create_asset() {
         -d '{
             "name": "CATS Test Asset",
             "description": "Test asset for CATS fuzzing",
-            "asset_type": "application"
+            "type": "software"
         }')
 
     ASSET_ID=$(echo "${RESPONSE}" | jq -r '.id' 2>/dev/null)
@@ -287,6 +298,7 @@ create_note() {
         -H "Authorization: Bearer ${JWT_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{
+            "name": "CATS Test Note",
             "content": "CATS test note for comprehensive API fuzzing"
         }')
 
@@ -308,9 +320,7 @@ create_repository() {
         -H "Authorization: Bearer ${JWT_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{
-            "url": "https://github.com/example/cats-test-repo",
-            "branch": "main",
-            "type": "git"
+            "uri": "https://github.com/example/cats-test-repo"
         }')
 
     REPO_ID=$(echo "${RESPONSE}" | jq -r '.id' 2>/dev/null)
@@ -397,7 +407,7 @@ create_client_credential() {
 create_metadata() {
     log "Creating metadata entries..."
 
-    local METADATA_KEY="cats-test-key"
+    METADATA_KEY="cats-test-key"
     local METADATA_VALUE='{"value": "cats-test-value"}'
 
     # Threat metadata
@@ -512,6 +522,30 @@ write_reference_file() {
 EOF
 
     success "Test data reference written to ${OUTPUT_FILE}"
+
+    # Also create YAML version for CATS (which requires flat key-value format)
+    local YAML_FILE="${OUTPUT_FILE%.json}.yml"
+    cat > "${YAML_FILE}" <<YAMLEOF
+# CATS Reference Data - Flat key-value format for path/query parameter replacement
+# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+# Primary resource IDs
+id: ${TM_ID}
+threat_model_id: ${TM_ID}
+threat_id: ${THREAT_ID}
+diagram_id: ${DIAGRAM_ID}
+document_id: ${DOC_ID}
+asset_id: ${ASSET_ID}
+note_id: ${NOTE_ID}
+repository_id: ${REPO_ID}
+webhook_id: ${WEBHOOK_ID}
+addon_id: ${ADDON_ID}
+client_credential_id: ${CLIENT_CRED_ID}
+
+# Metadata key
+key: ${METADATA_KEY}
+YAMLEOF
+    success "YAML version written to ${YAML_FILE}"
 }
 
 # Print summary
