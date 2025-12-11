@@ -550,125 +550,168 @@ func (s *DatabaseThreatStore) Patch(ctx context.Context, id string, operations [
 func (s *DatabaseThreatStore) applyPatchOperation(threat *Threat, op PatchOperation) error {
 	switch op.Path {
 	case "/name":
-		if op.Op == "replace" {
-			if name, ok := op.Value.(string); ok {
-				threat.Name = name
-			} else {
-				return fmt.Errorf("invalid value type for name: expected string")
-			}
-		}
+		return s.patchName(threat, op)
 	case "/description":
-		switch op.Op {
-		case "replace", "add":
-			if desc, ok := op.Value.(string); ok {
-				threat.Description = &desc
-			} else {
-				return fmt.Errorf("invalid value type for description: expected string")
-			}
-		case "remove":
-			threat.Description = nil
-		}
+		return s.patchDescription(threat, op)
 	case "/severity":
-		if op.Op == "replace" {
-			if sev, ok := op.Value.(string); ok {
-				normalized := normalizeSeverity(sev)
-				threat.Severity = &normalized
-			} else {
-				return fmt.Errorf("invalid value type for severity: expected string")
-			}
-		}
+		return s.patchSeverity(threat, op)
 	case "/mitigation":
-		switch op.Op {
-		case "replace", "add":
-			if mit, ok := op.Value.(string); ok {
-				threat.Mitigation = &mit
-			} else {
-				return fmt.Errorf("invalid value type for mitigation: expected string")
-			}
-		case "remove":
-			threat.Mitigation = nil
-		}
+		return s.patchMitigation(threat, op)
 	case "/status":
-		if op.Op == "replace" {
-			if status, ok := op.Value.(string); ok {
-				threat.Status = &status
-			} else {
-				return fmt.Errorf("invalid value type for status: expected string")
-			}
-		}
+		return s.patchStatus(threat, op)
 	case "/priority":
-		if op.Op == "replace" {
-			if priority, ok := op.Value.(string); ok {
-				threat.Priority = &priority
-			} else {
-				return fmt.Errorf("invalid value type for priority: expected string")
-			}
-		}
+		return s.patchPriority(threat, op)
 	case "/mitigated":
-		if op.Op == "replace" {
-			if mitigated, ok := op.Value.(bool); ok {
-				threat.Mitigated = &mitigated
-			} else {
-				return fmt.Errorf("invalid value type for mitigated: expected boolean")
-			}
-		}
+		return s.patchMitigated(threat, op)
 	case "/score":
-		switch op.Op {
-		case "replace", "add":
-			if score, ok := op.Value.(float64); ok {
-				score32 := float32(score)
-				threat.Score = &score32
-			} else {
-				return fmt.Errorf("invalid value type for score: expected number")
-			}
-		case "remove":
-			threat.Score = nil
-		}
+		return s.patchScore(threat, op)
 	case "/threat_type":
-		switch op.Op {
-		case "replace":
-			if types, ok := op.Value.([]interface{}); ok {
-				stringTypes := make([]string, 0, len(types))
-				for _, t := range types {
-					if str, ok := t.(string); ok {
-						stringTypes = append(stringTypes, str)
-					} else {
-						return fmt.Errorf("invalid type in threat_type array")
-					}
-				}
-				threat.ThreatType = stringTypes
-			} else {
-				return fmt.Errorf("threat_type replace requires array")
-			}
-		case "add":
-			if newType, ok := op.Value.(string); ok {
-				// Check for duplicates
-				for _, existing := range threat.ThreatType {
-					if existing == newType {
-						return nil // Silently ignore duplicates
-					}
-				}
-				threat.ThreatType = append(threat.ThreatType, newType)
-			} else {
-				return fmt.Errorf("threat_type add requires string value")
-			}
-		case "remove":
-			if removeType, ok := op.Value.(string); ok {
-				filtered := make([]string, 0, len(threat.ThreatType))
-				for _, t := range threat.ThreatType {
-					if t != removeType {
-						filtered = append(filtered, t)
-					}
-				}
-				threat.ThreatType = filtered
-			} else {
-				return fmt.Errorf("threat_type remove requires string value")
-			}
-		}
+		return s.patchThreatType(threat, op)
 	default:
 		return fmt.Errorf("unsupported patch path: %s", op.Path)
 	}
+}
 
+func (s *DatabaseThreatStore) patchName(threat *Threat, op PatchOperation) error {
+	if op.Op == "replace" {
+		if name, ok := op.Value.(string); ok {
+			threat.Name = name
+			return nil
+		}
+		return fmt.Errorf("invalid value type for name: expected string")
+	}
+	return nil
+}
+
+func (s *DatabaseThreatStore) patchDescription(threat *Threat, op PatchOperation) error {
+	switch op.Op {
+	case "replace", "add":
+		if desc, ok := op.Value.(string); ok {
+			threat.Description = &desc
+			return nil
+		}
+		return fmt.Errorf("invalid value type for description: expected string")
+	case "remove":
+		threat.Description = nil
+	}
+	return nil
+}
+
+func (s *DatabaseThreatStore) patchSeverity(threat *Threat, op PatchOperation) error {
+	if op.Op == "replace" {
+		if sev, ok := op.Value.(string); ok {
+			normalized := normalizeSeverity(sev)
+			threat.Severity = &normalized
+			return nil
+		}
+		return fmt.Errorf("invalid value type for severity: expected string")
+	}
+	return nil
+}
+
+func (s *DatabaseThreatStore) patchMitigation(threat *Threat, op PatchOperation) error {
+	switch op.Op {
+	case "replace", "add":
+		if mit, ok := op.Value.(string); ok {
+			threat.Mitigation = &mit
+			return nil
+		}
+		return fmt.Errorf("invalid value type for mitigation: expected string")
+	case "remove":
+		threat.Mitigation = nil
+	}
+	return nil
+}
+
+func (s *DatabaseThreatStore) patchStatus(threat *Threat, op PatchOperation) error {
+	if op.Op == "replace" {
+		if status, ok := op.Value.(string); ok {
+			threat.Status = &status
+			return nil
+		}
+		return fmt.Errorf("invalid value type for status: expected string")
+	}
+	return nil
+}
+
+func (s *DatabaseThreatStore) patchPriority(threat *Threat, op PatchOperation) error {
+	if op.Op == "replace" {
+		if priority, ok := op.Value.(string); ok {
+			threat.Priority = &priority
+			return nil
+		}
+		return fmt.Errorf("invalid value type for priority: expected string")
+	}
+	return nil
+}
+
+func (s *DatabaseThreatStore) patchMitigated(threat *Threat, op PatchOperation) error {
+	if op.Op == "replace" {
+		if mitigated, ok := op.Value.(bool); ok {
+			threat.Mitigated = &mitigated
+			return nil
+		}
+		return fmt.Errorf("invalid value type for mitigated: expected boolean")
+	}
+	return nil
+}
+
+func (s *DatabaseThreatStore) patchScore(threat *Threat, op PatchOperation) error {
+	switch op.Op {
+	case "replace", "add":
+		if score, ok := op.Value.(float64); ok {
+			score32 := float32(score)
+			threat.Score = &score32
+			return nil
+		}
+		return fmt.Errorf("invalid value type for score: expected number")
+	case "remove":
+		threat.Score = nil
+	}
+	return nil
+}
+
+func (s *DatabaseThreatStore) patchThreatType(threat *Threat, op PatchOperation) error {
+	switch op.Op {
+	case "replace":
+		if types, ok := op.Value.([]interface{}); ok {
+			stringTypes := make([]string, 0, len(types))
+			for _, t := range types {
+				if str, ok := t.(string); ok {
+					stringTypes = append(stringTypes, str)
+				} else {
+					return fmt.Errorf("invalid type in threat_type array")
+				}
+			}
+			threat.ThreatType = stringTypes
+			return nil
+		}
+		return fmt.Errorf("threat_type replace requires array")
+	case "add":
+		if newType, ok := op.Value.(string); ok {
+			// Check for duplicates
+			for _, existing := range threat.ThreatType {
+				if existing == newType {
+					return nil // Silently ignore duplicates
+				}
+			}
+			threat.ThreatType = append(threat.ThreatType, newType)
+			return nil
+		}
+		return fmt.Errorf("threat_type add requires string value")
+	case "remove":
+		if removeType, ok := op.Value.(string); ok {
+			filtered := make([]string, 0, len(threat.ThreatType))
+			for _, t := range threat.ThreatType {
+				if t != removeType {
+					filtered = append(filtered, t)
+				}
+			}
+			threat.ThreatType = filtered
+			return nil
+		}
+		return fmt.Errorf("threat_type remove requires string value")
+	}
 	return nil
 }
 

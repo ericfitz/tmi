@@ -94,20 +94,14 @@ func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params 
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreatsWithFilters - retrieving threats with advanced filtering")
 
-	// Extract threat model ID from URL
-	threatModelID := c.Param("threat_model_id")
-	if threatModelID == "" {
-		HandleRequestError(c, InvalidIDError("Missing threat model ID"))
+	// Extract and validate threat model ID
+	threatModelID, err := h.validateThreatModelID(c)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
-	// Validate threat model ID format
-	if _, err := ParseUUID(threatModelID); err != nil {
-		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
-		return
-	}
-
-	// Get authenticated user (should be set by middleware)
+	// Get authenticated user
 	userEmail, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
@@ -115,105 +109,10 @@ func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params 
 	}
 
 	// Build filter from parameters
-	filter := ThreatFilter{
-		Offset: 0,
-		Limit:  20, // defaults
-	}
-
-	// Set pagination parameters
-	if params.Limit != nil {
-		if *params.Limit < 1 || *params.Limit > 100 {
-			HandleRequestError(c, InvalidInputError("Limit must be between 1 and 100"))
-			return
-		}
-		filter.Limit = *params.Limit
-	}
-
-	if params.Offset != nil {
-		if *params.Offset < 0 {
-			HandleRequestError(c, InvalidInputError("Offset must be non-negative"))
-			return
-		}
-		filter.Offset = *params.Offset
-	}
-
-	// Set filtering parameters
-	if params.Name != nil {
-		filter.Name = params.Name
-	}
-	if params.Description != nil {
-		filter.Description = params.Description
-	}
-	if params.ThreatType != nil && len(*params.ThreatType) > 0 {
-		types := *params.ThreatType
-
-		// Validation: Max 10 filter types
-		if len(types) > 10 {
-			HandleRequestError(c, InvalidInputError("Maximum 10 threat types in filter"))
-			return
-		}
-
-		// Validation: No empty strings
-		for _, t := range types {
-			if strings.TrimSpace(t) == "" {
-				HandleRequestError(c, InvalidInputError("Threat type cannot be empty"))
-				return
-			}
-		}
-
-		filter.ThreatType = types
-	}
-	if params.Severity != nil {
-		severityStr := string(*params.Severity)
-		filter.Severity = &severityStr
-	}
-	if params.Priority != nil {
-		filter.Priority = params.Priority
-	}
-	if params.Status != nil {
-		filter.Status = params.Status
-	}
-	if params.DiagramId != nil {
-		filter.DiagramID = params.DiagramId
-	}
-	if params.CellId != nil {
-		filter.CellID = params.CellId
-	}
-
-	// Set score comparison parameters
-	if params.ScoreGt != nil {
-		filter.ScoreGT = params.ScoreGt
-	}
-	if params.ScoreLt != nil {
-		filter.ScoreLT = params.ScoreLt
-	}
-	if params.ScoreEq != nil {
-		filter.ScoreEQ = params.ScoreEq
-	}
-	if params.ScoreGe != nil {
-		filter.ScoreGE = params.ScoreGe
-	}
-	if params.ScoreLe != nil {
-		filter.ScoreLE = params.ScoreLe
-	}
-
-	// Set date parameters
-	if params.CreatedAfter != nil {
-		filter.CreatedAfter = params.CreatedAfter
-	}
-	if params.CreatedBefore != nil {
-		filter.CreatedBefore = params.CreatedBefore
-	}
-	if params.ModifiedAfter != nil {
-		filter.ModifiedAfter = params.ModifiedAfter
-	}
-	if params.ModifiedBefore != nil {
-		filter.ModifiedBefore = params.ModifiedBefore
-	}
-
-	// Set sorting parameter
-	if params.Sort != nil {
-		filter.Sort = params.Sort
+	filter, err := h.buildThreatFilter(params)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
 	}
 
 	logger.Debug("Retrieving threats for threat model %s (user: %s) with filters",
@@ -229,6 +128,121 @@ func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params 
 
 	logger.Debug("Successfully retrieved %d threats with filters", len(threats))
 	c.JSON(http.StatusOK, threats)
+}
+
+func (h *ThreatSubResourceHandler) validateThreatModelID(c *gin.Context) (string, error) {
+	threatModelID := c.Param("threat_model_id")
+	if threatModelID == "" {
+		return "", InvalidIDError("Missing threat model ID")
+	}
+
+	if _, err := ParseUUID(threatModelID); err != nil {
+		return "", InvalidIDError("Invalid threat model ID format, must be a valid UUID")
+	}
+
+	return threatModelID, nil
+}
+
+func (h *ThreatSubResourceHandler) buildThreatFilter(params GetThreatModelThreatsParams) (ThreatFilter, error) {
+	filter := ThreatFilter{
+		Offset: 0,
+		Limit:  20,
+	}
+
+	// Set pagination parameters
+	if err := h.setPaginationParams(&filter, params); err != nil {
+		return filter, err
+	}
+
+	// Set filtering parameters
+	if err := h.setFilterParams(&filter, params); err != nil {
+		return filter, err
+	}
+
+	// Set score comparison parameters
+	h.setScoreParams(&filter, params)
+
+	// Set date parameters
+	h.setDateParams(&filter, params)
+
+	// Set sorting parameter
+	if params.Sort != nil {
+		filter.Sort = params.Sort
+	}
+
+	return filter, nil
+}
+
+func (h *ThreatSubResourceHandler) setPaginationParams(filter *ThreatFilter, params GetThreatModelThreatsParams) error {
+	if params.Limit != nil {
+		if *params.Limit < 1 || *params.Limit > 100 {
+			return InvalidInputError("Limit must be between 1 and 100")
+		}
+		filter.Limit = *params.Limit
+	}
+
+	if params.Offset != nil {
+		if *params.Offset < 0 {
+			return InvalidInputError("Offset must be non-negative")
+		}
+		filter.Offset = *params.Offset
+	}
+
+	return nil
+}
+
+func (h *ThreatSubResourceHandler) setFilterParams(filter *ThreatFilter, params GetThreatModelThreatsParams) error {
+	filter.Name = params.Name
+	filter.Description = params.Description
+
+	// Validate and set threat types
+	if params.ThreatType != nil && len(*params.ThreatType) > 0 {
+		if err := h.validateThreatTypes(*params.ThreatType); err != nil {
+			return err
+		}
+		filter.ThreatType = *params.ThreatType
+	}
+
+	// Set other filter fields
+	if params.Severity != nil {
+		severityStr := string(*params.Severity)
+		filter.Severity = &severityStr
+	}
+	filter.Priority = params.Priority
+	filter.Status = params.Status
+	filter.DiagramID = params.DiagramId
+	filter.CellID = params.CellId
+
+	return nil
+}
+
+func (h *ThreatSubResourceHandler) validateThreatTypes(types []string) error {
+	if len(types) > 10 {
+		return InvalidInputError("Maximum 10 threat types in filter")
+	}
+
+	for _, t := range types {
+		if strings.TrimSpace(t) == "" {
+			return InvalidInputError("Threat type cannot be empty")
+		}
+	}
+
+	return nil
+}
+
+func (h *ThreatSubResourceHandler) setScoreParams(filter *ThreatFilter, params GetThreatModelThreatsParams) {
+	filter.ScoreGT = params.ScoreGt
+	filter.ScoreLT = params.ScoreLt
+	filter.ScoreEQ = params.ScoreEq
+	filter.ScoreGE = params.ScoreGe
+	filter.ScoreLE = params.ScoreLe
+}
+
+func (h *ThreatSubResourceHandler) setDateParams(filter *ThreatFilter, params GetThreatModelThreatsParams) {
+	filter.CreatedAfter = params.CreatedAfter
+	filter.CreatedBefore = params.CreatedBefore
+	filter.ModifiedAfter = params.ModifiedAfter
+	filter.ModifiedBefore = params.ModifiedBefore
 }
 
 // GetThreat retrieves a specific threat by ID
