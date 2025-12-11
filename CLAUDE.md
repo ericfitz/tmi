@@ -148,9 +148,15 @@ CATS (Contract-driven Automatic Testing Suite) performs security fuzzing of the 
 **Key Features**:
 - Automatic OAuth authentication flow with test provider
 - Rate limit handling (automatically cleared before testing)
-- Public endpoint awareness (skips auth tests on RFC-compliant public endpoints)
+- Public endpoint awareness (uses `--skipFuzzersForExtension` to skip `BypassAuthentication` fuzzer on endpoints marked with `x-public-endpoint: true` in OpenAPI spec)
 - UUID field skipping (avoids false positives with malformed UUIDs)
 - Structured analysis with SQLite database and views
+
+**Public Endpoint Handling**:
+- TMI has 17 public endpoints (OAuth, OIDC, SAML) marked with `x-public-endpoint: true` vendor extension
+- CATS uses `--skipFuzzersForExtension=x-public-endpoint=true:BypassAuthentication` to avoid false positives
+- Public endpoints are intentionally accessible without authentication per RFCs (8414, 7517, 6749, SAML 2.0)
+- See [docs/developer/testing/cats-public-endpoints.md](docs/developer/testing/cats-public-endpoints.md) for complete documentation
 
 ### Arazzo Workflow Generation
 

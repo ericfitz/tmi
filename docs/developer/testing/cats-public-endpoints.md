@@ -74,40 +74,37 @@ CATS checks response bodies for error keywords that might indicate information l
 
 ### Public Endpoint Skipping
 
-TMI also handles public endpoints that must be accessible without authentication:
+TMI uses OpenAPI vendor extensions to mark public endpoints and automatically exclude authentication bypass tests on those endpoints.
 
-#### Phase 1: CATS Script Configuration (Immediate)
+#### OpenAPI Vendor Extension-Based Approach (Current)
 
-The [scripts/run-cats-fuzz.sh](../../../scripts/run-cats-fuzz.sh) script explicitly skips public endpoints using the `--skipPaths` flag:
+The [scripts/run-cats-fuzz.sh](../../../scripts/run-cats-fuzz.sh) script uses the `--skipFuzzersForExtension` flag to skip the `BypassAuthentication` fuzzer on endpoints marked with `x-public-endpoint: true`:
 
 ```bash
-# Public endpoints that must be accessible without authentication per RFCs
-local public_paths=(
-    "/"
-    "/.well-known/jwks.json"
-    "/.well-known/oauth-authorization-server"
-    "/.well-known/oauth-protected-resource"
-    "/.well-known/openid-configuration"
-    "/oauth2/authorize"
-    "/oauth2/callback"
-    "/oauth2/introspect"
-    "/oauth2/providers"
-    "/oauth2/refresh"
-    "/oauth2/token"
-    "/saml/acs"
-    "/saml/providers"
-    "/saml/slo"
-    "/saml/{provider}/login"
-    "/saml/{provider}/metadata"
+cats_cmd+=(
+    # Skip BypassAuthentication fuzzer on public endpoints marked in OpenAPI spec
+    # Public endpoints (OAuth, OIDC, SAML) are marked with x-public-endpoint: true
+    # per RFCs 8414, 7517, 6749, and SAML 2.0 specifications
+    "--skipFuzzersForExtension=x-public-endpoint=true:BypassAuthentication"
 )
-
-# Skip these paths when running full test suite
-cats_cmd+=("--skipPaths=${skip_paths_arg}")
 ```
 
-**When This Applies**: Only when running full CATS fuzzing (no specific path filter). If you specify a specific path with `-p/--path`, the skip logic is bypassed to allow targeted testing.
+**How It Works**:
+1. All 17 public endpoints in TMI are marked with `x-public-endpoint: true` in the OpenAPI specification
+2. CATS reads the vendor extension and automatically skips the `BypassAuthentication` fuzzer for those endpoints
+3. All other fuzzers (boundary testing, malformed input, etc.) still run on public endpoints
+4. The OpenAPI specification serves as the single source of truth for public endpoint status
 
-#### Phase 2: OpenAPI Schema Markers (Future-Proof)
+**Benefits**:
+- **Declarative**: Public endpoint status defined in OpenAPI spec, not shell script
+- **Surgical**: Only skips authentication tests, all other security tests still run
+- **Self-documenting**: Schema clearly identifies public vs protected endpoints
+- **Maintainable**: Add/remove public endpoints by updating OpenAPI spec only
+- **Tool-friendly**: Other security scanners can use the same vendor extensions
+
+**When This Applies**: All CATS fuzzing runs automatically use this approach.
+
+#### OpenAPI Vendor Extensions
 
 All public endpoints in [tmi-openapi.json](../../reference/apis/tmi-openapi.json) are marked with vendor extensions:
 
@@ -179,15 +176,17 @@ TMI has 17 public endpoint operations across 4 categories:
    ```bash
    ./scripts/add-public-endpoint-markers.sh
    ```
-3. **Update CATS Script**: Add the path to `public_paths` array in `scripts/run-cats-fuzz.sh`
-4. **Document**: Update this file with the new endpoint and its RFC justification
+3. **Document**: Update this file with the new endpoint and its RFC justification
+
+**Note**: No need to update `run-cats-fuzz.sh` - the `--skipFuzzersForExtension` parameter automatically picks up new endpoints marked with `x-public-endpoint: true`.
 
 ### Removing a Public Endpoint
 
 1. **Update OpenAPI Spec**: Add `security: [{bearerAuth: []}]` to require authentication
-2. **Remove from CATS Script**: Remove path from `public_paths` array
-3. **Clean Vendor Extensions**: Re-run the marker script to remove extensions
-4. **Document**: Update this file
+2. **Clean Vendor Extensions**: Re-run the marker script to remove extensions
+3. **Document**: Update this file
+
+**Note**: The `--skipFuzzersForExtension` parameter will automatically stop skipping the endpoint once the vendor extension is removed.
 
 ### Auditing Public Endpoints
 
@@ -296,12 +295,13 @@ cats --skipFuzzers=AbugidasInStringFields,ControlCharsInFields ...
 cats --list
 ```
 
-## Future Improvements
+## Implementation History
 
-**CATS Issue #185**: We've filed an issue requesting the ability to include/exclude (skip) tests based on OpenAPI tags:
-- https://github.com/Endava/cats/issues/185
-- If implemented, this would allow tag-based test filtering (e.g., skip auth tests on "OIDC Discovery" tag)
-- Would provide a cleaner alternative to maintaining path lists in the script
+**CATS Issue #185** ✅ **Implemented**: The CATS team added support for skipping fuzzers based on vendor extensions:
+- Feature request: https://github.com/Endava/cats/issues/185
+- Implementation: `--skipFuzzersForExtension` parameter
+- TMI Usage: `--skipFuzzersForExtension=x-public-endpoint=true:BypassAuthentication`
+- This allows vendor extension-based test filtering, providing a cleaner alternative to maintaining path lists in shell scripts
 
 ## References
 

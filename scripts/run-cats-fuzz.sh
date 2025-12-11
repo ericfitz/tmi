@@ -166,28 +166,47 @@ restore_rate_limits() {
 }
 
 start_oauth_stub() {
-    log "Starting OAuth callback stub..."
-    
-    # Check if already running
+    log "Checking OAuth callback stub status..."
+
+    # Check if already running via HTTP request
     if curl -s "${OAUTH_STUB_URL}" &> /dev/null; then
-        log "OAuth stub already running"
+        success "OAuth stub already running at ${OAUTH_STUB_URL}"
         return 0
     fi
-    
+
+    # Check if process exists but not responding yet
+    if pgrep -f "oauth-client-callback-stub.py" > /dev/null; then
+        log "OAuth stub process found, waiting for HTTP response..."
+        for i in {1..5}; do
+            if curl -s "${OAUTH_STUB_URL}" &> /dev/null; then
+                success "OAuth stub is ready"
+                return 0
+            fi
+            sleep 1
+        done
+        warn "OAuth stub process running but not responding, restarting..."
+        PATH="$PATH" make -C "${PROJECT_ROOT}" stop-oauth-stub || true
+        sleep 1
+    fi
+
     # Start the stub
-    PATH="$PATH" make -C "${PROJECT_ROOT}" start-oauth-stub
-    
+    log "Starting OAuth callback stub..."
+    if ! PATH="$PATH" make -C "${PROJECT_ROOT}" start-oauth-stub; then
+        error "Failed to start OAuth stub via make target"
+        exit 1
+    fi
+
     # Wait for it to be ready
     for i in {1..10}; do
         if curl -s "${OAUTH_STUB_URL}" &> /dev/null; then
-            success "OAuth stub is ready"
+            success "OAuth stub is ready at ${OAUTH_STUB_URL}"
             return 0
         fi
         log "Waiting for OAuth stub to start... (attempt $i/10)"
         sleep 1
     done
-    
-    error "OAuth stub failed to start"
+
+    error "OAuth stub failed to start within 10 seconds"
     exit 1
 }
 
@@ -341,6 +360,7 @@ run_cats_fuzz() {
     log "Using CATS default error leak detection keywords"
     log "Skipping UUID format fields to avoid false positives with malformed UUIDs"
     log "Skipping 'offset' field - extreme values return empty results (200), not errors"
+    log "Skipping BypassAuthentication fuzzer on endpoints marked x-public-endpoint=true"
 
     # Export token as environment variable
     export TMI_ACCESS_TOKEN="${token}"
@@ -349,29 +369,6 @@ run_cats_fuzz() {
     if [[ -n "${user}" ]]; then
         disable_rate_limits "${user}"
     fi
-
-    # Public endpoints that must be accessible without authentication per RFCs
-    # These endpoints have security:[] in the OpenAPI spec but CATS doesn't
-    # respect this marker for the BypassAuthentication fuzzer, causing false positives.
-    # See: docs/developer/testing/cats-public-endpoints.md
-    local public_paths=(
-        "/"
-        "/.well-known/jwks.json"
-        "/.well-known/oauth-authorization-server"
-        "/.well-known/oauth-protected-resource"
-        "/.well-known/openid-configuration"
-        "/oauth2/authorize"
-        "/oauth2/callback"
-        "/oauth2/introspect"
-        "/oauth2/providers"
-        "/oauth2/refresh"
-        "/oauth2/token"
-        "/saml/acs"
-        "/saml/providers"
-        "/saml/slo"
-        "/saml/{provider}/login"
-        "/saml/{provider}/metadata"
-    )
 
     # Construct and run CATS command
     local cats_cmd=(
@@ -391,22 +388,17 @@ run_cats_fuzz() {
         "--skipFieldFormat=uuid"
         "--skipField=offset"
         "--refData=${PROJECT_ROOT}/cats-test-data.yml"
+        # Skip BypassAuthentication fuzzer on public endpoints marked in OpenAPI spec
+        # Public endpoints (OAuth, OIDC, SAML) are marked with x-public-endpoint: true
+        # per RFCs 8414, 7517, 6749, and SAML 2.0 specifications
+        # See: docs/developer/testing/cats-public-endpoints.md
+        "--skipFuzzersForExtension=x-public-endpoint=true:BypassAuthentication"
     )
 
     # Add path filter if specified
     if [[ -n "${path}" ]]; then
         log "Restricting to endpoint path: ${path}"
         cats_cmd+=("--paths=${path}")
-    else
-        # When testing all endpoints, skip BypassAuthentication fuzzer on public paths
-        # to avoid false positives. These endpoints are intentionally public per RFCs:
-        # - RFC 8414: OAuth 2.0 Authorization Server Metadata (.well-known/*)
-        # - RFC 8693: OAuth 2.0 Token Exchange
-        # - RFC 7517: JSON Web Key (JWK) (jwks.json)
-        log "Skipping BypassAuthentication fuzzer on ${#public_paths[@]} public endpoints"
-        local skip_paths_arg
-        skip_paths_arg=$(IFS=','; echo "${public_paths[*]}")
-        cats_cmd+=("--skipPaths=${skip_paths_arg}")
     fi
 
     log "Executing: ${cats_cmd[*]}"
