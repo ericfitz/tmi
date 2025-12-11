@@ -48,7 +48,7 @@ func (h *DiagramMetadataHandler) GetDirectDiagramMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -94,7 +94,7 @@ func (h *DiagramMetadataHandler) GetDirectDiagramMetadataByKey(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -134,7 +134,7 @@ func (h *DiagramMetadataHandler) CreateDirectDiagramMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -195,7 +195,7 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -258,7 +258,7 @@ func (h *DiagramMetadataHandler) DeleteDirectDiagramMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -308,7 +308,7 @@ func (h *DiagramMetadataHandler) GetDirectDiagramCellMetadata(c *gin.Context) {
 	// No additional validation required
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -359,7 +359,7 @@ func (h *DiagramMetadataHandler) GetDirectDiagramCellMetadataByKey(c *gin.Contex
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -405,7 +405,7 @@ func (h *DiagramMetadataHandler) CreateDirectDiagramCellMetadata(c *gin.Context)
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -471,7 +471,7 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramCellMetadata(c *gin.Context)
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -539,7 +539,7 @@ func (h *DiagramMetadataHandler) DeleteDirectDiagramCellMetadata(c *gin.Context)
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -590,7 +590,7 @@ func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -645,7 +645,7 @@ func (h *DiagramMetadataHandler) GetThreatModelDiagramMetadataByKey(c *gin.Conte
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -695,7 +695,7 @@ func (h *DiagramMetadataHandler) CreateThreatModelDiagramMetadata(c *gin.Context
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -765,7 +765,7 @@ func (h *DiagramMetadataHandler) UpdateThreatModelDiagramMetadata(c *gin.Context
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -837,7 +837,7 @@ func (h *DiagramMetadataHandler) DeleteThreatModelDiagramMetadata(c *gin.Context
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -876,7 +876,7 @@ func (h *DiagramMetadataHandler) BulkCreateDirectDiagramMetadata(c *gin.Context)
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -953,7 +953,7 @@ func (h *DiagramMetadataHandler) BulkUpdateDirectDiagramMetadata(c *gin.Context)
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -1040,7 +1040,7 @@ func (h *DiagramMetadataHandler) BulkCreateThreatModelDiagramMetadata(c *gin.Con
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -1127,7 +1127,7 @@ func (h *DiagramMetadataHandler) BulkUpdateThreatModelDiagramMetadata(c *gin.Con
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

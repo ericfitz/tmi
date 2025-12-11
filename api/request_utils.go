@@ -162,15 +162,29 @@ func isHexDigit(r rune) bool {
 }
 
 // ValidateAuthenticatedUser extracts and validates the authenticated user from context
-func ValidateAuthenticatedUser(c *gin.Context) (string, Role, error) {
+// Returns (email, providerId, role, error)
+// The providerId is the OAuth provider's unique user identifier (from JWT "sub" claim)
+// The email is the user's email address (from JWT "email" claim)
+func ValidateAuthenticatedUser(c *gin.Context) (string, string, Role, error) {
 	// Get user email from JWT claim
 	userEmailInterface, _ := c.Get("userEmail")
 	userEmail, ok := userEmailInterface.(string)
 	if !ok || userEmail == "" {
-		return "", "", &RequestError{
+		return "", "", "", &RequestError{
 			Status:  http.StatusUnauthorized,
 			Code:    "unauthorized",
 			Message: "Authentication required",
+		}
+	}
+
+	// Get provider user ID (OAuth provider's unique identifier) from JWT "sub" claim
+	providerIDInterface, _ := c.Get("userID")
+	providerID, ok := providerIDInterface.(string)
+	if !ok || providerID == "" {
+		return "", "", "", &RequestError{
+			Status:  http.StatusUnauthorized,
+			Code:    "unauthorized",
+			Message: "Authentication required - missing provider ID",
 		}
 	}
 
@@ -179,19 +193,19 @@ func ValidateAuthenticatedUser(c *gin.Context) (string, Role, error) {
 	if !exists {
 		// For some endpoints, role might not be set by middleware
 		// In that case, we return empty role and let the caller handle it
-		return userEmail, "", nil
+		return userEmail, providerID, "", nil
 	}
 
 	userRole, ok := roleValue.(Role)
 	if !ok {
-		return userEmail, "", &RequestError{
+		return "", "", "", &RequestError{
 			Status:  http.StatusInternalServerError,
 			Code:    "server_error",
 			Message: "Failed to determine user role",
 		}
 	}
 
-	return userEmail, userRole, nil
+	return userEmail, providerID, userRole, nil
 }
 
 // IsUserAdministrator checks if the authenticated user is an administrator

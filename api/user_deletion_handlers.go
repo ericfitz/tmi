@@ -25,7 +25,7 @@ func NewUserDeletionHandler(authService *auth.Service) *UserDeletionHandler {
 // Step 2: With challenge parameter -> Validate and delete user
 func (h *UserDeletionHandler) DeleteUserAccount(c *gin.Context) {
 	// Get authenticated user from context
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

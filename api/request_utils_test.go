@@ -227,13 +227,14 @@ func TestValidateAuthenticatedUser(t *testing.T) {
 			// Set context values
 			if tt.userName != nil {
 				c.Set("userEmail", tt.userName)
+				c.Set("userID", tt.userName.(string)+"-provider-id")  // Provider ID for testing
 			}
 			if tt.userRole != nil {
 				c.Set("userRole", tt.userRole)
 			}
 
 			// Test the function
-			userName, userRole, err := ValidateAuthenticatedUser(c)
+			userName, _, userRole, err := ValidateAuthenticatedUser(c)
 
 			if tt.expectError {
 				require.Error(t, err)

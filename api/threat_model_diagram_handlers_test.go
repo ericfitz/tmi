@@ -35,6 +35,7 @@ func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 		slogging.Get().WithContext(c).Debug("[TEST DEBUG] User name: %s, Request: %s %s",
 			userName, c.Request.Method, c.Request.URL.Path)
 		c.Set("userEmail", userName)
+		c.Set("userID", userName+"-provider-id")  // Provider ID for testing
 		c.Next()
 	})
 
@@ -712,6 +713,7 @@ func TestDeleteThreatModelDiagramCollaborateImmediateDisconnection(t *testing.T)
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", TestFixtures.OwnerUser)
+		c.Set("userID", TestFixtures.OwnerUser+"-provider-id")  // Provider ID for testing
 		c.Next()
 	})
 

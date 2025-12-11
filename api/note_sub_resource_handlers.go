@@ -61,7 +61,7 @@ func (h *NoteSubResourceHandler) GetNotes(c *gin.Context) {
 	}
 
 	// Get authenticated user (should be set by middleware)
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -102,7 +102,7 @@ func (h *NoteSubResourceHandler) GetNote(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -142,7 +142,7 @@ func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -204,7 +204,7 @@ func (h *NoteSubResourceHandler) UpdateNote(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -254,7 +254,7 @@ func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -293,7 +293,7 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, userRole, err := ValidateAuthenticatedUser(c)
+	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

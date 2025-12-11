@@ -34,7 +34,7 @@ func InvokeAddon(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("Authentication failed: %v", err)
 		HandleRequestError(c, err)
@@ -238,7 +238,7 @@ func GetInvocation(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	_, _, err = ValidateAuthenticatedUser(c)
+	_, _, _, err = ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("Authentication failed: %v", err)
 		HandleRequestError(c, err)
@@ -293,7 +293,7 @@ func ListInvocations(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user
-	_, _, err := ValidateAuthenticatedUser(c)
+	_, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("Authentication failed: %v", err)
 		HandleRequestError(c, err)

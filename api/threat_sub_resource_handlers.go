@@ -63,7 +63,7 @@ func (h *ThreatSubResourceHandler) GetThreats(c *gin.Context) {
 	}
 
 	// Get authenticated user (should be set by middleware)
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -102,7 +102,7 @@ func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params 
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -265,7 +265,7 @@ func (h *ThreatSubResourceHandler) GetThreat(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -306,7 +306,7 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -372,7 +372,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -423,7 +423,7 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, userRole, err := ValidateAuthenticatedUser(c)
+	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -482,7 +482,7 @@ func (h *ThreatSubResourceHandler) DeleteThreat(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -522,7 +522,7 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -603,7 +603,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -667,7 +667,7 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 	logger.Debug("BulkPatchThreats - applying patch operations to multiple threats")
 
 	// Get authenticated user
-	userEmail, userRole, err := ValidateAuthenticatedUser(c)
+	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -728,7 +728,7 @@ func (h *ThreatSubResourceHandler) BulkDeleteThreats(c *gin.Context) {
 	logger.Debug("BulkDeleteThreats - deleting multiple threats")
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

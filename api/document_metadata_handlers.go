@@ -46,7 +46,7 @@ func (h *DocumentMetadataHandler) GetDocumentMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -92,7 +92,7 @@ func (h *DocumentMetadataHandler) GetDocumentMetadataByKey(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -132,7 +132,7 @@ func (h *DocumentMetadataHandler) CreateDocumentMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -193,7 +193,7 @@ func (h *DocumentMetadataHandler) UpdateDocumentMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -256,7 +256,7 @@ func (h *DocumentMetadataHandler) DeleteDocumentMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -295,7 +295,7 @@ func (h *DocumentMetadataHandler) BulkCreateDocumentMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -385,7 +385,7 @@ func (h *DocumentMetadataHandler) BulkUpdateDocumentMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

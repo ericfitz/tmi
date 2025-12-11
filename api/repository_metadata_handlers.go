@@ -46,7 +46,7 @@ func (h *RepositoryMetadataHandler) GetRepositoryMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -92,7 +92,7 @@ func (h *RepositoryMetadataHandler) GetRepositoryMetadataByKey(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -132,7 +132,7 @@ func (h *RepositoryMetadataHandler) CreateRepositoryMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -193,7 +193,7 @@ func (h *RepositoryMetadataHandler) UpdateRepositoryMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -256,7 +256,7 @@ func (h *RepositoryMetadataHandler) DeleteRepositoryMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -295,7 +295,7 @@ func (h *RepositoryMetadataHandler) BulkCreateRepositoryMetadata(c *gin.Context)
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -385,7 +385,7 @@ func (h *RepositoryMetadataHandler) BulkUpdateRepositoryMetadata(c *gin.Context)
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

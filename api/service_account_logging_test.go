@@ -18,6 +18,7 @@ func TestGetUserIdentityForLogging(t *testing.T) {
 		// Set regular user context
 		c.Set("isServiceAccount", false)
 		c.Set("userEmail", "alice@example.com")
+		c.Set("userID", "alice-provider-id")
 
 		identity := GetUserIdentityForLogging(c)
 		expected := "user=alice@example.com"
@@ -36,6 +37,7 @@ func TestGetUserIdentityForLogging(t *testing.T) {
 		c.Set("isServiceAccount", true)
 		c.Set("serviceAccountCredentialID", "123e4567-e89b")
 		c.Set("userEmail", "alice@example.com")
+		c.Set("userID", "alice-provider-id")
 		c.Set("userDisplayName", "[Service Account] AWS Lambda Scanner")
 
 		identity := GetUserIdentityForLogging(c)

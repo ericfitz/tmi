@@ -62,7 +62,7 @@ func (h *RepositorySubResourceHandler) GetRepositorys(c *gin.Context) {
 	}
 
 	// Get authenticated user (should be set by middleware)
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -103,7 +103,7 @@ func (h *RepositorySubResourceHandler) GetRepository(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -143,7 +143,7 @@ func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -205,7 +205,7 @@ func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -255,7 +255,7 @@ func (h *RepositorySubResourceHandler) DeleteRepository(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -294,7 +294,7 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -369,7 +369,7 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, userRole, err := ValidateAuthenticatedUser(c)
+	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -427,7 +427,7 @@ func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

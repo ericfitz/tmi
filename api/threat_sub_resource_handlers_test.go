@@ -91,6 +91,7 @@ func setupThreatSubResourceHandler() (*gin.Engine, *MockThreatStore) {
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", "test@example.com")
+		c.Set("userID", "test-provider-id")
 		c.Set("userRole", RoleWriter)
 		c.Next()
 	})

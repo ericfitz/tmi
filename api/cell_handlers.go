@@ -105,7 +105,7 @@ func (h *CellHandler) GetCellMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -151,7 +151,7 @@ func (h *CellHandler) GetCellMetadataByKey(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -191,7 +191,7 @@ func (h *CellHandler) CreateCellMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -270,7 +270,7 @@ func (h *CellHandler) UpdateCellMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -359,7 +359,7 @@ func (h *CellHandler) DeleteCellMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -423,7 +423,7 @@ func (h *CellHandler) PatchCell(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, userRole, err := ValidateAuthenticatedUser(c)
+	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -480,7 +480,7 @@ func (h *CellHandler) BatchPatchCells(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, userRole, err := ValidateAuthenticatedUser(c)
+	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

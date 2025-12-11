@@ -33,7 +33,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	offset := parseIntParam(c.DefaultQuery("offset", "0"), 0)
 
 	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		// For listing endpoints, we allow unauthenticated users but return empty results
 		userEmail = ""
@@ -159,7 +159,7 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -196,8 +196,8 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		return
 	}
 
-	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	// Get user identity from JWT claims
+	userEmail, providerID, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -241,7 +241,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		{
 			PrincipalType: AuthorizationPrincipalTypeUser,
 			Provider:      userIdp,
-			ProviderId:    userEmail,
+			ProviderId:    providerID, // Use OAuth provider ID from JWT "sub" claim
 			Role:          RoleOwner,
 		},
 	}
@@ -253,7 +253,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	userObj := User{
 		PrincipalType: UserPrincipalTypeUser,
 		Provider:      userIdp,
-		ProviderId:    userEmail,
+		ProviderId:    providerID, // Use OAuth provider ID from JWT "sub" claim
 		DisplayName:   userDisplayName,
 		Email:         openapi_types.Email(userEmail),
 	}
@@ -354,7 +354,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	slogging.Get().WithContext(c).Debug("[HANDLER] Successfully parsed request: %+v", request)
 
 	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -534,7 +534,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		}
 	}
 
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -707,7 +707,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	}
 
 	// Get the user making the request
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

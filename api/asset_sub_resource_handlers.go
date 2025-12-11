@@ -62,7 +62,7 @@ func (h *AssetSubResourceHandler) GetAssets(c *gin.Context) {
 	}
 
 	// Get authenticated user (should be set by middleware)
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -103,7 +103,7 @@ func (h *AssetSubResourceHandler) GetAsset(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -143,7 +143,7 @@ func (h *AssetSubResourceHandler) CreateAsset(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -205,7 +205,7 @@ func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -255,7 +255,7 @@ func (h *AssetSubResourceHandler) DeleteAsset(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -294,7 +294,7 @@ func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -382,7 +382,7 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, userRole, err := ValidateAuthenticatedUser(c)
+	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -440,7 +440,7 @@ func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

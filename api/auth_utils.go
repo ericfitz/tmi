@@ -639,7 +639,7 @@ func CheckResourceAccessFromContext(c *gin.Context, subject string, resource int
 func ValidateResourceAccess(requiredRole Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get authenticated user
-		userEmail, _, err := ValidateAuthenticatedUser(c)
+		userEmail, _, _, err := ValidateAuthenticatedUser(c)
 		if err != nil {
 			HandleRequestError(c, err)
 			c.Abort()

@@ -77,7 +77,7 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	offset := parseIntParam(c.DefaultQuery("offset", "0"), 0)
 
 	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		// For listing endpoints, we allow unauthenticated users but return empty results
 		userEmail = ""
@@ -162,7 +162,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	}
 
 	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -243,7 +243,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 	}
 
 	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -306,7 +306,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 // UpdateDiagram fully updates a diagram within a threat model
 func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -411,7 +411,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	// For brevity, this implementation is simplified
 
 	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -510,7 +510,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 // DeleteDiagram deletes a diagram within a threat model
 func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -576,7 +576,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	// For brevity, this implementation is simplified
 
 	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		// For collaboration endpoints, allow anonymous users
 		// TODO: make this code more readable.  We expect middleware to set userEmail to "anonymous" when unauthenticated
@@ -656,7 +656,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	// For brevity, this implementation is simplified
 
 	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		// For collaboration endpoints, allow anonymous users
 		// TODO: make this code more readable.  We expect middleware to set userEmail to "anonymous" when unauthenticated
@@ -737,7 +737,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	// For brevity, this implementation is simplified
 
 	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		// For collaboration endpoints, allow anonymous users
 		// TODO: make this code more readable.  We expect middleware to set userEmail to "anonymous" when unauthenticated

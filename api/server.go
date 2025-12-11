@@ -147,7 +147,7 @@ func (s *Server) GetWebSocketHub() *WebSocketHub {
 // HandleCollaborationSessions returns all active collaboration sessions that the user has access to
 func (s *Server) HandleCollaborationSessions(c *gin.Context) {
 	// Get username from JWT claim
-	userEmail, _, err := ValidateAuthenticatedUser(c)
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		// For collaboration endpoints, return empty list if user is not authenticated
 		c.JSON(http.StatusOK, []CollaborationSession{})

@@ -32,7 +32,7 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user email for logging
-	_, _, err := ValidateAuthenticatedUser(c)
+	_, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
@@ -139,7 +139,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user email for logging
-	_, _, err := ValidateAuthenticatedUser(c)
+	_, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
@@ -305,7 +305,7 @@ func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user email for logging
-	_, _, err := ValidateAuthenticatedUser(c)
+	_, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
@@ -355,7 +355,7 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user email for logging
-	_, _, err := ValidateAuthenticatedUser(c)
+	_, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
@@ -436,7 +436,7 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user email for logging
-	_, _, err := ValidateAuthenticatedUser(c)
+	_, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
@@ -542,7 +542,7 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user email for logging
-	_, _, err := ValidateAuthenticatedUser(c)
+	_, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
@@ -665,7 +665,7 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 	logger := slogging.Get().WithContext(c)
 
 	// Get authenticated user email for logging
-	_, _, err := ValidateAuthenticatedUser(c)
+	_, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("authentication failed: %v", err)
 		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
