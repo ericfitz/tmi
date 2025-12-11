@@ -757,11 +757,15 @@ check-oauth-stub:
 # CATS FUZZING - API Security Testing
 # ============================================================================
 
-.PHONY: cats-fuzz-prep cats-create-test-data cats-fuzz cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
+.PHONY: cats-fuzz-prep cats-set-max-quotas cats-create-test-data cats-fuzz cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
 
 cats-fuzz-prep:  ## Prepare database for CATS fuzzing (grant admin privileges to test user)
 	$(call log_info,"Preparing database for CATS fuzzing...")
 	@./scripts/cats-prepare-database.sh
+
+cats-set-max-quotas:  ## Set maximum quotas for CATS test user to prevent rate-limit errors
+	$(call log_info,"Setting maximum quotas for CATS test user...")
+	@./scripts/cats-set-max-quotas.sh
 
 cats-create-test-data:  ## Create test data for CATS fuzzing (standalone, requires running server)
 	$(call log_info,"Creating test data for CATS fuzzing...")
