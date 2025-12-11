@@ -523,27 +523,27 @@ EOF
 
     success "Test data reference written to ${OUTPUT_FILE}"
 
-    # Also create YAML version for CATS (which requires flat key-value format)
+    # Also create YAML version for CATS (which requires path-based format)
     local YAML_FILE="${OUTPUT_FILE%.json}.yml"
     cat > "${YAML_FILE}" <<YAMLEOF
-# CATS Reference Data - Flat key-value format for path/query parameter replacement
+# CATS Reference Data - Path-based format for parameter replacement
 # Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+# See: https://endava.github.io/cats/docs/getting-started/running-cats/
 
-# Primary resource IDs
-id: ${TM_ID}
-threat_model_id: ${TM_ID}
-threat_id: ${THREAT_ID}
-diagram_id: ${DIAGRAM_ID}
-document_id: ${DOC_ID}
-asset_id: ${ASSET_ID}
-note_id: ${NOTE_ID}
-repository_id: ${REPO_ID}
-webhook_id: ${WEBHOOK_ID}
-addon_id: ${ADDON_ID}
-client_credential_id: ${CLIENT_CRED_ID}
-
-# Metadata key
-key: ${METADATA_KEY}
+# All paths - global parameter substitution
+all:
+  id: ${TM_ID}
+  threat_model_id: ${TM_ID}
+  threat_id: ${THREAT_ID}
+  diagram_id: ${DIAGRAM_ID}
+  document_id: ${DOC_ID}
+  asset_id: ${ASSET_ID}
+  note_id: ${NOTE_ID}
+  repository_id: ${REPO_ID}
+  webhook_id: ${WEBHOOK_ID}
+  addon_id: ${ADDON_ID}
+  client_credential_id: ${CLIENT_CRED_ID}
+  key: ${METADATA_KEY}
 YAMLEOF
     success "YAML version written to ${YAML_FILE}"
 }
