@@ -156,7 +156,46 @@ func (e *EventEmitter) generateDedupKey(payload EventPayload) string {
 // Global event emitter instance
 var GlobalEventEmitter *EventEmitter
 
+// Global auth service for owner UUID lookups
+var GlobalAuthServiceForEvents AuthService
+
 // InitializeEventEmitter initializes the global event emitter
 func InitializeEventEmitter(redisClient *redis.Client, streamKey string) {
 	GlobalEventEmitter = NewEventEmitter(redisClient, streamKey)
+}
+
+// SetGlobalAuthServiceForEvents sets the global auth service for event owner lookups
+func SetGlobalAuthServiceForEvents(authService AuthService) {
+	GlobalAuthServiceForEvents = authService
+}
+
+// GetOwnerInternalUUID looks up the owner's internal UUID from provider and provider_id
+// Returns the provider_id if lookup fails (fallback for tests/in-memory mode)
+func GetOwnerInternalUUID(ctx context.Context, provider, providerID string) string {
+	if GlobalAuthServiceForEvents == nil {
+		slogging.Get().Warn("GlobalAuthServiceForEvents not set - using provider_id as fallback")
+		return providerID
+	}
+
+	// Get the underlying auth.Service from the adapter
+	adapter, ok := GlobalAuthServiceForEvents.(*AuthServiceAdapter)
+	if !ok {
+		slogging.Get().Warn("Auth service is not AuthServiceAdapter - using provider_id as fallback")
+		return providerID
+	}
+
+	authService := adapter.GetService()
+	if authService == nil {
+		slogging.Get().Warn("Auth service not available - using provider_id as fallback")
+		return providerID
+	}
+
+	// Look up user by provider and provider_id
+	user, err := authService.GetUserByProviderID(ctx, provider, providerID)
+	if err != nil {
+		slogging.Get().Warn("Failed to lookup user by provider=%s, provider_id=%s: %v - using provider_id as fallback", provider, providerID, err)
+		return providerID
+	}
+
+	return user.InternalUUID
 }

@@ -1068,6 +1068,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		apiServer.SetAuthService(authServiceAdapter)
 		logger.Info("Auth service adapter configured for OpenAPI integration")
 
+		// Set up global auth service for event owner lookups
+		api.SetGlobalAuthServiceForEvents(authServiceAdapter)
+		logger.Info("Global auth service configured for webhook event owner UUID lookups")
+
 		// Set up admin checker adapter for /users/me endpoint
 		if dbStore, ok := api.GlobalAdministratorStore.(*api.AdministratorDatabaseStore); ok {
 			adminChecker := api.NewAdminCheckerAdapter(dbStore)
