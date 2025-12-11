@@ -214,17 +214,8 @@ func ValidateUnicodeContent(value, fieldName string) error {
 		return nil
 	}
 
-	// Check if NFC normalization changes the string (indicates decomposed characters)
-	normalized := norm.NFC.String(value)
-	if normalized != value {
-		return &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
-			Message: fmt.Sprintf("Field '%s' contains non-normalized Unicode characters", fieldName),
-		}
-	}
-
 	// Explicit check for characters that middleware should catch
+	// Check these BEFORE NFC normalization to get specific error messages
 	for _, r := range value {
 		// Zero-width characters
 		if r == '\u200B' || r == '\u200C' || r == '\u200D' || r == '\uFEFF' {
@@ -260,6 +251,17 @@ func ValidateUnicodeContent(value, fieldName string) error {
 				Code:    "invalid_input",
 				Message: fmt.Sprintf("Field '%s' contains excessive combining diacritical marks", fieldName),
 			}
+		}
+	}
+
+	// Check if NFC normalization changes the string (indicates decomposed characters)
+	// This check comes AFTER specific character checks to provide better error messages
+	normalized := norm.NFC.String(value)
+	if normalized != value {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains non-normalized Unicode characters", fieldName),
 		}
 	}
 
