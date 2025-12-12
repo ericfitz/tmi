@@ -372,9 +372,10 @@ func TestUpdateThreatModelOwnerChange(t *testing.T) {
 	assert.Equal(t, "newowner@example.com", resultTM.Owner.ProviderId)
 
 	// Check that the original owner is still in the authorization list with owner role
+	// Note: The original owner's provider ID is "test@example.com-provider-id" (set by fake auth middleware)
 	foundOriginalOwner := false
 	for _, auth := range resultTM.Authorization {
-		if auth.ProviderId == "test@example.com" && auth.Role == RoleOwner {
+		if auth.ProviderId == "test@example.com-provider-id" && auth.Role == RoleOwner {
 			foundOriginalOwner = true
 			break
 		}
@@ -548,9 +549,10 @@ func TestOwnershipTransferViaPatching(t *testing.T) {
 	assert.Equal(t, "newowner@example.com", resultTM.Owner.ProviderId)
 
 	// Check that the original owner is still in the authorization list with owner role
+	// Note: The original owner's provider ID is "test@example.com-provider-id" (set by fake auth middleware)
 	foundOriginalOwner := false
 	for _, auth := range resultTM.Authorization {
-		if auth.ProviderId == "test@example.com" && auth.Role == RoleOwner {
+		if auth.ProviderId == "test@example.com-provider-id" && auth.Role == RoleOwner {
 			foundOriginalOwner = true
 			break
 		}
