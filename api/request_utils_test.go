@@ -227,7 +227,13 @@ func TestValidateAuthenticatedUser(t *testing.T) {
 			// Set context values
 			if tt.userName != nil {
 				c.Set("userEmail", tt.userName)
-				c.Set("userID", tt.userName.(string)+"-provider-id") // Provider ID for testing
+				// Only set userID if userName is a string (for valid test cases)
+				if userNameStr, ok := tt.userName.(string); ok {
+					c.Set("userID", userNameStr+"-provider-id") // Provider ID for testing
+				} else {
+					// For invalid type tests, set an invalid userID too
+					c.Set("userID", tt.userName)
+				}
 			}
 			if tt.userRole != nil {
 				c.Set("userRole", tt.userRole)
