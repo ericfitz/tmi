@@ -227,7 +227,7 @@ func TestValidateAuthenticatedUser(t *testing.T) {
 			// Set context values
 			if tt.userName != nil {
 				c.Set("userEmail", tt.userName)
-				c.Set("userID", tt.userName.(string)+"-provider-id")  // Provider ID for testing
+				c.Set("userID", tt.userName.(string)+"-provider-id") // Provider ID for testing
 			}
 			if tt.userRole != nil {
 				c.Set("userRole", tt.userRole)

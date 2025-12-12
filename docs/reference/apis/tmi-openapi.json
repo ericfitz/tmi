@@ -4645,15 +4645,18 @@
           "provider"
         ],
         "properties": {
-          "user_id": {
+          "email": {
             "type": "string",
-            "format": "uuid",
-            "description": "User ID to grant admin privileges (mutually exclusive with group_id)"
+            "format": "email",
+            "description": "User email to grant admin privileges (mutually exclusive with provider_user_id and group_name)"
           },
-          "group_id": {
+          "provider_user_id": {
             "type": "string",
-            "format": "uuid",
-            "description": "Group ID to grant admin privileges (mutually exclusive with user_id)"
+            "description": "Provider's user ID to grant admin privileges (mutually exclusive with email and group_name)"
+          },
+          "group_name": {
+            "type": "string",
+            "description": "Group name to grant admin privileges (mutually exclusive with email and provider_user_id)"
           },
           "provider": {
             "type": "string",
@@ -19528,7 +19531,7 @@
           "Administration"
         ],
         "summary": "Create administrator grant",
-        "description": "Grants administrator privileges to a user or group for a specific provider. Exactly one of user_id or group_id must be specified.",
+        "description": "Grants administrator privileges to a user or group for a specific provider. Exactly one of email, provider_user_id, or group_name must be specified.",
         "operationId": "createAdministrator",
         "security": [
           {

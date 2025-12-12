@@ -105,21 +105,33 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 		return
 	}
 
-	// Validate: exactly one of user_internal_uuid or group_internal_uuid must be set
-	if req.UserId == nil && req.GroupId == nil {
+	// Count how many identification fields are set
+	fieldCount := 0
+	if req.Email != nil {
+		fieldCount++
+	}
+	if req.ProviderUserId != nil {
+		fieldCount++
+	}
+	if req.GroupName != nil {
+		fieldCount++
+	}
+
+	// Validate: exactly one identification field must be set
+	if fieldCount == 0 {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_request",
-			Message: "either user_id or group_id must be specified",
+			Message: "one of email, provider_user_id, or group_name must be specified",
 		})
 		return
 	}
 
-	if req.UserId != nil && req.GroupId != nil {
+	if fieldCount > 1 {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_request",
-			Message: "cannot specify both user_id and group_id",
+			Message: "only one of email, provider_user_id, or group_name can be specified",
 		})
 		return
 	}
@@ -135,11 +147,103 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 		GrantedAt: time.Now().UTC(),
 	}
 
-	if req.UserId != nil {
-		admin.UserInternalUUID = req.UserId
+	// Get auth service for user/group lookup
+	if GlobalAuthServiceForEvents == nil {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Authentication service not available",
+		})
+		return
+	}
+
+	adapter, ok := GlobalAuthServiceForEvents.(*AuthServiceAdapter)
+	if !ok {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Authentication service adapter error",
+		})
+		return
+	}
+
+	authService := adapter.GetService()
+	if authService == nil {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Authentication service not initialized",
+		})
+		return
+	}
+
+	// Lookup user or group by the provided identifier
+	if req.Email != nil {
+		// Lookup user by email
+		user, err := authService.GetUserByEmail(c.Request.Context(), string(*req.Email))
+		if err != nil {
+			logger.Warn("User not found: provider=%s, email=%s, error=%v", req.Provider, *req.Email, err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusNotFound,
+				Code:    "user_not_found",
+				Message: fmt.Sprintf("User not found with email %s and provider %s", *req.Email, req.Provider),
+			})
+			return
+		}
+		// Verify provider matches
+		if user.Provider != req.Provider {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "provider_mismatch",
+				Message: fmt.Sprintf("User %s belongs to provider %s, not %s", *req.Email, user.Provider, req.Provider),
+			})
+			return
+		}
+		userUUID := uuid.MustParse(user.InternalUUID)
+		admin.UserInternalUUID = &userUUID
+		admin.SubjectType = "user"
+	} else if req.ProviderUserId != nil {
+		// Lookup user by provider_user_id
+		user, err := authService.GetUserByProviderID(c.Request.Context(), req.Provider, *req.ProviderUserId)
+		if err != nil {
+			logger.Warn("User not found: provider=%s, provider_user_id=%s, error=%v", req.Provider, *req.ProviderUserId, err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusNotFound,
+				Code:    "user_not_found",
+				Message: fmt.Sprintf("User not found with provider_user_id %s and provider %s", *req.ProviderUserId, req.Provider),
+			})
+			return
+		}
+		userUUID := uuid.MustParse(user.InternalUUID)
+		admin.UserInternalUUID = &userUUID
 		admin.SubjectType = "user"
 	} else {
-		admin.GroupInternalUUID = req.GroupId
+		// Lookup group by group_name
+		dbStore, ok := GlobalAdministratorStore.(*AdministratorDatabaseStore)
+		if !ok {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusInternalServerError,
+				Code:    "server_error",
+				Message: "Administrator store not properly initialized",
+			})
+			return
+		}
+
+		var groupUUID string
+		err := dbStore.db.QueryRowContext(c.Request.Context(),
+			"SELECT internal_uuid FROM groups WHERE provider = $1 AND group_name = $2",
+			req.Provider, *req.GroupName).Scan(&groupUUID)
+		if err != nil {
+			logger.Warn("Group not found: provider=%s, group_name=%s, error=%v", req.Provider, *req.GroupName, err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusNotFound,
+				Code:    "group_not_found",
+				Message: fmt.Sprintf("Group not found with name %s and provider %s", *req.GroupName, req.Provider),
+			})
+			return
+		}
+		groupInternalUUID := uuid.MustParse(groupUUID)
+		admin.GroupInternalUUID = &groupInternalUUID
 		admin.SubjectType = "group"
 	}
 
