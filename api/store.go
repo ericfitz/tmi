@@ -88,15 +88,15 @@ func InitializeDatabaseStores(db *sql.DB, authService interface{}) {
 	GlobalUserAPIQuotaStore = NewUserAPIQuotaDatabaseStore(db)
 	GlobalAddonStore = NewAddonDatabaseStore(db)
 	GlobalAdministratorStore = NewAdministratorDatabaseStore(db)
-	GlobalGroupStore = NewGroupDatabaseStore(db)
 	GlobalGroupMemberStore = NewGroupMemberDatabaseStore(db)
 	GlobalAddonInvocationQuotaStore = NewAddonInvocationQuotaDatabaseStore(db)
 
-	// Initialize GlobalUserStore if auth service is available
+	// Initialize GlobalUserStore and GlobalGroupStore if auth service is available
 	if authService != nil {
 		// Type assertion to get the concrete auth.Service type
 		if svc, ok := authService.(AuthServiceGetter); ok {
 			GlobalUserStore = NewUserDatabaseStore(db, svc.GetService())
+			GlobalGroupStore = NewGroupDatabaseStore(db, svc.GetService())
 		}
 	}
 }

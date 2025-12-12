@@ -12,6 +12,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// Protected group names that cannot be deleted
+const (
+	ProtectedGroupEveryone = "everyone"
+)
+
 // ParsePatchRequest parses JSON Patch operations from the request body
 func ParsePatchRequest(c *gin.Context) ([]PatchOperation, error) {
 	bodyBytes, err := c.GetRawData()

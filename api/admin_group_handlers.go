@@ -345,78 +345,75 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	c.JSON(http.StatusOK, group)
 }
 
-// DeleteAdminGroup handles DELETE /admin/groups?provider={provider}&group_name={group_name}
-func (s *Server) DeleteAdminGroup(c *gin.Context, params DeleteAdminGroupParams) {
+// DeleteAdminGroup handles DELETE /admin/groups
+func (s *Server) DeleteAdminGroup(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
-	// Extract parameters (both are required by OpenAPI spec)
-	provider := params.Provider
-	groupName := params.GroupName
+	// Parse request body
+	var req DeleteAdminGroupJSONBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	// Validate confirmation
+	if !req.Confirm {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "confirmation_required",
+			Message: "Must set confirm=true to delete group",
+		})
+		return
+	}
+
+	// Validate not deleting "everyone"
+	if req.GroupName == ProtectedGroupEveryone {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusForbidden,
+			Code:    "protected_group",
+			Message: "Cannot delete protected group: everyone",
+		})
+		return
+	}
 
 	// Get actor information for audit logging
 	actorUserID := c.GetString("userInternalUUID")
 	actorEmail := c.GetString("userEmail")
 
-	logger.Info("[AUDIT] Group deletion attempted: provider=%s, group_name=%s, requested_by=%s (email=%s)",
-		provider, groupName, actorUserID, actorEmail)
-
-	ctx := c.Request.Context()
-
-	// Get group to verify it exists and get internal UUID
-	group, err := GlobalGroupStore.GetByProviderAndName(ctx, provider, groupName)
+	// Delete group (delegates to auth service)
+	stats, err := GlobalGroupStore.Delete(c.Request.Context(), req.GroupName)
 	if err != nil {
-		logger.Error("Group not found: provider=%s, group_name=%s, error=%v", provider, groupName, err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusNotFound,
-			Code:    "not_found",
-			Message: "Group not found",
-		})
+		if err.Error() == "group not found: "+req.GroupName {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusNotFound,
+				Code:    "not_found",
+				Message: "Group not found",
+			})
+		} else if err.Error() == "cannot delete protected group: everyone" {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusForbidden,
+				Code:    "protected_group",
+				Message: "Cannot delete protected group: everyone",
+			})
+		} else {
+			logger.Error("Failed to delete group: %v", err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusInternalServerError,
+				Code:    "server_error",
+				Message: "Failed to delete group",
+			})
+		}
 		return
 	}
 
-	// Check for members in this group
-	memberFilter := GroupMemberFilter{
-		GroupInternalUUID: group.InternalUUID,
-		Limit:             1, // We only need to know if ANY members exist
-		Offset:            0,
-	}
-	members, err := GlobalGroupMemberStore.ListMembers(ctx, memberFilter)
-	if err != nil {
-		logger.Error("Failed to check group membership: provider=%s, group_name=%s, error=%v", provider, groupName, err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "Failed to verify group membership",
-		})
-		return
-	}
+	// AUDIT LOG: Log deletion with actor details and statistics
+	logger.Info("[AUDIT] Admin group deletion: group_name=%s, deleted_by=%s (email=%s), threat_models_deleted=%d, threat_models_retained=%d",
+		req.GroupName, actorUserID, actorEmail, stats.ThreatModelsDeleted, stats.ThreatModelsRetained)
 
-	if len(members) > 0 {
-		// Count total members for the error message
-		totalCount := len(members) // At least 1, but get actual count
-		logger.Warn("Cannot delete group with members: provider=%s, group_name=%s, member_count=%d", provider, groupName, totalCount)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusConflict,
-			Code:    "conflict",
-			Message: "Cannot delete group with members. Remove all members first.",
-		})
-		return
-	}
-
-	// Delete group
-	if err := GlobalGroupStore.Delete(ctx, provider, groupName); err != nil {
-		logger.Error("Failed to delete group: provider=%s, group_name=%s, error=%v", provider, groupName, err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "Failed to delete group",
-		})
-		return
-	}
-
-	// Audit log the successful deletion
-	logger.Info("[AUDIT] Group deleted successfully: provider=%s, group_name=%s, deleted_by=%s (email=%s)",
-		provider, groupName, actorUserID, actorEmail)
-
+	// Return 204 No Content for successful deletion
 	c.Status(http.StatusNoContent)
 }

@@ -7,6 +7,13 @@ import (
 	"github.com/google/uuid"
 )
 
+// GroupDeletionStats contains statistics about group deletion
+type GroupDeletionStats struct {
+	ThreatModelsDeleted  int    `json:"threat_models_deleted"`
+	ThreatModelsRetained int    `json:"threat_models_retained"`
+	GroupName            string `json:"group_name"`
+}
+
 // Group represents a group in the system
 type Group struct {
 	InternalUUID uuid.UUID `json:"internal_uuid"`
@@ -52,8 +59,9 @@ type GroupStore interface {
 	// Update updates group metadata (name, description)
 	Update(ctx context.Context, group Group) error
 
-	// Delete deletes a group by provider and group_name (placeholder - returns error)
-	Delete(ctx context.Context, provider string, groupName string) error
+	// Delete deletes a TMI-managed group by group_name (provider is always "*")
+	// Returns deletion statistics
+	Delete(ctx context.Context, groupName string) (*GroupDeletionStats, error)
 
 	// Count returns total count of groups matching the filter
 	Count(ctx context.Context, filter GroupFilter) (int, error)

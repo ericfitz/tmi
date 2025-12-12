@@ -20905,53 +20905,48 @@
         "tags": [
           "Administration"
         ],
-        "summary": "Delete group (Not Implemented)",
-        "description": "Group deletion is not currently supported. This endpoint returns 501 Not Implemented. Groups remain in the system for audit and historical purposes.",
+        "summary": "Delete group",
+        "description": "Deletes a TMI-managed group and handles threat model cleanup. Protected groups like 'everyone' cannot be deleted. Requires confirmation.",
         "operationId": "deleteAdminGroup",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "parameters": [
-          {
-            "name": "provider",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 256
-            },
-            "description": "OAuth/SAML provider identifier or \"*\" for provider-independent groups"
-          },
-          {
-            "name": "group_name",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 500
-            },
-            "description": "Group name identifier"
-          }
-        ],
-        "responses": {
-          "501": {
-            "description": "Not Implemented - Group deletion is not supported",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                },
-                "example": {
-                  "error": "not_implemented",
-                  "message": "Group deletion is not currently supported"
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "group_name",
+                  "confirm"
+                ],
+                "properties": {
+                  "group_name": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "description": "Group identifier (cannot be 'everyone')"
+                  },
+                  "confirm": {
+                    "type": "boolean",
+                    "description": "Must be true to confirm deletion",
+                    "enum": [
+                      true
+                    ]
+                  }
                 }
               }
             }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Group deleted successfully (no content)"
           },
           "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "description": "Bad Request - Invalid request or confirmation not provided",
             "content": {
               "application/json": {
                 "schema": {
@@ -20971,7 +20966,27 @@
             }
           },
           "403": {
-            "description": "Forbidden - Insufficient permissions to access this resource",
+            "description": "Forbidden - Cannot delete protected group or insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Group not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {

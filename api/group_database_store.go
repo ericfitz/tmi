@@ -7,19 +7,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 )
 
 // GroupDatabaseStore implements GroupStore using PostgreSQL
 type GroupDatabaseStore struct {
-	db *sql.DB
+	db          *sql.DB
+	authService *auth.Service
 }
 
 // NewGroupDatabaseStore creates a new database-backed group store
-func NewGroupDatabaseStore(db *sql.DB) *GroupDatabaseStore {
+func NewGroupDatabaseStore(db *sql.DB, authService *auth.Service) *GroupDatabaseStore {
 	return &GroupDatabaseStore{
-		db: db,
+		db:          db,
+		authService: authService,
 	}
 }
 
@@ -279,31 +282,20 @@ func (s *GroupDatabaseStore) Update(ctx context.Context, group Group) error {
 	return nil
 }
 
-// Delete deletes a group by provider and group_name (placeholder - returns error)
-func (s *GroupDatabaseStore) Delete(ctx context.Context, provider string, groupName string) error {
-	logger := slogging.Get()
-
-	// Delete the group by provider and group_name
-	query := `DELETE FROM groups WHERE provider = $1 AND group_name = $2`
-
-	result, err := s.db.ExecContext(ctx, query, provider, groupName)
+// Delete deletes a TMI-managed group by group_name (provider is always "*")
+// Delegates to auth service for proper cleanup of threat models and relationships
+func (s *GroupDatabaseStore) Delete(ctx context.Context, groupName string) (*GroupDeletionStats, error) {
+	// Delegate to auth service which handles transaction and cleanup
+	result, err := s.authService.DeleteGroupAndData(ctx, groupName)
 	if err != nil {
-		logger.Error("Failed to delete group: provider=%s, group_name=%s, error=%v", provider, groupName, err)
-		return fmt.Errorf("failed to delete group: %w", err)
+		return nil, fmt.Errorf("failed to delete group: %w", err)
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		logger.Error("Failed to get rows affected after delete: %v", err)
-		return fmt.Errorf("failed to verify deletion: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return fmt.Errorf("group not found")
-	}
-
-	logger.Info("Group deleted: provider=%s, group_name=%s", provider, groupName)
-	return nil
+	return &GroupDeletionStats{
+		ThreatModelsDeleted:  result.ThreatModelsDeleted,
+		ThreatModelsRetained: result.ThreatModelsRetained,
+		GroupName:            result.GroupName,
+	}, nil
 }
 
 // Count returns total count of groups matching the filter
