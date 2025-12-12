@@ -20393,35 +20393,39 @@
           "Administration"
         ],
         "summary": "Delete user",
-        "description": "Deletes a user and all associated data. Transfers sole-owned threat models or deletes them if no other owners exist. Requires both provider and provider_user_id query parameters.",
+        "description": "Deletes a user and all associated data. Transfers sole-owned threat models or deletes them if no other owners exist.",
         "operationId": "deleteAdminUser",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "parameters": [
-          {
-            "name": "provider",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 256
-            },
-            "description": "OAuth/SAML provider identifier"
-          },
-          {
-            "name": "provider_user_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 500
-            },
-            "description": "Provider-assigned user identifier"
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "provider",
+                  "provider_user_id"
+                ],
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "description": "OAuth/SAML provider identifier"
+                  },
+                  "provider_user_id": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Provider-assigned user identifier"
+                  }
+                }
+              }
+            }
           }
-        ],
+        },
         "responses": {
           "204": {
             "description": "User deleted successfully (no content)"

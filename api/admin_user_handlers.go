@@ -266,13 +266,24 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	c.JSON(http.StatusOK, user)
 }
 
-// DeleteAdminUser handles DELETE /admin/users?provider={provider}&provider_user_id={provider_user_id}
-func (s *Server) DeleteAdminUser(c *gin.Context, params DeleteAdminUserParams) {
+// DeleteAdminUser handles DELETE /admin/users
+func (s *Server) DeleteAdminUser(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
-	// Extract parameters (both are required by OpenAPI spec)
-	provider := params.Provider
-	providerID := params.ProviderUserId
+	// Parse request body
+	var req DeleteAdminUserJSONBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	// Extract parameters from request body
+	provider := req.Provider
+	providerID := req.ProviderUserId
 
 	// Get actor information for audit logging
 	actorUserID := c.GetString("userInternalUUID")

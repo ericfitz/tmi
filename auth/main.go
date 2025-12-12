@@ -130,7 +130,11 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 
 // rebuildThreatModelAuthCache rebuilds authorization data for threat models
 func rebuildThreatModelAuthCache(ctx context.Context, tx *sql.Tx, redis *redis.Client) error {
-	rows, err := tx.QueryContext(ctx, `SELECT id, owner_email FROM threat_models`)
+	rows, err := tx.QueryContext(ctx, `
+		SELECT tm.id, u.email
+		FROM threat_models tm
+		JOIN users u ON tm.owner_internal_uuid = u.internal_uuid
+	`)
 	if err != nil {
 		return fmt.Errorf("failed to get threat models: %w", err)
 	}
@@ -162,8 +166,11 @@ func rebuildThreatModelAuthCache(ctx context.Context, tx *sql.Tx, redis *redis.C
 // getThreatModelRoles retrieves roles for a threat model
 func getThreatModelRoles(ctx context.Context, tx *sql.Tx, threatModelID, ownerEmail string) (map[string]string, error) {
 	accessRows, err := tx.QueryContext(ctx, `
-		SELECT user_email, role FROM threat_model_access
-		WHERE threat_model_id = $1
+		SELECT u.email, tma.role
+		FROM threat_model_access tma
+		JOIN users u ON tma.user_internal_uuid = u.internal_uuid
+		WHERE tma.threat_model_id = $1
+		  AND tma.subject_type = 'user'
 	`, threatModelID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get threat model access: %w", err)

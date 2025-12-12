@@ -118,10 +118,22 @@ func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*Del
 		UserEmail: userEmail,
 	}
 
+	// First, get the user's internal_uuid
+	var userInternalUUID string
+	err = tx.QueryRowContext(ctx,
+		`SELECT internal_uuid FROM users WHERE email = $1`,
+		userEmail).Scan(&userInternalUUID)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("user not found: %s", userEmail)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user: %w", err)
+	}
+
 	// Get all threat models owned by user
 	rows, err := tx.QueryContext(ctx,
-		`SELECT id FROM threat_models WHERE owner_email = $1`,
-		userEmail)
+		`SELECT id FROM threat_models WHERE owner_internal_uuid = $1`,
+		userInternalUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query owned threat models: %w", err)
 	}
@@ -146,15 +158,16 @@ func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*Del
 
 	// Process each threat model
 	for _, tmID := range threatModelIDs {
-		// Find alternate owner
-		var altOwner string
+		// Find alternate owner (user with owner role in threat_model_access)
+		var altOwnerUUID string
 		err := tx.QueryRowContext(ctx, `
-			SELECT user_email FROM threat_model_access
+			SELECT user_internal_uuid FROM threat_model_access
 			WHERE threat_model_id = $1
 			  AND role = 'owner'
-			  AND user_email != $2
+			  AND subject_type = 'user'
+			  AND user_internal_uuid != $2
 			LIMIT 1`,
-			tmID, userEmail).Scan(&altOwner)
+			tmID, userInternalUUID).Scan(&altOwnerUUID)
 
 		if err == sql.ErrNoRows {
 			// No alternate owner - delete threat model (cascades to children)
@@ -171,8 +184,8 @@ func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*Del
 		} else {
 			// Transfer ownership to alternate owner
 			_, err = tx.ExecContext(ctx,
-				`UPDATE threat_models SET owner_email = $1, modified_at = $2 WHERE id = $3`,
-				altOwner, time.Now().UTC(), tmID)
+				`UPDATE threat_models SET owner_internal_uuid = $1, modified_at = $2 WHERE id = $3`,
+				altOwnerUUID, time.Now().UTC(), tmID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to transfer ownership of threat model %s: %w", tmID, err)
 			}
@@ -180,21 +193,21 @@ func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*Del
 			// Remove deleting user's permissions
 			_, err = tx.ExecContext(ctx, `
 				DELETE FROM threat_model_access
-				WHERE threat_model_id = $1 AND user_email = $2`,
-				tmID, userEmail)
+				WHERE threat_model_id = $1 AND user_internal_uuid = $2 AND subject_type = 'user'`,
+				tmID, userInternalUUID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to remove user permissions from threat model %s: %w", tmID, err)
 			}
 
 			result.ThreatModelsTransferred++
-			slogging.Get().Debug("Transferred ownership of threat model %s to %s", tmID, altOwner)
+			slogging.Get().Debug("Transferred ownership of threat model %s to %s", tmID, altOwnerUUID)
 		}
 	}
 
 	// Clean up any remaining permissions (reader/writer on other threat models)
 	_, err = tx.ExecContext(ctx,
-		`DELETE FROM threat_model_access WHERE user_email = $1`,
-		userEmail)
+		`DELETE FROM threat_model_access WHERE user_internal_uuid = $1 AND subject_type = 'user'`,
+		userInternalUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clean up remaining permissions: %w", err)
 	}
