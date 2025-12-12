@@ -8,51 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// ValidatePositiveInt validates that a string represents a positive integer
-// Returns the parsed integer or an error with context
-func ValidatePositiveInt(s string, fieldName string, max int) (int, error) {
-	if s == "" {
-		return 0, nil // Empty string is allowed (optional parameter)
-	}
-
-	// Check for overflow before parsing
-	if len(s) > 19 { // Max length for int64 is 19 digits
-		return 0, &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
-			Message: fmt.Sprintf("%s value exceeds maximum length", fieldName),
-		}
-	}
-
-	value, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return 0, &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
-			Message: fmt.Sprintf("%s must be a valid integer: %v", fieldName, err),
-		}
-	}
-
-	if value < 0 {
-		return 0, &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
-			Message: fmt.Sprintf("%s must be non-negative (got %d)", fieldName, value),
-		}
-	}
-
-	// Check maximum value
-	if value > int64(max) {
-		return 0, &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
-			Message: fmt.Sprintf("%s exceeds maximum value of %d (got %d)", fieldName, max, value),
-		}
-	}
-
-	return int(value), nil
-}
-
 // SafeParseInt safely parses an integer string with a fallback value
 // Does not return errors - uses fallback for any parsing failure
 func SafeParseInt(s string, fallback int) int {
