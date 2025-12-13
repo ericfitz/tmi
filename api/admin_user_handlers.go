@@ -266,31 +266,27 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	c.JSON(http.StatusOK, user)
 }
 
-// DeleteAdminUser handles DELETE /admin/users
-func (s *Server) DeleteAdminUser(c *gin.Context) {
+// DeleteAdminUser handles DELETE /admin/users/{internal_uuid}
+func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
-
-	// Parse request body
-	var req DeleteAdminUserJSONBody
-	if err := c.ShouldBindJSON(&req); err != nil {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
-			Message: fmt.Sprintf("Invalid request body: %v", err),
-		})
-		return
-	}
-
-	// Extract parameters from request body
-	provider := req.Provider
-	providerID := req.ProviderUserId
 
 	// Get actor information for audit logging
 	actorUserID := c.GetString("userInternalUUID")
 	actorEmail := c.GetString("userEmail")
 
+	// Lookup user by internal UUID to get provider and provider_user_id
+	user, err := GlobalUserStore.Get(c.Request.Context(), internalUuid)
+	if err != nil {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusNotFound,
+			Code:    "not_found",
+			Message: "User not found",
+		})
+		return
+	}
+
 	// Delete user (delegates to auth service)
-	stats, err := GlobalUserStore.Delete(c.Request.Context(), provider, providerID)
+	stats, err := GlobalUserStore.Delete(c.Request.Context(), user.Provider, user.ProviderUserId)
 	if err != nil {
 		if err.Error() == "failed to find user: user not found" {
 			HandleRequestError(c, &RequestError{
@@ -310,8 +306,8 @@ func (s *Server) DeleteAdminUser(c *gin.Context) {
 	}
 
 	// AUDIT LOG: Log deletion with actor details and statistics
-	logger.Info("[AUDIT] Admin user deletion: provider=%s, provider_id=%s, email=%s, deleted_by=%s (email=%s), transferred=%d, deleted=%d",
-		provider, providerID, stats.UserEmail, actorUserID, actorEmail, stats.ThreatModelsTransferred, stats.ThreatModelsDeleted)
+	logger.Info("[AUDIT] Admin user deletion: internal_uuid=%s, provider=%s, provider_id=%s, email=%s, deleted_by=%s (email=%s), transferred=%d, deleted=%d",
+		internalUuid, user.Provider, user.ProviderUserId, stats.UserEmail, actorUserID, actorEmail, stats.ThreatModelsTransferred, stats.ThreatModelsDeleted)
 
 	// Return 204 No Content for successful deletion
 	c.Status(http.StatusNoContent)

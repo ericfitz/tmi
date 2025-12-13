@@ -20387,101 +20387,6 @@
           }
         },
         "x-admin-only": true
-      },
-      "delete": {
-        "tags": [
-          "Administration"
-        ],
-        "summary": "Delete user",
-        "description": "Deletes a user and all associated data. Transfers sole-owned threat models or deletes them if no other owners exist.",
-        "operationId": "deleteAdminUser",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "provider",
-                  "provider_user_id"
-                ],
-                "properties": {
-                  "provider": {
-                    "type": "string",
-                    "maxLength": 256,
-                    "description": "OAuth/SAML provider identifier"
-                  },
-                  "provider_user_id": {
-                    "type": "string",
-                    "maxLength": 500,
-                    "description": "Provider-assigned user identifier"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "User deleted successfully (no content)"
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to access this resource",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "x-admin-only": true
       }
     },
     "/admin/users/{internal_uuid}": {
@@ -20617,6 +20522,87 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to access this resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-admin-only": true
+      },
+      "delete": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Delete user",
+        "description": "Deletes a user and all associated data. Transfers sole-owned threat models or deletes them if no other owners exist.",
+        "operationId": "deleteAdminUser",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "internal_uuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Internal system UUID of the user"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "User deleted successfully (no content)"
           },
           "400": {
             "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
@@ -20900,103 +20886,6 @@
           }
         },
         "x-admin-only": true
-      },
-      "delete": {
-        "tags": [
-          "Administration"
-        ],
-        "summary": "Delete group",
-        "description": "Deletes a TMI-managed group and handles threat model cleanup. Protected groups like 'everyone' cannot be deleted. Requires confirmation.",
-        "operationId": "deleteAdminGroup",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "group_name",
-                  "confirm"
-                ],
-                "properties": {
-                  "group_name": {
-                    "type": "string",
-                    "maxLength": 256,
-                    "description": "Group identifier (cannot be 'everyone')"
-                  },
-                  "confirm": {
-                    "type": "boolean",
-                    "description": "Must be true to confirm deletion",
-                    "enum": [
-                      true
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "Group deleted successfully (no content)"
-          },
-          "400": {
-            "description": "Bad Request - Invalid request or confirmation not provided",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - Cannot delete protected group or insufficient permissions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Group not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "x-admin-only": true
       }
     },
     "/admin/groups/{internal_uuid}": {
@@ -21155,6 +21044,87 @@
           },
           "403": {
             "description": "Forbidden - Insufficient permissions to access this resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Group not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-admin-only": true
+      },
+      "delete": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Delete group",
+        "description": "Deletes a TMI-managed group and handles threat model cleanup. Protected groups like 'everyone' cannot be deleted.",
+        "operationId": "deleteAdminGroup",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "internal_uuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Internal system UUID of the group"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Group deleted successfully (no content)"
+          },
+          "400": {
+            "description": "Bad Request - Invalid UUID format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Cannot delete protected group or insufficient permissions",
             "content": {
               "application/json": {
                 "schema": {

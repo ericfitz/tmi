@@ -345,33 +345,27 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	c.JSON(http.StatusOK, group)
 }
 
-// DeleteAdminGroup handles DELETE /admin/groups
-func (s *Server) DeleteAdminGroup(c *gin.Context) {
+// DeleteAdminGroup handles DELETE /admin/groups/{internal_uuid}
+func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Parse request body
-	var req DeleteAdminGroupJSONBody
-	if err := c.ShouldBindJSON(&req); err != nil {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
-			Message: fmt.Sprintf("Invalid request body: %v", err),
-		})
-		return
-	}
+	// Get actor information for audit logging
+	actorUserID := c.GetString("userInternalUUID")
+	actorEmail := c.GetString("userEmail")
 
-	// Validate confirmation
-	if !req.Confirm {
+	// Lookup group by internal UUID to get group_name
+	group, err := GlobalGroupStore.Get(c.Request.Context(), internalUuid)
+	if err != nil {
 		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "confirmation_required",
-			Message: "Must set confirm=true to delete group",
+			Status:  http.StatusNotFound,
+			Code:    "not_found",
+			Message: "Group not found",
 		})
 		return
 	}
 
 	// Validate not deleting "everyone"
-	if req.GroupName == ProtectedGroupEveryone {
+	if group.GroupName == ProtectedGroupEveryone {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusForbidden,
 			Code:    "protected_group",
@@ -380,14 +374,10 @@ func (s *Server) DeleteAdminGroup(c *gin.Context) {
 		return
 	}
 
-	// Get actor information for audit logging
-	actorUserID := c.GetString("userInternalUUID")
-	actorEmail := c.GetString("userEmail")
-
 	// Delete group (delegates to auth service)
-	stats, err := GlobalGroupStore.Delete(c.Request.Context(), req.GroupName)
+	stats, err := GlobalGroupStore.Delete(c.Request.Context(), group.GroupName)
 	if err != nil {
-		if err.Error() == "group not found: "+req.GroupName {
+		if err.Error() == "group not found: "+group.GroupName {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
@@ -411,8 +401,8 @@ func (s *Server) DeleteAdminGroup(c *gin.Context) {
 	}
 
 	// AUDIT LOG: Log deletion with actor details and statistics
-	logger.Info("[AUDIT] Admin group deletion: group_name=%s, deleted_by=%s (email=%s), threat_models_deleted=%d, threat_models_retained=%d",
-		req.GroupName, actorUserID, actorEmail, stats.ThreatModelsDeleted, stats.ThreatModelsRetained)
+	logger.Info("[AUDIT] Admin group deletion: internal_uuid=%s, group_name=%s, deleted_by=%s (email=%s), threat_models_deleted=%d, threat_models_retained=%d",
+		internalUuid, group.GroupName, actorUserID, actorEmail, stats.ThreatModelsDeleted, stats.ThreatModelsRetained)
 
 	// Return 204 No Content for successful deletion
 	c.Status(http.StatusNoContent)
