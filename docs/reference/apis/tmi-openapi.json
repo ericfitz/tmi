@@ -5471,6 +5471,253 @@
             "description": "Optional expiration timestamp (ISO 8601)"
           }
         }
+      },
+      "MinimalDiagramModel": {
+        "type": "object",
+        "description": "Minimal diagram representation optimized for automated threat modeling, containing threat model context and simplified cell data without visual styling",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "metadata",
+          "cells"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Threat model unique identifier",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "maxLength": 36
+          },
+          "name": {
+            "type": "string",
+            "description": "Threat model name",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "description": "Threat model description",
+            "maxLength": 4096
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Flattened metadata from threat model (converted from array format to key-value pairs)",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "cells": {
+            "type": "array",
+            "description": "Minimal cell data (nodes and edges) without visual styling",
+            "items": {
+              "$ref": "#/components/schemas/MinimalCell"
+            },
+            "maxItems": 10000
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "name": "Payment Processing System",
+          "description": "Threat model for credit card payment flow",
+          "metadata": {
+            "environment": "production",
+            "compliance": "PCI-DSS"
+          },
+          "cells": []
+        }
+      },
+      "MinimalCell": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/MinimalNode"
+          },
+          {
+            "$ref": "#/components/schemas/MinimalEdge"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "shape",
+          "mapping": {
+            "actor": "#/components/schemas/MinimalNode",
+            "process": "#/components/schemas/MinimalNode",
+            "store": "#/components/schemas/MinimalNode",
+            "security-boundary": "#/components/schemas/MinimalNode",
+            "text-box": "#/components/schemas/MinimalNode",
+            "edge": "#/components/schemas/MinimalEdge"
+          }
+        }
+      },
+      "MinimalNode": {
+        "type": "object",
+        "description": "Minimal node representation without visual styling or layout information",
+        "required": [
+          "id",
+          "shape",
+          "children",
+          "labels",
+          "metadata"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Cell unique identifier",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "maxLength": 36
+          },
+          "shape": {
+            "type": "string",
+            "enum": [
+              "actor",
+              "process",
+              "store",
+              "security-boundary",
+              "text-box"
+            ],
+            "description": "Node shape type determining its semantic role in the diagram",
+            "maxLength": 64
+          },
+          "parent": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Parent cell ID for nested nodes (null for top-level nodes)",
+            "nullable": true,
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "maxLength": 36
+          },
+          "children": {
+            "type": "array",
+            "description": "Child cell IDs (computed bidirectional relationship including reverse parent references)",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "maxLength": 36
+            },
+            "maxItems": 1000
+          },
+          "labels": {
+            "type": "array",
+            "description": "Text labels extracted from node attrs and embedded text-box children",
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "maxItems": 100
+          },
+          "dataAssetId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional reference to a data asset entity",
+            "nullable": true,
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "maxLength": 36
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Flattened cell metadata (converted from _metadata array in cell.data)",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "id": "760e8400-e29b-41d4-a716-446655440002",
+          "shape": "process",
+          "parent": null,
+          "children": [
+            "860e8400-e29b-41d4-a716-446655440003"
+          ],
+          "labels": [
+            "Payment Gateway"
+          ],
+          "dataAssetId": "960e8400-e29b-41d4-a716-446655440004",
+          "metadata": {
+            "technology": "Java"
+          }
+        }
+      },
+      "MinimalEdge": {
+        "type": "object",
+        "description": "Minimal edge representation without visual styling or routing information",
+        "required": [
+          "id",
+          "shape",
+          "source",
+          "target",
+          "labels",
+          "metadata"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Cell unique identifier",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "maxLength": 36
+          },
+          "shape": {
+            "type": "string",
+            "enum": [
+              "edge"
+            ],
+            "description": "Edge shape type",
+            "maxLength": 64
+          },
+          "source": {
+            "$ref": "#/components/schemas/EdgeTerminal",
+            "description": "Source connection point (reuses existing schema)"
+          },
+          "target": {
+            "$ref": "#/components/schemas/EdgeTerminal",
+            "description": "Target connection point (reuses existing schema)"
+          },
+          "labels": {
+            "type": "array",
+            "description": "Text labels extracted from edge labels array",
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "maxItems": 100
+          },
+          "dataAssetId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional reference to a data asset entity",
+            "nullable": true,
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "maxLength": 36
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Flattened edge metadata (converted from _metadata array in edge.data)",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "id": "970e8400-e29b-41d4-a716-446655440005",
+          "shape": "edge",
+          "source": {
+            "cell": "760e8400-e29b-41d4-a716-446655440002"
+          },
+          "target": {
+            "cell": "a80e8400-e29b-41d4-a716-446655440006"
+          },
+          "labels": [
+            "Credit Card Data"
+          ],
+          "dataAssetId": null,
+          "metadata": {
+            "protocol": "https"
+          }
+        }
       }
     },
     "responses": {
@@ -22257,6 +22504,184 @@
               }
             }
           }
+        }
+      }
+    },
+    "/threat_models/{threat_model_id}/diagrams/{diagram_id}/model": {
+      "get": {
+        "operationId": "getDiagramModel",
+        "summary": "Get minimal diagram model for automated analysis",
+        "description": "Returns a minimal representation of the diagram optimized for automated threat modeling. Strips all visual styling, layout, and rendering properties. Includes threat model context, computed parent-child relationships, and flattened metadata. Supports JSON, YAML, and GraphML output formats.",
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "threat_model_id",
+            "in": "path",
+            "required": true,
+            "description": "Threat model UUID",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "maxLength": 36
+            }
+          },
+          {
+            "name": "diagram_id",
+            "in": "path",
+            "required": true,
+            "description": "Diagram UUID",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "maxLength": 36
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Output format for the diagram model (case-insensitive). Defaults to json if not specified.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "yaml",
+                "graphml"
+              ],
+              "default": "json"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Minimal diagram model successfully retrieved in requested format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinimalDiagramModel"
+                }
+              },
+              "application/x-yaml": {
+                "schema": {
+                  "type": "string",
+                  "description": "YAML representation of MinimalDiagramModel"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string",
+                  "description": "GraphML XML representation of diagram model"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid UUID format or invalid format parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - insufficient permissions (requires at least reader role)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Threat model or diagram not found, or diagram not associated with threat model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Request limit per window"
+              },
+              "X-RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Remaining requests in current window"
+              },
+              "X-RateLimit-Reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix timestamp when limit resets"
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds until retry allowed"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error (e.g., serialization failure)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     }

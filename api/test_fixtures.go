@@ -135,11 +135,11 @@ func InitTestFixtures() {
 	cells := []DfdDiagram_Cells_Item{}
 
 	// Create test nodes using helper functions
-	if node1, err := CreateNode(NewUUID().String(), Process, 100, 200, 80, 40); err == nil {
+	if node1, err := CreateNode(NewUUID().String(), NodeShapeProcess, 100, 200, 80, 40); err == nil {
 		cells = append(cells, node1)
 	}
 
-	if node2, err := CreateNode(NewUUID().String(), Store, 300, 200, 80, 40); err == nil {
+	if node2, err := CreateNode(NewUUID().String(), NodeShapeStore, 300, 200, 80, 40); err == nil {
 		cells = append(cells, node2)
 	}
 

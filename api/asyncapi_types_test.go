@@ -16,7 +16,7 @@ func TestDiagramOperationMessage(t *testing.T) {
 
 	t.Run("Valid Message", func(t *testing.T) {
 		// Create a Node for testing
-		nodeItem, _ := CreateNode(cellID, Process, 100, 200, 80, 40)
+		nodeItem, _ := CreateNode(cellID, NodeShapeProcess, 100, 200, 80, 40)
 
 		msg := DiagramOperationMessage{
 			MessageType: MessageTypeDiagramOperation,
@@ -66,7 +66,7 @@ func TestCellPatchOperation(t *testing.T) {
 
 	t.Run("Valid Patch Operation", func(t *testing.T) {
 		// Create a Node for testing
-		nodeItem, _ := CreateNode(cellID, Process, 100, 200, 80, 40)
+		nodeItem, _ := CreateNode(cellID, NodeShapeProcess, 100, 200, 80, 40)
 
 		op := CellPatchOperation{
 			Type: "patch",
@@ -111,7 +111,7 @@ func TestCellOperation(t *testing.T) {
 
 	t.Run("Valid Add Operation", func(t *testing.T) {
 		// Create a Node for testing
-		nodeItem, _ := CreateNode(cellID, Process, 100, 200, 80, 40)
+		nodeItem, _ := CreateNode(cellID, NodeShapeProcess, 100, 200, 80, 40)
 
 		op := CellOperation{
 			ID:        cellID,
@@ -148,7 +148,7 @@ func TestCellOperation(t *testing.T) {
 
 	t.Run("Remove Operation With Data", func(t *testing.T) {
 		// Create a Node for testing
-		nodeItem, _ := CreateNode(cellID, Process, 100, 200, 80, 40)
+		nodeItem, _ := CreateNode(cellID, NodeShapeProcess, 100, 200, 80, 40)
 
 		op := CellOperation{
 			ID:        cellID,
@@ -165,7 +165,7 @@ func TestCellOperation(t *testing.T) {
 		differentID := uuid.New().String()
 
 		// Create a Node with different ID
-		nodeItem, _ := CreateNode(differentID, Process, 100, 200, 80, 40)
+		nodeItem, _ := CreateNode(differentID, NodeShapeProcess, 100, 200, 80, 40)
 
 		op := CellOperation{
 			ID:        cellID,
@@ -238,7 +238,7 @@ func TestMessageParser(t *testing.T) {
 		operationID := uuid.New().String()
 
 		// Create a Node for testing
-		nodeItem, _ := CreateNode(cellID, Process, 100, 200, 80, 40)
+		nodeItem, _ := CreateNode(cellID, NodeShapeProcess, 100, 200, 80, 40)
 
 		originalMsg := DiagramOperationMessage{
 			MessageType: MessageTypeDiagramOperation,

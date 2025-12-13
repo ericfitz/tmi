@@ -24,7 +24,7 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 	// Create a WebSocketHub for the test
 	hub := NewWebSocketHubForTests()
 
-	// Store the test diagram
+	// NodeShapeStore the test diagram
 	_, err := DiagramStore.Create(*testDiagram, func(d DfdDiagram, _ string) DfdDiagram {
 		d.Id = &diagramID
 		return d
@@ -50,7 +50,7 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 
 	t.Run("SingleCellOperation", func(t *testing.T) {
 		cellID := uuid.New().String()
-		singleNode, _ := CreateNode(cellID, Process, 100, 150, 120, 80)
+		singleNode, _ := CreateNode(cellID, NodeShapeProcess, 100, 150, 120, 80)
 		operation := CellPatchOperation{
 			Type: "patch",
 			Cells: []CellOperation{
@@ -75,7 +75,7 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 		currentState = make(map[string]*DfdDiagram_Cells_Item)
 
 		cellID := uuid.New().String()
-		dupNode, _ := CreateNode(cellID, Process, 100, 150, 120, 80)
+		dupNode, _ := CreateNode(cellID, NodeShapeProcess, 100, 150, 120, 80)
 
 		// Create 8 identical cell operations (simulating the bug reported)
 		duplicateCells := make([]CellOperation, 8)
@@ -111,8 +111,8 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 
 		cellID1 := uuid.New().String()
 		cellID2 := uuid.New().String()
-		mixedNode1, _ := CreateNode(cellID1, Process, 100, 150, 80, 40)
-		mixedNode2, _ := CreateNode(cellID2, Store, 300, 150, 80, 40)
+		mixedNode1, _ := CreateNode(cellID1, NodeShapeProcess, 100, 150, 80, 40)
+		mixedNode2, _ := CreateNode(cellID2, NodeShapeStore, 300, 150, 80, 40)
 
 		operation := CellPatchOperation{
 			Type: "patch",
@@ -161,14 +161,14 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 	t.Run("DuplicateUpdateOperations", func(t *testing.T) {
 		// First add a cell that we can update
 		cellID := uuid.New().String()
-		originalNode, _ := CreateNode(cellID, Process, 100, 150, 80, 40)
+		originalNode, _ := CreateNode(cellID, NodeShapeProcess, 100, 150, 80, 40)
 
 		// Add cell to current state
 		currentState[cellID] = &originalNode
 		testDiagram.Cells = []DfdDiagram_Cells_Item{originalNode}
 
 		// Now send duplicate update operations
-		updatedNode, _ := CreateNode(cellID, Process, 200, 250, 80, 40)
+		updatedNode, _ := CreateNode(cellID, NodeShapeProcess, 200, 250, 80, 40)
 		operation := CellPatchOperation{
 			Type: "patch",
 			Cells: []CellOperation{

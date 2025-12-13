@@ -8,6 +8,7 @@ import (
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // ThreatModelDiagramHandler provides handlers for diagram operations within threat models
@@ -813,4 +814,114 @@ func areSlicesEqual(a, b []DfdDiagram_Cells_Item) bool {
 
 	// Use deep comparison for complex slice elements
 	return reflect.DeepEqual(a, b)
+}
+
+// GetDiagramModel retrieves a minimal model representation of a diagram within a threat model.
+// This endpoint is optimized for automated threat modeling tools, returning only essential
+// data without visual styling, layout information, or rendering properties.
+//
+// Response includes:
+//   - Threat model context (id, name, description, flattened metadata)
+//   - Minimal cells (nodes and edges) with:
+//     * Computed bidirectional parent-child relationships
+//     * Text labels extracted from attrs and text-box children
+//     * Flattened metadata from cell.data._metadata
+//     * Optional dataAssetId references
+//
+// Authorization: Requires at least RoleReader on the threat model.
+//
+// Supported output formats (via ?format query parameter):
+//   - json (default): application/json
+//   - yaml: application/x-yaml
+//   - graphml: application/xml (GraphML 1.0 standard)
+func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelId, diagramId openapi_types.UUID, params GetDiagramModelParams) {
+	// Parse and normalize format parameter (case-insensitive)
+	format, err := parseFormat(params.Format)
+	if err != nil {
+		HandleRequestError(c, InvalidIDError(err.Error()))
+		return
+	}
+
+	// Get username from JWT claim
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Get the threat model to check access
+	tm, err := ThreatModelStore.Get(threatModelId.String())
+	if err != nil {
+		HandleRequestError(c, NotFoundError("Threat model not found"))
+		return
+	}
+
+	// Check if user has access to the threat model using new utilities
+	hasAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if !hasAccess {
+		HandleRequestError(c, ForbiddenError("You don't have sufficient permissions to access this threat model"))
+		return
+	}
+
+	// Check if the diagram is associated with this threat model
+	diagramFound := false
+	if tm.Diagrams != nil {
+		for _, diagUnion := range *tm.Diagrams {
+			// Convert union type to DfdDiagram to get the ID
+			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId.String() {
+				diagramFound = true
+				break
+			}
+		}
+	}
+
+	if !diagramFound {
+		HandleRequestError(c, NotFoundError("Diagram not found in this threat model"))
+		return
+	}
+
+	// Get full diagram from store
+	diagram, err := DiagramStore.Get(diagramId.String())
+	if err != nil {
+		HandleRequestError(c, NotFoundError("Diagram not found"))
+		return
+	}
+
+	// Transform to minimal model representation
+	minimalModel := buildMinimalDiagramModel(tm, diagram)
+
+	// Serialize based on requested format
+	switch format {
+	case "json":
+		c.JSON(http.StatusOK, minimalModel)
+
+	case "yaml":
+		yamlBytes, err := serializeAsYAML(minimalModel)
+		if err != nil {
+			slogging.Get().Error("Failed to serialize diagram model as YAML: %v (diagramId=%s, threatModelId=%s)",
+				err, diagramId.String(), threatModelId.String())
+			HandleRequestError(c, ServerError("Failed to serialize diagram model"))
+			return
+		}
+		c.Data(http.StatusOK, "application/x-yaml", yamlBytes)
+
+	case "graphml":
+		graphmlBytes, err := serializeAsGraphML(minimalModel)
+		if err != nil {
+			slogging.Get().Error("Failed to serialize diagram model as GraphML: %v (diagramId=%s, threatModelId=%s)",
+				err, diagramId.String(), threatModelId.String())
+			HandleRequestError(c, ServerError("Failed to serialize diagram model"))
+			return
+		}
+		c.Data(http.StatusOK, "application/xml", graphmlBytes)
+
+	default:
+		// This should never happen due to parseFormat validation, but handle gracefully
+		HandleRequestError(c, InvalidIDError("Invalid format parameter: must be json, yaml, or graphml"))
+	}
 }

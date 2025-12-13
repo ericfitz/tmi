@@ -15,7 +15,7 @@ func TestCellOperationProcessor_IdempotentAdd(t *testing.T) {
 
 	// Create initial diagram with one node
 	initialNodeID := uuid.New().String()
-	initialNode, err := CreateNode(initialNodeID, Process, 100, 150, 120, 80)
+	initialNode, err := CreateNode(initialNodeID, NodeShapeProcess, 100, 150, 120, 80)
 	require.NoError(t, err, "Should create initial node")
 
 	diagramID := NewUUID()
@@ -39,7 +39,7 @@ func TestCellOperationProcessor_IdempotentAdd(t *testing.T) {
 
 	t.Run("IdempotentAdd_NodeUpdate", func(t *testing.T) {
 		// Attempt to "add" the same node again with different position (should act as update)
-		updatedNode, err := CreateNode(initialNodeID, Process, 200, 250, 120, 80)
+		updatedNode, err := CreateNode(initialNodeID, NodeShapeProcess, 200, 250, 120, 80)
 		require.NoError(t, err, "Should create updated node")
 
 		addOp := CellOperation{
@@ -75,10 +75,10 @@ func TestCellOperationProcessor_IdempotentAdd(t *testing.T) {
 		targetNodeID := uuid.New().String()
 		edgeID := uuid.New().String()
 
-		sourceNode, err := CreateNode(sourceNodeID, Actor, 100, 100, 120, 60)
+		sourceNode, err := CreateNode(sourceNodeID, NodeShapeActor, 100, 100, 120, 60)
 		require.NoError(t, err)
 
-		targetNode, err := CreateNode(targetNodeID, Process, 300, 100, 140, 60)
+		targetNode, err := CreateNode(targetNodeID, NodeShapeProcess, 300, 100, 140, 60)
 		require.NoError(t, err)
 
 		// Create initial edge
@@ -147,7 +147,7 @@ func TestCellOperationProcessor_IdempotentAdd(t *testing.T) {
 	t.Run("NormalAdd_NewCell", func(t *testing.T) {
 		// Test that adding a truly new cell still works normally
 		newNodeID := uuid.New().String()
-		newNode, err := CreateNode(newNodeID, Store, 300, 300, 150, 90)
+		newNode, err := CreateNode(newNodeID, NodeShapeStore, 300, 300, 150, 90)
 		require.NoError(t, err)
 
 		addOp := CellOperation{

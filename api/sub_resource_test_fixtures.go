@@ -231,8 +231,8 @@ func InitSubResourceTestFixtures() {
 	SubResourceFixtures.Cell2ID = cell2UUID.String()
 
 	// Create nodes for testing
-	cell1, _ := CreateNode(SubResourceFixtures.Cell1ID, Process, 100, 200, 80, 40)
-	cell2, _ := CreateNode(SubResourceFixtures.Cell2ID, Store, 300, 200, 80, 40)
+	cell1, _ := CreateNode(SubResourceFixtures.Cell1ID, NodeShapeProcess, 100, 200, 80, 40)
+	cell2, _ := CreateNode(SubResourceFixtures.Cell2ID, NodeShapeStore, 300, 200, 80, 40)
 
 	SubResourceFixtures.Cell1 = cell1
 	SubResourceFixtures.Cell2 = cell2
