@@ -320,7 +320,23 @@
             },
             "additionalProperties": false
           }
-        ]
+        ],
+        "example": {
+          "id": "567e89ab-e89b-41d4-a716-446655440004",
+          "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
+          "name": "Security Architecture Review",
+          "description": "Q1 2024 security review findings",
+          "content": "# Security Review\n\nKey findings from architecture review...",
+          "format": "markdown",
+          "metadata": [
+            {
+              "key": "reviewer",
+              "value": "Security Team"
+            }
+          ],
+          "created_at": "2024-01-17T14:00:00Z",
+          "modified_at": "2024-01-17T14:00:00Z"
+        }
       },
       "BaseDiagram": {
         "type": "object",
@@ -423,7 +439,13 @@
             "DFD-1.0.0": "#/components/schemas/DfdDiagram"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "name": "System Architecture",
+          "description": "High-level system architecture diagram",
+          "diagram_type": "dfd",
+          "version": 1
+        }
       },
       "BaseDiagramInput": {
         "type": "object",
@@ -492,7 +514,12 @@
             "DFD-1.0.0": "#/components/schemas/DfdDiagramInput"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "name": "New Architecture Diagram",
+          "description": "Draft architecture for microservices migration",
+          "diagram_type": "dfd"
+        }
       },
       "DfdDiagram": {
         "x-discriminator-value": "DFD-1.0.0",
@@ -544,7 +571,16 @@
             ],
             "additionalProperties": false
           }
-        ]
+        ],
+        "example": {
+          "name": "Payment Data Flow",
+          "description": "Data flow through payment processing",
+          "diagram_type": "dfd",
+          "version": 2,
+          "model": {
+            "cells": []
+          }
+        }
       },
       "DfdDiagramInput": {
         "x-discriminator-value": "DFD-1.0.0",
@@ -596,7 +632,15 @@
             ],
             "additionalProperties": false
           }
-        ]
+        ],
+        "example": {
+          "name": "Authentication Flow",
+          "description": "User authentication data flow",
+          "diagram_type": "dfd",
+          "model": {
+            "cells": []
+          }
+        }
       },
       "CreateDiagramRequest": {
         "type": "object",
@@ -640,6 +684,19 @@
           "mapping": {
             "DFD-1.0.0": "#/components/schemas/DfdDiagram"
           }
+        },
+        "example": {
+          "id": "234e5678-e89b-41d4-a716-446655440001",
+          "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
+          "name": "Payment Flow Architecture",
+          "description": "Data flow diagram showing payment processing",
+          "diagram_type": "dfd",
+          "version": 3,
+          "model": {
+            "cells": []
+          },
+          "created_at": "2024-01-15T10:35:00Z",
+          "modified_at": "2024-01-20T16:00:00Z"
         }
       },
       "Cell": {
@@ -706,7 +763,24 @@
             "maxItems": 1000
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "f60eabcd-e89b-41d4-a716-446655440015",
+          "shape": "process",
+          "position": {
+            "x": 100,
+            "y": 200
+          },
+          "size": {
+            "width": 120,
+            "height": 60
+          },
+          "attrs": {
+            "label": {
+              "text": "API Gateway"
+            }
+          }
+        }
       },
       "Node": {
         "allOf": [
@@ -820,7 +894,30 @@
             },
             "additionalProperties": false
           }
-        ]
+        ],
+        "example": {
+          "id": "m30eabcd-e89b-41d4-a716-446655440022",
+          "shape": "process",
+          "position": {
+            "x": 150,
+            "y": 250
+          },
+          "size": {
+            "width": 140,
+            "height": 70
+          },
+          "attrs": {
+            "label": {
+              "text": "Database Service"
+            },
+            "body": {
+              "fill": "#e3f2fd"
+            }
+          },
+          "ports": {
+            "items": []
+          }
+        }
       },
       "Edge": {
         "allOf": [
@@ -910,7 +1007,26 @@
             },
             "additionalProperties": false
           }
-        ]
+        ],
+        "example": {
+          "id": "i90eabcd-e89b-41d4-a716-446655440018",
+          "shape": "edge",
+          "source": {
+            "cell": "f60eabcd-e89b-41d4-a716-446655440015"
+          },
+          "target": {
+            "cell": "j00eabcd-e89b-41d4-a716-446655440019"
+          },
+          "labels": [
+            {
+              "attrs": {
+                "text": {
+                  "text": "HTTPS Request"
+                }
+              }
+            }
+          ]
+        }
       },
       "ThreatModel": {
         "allOf": [
@@ -1016,7 +1132,37 @@
             },
             "additionalProperties": false
           }
-        ]
+        ],
+        "example": {
+          "id": "123e4567-e89b-41d4-a716-446655440000",
+          "name": "E-commerce Platform Threat Model",
+          "description": "Threat analysis for the payment processing subsystem",
+          "owner": {
+            "user_id": "550e8400-e29b-41d4-a716-446655440000",
+            "email": "alice@example.com",
+            "name": "Alice Johnson",
+            "provider": "github"
+          },
+          "threat_model_framework": "STRIDE",
+          "authorization": [
+            {
+              "user_id": "660e8400-e29b-41d4-a716-446655440001",
+              "email": "bob@example.com",
+              "name": "Bob Smith",
+              "role": "reader"
+            }
+          ],
+          "metadata": [
+            {
+              "key": "project",
+              "value": "Payment Gateway v2"
+            }
+          ],
+          "issue_uri": "https://github.com/example/repo/issues/123",
+          "status": "In progress",
+          "created_at": "2024-01-15T10:30:00Z",
+          "modified_at": "2024-01-20T15:45:00Z"
+        }
       },
       "Threat": {
         "allOf": [
@@ -1062,7 +1208,24 @@
             },
             "additionalProperties": false
           }
-        ]
+        ],
+        "example": {
+          "id": "345e6789-e89b-41d4-a716-446655440002",
+          "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
+          "name": "SQL Injection in Payment Query",
+          "description": "Unsanitized input in payment lookup query could allow SQL injection",
+          "severity": "High",
+          "stride_category": "Tampering",
+          "status": "Open",
+          "metadata": [
+            {
+              "key": "cwe",
+              "value": "CWE-89"
+            }
+          ],
+          "created_at": "2024-01-16T09:00:00Z",
+          "modified_at": "2024-01-16T09:00:00Z"
+        }
       },
       "Authorization": {
         "allOf": [
@@ -1091,7 +1254,13 @@
               }
             }
           }
-        ]
+        ],
+        "example": {
+          "user_id": "550e8400-e29b-41d4-a716-446655440000",
+          "email": "bob@example.com",
+          "name": "Bob Smith",
+          "role": "writer"
+        }
       },
       "Metadata": {
         "type": "object",
@@ -2051,7 +2220,10 @@
             "additionalProperties": false
           }
         ],
-        "description": "Edge routing algorithm configuration for pathfinding"
+        "description": "Edge routing algorithm configuration for pathfinding",
+        "example": {
+          "name": "manhattan"
+        }
       },
       "EdgeConnector": {
         "oneOf": [
@@ -2118,7 +2290,10 @@
             "additionalProperties": false
           }
         ],
-        "description": "Edge connector style configuration for visual appearance"
+        "description": "Edge connector style configuration for visual appearance",
+        "example": {
+          "name": "normal"
+        }
       },
       "ThreatModelBase": {
         "type": "object",
@@ -2402,7 +2577,20 @@
             "$ref": "#/components/schemas/ThreatBase"
           }
         ],
-        "description": "Input schema for creating/updating Threat"
+        "description": "Input schema for creating/updating Threat",
+        "example": {
+          "name": "Cross-Site Scripting (XSS)",
+          "description": "User input not properly sanitized in dashboard",
+          "severity": "Medium",
+          "stride_category": "Tampering",
+          "status": "Open",
+          "metadata": [
+            {
+              "key": "cwe",
+              "value": "CWE-79"
+            }
+          ]
+        }
       },
       "User": {
         "allOf": [
@@ -2439,7 +2627,13 @@
               }
             }
           }
-        ]
+        ],
+        "example": {
+          "user_id": "550e8400-e29b-41d4-a716-446655440000",
+          "email": "alice@example.com",
+          "name": "Alice Johnson",
+          "provider": "github"
+        }
       },
       "Participant": {
         "type": "object",
@@ -2559,7 +2753,23 @@
             },
             "additionalProperties": false
           }
-        ]
+        ],
+        "example": {
+          "id": "789eabcd-e89b-41d4-a716-446655440006",
+          "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
+          "name": "payment-service",
+          "description": "Main payment processing microservice",
+          "url": "https://github.com/example/payment-service",
+          "repo_type": "github",
+          "metadata": [
+            {
+              "key": "language",
+              "value": "Go"
+            }
+          ],
+          "created_at": "2024-01-15T10:00:00Z",
+          "modified_at": "2024-01-15T10:00:00Z"
+        }
       },
       "Note": {
         "description": "Complete Note schema with server-generated fields",
@@ -2609,7 +2819,21 @@
             },
             "additionalProperties": false
           }
-        ]
+        ],
+        "example": {
+          "id": "678e9abc-e89b-41d4-a716-446655440005",
+          "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
+          "title": "Meeting Notes: Security Review",
+          "content": "Attendees: Alice, Bob, Charlie\nDecisions: Prioritize authentication fixes",
+          "metadata": [
+            {
+              "key": "meeting_date",
+              "value": "2024-01-18"
+            }
+          ],
+          "created_at": "2024-01-18T16:30:00Z",
+          "modified_at": "2024-01-18T16:30:00Z"
+        }
       },
       "Asset": {
         "description": "Complete Asset schema with server-generated fields",
@@ -2659,7 +2883,23 @@
             },
             "additionalProperties": false
           }
-        ]
+        ],
+        "example": {
+          "id": "456e789a-e89b-41d4-a716-446655440003",
+          "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
+          "name": "Customer Payment Information",
+          "description": "PCI DSS Level 1 cardholder data",
+          "asset_type": "data",
+          "security_controls": "Encryption at rest and in transit, tokenization",
+          "metadata": [
+            {
+              "key": "classification",
+              "value": "Confidential"
+            }
+          ],
+          "created_at": "2024-01-15T11:00:00Z",
+          "modified_at": "2024-01-15T11:00:00Z"
+        }
       },
       "ExtendedAsset": {
         "allOf": [
@@ -2698,7 +2938,24 @@
             ],
             "additionalProperties": false
           }
-        ]
+        ],
+        "example": {
+          "id": "k10eabcd-e89b-41d4-a716-446655440020",
+          "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
+          "name": "API Keys",
+          "description": "Third-party service API credentials",
+          "asset_type": "data",
+          "security_controls": "Secrets manager, rotation policy",
+          "metadata": [
+            {
+              "key": "rotation_period",
+              "value": "90 days"
+            }
+          ],
+          "threat_count": 3,
+          "created_at": "2024-01-16T11:00:00Z",
+          "modified_at": "2024-01-16T11:00:00Z"
+        }
       },
       "AssetBase": {
         "type": "object",
@@ -2781,7 +3038,19 @@
           {
             "$ref": "#/components/schemas/AssetBase"
           }
-        ]
+        ],
+        "example": {
+          "name": "User Credentials Database",
+          "description": "PostgreSQL database storing encrypted user credentials",
+          "asset_type": "data",
+          "security_controls": "Encryption, access controls, audit logging",
+          "metadata": [
+            {
+              "key": "owner",
+              "value": "Platform Team"
+            }
+          ]
+        }
       },
       "DocumentBase": {
         "type": "object",
@@ -2832,7 +3101,19 @@
           {
             "$ref": "#/components/schemas/DocumentBase"
           }
-        ]
+        ],
+        "example": {
+          "name": "Penetration Test Results",
+          "description": "External security assessment findings",
+          "content": "# Penetration Test Report\n\n## Executive Summary\n\nKey findings...",
+          "format": "markdown",
+          "metadata": [
+            {
+              "key": "vendor",
+              "value": "SecureTest Inc"
+            }
+          ]
+        }
       },
       "NoteBase": {
         "type": "object",
@@ -2882,7 +3163,17 @@
           {
             "$ref": "#/components/schemas/NoteBase"
           }
-        ]
+        ],
+        "example": {
+          "title": "Architecture Decision Record",
+          "content": "Decision: Use event-driven architecture\nRationale: Better scalability and decoupling",
+          "metadata": [
+            {
+              "key": "decision_date",
+              "value": "2024-01-19"
+            }
+          ]
+        }
       },
       "NoteListItem": {
         "type": "object",
@@ -3036,7 +3327,19 @@
           {
             "$ref": "#/components/schemas/RepositoryBase"
           }
-        ]
+        ],
+        "example": {
+          "name": "authentication-service",
+          "description": "OAuth and SAML authentication microservice",
+          "url": "https://github.com/example/auth-service",
+          "repo_type": "github",
+          "metadata": [
+            {
+              "key": "team",
+              "value": "Security"
+            }
+          ]
+        }
       },
       "WebhookSubscription": {
         "type": "object",
@@ -3868,21 +4171,6 @@
           "status_updated_at": "2024-01-20T15:50:00Z"
         }
       },
-      "InvocationListResponse": {
-        "example": {
-          "invocations": [
-            {
-              "invoked_by": {
-                "principal_type": "user",
-                "provider": "test",
-                "provider_id": "alice@example.com",
-                "email": "alice@example.com",
-                "display_name": "Alice Anderson"
-              }
-            }
-          ]
-        }
-      },
       "Principal": {
         "type": "object",
         "description": "Base identity representation for users and groups with portable, globally-unique identifiers",
@@ -3935,60 +4223,6 @@
           "display_name": "Alice Anderson",
           "email": "alice@example.com"
         }
-      },
-      "Group": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Principal"
-          },
-          {
-            "type": "object",
-            "description": "Group principal with optional metadata",
-            "required": [
-              "display_name"
-            ],
-            "properties": {
-              "principal_type": {
-                "type": "string",
-                "enum": [
-                  "group"
-                ],
-                "description": "Always \"group\" for Group objects"
-              },
-              "display_name": {
-                "type": "string",
-                "description": "Group display name",
-                "minLength": 1,
-                "maxLength": 256,
-                "pattern": "^[\\u0020-\\uFFFF]*$"
-              },
-              "description": {
-                "type": "string",
-                "description": "Optional group description",
-                "maxLength": 1000,
-                "pattern": "^[\\u0020-\\uFFFF]*$"
-              },
-              "first_used": {
-                "type": "string",
-                "format": "date-time",
-                "description": "First time this group was referenced (read-only)",
-                "readOnly": true
-              },
-              "last_used": {
-                "type": "string",
-                "format": "date-time",
-                "description": "Last time this group was referenced (read-only)",
-                "readOnly": true
-              },
-              "usage_count": {
-                "type": "integer",
-                "description": "Number of times this group has been referenced (read-only)",
-                "readOnly": true,
-                "minimum": 0
-              }
-            }
-          }
-        ]
       },
       "SAMLProviderInfo": {
         "type": "object",
@@ -4052,7 +4286,12 @@
           "entity_id",
           "acs_url"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "id": "azure-ad",
+          "name": "Azure Active Directory",
+          "enabled": true
+        }
       },
       "Administrator": {
         "type": "object",
@@ -4103,6 +4342,12 @@
             "nullable": true,
             "description": "User display name (enriched)"
           }
+        },
+        "example": {
+          "user_id": "550e8400-e29b-41d4-a716-446655440000",
+          "email": "admin@example.com",
+          "name": "System Administrator",
+          "created_at": "2024-01-01T00:00:00Z"
         }
       },
       "CreateAdministratorRequest": {
@@ -4128,6 +4373,9 @@
             "type": "string",
             "description": "OAuth/SAML provider"
           }
+        },
+        "example": {
+          "user_id": "h80eabcd-e89b-41d4-a716-446655440017"
         }
       },
       "ListAdministratorsResponse": {
@@ -4148,6 +4396,19 @@
             "type": "integer",
             "description": "Total number of grants matching filter"
           }
+        },
+        "example": {
+          "administrators": [
+            {
+              "user_id": "550e8400-e29b-41d4-a716-446655440000",
+              "email": "admin@example.com",
+              "name": "System Administrator",
+              "created_at": "2024-01-01T00:00:00Z"
+            }
+          ],
+          "total": 1,
+          "limit": 50,
+          "offset": 0
         }
       },
       "UserWithAdminStatus": {
@@ -4169,7 +4430,14 @@
               "is_admin"
             ]
           }
-        ]
+        ],
+        "example": {
+          "user_id": "550e8400-e29b-41d4-a716-446655440000",
+          "email": "alice@example.com",
+          "name": "Alice Johnson",
+          "provider": "github",
+          "is_admin": false
+        }
       },
       "UserAPIQuota": {
         "type": "object",
@@ -4206,6 +4474,12 @@
             "format": "date-time",
             "description": "Last modification timestamp"
           }
+        },
+        "example": {
+          "user_id": "550e8400-e29b-41d4-a716-446655440000",
+          "limit": 50,
+          "created_at": "2024-01-01T00:00:00Z",
+          "modified_at": "2024-01-01T00:00:00Z"
         }
       },
       "WebhookQuota": {
@@ -4243,6 +4517,12 @@
             "minimum": 1,
             "description": "Maximum subscription requests per day"
           }
+        },
+        "example": {
+          "user_id": "550e8400-e29b-41d4-a716-446655440000",
+          "limit": 20,
+          "created_at": "2024-01-01T00:00:00Z",
+          "modified_at": "2024-01-01T00:00:00Z"
         }
       },
       "AdminUser": {
@@ -4324,6 +4604,14 @@
             "description": "Number of active threat models owned by user (enriched)",
             "readOnly": true
           }
+        },
+        "example": {
+          "user_id": "550e8400-e29b-41d4-a716-446655440000",
+          "email": "admin@example.com",
+          "name": "Admin User",
+          "provider": "github",
+          "is_admin": true,
+          "created_at": "2024-01-01T00:00:00Z"
         }
       },
       "AdminUserListResponse": {
@@ -4357,6 +4645,21 @@
             "minimum": 0,
             "description": "Number of results skipped"
           }
+        },
+        "example": {
+          "users": [
+            {
+              "user_id": "550e8400-e29b-41d4-a716-446655440000",
+              "email": "admin@example.com",
+              "name": "Admin User",
+              "provider": "github",
+              "is_admin": true,
+              "created_at": "2024-01-01T00:00:00Z"
+            }
+          ],
+          "total": 1,
+          "limit": 50,
+          "offset": 0
         }
       },
       "UpdateAdminUserRequest": {
@@ -4379,31 +4682,9 @@
             "description": "Updated email verification status"
           }
         },
-        "additionalProperties": false
-      },
-      "DeletionStats": {
-        "type": "object",
-        "description": "Statistics about user deletion operation",
-        "required": [
-          "threat_models_transferred",
-          "threat_models_deleted",
-          "user_email"
-        ],
-        "properties": {
-          "threat_models_transferred": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Number of threat models transferred to other owners"
-          },
-          "threat_models_deleted": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Number of threat models deleted (sole owner)"
-          },
-          "user_email": {
-            "type": "string",
-            "description": "Email of the deleted user"
-          }
+        "additionalProperties": false,
+        "example": {
+          "is_admin": true
         }
       },
       "AdminGroup": {
@@ -4474,6 +4755,16 @@
             "description": "Number of members in the group from IdP (enriched, if available)",
             "readOnly": true
           }
+        },
+        "example": {
+          "internal_uuid": "e50eabcd-e89b-41d4-a716-446655440014",
+          "name": "Engineering",
+          "description": "Engineering team members",
+          "provider": "github",
+          "provider_group_id": "org-engineering",
+          "member_count": 25,
+          "created_at": "2024-01-02T10:00:00Z",
+          "modified_at": "2024-01-02T10:00:00Z"
         }
       },
       "AdminGroupListResponse": {
@@ -4507,6 +4798,23 @@
             "minimum": 0,
             "description": "Number of results skipped"
           }
+        },
+        "example": {
+          "groups": [
+            {
+              "internal_uuid": "e50eabcd-e89b-41d4-a716-446655440014",
+              "name": "Engineering",
+              "description": "Engineering team members",
+              "provider": "github",
+              "provider_group_id": "org-engineering",
+              "member_count": 25,
+              "created_at": "2024-01-02T10:00:00Z",
+              "modified_at": "2024-01-02T10:00:00Z"
+            }
+          ],
+          "total": 1,
+          "limit": 50,
+          "offset": 0
         }
       },
       "CreateAdminGroupRequest": {
@@ -4534,7 +4842,13 @@
             "description": "Optional group description"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "name": "DevOps Team",
+          "description": "Infrastructure and operations engineers",
+          "provider": "github",
+          "provider_group_id": "org-devops"
+        }
       },
       "UpdateAdminGroupRequest": {
         "type": "object",
@@ -4551,59 +4865,10 @@
             "description": "Updated group description"
           }
         },
-        "additionalProperties": false
-      },
-      "SAMLUserListResponse": {
-        "type": "object",
-        "description": "Lightweight user list response for SAML UI autocomplete",
-        "required": [
-          "idp",
-          "users",
-          "total"
-        ],
-        "properties": {
-          "idp": {
-            "type": "string",
-            "description": "SAML provider identifier"
-          },
-          "users": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "internal_uuid",
-                "email"
-              ],
-              "properties": {
-                "internal_uuid": {
-                  "type": "string",
-                  "format": "uuid",
-                  "description": "Internal system UUID"
-                },
-                "email": {
-                  "type": "string",
-                  "format": "email",
-                  "description": "User email"
-                },
-                "name": {
-                  "type": "string",
-                  "description": "User display name"
-                },
-                "last_login": {
-                  "type": "string",
-                  "format": "date-time",
-                  "nullable": true,
-                  "description": "Last login timestamp"
-                }
-              }
-            },
-            "description": "List of active users"
-          },
-          "total": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Total number of active users for this provider"
-          }
+        "additionalProperties": false,
+        "example": {
+          "name": "Platform Engineering",
+          "description": "Updated team name and scope"
         }
       },
       "WebhookEventType": {
@@ -4681,7 +4946,8 @@
           "addon": [
             "addon.invoked"
           ]
-        }
+        },
+        "example": "threat_model.created"
       },
       "GroupMember": {
         "type": "object",
@@ -4750,6 +5016,12 @@
             "description": "Optional notes about this membership",
             "nullable": true
           }
+        },
+        "example": {
+          "user_id": "660e8400-e29b-41d4-a716-446655440001",
+          "email": "bob@example.com",
+          "name": "Bob Smith",
+          "added_at": "2024-01-06T09:00:00Z"
         }
       },
       "GroupMemberListResponse": {
@@ -4779,6 +5051,17 @@
             "type": "integer",
             "description": "Number of results skipped"
           }
+        },
+        "example": {
+          "members": [
+            {
+              "user_id": "660e8400-e29b-41d4-a716-446655440001",
+              "email": "bob@example.com",
+              "name": "Bob Smith",
+              "added_at": "2024-01-06T09:00:00Z"
+            }
+          ],
+          "total": 1
         }
       },
       "AddGroupMemberRequest": {
@@ -4797,6 +5080,9 @@
             "maxLength": 1000,
             "description": "Optional notes about this membership"
           }
+        },
+        "example": {
+          "user_id": "550e8400-e29b-41d4-a716-446655440000"
         }
       },
       "AddonInvocationQuota": {
@@ -4835,7 +5121,13 @@
           "max_invocations_per_hour",
           "created_at",
           "modified_at"
-        ]
+        ],
+        "example": {
+          "user_id": "550e8400-e29b-41d4-a716-446655440000",
+          "limit": 100,
+          "created_at": "2024-01-01T00:00:00Z",
+          "modified_at": "2024-01-01T00:00:00Z"
+        }
       },
       "ClientCredentialResponse": {
         "type": "object",
@@ -4880,6 +5172,24 @@
             "format": "date-time",
             "description": "Optional expiration timestamp (ISO 8601)"
           }
+        },
+        "example": {
+          "credentials": [
+            {
+              "id": "g70eabcd-e89b-41d4-a716-446655440016",
+              "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+              "name": "Monitoring Service",
+              "description": "Metrics collection service",
+              "client_id": "tmi_cc_monitoring123",
+              "is_active": true,
+              "last_used_at": "2024-01-21T09:00:00Z",
+              "created_at": "2024-01-15T10:00:00Z",
+              "modified_at": "2024-01-15T10:00:00Z"
+            }
+          ],
+          "total": 1,
+          "limit": 50,
+          "offset": 0
         }
       },
       "ClientCredentialInfo": {
@@ -4936,6 +5246,17 @@
             "format": "date-time",
             "description": "Optional expiration timestamp (ISO 8601)"
           }
+        },
+        "example": {
+          "id": "g70eabcd-e89b-41d4-a716-446655440016",
+          "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+          "name": "Monitoring Service",
+          "description": "Metrics collection service",
+          "client_id": "tmi_cc_monitoring123",
+          "is_active": true,
+          "last_used_at": "2024-01-21T09:00:00Z",
+          "created_at": "2024-01-15T10:00:00Z",
+          "modified_at": "2024-01-15T10:00:00Z"
         }
       },
       "MinimalDiagramModel": {
@@ -5013,6 +5334,10 @@
             "text-box": "#/components/schemas/MinimalNode",
             "edge": "#/components/schemas/MinimalEdge"
           }
+        },
+        "example": {
+          "id": "l20eabcd-e89b-41d4-a716-446655440021",
+          "shape": "process"
         }
       },
       "MinimalNode": {
@@ -5093,7 +5418,7 @@
         "example": {
           "id": "760e8400-e29b-41d4-a716-446655440002",
           "shape": "process",
-          "parent": null,
+          "parent": "550e8400-e29b-41d4-a716-446655440001",
           "children": [
             "860e8400-e29b-41d4-a716-446655440003"
           ],
@@ -5358,6 +5683,33 @@
             "example": {
               "error": "not_acceptable",
               "error_description": "The requested Accept header media type is not supported. Supported types: application/json"
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "Internal server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "description": "Error message describing what went wrong"
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "Unique request identifier for troubleshooting"
+                }
+              },
+              "required": [
+                "error"
+              ]
+            },
+            "example": {
+              "error": "An internal server error occurred",
+              "request_id": "550e8400-e29b-41d4-a716-446655440000"
             }
           }
         }
@@ -6129,6 +6481,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "security": [],
@@ -9749,6 +10104,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "security": [
@@ -9843,6 +10201,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "security": [
@@ -10424,6 +10785,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "security": [
@@ -11867,6 +12231,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "security": [
@@ -14762,6 +15129,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-rate-limit": {
@@ -15296,6 +15666,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "security": [
@@ -16521,6 +16894,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "security": [
@@ -17171,6 +17547,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "security": [],
@@ -17270,6 +17649,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "security": [],
@@ -17375,6 +17757,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "security": [],
@@ -18275,6 +18660,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       },
@@ -18352,6 +18740,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
@@ -18429,6 +18820,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       },
@@ -18517,6 +18911,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
@@ -18611,6 +19008,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
@@ -18710,6 +19110,9 @@
           },
           "406": {
             "$ref": "#/components/responses/NotAcceptable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
@@ -18797,6 +19200,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
@@ -18891,6 +19297,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-rate-limit": {
@@ -19474,6 +19883,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-admin-only": true
@@ -19659,6 +20071,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-admin-only": true
@@ -19729,6 +20144,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-admin-only": true
@@ -19926,6 +20344,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-admin-only": true
@@ -21343,6 +21764,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-admin-only": true
@@ -21429,6 +21853,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-admin-only": true
@@ -21515,6 +21942,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-admin-only": true
@@ -21585,6 +22015,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-admin-only": true
@@ -21770,6 +22203,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-admin-only": true
@@ -21859,6 +22295,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       },
@@ -21907,6 +22346,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
@@ -21969,6 +22411,9 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
