@@ -318,8 +318,8 @@ func serializeAsYAML(model MinimalDiagramModel) ([]byte, error) {
 func serializeAsGraphML(model MinimalDiagramModel) ([]byte, error) {
 	// Build GraphML structure
 	graphml := GraphML{
-		XMLName: xml.Name{Space: "http://graphml.graphdrawing.org/xmlns", Local: "graphml"},
-		XMLNS:   "http://graphml.graphdrawing.org/xmlns",
+		XMLName:  xml.Name{Space: "http://graphml.graphdrawing.org/xmlns", Local: "graphml"},
+		XMLNS:    "http://graphml.graphdrawing.org/xmlns",
 		XMLNSXSI: "http://www.w3.org/2001/XMLSchema-instance",
 		SchemaLocation: "http://graphml.graphdrawing.org/xmlns " +
 			"http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd",
@@ -341,11 +341,11 @@ func serializeAsGraphML(model MinimalDiagramModel) ([]byte, error) {
 // GraphML structure definitions for XML marshaling
 
 type GraphML struct {
-	XMLName        xml.Name    `xml:"graphml"`
-	XMLNS          string      `xml:"xmlns,attr"`
-	XMLNSXSI       string      `xml:"xmlns:xsi,attr"`
-	SchemaLocation string      `xml:"xsi:schemaLocation,attr"`
-	Keys           []GraphKey  `xml:"key"`
+	XMLName        xml.Name     `xml:"graphml"`
+	XMLNS          string       `xml:"xmlns,attr"`
+	XMLNSXSI       string       `xml:"xmlns:xsi,attr"`
+	SchemaLocation string       `xml:"xsi:schemaLocation,attr"`
+	Keys           []GraphKey   `xml:"key"`
 	Graph          GraphMLGraph `xml:"graph"`
 }
 
@@ -357,11 +357,11 @@ type GraphKey struct {
 }
 
 type GraphMLGraph struct {
-	ID          string          `xml:"id,attr"`
-	EdgeDefault string          `xml:"edgedefault,attr"`
-	Data        []GraphData     `xml:"data"`
-	Nodes       []GraphMLNode   `xml:"node"`
-	Edges       []GraphMLEdge   `xml:"edge"`
+	ID          string        `xml:"id,attr"`
+	EdgeDefault string        `xml:"edgedefault,attr"`
+	Data        []GraphData   `xml:"data"`
+	Nodes       []GraphMLNode `xml:"node"`
+	Edges       []GraphMLEdge `xml:"edge"`
 }
 
 type GraphMLNode struct {

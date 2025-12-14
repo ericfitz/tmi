@@ -823,10 +823,10 @@ func areSlicesEqual(a, b []DfdDiagram_Cells_Item) bool {
 // Response includes:
 //   - Threat model context (id, name, description, flattened metadata)
 //   - Minimal cells (nodes and edges) with:
-//     * Computed bidirectional parent-child relationships
-//     * Text labels extracted from attrs and text-box children
-//     * Flattened metadata from cell.data._metadata
-//     * Optional dataAssetId references
+//   - Computed bidirectional parent-child relationships
+//   - Text labels extracted from attrs and text-box children
+//   - Flattened metadata from cell.data._metadata
+//   - Optional dataAssetId references
 //
 // Authorization: Requires at least RoleReader on the threat model.
 //

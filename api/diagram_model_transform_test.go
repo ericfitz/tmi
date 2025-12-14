@@ -175,8 +175,8 @@ func TestBuildMinimalDiagramModel(t *testing.T) {
 		// Create simple diagram
 		diagramID := uuid.New()
 		diagram := DfdDiagram{
-			Id:   &diagramID,
-			Name: "Payment Flow",
+			Id:    &diagramID,
+			Name:  "Payment Flow",
 			Cells: []DfdDiagram_Cells_Item{},
 		}
 
