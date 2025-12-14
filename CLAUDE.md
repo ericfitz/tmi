@@ -401,33 +401,48 @@ make start-database
 
 **IMPORTANT: Always use make targets for testing. Never run `go test` commands directly.**
 
-**NOTE: Integration tests are currently out of date. Do not run `make test-integration` unless explicitly requested by the user.**
-
 #### Core Testing
 
-- Unit tests: `make test-unit` (fast tests, no external dependencies)
+- **Unit tests**: `make test-unit` (fast tests, no external dependencies)
   - Specific test: `make test-unit name=TestName`
   - Options: `make test-unit count1=true passfail=true`
-- Integration tests: **OUT OF DATE - Do not run unless requested**
-  - `make test-integration` (requires database, runs with automatic setup/cleanup)
-  - Specific test: `make test-integration name=TestName`
-  - Cleanup only: `make clean-everything`
-- Coverage tests: `make test-coverage` (generates combined unit + integration coverage reports)
+
+- **Integration tests** (New OpenAPI-driven framework):
+  - Prerequisites: `make start-dev` (server) + `make start-oauth-stub` (OAuth)
+  - Run all: `make test-integration-new`
+  - Run specific: `make test-integration-workflow WORKFLOW=Example`
+  - Quick test: `make test-integration-quick`
+  - Full setup: `make test-integration-full` (starts everything, runs tests, cleans up)
+  - Framework docs: `test/integration/README.md`
+
+- **Security fuzzing**: `make cats-fuzz` (CATS security testing)
+  - Analyze results: `make cats-analyze`
+  - Custom user: `make cats-fuzz-user USER=alice`
+
+- **WebSocket testing**: `make wstest` (multi-user collaboration tests)
+
+- **Coverage**: `make test-coverage` (generates combined coverage reports)
 
 #### Testing Examples
 
 ```bash
 # Standard development workflow
 make test-unit                    # Fast unit tests
-make test-integration            # Full integration tests with database
-make lint && make build-server # Code quality check and build
+make test-integration-new         # Integration tests (server must be running)
+make lint && make build-server    # Code quality check and build
 
 # Specific testing
-make test-unit name=TestStore_CRUD              # Run one unit test
-make test-integration name=TestDatabaseIntegration  # Run one integration test
+make test-unit name=TestStore_CRUD                 # Run one unit test
+make test-integration-workflow WORKFLOW=Example    # Run specific integration test
 
-# API testing (requires server)
-make start-dev                   # Start server first
+# Full testing workflow
+make start-dev                    # Terminal 1: Start server
+make start-oauth-stub            # Terminal 2: Start OAuth stub
+make test-integration-new        # Terminal 3: Run integration tests
+
+# Security testing
+make cats-fuzz                   # CATS fuzzing
+make cats-analyze                # Analyze results
 
 ### Heroku Operations
 
@@ -545,7 +560,7 @@ Key developer documentation:
 - After changing any executable or test file, run `make build-server` and fix any issues, then run `make test-unit` and fix any issues
 - Do not disable or skip failing tests, either diagnose to root cause and fix either the test issue or code issue, or ask the user what to do
 - Always use make targets for testing - never run `go test` commands directly
-- For database-dependent functionality, also run `make test-integration` to ensure full integration works
+- For API functionality, run `make test-integration-new` (with server running) to ensure full integration works
 
 ## Task Completion Requirements
 
@@ -553,7 +568,7 @@ When completing any task involving code changes, follow this checklist:
 
 1. Run `make lint` and fix any linting issues
 2. Run `make build-server` and fix any build issues
-3. Run relevant tests (`make test-unit` and/or `make test-integration`) and fix any issues
+3. Run relevant tests (`make test-unit` and/or `make test-integration-new`) and fix any issues
 4. Suggest a conventional commit message
 
 **Conventional Commit Format**:
@@ -579,7 +594,7 @@ When completing any task involving code changes, follow this checklist:
 **CRITICAL: Never run `go test` commands directly. Always use make targets.**
 
 - Unit tests: Use `make test-unit` or `make test-unit name=TestName`
-- Integration tests: Use `make test-integration` or `make test-integration name=TestName`
+- Integration tests: Use `make test-integration-new` or `make test-integration-workflow WORKFLOW=TestName`
 - Never create ad hoc `go test` commands - they will miss configuration settings and dependencies
 - Never create ad hoc commands to run the server - use `make start-dev` or other make targets
 - All testing must go through make targets to ensure proper environment setup
@@ -588,7 +603,8 @@ When completing any task involving code changes, follow this checklist:
 
 - Never disable or skip failing tests - investigate to root cause and fix
 - Unit tests (`make test-unit`) should be fast and require no external dependencies
-- Integration tests (`make test-integration`) should use real databases and test full workflows
+- Integration tests (`make test-integration-new`) test complete workflows from client perspective
+- Integration tests are OpenAPI-driven and validate against the spec automatically
 - Always run `make lint` and `make build-server` after making changes
 
 ## Logging Requirements

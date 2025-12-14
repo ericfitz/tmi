@@ -42,6 +42,8 @@
 !static/**
 !ws-test-harness/
 !ws-test-harness/**
+!test/
+!test/**
 !.claude
 !.claude/**
 !.claude/agents/*.md
@@ -84,3 +86,11 @@ scripts/configure-heroku-env.sh
 .dedupe/
 **/__pycache__/
 **/*.pyc
+
+# Test outputs and deprecated resources (consolidated under test/)
+test/outputs/
+test/outputs/**
+test/deprecated/
+test/deprecated/**
+test/tools/wstest/wstest
+test/tools/wstest/*.log

@@ -3,6 +3,9 @@
 
 .PHONY: help list-targets
 
+# Include integration test framework targets
+-include test-framework.mk
+
 # Use zsh as the shell with proper PATH
 SHELL := /bin/zsh
 .SHELLFLAGS := -c

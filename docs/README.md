@@ -45,14 +45,17 @@ Context and instructions are available in the [agent/](agent/) directory.
 - [Deployment Guide](operator/deployment/deployment-guide.md)
 
 ### Testing & Quality
-- [Integration Testing](developer/testing/integration-testing.md)
+- [Testing Guide](developer/testing/README.md) - Comprehensive testing documentation
 - [Coverage Reporting](developer/testing/coverage-reporting.md)
 - [WebSocket Testing](developer/testing/websocket-testing.md)
+- [CATS Public Endpoints](developer/testing/cats-public-endpoints.md)
+- [CATS OAuth False Positives](developer/testing/cats-oauth-false-positives.md)
 
 ### Client Integration
 - [Client Integration Guide](developer/integration/client-integration-guide.md)
 - [OAuth Client Integration](developer/integration/client-oauth-integration.md)
-- [Collaborative Editing](developer/integration/collaborative-editing-plan.md)
+- [WebSocket Integration](developer/integration/client-websocket-integration-guide.md)
+- [Webhook Subscriptions](developer/integration/webhook-subscriptions.md)
 
 ### Operations & Database
 - [Database Operations](operator/database/postgresql-operations.md)

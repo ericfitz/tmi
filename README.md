@@ -85,7 +85,7 @@ Comprehensive documentation is organized by audience:
 ### 📖 For Developers
 
 - **[Setup Guide](docs/developer/setup/development-setup.md)** - Local development environment
-- **[Testing Guide](docs/developer/testing/integration-testing.md)** - Testing procedures
+- **[Testing Guide](docs/developer/testing/README.md)** - Comprehensive testing documentation
 - **[Client Integration](docs/developer/integration/client-integration-guide.md)** - API and WebSocket integration
 
 ### 🚀 For Operations Teams
@@ -103,8 +103,9 @@ See **[docs/README.md](docs/README.md)** for the complete documentation catalog 
 ```bash
 make start-dev          # Start complete dev environment
 make build-server       # Build production binary
-make test-unit          # Run unit tests
-make test-integration   # Run integration tests
+make test-unit                # Run unit tests
+make test-integration-new     # Run integration tests (server must be running)
+make cats-fuzz               # Run security fuzzing
 make lint               # Run code linting
 ```
 
