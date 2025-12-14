@@ -441,10 +441,12 @@
         },
         "additionalProperties": false,
         "example": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "type": "DFD-1.0.0",
           "name": "System Architecture",
           "description": "High-level system architecture diagram",
-          "diagram_type": "dfd",
-          "version": 1
+          "created_at": "2024-01-15T10:00:00Z",
+          "modified_at": "2024-01-15T10:00:00Z"
         }
       },
       "BaseDiagramInput": {
@@ -516,9 +518,9 @@
         },
         "additionalProperties": false,
         "example": {
+          "type": "DFD-1.0.0",
           "name": "New Architecture Diagram",
-          "description": "Draft architecture for microservices migration",
-          "diagram_type": "dfd"
+          "description": "Draft architecture for microservices migration"
         }
       },
       "DfdDiagram": {
@@ -766,20 +768,7 @@
         "additionalProperties": false,
         "example": {
           "id": "f60eabcd-e89b-41d4-a716-446655440015",
-          "shape": "process",
-          "position": {
-            "x": 100,
-            "y": 200
-          },
-          "size": {
-            "width": 120,
-            "height": 60
-          },
-          "attrs": {
-            "label": {
-              "text": "API Gateway"
-            }
-          }
+          "shape": "process"
         }
       },
       "Node": {
@@ -4290,7 +4279,11 @@
         "example": {
           "id": "azure-ad",
           "name": "Azure Active Directory",
-          "enabled": true
+          "icon": "https://example.com/icons/azure.png",
+          "auth_url": "https://login.microsoftonline.com/common/saml2",
+          "metadata_url": "https://login.microsoftonline.com/common/FederationMetadata/2007-06/FederationMetadata.xml",
+          "entity_id": "https://sts.windows.net/common/",
+          "acs_url": "https://tmi.example.com/saml/acs"
         }
       },
       "Administrator": {
@@ -4344,9 +4337,11 @@
           }
         },
         "example": {
-          "user_id": "550e8400-e29b-41d4-a716-446655440000",
-          "email": "admin@example.com",
-          "name": "System Administrator",
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "user_id": "alice@example.com",
+          "email": "alice@example.com",
+          "name": "Alice Johnson",
+          "provider": "github",
           "created_at": "2024-01-01T00:00:00Z"
         }
       },
@@ -4375,7 +4370,8 @@
           }
         },
         "example": {
-          "user_id": "h80eabcd-e89b-41d4-a716-446655440017"
+          "user_id": "h80eabcd-e89b-41d4-a716-446655440017",
+          "provider": "github"
         }
       },
       "ListAdministratorsResponse": {
@@ -4477,7 +4473,7 @@
         },
         "example": {
           "user_id": "550e8400-e29b-41d4-a716-446655440000",
-          "limit": 50,
+          "max_requests_per_minute": 60,
           "created_at": "2024-01-01T00:00:00Z",
           "modified_at": "2024-01-01T00:00:00Z"
         }
@@ -4520,7 +4516,11 @@
         },
         "example": {
           "user_id": "550e8400-e29b-41d4-a716-446655440000",
-          "limit": 20,
+          "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+          "max_subscriptions": 20,
+          "max_events_per_minute": 100,
+          "max_subscription_requests_per_minute": 10,
+          "max_subscription_requests_per_day": 1000,
           "created_at": "2024-01-01T00:00:00Z",
           "modified_at": "2024-01-01T00:00:00Z"
         }
@@ -4606,12 +4606,16 @@
           }
         },
         "example": {
-          "user_id": "550e8400-e29b-41d4-a716-446655440000",
-          "email": "admin@example.com",
-          "name": "Admin User",
+          "internal_uuid": "550e8400-e29b-41d4-a716-446655440000",
+          "user_id": "alice@example.com",
+          "email": "alice@example.com",
+          "name": "Alice Johnson",
           "provider": "github",
-          "is_admin": true,
-          "created_at": "2024-01-01T00:00:00Z"
+          "provider_user_id": "alice-github-123",
+          "email_verified": true,
+          "is_admin": false,
+          "created_at": "2024-01-01T00:00:00Z",
+          "modified_at": "2024-01-01T00:00:00Z"
         }
       },
       "AdminUserListResponse": {
@@ -4684,7 +4688,8 @@
         },
         "additionalProperties": false,
         "example": {
-          "is_admin": true
+          "email": "alice.updated@example.com",
+          "name": "Alice Johnson Updated"
         }
       },
       "AdminGroup": {
@@ -4758,11 +4763,15 @@
         },
         "example": {
           "internal_uuid": "e50eabcd-e89b-41d4-a716-446655440014",
+          "group_name": "engineering-team",
           "name": "Engineering",
           "description": "Engineering team members",
           "provider": "github",
           "provider_group_id": "org-engineering",
           "member_count": 25,
+          "first_used": "2024-01-02T10:00:00Z",
+          "last_used": "2024-01-20T15:00:00Z",
+          "usage_count": 150,
           "created_at": "2024-01-02T10:00:00Z",
           "modified_at": "2024-01-02T10:00:00Z"
         }
@@ -4844,10 +4853,9 @@
         },
         "additionalProperties": false,
         "example": {
+          "group_name": "devops-team",
           "name": "DevOps Team",
-          "description": "Infrastructure and operations engineers",
-          "provider": "github",
-          "provider_group_id": "org-devops"
+          "description": "Infrastructure and operations engineers"
         }
       },
       "UpdateAdminGroupRequest": {
@@ -5018,9 +5026,14 @@
           }
         },
         "example": {
-          "user_id": "660e8400-e29b-41d4-a716-446655440001",
-          "email": "bob@example.com",
-          "name": "Bob Smith",
+          "id": "a10eabcd-e89b-41d4-a716-446655440001",
+          "group_internal_uuid": "e50eabcd-e89b-41d4-a716-446655440014",
+          "user_internal_uuid": "660e8400-e29b-41d4-a716-446655440001",
+          "user_id": "bob@example.com",
+          "user_email": "bob@example.com",
+          "user_name": "Bob Smith",
+          "user_provider": "github",
+          "user_provider_user_id": "bob-github-456",
           "added_at": "2024-01-06T09:00:00Z"
         }
       },
@@ -5082,7 +5095,7 @@
           }
         },
         "example": {
-          "user_id": "550e8400-e29b-41d4-a716-446655440000"
+          "user_internal_uuid": "550e8400-e29b-41d4-a716-446655440000"
         }
       },
       "AddonInvocationQuota": {
@@ -5124,7 +5137,9 @@
         ],
         "example": {
           "user_id": "550e8400-e29b-41d4-a716-446655440000",
-          "limit": 100,
+          "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+          "max_active_invocations": 10,
+          "max_invocations_per_hour": 100,
           "created_at": "2024-01-01T00:00:00Z",
           "modified_at": "2024-01-01T00:00:00Z"
         }
@@ -5174,22 +5189,16 @@
           }
         },
         "example": {
-          "credentials": [
-            {
-              "id": "g70eabcd-e89b-41d4-a716-446655440016",
-              "owner_id": "550e8400-e29b-41d4-a716-446655440000",
-              "name": "Monitoring Service",
-              "description": "Metrics collection service",
-              "client_id": "tmi_cc_monitoring123",
-              "is_active": true,
-              "last_used_at": "2024-01-21T09:00:00Z",
-              "created_at": "2024-01-15T10:00:00Z",
-              "modified_at": "2024-01-15T10:00:00Z"
-            }
-          ],
-          "total": 1,
-          "limit": 50,
-          "offset": 0
+          "id": "990eabcd-e89b-41d4-a716-446655440008",
+          "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+          "client_id": "tmi_cc_abcdef1234567890",
+          "client_secret": "tmi_cs_1234567890abcdefghijklmnopqrstuvwxyz",
+          "name": "CI/CD Pipeline",
+          "description": "Automated testing and deployment",
+          "is_active": true,
+          "expires_at": "2025-12-31T23:59:59Z",
+          "created_at": "2024-01-21T11:00:00Z",
+          "modified_at": "2024-01-21T11:00:00Z"
         }
       },
       "ClientCredentialInfo": {
@@ -22089,6 +22098,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InvokeAddonResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "The maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "The number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "The time at which the current rate limit window resets (Unix epoch seconds)",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
                 }
               }
             }
