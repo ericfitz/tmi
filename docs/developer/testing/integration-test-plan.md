@@ -18,7 +18,7 @@ This document outlines the comprehensive plan to achieve 100% integration test c
 - **addons**: 5 operations (3% of API)
 - **.well-known**: 4 operations (2% of API)
 - **invocations**: 3 operations (2% of API)
-- **client-credentials**: 3 operations (2% of API)
+- **client_credentials**: 3 operations (2% of API)
 - **users**: 2 operations (1% of API)
 - **collaboration**: 1 operation (1% of API)
 - **root**: 1 operation (1% of API)

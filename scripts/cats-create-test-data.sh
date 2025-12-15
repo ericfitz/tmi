@@ -386,7 +386,7 @@ create_client_credential() {
     log "Creating client credential..."
 
     local RESPONSE
-    RESPONSE=$(curl -s -X POST "${SERVER}/client-credentials" \
+    RESPONSE=$(curl -s -X POST "${SERVER}/users/me/client_credentials" \
         -H "Authorization: Bearer ${JWT_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{

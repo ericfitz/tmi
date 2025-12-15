@@ -27672,182 +27672,11 @@
         "x-admin-only": true
       }
     },
-    "/threat_models/{threat_model_id}/diagrams/{diagram_id}/model": {
-      "get": {
-        "operationId": "getDiagramModel",
-        "summary": "Get minimal diagram model for automated analysis",
-        "description": "Returns a minimal representation of the diagram optimized for automated threat modeling. Strips all visual styling, layout, and rendering properties. Includes threat model context, computed parent-child relationships, and flattened metadata. Supports JSON, YAML, and GraphML output formats.",
-        "tags": [
-          "Threat Model Sub-Resources"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ThreatModelIdPathParam"
-          },
-          {
-            "$ref": "#/components/parameters/DiagramIdPathParam"
-          },
-          {
-            "$ref": "#/components/parameters/FormatQueryParam"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Minimal diagram model successfully retrieved in requested format",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MinimalDiagramModel"
-                }
-              },
-              "application/x-yaml": {
-                "schema": {
-                  "type": "string",
-                  "description": "YAML representation of MinimalDiagramModel"
-                }
-              },
-              "application/xml": {
-                "schema": {
-                  "type": "string",
-                  "description": "GraphML XML representation of diagram model"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "The maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "The number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "The time at which the current rate limit window resets (Unix epoch seconds)",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid UUID format or invalid format parameter",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - insufficient permissions (requires at least reader role)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Threat model or diagram not found, or diagram not associated with threat model",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "schema": {
-                  "type": "integer"
-                },
-                "description": "Request limit per window"
-              },
-              "X-RateLimit-Remaining": {
-                "schema": {
-                  "type": "integer"
-                },
-                "description": "Remaining requests in current window"
-              },
-              "X-RateLimit-Reset": {
-                "schema": {
-                  "type": "integer"
-                },
-                "description": "Unix timestamp when limit resets"
-              },
-              "Retry-After": {
-                "schema": {
-                  "type": "integer"
-                },
-                "description": "Seconds until retry allowed"
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error (e.g., serialization failure)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "x-rate-limit": {
-          "scope": "user",
-          "tier": "resource-operations",
-          "limits": [
-            {
-              "type": "requests_per_minute",
-              "default": 100,
-              "configurable": true,
-              "quota_source": "user_api_quotas"
-            }
-          ]
-        }
-      }
-    },
-    "/users/me/client_credentials": {
+    "/client-credentials": {
       "post": {
         "summary": "Create client credential",
         "description": "Creates a new OAuth 2.0 client credential for machine-to-machine authentication. The client_secret is ONLY returned once at creation and cannot be retrieved later.",
-        "operationId": "createCurrentUserClientCredential",
+        "operationId": "createClientCredential",
         "tags": [
           "Authentication"
         ],
@@ -28016,7 +27845,7 @@
       "get": {
         "summary": "List client credentials",
         "description": "Retrieves all client credentials owned by the authenticated user. Secrets are never returned.",
-        "operationId": "listCurrentUserClientCredentials",
+        "operationId": "listClientCredentials",
         "tags": [
           "Authentication"
         ],
@@ -28145,11 +27974,11 @@
         }
       }
     },
-    "/users/me/client_credentials/{id}": {
+    "/client-credentials/{id}": {
       "delete": {
         "summary": "Delete client credential",
         "description": "Permanently deletes a client credential. All tokens issued with this credential will immediately become invalid.",
-        "operationId": "deleteCurrentUserClientCredential",
+        "operationId": "deleteClientCredential",
         "tags": [
           "Authentication"
         ],
@@ -28280,6 +28109,177 @@
               }
             }
           }
+        }
+      }
+    },
+    "/threat_models/{threat_model_id}/diagrams/{diagram_id}/model": {
+      "get": {
+        "operationId": "getDiagramModel",
+        "summary": "Get minimal diagram model for automated analysis",
+        "description": "Returns a minimal representation of the diagram optimized for automated threat modeling. Strips all visual styling, layout, and rendering properties. Includes threat model context, computed parent-child relationships, and flattened metadata. Supports JSON, YAML, and GraphML output formats.",
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelIdPathParam"
+          },
+          {
+            "$ref": "#/components/parameters/DiagramIdPathParam"
+          },
+          {
+            "$ref": "#/components/parameters/FormatQueryParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Minimal diagram model successfully retrieved in requested format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinimalDiagramModel"
+                }
+              },
+              "application/x-yaml": {
+                "schema": {
+                  "type": "string",
+                  "description": "YAML representation of MinimalDiagramModel"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string",
+                  "description": "GraphML XML representation of diagram model"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "The maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "The number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "The time at which the current rate limit window resets (Unix epoch seconds)",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid UUID format or invalid format parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - insufficient permissions (requires at least reader role)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Threat model or diagram not found, or diagram not associated with threat model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Request limit per window"
+              },
+              "X-RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Remaining requests in current window"
+              },
+              "X-RateLimit-Reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix timestamp when limit resets"
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds until retry allowed"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error (e.g., serialization failure)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
         }
       }
     }

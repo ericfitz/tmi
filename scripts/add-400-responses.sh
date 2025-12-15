@@ -92,7 +92,7 @@ add_400_response "/admin/quotas/users" "get"
 add_400_response "/admin/quotas/webhooks" "get"
 
 # Client Credentials
-add_400_response "/client-credentials" "get"
+add_400_response "/users/me/client_credentials" "get"
 
 # Collaboration
 add_400_response "/collaboration/sessions" "get"

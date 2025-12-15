@@ -330,7 +330,7 @@ log "Created webhook: ${WEBHOOK_ID}"
 
 # 12. Create client credential
 log "Creating client credential..."
-CLIENT_CRED_RESPONSE=$(curl -s -X POST "${SERVER}/client-credentials" \
+CLIENT_CRED_RESPONSE=$(curl -s -X POST "${SERVER}/users/me/client_credentials" \
     -H "Authorization: Bearer ${JWT_TOKEN}" \
     -H "Content-Type: application/json" \
     -d '{

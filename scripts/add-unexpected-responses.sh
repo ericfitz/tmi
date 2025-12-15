@@ -93,16 +93,16 @@ echo "=== Adding Success Responses ==="
 
 # 200 OK responses
 add_response "/addons" "get" "200" "Success" "$SUCCESS_200"
-add_response "/client-credentials" "get" "200" "Success" "$SUCCESS_200"
+add_response "/users/me/client_credentials" "get" "200" "Success" "$SUCCESS_200"
 add_response "/collaboration/sessions" "get" "200" "Success" "$SUCCESS_200"
 add_response "/invocations" "get" "200" "Success" "$SUCCESS_200"
 add_response "/saml/providers/{idp}/users" "get" "200" "Success" "$SUCCESS_200"
 
 # 201 Created responses
-add_response "/client-credentials" "post" "201" "Created" "$CREATED_201"
+add_response "/users/me/client_credentials" "post" "201" "Created" "$CREATED_201"
 
 # 204 No Content responses
-add_response "/client-credentials/{id}" "delete" "204" "No Content" "$NO_CONTENT_204"
+add_response "/users/me/client_credentials/{id}" "delete" "204" "No Content" "$NO_CONTENT_204"
 
 echo ""
 echo "=== Adding 403 Forbidden Responses ==="
@@ -249,15 +249,15 @@ add_response "/admin/users/{internal_uuid}" "post" "400" "Bad Request" "$BAD_REQ
 add_response "/admin/users/{internal_uuid}" "put" "400" "Bad Request" "$BAD_REQUEST_400"
 
 # Client Credentials
-add_response "/client-credentials" "delete" "400" "Bad Request" "$BAD_REQUEST_400"
-add_response "/client-credentials" "patch" "400" "Bad Request" "$BAD_REQUEST_400"
-add_response "/client-credentials" "post" "400" "Bad Request" "$BAD_REQUEST_400"
-add_response "/client-credentials" "put" "400" "Bad Request" "$BAD_REQUEST_400"
-add_response "/client-credentials/{id}" "get" "400" "Bad Request" "$BAD_REQUEST_400"
-add_response "/client-credentials/{id}" "head" "400" "Bad Request" "$BAD_REQUEST_400"
-add_response "/client-credentials/{id}" "patch" "400" "Bad Request" "$BAD_REQUEST_400"
-add_response "/client-credentials/{id}" "post" "400" "Bad Request" "$BAD_REQUEST_400"
-add_response "/client-credentials/{id}" "put" "400" "Bad Request" "$BAD_REQUEST_400"
+add_response "/users/me/client_credentials" "delete" "400" "Bad Request" "$BAD_REQUEST_400"
+add_response "/users/me/client_credentials" "patch" "400" "Bad Request" "$BAD_REQUEST_400"
+add_response "/users/me/client_credentials" "post" "400" "Bad Request" "$BAD_REQUEST_400"
+add_response "/users/me/client_credentials" "put" "400" "Bad Request" "$BAD_REQUEST_400"
+add_response "/users/me/client_credentials/{id}" "get" "400" "Bad Request" "$BAD_REQUEST_400"
+add_response "/users/me/client_credentials/{id}" "head" "400" "Bad Request" "$BAD_REQUEST_400"
+add_response "/users/me/client_credentials/{id}" "patch" "400" "Bad Request" "$BAD_REQUEST_400"
+add_response "/users/me/client_credentials/{id}" "post" "400" "Bad Request" "$BAD_REQUEST_400"
+add_response "/users/me/client_credentials/{id}" "put" "400" "Bad Request" "$BAD_REQUEST_400"
 
 # Collaboration Sessions
 add_response "/collaboration/sessions" "delete" "400" "Bad Request" "$BAD_REQUEST_400"
