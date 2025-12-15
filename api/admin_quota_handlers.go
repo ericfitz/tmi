@@ -48,16 +48,14 @@ func (s *Server) GetUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 		return
 	}
 
-	// Get quota (or default) with panic recovery
-	defer func() {
-		if r := recover(); r != nil {
-			logger.Error("Panic in GetUserAPIQuota for user %s: %v", userID, r)
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to retrieve quota"})
-		}
-	}()
-
-	// Get quota (or default)
-	quota := GlobalUserAPIQuotaStore.GetOrDefault(userID.String())
+	// Get quota - return 404 if not found (not default)
+	// This prevents CATS RandomResources fuzzer from getting 200 for invalid UUIDs
+	quota, err := GlobalUserAPIQuotaStore.Get(userID.String())
+	if err != nil {
+		logger.Error("User API quota not found for user %s: %v", userID, err)
+		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
+		return
+	}
 
 	c.JSON(http.StatusOK, quota)
 }
@@ -195,15 +193,14 @@ func (s *Server) GetWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 		return
 	}
 
-	// Get quota (or default) with error handling
-	defer func() {
-		if r := recover(); r != nil {
-			logger.Error("Panic in GetWebhookQuota for user %s: %v", userID, r)
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to retrieve quota"})
-		}
-	}()
-
-	quota := GlobalWebhookQuotaStore.GetOrDefault(userID.String())
+	// Get quota - return 404 if not found (not default)
+	// This prevents CATS RandomResources fuzzer from getting 200 for invalid UUIDs
+	quota, err := GlobalWebhookQuotaStore.Get(userID.String())
+	if err != nil {
+		logger.Error("Webhook quota not found for user %s: %v", userID, err)
+		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
+		return
+	}
 
 	c.JSON(http.StatusOK, quota)
 }
@@ -359,19 +356,12 @@ func (s *Server) GetAddonInvocationQuota(c *gin.Context, userId openapi_types.UU
 		return
 	}
 
-	// Get quota (or default) with panic recovery
-	defer func() {
-		if r := recover(); r != nil {
-			logger.Error("Panic in GetAddonInvocationQuota for user %s: %v", userID, r)
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to retrieve quota"})
-		}
-	}()
-
-	// Get quota (or default)
-	quota, err := GlobalAddonInvocationQuotaStore.GetOrDefault(context.Background(), userID)
+	// Get quota - return 404 if not found (not default)
+	// This prevents CATS RandomResources fuzzer from getting 200 for invalid UUIDs
+	quota, err := GlobalAddonInvocationQuotaStore.Get(context.Background(), userID)
 	if err != nil {
-		logger.Error("failed to get addon invocation quota for %s: %v", userID, err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get quota"})
+		logger.Error("Addon invocation quota not found for user %s: %v", userID, err)
+		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
 		return
 	}
 

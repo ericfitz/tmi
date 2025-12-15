@@ -12,6 +12,31 @@ import (
 func (s *Server) ListSAMLUsers(c *gin.Context, idp string) {
 	logger := slogging.Get().WithContext(c)
 
+	// SECURITY FIX: Validate authenticated user (prevents unauthorized access to user data)
+	// This endpoint exposes user emails, names, and login times - authentication is required
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusUnauthorized,
+			Code:    "unauthorized",
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	// SECURITY FIX: Verify user belongs to same SAML provider (prevents cross-provider data access)
+	// Users should only be able to list other users from their own SAML provider
+	userProvider := c.GetString("userProvider")
+	if userProvider != idp {
+		logger.Warn("User %s from provider %s attempted to list users from different provider %s", userEmail, userProvider, idp)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "Cannot list users from different SAML provider",
+		})
+		return
+	}
+
 	// Parse query parameters
 	email := c.Query("email")
 	limitStr := c.DefaultQuery("limit", "100")

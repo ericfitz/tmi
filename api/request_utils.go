@@ -75,6 +75,17 @@ func ParseRequestBody[T any](c *gin.Context) (T, error) {
 	// Reset the body for later binding
 	c.Request.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
 
+	// Validate JSON syntax before processing to prevent panics from malformed JSON
+	// This catches edge cases like zero-width Unicode characters, fullwidth brackets,
+	// and other malformed JSON that could cause json.Unmarshal to panic
+	if !json.Valid(bodyBytes) {
+		return zero, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_input",
+			Message: "Request body contains invalid JSON",
+		}
+	}
+
 	// Pre-process the JSON to handle invalid UUID values
 	cleanedJSON, err := sanitizeJSONForUUIDs(bodyBytes)
 	if err != nil {

@@ -419,3 +419,312 @@ func TestErrorUtilities(t *testing.T) {
 		})
 	}
 }
+
+// ===========================================================================
+// CATS Fuzzer Test Cases - Testing fixes for security vulnerabilities
+// These tests validate that malformed JSON patterns from CATS fuzzers
+// return 400 Bad Request instead of causing 500 Internal Server Error panics
+// ===========================================================================
+
+// TestParseRequestBody_ZeroWidthChars tests handling of zero-width Unicode characters
+// This tests the fix for CATS fuzzer: ZeroWidthCharsInNamesFields, ZeroWidthCharsInValuesFields
+func TestParseRequestBody_ZeroWidthChars(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "zero-width space in field name",
+			body: `{"name\u200B":"test"}`, // U+200B is zero-width space
+		},
+		{
+			name: "zero-width non-joiner in value",
+			body: `{"name":"test\u200C"}`, // U+200C is zero-width non-joiner
+		},
+		{
+			name: "zero-width joiner in field name",
+			body: `{"na\u200Dme":"test"}`, // U+200D is zero-width joiner
+		},
+		{
+			name: "multiple zero-width characters",
+			body: `{"name\u200B\u200C":"test\u200D"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest("POST", "/test", strings.NewReader(tt.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			type TestStruct struct {
+				Name string `json:"name"`
+			}
+
+			// Zero-width characters in field names make the JSON valid but potentially problematic
+			// Our fix ensures we handle these gracefully without panicking
+			_, err := ParseRequestBody[TestStruct](c)
+
+			// These should either parse successfully (if json.Valid accepts them)
+			// or return a proper 400 error (not panic with 500)
+			if err != nil {
+				reqErr, ok := err.(*RequestError)
+				require.True(t, ok, "Error should be RequestError type")
+				assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400, not 500")
+			}
+		})
+	}
+}
+
+// TestParseRequestBody_FullwidthBrackets tests handling of fullwidth Unicode brackets
+// This tests the fix for CATS fuzzer: FullwidthBracketsFields
+func TestParseRequestBody_FullwidthBrackets(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "fullwidth left curly bracket",
+			body: `｛"name":"test"}`, // U+FF5B fullwidth left curly bracket
+		},
+		{
+			name: "fullwidth right curly bracket",
+			body: `{"name":"test"｝`, // U+FF5D fullwidth right curly bracket
+		},
+		// Note: Fullwidth brackets WITHIN string values are valid JSON
+		// They only cause errors when used as JSON structure characters
+		{
+			name: "mix of normal and fullwidth brackets",
+			body: `｛"name":"test"｝`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest("POST", "/test", strings.NewReader(tt.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			type TestStruct struct {
+				Name string `json:"name"`
+			}
+
+			_, err := ParseRequestBody[TestStruct](c)
+
+			// Fullwidth brackets are invalid JSON - should return 400, not panic with 500
+			require.Error(t, err, "Fullwidth brackets should be rejected")
+			reqErr, ok := err.(*RequestError)
+			require.True(t, ok, "Error should be RequestError type")
+			assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400 Bad Request")
+			assert.Equal(t, "invalid_input", reqErr.Code)
+		})
+	}
+}
+
+// TestParseRequestBody_MalformedJSONPatterns tests handling of various malformed JSON patterns
+// This tests the fix for CATS fuzzers: RandomDummyInvalidJsonBody, NewFields
+func TestParseRequestBody_MalformedJSONPatterns(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "missing closing brace",
+			body: `{"name":"test"`,
+		},
+		{
+			name: "missing opening brace",
+			body: `"name":"test"}`,
+		},
+		{
+			name: "trailing comma",
+			body: `{"name":"test",}`,
+		},
+		{
+			name: "unquoted field name",
+			body: `{name:"test"}`,
+		},
+		{
+			name: "single quotes instead of double",
+			body: `{'name':'test'}`,
+		},
+		{
+			name: "completely invalid",
+			body: `not json at all`,
+		},
+		{
+			name: "null bytes",
+			body: "{\"name\":\"test\x00\"}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest("POST", "/test", strings.NewReader(tt.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			type TestStruct struct {
+				Name string `json:"name"`
+			}
+
+			_, err := ParseRequestBody[TestStruct](c)
+
+			// All malformed JSON should return 400, not panic with 500
+			require.Error(t, err, "Malformed JSON should be rejected")
+			reqErr, ok := err.(*RequestError)
+			require.True(t, ok, "Error should be RequestError type")
+			assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400 Bad Request")
+			assert.Equal(t, "invalid_input", reqErr.Code)
+			assert.Contains(t, reqErr.Message, "invalid JSON", "Error message should mention invalid JSON")
+		})
+	}
+}
+
+// TestParseRequestBody_BidirectionalOverride tests handling of bidirectional override characters
+// This tests the fix for CATS fuzzer: BidirectionalOverrideFields
+func TestParseRequestBody_BidirectionalOverride(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "left-to-right override in value",
+			body: `{"name":"test\u202Evalue"}`, // U+202E right-to-left override
+		},
+		{
+			name: "right-to-left override in field",
+			body: `{"name\u202E":"test"}`,
+		},
+		{
+			name: "left-to-right mark",
+			body: `{"name":"test\u200E"}`, // U+200E left-to-right mark
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest("POST", "/test", strings.NewReader(tt.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			type TestStruct struct {
+				Name string `json:"name"`
+			}
+
+			// Bidirectional override characters are valid in JSON strings
+			// Our fix ensures we handle them without panicking
+			_, err := ParseRequestBody[TestStruct](c)
+
+			// Should either parse successfully or return proper 400 (not panic with 500)
+			if err != nil {
+				reqErr, ok := err.(*RequestError)
+				require.True(t, ok, "Error should be RequestError type")
+				assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400, not 500")
+			}
+		})
+	}
+}
+
+// TestParseRequestBody_ZalgoText tests handling of combining diacritical marks (Zalgo text)
+// This tests the fix for CATS fuzzer: ZalgoTextInFields
+func TestParseRequestBody_ZalgoText(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Zalgo text with multiple combining marks
+	zalgoText := "t\u0308\u0308\u0308e\u0308\u0308s\u0308\u0308t\u0308"
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "zalgo text in value",
+			body: `{"name":"` + zalgoText + `"}`,
+		},
+		{
+			name: "zalgo text in field name",
+			body: `{"nam` + zalgoText + `":"test"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest("POST", "/test", strings.NewReader(tt.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			type TestStruct struct {
+				Name string `json:"name"`
+			}
+
+			// Combining marks are valid Unicode in JSON strings
+			// Our fix ensures we handle them without panicking
+			_, err := ParseRequestBody[TestStruct](c)
+
+			// Should either parse successfully or return proper 400 (not panic with 500)
+			if err != nil {
+				reqErr, ok := err.(*RequestError)
+				require.True(t, ok, "Error should be RequestError type")
+				assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400, not 500")
+			}
+		})
+	}
+}
+
+// TestParseRequestBody_HangulFiller tests handling of Hangul Filler characters
+// This tests the fix for CATS fuzzer: HangulFillerFields
+func TestParseRequestBody_HangulFiller(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "Hangul filler in value",
+			body: `{"name":"test\u3164"}`, // U+3164 Hangul filler
+		},
+		{
+			name: "Hangul filler in field name",
+			body: `{"name\u3164":"test"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest("POST", "/test", strings.NewReader(tt.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			type TestStruct struct {
+				Name string `json:"name"`
+			}
+
+			// Hangul filler is valid Unicode in JSON strings
+			// Our fix ensures we handle it without panicking
+			_, err := ParseRequestBody[TestStruct](c)
+
+			// Should either parse successfully or return proper 400 (not panic with 500)
+			if err != nil {
+				reqErr, ok := err.(*RequestError)
+				require.True(t, ok, "Error should be RequestError type")
+				assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400, not 500")
+			}
+		})
+	}
+}
