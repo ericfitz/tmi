@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -132,14 +134,24 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 	// Send challenge to webhook URL
 	logger.Debug("sending challenge to %s (attempt %d/%d)", sub.Url, sub.ChallengesSent+1, maxChallenges)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", sub.Url, nil)
+	// Create JSON payload with challenge
+	payload := map[string]string{
+		"type":      "webhook.challenge",
+		"challenge": challenge,
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal challenge payload: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", sub.Url, bytes.NewReader(payloadBytes))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Add challenge headers
+	// Set headers (no X-Webhook-Challenge header)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Webhook-Challenge", challenge)
+	req.Header.Set("X-Webhook-Event", "webhook.challenge")
 	req.Header.Set("X-Webhook-Subscription-Id", sub.Id.String())
 	req.Header.Set("User-Agent", "TMI-Webhook/1.0")
 
@@ -162,8 +174,19 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 		return err
 	}
 
-	// Verify response
-	if resp.StatusCode == http.StatusOK && string(body) == challenge {
+	// Parse JSON response
+	var response map[string]string
+	if err := json.Unmarshal(body, &response); err != nil {
+		logger.Warn("challenge response is not valid JSON for %s: %v", sub.Url, err)
+		// Update challenge count and continue
+		if updateErr := GlobalWebhookSubscriptionStore.UpdateChallenge(sub.Id.String(), challenge, sub.ChallengesSent+1); updateErr != nil {
+			logger.Error("failed to update challenge count: %v", updateErr)
+		}
+		return fmt.Errorf("invalid JSON response: %w", err)
+	}
+
+	// Verify response contains matching challenge
+	if resp.StatusCode == http.StatusOK && response["challenge"] == challenge {
 		logger.Info("subscription %s verified successfully", sub.Id)
 		// Mark as active
 		if err := GlobalWebhookSubscriptionStore.UpdateStatus(sub.Id.String(), "active"); err != nil {
@@ -174,7 +197,7 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 
 	// Challenge failed
 	logger.Warn("challenge verification failed for %s: status=%d, expected=%s, got=%s",
-		sub.Url, resp.StatusCode, challenge, string(body))
+		sub.Url, resp.StatusCode, challenge, response["challenge"])
 
 	// Update challenge count
 	if err := GlobalWebhookSubscriptionStore.UpdateChallenge(sub.Id.String(), challenge, sub.ChallengesSent+1); err != nil {

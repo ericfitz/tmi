@@ -79,7 +79,8 @@ After creation, the subscription enters `pending_verification` status. TMI sends
 POST https://api.example.com/webhooks/tmi
 Content-Type: application/json
 X-Webhook-Event: webhook.challenge
-X-Webhook-Challenge: abc123def456
+X-Webhook-Subscription-Id: 7d8f6e5c-4b3a-2190-8765-fedcba987654
+User-Agent: TMI-Webhook/1.0
 
 {
   "type": "webhook.challenge",
@@ -89,7 +90,7 @@ X-Webhook-Challenge: abc123def456
 
 **Required Response:**
 
-Your endpoint must return the challenge within the response body:
+Your endpoint must return HTTP 200 with the challenge value in a JSON response body:
 
 ```json
 {
@@ -97,9 +98,13 @@ Your endpoint must return the challenge within the response body:
 }
 ```
 
+**Important:**
+- The challenge value is sent **only in the JSON payload**, not in headers
+- Your response must return the exact challenge value in a JSON object with a `challenge` field
+- Response must have HTTP 200 status code
 - Maximum 3 challenge attempts
 - Subscription becomes `active` on successful verification
-- Fails if verification not completed
+- Subscription marked for deletion if verification fails after max attempts
 
 ### 3. Active Subscription
 
