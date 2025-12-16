@@ -79,15 +79,9 @@ func (u *UserInfoExtractor) ExtractUserInfo(c *gin.Context) (*UserInfo, error) {
 type SessionValidator struct{}
 
 // ValidateSessionAccess validates that a user can access a diagram session
+// Uses flexible user identifier matching (email, provider_user_id, or internal_uuid)
 func (v *SessionValidator) ValidateSessionAccess(hub *WebSocketHub, userInfo *UserInfo, threatModelID, diagramID string) error {
-	// For backwards compatibility, use email for validation if userID lookup fails
-	validationID := userInfo.UserID
-	if userInfo.UserEmail != "" {
-		// TODO: Update validateWebSocketDiagramAccessDirect to use user ID instead of email
-		validationID = userInfo.UserEmail
-	}
-
-	if !hub.validateWebSocketDiagramAccessDirect(validationID, threatModelID, diagramID) {
+	if !hub.validateWebSocketDiagramAccessWithFlexibleMatching(userInfo, threatModelID, diagramID) {
 		return fmt.Errorf("insufficient permissions to collaborate on diagram %s", diagramID)
 	}
 

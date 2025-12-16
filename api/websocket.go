@@ -995,7 +995,8 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 		}
 
 		// Check if user has access to this threat model
-		hasAccess, err := CheckResourceAccess(userName, tm, RoleReader)
+		// Use context-aware check for flexible user identifier matching
+		hasAccess, err := CheckResourceAccessFromContext(c, userName, tm, RoleReader)
 		if err != nil || !hasAccess {
 			session.mu.RUnlock()
 			continue
@@ -1085,9 +1086,69 @@ func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_type
 	return openapi_types.UUID{}
 }
 
+// validateWebSocketDiagramAccessWithFlexibleMatching validates that a user has at least reader access to a diagram
+// using flexible user identifier matching (email, provider_user_id, or internal_uuid)
+// This is critical for WebSocket security to prevent unauthorized access to collaboration sessions
+func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userInfo *UserInfo, threatModelID string, diagramID string) bool {
+	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), deny access
+	if ThreatModelStore == nil {
+		return false
+	}
+
+	// Parse the threat model ID
+	threatModelUUID, err := uuid.Parse(threatModelID)
+	if err != nil {
+		return false
+	}
+
+	// Get the threat model to check permissions
+	tm, err := ThreatModelStore.Get(threatModelUUID.String())
+	if err != nil {
+		// If we can't get the threat model, deny access
+		return false
+	}
+
+	// Check if the diagram actually exists in this threat model
+	diagramExists := false
+	if tm.Diagrams != nil {
+		for _, diagramUnion := range *tm.Diagrams {
+			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+				if dfdDiag.Id.String() == diagramID {
+					diagramExists = true
+					break
+				}
+			}
+		}
+	}
+
+	if !diagramExists {
+		return false
+	}
+
+	// Check if user has at least reader access to the threat model (and thus the diagram)
+	// Users need reader access minimum to participate in collaboration
+	// Use flexible matching that handles email, provider_user_id, and internal_uuid
+	hasAccess, err := CheckResourceAccessWithGroups(
+		userInfo.UserEmail,    // subject (email for backward compatibility)
+		userInfo.UserID,       // subjectProviderID (provider user ID)
+		"",                    // subjectInternalUUID (not available in UserInfo)
+		userInfo.UserProvider, // subjectIdP
+		nil,                   // subjectGroups (not available in WebSocket context)
+		tm,                    // resource
+		RoleReader,            // requiredRole
+	)
+	if err != nil {
+		// If there's an error checking access, deny access
+		return false
+	}
+
+	return hasAccess
+}
+
 // validateWebSocketDiagramAccessDirect validates that a user has at least reader access to a diagram
 // using the threat model ID directly from the URL path
 // This is critical for WebSocket security to prevent unauthorized access to collaboration sessions
+// DEPRECATED: Use validateWebSocketDiagramAccessWithFlexibleMatching instead for proper user identifier matching
 func (h *WebSocketHub) validateWebSocketDiagramAccessDirect(userName string, threatModelID string, diagramID string) bool {
 	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), deny access
 	if ThreatModelStore == nil {
@@ -2087,13 +2148,8 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 
 	// User authentication is validated by connection context
 
-	// Check permission
-	// Use email for permission check for backwards compatibility
-	permissionCheckID := client.UserEmail
-	if permissionCheckID == "" {
-		permissionCheckID = client.UserID
-	}
-	if !s.checkMutationPermission(permissionCheckID) {
+	// Check permission using flexible user identifier matching
+	if !s.checkMutationPermission(client) {
 		s.sendAuthorizationDenied(client, "", "insufficient_permissions")
 		return
 	}
@@ -2162,13 +2218,8 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 
 	// User authentication is validated by connection context
 
-	// Check permission
-	// Use email for permission check for backwards compatibility
-	permissionCheckID := client.UserEmail
-	if permissionCheckID == "" {
-		permissionCheckID = client.UserID
-	}
-	if !s.checkMutationPermission(permissionCheckID) {
+	// Check permission using flexible user identifier matching
+	if !s.checkMutationPermission(client) {
 		s.sendAuthorizationDenied(client, "", "insufficient_permissions")
 		return
 	}
@@ -2261,12 +2312,16 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		} else {
 			// Find first connected user with write permissions
 			for client := range s.Clients {
-				// Use email for permission check for backwards compatibility
-				permissionCheckID := client.UserEmail
-				if permissionCheckID == "" {
-					permissionCheckID = client.UserID
-				}
-				hasWriteAccess, err := CheckResourceAccess(permissionCheckID, tm, RoleWriter)
+				// Use flexible user identifier matching for permission check
+				hasWriteAccess, err := CheckResourceAccessWithGroups(
+					client.UserEmail,    // subject (email)
+					client.UserID,       // subjectProviderID (provider user ID)
+					"",                  // subjectInternalUUID (not available in client)
+					client.UserProvider, // subjectIdP
+					nil,                 // subjectGroups (not available in client)
+					tm,                  // resource
+					RoleWriter,          // requiredRole
+				)
 				if err == nil && hasWriteAccess {
 					newPresenter = client.UserID
 					break
@@ -2677,9 +2732,10 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 }
 
 // checkMutationPermission checks if user can perform mutations
-func (s *DiagramSession) checkMutationPermission(userID string) bool {
+// Uses flexible user identifier matching (email, provider_user_id, or internal_uuid)
+func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 	// Anonymous users cannot perform mutations
-	if userID == "" {
+	if client == nil || client.UserID == "" {
 		return false
 	}
 
@@ -2696,7 +2752,16 @@ func (s *DiagramSession) checkMutationPermission(userID string) bool {
 	}
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccess(userID, tm, RoleWriter)
+	// Use flexible matching that handles email, provider_user_id, and internal_uuid
+	hasWriteAccess, err := CheckResourceAccessWithGroups(
+		client.UserEmail,    // subject (email)
+		client.UserID,       // subjectProviderID (provider user ID)
+		"",                  // subjectInternalUUID (not available in client)
+		client.UserProvider, // subjectIdP
+		nil,                 // subjectGroups (not available in client)
+		tm,                  // resource
+		RoleWriter,          // requiredRole
+	)
 	if err != nil {
 		// If there's an error checking access, deny for safety
 		return false
