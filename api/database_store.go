@@ -767,12 +767,21 @@ func (s *ThreatModelDatabaseStore) Update(id string, item ThreatModel) error {
 	// Update authorization
 	slogging.Get().Debug("[DB-STORE] Updating authorization for threat model %s with %d entries", id, len(item.Authorization))
 	for i, auth := range item.Authorization {
-		slogging.Get().Debug("[DB-STORE]   Entry %d: type=%s, provider=%s, provider_id=%s, role=%s",
-			i, auth.PrincipalType, auth.Provider, auth.ProviderId, auth.Role)
+		emailStr := "<nil>"
+		if auth.Email != nil {
+			emailStr = string(*auth.Email)
+		}
+		displayNameStr := "<nil>"
+		if auth.DisplayName != nil {
+			displayNameStr = *auth.DisplayName
+		}
+		slogging.Get().Debug("[DB-STORE]   Entry %d: type=%s, provider=%s, provider_id=%s, email=%s, display_name=%s, role=%s",
+			i, auth.PrincipalType, auth.Provider, auth.ProviderId, emailStr, displayNameStr, auth.Role)
 	}
 	if err := s.updateAuthorizationTx(tx, id, item.Authorization); err != nil {
 		return fmt.Errorf("failed to update authorization: %w", err)
 	}
+	slogging.Get().Debug("[DB-STORE] Authorization update completed successfully")
 
 	// Update metadata
 	if item.Metadata != nil {
@@ -872,38 +881,51 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string, tx *s
 		}
 	}()
 
-	// Initialize as empty slice to ensure JSON marshals to [] instead of null
-	authorization := []Authorization{}
+	// First, collect all rows to avoid "conn busy" errors when enriching
+	// (can't run queries in the same transaction while iterating over result set)
+	type authRow struct {
+		userUUID       sql.NullString
+		groupUUID      sql.NullString
+		subjectTypeStr string
+		roleStr        string
+	}
+	var authRows []authRow
 	rowCount := 0
 	for rows.Next() {
 		rowCount++
-		var userUUID, groupUUID sql.NullString
-		var subjectTypeStr, roleStr string
-		if err := rows.Scan(&userUUID, &groupUUID, &subjectTypeStr, &roleStr); err != nil {
+		var row authRow
+		if err := rows.Scan(&row.userUUID, &row.groupUUID, &row.subjectTypeStr, &row.roleStr); err != nil {
 			slogging.Get().Error("[DB-STORE] loadAuthorization: Failed to scan row %d: %v", rowCount, err)
 			continue
 		}
 
 		slogging.Get().Debug("[DB-STORE] loadAuthorization: Row %d - user_uuid=%v, group_uuid=%v, subject_type=%s, role=%s",
-			rowCount, userUUID, groupUUID, subjectTypeStr, roleStr)
+			rowCount, row.userUUID, row.groupUUID, row.subjectTypeStr, row.roleStr)
+		authRows = append(authRows, row)
+	}
 
-		role := AuthorizationRole(roleStr)
+	// Initialize as empty slice to ensure JSON marshals to [] instead of null
+	authorization := []Authorization{}
+
+	// Now enrich each row (after closing the rows result set)
+	for i, row := range authRows {
+		role := AuthorizationRole(row.roleStr)
 
 		// Enrich based on subject type
-		if subjectTypeStr == "user" && userUUID.Valid {
-			slogging.Get().Debug("[DB-STORE] loadAuthorization: Enriching user principal with internal_uuid=%s", userUUID.String)
-			user, enrichErr := enrichUserPrincipal(localTx, userUUID.String)
+		if row.subjectTypeStr == "user" && row.userUUID.Valid {
+			slogging.Get().Debug("[DB-STORE] loadAuthorization: Enriching user principal with internal_uuid=%s", row.userUUID.String)
+			user, enrichErr := enrichUserPrincipal(localTx, row.userUUID.String)
 			if enrichErr != nil {
 				// Log but continue - graceful degradation
-				slogging.Get().Warn("[DB-STORE] loadAuthorization: Failed to enrich user principal %s: %v", userUUID.String, enrichErr)
+				slogging.Get().Warn("[DB-STORE] loadAuthorization: Failed to enrich user principal %s: %v", row.userUUID.String, enrichErr)
 				continue
 			}
 			if user == nil {
 				// User not found - skip this authorization entry
-				slogging.Get().Warn("[DB-STORE] loadAuthorization: User principal %s not found - SKIPPING authorization entry", userUUID.String)
+				slogging.Get().Warn("[DB-STORE] loadAuthorization: User principal %s not found - SKIPPING authorization entry", row.userUUID.String)
 				continue
 			}
-			slogging.Get().Debug("[DB-STORE] loadAuthorization: Successfully enriched user - provider=%s, provider_id=%s", user.Provider, user.ProviderId)
+			slogging.Get().Debug("[DB-STORE] loadAuthorization: Successfully enriched user %d - provider=%s, provider_id=%s", i, user.Provider, user.ProviderId)
 
 			// Create Authorization from User (which extends Principal)
 			auth := Authorization{
@@ -919,8 +941,8 @@ func (s *ThreatModelDatabaseStore) loadAuthorization(threatModelId string, tx *s
 
 			authorization = append(authorization, auth)
 
-		} else if subjectTypeStr == "group" && groupUUID.Valid {
-			principal, enrichErr := enrichGroupPrincipal(localTx, groupUUID.String)
+		} else if row.subjectTypeStr == "group" && row.groupUUID.Valid {
+			principal, enrichErr := enrichGroupPrincipal(localTx, row.groupUUID.String)
 			if enrichErr != nil {
 				// Log but continue - graceful degradation
 				slogging.Get().Warn("Failed to enrich group principal: %v", enrichErr)
@@ -1182,11 +1204,23 @@ func (s *ThreatModelDatabaseStore) loadDiagramsDynamically(threatModelId string)
 }
 
 func (s *ThreatModelDatabaseStore) saveAuthorizationTx(tx *sql.Tx, threatModelId string, authorization []Authorization) error {
+	slogging.Get().Debug("[DB-STORE] saveAuthorizationTx: Called with %d authorization entries for threat model %s", len(authorization), threatModelId)
 	if len(authorization) == 0 {
+		slogging.Get().Debug("[DB-STORE] saveAuthorizationTx: Empty authorization list, returning early")
 		return nil
 	}
 
-	for _, auth := range authorization {
+	for i, auth := range authorization {
+		emailStr := "<nil>"
+		if auth.Email != nil {
+			emailStr = string(*auth.Email)
+		}
+		displayNameStr := "<nil>"
+		if auth.DisplayName != nil {
+			displayNameStr = *auth.DisplayName
+		}
+		slogging.Get().Debug("[DB-STORE] saveAuthorizationTx: Processing entry %d: type=%s, provider=%s, provider_id=%s, email=%s, display_name=%s, role=%s",
+			i, auth.PrincipalType, auth.Provider, auth.ProviderId, emailStr, displayNameStr, auth.Role)
 		// Determine subject type string for database
 		subjectTypeStr := "user"
 		if auth.PrincipalType == AuthorizationPrincipalTypeGroup {
