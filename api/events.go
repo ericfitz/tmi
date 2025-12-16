@@ -99,7 +99,7 @@ func (e *EventEmitter) EmitEvent(ctx context.Context, payload EventPayload) erro
 
 	// Generate deduplication key (event type + resource ID + timestamp window)
 	dedupKey := e.generateDedupKey(payload)
-	dedupTTL := 60 * time.Second
+	dedupTTL := 10 * time.Second
 
 	// Check if this event was recently emitted
 	exists, err := e.redisClient.SetNX(ctx, dedupKey, "1", dedupTTL).Result()
@@ -146,8 +146,8 @@ func (e *EventEmitter) EmitEvent(ctx context.Context, payload EventPayload) erro
 
 // generateDedupKey creates a deduplication key for the event
 func (e *EventEmitter) generateDedupKey(payload EventPayload) string {
-	// Create a hash of event type + resource ID + timestamp (rounded to 5-second window)
-	timestamp := payload.Timestamp.Truncate(5 * time.Second).Unix()
+	// Create a hash of event type + resource ID + timestamp (rounded to 1-second window)
+	timestamp := payload.Timestamp.Truncate(1 * time.Second).Unix()
 	data := fmt.Sprintf("%s:%s:%d", payload.EventType, payload.ResourceID, timestamp)
 	hash := sha256.Sum256([]byte(data))
 	return fmt.Sprintf("event:dedup:%x", hash[:8])

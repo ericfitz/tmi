@@ -85,7 +85,7 @@ func (c *WebhookEventConsumer) consumeLoop(ctx context.Context) {
 				Group:    c.groupName,
 				Consumer: c.consumerID,
 				Streams:  []string{c.streamKey, ">"},
-				Count:    10,
+				Count:    50,
 				Block:    5 * time.Second,
 			}).Result()
 

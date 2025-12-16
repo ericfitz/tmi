@@ -60,7 +60,7 @@ func (w *WebhookDeliveryWorker) Stop() {
 // processLoop continuously processes pending deliveries
 func (w *WebhookDeliveryWorker) processLoop(ctx context.Context) {
 	logger := slogging.Get()
-	ticker := time.NewTicker(5 * time.Second) // Check every 5 seconds
+	ticker := time.NewTicker(2 * time.Second) // Check every 2 seconds
 	defer ticker.Stop()
 
 	for w.running {
@@ -88,8 +88,8 @@ func (w *WebhookDeliveryWorker) processPendingDeliveries(ctx context.Context) er
 		return nil
 	}
 
-	// Get pending deliveries (limit to 50 per batch)
-	deliveries, err := GlobalWebhookDeliveryStore.ListPending(50)
+	// Get pending deliveries (limit to 100 per batch)
+	deliveries, err := GlobalWebhookDeliveryStore.ListPending(100)
 	if err != nil {
 		return fmt.Errorf("failed to list pending deliveries: %w", err)
 	}
