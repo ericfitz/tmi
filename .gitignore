@@ -88,6 +88,9 @@ scripts/configure-heroku-env.sh
 **/__pycache__/
 **/*.pyc
 
+# OpenAPI backup files
+*.json.backup
+
 # Test outputs and deprecated resources (consolidated under test/)
 test/outputs/
 test/outputs/**
