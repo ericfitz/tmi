@@ -317,8 +317,7 @@
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
-            },
-            "additionalProperties": false
+            }
           }
         ],
         "example": {
@@ -1121,8 +1120,7 @@
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
-            },
-            "additionalProperties": false
+            }
           }
         ],
         "example": {
@@ -1197,8 +1195,7 @@
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
-            },
-            "additionalProperties": false
+            }
           }
         ],
         "example": {
@@ -2363,12 +2360,11 @@
         "example": {
           "name": "Payment Gateway Threat Model",
           "owner": {
-            "email": "alice@example.com",
-            "name": "Alice Johnson",
-            "provider": "github",
             "principal_type": "user",
-            "provider_id": "550e8400-e29b-41d4-a716-446655440000",
-            "display_name": "Alice Johnson"
+            "provider": "github",
+            "provider_id": "alice@example.com",
+            "display_name": "Alice Johnson",
+            "email": "alice@example.com"
           },
           "description": "Threat analysis for payment processing",
           "threat_model_framework": "STRIDE",
@@ -2752,8 +2748,7 @@
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
-            },
-            "additionalProperties": false
+            }
           }
         ],
         "example": {
@@ -4215,7 +4210,6 @@
             "maxLength": 320
           }
         },
-        "additionalProperties": false,
         "example": {
           "principal_type": "user",
           "provider": "google",
@@ -10935,20 +10929,12 @@
                     },
                     {
                       "name": "Cross-Site Scripting (XSS)",
+                      "threat_type": [
+                        "information-disclosure"
+                      ],
                       "description": "Malicious scripts executed in user's browser",
-                      "impact": "Medium",
-                      "likelihood": "High",
-                      "risk_rating": "High",
-                      "metadata": [
-                        {
-                          "key": "category",
-                          "value": "xss"
-                        },
-                        {
-                          "key": "stride",
-                          "value": "tampering"
-                        }
-                      ]
+                      "severity": "Medium",
+                      "status": "identified"
                     }
                   ]
                 }
@@ -12869,6 +12855,9 @@
                   "value": [
                     {
                       "id": "770e8400-e29b-41d4-a716-446655440009",
+                      "name": "Threat Model Report",
+                      "uri": "https://docs.example.com/threat-report-v1.pdf",
+                      "description": "Comprehensive threat assessment document",
                       "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
                       "created_at": "2025-01-10T09:00:00Z",
                       "modified_at": "2025-01-10T09:00:00Z"
@@ -13039,6 +13028,9 @@
                   "value": [
                     {
                       "id": "770e8400-e29b-41d4-a716-446655440010",
+                      "name": "Threat Model Report Updated",
+                      "uri": "https://docs.example.com/threat-report-v2.pdf",
+                      "description": "Updated threat assessment document",
                       "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
                       "created_at": "2025-01-10T09:00:00Z",
                       "modified_at": "2025-01-10T09:00:00Z"
@@ -14581,6 +14573,9 @@
                   "value": [
                     {
                       "id": "990e8400-e29b-41d4-a716-446655440012",
+                      "name": "API Repository",
+                      "uri": "https://github.com/example/api",
+                      "description": "Backend API source code",
                       "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
                       "created_at": "2025-01-12T08:00:00Z",
                       "modified_at": "2025-01-12T08:00:00Z"
@@ -14751,6 +14746,9 @@
                   "value": [
                     {
                       "id": "990e8400-e29b-41d4-a716-446655440013",
+                      "name": "API Repository Updated",
+                      "uri": "https://github.com/example/api-v2",
+                      "description": "Updated backend API source code",
                       "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
                       "created_at": "2025-01-12T08:00:00Z",
                       "modified_at": "2025-01-12T08:00:00Z"
