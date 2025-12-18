@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gin-gonic/gin"
 	middleware "github.com/oapi-codegen/gin-middleware"
 )
@@ -115,21 +117,23 @@ func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 	swagger.Components.SecuritySchemes = nil
 
 	// Remove security requirements from all paths since we handle auth with our own JWT middleware
+	// Use empty security requirements (non-nil pointer to empty slice) to explicitly disable security
+	emptySecurityRequirements := openapi3.NewSecurityRequirements()
 	for _, pathItem := range swagger.Paths.Map() {
 		if pathItem.Get != nil {
-			pathItem.Get.Security = nil
+			pathItem.Get.Security = emptySecurityRequirements
 		}
 		if pathItem.Post != nil {
-			pathItem.Post.Security = nil
+			pathItem.Post.Security = emptySecurityRequirements
 		}
 		if pathItem.Put != nil {
-			pathItem.Put.Security = nil
+			pathItem.Put.Security = emptySecurityRequirements
 		}
 		if pathItem.Patch != nil {
-			pathItem.Patch.Security = nil
+			pathItem.Patch.Security = emptySecurityRequirements
 		}
 		if pathItem.Delete != nil {
-			pathItem.Delete.Security = nil
+			pathItem.Delete.Security = emptySecurityRequirements
 		}
 	}
 
@@ -137,10 +141,14 @@ func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 	swagger.Servers = nil
 
 	// Create OpenAPI validator with custom logic to skip WebSocket routes
+	// Provide a no-op authentication function to bypass security validation
 	validator := middleware.OapiRequestValidatorWithOptions(swagger,
 		&middleware.Options{
 			ErrorHandler:          OpenAPIErrorHandler,
 			SilenceServersWarning: true, // Silence the servers warning for tests
+			Options: openapi3filter.Options{
+				AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
+			},
 		})
 
 	// Return a wrapper that skips validation for WebSocket routes

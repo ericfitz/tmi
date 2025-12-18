@@ -399,7 +399,7 @@ clean-logs:
 	@rm -f integration-test.log server.log .server.pid
 	@if [ -d logs ] && [ -n "$$(ls -A logs 2>/dev/null)" ]; then \
 		echo -e "$(BLUE)[INFO]$(NC) Removing logs/* files"; \
-		rm -rf logs/*; \
+		find logs -mindepth 1 -delete; \
 	fi
 	$(call log_success,"Log files cleaned")
 
