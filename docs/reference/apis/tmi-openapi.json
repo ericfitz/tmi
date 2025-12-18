@@ -20,23 +20,6 @@
   },
   "servers": [
     {
-      "description": "Local development server (HTTP on localhost only)",
-      "url": "http://localhost:{port}",
-      "variables": {
-        "port": {
-          "default": "8080",
-          "description": "Local server port",
-          "enum": [
-            "8080",
-            "8443",
-            "3000"
-          ]
-        }
-      },
-      "x-environment": "development",
-      "x-localhost-only": true
-    },
-    {
       "description": "Production server",
       "url": "https://api.tmi.dev"
     }
@@ -24147,6 +24130,13 @@
                   "type": "integer",
                   "example": 1640995200
                 }
+              },
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
               }
             }
           },
@@ -26112,6 +26102,13 @@
                 "schema": {
                   "type": "integer",
                   "example": 1640995200
+                }
+              },
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
                 }
               }
             }
