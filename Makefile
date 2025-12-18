@@ -875,7 +875,7 @@ analyze-cats-results: parse-cats-results query-cats-results  ## Parse and query 
 # CONTAINER SECURITY AND BUILD MANAGEMENT
 # ============================================================================
 
-.PHONY: build-containers scan-containers report-containers update-docker-scout
+.PHONY: build-containers scan-containers scan-trivy report-containers update-docker-scout
 
 # Update Docker Scout CLI
 update-docker-scout:
@@ -912,6 +912,18 @@ scan-containers:
 		docker rmi tmi-temp-scan:latest >/dev/null 2>&1 || true; \
 	fi
 	$(call log_success,Security scans completed. Reports in security-reports/)
+
+# Run Trivy filesystem security scan
+scan-trivy:
+	$(call log_info,Running Trivy filesystem security scan...)
+	@if ! command -v trivy >/dev/null 2>&1; then \
+		$(call log_error,Trivy not found. Please install it first.); \
+		$(call log_info,See: https://aquasecurity.github.io/trivy/); \
+		$(call log_info,On MacOS with Homebrew: brew install trivy); \
+		exit 1; \
+	fi
+	@trivy fs --ignorefile ./.trivyignore.yaml .
+	$(call log_success,Trivy filesystem scan completed)
 
 # Generate comprehensive security report
 report-containers: scan-containers
@@ -1371,6 +1383,7 @@ help:
 	@echo "  update-docker-scout          - Update Docker Scout CLI to latest version"
 	@echo "  build-containers             - Build containers with vulnerability patching"
 	@echo "  scan-containers              - Scan existing containers for vulnerabilities"
+	@echo "  scan-trivy                   - Run Trivy filesystem security scan"
 	@echo "  report-containers            - Generate comprehensive security report"
 	@echo "  start-containers-environment - Start development with containers"
 	@echo "  build-containers-all         - Run full container build and report"

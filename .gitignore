@@ -18,6 +18,7 @@
 !config-example.yml
 !auth/migrations/*.sql
 !.claude/settings.local.json
+!.trivyignore
 
 # Include subdirectories (but avoid overriding specific ignores)
 !api/
