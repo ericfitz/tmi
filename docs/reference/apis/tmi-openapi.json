@@ -5548,6 +5548,244 @@
             "protocol": "https"
           }
         }
+      },
+      "JsonPatchDocument": {
+        "type": "array",
+        "description": "JSON Patch document as defined in RFC 6902",
+        "items": {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": [
+                "add",
+                "replace",
+                "remove",
+                "move",
+                "copy",
+                "test"
+              ],
+              "description": "Patch operation type",
+              "maxLength": 1000,
+              "pattern": "^[\\u0020-\\uFFFF]*$"
+            },
+            "path": {
+              "type": "string",
+              "description": "JSON path to target",
+              "pattern": "^(/[^/]*)*$",
+              "maxLength": 512
+            },
+            "value": {}
+          },
+          "required": [
+            "op",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "maxItems": 1000
+      },
+      "TokenRequest": {
+        "type": "object",
+        "properties": {
+          "grant_type": {
+            "type": "string",
+            "description": "OAuth 2.0 grant type (RFC 6749)",
+            "enum": [
+              "authorization_code",
+              "client_credentials",
+              "refresh_token"
+            ],
+            "example": "client_credentials"
+          },
+          "code": {
+            "type": "string",
+            "description": "Authorization code (required for authorization_code grant)",
+            "example": "0AX4XfWiXY2BZ_example_auth_code",
+            "nullable": true
+          },
+          "client_id": {
+            "type": "string",
+            "description": "Client identifier (required for client_credentials grant)",
+            "example": "tmi_cc_AbCdEf123456",
+            "nullable": true
+          },
+          "client_secret": {
+            "type": "string",
+            "description": "Client secret (required for client_credentials grant)",
+            "example": "secret_value",
+            "nullable": true
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "Refresh token (required for refresh_token grant)",
+            "example": "refresh_token_value",
+            "nullable": true
+          },
+          "redirect_uri": {
+            "type": "string",
+            "description": "Redirect URI (required for authorization_code grant)",
+            "nullable": true
+          },
+          "code_verifier": {
+            "type": "string",
+            "description": "PKCE code verifier (required for authorization_code grant)",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "description": "State parameter for CSRF protection",
+            "nullable": true
+          }
+        },
+        "required": [
+          "grant_type"
+        ]
+      },
+      "TokenIntrospectionRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The JWT token to introspect",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            "maxLength": 1000,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
+          },
+          "token_type_hint": {
+            "type": "string",
+            "description": "Optional hint about the type of token being introspected",
+            "example": "access_token",
+            "nullable": true,
+            "maxLength": 1000,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "additionalProperties": false
+      },
+      "AddonQuotaUpdate": {
+        "type": "object",
+        "required": [
+          "max_active_invocations",
+          "max_invocations_per_hour"
+        ],
+        "properties": {
+          "max_active_invocations": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Maximum concurrent active addon invocations"
+          },
+          "max_invocations_per_hour": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Maximum addon invocations per hour"
+          }
+        }
+      },
+      "UserQuotaUpdate": {
+        "type": "object",
+        "required": [
+          "max_requests_per_minute"
+        ],
+        "properties": {
+          "max_requests_per_minute": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Maximum API requests per minute"
+          },
+          "max_requests_per_hour": {
+            "type": "integer",
+            "minimum": 1,
+            "nullable": true,
+            "description": "Maximum API requests per hour (optional)"
+          }
+        }
+      },
+      "WebhookQuotaUpdate": {
+        "type": "object",
+        "required": [
+          "max_subscriptions",
+          "max_events_per_minute",
+          "max_subscription_requests_per_minute",
+          "max_subscription_requests_per_day"
+        ],
+        "properties": {
+          "max_subscriptions": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Maximum webhook subscriptions"
+          },
+          "max_events_per_minute": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Maximum webhook events per minute"
+          },
+          "max_subscription_requests_per_minute": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Maximum subscription requests per minute"
+          },
+          "max_subscription_requests_per_day": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Maximum subscription requests per day"
+          }
+        }
+      },
+      "SamlAssertionConsumerRequest": {
+        "type": "object",
+        "properties": {
+          "SAMLResponse": {
+            "type": "string",
+            "description": "Base64-encoded SAML response",
+            "maxLength": 100000,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
+          },
+          "RelayState": {
+            "type": "string",
+            "description": "State parameter for CSRF protection",
+            "maxLength": 10000,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
+          }
+        },
+        "required": [
+          "SAMLResponse"
+        ],
+        "additionalProperties": false
+      },
+      "SamlSingleLogoutRequest": {
+        "type": "object",
+        "properties": {
+          "SAMLRequest": {
+            "type": "string",
+            "description": "Base64-encoded SAML logout request",
+            "maxLength": 1000,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
+          }
+        },
+        "required": [
+          "SAMLRequest"
+        ],
+        "additionalProperties": false
+      },
+      "TokenRefreshRequest": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "description": "Valid refresh token",
+            "example": "8xLOxBtZp8_example_refresh_token",
+            "maxLength": 1000,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "additionalProperties": false
       }
     },
     "responses": {
@@ -7212,28 +7450,7 @@
           "content": {
             "application/x-www-form-urlencoded": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "token": {
-                    "type": "string",
-                    "description": "The JWT token to introspect",
-                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                    "maxLength": 1000,
-                    "pattern": "^[\\u0020-\\uFFFF]*$"
-                  },
-                  "token_type_hint": {
-                    "type": "string",
-                    "description": "Optional hint about the type of token being introspected",
-                    "example": "access_token",
-                    "nullable": true,
-                    "maxLength": 1000,
-                    "pattern": "^[\\u0020-\\uFFFF]*$"
-                  }
-                },
-                "required": [
-                  "token"
-                ],
-                "additionalProperties": false
+                "$ref": "#/components/schemas/TokenIntrospectionRequest"
               }
             }
           }
@@ -7927,61 +8144,7 @@
             },
             "application/x-www-form-urlencoded": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "grant_type": {
-                    "type": "string",
-                    "description": "OAuth 2.0 grant type (RFC 6749)",
-                    "enum": [
-                      "authorization_code",
-                      "client_credentials",
-                      "refresh_token"
-                    ],
-                    "example": "client_credentials"
-                  },
-                  "code": {
-                    "type": "string",
-                    "description": "Authorization code (required for authorization_code grant)",
-                    "example": "0AX4XfWiXY2BZ_example_auth_code",
-                    "nullable": true
-                  },
-                  "client_id": {
-                    "type": "string",
-                    "description": "Client identifier (required for client_credentials grant)",
-                    "example": "tmi_cc_AbCdEf123456",
-                    "nullable": true
-                  },
-                  "client_secret": {
-                    "type": "string",
-                    "description": "Client secret (required for client_credentials grant)",
-                    "example": "secret_value",
-                    "nullable": true
-                  },
-                  "refresh_token": {
-                    "type": "string",
-                    "description": "Refresh token (required for refresh_token grant)",
-                    "example": "refresh_token_value",
-                    "nullable": true
-                  },
-                  "redirect_uri": {
-                    "type": "string",
-                    "description": "Redirect URI (required for authorization_code grant)",
-                    "nullable": true
-                  },
-                  "code_verifier": {
-                    "type": "string",
-                    "description": "PKCE code verifier (required for authorization_code grant)",
-                    "nullable": true
-                  },
-                  "state": {
-                    "type": "string",
-                    "description": "State parameter for CSRF protection",
-                    "nullable": true
-                  }
-                },
-                "required": [
-                  "grant_type"
-                ]
+                "$ref": "#/components/schemas/TokenRequest"
               }
             }
           }
@@ -8164,20 +8327,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "refresh_token": {
-                    "type": "string",
-                    "description": "Valid refresh token",
-                    "example": "8xLOxBtZp8_example_refresh_token",
-                    "maxLength": 1000,
-                    "pattern": "^[\\u0020-\\uFFFF]*$"
-                  }
-                },
-                "required": [
-                  "refresh_token"
-                ],
-                "additionalProperties": false
+                "$ref": "#/components/schemas/TokenRefreshRequest"
               }
             }
           }
@@ -9560,42 +9710,7 @@
           "content": {
             "application/json-patch+json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "op": {
-                      "type": "string",
-                      "enum": [
-                        "add",
-                        "replace",
-                        "remove",
-                        "move",
-                        "copy",
-                        "test"
-                      ],
-                      "description": "Patch operation type",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "path": {
-                      "type": "string",
-                      "description": "JSON path to target",
-                      "pattern": "^(/[^/]*)*$",
-                      "maxLength": 512
-                    },
-                    "value": {
-                      "description": "Value to apply",
-                      "nullable": true
-                    }
-                  },
-                  "required": [
-                    "op",
-                    "path"
-                  ],
-                  "additionalProperties": false
-                },
-                "maxItems": 1000
+                "$ref": "#/components/schemas/JsonPatchDocument"
               }
             }
           }
@@ -10445,42 +10560,7 @@
           "content": {
             "application/json-patch+json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "op": {
-                      "type": "string",
-                      "enum": [
-                        "add",
-                        "remove",
-                        "replace",
-                        "move",
-                        "copy",
-                        "test"
-                      ],
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "path": {
-                      "type": "string",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "value": {},
-                    "from": {
-                      "type": "string",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    }
-                  },
-                  "required": [
-                    "op",
-                    "path"
-                  ],
-                  "additionalProperties": false
-                },
-                "maxItems": 1000
+                "$ref": "#/components/schemas/JsonPatchDocument"
               },
               "examples": {
                 "updateThreatDetails": {
@@ -12023,73 +12103,7 @@
           "content": {
             "application/json-patch+json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "patches"
-                ],
-                "properties": {
-                  "patches": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "required": [
-                        "id",
-                        "operations"
-                      ],
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "description": "Threat ID to patch",
-                          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-                          "maxLength": 36
-                        },
-                        "operations": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "required": [
-                              "op",
-                              "path"
-                            ],
-                            "properties": {
-                              "op": {
-                                "type": "string",
-                                "enum": [
-                                  "add",
-                                  "remove",
-                                  "replace",
-                                  "move",
-                                  "copy",
-                                  "test"
-                                ],
-                                "maxLength": 1000,
-                                "pattern": "^[\\u0020-\\uFFFF]*$"
-                              },
-                              "path": {
-                                "type": "string",
-                                "maxLength": 1000,
-                                "pattern": "^[\\u0020-\\uFFFF]*$"
-                              },
-                              "value": {},
-                              "from": {
-                                "type": "string",
-                                "maxLength": 1000,
-                                "pattern": "^[\\u0020-\\uFFFF]*$"
-                              }
-                            },
-                            "additionalProperties": false
-                          },
-                          "description": "JSON Patch operations to apply",
-                          "maxItems": 1000
-                        }
-                      },
-                      "additionalProperties": false
-                    },
-                    "maxItems": 1000
-                  }
-                },
-                "additionalProperties": false
+                "$ref": "#/components/schemas/JsonPatchDocument"
               }
             }
           }
@@ -12934,42 +12948,7 @@
           "content": {
             "application/json-patch+json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "op",
-                    "path"
-                  ],
-                  "properties": {
-                    "op": {
-                      "type": "string",
-                      "enum": [
-                        "add",
-                        "remove",
-                        "replace",
-                        "move",
-                        "copy",
-                        "test"
-                      ],
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "path": {
-                      "type": "string",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "value": {},
-                    "from": {
-                      "type": "string",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                "maxItems": 1000
+                "$ref": "#/components/schemas/JsonPatchDocument"
               }
             }
           }
@@ -14997,42 +14976,7 @@
           "content": {
             "application/json-patch+json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "op",
-                    "path"
-                  ],
-                  "properties": {
-                    "op": {
-                      "type": "string",
-                      "enum": [
-                        "add",
-                        "remove",
-                        "replace",
-                        "move",
-                        "copy",
-                        "test"
-                      ],
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "path": {
-                      "type": "string",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "value": {},
-                    "from": {
-                      "type": "string",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                "maxItems": 1000
+                "$ref": "#/components/schemas/JsonPatchDocument"
               }
             }
           }
@@ -17845,42 +17789,7 @@
           "content": {
             "application/json-patch+json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "op": {
-                      "type": "string",
-                      "enum": [
-                        "add",
-                        "remove",
-                        "replace",
-                        "move",
-                        "copy",
-                        "test"
-                      ],
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "path": {
-                      "type": "string",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "value": {},
-                    "from": {
-                      "type": "string",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    }
-                  },
-                  "required": [
-                    "op",
-                    "path"
-                  ],
-                  "additionalProperties": false
-                },
-                "maxItems": 10000
+                "$ref": "#/components/schemas/JsonPatchDocument"
               },
               "examples": {
                 "updateName": {
@@ -20347,42 +20256,7 @@
           "content": {
             "application/json-patch+json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "op",
-                    "path"
-                  ],
-                  "properties": {
-                    "op": {
-                      "type": "string",
-                      "enum": [
-                        "add",
-                        "remove",
-                        "replace",
-                        "move",
-                        "copy",
-                        "test"
-                      ],
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "path": {
-                      "type": "string",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "value": {},
-                    "from": {
-                      "type": "string",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                "maxItems": 1000
+                "$ref": "#/components/schemas/JsonPatchDocument"
               }
             }
           }
@@ -22265,42 +22139,7 @@
           "content": {
             "application/json-patch+json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "op",
-                    "path"
-                  ],
-                  "properties": {
-                    "op": {
-                      "type": "string",
-                      "enum": [
-                        "add",
-                        "remove",
-                        "replace",
-                        "move",
-                        "copy",
-                        "test"
-                      ],
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "path": {
-                      "type": "string",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    },
-                    "value": {},
-                    "from": {
-                      "type": "string",
-                      "maxLength": 1000,
-                      "pattern": "^[\\u0020-\\uFFFF]*$"
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                "maxItems": 1000
+                "$ref": "#/components/schemas/JsonPatchDocument"
               }
             }
           }
@@ -23299,25 +23138,7 @@
           "content": {
             "application/x-www-form-urlencoded": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "SAMLResponse": {
-                    "type": "string",
-                    "description": "Base64-encoded SAML response",
-                    "maxLength": 100000,
-                    "pattern": "^[\\u0020-\\uFFFF]*$"
-                  },
-                  "RelayState": {
-                    "type": "string",
-                    "description": "State parameter for CSRF protection",
-                    "maxLength": 10000,
-                    "pattern": "^[\\u0020-\\uFFFF]*$"
-                  }
-                },
-                "required": [
-                  "SAMLResponse"
-                ],
-                "additionalProperties": false
+                "$ref": "#/components/schemas/SamlAssertionConsumerRequest"
               }
             }
           }
@@ -23628,19 +23449,7 @@
           "content": {
             "application/x-www-form-urlencoded": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "SAMLRequest": {
-                    "type": "string",
-                    "description": "Base64-encoded SAML logout request",
-                    "maxLength": 1000,
-                    "pattern": "^[\\u0020-\\uFFFF]*$"
-                  }
-                },
-                "required": [
-                  "SAMLRequest"
-                ],
-                "additionalProperties": false
+                "$ref": "#/components/schemas/SamlSingleLogoutRequest"
               }
             }
           }
@@ -27913,23 +27722,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "max_requests_per_minute"
-                ],
-                "properties": {
-                  "max_requests_per_minute": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Maximum API requests per minute"
-                  },
-                  "max_requests_per_hour": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "nullable": true,
-                    "description": "Maximum API requests per hour (optional)"
-                  }
-                }
+                "$ref": "#/components/schemas/UserQuotaUpdate"
               }
             }
           }
@@ -28646,35 +28439,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "max_subscriptions",
-                  "max_events_per_minute",
-                  "max_subscription_requests_per_minute",
-                  "max_subscription_requests_per_day"
-                ],
-                "properties": {
-                  "max_subscriptions": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Maximum webhook subscriptions"
-                  },
-                  "max_events_per_minute": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Maximum webhook events per minute"
-                  },
-                  "max_subscription_requests_per_minute": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Maximum subscription requests per minute"
-                  },
-                  "max_subscription_requests_per_day": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Maximum subscription requests per day"
-                  }
-                }
+                "$ref": "#/components/schemas/WebhookQuotaUpdate"
               }
             }
           }
@@ -33359,23 +33124,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "max_active_invocations",
-                  "max_invocations_per_hour"
-                ],
-                "properties": {
-                  "max_active_invocations": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Maximum concurrent active addon invocations"
-                  },
-                  "max_invocations_per_hour": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Maximum addon invocations per hour"
-                  }
-                }
+                "$ref": "#/components/schemas/AddonQuotaUpdate"
               }
             }
           }
