@@ -779,7 +779,6 @@
           {
             "type": "object",
             "description": "A diagram node representing an entity, process, store, or boundary. Supports both X6 position/size object format and flat x/y/width/height format. Input accepts either format. Output always uses flat format (x, y, width, height).",
-            "required": [],
             "properties": {
               "shape": {
                 "type": "string",
@@ -1051,7 +1050,11 @@
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
               "created_by": {
-                "$ref": "#/components/schemas/User",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/User"
+                  }
+                ],
                 "description": "User who created the threat model",
                 "readOnly": true
               },
@@ -2305,8 +2308,12 @@
             "pattern": "^[^<>]*$"
           },
           "owner": {
-            "$ref": "#/components/schemas/User",
-            "description": "Current owner of the threat model"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/User"
+              }
+            ],
+            "description": "User who owns the threat model (can be null for orphaned models)"
           },
           "threat_model_framework": {
             "type": "string",
@@ -2355,7 +2362,14 @@
         "additionalProperties": false,
         "example": {
           "name": "Payment Gateway Threat Model",
-          "owner": "alice@example.com",
+          "owner": {
+            "email": "alice@example.com",
+            "name": "Alice Johnson",
+            "provider": "github",
+            "principal_type": "user",
+            "provider_id": "550e8400-e29b-41d4-a716-446655440000",
+            "display_name": "Alice Johnson"
+          },
           "description": "Threat analysis for payment processing",
           "threat_model_framework": "STRIDE",
           "authorization": [
@@ -2550,7 +2564,6 @@
           "name",
           "threat_type"
         ],
-        "additionalProperties": false,
         "example": {
           "name": "SQL Injection via Payment Form",
           "threat_type": [
@@ -3077,7 +3090,6 @@
             "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
           }
         },
-        "additionalProperties": false,
         "example": {
           "name": "Payment System Architecture",
           "uri": "https://docs.example.com/architecture/payment-system.pdf",
@@ -3304,7 +3316,6 @@
             "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
           }
         },
-        "additionalProperties": false,
         "example": {
           "uri": "https://github.com/example/payment-service",
           "description": "Main repository for payment processing service"
@@ -3606,11 +3617,7 @@
           "attempts": 1,
           "created_at": "2024-01-20T15:45:30Z",
           "delivered_at": "2024-01-20T15:45:31Z",
-          "payload": {
-            "diagram_id": "880e8400-e29b-41d4-a716-446655440003",
-            "threat_model_id": "660e8400-e29b-41d4-a716-446655440001",
-            "updated_by": "alice@example.com"
-          }
+          "payload": {}
         }
       },
       "WebhookTestRequest": {
@@ -3974,8 +3981,12 @@
             "description": "Object ID (if specified)"
           },
           "invoked_by": {
-            "$ref": "#/components/schemas/User",
-            "description": "User who invoked the add-on"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/User"
+              }
+            ],
+            "description": "User who triggered the invocation"
           },
           "payload": {
             "type": "string",
@@ -4338,7 +4349,7 @@
         },
         "example": {
           "id": "550e8400-e29b-41d4-a716-446655440000",
-          "user_id": "alice@example.com",
+          "user_id": "550e8400-e29b-41d4-a716-446655440000",
           "email": "alice@example.com",
           "name": "Alice Johnson",
           "provider": "github",
@@ -4399,7 +4410,9 @@
               "user_id": "550e8400-e29b-41d4-a716-446655440000",
               "email": "admin@example.com",
               "name": "System Administrator",
-              "created_at": "2024-01-01T00:00:00Z"
+              "created_at": "2024-01-01T00:00:00Z",
+              "id": "550e8400-e29b-41d4-a716-446655440001",
+              "provider": "google"
             }
           ],
           "total": 1,
@@ -4658,7 +4671,11 @@
               "name": "Admin User",
               "provider": "github",
               "is_admin": true,
-              "created_at": "2024-01-01T00:00:00Z"
+              "created_at": "2024-01-01T00:00:00Z",
+              "internal_uuid": "123e4567-e89b-12d3-a456-426614174000",
+              "provider_user_id": "github_123456",
+              "email_verified": true,
+              "modified_at": "2024-01-15T00:00:00Z"
             }
           ],
           "total": 1,
@@ -4818,7 +4835,11 @@
               "provider_group_id": "org-engineering",
               "member_count": 25,
               "created_at": "2024-01-02T10:00:00Z",
-              "modified_at": "2024-01-02T10:00:00Z"
+              "modified_at": "2024-01-02T10:00:00Z",
+              "group_name": "Engineering",
+              "first_used": "2024-01-02T10:00:00Z",
+              "last_used": "2024-01-15T14:30:00Z",
+              "usage_count": 150
             }
           ],
           "total": 1,
@@ -5068,13 +5089,19 @@
         "example": {
           "members": [
             {
-              "user_id": "660e8400-e29b-41d4-a716-446655440001",
-              "email": "bob@example.com",
-              "name": "Bob Smith",
+              "id": "880e8400-e29b-41d4-a716-446655440020",
+              "group_internal_uuid": "e50eabcd-e89b-41d4-a716-446655440014",
+              "user_internal_uuid": "123e4567-e89b-12d3-a456-426614174001",
+              "user_email": "bob@example.com",
+              "user_name": "Bob Smith",
+              "user_provider": "github",
+              "user_provider_user_id": "github_456789",
               "added_at": "2024-01-06T09:00:00Z"
             }
           ],
-          "total": 1
+          "total": 1,
+          "limit": 50,
+          "offset": 0
         }
       },
       "AddGroupMemberRequest": {
@@ -5257,7 +5284,7 @@
           }
         },
         "example": {
-          "id": "g70eabcd-e89b-41d4-a716-446655440016",
+          "id": "970eabcd-e89b-41d4-a716-446655440016",
           "owner_id": "550e8400-e29b-41d4-a716-446655440000",
           "name": "Monitoring Service",
           "description": "Metrics collection service",
@@ -5468,12 +5495,20 @@
             "maxLength": 64
           },
           "source": {
-            "$ref": "#/components/schemas/EdgeTerminal",
-            "description": "Source connection point (reuses existing schema)"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EdgeTerminal"
+              }
+            ],
+            "description": "Source node connection details"
           },
           "target": {
-            "$ref": "#/components/schemas/EdgeTerminal",
-            "description": "Target connection point (reuses existing schema)"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EdgeTerminal"
+              }
+            ],
+            "description": "Target node connection details"
           },
           "labels": {
             "type": "array",
@@ -5535,10 +5570,14 @@
                   "error": "access_denied",
                   "error_description": "User does not have sufficient permissions to access this sub-resource",
                   "details": {
-                    "required_role": "writer",
-                    "user_role": "reader",
-                    "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "resource_type": "threat"
+                    "code": "INSUFFICIENT_PERMISSIONS",
+                    "context": {
+                      "required_role": "writer",
+                      "user_role": "reader",
+                      "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "resource_type": "threat"
+                    },
+                    "suggestion": "Request write access from the threat model owner"
                   }
                 }
               },
@@ -5548,9 +5587,13 @@
                   "error": "not_found",
                   "error_description": "The requested sub-resource does not exist or does not belong to the specified threat model",
                   "details": {
-                    "resource_id": "550e8400-e29b-41d4-a716-446655440999",
-                    "resource_type": "document",
-                    "threat_model_id": "550e8400-e29b-41d4-a716-446655440000"
+                    "code": "RESOURCE_NOT_FOUND",
+                    "context": {
+                      "resource_id": "550e8400-e29b-41d4-a716-446655440999",
+                      "resource_type": "document",
+                      "threat_model_id": "550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "suggestion": "Verify the resource ID and threat model association"
                   }
                 }
               },
@@ -5560,16 +5603,16 @@
                   "error": "invalid_input",
                   "error_description": "The provided data does not meet validation requirements",
                   "details": {
-                    "field_errors": [
-                      {
-                        "field": "name",
-                        "message": "Name is required and cannot be empty"
-                      },
-                      {
-                        "field": "uri",
-                        "message": "URI must be a valid RFC 3986 URI, e.g. an HTTPS URL"
-                      }
-                    ]
+                    "code": "VALIDATION_FAILED",
+                    "context": {
+                      "field_errors": [
+                        {
+                          "field": "name",
+                          "error": "must not be empty"
+                        }
+                      ]
+                    },
+                    "suggestion": "Correct the validation errors and retry the request"
                   }
                 }
               }
@@ -5615,44 +5658,14 @@
               "$ref": "#/components/schemas/Error"
             },
             "example": {
-              "code": "rate_limit_exceeded",
-              "message": "Rate limit exceeded: 100 requests per minute. Retry after 45 seconds.",
+              "error": "rate_limit_exceeded",
+              "error_description": "Rate limit exceeded: 100 requests per minute. Retry after 45 seconds.",
               "details": {
-                "limit": 100,
-                "window": "minute",
-                "retry_after": 45
-              }
-            }
-          }
-        }
-      },
-      "BadRequest": {
-        "description": "Bad Request - The request was malformed or contains invalid parameters",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/Error"
-            },
-            "examples": {
-              "invalid_uuid": {
-                "summary": "Invalid UUID format",
-                "value": {
-                  "error": "invalid_request",
-                  "error_description": "Invalid format for parameter addon_id: invalid UUID length"
-                }
-              },
-              "invalid_enum": {
-                "summary": "Invalid enum value",
-                "value": {
-                  "error": "invalid_request",
-                  "error_description": "Invalid value for parameter status: must be one of [pending, in_progress, completed, failed]"
-                }
-              },
-              "invalid_type": {
-                "summary": "Invalid parameter type",
-                "value": {
-                  "error": "invalid_request",
-                  "error_description": "Invalid format for parameter limit: must be an integer"
+                "code": "RATE_LIMIT_EXCEEDED",
+                "context": {
+                  "limit": 100,
+                  "window": "minute",
+                  "retry_after": 45
                 }
               }
             }
@@ -9417,59 +9430,40 @@
                 "examples": {
                   "threatList": {
                     "summary": "List of threats with metadata",
-                    "value": {
-                      "threats": [
-                        {
-                          "id": "550e8400-e29b-41d4-a716-446655440003",
-                          "name": "SQL Injection Vulnerability",
-                          "description": "Database injection through malicious SQL queries",
-                          "severity": "High",
-                          "priority": "urgent",
-                          "status": "active",
-                          "mitigated": false,
-                          "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
-                          "created_at": "2025-01-15T10:30:00Z",
-                          "modified_at": "2025-01-15T14:45:00Z",
-                          "metadata": [
-                            {
-                              "key": "category",
-                              "value": "data_validation"
-                            },
-                            {
-                              "key": "owasp_top_10",
-                              "value": "A03"
-                            },
-                            {
-                              "key": "assigned_to",
-                              "value": "security-team"
-                            }
-                          ]
-                        },
-                        {
-                          "id": "550e8400-e29b-41d4-a716-446655440004",
-                          "name": "Cross-Site Scripting (XSS)",
-                          "description": "Client-side script injection vulnerability",
-                          "severity": "Medium",
-                          "priority": "medium",
-                          "status": "identified",
-                          "mitigated": false,
-                          "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
-                          "created_at": "2025-01-15T11:00:00Z",
-                          "modified_at": "2025-01-15T11:00:00Z",
-                          "metadata": [
-                            {
-                              "key": "category",
-                              "value": "input_validation"
-                            },
-                            {
-                              "key": "owasp_top_10",
-                              "value": "A07"
-                            }
-                          ]
-                        }
-                      ],
-                      "total_count": 12
-                    }
+                    "value": [
+                      {
+                        "id": "550e8400-e29b-41d4-a716-446655440003",
+                        "threat_type": [
+                          "spoofing"
+                        ],
+                        "name": "SQL Injection Vulnerability",
+                        "description": "Database injection through malicious SQL queries",
+                        "severity": "High",
+                        "priority": "urgent",
+                        "status": "active",
+                        "mitigated": false,
+                        "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "created_at": "2025-01-15T10:30:00Z",
+                        "modified_at": "2025-01-15T14:45:00Z",
+                        "metadata": []
+                      },
+                      {
+                        "id": "550e8400-e29b-41d4-a716-446655440004",
+                        "threat_type": [
+                          "tampering"
+                        ],
+                        "name": "Cross-Site Scripting (XSS)",
+                        "description": "Client-side script injection vulnerability",
+                        "severity": "Medium",
+                        "priority": "medium",
+                        "status": "identified",
+                        "mitigated": false,
+                        "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "created_at": "2025-01-15T11:00:00Z",
+                        "modified_at": "2025-01-15T11:00:00Z",
+                        "metadata": []
+                      }
+                    ]
                   }
                 }
               }
@@ -9998,6 +9992,9 @@
                           "key": "cve_reference",
                           "value": "CVE-2024-1234"
                         }
+                      ],
+                      "threat_type": [
+                        "tampering"
                       ]
                     }
                   }
@@ -10922,9 +10919,6 @@
                     {
                       "name": "SQL Injection Attack",
                       "description": "Attacker injects malicious SQL code through user input",
-                      "impact": "High",
-                      "likelihood": "Medium",
-                      "risk_rating": "High",
                       "metadata": [
                         {
                           "key": "category",
@@ -10934,6 +10928,9 @@
                           "key": "stride",
                           "value": "tampering"
                         }
+                      ],
+                      "threat_type": [
+                        "spoofing"
                       ]
                     },
                     {
@@ -11085,6 +11082,9 @@
                           "key": "mitigation",
                           "value": "parameterized-queries"
                         }
+                      ],
+                      "threat_type": [
+                        "tampering"
                       ]
                     }
                   ]
@@ -11477,50 +11477,20 @@
                 "examples": {
                   "documentList": {
                     "summary": "List of documents with pagination",
-                    "value": {
-                      "documents": [
-                        {
-                          "id": "550e8400-e29b-41d4-a716-446655440001",
-                          "name": "Security Requirements Document",
-                          "description": "Detailed security requirements and compliance standards",
-                          "metadata": [
-                            {
-                              "key": "classification",
-                              "value": "internal"
-                            },
-                            {
-                              "key": "version",
-                              "value": "1.2"
-                            }
-                          ],
-                          "uri": "https://docs.company.com/security-requirements.pdf"
-                        },
-                        {
-                          "id": "550e8400-e29b-41d4-a716-446655440002",
-                          "name": "Architecture Design Document",
-                          "description": "System architecture and design specifications",
-                          "metadata": [
-                            {
-                              "key": "classification",
-                              "value": "internal"
-                            },
-                            {
-                              "key": "version",
-                              "value": "2.0"
-                            }
-                          ],
-                          "uri": "https://docs.company.com/architecture-design.pdf"
-                        }
-                      ],
-                      "total_count": 5
-                    }
+                    "value": [
+                      {
+                        "id": "770e8400-e29b-41d4-a716-446655440008",
+                        "name": "Security Architecture",
+                        "description": "System security architecture document",
+                        "created_at": "2025-01-10T09:00:00Z",
+                        "modified_at": "2025-01-10T09:00:00Z",
+                        "uri": "https://docs.example.com/security-arch.pdf"
+                      }
+                    ]
                   },
                   "emptyList": {
                     "summary": "Empty document list",
-                    "value": {
-                      "documents": [],
-                      "total_count": 0
-                    }
+                    "value": []
                   }
                 }
               }
@@ -11616,23 +11586,9 @@
                 "createDocument": {
                   "summary": "Create a new security document",
                   "value": {
-                    "name": "Security Requirements Document",
-                    "description": "Detailed security requirements and compliance standards",
-                    "metadata": [
-                      {
-                        "key": "classification",
-                        "value": "internal"
-                      },
-                      {
-                        "key": "version",
-                        "value": "1.0"
-                      },
-                      {
-                        "key": "owner",
-                        "value": "security-team"
-                      }
-                    ],
-                    "uri": "https://docs.company.com/security-requirements.pdf"
+                    "name": "Security Requirements",
+                    "description": "Application security requirements specification",
+                    "uri": "https://docs.example.com/security-requirements.pdf"
                   }
                 }
               }
@@ -11651,24 +11607,10 @@
                   "createdDocument": {
                     "summary": "Successfully created document with generated ID",
                     "value": {
-                      "id": "550e8400-e29b-41d4-a716-446655440001",
                       "name": "Security Requirements Document",
                       "description": "Detailed security requirements and compliance standards",
-                      "metadata": [
-                        {
-                          "key": "classification",
-                          "value": "internal"
-                        },
-                        {
-                          "key": "version",
-                          "value": "1.0"
-                        },
-                        {
-                          "key": "owner",
-                          "value": "security-team"
-                        }
-                      ],
-                      "uri": "https://docs.company.com/security-requirements.pdf"
+                      "uri": "https://docs.company.com/security-requirements.pdf",
+                      "id": "770e8400-e29b-41d4-a716-446655440008"
                     }
                   }
                 }
@@ -12926,19 +12868,10 @@
                   "summary": "Create multiple documents at once",
                   "value": [
                     {
-                      "name": "Architecture Document",
-                      "description": "System architecture documentation",
-                      "metadata": [
-                        {
-                          "key": "type",
-                          "value": "architecture"
-                        },
-                        {
-                          "key": "version",
-                          "value": "2.1"
-                        }
-                      ],
-                      "uri": "https://docs.company.com/architecture.pdf"
+                      "id": "770e8400-e29b-41d4-a716-446655440009",
+                      "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "created_at": "2025-01-10T09:00:00Z",
+                      "modified_at": "2025-01-10T09:00:00Z"
                     },
                     {
                       "name": "Security Requirements",
@@ -12978,22 +12911,12 @@
                     "summary": "Successfully created documents with generated IDs",
                     "value": [
                       {
-                        "id": "550e8400-e29b-41d4-a716-446655440001",
                         "name": "Architecture Document",
                         "description": "System architecture documentation",
-                        "metadata": [
-                          {
-                            "key": "type",
-                            "value": "architecture"
-                          },
-                          {
-                            "key": "version",
-                            "value": "2.1"
-                          }
-                        ],
                         "created_at": "2025-04-06T12:00:00Z",
                         "modified_at": "2025-04-06T12:00:00Z",
-                        "uri": "https://docs.company.com/architecture.pdf"
+                        "uri": "https://docs.company.com/architecture.pdf",
+                        "id": "770e8400-e29b-41d4-a716-446655440020"
                       },
                       {
                         "id": "550e8400-e29b-41d4-a716-446655440002",
@@ -13115,19 +13038,10 @@
                   "summary": "Create multiple documents at once",
                   "value": [
                     {
-                      "name": "Architecture Document",
-                      "description": "System architecture documentation",
-                      "metadata": [
-                        {
-                          "key": "type",
-                          "value": "architecture"
-                        },
-                        {
-                          "key": "version",
-                          "value": "2.1"
-                        }
-                      ],
-                      "uri": "https://docs.company.com/architecture.pdf"
+                      "id": "770e8400-e29b-41d4-a716-446655440010",
+                      "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "created_at": "2025-01-10T09:00:00Z",
+                      "modified_at": "2025-01-10T09:00:00Z"
                     },
                     {
                       "name": "Security Requirements",
@@ -13167,22 +13081,12 @@
                     "summary": "Successfully created documents with generated IDs",
                     "value": [
                       {
-                        "id": "550e8400-e29b-41d4-a716-446655440001",
                         "name": "Architecture Document",
                         "description": "System architecture documentation",
-                        "metadata": [
-                          {
-                            "key": "type",
-                            "value": "architecture"
-                          },
-                          {
-                            "key": "version",
-                            "value": "2.1"
-                          }
-                        ],
                         "created_at": "2025-04-06T12:00:00Z",
                         "modified_at": "2025-04-06T12:00:00Z",
-                        "uri": "https://docs.company.com/architecture.pdf"
+                        "uri": "https://docs.company.com/architecture.pdf",
+                        "id": "770e8400-e29b-41d4-a716-446655440021"
                       },
                       {
                         "id": "550e8400-e29b-41d4-a716-446655440002",
@@ -13310,57 +13214,16 @@
                 "examples": {
                   "sourceList": {
                     "summary": "List of source code references",
-                    "value": {
-                      "sources": [
-                        {
-                          "id": "550e8400-e29b-41d4-a716-446655440010",
-                          "name": "Authentication Service",
-                          "type": "git",
-                          "description": "Core authentication and authorization service",
-                          "parameters": {
-                            "refType": "branch",
-                            "refValue": "main"
-                          },
-                          "metadata": [
-                            {
-                              "key": "language",
-                              "value": "go"
-                            },
-                            {
-                              "key": "coverage",
-                              "value": "85%"
-                            },
-                            {
-                              "key": "security_scan",
-                              "value": "passed"
-                            }
-                          ],
-                          "uri": "https://github.com/company/auth-service"
-                        },
-                        {
-                          "id": "550e8400-e29b-41d4-a716-446655440011",
-                          "name": "Database Layer",
-                          "type": "git",
-                          "description": "Database access layer and ORM implementation",
-                          "parameters": {
-                            "refType": "tag",
-                            "refValue": "v1.2.3"
-                          },
-                          "metadata": [
-                            {
-                              "key": "language",
-                              "value": "go"
-                            },
-                            {
-                              "key": "database",
-                              "value": "postgresql"
-                            }
-                          ],
-                          "uri": "https://github.com/company/db-layer"
-                        }
-                      ],
-                      "total_count": 3
-                    }
+                    "value": [
+                      {
+                        "id": "990e8400-e29b-41d4-a716-446655440011",
+                        "name": "Main Application Repository",
+                        "description": "Primary source code repository",
+                        "uri": "https://github.com/example/application",
+                        "created_at": "2025-01-12T08:00:00Z",
+                        "modified_at": "2025-01-12T08:00:00Z"
+                      }
+                    ]
                   }
                 }
               }
@@ -14717,19 +14580,10 @@
                   "summary": "Create multiple source references at once",
                   "value": [
                     {
-                      "name": "User Authentication Module",
-                      "description": "Core user authentication logic",
-                      "metadata": [
-                        {
-                          "key": "language",
-                          "value": "go"
-                        },
-                        {
-                          "key": "maintainer",
-                          "value": "security-team"
-                        }
-                      ],
-                      "uri": "https://github.com/company/repo/blob/main/oauth2/user.go"
+                      "id": "990e8400-e29b-41d4-a716-446655440012",
+                      "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "created_at": "2025-01-12T08:00:00Z",
+                      "modified_at": "2025-01-12T08:00:00Z"
                     },
                     {
                       "name": "Database Connection Pool",
@@ -14769,22 +14623,12 @@
                     "summary": "Successfully created sources with generated IDs",
                     "value": [
                       {
-                        "id": "650e8400-e29b-41d4-a716-446655440001",
                         "name": "User Authentication Module",
                         "description": "Core user authentication logic",
-                        "metadata": [
-                          {
-                            "key": "language",
-                            "value": "go"
-                          },
-                          {
-                            "key": "maintainer",
-                            "value": "security-team"
-                          }
-                        ],
                         "created_at": "2025-04-06T12:00:00Z",
                         "modified_at": "2025-04-06T12:00:00Z",
-                        "uri": "https://github.com/company/repo/blob/main/oauth2/user.go"
+                        "uri": "https://github.com/company/repo/blob/main/oauth2/user.go",
+                        "id": "990e8400-e29b-41d4-a716-446655440022"
                       },
                       {
                         "id": "650e8400-e29b-41d4-a716-446655440002",
@@ -14906,19 +14750,10 @@
                   "summary": "Create multiple source references at once",
                   "value": [
                     {
-                      "name": "User Authentication Module",
-                      "description": "Core user authentication logic",
-                      "metadata": [
-                        {
-                          "key": "language",
-                          "value": "go"
-                        },
-                        {
-                          "key": "maintainer",
-                          "value": "security-team"
-                        }
-                      ],
-                      "uri": "https://github.com/company/repo/blob/main/oauth2/user.go"
+                      "id": "990e8400-e29b-41d4-a716-446655440013",
+                      "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "created_at": "2025-01-12T08:00:00Z",
+                      "modified_at": "2025-01-12T08:00:00Z"
                     },
                     {
                       "name": "Database Connection Pool",
@@ -14958,22 +14793,12 @@
                     "summary": "Successfully created sources with generated IDs",
                     "value": [
                       {
-                        "id": "650e8400-e29b-41d4-a716-446655440001",
                         "name": "User Authentication Module",
                         "description": "Core user authentication logic",
-                        "metadata": [
-                          {
-                            "key": "language",
-                            "value": "go"
-                          },
-                          {
-                            "key": "maintainer",
-                            "value": "security-team"
-                          }
-                        ],
                         "created_at": "2025-04-06T12:00:00Z",
                         "modified_at": "2025-04-06T12:00:00Z",
-                        "uri": "https://github.com/company/repo/blob/main/oauth2/user.go"
+                        "uri": "https://github.com/company/repo/blob/main/oauth2/user.go",
+                        "id": "990e8400-e29b-41d4-a716-446655440023"
                       },
                       {
                         "id": "650e8400-e29b-41d4-a716-446655440002",
