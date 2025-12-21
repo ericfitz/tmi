@@ -526,15 +526,15 @@ test-integration:
 # API Testing - Comprehensive Postman/Newman test suite
 test-api:
 	$(call log_info,"Running comprehensive API test suite...")
-	@if [ ! -f postman/run-tests.sh ]; then \
-		echo -e "$(RED)[ERROR]$(NC) API test script not found at postman/run-tests.sh"; \
+	@if [ ! -f test/postman/run-tests.sh ]; then \
+		echo -e "$(RED)[ERROR]$(NC) API test script not found at test/postman/run-tests.sh"; \
 		exit 1; \
 	fi
 	@if ! command -v newman >/dev/null 2>&1; then \
 		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: npm install -g newman"; \
 		exit 1; \
 	fi
-	@cd postman && ./run-tests.sh
+	@cd test/postman && ./run-tests.sh
 
 # Development Environment - Start local dev environment
 start-dev:

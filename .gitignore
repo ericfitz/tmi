@@ -33,8 +33,6 @@
 !docs/**
 !internal/
 !internal/**
-!postman/
-!postman/**
 !scripts/
 !scripts/**
 !shared/
@@ -45,10 +43,8 @@
 !ws-test-harness/**
 !test/
 !test/**
-!.claude
+!.claude/
 !.claude/**
-!.claude/agents/*.md
-!.claude/tools/*.json
 
 # heroku
 !.godir
@@ -57,7 +53,7 @@
 
 # Explicitly ignore unwanted files and directories
 *.log
-**/logs/**
+**/logs/
 .DS_Store
 config-development.yml
 config-production.yml
@@ -66,24 +62,20 @@ config-integration-test.yml
 coverage/
 coverage_html/
 security-reports/
-security-reports/**
 rmoa-api-key
 .venv/
-.venv/**
 **/bin/**
 migrate
 /tmiserver
 check-db
 .config.*.mk
 test.mk
-.venv/
 .vscode/
 api/api.test
 ws-test-harness/wstest
 ws-test-harness/ws-test-harness
-ws-test-harness/*.log
-postman/test-results
-postman/test-results/**
+test/postman/test-results/
+test/cats/
 scripts/configure-heroku-env.sh
 .dedupe/
 **/__pycache__/
@@ -92,10 +84,15 @@ scripts/configure-heroku-env.sh
 # OpenAPI backup files
 *.json.backup
 
+# CATS fuzzing artifacts (runtime, not committed)
+cats-report/
+cats-results.db
+cats-results.db-shm
+cats-results.db-wal
+cats-test-data.json
+cats-test-data.yml
+
 # Test outputs and deprecated resources (consolidated under test/)
 test/outputs/
-test/outputs/**
 test/deprecated/
-test/deprecated/**
 test/tools/wstest/wstest
-test/tools/wstest/*.log
