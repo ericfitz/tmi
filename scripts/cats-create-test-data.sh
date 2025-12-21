@@ -19,7 +19,7 @@ set -euo pipefail
 DEFAULT_USER="charlie"
 DEFAULT_SERVER="http://localhost:8080"
 DEFAULT_IDP="test"
-DEFAULT_OUTPUT="cats-test-data.json"
+DEFAULT_OUTPUT="test/outputs/cats/cats-test-data.json"
 OAUTH_STUB_PORT=8079
 OAUTH_STUB_URL="http://localhost:${OAUTH_STUB_PORT}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

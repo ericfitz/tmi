@@ -157,7 +157,7 @@ SERVER="${SERVER:-http://localhost:8080}"
 USER="${USER:-charlie}"
 IDP="${IDP:-test}"
 OAUTH_STUB_URL="http://localhost:8079"
-OUTPUT_FILE="cats-test-data.json"
+OUTPUT_FILE="test/outputs/cats/cats-test-data.json"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >&2
@@ -478,7 +478,7 @@ log "Creating test data scaffold..."
 ./scripts/cats-create-test-data.sh
 
 # Pass reference data to CATS
-CATS_REFDATA_FILE="cats-test-data.json"
+CATS_REFDATA_FILE="test/outputs/cats/cats-test-data.yml"
 
 cats --contract="${OPENAPI_SPEC}" \
      --server="${SERVER}" \

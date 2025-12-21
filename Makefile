@@ -423,9 +423,7 @@ clean-files:
 	fi
 	@$(MAKE) -f $(MAKEFILE_LIST) clean-logs
 	$(call log_info,"Cleaning CATS artifacts...")
-	@rm -rf cats-report
-	@rm -f cats-results.db cats-results.db-shm cats-results.db-wal
-	@rm -f cats-test-data.json
+	@rm -rf test/outputs/cats
 	$(call log_success,"File cleanup completed")
 
 clean-containers:
@@ -784,7 +782,7 @@ cats-create-test-data:  ## Create test data for CATS fuzzing (standalone, requir
 		$(call log_info,"  make cats-create-test-data TOKEN=eyJhbGc... SERVER=http://localhost:8080 USER=alice"); \
 		exit 1; \
 	fi
-	$(call log_success,"Test data created: cats-test-data.json")
+	$(call log_success,"Test data created: test/outputs/cats/cats-test-data.json")
 
 cats-fuzz: cats-fuzz-prep
 	$(call log_info,"Running CATS API fuzzing with OAuth authentication...")
@@ -844,27 +842,27 @@ cats-fuzz-full:
 .PHONY: parse-cats-results
 parse-cats-results:  ## Parse CATS test results into SQLite database
 	$(call log_info,"Parsing CATS test results into SQLite database...")
-	@if [ ! -d "cats-report" ]; then \
-		$(call log_error,"cats-report/ directory not found. Run 'make cats-fuzz' first."); \
+	@if [ ! -d "test/outputs/cats/report" ]; then \
+		$(call log_error,"test/outputs/cats/report/ directory not found. Run 'make cats-fuzz' first."); \
 		exit 1; \
 	fi
 	$(call log_info,"Cleaning old SQLite database...")
-	@rm -f cats-results.db cats-results.db-shm cats-results.db-wal
+	@rm -f test/outputs/cats/cats-results.db test/outputs/cats/cats-results.db-shm test/outputs/cats/cats-results.db-wal
 	@uv run scripts/parse-cats-results.py \
-		--input cats-report/ \
-		--output cats-results.db \
+		--input test/outputs/cats/report/ \
+		--output test/outputs/cats/cats-results.db \
 		--create-schema \
 		--batch-size 100
-	$(call log_success,"CATS results parsed to cats-results.db")
+	$(call log_success,"CATS results parsed to test/outputs/cats/cats-results.db")
 
 .PHONY: query-cats-results
 query-cats-results:  ## Query parsed CATS results (excludes OAuth false positives)
 	$(call log_info,"Querying CATS test results...")
-	@if [ ! -f "cats-results.db" ]; then \
-		$(call log_error,"cats-results.db not found. Run 'make parse-cats-results' first."); \
+	@if [ ! -f "test/outputs/cats/cats-results.db" ]; then \
+		$(call log_error,"test/outputs/cats/cats-results.db not found. Run 'make parse-cats-results' first."); \
 		exit 1; \
 	fi
-	@./scripts/query-cats-results.sh cats-results.db
+	@./scripts/query-cats-results.sh test/outputs/cats/cats-results.db
 
 .PHONY: analyze-cats-results
 analyze-cats-results: parse-cats-results query-cats-results  ## Parse and query CATS results

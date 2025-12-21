@@ -276,8 +276,8 @@ After implementing fixes, re-run CATS fuzzer and expect:
 
 - Error test files list: `/tmp/error_tests.txt`
 - Warning test files list: `/tmp/warn_tests.txt`
-- Full report: `cats-report/index.html`
-- Individual test results: `cats-report/Test*.json`
+- Full report: `test/outputs/cats/report/index.html`
+- Individual test results: `test/outputs/cats/report/Test*.json`
 
 ---
 

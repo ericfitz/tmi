@@ -116,9 +116,10 @@ restart_server_clean() {
 
     # Clear old cats report data and test data file
     log "Clearing old cats reports and test data..."
-    rm -rf "${PROJECT_ROOT}/cats-report/*" || true
-    mkdir -p "${PROJECT_ROOT}/cats-report" || true
-    rm -f "${PROJECT_ROOT}/cats-test-data.json" || true
+    rm -rf "${PROJECT_ROOT}/test/outputs/cats/report/*" || true
+    mkdir -p "${PROJECT_ROOT}/test/outputs/cats/report" || true
+    rm -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json" || true
+    rm -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.yml" || true
 
     # Start the server fresh
     log "Starting TMI server..."
@@ -339,8 +340,8 @@ create_test_data() {
     fi
 
     # Verify reference file was created
-    if [[ ! -f "${PROJECT_ROOT}/cats-test-data.json" ]]; then
-        error "Test data reference file not found: ${PROJECT_ROOT}/cats-test-data.json"
+    if [[ ! -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json" ]]; then
+        error "Test data reference file not found: ${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json"
         return 1
     fi
 
@@ -387,7 +388,7 @@ run_cats_fuzz() {
         "-X=${HTTP_METHODS}"
         "--skipFieldFormat=uuid"
         "--skipField=offset"
-        "--refData=${PROJECT_ROOT}/cats-test-data.yml"
+        "--refData=${PROJECT_ROOT}/test/outputs/cats/cats-test-data.yml"
         # Skip BypassAuthentication fuzzer on public endpoints marked in OpenAPI spec
         # Public endpoints (OAuth, OIDC, SAML) are marked with x-public-endpoint: true
         # per RFCs 8414, 7517, 6749, and SAML 2.0 specifications

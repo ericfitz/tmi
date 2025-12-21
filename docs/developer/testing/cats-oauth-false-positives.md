@@ -57,8 +57,8 @@ The `parse-cats-results.py` script automatically identifies OAuth false positive
 ```bash
 # Parse CATS reports into database
 uv run scripts/parse-cats-results.py \
-  --input cats-report/ \
-  --output cats-results.db \
+  --input test/outputs/cats/report/ \
+  --output test/outputs/cats/cats-results.db \
   --create-schema
 ```
 
@@ -71,7 +71,7 @@ The parser will:
 
 ```bash
 # Use the query helper script
-./scripts/query-cats-results.sh cats-results.db
+./scripts/query-cats-results.sh test/outputs/cats/cats-results.db
 ```
 
 Or query directly:

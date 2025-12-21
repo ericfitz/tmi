@@ -11,7 +11,7 @@ Parses CATS fuzzer test result JSON files into a normalized SQLite database
 for efficient analysis and reporting.
 
 Usage:
-    uv run scripts/parse-cats-results.py --input cats-report/ --output cats-results.db
+    uv run scripts/parse-cats-results.py --input test/outputs/cats/report/ --output test/outputs/cats/cats-results.db
 """
 
 import sqlite3
@@ -718,10 +718,10 @@ def main():
         epilog='''
 Examples:
   # Create database from CATS reports
-  %(prog)s --input cats-report/ --output cats-results.db
+  %(prog)s --input test/outputs/cats/report/ --output test/outputs/cats/cats-results.db
 
   # Custom batch size for memory management
-  %(prog)s -i cats-report/ -o results.db --batch-size 50
+  %(prog)s -i test/outputs/cats/report/ -o test/outputs/cats/results.db --batch-size 50
         '''
     )
     parser.add_argument(
@@ -731,8 +731,8 @@ Examples:
     )
     parser.add_argument(
         '-o', '--output',
-        default='cats-results.db',
-        help='SQLite database output path (default: cats-results.db)'
+        default='test/outputs/cats/cats-results.db',
+        help='SQLite database output path (default: test/outputs/cats/cats-results.db)'
     )
     parser.add_argument(
         '--batch-size',

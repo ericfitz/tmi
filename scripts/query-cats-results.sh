@@ -5,14 +5,14 @@
 
 set -euo pipefail
 
-DB_FILE="${1:-cats-results.db}"
+DB_FILE="${1:-test/outputs/cats/cats-results.db}"
 
 if [[ ! -f "$DB_FILE" ]]; then
     echo "Error: Database file not found: $DB_FILE"
     echo "Usage: $0 [database-file]"
     echo ""
     echo "First, parse CATS reports with:"
-    echo "  uv run scripts/parse-cats-results.py -i cats-report/ -o cats-results.db --create-schema"
+    echo "  uv run scripts/parse-cats-results.py -i test/outputs/cats/report/ -o test/outputs/cats/cats-results.db --create-schema"
     exit 1
 fi
 

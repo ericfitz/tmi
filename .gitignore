@@ -84,14 +84,6 @@ scripts/configure-heroku-env.sh
 # OpenAPI backup files
 *.json.backup
 
-# CATS fuzzing artifacts (runtime, not committed)
-cats-report/
-cats-results.db
-cats-results.db-shm
-cats-results.db-wal
-cats-test-data.json
-cats-test-data.yml
-
 # Test outputs and deprecated resources (consolidated under test/)
 test/outputs/
 test/deprecated/
