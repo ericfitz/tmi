@@ -62,14 +62,16 @@ channels:
           format: uuid
           example: '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
     messages:
-      diagramOperationMessage:
-        $ref: '#/components/messages/DiagramOperationMessage'
+      diagramOperationRequestMessage:
+        $ref: '#/components/messages/DiagramOperationRequestMessage'
+      diagramOperationEventMessage:
+        $ref: '#/components/messages/DiagramOperationEventMessage'
       presenterRequestMessage:
         $ref: '#/components/messages/PresenterRequestMessage'
       presenterDeniedMessage:
         $ref: '#/components/messages/PresenterDeniedMessage'
-      changePresenterMessage:
-        $ref: '#/components/messages/ChangePresenterMessage'
+      changePresenterRequestMessage:
+        $ref: '#/components/messages/ChangePresenterRequestMessage'
       currentPresenterMessage:
         $ref: '#/components/messages/CurrentPresenterMessage'
       presenterCursorMessage:
@@ -86,20 +88,14 @@ channels:
         $ref: '#/components/messages/ResyncRequestMessage'
       resyncResponseMessage:
         $ref: '#/components/messages/ResyncResponseMessage'
-      historyOperationMessage:
-        $ref: '#/components/messages/HistoryOperationMessage'
       undoRequestMessage:
         $ref: '#/components/messages/UndoRequestMessage'
       redoRequestMessage:
         $ref: '#/components/messages/RedoRequestMessage'
       participantsUpdateMessage:
         $ref: '#/components/messages/ParticipantsUpdateMessage'
-      participantJoinedMessage:
-        $ref: '#/components/messages/ParticipantJoinedMessage'
-      participantLeftMessage:
-        $ref: '#/components/messages/ParticipantLeftMessage'
-      removeParticipantMessage:
-        $ref: '#/components/messages/RemoveParticipantMessage'
+      removeParticipantRequestMessage:
+        $ref: '#/components/messages/RemoveParticipantRequestMessage'
       errorMessage:
         $ref: '#/components/messages/ErrorMessage'
       operationRejectedMessage:
@@ -110,41 +106,48 @@ operations:
     action: send
     channel:
       $ref: '#/channels/~1threat_models~1{id}~1diagrams~1{diagram_id}~1ws'
-    summary: Send a diagram operation
+    summary: Send a diagram operation (client to server)
     description: |
-      Send a diagram operation (add, update, or remove) to be applied to the diagram
-      and broadcasted to all connected participants.
+      Send a diagram operation request (add, update, or remove) to be applied to the diagram
+      and broadcasted to all connected participants. Client-to-server messages use Request types
+      without initiating_user field (server uses authenticated context).
 
       ## Rate Limits
       - Message size limit: 4KB per message
       - Operation size limit: 50KB per operation
       - Write timeout: 10 seconds per message
     messages:
-      - $ref: '#/components/messages/DiagramOperationMessage'
+      - $ref: '#/components/messages/DiagramOperationRequestMessage'
       - $ref: '#/components/messages/PresenterRequestMessage'
-      - $ref: '#/components/messages/ChangePresenterMessage'
+      - $ref: '#/components/messages/ChangePresenterRequestMessage'
       - $ref: '#/components/messages/PresenterCursorMessage'
       - $ref: '#/components/messages/PresenterSelectionMessage'
+      - $ref: '#/components/messages/PresenterDeniedMessage'
       - $ref: '#/components/messages/ResyncRequestMessage'
       - $ref: '#/components/messages/UndoRequestMessage'
       - $ref: '#/components/messages/RedoRequestMessage'
-      - $ref: '#/components/messages/RemoveParticipantMessage'
+      - $ref: '#/components/messages/RemoveParticipantRequestMessage'
 
   receiveDiagramEvents:
     action: receive
     channel:
       $ref: '#/channels/~1threat_models~1{id}~1diagrams~1{diagram_id}~1ws'
-    summary: Receive diagram events
+    summary: Receive diagram events (server to client)
     description: |
-      Receive real-time events including diagram operations from other users,
-      join/leave notifications, and session updates.
+      Receive real-time events including diagram operations from other users and session updates.
+      Server-to-client messages use Event types with initiating_user field showing who triggered the action.
 
       ## Connection Management
       - Read timeout: 60 seconds with ping/pong keepalive
       - Automatic reconnection recommended for production clients
       - Sessions persist for up to 15 minutes after last activity
+
+      ## Participant Tracking
+      - participants_update message provides complete participant list with optional initiating_user
+      - System events (join/leave) have null initiating_user
+      - User-initiated events (kick) include initiating_user
     messages:
-      - $ref: '#/components/messages/DiagramOperationMessage'
+      - $ref: '#/components/messages/DiagramOperationEventMessage'
       - $ref: '#/components/messages/PresenterDeniedMessage'
       - $ref: '#/components/messages/CurrentPresenterMessage'
       - $ref: '#/components/messages/PresenterCursorMessage'
@@ -152,10 +155,7 @@ operations:
       - $ref: '#/components/messages/AuthorizationDeniedMessage'
       - $ref: '#/components/messages/StateCorrectionMessage'
       - $ref: '#/components/messages/ResyncResponseMessage'
-      - $ref: '#/components/messages/HistoryOperationMessage'
       - $ref: '#/components/messages/ParticipantsUpdateMessage'
-      - $ref: '#/components/messages/ParticipantJoinedMessage'
-      - $ref: '#/components/messages/ParticipantLeftMessage'
       - $ref: '#/components/messages/ErrorMessage'
       - $ref: '#/components/messages/OperationRejectedMessage'
 
@@ -176,21 +176,56 @@ components:
         example: '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
 
   messages:
-    DiagramOperationMessage:
-      name: DiagramOperationMessage
-      title: Diagram Operation Message
-      summary: Cell mutation operation message with conflict resolution support
+    DiagramOperationRequestMessage:
+      name: DiagramOperationRequestMessage
+      title: Diagram Operation Request (Client → Server)
+      summary: Client request to perform diagram operation
       description: |
-        Enhanced message for collaborative editing operations. Supports batch operations,
+        Client-to-server request for collaborative editing operations. Supports batch operations,
         sequence numbers for conflict resolution, and operation IDs for idempotency.
-        This mirrors existing REST PATCH operations for consistency.
+        Client does not send initiating_user - server uses authenticated client context.
       payload:
-        $ref: '#/components/schemas/DiagramOperationPayload'
+        $ref: '#/components/schemas/DiagramOperationRequestPayload'
       examples:
         - name: BatchCellOperations
-          summary: Example of batch cell operations
+          summary: Example of batch cell operations request
           payload:
-            message_type: diagram_operation
+            message_type: diagram_operation_request
+            operation_id: 123e4567-e89b-12d3-a456-426614174000
+            operation:
+              type: patch
+              cells:
+                - id: cell-uuid-1
+                  operation: add
+                  data:
+                    id: cell-uuid-1
+                    shape: process
+                    x: 100
+                    y: 150
+                    width: 120
+                    height: 80
+                    label: User Authentication
+                - id: cell-uuid-2
+                  operation: update
+                  data:
+                    x: 110
+                    y: 160
+                    label: Updated Process
+
+    DiagramOperationEventMessage:
+      name: DiagramOperationEventMessage
+      title: Diagram Operation Event (Server → Client)
+      summary: Server broadcasts diagram operation with initiating user
+      description: |
+        Server-to-client broadcast of diagram operations. Includes initiating_user to show
+        who triggered the operation. Server assigns sequence_number for ordering.
+      payload:
+        $ref: '#/components/schemas/DiagramOperationEventPayload'
+      examples:
+        - name: BatchCellOperations
+          summary: Example of broadcast diagram operation event
+          payload:
+            message_type: diagram_operation_event
             initiating_user:
               user_id: alice@example.com
               email: alice@example.com
@@ -251,24 +286,21 @@ components:
               email: host@example.com
               displayName: Host Manager
 
-    ChangePresenterMessage:
-      name: ChangePresenterMessage
-      title: Change Presenter Message
-      summary: Host changes the active presenter
+    ChangePresenterRequestMessage:
+      name: ChangePresenterRequestMessage
+      title: Change Presenter Request (Client → Server)
+      summary: Host requests to change the active presenter
       description: |
-        Message sent by host to change the active presenter. Only accepted
-        from the host.
+        Client-to-server request by host to change the active presenter. Only accepted
+        from the session host. Client does not send initiating_user - server uses
+        authenticated client context. Server validates new_presenter refers to connected user.
       payload:
-        $ref: '#/components/schemas/ChangePresenterPayload'
+        $ref: '#/components/schemas/ChangePresenterRequestPayload'
       examples:
-        - name: ChangePresenter
+        - name: ChangePresenterRequest
           summary: Example of host changing presenter
           payload:
-            message_type: change_presenter
-            initiating_user:
-              user_id: host@example.com
-              email: host@example.com
-              displayName: Host Manager
+            message_type: change_presenter_request
             new_presenter:
               user_id: alice@example.com
               email: alice@example.com
@@ -276,10 +308,11 @@ components:
 
     CurrentPresenterMessage:
       name: CurrentPresenterMessage
-      title: Current Presenter Broadcast
+      title: Current Presenter Event (Server → Client)
       summary: Server broadcasts current presenter to all clients
       description: |
-        Message broadcast by server to all session participants when the presenter changes.
+        Server-to-client event broadcast to all session participants when the presenter changes.
+        Includes initiating_user showing who triggered the presenter change.
         Keeps all clients synchronized on who the active presenter is.
       payload:
         $ref: '#/components/schemas/CurrentPresenterPayload'
@@ -288,6 +321,10 @@ components:
           summary: Example of current presenter broadcast
           payload:
             message_type: current_presenter
+            initiating_user:
+              user_id: host@example.com
+              email: host@example.com
+              displayName: Host Manager
             current_presenter:
               user_id: alice@example.com
               email: alice@example.com
@@ -481,36 +518,14 @@ components:
             diagram_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
             threat_model_id: 550e8400-e29b-41d4-a716-446655440000
 
-    HistoryOperationMessage:
-      name: HistoryOperationMessage
-      title: History Operation Result
-      summary: Server response to undo/redo operations
-      description: |
-        Message sent by server in response to undo/redo requests. May indicate successful
-        operation requiring resync, or that no operations are available to undo/redo.
-      payload:
-        $ref: '#/components/schemas/HistoryOperationPayload'
-      examples:
-        - name: HistoryOperationSuccess
-          summary: Example of successful history operation
-          payload:
-            message_type: history_operation
-            operation_type: undo
-            message: resync_required
-        - name: NoOperationsAvailable
-          summary: Example when no undo operations are available
-          payload:
-            message_type: history_operation
-            operation_type: undo
-            message: no_operations_to_undo
-
     UndoRequestMessage:
       name: UndoRequestMessage
-      title: Undo Request
+      title: Undo Request (Client → Server)
       summary: Client requests undo operation
       description: |
-        Message sent by clients to request undoing the last operation.
-        Requires mutation permissions.
+        Client-to-server request to undo the last operation. Requires mutation permissions.
+        Client does not send initiating_user - server uses authenticated client context.
+        Server responds with DiagramOperationEvent showing the undone operation.
       payload:
         $ref: '#/components/schemas/UndoRequestPayload'
       examples:
@@ -518,18 +533,15 @@ components:
           summary: Example of undo request
           payload:
             message_type: undo_request
-            initiating_user:
-              user_id: alice@example.com
-              email: alice@example.com
-              displayName: Alice Johnson
 
     RedoRequestMessage:
       name: RedoRequestMessage
-      title: Redo Request
+      title: Redo Request (Client → Server)
       summary: Client requests redo operation
       description: |
-        Message sent by clients to request redoing the last undone operation.
-        Requires mutation permissions.
+        Client-to-server request to redo the last undone operation. Requires mutation permissions.
+        Client does not send initiating_user - server uses authenticated client context.
+        Server responds with DiagramOperationEvent showing the redone operation.
       payload:
         $ref: '#/components/schemas/RedoRequestPayload'
       examples:
@@ -537,71 +549,29 @@ components:
           summary: Example of redo request
           payload:
             message_type: redo_request
-            initiating_user:
-              user_id: alice@example.com
-              email: alice@example.com
-              displayName: Alice Johnson
 
-    ParticipantJoinedMessage:
-      name: ParticipantJoinedMessage
-      title: Participant Joined Message
-      summary: Notification when a participant joins a session
+    RemoveParticipantRequestMessage:
+      name: RemoveParticipantRequestMessage
+      title: Remove Participant Request (Client → Server)
+      summary: Host requests to remove a participant from collaboration session
       description: |
-        Sent to all participants when a new user joins the collaboration session.
-        Uses the standard message_type pattern for consistency.
-      payload:
-        $ref: '#/components/schemas/ParticipantJoinedPayload'
-      examples:
-        - name: UserJoinedSession
-          summary: Example of user joining collaboration session
-          payload:
-            message_type: participant_joined
-            joined_user:
-              user_id: john.doe@example.com
-              email: john.doe@example.com
-              displayName: John Doe
-            timestamp: '2024-01-15T10:30:00Z'
-
-    ParticipantLeftMessage:
-      name: ParticipantLeftMessage
-      title: Participant Left Message
-      summary: Notification when a participant leaves a session
-      description: |
-        Sent to all remaining participants when a user leaves the collaboration session.
-        Uses the standard message_type pattern for consistency.
-      payload:
-        $ref: '#/components/schemas/ParticipantLeftPayload'
-      examples:
-        - name: UserLeftSession
-          summary: Example of user leaving collaboration session
-          payload:
-            message_type: participant_left
-            departed_user:
-              user_id: jane.smith@example.com
-              email: jane.smith@example.com
-              displayName: Jane Smith
-            timestamp: '2024-01-15T11:45:00Z'
-
-    RemoveParticipantMessage:
-      name: RemoveParticipantMessage
-      title: Remove Participant Message
-      summary: Host removes a participant from collaboration session
-      description: |
-        Message sent by the host to remove a specific participant from the collaboration session.
-        Only the host can send this message. When processed, the server will:
+        Client-to-server request by the host to remove a specific participant from the collaboration session.
+        Only the host can send this message. Client does not send initiating_user - server uses
+        authenticated client context. Server validates removed_user refers to valid user.
+        When processed, the server will:
         1. Disconnect the specified user from the current session
         2. Add the user to a session-specific deny list
-        3. Broadcast a participants_update message to all remaining participants
-        
+        3. Broadcast a participants_update message with initiating_user to all remaining participants
+
         The removed participant will not be able to rejoin the same session but can
         participate in other collaboration sessions.
       payload:
-        $ref: '#/components/schemas/RemoveParticipantPayload'
+        $ref: '#/components/schemas/RemoveParticipantRequestPayload'
       examples:
         - name: HostRemovesParticipant
           summary: Example of host removing a participant
           payload:
-            message_type: remove_participant
+            message_type: remove_participant_request
             removed_user:
               user_id: disruptive-user@example.com
               email: disruptive-user@example.com
@@ -700,20 +670,24 @@ components:
 
     ParticipantsUpdateMessage:
       name: ParticipantsUpdateMessage
-      title: Participants Update Message
+      title: Participants Update Event (Server → Client)
       summary: Complete list of session participants with roles
       description: |
-        Sent to all participants whenever the participant list changes. Provides
-        a complete snapshot of all current participants, their permissions, and
-        roles (host, presenter). This eliminates the need for clients
-        to poll the REST API for participant information.
+        Server-to-client event sent to all participants whenever the participant list changes.
+        Provides a complete snapshot of all current participants, their permissions, and
+        roles (host, presenter). Includes optional initiating_user field:
+        - null for system events (user join/leave)
+        - populated for user-initiated events (host kicks participant)
+
+        This eliminates the need for clients to poll the REST API for participant information.
       payload:
         $ref: '#/components/schemas/ParticipantsUpdatePayload'
       examples:
-        - name: ParticipantsListUpdate
-          summary: Example of participants update after user joined
+        - name: UserJoinedSystemEvent
+          summary: Example of participants update after user joined (system event)
           payload:
             message_type: participants_update
+            initiating_user: null
             participants:
               - user:
                   user_id: auth0|507f1f77bcf86cd799439011
@@ -727,22 +701,57 @@ components:
                   email: bob@example.com
                 permissions: reader
                 last_activity: '2024-01-15T10:35:00Z'
-              - user:
-                  user_id: auth0|507f1f77bcf86cd799439012
-                  name: Charlie Brown
-                  email: charlie@example.com
-                permissions: writer
-                last_activity: '2024-01-15T10:40:00Z'
             host: auth0|507f1f77bcf86cd799439011
             current_presenter: auth0|507f191e810c19729de860ea
+        - name: ParticipantKicked
+          summary: Example of participants update after host kicked a user
+          payload:
+            message_type: participants_update
+            initiating_user:
+              user_id: auth0|507f1f77bcf86cd799439011
+              email: alice@example.com
+              displayName: Alice Johnson
+            participants:
+              - user:
+                  user_id: auth0|507f1f77bcf86cd799439011
+                  name: Alice Johnson
+                  email: alice@example.com
+                permissions: writer
+                last_activity: '2024-01-15T10:30:00Z'
+            host: auth0|507f1f77bcf86cd799439011
+            current_presenter: auth0|507f1f77bcf86cd799439011
 
   schemas:
-    DiagramOperationPayload:
+    DiagramOperationRequestPayload:
       type: object
-      description: Enhanced payload for collaborative diagram operations with conflict resolution
+      description: Client-to-server request payload for diagram operations
       properties:
         message_type:
-          const: diagram_operation
+          const: diagram_operation_request
+        operation_id:
+          type: string
+          format: uuid
+          description: Client-generated UUID for idempotency and tracking
+          example: 123e4567-e89b-12d3-a456-426614174000
+        sequence_number:
+          type: integer
+          description: Optional client-suggested sequence number (server may override)
+          minimum: 0
+          example: 12345
+        operation:
+          $ref: '#/components/schemas/CellPatchOperation'
+      required:
+        - message_type
+        - operation_id
+        - operation
+      additionalProperties: false
+
+    DiagramOperationEventPayload:
+      type: object
+      description: Server-to-client broadcast payload for diagram operations
+      properties:
+        message_type:
+          const: diagram_operation_event
         initiating_user:
           $ref: '#/components/schemas/User'
         operation_id:
@@ -753,7 +762,7 @@ components:
         sequence_number:
           type: integer
           description: Server-assigned sequence number for operation ordering
-          minimum: 1
+          minimum: 0
           example: 12345
         operation:
           $ref: '#/components/schemas/CellPatchOperation'
@@ -875,32 +884,35 @@ components:
         - current_presenter
       additionalProperties: false
 
-    ChangePresenterPayload:
+    ChangePresenterRequestPayload:
       type: object
-      description: Host changes the active presenter
+      description: Client-to-server request to change the active presenter
       properties:
         message_type:
-          const: change_presenter
-        initiating_user:
-          $ref: '#/components/schemas/User'
+          const: change_presenter_request
         new_presenter:
           $ref: '#/components/schemas/User'
+          description: User to become new presenter (validated server-side)
       required:
         - message_type
-        - initiating_user
         - new_presenter
       additionalProperties: false
 
     CurrentPresenterPayload:
       type: object
-      description: Server broadcasts current presenter to all clients
+      description: Server-to-client event broadcasting current presenter
       properties:
         message_type:
           const: current_presenter
+        initiating_user:
+          $ref: '#/components/schemas/User'
+          description: User who triggered the presenter change
         current_presenter:
           $ref: '#/components/schemas/User'
+          description: User who is now the presenter
       required:
         - message_type
+        - initiating_user
         - current_presenter
       additionalProperties: false
 
@@ -1084,58 +1096,40 @@ components:
         - diagram_id
       additionalProperties: false
 
-    HistoryOperationPayload:
-      type: object
-      description: Server response to undo/redo operations
-      properties:
-        message_type:
-          const: history_operation
-        operation_type:
-          type: string
-          enum: [undo, redo]
-          description: Type of history operation performed
-        message:
-          type: string
-          enum: [resync_required, no_operations_to_undo, no_operations_to_redo]
-          description: Result of the history operation
-      required:
-        - message_type
-        - operation_type
-        - message
-      additionalProperties: false
-
     UndoRequestPayload:
       type: object
-      description: Client requests undo operation
+      description: Client-to-server request to undo operation
       properties:
         message_type:
           const: undo_request
-        initiating_user:
-          $ref: '#/components/schemas/User'
       required:
         - message_type
-        - initiating_user
       additionalProperties: false
 
     RedoRequestPayload:
       type: object
-      description: Client requests redo operation
+      description: Client-to-server request to redo operation
       properties:
         message_type:
           const: redo_request
-        initiating_user:
-          $ref: '#/components/schemas/User'
       required:
         - message_type
-        - initiating_user
       additionalProperties: false
 
     ParticipantsUpdatePayload:
       type: object
-      description: Complete participant list with roles and permissions
+      description: Server-to-client event with complete participant list
       properties:
         message_type:
           const: participants_update
+        initiating_user:
+          anyOf:
+            - $ref: '#/components/schemas/User'
+            - type: "null"
+          description: |
+            User who triggered this update (optional).
+            - null for system events (user join/leave)
+            - populated for user-initiated events (host kicks participant)
         participants:
           type: array
           description: List of all current participants
@@ -1195,52 +1189,15 @@ components:
         - current_presenter
       additionalProperties: false
 
-    ParticipantJoinedPayload:
+    RemoveParticipantRequestPayload:
       type: object
-      description: Notification when a participant joins a session
+      description: Client-to-server request to remove a participant from collaboration session
       properties:
         message_type:
-          const: participant_joined
-        joined_user:
-          $ref: '#/components/schemas/User'
-        timestamp:
-          type: string
-          format: date-time
-          description: UTC timestamp when the event occurred
-          example: '2024-01-15T10:30:00Z'
-      required:
-        - message_type
-        - joined_user
-        - timestamp
-      additionalProperties: false
-
-    ParticipantLeftPayload:
-      type: object
-      description: Notification when a participant leaves a session
-      properties:
-        message_type:
-          const: participant_left
-        departed_user:
-          $ref: '#/components/schemas/User'
-        timestamp:
-          type: string
-          format: date-time
-          description: UTC timestamp when the event occurred
-          example: '2024-01-15T11:45:00Z'
-      required:
-        - message_type
-        - departed_user
-        - timestamp
-      additionalProperties: false
-
-    RemoveParticipantPayload:
-      type: object
-      description: Host removes a participant from collaboration session
-      properties:
-        message_type:
-          const: remove_participant
+          const: remove_participant_request
         removed_user:
           $ref: '#/components/schemas/User'
+          description: User to remove from session (validated server-side)
       required:
         - message_type
         - removed_user

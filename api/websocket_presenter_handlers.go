@@ -25,17 +25,17 @@ func (h *PresenterRequestHandler) HandleMessage(session *DiagramSession, client 
 	return nil
 }
 
-// ChangePresenterHandler handles change presenter messages
-type ChangePresenterHandler struct{}
+// ChangePresenterRequestHandler handles change presenter request messages
+type ChangePresenterRequestHandler struct{}
 
-func (h *ChangePresenterHandler) MessageType() string {
-	return "change_presenter"
+func (h *ChangePresenterRequestHandler) MessageType() string {
+	return "change_presenter_request"
 }
 
-func (h *ChangePresenterHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
+func (h *ChangePresenterRequestHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			slogging.Get().Error("PANIC in ChangePresenterHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in ChangePresenterRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
 				session.ID, client.UserID, r, debug.Stack())
 		}
 	}()
@@ -44,17 +44,17 @@ func (h *ChangePresenterHandler) HandleMessage(session *DiagramSession, client *
 	return nil
 }
 
-// RemoveParticipantHandler handles remove participant messages
-type RemoveParticipantHandler struct{}
+// RemoveParticipantRequestHandler handles remove participant request messages
+type RemoveParticipantRequestHandler struct{}
 
-func (h *RemoveParticipantHandler) MessageType() string {
-	return "remove_participant"
+func (h *RemoveParticipantRequestHandler) MessageType() string {
+	return "remove_participant_request"
 }
 
-func (h *RemoveParticipantHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
+func (h *RemoveParticipantRequestHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			slogging.Get().Error("PANIC in RemoveParticipantHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in RemoveParticipantRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
 				session.ID, client.UserID, r, debug.Stack())
 		}
 	}()

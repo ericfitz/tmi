@@ -100,14 +100,16 @@ type User struct {
 // CurrentPresenterMessage matches AsyncAPI CurrentPresenterPayload
 type CurrentPresenterMessage struct {
 	MessageType      string `json:"message_type"`
+	InitiatingUser   User   `json:"initiating_user"`
 	CurrentPresenter User   `json:"current_presenter"`
 }
 
 // ParticipantsUpdateMessage matches AsyncAPI ParticipantsUpdatePayload
 type ParticipantsUpdateMessage struct {
-	MessageType      string        `json:"message_type"`
-	Participants     []Participant `json:"participants"`
-	Host             string        `json:"host"`
+	MessageType    string        `json:"message_type"`
+	InitiatingUser *User         `json:"initiating_user,omitempty"` // Optional - null for system events, populated for user events
+	Participants   []Participant `json:"participants"`
+	Host           string        `json:"host"`
 	CurrentPresenter string        `json:"current_presenter"`
 }
 
@@ -117,22 +119,8 @@ type Participant struct {
 	LastActivity string `json:"last_activity"`
 }
 
-// ParticipantJoinedMessage matches AsyncAPI ParticipantJoinedPayload
-type ParticipantJoinedMessage struct {
-	MessageType string `json:"message_type"`
-	JoinedUser  User   `json:"joined_user"`
-	Timestamp   string `json:"timestamp"`
-}
-
-// ParticipantLeftMessage matches AsyncAPI ParticipantLeftPayload
-type ParticipantLeftMessage struct {
-	MessageType  string `json:"message_type"`
-	DepartedUser User   `json:"departed_user"`
-	Timestamp    string `json:"timestamp"`
-}
-
-// DiagramOperationMessage matches AsyncAPI DiagramOperationPayload
-type DiagramOperationMessage struct {
+// DiagramOperationEventMessage matches AsyncAPI DiagramOperationEventPayload (Server → Client)
+type DiagramOperationEventMessage struct {
 	MessageType    string      `json:"message_type"`
 	InitiatingUser User        `json:"initiating_user"`
 	OperationID    string      `json:"operation_id"`
@@ -194,13 +182,6 @@ type PresenterDeniedMessage struct {
 	CurrentPresenter User   `json:"current_presenter"`
 }
 
-// ChangePresenterMessage matches AsyncAPI ChangePresenterPayload
-type ChangePresenterMessage struct {
-	MessageType    string `json:"message_type"`
-	InitiatingUser User   `json:"initiating_user"`
-	NewPresenter   User   `json:"new_presenter"`
-}
-
 // AuthorizationDeniedMessage matches AsyncAPI AuthorizationDeniedPayload
 type AuthorizationDeniedMessage struct {
 	MessageType         string `json:"message_type"`
@@ -214,13 +195,6 @@ type ResyncResponseMessage struct {
 	Method        string `json:"method"`
 	DiagramID     string `json:"diagram_id"`
 	ThreatModelID string `json:"threat_model_id,omitempty"`
-}
-
-// HistoryOperationMessage matches AsyncAPI HistoryOperationPayload
-type HistoryOperationMessage struct {
-	MessageType   string `json:"message_type"`
-	OperationType string `json:"operation_type"`
-	Message       string `json:"message"`
 }
 
 func main() {
@@ -1016,15 +990,21 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 				var msg CurrentPresenterMessage
 				if err := json.Unmarshal(message, &msg); err == nil {
 					slogging.Get().GetSlogger().Info("Current Presenter",
-						"user_id", msg.CurrentPresenter.UserID,
-						"email", msg.CurrentPresenter.Email,
-						"display_name", msg.CurrentPresenter.DisplayName)
+						"initiating_user", msg.InitiatingUser.Email,
+						"current_presenter_user_id", msg.CurrentPresenter.UserID,
+						"current_presenter_email", msg.CurrentPresenter.Email,
+						"current_presenter_name", msg.CurrentPresenter.DisplayName)
 				}
 
 			case "participants_update":
 				var msg ParticipantsUpdateMessage
 				if err := json.Unmarshal(message, &msg); err == nil {
+					initiatingUserEmail := "system"
+					if msg.InitiatingUser != nil {
+						initiatingUserEmail = msg.InitiatingUser.Email
+					}
 					slogging.Get().GetSlogger().Info("Participants Update",
+						"initiating_user", initiatingUserEmail,
 						"participant_count", len(msg.Participants),
 						"host", msg.Host,
 						"current_presenter", msg.CurrentPresenter)
@@ -1038,30 +1018,10 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 					}
 				}
 
-			case "participant_joined":
-				var msg ParticipantJoinedMessage
+			case "diagram_operation_event":
+				var msg DiagramOperationEventMessage
 				if err := json.Unmarshal(message, &msg); err == nil {
-					slogging.Get().GetSlogger().Info("Participant Joined",
-						"user_id", msg.JoinedUser.UserID,
-						"email", msg.JoinedUser.Email,
-						"display_name", msg.JoinedUser.DisplayName,
-						"timestamp", msg.Timestamp)
-				}
-
-			case "participant_left":
-				var msg ParticipantLeftMessage
-				if err := json.Unmarshal(message, &msg); err == nil {
-					slogging.Get().GetSlogger().Info("Participant Left",
-						"user_id", msg.DepartedUser.UserID,
-						"email", msg.DepartedUser.Email,
-						"display_name", msg.DepartedUser.DisplayName,
-						"timestamp", msg.Timestamp)
-				}
-
-			case "diagram_operation":
-				var msg DiagramOperationMessage
-				if err := json.Unmarshal(message, &msg); err == nil {
-					slogging.Get().GetSlogger().Info("Diagram Operation",
+					slogging.Get().GetSlogger().Info("Diagram Operation Event",
 						"operation_id", msg.OperationID,
 						"initiating_user", msg.InitiatingUser.Email,
 						"sequence_number", msg.SequenceNumber)
@@ -1128,15 +1088,6 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 						"current_presenter_name", msg.CurrentPresenter.DisplayName)
 				}
 
-			case "change_presenter":
-				var msg ChangePresenterMessage
-				if err := json.Unmarshal(message, &msg); err == nil {
-					slogging.Get().GetSlogger().Info("Presenter Changed",
-						"initiating_user", msg.InitiatingUser.Email,
-						"new_presenter", msg.NewPresenter.Email,
-						"new_presenter_name", msg.NewPresenter.DisplayName)
-				}
-
 			case "authorization_denied":
 				var msg AuthorizationDeniedMessage
 				if err := json.Unmarshal(message, &msg); err == nil {
@@ -1152,14 +1103,6 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 						"method", msg.Method,
 						"diagram_id", msg.DiagramID,
 						"threat_model_id", msg.ThreatModelID)
-				}
-
-			case "history_operation":
-				var msg HistoryOperationMessage
-				if err := json.Unmarshal(message, &msg); err == nil {
-					slogging.Get().GetSlogger().Info("History Operation",
-						"operation_type", msg.OperationType,
-						"message", msg.Message)
 				}
 
 			default:

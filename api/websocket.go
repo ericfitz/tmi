@@ -1512,22 +1512,8 @@ func (s *DiagramSession) Run() {
 			slogging.Get().Debug("Sending participants update to new client %s", client.UserID)
 			s.sendParticipantsUpdateToClient(client)
 
-			// Notify other clients that someone joined
-			msg := ParticipantJoinedMessage{
-				MessageType: MessageTypeParticipantJoined,
-				JoinedUser: User{
-					PrincipalType: UserPrincipalTypeUser,
-					Provider:      client.UserProvider,
-					ProviderId:    client.UserID,
-					DisplayName:   client.UserName,
-					Email:         openapi_types.Email(client.UserEmail),
-				},
-				Timestamp: time.Now().UTC(),
-			}
-			s.broadcastToOthers(client, msg)
-
-			// Broadcast updated participant list to all clients
-			s.broadcastParticipantsUpdate()
+			// Broadcast updated participant list to all clients (system event - user joined)
+			s.broadcastParticipantsUpdate(nil)
 
 		case client := <-s.Unregister:
 			s.mu.Lock()
@@ -1558,31 +1544,8 @@ func (s *DiagramSession) Run() {
 				s.mu.Unlock()
 			}
 
-			// Notify other clients that someone left
-			msg := ParticipantLeftMessage{
-				MessageType: MessageTypeParticipantLeft,
-				DepartedUser: User{
-					PrincipalType: UserPrincipalTypeUser,
-					Provider:      client.UserProvider,
-					ProviderId:    client.UserID,
-					DisplayName:   client.UserName,
-					Email:         openapi_types.Email(client.UserEmail),
-				},
-				Timestamp: time.Now().UTC(),
-			}
-			if msgBytes, err := MarshalAsyncMessage(msg); err == nil {
-				select {
-				case s.Broadcast <- msgBytes:
-					// Successfully queued
-				default:
-					slogging.Get().Error("Failed to broadcast participant left message: broadcast channel full")
-				}
-			} else {
-				slogging.Get().Error("Failed to marshal participant left message: %v", err)
-			}
-
-			// Broadcast updated participant list to all remaining clients
-			s.broadcastParticipantsUpdate()
+			// Broadcast updated participant list to all remaining clients (system event - user left)
+			s.broadcastParticipantsUpdate(nil)
 
 			// Trigger cleanup of empty sessions after user departure
 			if s.Hub != nil {
@@ -1836,13 +1799,15 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 		// Broadcast new presenter to all clients
 		broadcastMsg := CurrentPresenterMessage{
 			MessageType:      MessageTypeCurrentPresenter,
+			InitiatingUser:   client.toUser(),
 			CurrentPresenter: client.toUser(),
 		}
 		s.broadcastMessage(broadcastMsg)
 		slogging.Get().Info("Host %s became presenter in session %s", client.UserID, s.ID)
 
 		// Also broadcast updated participant list since presenter has changed
-		s.broadcastParticipantsUpdate()
+		initiatingUser := client.toUser()
+		s.broadcastParticipantsUpdate(&initiatingUser)
 		return
 	}
 
@@ -1882,16 +1847,30 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 
 	slogging.Get().Debug("Processing change presenter request - Session: %s, User: %s", s.ID, client.UserID)
 
-	var msg ChangePresenterMessage
-	if err := json.Unmarshal(message, &msg); err != nil {
+	var req ChangePresenterRequest
+	if err := json.Unmarshal(message, &req); err != nil {
 		slogging.Get().Error("Failed to parse change presenter request - Session: %s, User: %s, Error: %v",
 			s.ID, client.UserID, err)
 		return
 	}
 
-	// Validate user identity - detect and block spoofing attempts
-	if !s.validateAndEnforceIdentity(client, msg.InitiatingUser, "change_presenter") {
-		// Client has been removed and blocked for spoofing
+	// Validate that new_presenter refers to a connected user
+	targetClient := s.findClientByUserID(req.NewPresenter.ProviderId)
+	if targetClient == nil {
+		slogging.Get().Warn("Change presenter failed - user %s not in session %s",
+			req.NewPresenter.ProviderId, s.ID)
+		s.sendErrorMessage(client, "invalid_participant",
+			"Cannot change presenter to user not in session")
+		return
+	}
+
+	// Validate new_presenter fields match connected client (defense in depth)
+	if req.NewPresenter.Email != "" &&
+		string(req.NewPresenter.Email) != targetClient.UserEmail {
+		slogging.Get().Error("SECURITY: New presenter email mismatch - Session: %s, "+
+			"ProviderId: %s, Message email: %s, Connected email: %s",
+			s.ID, req.NewPresenter.ProviderId, req.NewPresenter.Email, targetClient.UserEmail)
+		s.sendErrorMessage(client, "invalid_request", "User data mismatch")
 		return
 	}
 
@@ -1907,19 +1886,21 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 
 	// Change presenter
 	s.mu.Lock()
-	s.CurrentPresenter = msg.NewPresenter.ProviderId
+	s.CurrentPresenter = req.NewPresenter.ProviderId
 	s.mu.Unlock()
 
-	// Broadcast new presenter to all clients
+	// Broadcast new presenter to all clients with initiating_user from auth context
 	broadcastMsg := CurrentPresenterMessage{
 		MessageType:      MessageTypeCurrentPresenter,
-		CurrentPresenter: msg.NewPresenter,
+		InitiatingUser:   client.toUser(),
+		CurrentPresenter: targetClient.toUser(),
 	}
 	s.broadcastMessage(broadcastMsg)
-	slogging.Get().Info("Host %s changed presenter to %s in session %s", client.UserID, msg.NewPresenter.ProviderId, s.ID)
+	slogging.Get().Info("Host %s changed presenter to %s in session %s", client.UserID, req.NewPresenter.ProviderId, s.ID)
 
 	// Also broadcast updated participant list since presenter has changed
-	s.broadcastParticipantsUpdate()
+	initiatingUser := client.toUser()
+	s.broadcastParticipantsUpdate(&initiatingUser)
 }
 
 // processRemoveParticipant handles host removing a participant from the session
@@ -1933,15 +1914,42 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 
 	slogging.Get().Debug("Processing remove participant request - Session: %s, User: %s", s.ID, client.UserID)
 
-	var msg RemoveParticipantMessage
-	if err := json.Unmarshal(message, &msg); err != nil {
+	var req RemoveParticipantRequest
+	if err := json.Unmarshal(message, &req); err != nil {
 		slogging.Get().Error("Failed to parse remove participant request - Session: %s, User: %s, Error: %v",
 			s.ID, client.UserID, err)
 		s.sendErrorMessage(client, "invalid_message", "Failed to parse remove participant request")
 		return
 	}
 
-	// Validate user identity - detect and block spoofing attempts
+	// Validate that removed_user refers to a valid user
+	targetClient := s.findClientByUserID(req.RemovedUser.ProviderId)
+	inDenyList := false
+	s.mu.RLock()
+	if _, exists := s.DeniedUsers[req.RemovedUser.ProviderId]; exists {
+		inDenyList = true
+	}
+	s.mu.RUnlock()
+
+	if targetClient == nil && !inDenyList {
+		slogging.Get().Warn("Remove participant failed - user %s not found",
+			req.RemovedUser.ProviderId)
+		s.sendErrorMessage(client, "invalid_participant",
+			"Cannot remove user not in session")
+		return
+	}
+
+	// If connected, validate removed_user fields match
+	if targetClient != nil {
+		if req.RemovedUser.Email != "" &&
+			string(req.RemovedUser.Email) != targetClient.UserEmail {
+			slogging.Get().Error("SECURITY: Removed user email mismatch - Session: %s, "+
+				"ProviderId: %s, Message email: %s, Connected email: %s",
+				s.ID, req.RemovedUser.ProviderId, req.RemovedUser.Email, targetClient.UserEmail)
+			s.sendErrorMessage(client, "invalid_request", "User data mismatch")
+			return
+		}
+	}
 
 	// Only host can remove participants
 	s.mu.RLock()
@@ -1949,71 +1957,63 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 	s.mu.RUnlock()
 
 	if client.UserEmail != host {
-		slogging.Get().Info("Non-host attempted to remove participant: %s tried to remove %s", client.UserEmail, msg.RemovedUser.ProviderId)
+		slogging.Get().Info("Non-host attempted to remove participant: %s tried to remove %s", client.UserEmail, req.RemovedUser.ProviderId)
 		s.sendErrorMessage(client, "unauthorized", "Only the host can remove participants from the session")
 		return
 	}
 
-	// Cannot remove yourself
-	if msg.RemovedUser.ProviderId == client.UserEmail {
-		slogging.Get().Info("Host %s attempted to remove themselves from session %s", client.UserEmail, s.ID)
-		s.sendErrorMessage(client, "invalid_request", "Host cannot remove themselves from the session")
+	// Fix bug: Check against client.UserID not client.UserEmail
+	if req.RemovedUser.ProviderId == client.UserID {
+		slogging.Get().Warn("User %s attempted to remove themselves", client.UserID)
+		s.sendErrorMessage(client, "invalid_request", "Cannot remove yourself")
 		return
 	}
 
-	// Find the target client to disconnect
-	var targetClient *WebSocketClient
-	s.mu.RLock()
-	for c := range s.Clients {
-		if c.UserID == msg.RemovedUser.ProviderId {
-			targetClient = c
-			break
-		}
-	}
-	s.mu.RUnlock()
-
 	// Add user to deny list (even if not currently connected)
 	s.mu.Lock()
-	s.DeniedUsers[msg.RemovedUser.ProviderId] = true
+	s.DeniedUsers[req.RemovedUser.ProviderId] = true
 	s.mu.Unlock()
 
-	slogging.Get().Info("Host %s removed participant %s from session %s", client.UserID, msg.RemovedUser.ProviderId, s.ID)
+	slogging.Get().Info("Host %s removed participant %s from session %s", client.UserID, req.RemovedUser.ProviderId, s.ID)
 
 	// If the participant is currently connected, disconnect them
 	if targetClient != nil {
-		slogging.Get().Info("Disconnecting removed participant %s from session %s", msg.RemovedUser.ProviderId, s.ID)
+		slogging.Get().Info("Disconnecting removed participant %s from session %s", req.RemovedUser.ProviderId, s.ID)
 
 		// Send notification to the removed participant
 		s.sendErrorMessage(targetClient, "removed_from_session", "You have been removed from this collaboration session by the host")
 
 		// Close their connection
 		if closeErr := targetClient.Conn.Close(); closeErr != nil {
-			slogging.Get().Debug("Failed to close connection for removed participant %s: %v", msg.RemovedUser.ProviderId, closeErr)
+			slogging.Get().Debug("Failed to close connection for removed participant %s: %v", req.RemovedUser.ProviderId, closeErr)
 		}
 	}
 
 	// If the removed user was the current presenter, clear presenter
 	s.mu.Lock()
-	if s.CurrentPresenter == msg.RemovedUser.ProviderId {
+	if s.CurrentPresenter == req.RemovedUser.ProviderId {
 		s.CurrentPresenter = host // Host becomes presenter again (user ID)
 		slogging.Get().Info("Removed participant %s was presenter, host %s is now presenter in session %s",
-			msg.RemovedUser.ProviderId, host, s.ID)
+			req.RemovedUser.ProviderId, host, s.ID)
 
-		// Broadcast new presenter
+		// Broadcast new presenter with initiating_user from auth context
 		broadcastMsg := CurrentPresenterMessage{
-			MessageType:      "current_presenter",
+			MessageType:      MessageTypeCurrentPresenter,
+			InitiatingUser:   client.toUser(),
 			CurrentPresenter: *s.getUserByID(host),
 		}
 		s.mu.Unlock()
 		s.broadcastMessage(broadcastMsg)
-		// Also broadcast updated participant list since presenter has changed
-		s.broadcastParticipantsUpdate()
+		// Also broadcast updated participant list since presenter has changed (user-initiated)
+		initiatingUser := client.toUser()
+		s.broadcastParticipantsUpdate(&initiatingUser)
 	} else {
 		s.mu.Unlock()
 	}
 
-	// Broadcast updated participant list to all remaining participants
-	s.broadcastParticipantsUpdate()
+	// Broadcast updated participant list to all remaining participants (user-initiated removal)
+	initiatingUser := client.toUser()
+	s.broadcastParticipantsUpdate(&initiatingUser)
 }
 
 // sendErrorMessage sends an error message to a specific client
@@ -2198,13 +2198,15 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 	// Update history position
 	s.OperationHistory.MoveToPosition(entry.SequenceNumber - 1)
 
-	// Broadcast the undo result to all clients (they should resync)
-	response := HistoryOperationMessage{
-		MessageType:   "history_operation",
-		OperationType: "undo",
-		Message:       "resync_required", // For now, tell clients to resync
+	// Broadcast the undo result to all clients as DiagramOperationEvent
+	event := DiagramOperationEvent{
+		MessageType:    MessageTypeDiagramOperationEvent,
+		InitiatingUser: client.toUser(),
+		OperationID:    entry.OperationID,
+		SequenceNumber: &entry.SequenceNumber,
+		Operation:      entry.Operation,
 	}
-	s.broadcastToAllClients(response)
+	s.broadcastToAllClients(event)
 	slogging.Get().Info("Processed undo request from %s, reverted to sequence %d", client.UserID, entry.SequenceNumber-1)
 }
 
@@ -2268,13 +2270,15 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 	// Update history position
 	s.OperationHistory.MoveToPosition(entry.SequenceNumber)
 
-	// Broadcast the redo result to all clients (they should resync)
-	response := HistoryOperationMessage{
-		MessageType:   "history_operation",
-		OperationType: "redo",
-		Message:       "resync_required", // For now, tell clients to resync
+	// Broadcast the redo result to all clients as DiagramOperationEvent
+	event := DiagramOperationEvent{
+		MessageType:    MessageTypeDiagramOperationEvent,
+		InitiatingUser: client.toUser(),
+		OperationID:    entry.OperationID,
+		SequenceNumber: &entry.SequenceNumber,
+		Operation:      entry.Operation,
 	}
-	s.broadcastToAllClients(response)
+	s.broadcastToAllClients(event)
 	slogging.Get().Info("Processed redo request from %s, restored to sequence %d", client.UserID, entry.SequenceNumber)
 }
 
@@ -2335,16 +2339,19 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		s.CurrentPresenter = newPresenter
 
 		// Broadcast new presenter to all clients
+		// Note: Use empty User{} for initiating_user since this is automatic reassignment (system event)
+		emptyUser := User{}
 		broadcastMsg := CurrentPresenterMessage{
-			MessageType:      "current_presenter",
+			MessageType:      MessageTypeCurrentPresenter,
+			InitiatingUser:   emptyUser, // System event - automatic reassignment
 			CurrentPresenter: *s.getUserByID(newPresenter),
 		}
 
 		// Release the lock before broadcasting to avoid deadlock
 		s.mu.Unlock()
 		s.broadcastMessage(broadcastMsg)
-		// Also broadcast updated participant list since presenter has changed
-		s.broadcastParticipantsUpdate()
+		// Also broadcast updated participant list since presenter has changed (system event)
+		s.broadcastParticipantsUpdate(nil)
 		s.mu.Lock()
 
 		slogging.Get().Info("Set new presenter to %s in session %s after %s disconnected", newPresenter, s.ID, disconnectedUserID)
@@ -2508,26 +2515,13 @@ func (s *DiagramSession) removeAndBlockClient(client *WebSocketClient, reason st
 	// Close the client connection using thread-safe helper
 	client.closeClientChannel()
 
-	// Broadcast participant left message to remaining clients
-	leftMsg := ParticipantLeftMessage{
-		MessageType: MessageTypeParticipantLeft,
-		DepartedUser: User{
-			PrincipalType: UserPrincipalTypeUser,
-			Provider:      client.UserProvider,
-			ProviderId:    client.UserID,
-			Email:         openapi_types.Email(client.UserEmail),
-			DisplayName:   client.UserName,
-		},
-	}
-	s.broadcastMessage(leftMsg)
-
 	// Update participants list (defer to avoid issues if ThreatModelStore not initialized)
 	defer func() {
 		if r := recover(); r != nil {
 			slogging.Get().Debug("Error broadcasting participants update after removing client: %v", r)
 		}
 	}()
-	s.broadcastParticipantsUpdate()
+	s.broadcastParticipantsUpdate(nil) // System event - security violation
 }
 
 // findClientByUserEmail finds a connected client by their email address
@@ -2578,7 +2572,7 @@ func (s *DiagramSession) getUserRole(userID string) Role {
 }
 
 // broadcastParticipantsUpdate sends complete participant list to all clients
-func (s *DiagramSession) broadcastParticipantsUpdate() {
+func (s *DiagramSession) broadcastParticipantsUpdate(initiatingUser *User) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -2636,6 +2630,7 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 	// Create and send the message
 	msg := ParticipantsUpdateMessage{
 		MessageType:      MessageTypeParticipantsUpdate,
+		InitiatingUser:   initiatingUser, // nil for system events, set for user-initiated actions
 		Participants:     participants,
 		Host:             s.Host,
 		CurrentPresenter: s.CurrentPresenter,
@@ -3730,22 +3725,22 @@ func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentSta
 }
 
 // addToHistory adds an operation to the history for conflict resolution
-func (s *DiagramSession) addToHistory(msg DiagramOperationMessage, userID string, previousState, _ map[string]*DfdDiagram_Cells_Item) {
+func (s *DiagramSession) addToHistory(event DiagramOperationEvent, userID string, previousState, _ map[string]*DfdDiagram_Cells_Item) {
 	if s.OperationHistory == nil {
 		return
 	}
 
 	var sequenceNumber uint64
-	if msg.SequenceNumber != nil {
-		sequenceNumber = *msg.SequenceNumber
+	if event.SequenceNumber != nil {
+		sequenceNumber = *event.SequenceNumber
 	}
 
 	entry := &HistoryEntry{
 		SequenceNumber: sequenceNumber,
-		OperationID:    msg.OperationID,
+		OperationID:    event.OperationID,
 		UserID:         userID,
 		Timestamp:      time.Now().UTC(),
-		Operation:      msg.Operation,
+		Operation:      event.Operation,
 		PreviousState:  previousState,
 	}
 

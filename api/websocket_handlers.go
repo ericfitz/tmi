@@ -25,10 +25,10 @@ func NewMessageRouter() *MessageRouter {
 	}
 
 	// Register default handlers
-	router.RegisterHandler(&DiagramOperationHandler{})
+	router.RegisterHandler(&DiagramOperationRequestHandler{})
 	router.RegisterHandler(&PresenterRequestHandler{})
-	router.RegisterHandler(&ChangePresenterHandler{})
-	router.RegisterHandler(&RemoveParticipantHandler{})
+	router.RegisterHandler(&ChangePresenterRequestHandler{})
+	router.RegisterHandler(&RemoveParticipantRequestHandler{})
 	router.RegisterHandler(&PresenterDeniedHandler{})
 	router.RegisterHandler(&PresenterCursorHandler{})
 	router.RegisterHandler(&PresenterSelectionHandler{})
@@ -76,19 +76,32 @@ func (r *MessageRouter) RouteMessage(session *DiagramSession, client *WebSocketC
 	slogging.Get().Debug("[wsmsg] Parsed message - session_id=%s message_type=%s user_id=%s",
 		session.ID, baseMsg.MessageType, baseMsg.UserID)
 
-	// Handle special client-initiated messages that should be ignored
+	// Handle deprecated and invalid message types
 	switch baseMsg.MessageType {
-	case "participant_joined":
-		// Client is notifying they've joined - this is handled automatically on connection
-		slogging.Get().Debug("Received participant_joined from %s - ignored (join is automatic)", client.UserID)
+	case "diagram_operation":
+		// Old bidirectional message type - deprecated
+		slogging.Get().Warn("Received deprecated message type 'diagram_operation' from %s - use diagram_operation_request", client.UserID)
+		session.sendErrorMessage(client, "deprecated_message_type", "Message type 'diagram_operation' is deprecated, use 'diagram_operation_request'")
 		return nil
-	case "participant_left":
-		// Client is notifying they're leaving - this is handled automatically on disconnect
-		slogging.Get().Debug("Received participant_left from %s - ignored (leave is automatic)", client.UserID)
+	case "change_presenter":
+		// Old bidirectional message type - deprecated
+		slogging.Get().Warn("Received deprecated message type 'change_presenter' from %s - use change_presenter_request", client.UserID)
+		session.sendErrorMessage(client, "deprecated_message_type", "Message type 'change_presenter' is deprecated, use 'change_presenter_request'")
 		return nil
-	case "participants_update":
-		// Clients shouldn't send this - server sends it
-		slogging.Get().Warn("Client %s sent participants_update - this is a server-only message", client.UserID)
+	case "remove_participant":
+		// Old bidirectional message type - deprecated
+		slogging.Get().Warn("Received deprecated message type 'remove_participant' from %s - use remove_participant_request", client.UserID)
+		session.sendErrorMessage(client, "deprecated_message_type", "Message type 'remove_participant' is deprecated, use 'remove_participant_request'")
+		return nil
+	case "participant_joined", "participant_left":
+		// These message types are no longer supported - protocol violation
+		slogging.Get().Warn("Received deprecated message type '%s' from %s - protocol violation (no longer supported)", baseMsg.MessageType, client.UserID)
+		session.sendErrorMessage(client, "unsupported_message_type", "Message type '"+baseMsg.MessageType+"' is no longer supported")
+		return nil
+	case "participants_update", "current_presenter", "diagram_operation_event":
+		// Server-only message types - clients shouldn't send these
+		slogging.Get().Warn("Client %s sent server-only message type '%s' - protocol violation", client.UserID, baseMsg.MessageType)
+		session.sendErrorMessage(client, "invalid_message_type", "Message type '"+baseMsg.MessageType+"' is server-only and cannot be sent by clients")
 		return nil
 	}
 

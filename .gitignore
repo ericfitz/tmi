@@ -80,6 +80,7 @@ test.mk
 .vscode/
 api/api.test
 ws-test-harness/wstest
+ws-test-harness/ws-test-harness
 ws-test-harness/*.log
 postman/test-results
 postman/test-results/**

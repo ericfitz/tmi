@@ -3,10 +3,31 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// ValidateUserIdentity validates that a User struct contains at least one valid identifier
+func ValidateUserIdentity(u User) error {
+	hasUserId := u.ProviderId != ""
+	hasEmail := u.Email != ""
+
+	if !hasUserId && !hasEmail {
+		return fmt.Errorf("user must have either user_id or email")
+	}
+
+	if hasEmail {
+		// Basic email format check
+		emailStr := string(u.Email)
+		if !strings.Contains(emailStr, "@") || !strings.Contains(emailStr, ".") {
+			return fmt.Errorf("invalid email format")
+		}
+	}
+
+	return nil
+}
 
 // AsyncAPI Message Types
 // These types are manually implemented based on our AsyncAPI v3.0 specification
@@ -34,9 +55,13 @@ const (
 	MessageTypeUndoRequest         MessageType = "undo_request"
 	MessageTypeRedoRequest         MessageType = "redo_request"
 
+	// New Request/Event pattern message types (Client→Server requests, Server→Client events)
+	MessageTypeDiagramOperationRequest  MessageType = "diagram_operation_request"
+	MessageTypeDiagramOperationEvent    MessageType = "diagram_operation_event"
+	MessageTypeChangePresenterRequest   MessageType = "change_presenter_request"
+	MessageTypeRemoveParticipantRequest MessageType = "remove_participant_request"
+
 	// Session management message types
-	MessageTypeParticipantJoined  MessageType = "participant_joined"
-	MessageTypeParticipantLeft    MessageType = "participant_left"
 	MessageTypeParticipantsUpdate MessageType = "participants_update"
 	MessageTypeError              MessageType = "error"
 	MessageTypeOperationRejected  MessageType = "operation_rejected"
@@ -137,6 +162,106 @@ func (op CellOperation) Validate() error {
 	return nil
 }
 
+// New Request Message Types (Client→Server, no initiating_user)
+
+// DiagramOperationRequest is sent by client to perform a diagram operation
+type DiagramOperationRequest struct {
+	MessageType    MessageType        `json:"message_type"`
+	OperationID    string             `json:"operation_id"`
+	SequenceNumber *uint64            `json:"sequence_number,omitempty"`
+	Operation      CellPatchOperation `json:"operation"`
+}
+
+func (m DiagramOperationRequest) GetMessageType() MessageType { return m.MessageType }
+
+func (m DiagramOperationRequest) Validate() error {
+	if m.MessageType != MessageTypeDiagramOperationRequest {
+		return fmt.Errorf("invalid message_type: expected %s, got %s",
+			MessageTypeDiagramOperationRequest, m.MessageType)
+	}
+	if m.OperationID == "" {
+		return fmt.Errorf("operation_id is required")
+	}
+	if _, err := uuid.Parse(m.OperationID); err != nil {
+		return fmt.Errorf("operation_id must be a valid UUID: %w", err)
+	}
+	if err := m.Operation.Validate(); err != nil {
+		return fmt.Errorf("operation: %w", err)
+	}
+	return nil
+}
+
+// ChangePresenterRequest is sent by client to change presenter
+type ChangePresenterRequest struct {
+	MessageType  MessageType `json:"message_type"`
+	NewPresenter User        `json:"new_presenter"`
+}
+
+func (m ChangePresenterRequest) GetMessageType() MessageType { return m.MessageType }
+
+func (m ChangePresenterRequest) Validate() error {
+	if m.MessageType != MessageTypeChangePresenterRequest {
+		return fmt.Errorf("invalid message_type: expected %s, got %s",
+			MessageTypeChangePresenterRequest, m.MessageType)
+	}
+	if err := ValidateUserIdentity(m.NewPresenter); err != nil {
+		return fmt.Errorf("new_presenter: %w", err)
+	}
+	return nil
+}
+
+// RemoveParticipantRequest is sent by client to remove a participant
+type RemoveParticipantRequest struct {
+	MessageType MessageType `json:"message_type"`
+	RemovedUser User        `json:"removed_user"`
+}
+
+func (m RemoveParticipantRequest) GetMessageType() MessageType { return m.MessageType }
+
+func (m RemoveParticipantRequest) Validate() error {
+	if m.MessageType != MessageTypeRemoveParticipantRequest {
+		return fmt.Errorf("invalid message_type: expected %s, got %s",
+			MessageTypeRemoveParticipantRequest, m.MessageType)
+	}
+	if err := ValidateUserIdentity(m.RemovedUser); err != nil {
+		return fmt.Errorf("removed_user: %w", err)
+	}
+	return nil
+}
+
+// New Event Message Types (Server→Client, with initiating_user)
+
+// DiagramOperationEvent is broadcast by server when a diagram operation occurs
+type DiagramOperationEvent struct {
+	MessageType    MessageType        `json:"message_type"`
+	InitiatingUser User               `json:"initiating_user"`
+	OperationID    string             `json:"operation_id"`
+	SequenceNumber *uint64            `json:"sequence_number,omitempty"`
+	Operation      CellPatchOperation `json:"operation"`
+}
+
+func (m DiagramOperationEvent) GetMessageType() MessageType { return m.MessageType }
+
+func (m DiagramOperationEvent) Validate() error {
+	if m.MessageType != MessageTypeDiagramOperationEvent {
+		return fmt.Errorf("invalid message_type: expected %s, got %s",
+			MessageTypeDiagramOperationEvent, m.MessageType)
+	}
+	if err := ValidateUserIdentity(m.InitiatingUser); err != nil {
+		return fmt.Errorf("initiating_user: %w", err)
+	}
+	if m.OperationID == "" {
+		return fmt.Errorf("operation_id is required")
+	}
+	if _, err := uuid.Parse(m.OperationID); err != nil {
+		return fmt.Errorf("operation_id must be a valid UUID: %w", err)
+	}
+	if err := m.Operation.Validate(); err != nil {
+		return fmt.Errorf("operation: %w", err)
+	}
+	return nil
+}
+
 // Presenter Mode Messages
 
 type PresenterRequestMessage struct {
@@ -209,6 +334,7 @@ func (m RemoveParticipantMessage) Validate() error {
 
 type CurrentPresenterMessage struct {
 	MessageType      MessageType `json:"message_type"`
+	InitiatingUser   User        `json:"initiating_user"`
 	CurrentPresenter User        `json:"current_presenter"`
 }
 
@@ -218,8 +344,11 @@ func (m CurrentPresenterMessage) Validate() error {
 	if m.MessageType != MessageTypeCurrentPresenter {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeCurrentPresenter, m.MessageType)
 	}
-	if m.CurrentPresenter.ProviderId == "" {
-		return fmt.Errorf("current_presenter.user_id is required")
+	if err := ValidateUserIdentity(m.InitiatingUser); err != nil {
+		return fmt.Errorf("initiating_user: %w", err)
+	}
+	if err := ValidateUserIdentity(m.CurrentPresenter); err != nil {
+		return fmt.Errorf("current_presenter: %w", err)
 	}
 	return nil
 }
@@ -445,6 +574,7 @@ type AsyncUser struct {
 // ParticipantsUpdateMessage provides complete participant list with roles
 type ParticipantsUpdateMessage struct {
 	MessageType      MessageType        `json:"message_type"`
+	InitiatingUser   *User              `json:"initiating_user,omitempty"`
 	Participants     []AsyncParticipant `json:"participants"`
 	Host             string             `json:"host"`
 	CurrentPresenter string             `json:"current_presenter"`
@@ -455,6 +585,12 @@ func (m ParticipantsUpdateMessage) GetMessageType() MessageType { return m.Messa
 func (m ParticipantsUpdateMessage) Validate() error {
 	if m.MessageType != MessageTypeParticipantsUpdate {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantsUpdate, m.MessageType)
+	}
+	// Validate initiating_user if present (optional for system events)
+	if m.InitiatingUser != nil {
+		if err := ValidateUserIdentity(*m.InitiatingUser); err != nil {
+			return fmt.Errorf("initiating_user: %w", err)
+		}
 	}
 	if m.Host == "" {
 		return fmt.Errorf("host is required")
@@ -505,6 +641,12 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 	switch base.MessageType {
 	case MessageTypeDiagramOperation:
 		return parseAndValidate[DiagramOperationMessage](data, "diagram operation")
+	case MessageTypeDiagramOperationRequest:
+		return parseAndValidate[DiagramOperationRequest](data, "diagram operation request")
+	case MessageTypeChangePresenterRequest:
+		return parseAndValidate[ChangePresenterRequest](data, "change presenter request")
+	case MessageTypeRemoveParticipantRequest:
+		return parseAndValidate[RemoveParticipantRequest](data, "remove participant request")
 	case MessageTypePresenterRequest:
 		return parseAndValidate[PresenterRequestMessage](data, "presenter request")
 	case MessageTypeChangePresenter:
@@ -525,10 +667,6 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 		return parseAndValidate[RedoRequestMessage](data, "redo request")
 	case MessageTypeParticipantsUpdate:
 		return parseAndValidate[ParticipantsUpdateMessage](data, "participants update")
-	case MessageTypeParticipantJoined:
-		return parseAndValidate[ParticipantJoinedMessage](data, "participant joined")
-	case MessageTypeParticipantLeft:
-		return parseAndValidate[ParticipantLeftMessage](data, "participant left")
 	case MessageTypeError:
 		return parseAndValidate[ErrorMessage](data, "error")
 	case MessageTypeOperationRejected:
@@ -536,44 +674,6 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 	default:
 		return nil, fmt.Errorf("unsupported message type: %s", base.MessageType)
 	}
-}
-
-// ParticipantJoinedMessage notifies when a participant joins a session
-type ParticipantJoinedMessage struct {
-	MessageType MessageType `json:"message_type"`
-	JoinedUser  User        `json:"joined_user"`
-	Timestamp   time.Time   `json:"timestamp"`
-}
-
-func (m ParticipantJoinedMessage) GetMessageType() MessageType { return m.MessageType }
-
-func (m ParticipantJoinedMessage) Validate() error {
-	if m.MessageType != MessageTypeParticipantJoined {
-		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantJoined, m.MessageType)
-	}
-	if m.JoinedUser.ProviderId == "" {
-		return fmt.Errorf("joined_user.user_id is required")
-	}
-	return nil
-}
-
-// ParticipantLeftMessage notifies when a participant leaves a session
-type ParticipantLeftMessage struct {
-	MessageType  MessageType `json:"message_type"`
-	DepartedUser User        `json:"departed_user"`
-	Timestamp    time.Time   `json:"timestamp"`
-}
-
-func (m ParticipantLeftMessage) GetMessageType() MessageType { return m.MessageType }
-
-func (m ParticipantLeftMessage) Validate() error {
-	if m.MessageType != MessageTypeParticipantLeft {
-		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantLeft, m.MessageType)
-	}
-	if m.DepartedUser.ProviderId == "" {
-		return fmt.Errorf("departed_user.user_id is required")
-	}
-	return nil
 }
 
 // ErrorMessage represents an error response
