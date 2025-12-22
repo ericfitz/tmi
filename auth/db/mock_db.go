@@ -91,8 +91,6 @@ func (db *MockRedisDB) Expire(ctx context.Context, key string, expiration time.D
 
 // MockManager is a mock implementation of Manager for testing
 type MockManager struct {
-	postgres *MockPostgresDB
-	redis    *MockRedisDB
 }
 
 // NewMockManager creates a new mock Manager

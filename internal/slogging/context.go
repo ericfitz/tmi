@@ -134,20 +134,6 @@ type ContextLogger struct {
 	userID    string
 }
 
-// formatContextMessage formats a message with request context (compatibility method)
-func (cl *ContextLogger) formatContextMessage(msg string) string {
-	contextInfo := fmt.Sprintf("[%s]", cl.requestID)
-
-	// Always log user, even if empty
-	contextInfo += fmt.Sprintf(" user=%s", cl.userID)
-
-	if cl.clientIP != "" {
-		contextInfo += fmt.Sprintf(" ip=%s", cl.clientIP)
-	}
-
-	return fmt.Sprintf("%s | %s", contextInfo, msg)
-}
-
 // Debug logs a debug-level message with context (compatibility method)
 func (cl *ContextLogger) Debug(format string, args ...any) {
 	if cl.logger.level > LogLevelDebug {

@@ -183,10 +183,3 @@ func validateSchema(pgConfig db.PostgresConfig) {
 		fmt.Println("   - Outdated schema expectations in internal/dbschema/schema.go")
 	}
 }
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}

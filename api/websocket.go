@@ -18,17 +18,6 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// getCellID extracts the ID from a union type (Node or Edge)
-func getCellID(item *DfdDiagram_Cells_Item) (string, error) {
-	if node, err := item.AsNode(); err == nil {
-		return node.Id.String(), nil
-	}
-	if edge, err := item.AsEdge(); err == nil {
-		return edge.Id.String(), nil
-	}
-	return "", fmt.Errorf("cell is neither Node nor Edge")
-}
-
 // SessionState represents the lifecycle state of a collaboration session
 type SessionState string
 
@@ -1145,57 +1134,6 @@ func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userIn
 	return hasAccess
 }
 
-// validateWebSocketDiagramAccessDirect validates that a user has at least reader access to a diagram
-// using the threat model ID directly from the URL path
-// This is critical for WebSocket security to prevent unauthorized access to collaboration sessions
-// DEPRECATED: Use validateWebSocketDiagramAccessWithFlexibleMatching instead for proper user identifier matching
-func (h *WebSocketHub) validateWebSocketDiagramAccessDirect(userName string, threatModelID string, diagramID string) bool {
-	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), deny access
-	if ThreatModelStore == nil {
-		return false
-	}
-
-	// Parse the threat model ID
-	threatModelUUID, err := uuid.Parse(threatModelID)
-	if err != nil {
-		return false
-	}
-
-	// Get the threat model to check permissions
-	tm, err := ThreatModelStore.Get(threatModelUUID.String())
-	if err != nil {
-		// If we can't get the threat model, deny access
-		return false
-	}
-
-	// Check if the diagram actually exists in this threat model
-	diagramExists := false
-	if tm.Diagrams != nil {
-		for _, diagramUnion := range *tm.Diagrams {
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
-				if dfdDiag.Id.String() == diagramID {
-					diagramExists = true
-					break
-				}
-			}
-		}
-	}
-
-	if !diagramExists {
-		return false
-	}
-
-	// Check if user has at least reader access to the threat model (and thus the diagram)
-	// Users need reader access minimum to participate in collaboration
-	hasAccess, err := CheckResourceAccess(userName, tm, RoleReader)
-	if err != nil {
-		// If there's an error checking access, deny access
-		return false
-	}
-
-	return hasAccess
-}
-
 // validateWebSocketDiagramAccess validates that a user has at least reader access to a diagram
 // This is critical for WebSocket security to prevent unauthorized access to collaboration sessions
 func (h *WebSocketHub) validateWebSocketDiagramAccess(userName string, diagramID string) bool {
@@ -1730,25 +1668,6 @@ type DiagramOperation struct {
 	ComponentID string `json:"component_id,omitempty"`
 	// Properties to update (for update)
 	Properties map[string]interface{} `json:"properties,omitempty"`
-}
-
-// validateCell performs basic cell validation
-func validateCell(cell *DfdDiagram_Cells_Item) error {
-	if cell == nil {
-		return fmt.Errorf("cell cannot be nil")
-	}
-
-	// Extract ID from union type and validate
-	cellID, err := getCellID(cell)
-	if err != nil {
-		return fmt.Errorf("invalid cell type: %w", err)
-	}
-
-	if cellID == "00000000-0000-0000-0000-000000000000" {
-		return fmt.Errorf("cell ID is required")
-	}
-
-	return nil
 }
 
 // ProcessMessage handles enhanced message types for collaborative editing
@@ -2459,33 +2378,6 @@ func (s *DiagramSession) findClientByUserID(userID string) *WebSocketClient {
 	return nil
 }
 
-// validateAndEnforceIdentity validates that a User struct in a message matches the authenticated client.
-// If the user data does not match, this is a security incident - the client is attempting to spoof
-// their identity. This function logs the incident, removes the malicious client from the session,
-// and returns false. Returns true if validation passes.
-func (s *DiagramSession) validateAndEnforceIdentity(client *WebSocketClient, messageUser User, messageType string) bool {
-	// Check if the user is trying to spoof their identity
-	if messageUser.ProviderId != "" && messageUser.ProviderId != client.UserID {
-		slogging.Get().Error("SECURITY: User identity spoofing detected - Session: %s, Authenticated User: %s (email: %s), Claimed User: %s (email: %s), Message Type: %s",
-			s.ID, client.UserID, client.UserEmail, messageUser.ProviderId, messageUser.Email, messageType)
-		s.removeAndBlockClient(client, "Identity spoofing attempt detected")
-		return false
-	}
-	if messageUser.Email != "" && string(messageUser.Email) != client.UserEmail {
-		slogging.Get().Error("SECURITY: User identity spoofing detected - Session: %s, Authenticated User: %s (email: %s), Claimed User: %s (email: %s), Message Type: %s",
-			s.ID, client.UserID, client.UserEmail, messageUser.ProviderId, messageUser.Email, messageType)
-		s.removeAndBlockClient(client, "Identity spoofing attempt detected")
-		return false
-	}
-	if messageUser.DisplayName != "" && messageUser.DisplayName != client.UserName {
-		slogging.Get().Error("SECURITY: User identity spoofing detected - Session: %s, Authenticated User: %s (email: %s, name: %s), Claimed Name: %s, Message Type: %s",
-			s.ID, client.UserID, client.UserEmail, client.UserName, messageUser.DisplayName, messageType)
-		s.removeAndBlockClient(client, "Identity spoofing attempt detected")
-		return false
-	}
-	return true
-}
-
 // validateTargetUserIdentity validates that user identity fields match the actual connected client
 // This prevents clients from providing false information about other users
 // If validation fails, the requesting client is removed and blocked
@@ -2558,15 +2450,6 @@ func (s *DiagramSession) findClientByUserEmail(userEmail string) *WebSocketClien
 		}
 	}
 	return nil
-}
-
-// extractCellIDs extracts cell IDs from cell operations
-func extractCellIDs(cells []CellOperation) []string {
-	ids := make([]string, len(cells))
-	for i, cell := range cells {
-		ids[i] = cell.ID
-	}
-	return ids
 }
 
 // getUserRole gets the user's role for the session's threat model
@@ -2916,7 +2799,7 @@ func (s *DiagramSession) trackCorrectionEvent(userID, reason string) {
 	}
 }
 
-// trackPotentialSyncIssue tracks potential synchronization issues for detecting client-server desync
+//nolint:unused // Sync diagnostics for future monitoring
 func (s *DiagramSession) trackPotentialSyncIssue(userID, issueType string) {
 	// Simple in-memory tracking for sequence-related sync issues
 	s.mu.Lock()
@@ -2944,7 +2827,7 @@ func (s *DiagramSession) trackPotentialSyncIssue(userID, issueType string) {
 	}
 }
 
-// sendResyncRecommendation sends a resync recommendation to a client experiencing sync issues
+//nolint:unused // Sync recovery for future resilience
 func (s *DiagramSession) sendResyncRecommendation(userID, issueType string) {
 	// Find the client by user ID
 	client := s.findClientByUserID(userID)
