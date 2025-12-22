@@ -443,22 +443,29 @@ func TestWebSocketSecuritySpoofing(t *testing.T) {
 
 		go session.Run()
 
-		// Try to change presenter with spoofed user name
-		spoofedMsg := ChangePresenterMessage{
-			MessageType: MessageTypeChangePresenter,
-			InitiatingUser: User{
-				PrincipalType: UserPrincipalTypeUser,
-				Provider:      "test",
-				ProviderId:    "host-id",
-				Email:         openapi_types.Email(hostEmail),
-				DisplayName:   "Evil Hacker", // Wrong name!
-			},
+		// Try to change presenter with spoofed user info about the target
+		// Create a second client that will be the target
+		targetClient := &WebSocketClient{
+			Hub:       hub,
+			Session:   session,
+			UserID:    "someone-id",
+			UserEmail: "someone@example.com",
+			UserName:  "Someone",
+			Send:      make(chan []byte, 256),
+		}
+		session.mu.Lock()
+		session.Clients[targetClient] = true
+		session.mu.Unlock()
+
+		// Host tries to change presenter but provides false info about target user
+		spoofedMsg := ChangePresenterRequest{
+			MessageType: MessageTypeChangePresenterRequest,
 			NewPresenter: User{
 				PrincipalType: UserPrincipalTypeUser,
 				Provider:      "test",
 				ProviderId:    "someone-id",
 				Email:         openapi_types.Email("someone@example.com"),
-				DisplayName:   "Someone",
+				DisplayName:   "Evil Hacker", // Wrong name - actual name is "Someone"
 			},
 		}
 

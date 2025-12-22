@@ -1865,13 +1865,9 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 	}
 
 	// Validate new_presenter fields match connected client (defense in depth)
-	if req.NewPresenter.Email != "" &&
-		string(req.NewPresenter.Email) != targetClient.UserEmail {
-		slogging.Get().Error("SECURITY: New presenter email mismatch - Session: %s, "+
-			"ProviderId: %s, Message email: %s, Connected email: %s",
-			s.ID, req.NewPresenter.ProviderId, req.NewPresenter.Email, targetClient.UserEmail)
-		s.sendErrorMessage(client, "invalid_request", "User data mismatch")
-		return
+	// If the requesting client provides false info about the target user, disconnect them
+	if !s.validateTargetUserIdentity(client, req.NewPresenter, targetClient, "change_presenter") {
+		return // Client has been removed and blocked
 	}
 
 	// Only host can change presenter
@@ -1940,14 +1936,10 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 	}
 
 	// If connected, validate removed_user fields match
+	// If the requesting client provides false info about the target user, disconnect them
 	if targetClient != nil {
-		if req.RemovedUser.Email != "" &&
-			string(req.RemovedUser.Email) != targetClient.UserEmail {
-			slogging.Get().Error("SECURITY: Removed user email mismatch - Session: %s, "+
-				"ProviderId: %s, Message email: %s, Connected email: %s",
-				s.ID, req.RemovedUser.ProviderId, req.RemovedUser.Email, targetClient.UserEmail)
-			s.sendErrorMessage(client, "invalid_request", "User data mismatch")
-			return
+		if !s.validateTargetUserIdentity(client, req.RemovedUser, targetClient, "remove_participant") {
+			return // Client has been removed and blocked
 		}
 	}
 
@@ -2491,6 +2483,37 @@ func (s *DiagramSession) validateAndEnforceIdentity(client *WebSocketClient, mes
 		s.removeAndBlockClient(client, "Identity spoofing attempt detected")
 		return false
 	}
+	return true
+}
+
+// validateTargetUserIdentity validates that user identity fields match the actual connected client
+// This prevents clients from providing false information about other users
+// If validation fails, the requesting client is removed and blocked
+func (s *DiagramSession) validateTargetUserIdentity(requestingClient *WebSocketClient, providedUserInfo User, actualClient *WebSocketClient, messageType string) bool {
+	// Check ProviderId mismatch
+	if providedUserInfo.ProviderId != "" && providedUserInfo.ProviderId != actualClient.UserID {
+		slogging.Get().Error("SECURITY: Target user identity mismatch - Session: %s, Requesting User: %s, Target User (actual): %s, Target User (claimed): %s, Message Type: %s",
+			s.ID, requestingClient.UserID, actualClient.UserID, providedUserInfo.ProviderId, messageType)
+		s.removeAndBlockClient(requestingClient, "Providing false information about other users")
+		return false
+	}
+
+	// Check Email mismatch
+	if providedUserInfo.Email != "" && string(providedUserInfo.Email) != actualClient.UserEmail {
+		slogging.Get().Error("SECURITY: Target user identity mismatch - Session: %s, Requesting User: %s, Target User (actual): %s (email: %s), Claimed email: %s, Message Type: %s",
+			s.ID, requestingClient.UserID, actualClient.UserID, actualClient.UserEmail, providedUserInfo.Email, messageType)
+		s.removeAndBlockClient(requestingClient, "Providing false information about other users")
+		return false
+	}
+
+	// Check DisplayName mismatch
+	if providedUserInfo.DisplayName != "" && providedUserInfo.DisplayName != actualClient.UserName {
+		slogging.Get().Error("SECURITY: Target user identity mismatch - Session: %s, Requesting User: %s, Target User (actual): %s (name: %s), Claimed name: %s, Message Type: %s",
+			s.ID, requestingClient.UserID, actualClient.UserID, actualClient.UserName, providedUserInfo.DisplayName, messageType)
+		s.removeAndBlockClient(requestingClient, "Providing false information about other users")
+		return false
+	}
+
 	return true
 }
 
