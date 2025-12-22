@@ -3,23 +3,10 @@ package api
 import (
 	"encoding/json"
 
-	"github.com/ericfitz/tmi/auth"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Helper functions to convert between internal Addon types and OpenAPI-generated types
-
-// authUserToAPIUser converts auth.User to api.User (OpenAPI generated type)
-// Note: API User uses Principal-based identity with provider + provider_id
-func authUserToAPIUser(u auth.User) User {
-	return User{
-		PrincipalType: UserPrincipalTypeUser,
-		Provider:      u.Provider,
-		ProviderId:    u.ProviderUserID,
-		DisplayName:   u.Name,
-		Email:         openapi_types.Email(u.Email),
-	}
-}
 
 // toStringPtr converts a string to a pointer
 func toStringPtr(s string) *string {
@@ -37,11 +24,6 @@ func fromStringPtr(s *string) string {
 	return *s
 }
 
-// toIntPtr converts an int to a pointer
-func toIntPtr(i int) *int {
-	return &i
-}
-
 // fromIntPtr converts an int pointer to an int
 func fromIntPtr(i *int) int {
 	if i == nil {
@@ -50,25 +32,12 @@ func fromIntPtr(i *int) int {
 	return *i
 }
 
-// toUUIDPtr converts openapi_types.UUID to a pointer
-func toUUIDPtr(u openapi_types.UUID) *openapi_types.UUID {
-	return &u
-}
-
 // toStringSlicePtr converts []string to *[]string
 func toStringSlicePtr(s []string) *[]string {
 	if len(s) == 0 {
 		return nil
 	}
 	return &s
-}
-
-// fromStringSlicePtr converts *[]string to []string
-func fromStringSlicePtr(s *[]string) []string {
-	if s == nil {
-		return nil
-	}
-	return *s
 }
 
 // fromObjectsSlicePtr converts *[]CreateAddonRequestObjects to []string
