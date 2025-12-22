@@ -2579,41 +2579,20 @@ func (s *DiagramSession) broadcastParticipantsUpdate(initiatingUser *User) {
 	// Build participant list
 	participants := make([]AsyncParticipant, 0)
 
-	// Get threat model for permissions checking
-	var tm *ThreatModel
-	if s.ThreatModelID != "" {
-		if threatModel, err := ThreatModelStore.Get(s.ThreatModelID); err == nil {
-			tm = &threatModel
-		}
-	}
-
 	// Track processed users to avoid duplicates
 	processedUsers := make(map[string]bool)
 
 	// Add active WebSocket clients
+	// Note: We don't check permissions here because users have already been authorized
+	// during WebSocket connection establishment. If they're in s.Clients, they have access.
 	for client := range s.Clients {
 		if processedUsers[client.UserID] {
 			continue
 		}
 
-		var permissions string
-		if tm != nil {
-			// Use email for permission check for backwards compatibility
-			permissionCheckID := client.UserEmail
-			if permissionCheckID == "" {
-				permissionCheckID = client.UserID
-			}
-			perms := getSessionPermissionsForUser(nil, permissionCheckID, tm)
-			if perms == nil {
-				// User is unauthorized, skip them
-				slogging.Get().Debug("Skipping user %s (%s) - no permissions found for threat model %s", client.UserID, permissionCheckID, tm.Id)
-				continue
-			}
-			permissions = string(*perms)
-		} else {
-			// No threat model, default to writer
-			permissions = "writer"
-		}
+		// Default to writer permissions for all connected users
+		// Permissions were validated during connection, so we trust the session membership
+		permissions := "writer"
 
 		participants = append(participants, AsyncParticipant{
 			User: AsyncUser{
