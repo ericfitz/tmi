@@ -559,16 +559,9 @@ func (m RedoRequestMessage) Validate() error {
 
 // AsyncParticipant represents a participant in the AsyncAPI format
 type AsyncParticipant struct {
-	User         AsyncUser `json:"user"`
+	User         User      `json:"user"`
 	Permissions  string    `json:"permissions"`
 	LastActivity time.Time `json:"last_activity"`
-}
-
-// AsyncUser represents user information in AsyncAPI format
-type AsyncUser struct {
-	UserID string `json:"user_id"`
-	Name   string `json:"name"`
-	Email  string `json:"email"`
 }
 
 // ParticipantsUpdateMessage provides complete participant list with roles
@@ -598,11 +591,11 @@ func (m ParticipantsUpdateMessage) Validate() error {
 	// Current presenter can be empty
 	// Validate participants
 	for i, p := range m.Participants {
-		if p.User.UserID == "" {
-			return fmt.Errorf("participant[%d].user.user_id is required", i)
+		if p.User.ProviderId == "" {
+			return fmt.Errorf("participant[%d].user.provider_id is required", i)
 		}
-		if p.User.Name == "" {
-			return fmt.Errorf("participant[%d].user.name is required", i)
+		if p.User.DisplayName == "" {
+			return fmt.Errorf("participant[%d].user.display_name is required", i)
 		}
 		if p.User.Email == "" {
 			return fmt.Errorf("participant[%d].user.email is required", i)

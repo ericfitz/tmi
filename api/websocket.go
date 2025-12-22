@@ -2618,10 +2618,12 @@ func (s *DiagramSession) broadcastParticipantsUpdate(initiatingUser *User) {
 		permissions := "writer"
 
 		participants = append(participants, AsyncParticipant{
-			User: AsyncUser{
-				UserID: client.UserID,
-				Name:   client.UserName,
-				Email:  client.UserEmail,
+			User: User{
+				PrincipalType: UserPrincipalTypeUser,
+				Provider:      client.UserProvider,
+				ProviderId:    client.UserID,
+				Email:         openapi_types.Email(client.UserEmail),
+				DisplayName:   client.UserName,
 			},
 			Permissions:  permissions,
 			LastActivity: client.LastActivity,
@@ -2695,10 +2697,12 @@ func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient)
 		}
 
 		participants = append(participants, AsyncParticipant{
-			User: AsyncUser{
-				UserID: c.UserID,
-				Name:   c.UserName,
-				Email:  c.UserEmail,
+			User: User{
+				PrincipalType: UserPrincipalTypeUser,
+				Provider:      c.UserProvider,
+				ProviderId:    c.UserID,
+				Email:         openapi_types.Email(c.UserEmail),
+				DisplayName:   c.UserName,
 			},
 			Permissions:  permissions,
 			LastActivity: c.LastActivity,
