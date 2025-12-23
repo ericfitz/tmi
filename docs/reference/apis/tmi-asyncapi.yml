@@ -294,11 +294,13 @@ components:
 
     PresenterDeniedMessage:
       name: PresenterDeniedMessage
-      title: Presenter Request Denied Message
-      summary: Notification that presenter request was denied
+      title: Presenter Request Denied Message (Host → Requester)
+      summary: Host denies presenter request
       description: |
-        Message sent by server to requester when presenter request is denied by the host.
-        Only sent to the requesting user.
+        Server-to-client message sent to requester when presenter request is denied by the host.
+        Only accepted from session host (validated via authenticated connection context).
+        Only sent to the denied user on their connection. Includes denied_user populated
+        from the target client context (not client-asserted).
       payload:
         $ref: '#/components/schemas/PresenterDeniedPayload'
       examples:
@@ -306,10 +308,12 @@ components:
           summary: Example of presenter request denial
           payload:
             message_type: presenter_denied
-            current_presenter:
-              user_id: host@example.com
-              email: host@example.com
-              displayName: Host Manager
+            denied_user:
+              principal_type: user
+              provider: google
+              provider_id: alice@example.com
+              email: alice@example.com
+              display_name: Alice Johnson
 
     ChangePresenterRequestMessage:
       name: ChangePresenterRequestMessage
@@ -912,15 +916,16 @@ components:
 
     PresenterDeniedPayload:
       type: object
-      description: Notification that presenter request was denied
+      description: Host-to-requester notification that presenter request was denied
       properties:
         message_type:
           const: presenter_denied
-        current_presenter:
+        denied_user:
           $ref: '#/components/schemas/User'
+          description: User whose presenter request was denied (from authenticated context)
       required:
         - message_type
-        - current_presenter
+        - denied_user
       additionalProperties: false
 
     ChangePresenterRequestPayload:

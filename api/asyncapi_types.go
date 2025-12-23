@@ -298,8 +298,8 @@ func (m PresenterRequestEvent) Validate() error {
 }
 
 type PresenterDeniedMessage struct {
-	MessageType      MessageType `json:"message_type"`
-	CurrentPresenter User        `json:"current_presenter"`
+	MessageType MessageType `json:"message_type"`
+	DeniedUser  User        `json:"denied_user"`
 }
 
 func (m PresenterDeniedMessage) GetMessageType() MessageType { return m.MessageType }
@@ -308,8 +308,8 @@ func (m PresenterDeniedMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterDenied {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterDenied, m.MessageType)
 	}
-	if m.CurrentPresenter.ProviderId == "" {
-		return fmt.Errorf("current_presenter.user_id is required")
+	if err := ValidateUserIdentity(m.DeniedUser); err != nil {
+		return fmt.Errorf("denied_user: %w", err)
 	}
 	return nil
 }

@@ -1747,13 +1747,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 		// Send denial to requester since host is not available
 		deniedMsg := PresenterDeniedMessage{
 			MessageType: MessageTypePresenterDenied,
-			CurrentPresenter: User{
-				PrincipalType: UserPrincipalTypeUser,
-				Provider:      "system",
-				ProviderId:    "system",
-				DisplayName:   "System",
-				Email:         "system@tmi",
-			},
+			DeniedUser:  client.toUser(),
 		}
 		s.sendToClient(client, deniedMsg)
 	}
@@ -1950,9 +1944,6 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 		return
 	}
 
-	// Validate user identity - detect and block spoofing attempts
-	// PresenterDeniedMessage validation - client is already authenticated
-
 	// Only host can deny presenter requests
 	s.mu.RLock()
 	host := s.Host
@@ -1964,13 +1955,24 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	}
 
 	// Find the target user to send the denial
-	targetClient := s.findClientByUserID(msg.CurrentPresenter.ProviderId)
-	if targetClient != nil {
-		s.sendToClient(targetClient, msg)
-		slogging.Get().Info("Host %s denied presenter request from %s in session %s", client.UserID, msg.CurrentPresenter.ProviderId, s.ID)
-	} else {
-		slogging.Get().Info("Target user %s not found for presenter denial in session %s", msg.CurrentPresenter.ProviderId, s.ID)
+	targetClient := s.findClientByUserID(msg.DeniedUser.ProviderId)
+	if targetClient == nil {
+		slogging.Get().Info("Target user %s not found for presenter denial in session %s", msg.DeniedUser.ProviderId, s.ID)
+		return
 	}
+
+	// Validate denied_user fields match target client (detect spoofing)
+	if !s.validateTargetUserIdentity(client, msg.DeniedUser, targetClient, "presenter_denied") {
+		return // Client has been removed and blocked
+	}
+
+	// Create denial message with denied_user from authenticated target client context
+	denialMsg := PresenterDeniedMessage{
+		MessageType: MessageTypePresenterDenied,
+		DeniedUser:  targetClient.toUser(),
+	}
+	s.sendToClient(targetClient, denialMsg)
+	slogging.Get().Info("Host %s denied presenter request from %s in session %s", client.UserID, targetClient.UserID, s.ID)
 }
 
 // processPresenterCursor handles cursor position updates

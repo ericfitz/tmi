@@ -178,8 +178,8 @@ type PresenterRequestMessage struct {
 
 // PresenterDeniedMessage matches AsyncAPI PresenterDeniedPayload
 type PresenterDeniedMessage struct {
-	MessageType      string `json:"message_type"`
-	CurrentPresenter User   `json:"current_presenter"`
+	MessageType string `json:"message_type"`
+	DeniedUser  User   `json:"denied_user"`
 }
 
 // AuthorizationDeniedMessage matches AsyncAPI AuthorizationDeniedPayload
@@ -1084,8 +1084,8 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 				var msg PresenterDeniedMessage
 				if err := json.Unmarshal(message, &msg); err == nil {
 					slogging.Get().GetSlogger().Info("Presenter Request Denied",
-						"current_presenter_email", msg.CurrentPresenter.Email,
-						"current_presenter_name", msg.CurrentPresenter.DisplayName)
+						"denied_user_email", msg.DeniedUser.Email,
+						"denied_user_name", msg.DeniedUser.DisplayName)
 				}
 
 			case "authorization_denied":
