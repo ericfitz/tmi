@@ -58,6 +58,7 @@ const (
 	// New Request/Event pattern message types (Client→Server requests, Server→Client events)
 	MessageTypeDiagramOperationRequest  MessageType = "diagram_operation_request"
 	MessageTypeDiagramOperationEvent    MessageType = "diagram_operation_event"
+	MessageTypePresenterRequestEvent    MessageType = "presenter_request_event"
 	MessageTypeChangePresenterRequest   MessageType = "change_presenter_request"
 	MessageTypeRemoveParticipantRequest MessageType = "remove_participant_request"
 
@@ -273,6 +274,25 @@ func (m PresenterRequestMessage) GetMessageType() MessageType { return m.Message
 func (m PresenterRequestMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterRequest, m.MessageType)
+	}
+	return nil
+}
+
+// PresenterRequestEvent is sent by server to host when a participant requests presenter
+type PresenterRequestEvent struct {
+	MessageType    MessageType `json:"message_type"`
+	RequestingUser User        `json:"requesting_user"`
+}
+
+func (m PresenterRequestEvent) GetMessageType() MessageType { return m.MessageType }
+
+func (m PresenterRequestEvent) Validate() error {
+	if m.MessageType != MessageTypePresenterRequestEvent {
+		return fmt.Errorf("invalid message_type: expected %s, got %s",
+			MessageTypePresenterRequestEvent, m.MessageType)
+	}
+	if err := ValidateUserIdentity(m.RequestingUser); err != nil {
+		return fmt.Errorf("requesting_user: %w", err)
 	}
 	return nil
 }
@@ -642,6 +662,8 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 		return parseAndValidate[RemoveParticipantRequest](data, "remove participant request")
 	case MessageTypePresenterRequest:
 		return parseAndValidate[PresenterRequestMessage](data, "presenter request")
+	case MessageTypePresenterRequestEvent:
+		return parseAndValidate[PresenterRequestEvent](data, "presenter request event")
 	case MessageTypeChangePresenter:
 		return parseAndValidate[ChangePresenterMessage](data, "change presenter")
 	case MessageTypeRemoveParticipant:

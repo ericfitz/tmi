@@ -1734,8 +1734,12 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	// The host can then use change_presenter to grant or send presenter_denied to deny
 	hostClient := s.findClientByUserEmail(host)
 	if hostClient != nil {
-		// Forward the request to the host for approval
-		s.sendToClient(hostClient, msg)
+		// Create presenter request event with requesting user from client context
+		eventMsg := PresenterRequestEvent{
+			MessageType:    MessageTypePresenterRequestEvent,
+			RequestingUser: client.toUser(),
+		}
+		s.sendToClient(hostClient, eventMsg)
 		slogging.Get().Info("Forwarded presenter request from %s to host %s in session %s", client.UserID, host, s.ID)
 	} else {
 		slogging.Get().Info("Host %s not connected, cannot process presenter request from %s", host, client.UserID)

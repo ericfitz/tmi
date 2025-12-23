@@ -68,6 +68,8 @@ channels:
         $ref: '#/components/messages/DiagramOperationEventMessage'
       presenterRequestMessage:
         $ref: '#/components/messages/PresenterRequestMessage'
+      presenterRequestEventMessage:
+        $ref: '#/components/messages/PresenterRequestEventMessage'
       presenterDeniedMessage:
         $ref: '#/components/messages/PresenterDeniedMessage'
       changePresenterRequestMessage:
@@ -254,11 +256,12 @@ components:
 
     PresenterRequestMessage:
       name: PresenterRequestMessage
-      title: Presenter Request Message
+      title: Presenter Request (Client → Server)
       summary: Request to become the active presenter
       description: |
-        Message sent by users requesting to become the active presenter. Only the session
-        manager can approve presenter requests.
+        Client-to-server request to become the active presenter. Client does not send
+        requesting_user - server uses authenticated client context. Only the session
+        host can approve presenter requests.
       payload:
         $ref: '#/components/schemas/PresenterRequestPayload'
       examples:
@@ -266,6 +269,28 @@ components:
           summary: Example of requesting presenter mode
           payload:
             message_type: presenter_request
+
+    PresenterRequestEventMessage:
+      name: PresenterRequestEventMessage
+      title: Presenter Request Event (Server → Host)
+      summary: Server notifies host of presenter request
+      description: |
+        Server-to-host event sent when a participant requests to become the presenter.
+        Only sent to the session host for approval. Includes requesting_user populated
+        from authenticated client context (not client-asserted).
+      payload:
+        $ref: '#/components/schemas/PresenterRequestEventPayload'
+      examples:
+        - name: PresenterRequestEvent
+          summary: Example of presenter request notification to host
+          payload:
+            message_type: presenter_request_event
+            requesting_user:
+              principal_type: user
+              provider: google
+              provider_id: alice@example.com
+              email: alice@example.com
+              display_name: Alice Johnson
 
     PresenterDeniedMessage:
       name: PresenterDeniedMessage
@@ -863,12 +888,26 @@ components:
 
     PresenterRequestPayload:
       type: object
-      description: Request to become the active presenter
+      description: Client-to-server request to become the active presenter
       properties:
         message_type:
           const: presenter_request
       required:
         - message_type
+      additionalProperties: false
+
+    PresenterRequestEventPayload:
+      type: object
+      description: Server-to-host event notifying of presenter request
+      properties:
+        message_type:
+          const: presenter_request_event
+        requesting_user:
+          $ref: '#/components/schemas/User'
+          description: User requesting to become presenter (from authenticated context)
+      required:
+        - message_type
+        - requesting_user
       additionalProperties: false
 
     PresenterDeniedPayload:

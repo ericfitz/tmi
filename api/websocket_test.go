@@ -399,19 +399,22 @@ func TestDiagramSession(t *testing.T) {
 		// Process the presenter request from participant
 		session.processPresenterRequest(participantClient, msgBytes)
 
-		// Host should receive the presenter request with authenticated user info
+		// Host should receive the presenter request event with authenticated user info
 		select {
 		case receivedMsg := <-hostClient.Send:
-			var forwarded PresenterRequestMessage
+			var forwarded PresenterRequestEvent
 			err := json.Unmarshal(receivedMsg, &forwarded)
 			require.NoError(t, err, "Should unmarshal forwarded message")
 
-			// Verify message type
-			assert.Equal(t, MessageTypePresenterRequest, forwarded.MessageType)
+			// Verify message type is the event, not the request
+			assert.Equal(t, MessageTypePresenterRequestEvent, forwarded.MessageType)
 
-			// User field removed from PresenterRequestMessage - no additional assertions needed
+			// Verify requesting_user is populated from client context (not client-asserted)
+			assert.Equal(t, "participant-id", forwarded.RequestingUser.ProviderId)
+			assert.Equal(t, participantEmail, string(forwarded.RequestingUser.Email))
+			assert.Equal(t, "Participant User", forwarded.RequestingUser.DisplayName)
 		case <-time.After(2 * time.Second):
-			t.Fatal("Host did not receive presenter request")
+			t.Fatal("Host did not receive presenter request event")
 		}
 	})
 }
