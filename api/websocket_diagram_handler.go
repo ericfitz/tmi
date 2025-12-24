@@ -30,6 +30,15 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 	slogging.Get().Debug("[TRACE-BROADCAST] DiagramOperationRequestHandler.HandleMessage ENTRY - Session: %s, User: %s, Client pointer: %p, Message size: %d bytes",
 		session.ID, client.UserID, client, len(message))
 
+	// Check permission before processing diagram operations
+	// Users must have writer or owner role on the threat model to modify diagrams
+	if !session.checkMutationPermission(client) {
+		slogging.Get().Warn("Diagram operation denied - insufficient permissions - Session: %s, User: %s",
+			session.ID, client.UserID)
+		session.sendAuthorizationDenied(client, "", "insufficient_permissions")
+		return nil
+	}
+
 	var req DiagramOperationRequest
 	if err := json.Unmarshal(message, &req); err != nil {
 		slogging.Get().Error("Failed to parse diagram operation request - Session: %s, User: %s, Error: %v",
@@ -107,19 +116,7 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 		}
 
 		// Build current state map for detailed rejection feedback
-		currentState = make(map[string]*DfdDiagram_Cells_Item)
-		for i := range diagram.Cells {
-			cellItem := &diagram.Cells[i]
-			var itemID string
-			if node, err := cellItem.AsNode(); err == nil {
-				itemID = node.Id.String()
-			} else if edge, err := cellItem.AsEdge(); err == nil {
-				itemID = edge.Id.String()
-			}
-			if itemID != "" {
-				currentState[itemID] = cellItem
-			}
-		}
+		currentState = buildCellStateMap(diagram.Cells)
 
 		slogging.Get().Debug("Loaded diagram state from database - Session: %s, CellCount: %d",
 			session.ID, len(currentState))
@@ -150,19 +147,7 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 		}
 
 		// Rebuild current state map after validation (diagram was modified in place)
-		newCurrentState := make(map[string]*DfdDiagram_Cells_Item)
-		for i := range diagram.Cells {
-			cellItem := &diagram.Cells[i]
-			var itemID string
-			if node, err := cellItem.AsNode(); err == nil {
-				itemID = node.Id.String()
-			} else if edge, err := cellItem.AsEdge(); err == nil {
-				itemID = edge.Id.String()
-			}
-			if itemID != "" {
-				newCurrentState[itemID] = cellItem
-			}
-		}
+		newCurrentState := buildCellStateMap(diagram.Cells)
 
 		// Create DiagramOperationEvent for broadcasting (includes initiating_user from auth context)
 		event := DiagramOperationEvent{
@@ -184,39 +169,7 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 			session.ID, req.OperationID)
 	} else {
 		// Send rejection notification to originator
-		var rejectionReason, rejectionMessage string
-		var detailsPtr *string
-		requiresResync := false
-
-		if !validationResult.Valid {
-			rejectionReason = validationResult.Reason
-			rejectionMessage = fmt.Sprintf("Operation validation failed: %s", validationResult.Reason)
-
-			// Add more specific messages based on reason
-			switch validationResult.Reason {
-			case "conflict_detected":
-				rejectionMessage = fmt.Sprintf("Operation conflicts with current diagram state for cells: %v", validationResult.CellsModified)
-				requiresResync = true
-			case "invalid_operation_type":
-				details := fmt.Sprintf("Operation type must be 'patch', got: %s", req.Operation.Type)
-				detailsPtr = &details
-				rejectionMessage = "Invalid operation type"
-			case "empty_operation":
-				rejectionMessage = "Operation contains no cell operations"
-			case "validation_failed":
-				if len(validationResult.CellsModified) > 0 {
-					rejectionMessage = fmt.Sprintf("Cell validation failed for: %v", validationResult.CellsModified)
-				}
-			}
-
-			if validationResult.ConflictDetected {
-				requiresResync = true
-			}
-		} else if !validationResult.StateChanged {
-			rejectionReason = "no_state_change"
-			rejectionMessage = "Operation resulted in no state changes (idempotent or no-op)"
-			requiresResync = false
-		}
+		rejectionReason, rejectionMessage, detailsPtr, requiresResync := buildRejectionResponse(validationResult, req.Operation.Type)
 
 		slogging.Get().Warn("Diagram operation REJECTED - Session: %s, User: %s, OperationID: %s, Reason: %s, RequiresResync: %v, AffectedCells: %v",
 			session.ID, client.UserID, req.OperationID, rejectionReason, requiresResync, validationResult.CellsModified)
@@ -236,4 +189,56 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 		session.ID, client.UserID, processingTime)
 
 	return nil
+}
+
+// buildCellStateMap builds a map of cell IDs to cell items from diagram cells
+func buildCellStateMap(cells []DfdDiagram_Cells_Item) map[string]*DfdDiagram_Cells_Item {
+	stateMap := make(map[string]*DfdDiagram_Cells_Item)
+	for i := range cells {
+		cellItem := &cells[i]
+		var itemID string
+		if node, err := cellItem.AsNode(); err == nil {
+			itemID = node.Id.String()
+		} else if edge, err := cellItem.AsEdge(); err == nil {
+			itemID = edge.Id.String()
+		}
+		if itemID != "" {
+			stateMap[itemID] = cellItem
+		}
+	}
+	return stateMap
+}
+
+// buildRejectionResponse builds rejection reason and message from validation result
+func buildRejectionResponse(validationResult OperationValidationResult, operationType string) (reason, message string, details *string, requiresResync bool) {
+	if !validationResult.Valid {
+		reason = validationResult.Reason
+		message = fmt.Sprintf("Operation validation failed: %s", validationResult.Reason)
+
+		switch validationResult.Reason {
+		case "conflict_detected":
+			message = fmt.Sprintf("Operation conflicts with current diagram state for cells: %v", validationResult.CellsModified)
+			requiresResync = true
+		case "invalid_operation_type":
+			detailStr := fmt.Sprintf("Operation type must be 'patch', got: %s", operationType)
+			details = &detailStr
+			message = "Invalid operation type"
+		case "empty_operation":
+			message = "Operation contains no cell operations"
+		case "validation_failed":
+			if len(validationResult.CellsModified) > 0 {
+				message = fmt.Sprintf("Cell validation failed for: %v", validationResult.CellsModified)
+			}
+		}
+
+		if validationResult.ConflictDetected {
+			requiresResync = true
+		}
+	} else if !validationResult.StateChanged {
+		reason = "no_state_change"
+		message = "Operation resulted in no state changes (idempotent or no-op)"
+		requiresResync = false
+	}
+
+	return reason, message, details, requiresResync
 }
