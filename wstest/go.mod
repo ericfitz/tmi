@@ -1,4 +1,4 @@
-module github.com/ericfitz/tmi/ws-test-harness
+module github.com/ericfitz/tmi/wstest
 
 go 1.25.3
 

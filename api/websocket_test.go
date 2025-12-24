@@ -702,7 +702,7 @@ func TestWebSocketIntegrationWithHarness(t *testing.T) {
 	}
 
 	t.Run("HarnessBasedTesting", func(t *testing.T) {
-		// This test demonstrates how to use the ws-test-harness
+		// This test demonstrates how to use the websocket test harness tool
 		// In practice, we'd run the harness as a subprocess or integrate its logic
 
 		// The harness handles:

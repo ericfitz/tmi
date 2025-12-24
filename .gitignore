@@ -39,8 +39,8 @@
 !shared/**
 !static/
 !static/**
-!ws-test-harness/
-!ws-test-harness/**
+!wstest/
+!wstest/**
 !test/
 !test/**
 !.claude/
@@ -72,8 +72,8 @@ check-db
 test.mk
 .vscode/
 api/api.test
-ws-test-harness/wstest
-ws-test-harness/ws-test-harness
+wstest/wstest
+wstest/wstest
 test/postman/test-results/
 test/cats/
 scripts/configure-heroku-env.sh

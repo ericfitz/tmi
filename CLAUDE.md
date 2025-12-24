@@ -141,11 +141,13 @@ CATS (Contract-driven Automatic Testing Suite) performs security fuzzing of the 
 - **Full Analysis**: `make analyze-cats-results` - Parse and query in one command
 
 **OAuth False Positives**: CATS may flag legitimate 401/403 OAuth responses as "errors". The parse script automatically detects and filters these:
+
 - Uses `is_oauth_false_positive` flag to mark expected auth responses
 - `test_results_filtered_view` excludes false positives for cleaner analysis
 - See [docs/developer/testing/cats-oauth-false-positives.md](docs/developer/testing/cats-oauth-false-positives.md) for details
 
 **Key Features**:
+
 - Automatic OAuth authentication flow with test provider
 - Rate limit handling (automatically cleared before testing)
 - Public endpoint awareness (uses `--skipFuzzersForExtension` to skip `BypassAuthentication` fuzzer on endpoints marked with `x-public-endpoint: true` in OpenAPI spec)
@@ -153,6 +155,7 @@ CATS (Contract-driven Automatic Testing Suite) performs security fuzzing of the 
 - Structured analysis with SQLite database and views
 
 **Public Endpoint Handling**:
+
 - TMI has 17 public endpoints (OAuth, OIDC, SAML) marked with `x-public-endpoint: true` vendor extension
 - CATS uses `--skipFuzzersForExtension=x-public-endpoint=true:BypassAuthentication` to avoid false positives
 - Public endpoints are intentionally accessible without authentication per RFCs (8414, 7517, 6749, SAML 2.0)
@@ -170,6 +173,7 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
 - **Complete Setup**: `make arazzo-all` - Install tools + generate specifications
 
 **Key Features**:
+
 - Automatic PKCE (RFC 7636) OAuth flow generation with `code_verifier` and `code_challenge`
 - Prerequisite mapping from TMI workflows to Arazzo `dependsOn` relationships
 - 7 complete end-to-end workflow sequences (OAuth, CRUD, collaboration, webhooks)
@@ -177,12 +181,14 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
 - Spectral validation against Arazzo v1.0.0 specification
 
 **Files**:
+
 - `docs/reference/apis/tmi.arazzo.yaml` - Generated Arazzo specification (YAML)
 - `docs/reference/apis/tmi.arazzo.json` - Generated Arazzo specification (JSON)
 - `docs/reference/apis/api-workflows.json` - TMI workflow knowledge base (source)
 - `docs/reference/apis/arazzo-generation.md` - Complete documentation
 
 **Tools**:
+
 - Redocly CLI - Scaffold generation from OpenAPI
 - Python enhancement script - Enrichment with TMI workflow patterns
 - Spectral CLI - Arazzo validation with custom TMI rules
@@ -202,6 +208,7 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
     - Caller-specified values always override defaults
   - **Logging**: Comprehensive structured logging to `/tmp/oauth-stub.log` with RFC3339 timestamps and dual console output
   - **Make Commands**:
+
     - `make start-oauth-stub` - Start OAuth stub on port 8079
     - `make oauth-stub-stop` - Stop OAuth stub gracefully
     - `make status` - Check if OAuth stub is running
@@ -209,6 +216,7 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
   - **API Endpoints**:
 
     1. **`POST /oauth/init`** - Initialize OAuth flow with PKCE parameters
+
        - Generates state, code_verifier, code_challenge, and authorization URL
        - All parameters optional (smart defaults applied)
        - Returns ready-to-use authorization URL with all PKCE parameters
@@ -221,6 +229,7 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
          ```
 
     2. **`POST /refresh`** - Refresh access token using refresh token
+
        - Exchanges refresh token for new access/refresh tokens
        - Supports optional userid and idp parameters
        - Example:
@@ -232,6 +241,7 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
          ```
 
     3. **`POST /flows/start`** - Start automated end-to-end OAuth flow
+
        - Initiates authorization, handles callback, exchanges tokens automatically
        - Returns flow_id for polling status
        - All parameters optional with smart defaults
@@ -244,6 +254,7 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
          ```
 
     4. **`GET /flows/{flow_id}`** - Poll OAuth flow status and retrieve tokens
+
        - Check flow completion status
        - Retrieve tokens when ready
        - Example:
@@ -253,12 +264,14 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
          ```
 
     5. **`GET /`** - OAuth callback receiver (redirect endpoint)
+
        - Receives OAuth redirects from TMI server
        - Automatically exchanges authorization code for tokens
        - Updates flow records for e2e flows
        - Saves credentials to `$TMP/<user-id>.json`
 
     6. **`GET /latest`** - Get latest OAuth callback data
+
        - Returns most recent OAuth redirect details
        - Useful for manual testing and debugging
 
@@ -313,7 +326,7 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
 
 - **WebSocket Testing Tool**: `make wstest` - Standalone Go application for testing and debugging WebSocket collaborative features
 
-  - **Location**: `ws-test-harness/` directory contains the Go source code
+  - **Location**: `wstest/` directory contains the Go source code
   - **Purpose**: Test WebSocket connections, diagnose collaboration bugs, and validate message flows
   - **Features**:
     - OAuth authentication with test provider using login hints
@@ -330,16 +343,16 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
 
     ```bash
     # Build the test harness
-    cd ws-test-harness && go build -o ws-test-harness
+    cd wstest && go build -o wstest
 
     # Run as host (creates new collaboration session)
-    ./ws-test-harness --user alice --host --participants "bob,charlie"
+    ./wstest --user alice --host --participants "bob,charlie"
 
     # Run as participant (joins existing session)
-    ./ws-test-harness --user bob
+    ./wstest --user bob
 
     # With custom server
-    ./ws-test-harness --server http://localhost:8080 --user alice --host
+    ./wstest --server http://localhost:8080 --user alice --host
     ```
 
   - **Debugging WebSocket Issues**:
@@ -357,15 +370,15 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
     make wstest-clean  # Clean up when done
 
     # Manual multi-user test
-    ./ws-test-harness --user alice --host --participants "bob,charlie,dave" &
+    ./wstest --user alice --host --participants "bob,charlie,dave" &
     sleep 5
-    ./ws-test-harness --user bob &
-    ./ws-test-harness --user charlie &
-    ./ws-test-harness --user dave &
+    ./wstest --user bob &
+    ./wstest --user charlie &
+    ./wstest --user dave &
     ```
 
   - **Adding Test Cases**:
-    - Modify `ws-test-harness/main.go` to add new test scenarios
+    - Modify `wstest/main.go` to add new test scenarios
     - Send test messages after connection in `connectToWebSocket()`
     - Validate expected responses in the message reader goroutine
     - Use for testing edge cases, error conditions, and protocol changes
@@ -404,10 +417,12 @@ make start-database
 #### Core Testing
 
 - **Unit tests**: `make test-unit` (fast tests, no external dependencies)
+
   - Specific test: `make test-unit name=TestName`
   - Options: `make test-unit count1=true passfail=true`
 
 - **Integration tests** (New OpenAPI-driven framework):
+
   - Prerequisites: `make start-dev` (server) + `make start-oauth-stub` (OAuth)
   - Run all: `make test-integration-new`
   - Run specific: `make test-integration-workflow WORKFLOW=Example`
@@ -416,6 +431,7 @@ make start-database
   - Framework docs: `test/integration/README.md`
 
 - **Security fuzzing**: `make cats-fuzz` (CATS security testing)
+
   - Analyze results: `make cats-analyze`
   - Custom user: `make cats-fuzz-user USER=alice`
 
@@ -643,9 +659,11 @@ The system now uses a clean, single-router architecture with OpenAPI-driven rout
 **Request Flow**:
 
 ```
+
 HTTP Request → OpenAPI Route Registration → ServerInterface Implementation →
 JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
-```
+
+````
 
 **Key Components**:
 
@@ -686,7 +704,7 @@ curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=qa-automation"
 
 # Without login_hint - generates random user like 'testuser-12345678@test.tmi'
 curl "http://localhost:8080/oauth2/authorize?idp=test"
-```
+````
 
 **Automation Integration**:
 
@@ -700,6 +718,7 @@ curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_ca
 TMI supports OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4) for machine-to-machine authentication, enabling webhooks, addons, and automation tools to access TMI APIs without user interaction.
 
 **Overview**:
+
 - **Purpose**: Provide service account authentication for webhooks, addons, CI/CD pipelines, and automation scripts
 - **Pattern**: Similar to GitHub Personal Access Tokens (PAT) - secret only shown once at creation
 - **Access Model**: Client credentials grant full API access equivalent to the user who created them
@@ -707,6 +726,7 @@ TMI supports OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4) for machi
 - **Quota**: Default limit of 10 credentials per user (configurable via admin quota system)
 
 **TMI Provider**:
+
 - **Provider IDs**: Both "test" and "tmi" work as aliases in all builds
 - **Dev/Test Mode**: Supports both Authorization Code flow (ephemeral users) and Client Credentials Grant
 - **Production Mode**: Only supports Client Credentials Grant (Authorization Code flow disabled)
@@ -715,6 +735,7 @@ TMI supports OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4) for machi
 **API Endpoints**:
 
 1. **Create Client Credential** - `POST /users/me/client_credentials`
+
    - Creates a new client credential (client_id + client_secret)
    - Client secret only returned once (cannot be retrieved later)
    - Optional expiration date
@@ -733,6 +754,7 @@ TMI supports OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4) for machi
      ```
 
 2. **List Client Credentials** - `GET /users/me/client_credentials`
+
    - Returns all credentials owned by authenticated user
    - Does NOT include client secrets
    - Shows last_used_at, is_active status
@@ -785,6 +807,7 @@ curl -X POST http://localhost:8080/threat-models \
 ```
 
 **Security Characteristics**:
+
 - **Client ID Format**: `tmi_cc_{base64url(16_random_bytes)}` - easily identifiable in logs
 - **Client Secret**: 32 bytes (43 chars base64url) - cryptographically secure random
 - **Secret Storage**: bcrypt hashed (cost 10) in database
@@ -794,12 +817,14 @@ curl -X POST http://localhost:8080/threat-models \
 - **Subject Claim**: JWT subject format `sa:{credential_id}:{owner_provider_user_id}`
 
 **Service Account Identity**:
+
 - **JWT Subject**: `sa:{credential_id}:{owner_provider_user_id}` (e.g., `sa:123e4567-e89b:alice@example.com`)
 - **Display Name**: `[Service Account] {credential_name}` (e.g., `[Service Account] AWS Lambda Scanner`)
 - **Log Format**: Clearly distinguishes service accounts from human users in audit logs
 - **Context Variables**: Middleware sets `isServiceAccount=true` and `serviceAccountCredentialID`
 
 **Use Case Example** (AWS Lambda Webhook):
+
 ```bash
 # 1. User creates webhook subscription for repo events
 curl -X POST http://localhost:8080/webhooks \
@@ -835,12 +860,14 @@ curl -X POST http://localhost:8080/threat-models/{id}/threats \
 ```
 
 **Quota Management**:
+
 - Default: 10 credentials per user
 - Configurable via existing quota system
 - Checked before credential creation
 - Only active credentials count toward quota
 
 **Best Practices**:
+
 1. Create separate credentials for each automation/integration
 2. Use descriptive names for easy identification in logs
 3. Set expiration dates for temporary automations
@@ -857,17 +884,20 @@ curl -X POST http://localhost:8080/threat-models/{id}/threats \
 TMI uses staticcheck for Go code quality analysis. The project has intentionally kept some staticcheck warnings:
 
 - **Auto-Generated Code**: `api/api.go` contains 338 ST1005 warnings (capitalized error strings)
+
   - File is generated by oapi-codegen from OpenAPI specification
   - Manual edits would be overwritten on next OpenAPI regeneration
   - Not worth customizing oapi-codegen templates for style compliance
   - **Expected behavior**: These warnings are acceptable and should be ignored
 
 - **Intentionally Kept Code**: Some unused functions are marked with `//nolint:unused` for future use:
+
   - `trackPotentialSyncIssue` in [api/websocket.go](api/websocket.go:2803) - Sync diagnostics for future monitoring
   - `sendResyncRecommendation` in [api/websocket.go](api/websocket.go:2831) - Sync recovery for future resilience
   - These generate 2 U1000 warnings (unused code) which are intentional
 
 - **Auth Handler Functions**: 4 unused functions in [auth/handlers.go](auth/handlers.go) - left for potential future refactoring:
+
   - `setUserHintContext` (line 559)
   - `exchangeCodeAndGetUser` (line 571)
   - `createOrGetUser` (line 648)

@@ -3,7 +3,7 @@
     "allow": [
       "Bash(./bin/server:*)",
       "Bash(./scripts/*)",
-      "Bash(./ws-test-harness/*)",
+      "Bash(./wstest/*)",
       "Bash(asyncapi-codegen:*)",
       "Bash(awk:*)",
       "Bash(cat:*)",

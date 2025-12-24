@@ -1094,7 +1094,7 @@ deploy-heroku:
 
 build-wstest:
 	$(call log_info,Building WebSocket test harness...)
-	@cd ws-test-harness && go mod tidy && go build -o wstest
+	@cd wstest && go mod tidy && go build -o wstest
 	$(call log_success,WebSocket test harness built successfully)
 
 wstest: build-wstest
@@ -1106,39 +1106,39 @@ wstest: build-wstest
 	fi
 	@# Terminal 1: Host (alice)
 	@if [ "$$TERM_PROGRAM" = "Apple_Terminal" ] || [ "$$TERM_PROGRAM" = "iTerm.app" ]; then \
-		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/ws-test-harness && timeout 30 ./wstest --user alice --host --participants \"bob,charlie,hobobarbarian@gmail.com\""' > /dev/null; \
+		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/wstest && timeout 30 ./wstest --user alice --host --participants \"bob,charlie,hobobarbarian@gmail.com\""' > /dev/null; \
 	elif command -v gnome-terminal > /dev/null 2>&1; then \
-		gnome-terminal -- bash -c "cd $(PWD)/ws-test-harness && timeout 30 ./wstest --user alice --host --participants 'bob,charlie,hobobarbarian@gmail.com'; exec bash" & \
+		gnome-terminal -- bash -c "cd $(PWD)/wstest && timeout 30 ./wstest --user alice --host --participants 'bob,charlie,hobobarbarian@gmail.com'; exec bash" & \
 	elif command -v xterm > /dev/null 2>&1; then \
-		xterm -e "cd $(PWD)/ws-test-harness && timeout 30 ./wstest --user alice --host --participants 'bob,charlie,hobobarbarian@gmail.com'" & \
+		xterm -e "cd $(PWD)/wstest && timeout 30 ./wstest --user alice --host --participants 'bob,charlie,hobobarbarian@gmail.com'" & \
 	else \
 		echo -e "$(YELLOW)[WARNING]$(NC) Could not detect terminal emulator. Running in background..."; \
-		cd ws-test-harness && timeout 30 ./wstest --user alice --host --participants "bob,charlie,hobobarbarian@gmail.com" > alice.log 2>&1 & \
-		echo "Host (alice) running in background, see ws-test-harness/alice.log"; \
+		cd wstest && timeout 30 ./wstest --user alice --host --participants "bob,charlie,hobobarbarian@gmail.com" > alice.log 2>&1 & \
+		echo "Host (alice) running in background, see wstest/alice.log"; \
 	fi
 	@# Wait for host to start
 	@sleep 3
 	@# Terminal 2: Participant (bob)
 	@if [ "$$TERM_PROGRAM" = "Apple_Terminal" ] || [ "$$TERM_PROGRAM" = "iTerm.app" ]; then \
-		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/ws-test-harness && timeout 30 ./wstest --user bob"' > /dev/null; \
+		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/wstest && timeout 30 ./wstest --user bob"' > /dev/null; \
 	elif command -v gnome-terminal > /dev/null 2>&1; then \
-		gnome-terminal -- bash -c "cd $(PWD)/ws-test-harness && timeout 30 ./wstest --user bob; exec bash" & \
+		gnome-terminal -- bash -c "cd $(PWD)/wstest && timeout 30 ./wstest --user bob; exec bash" & \
 	elif command -v xterm > /dev/null 2>&1; then \
-		xterm -e "cd $(PWD)/ws-test-harness && timeout 30 ./wstest --user bob" & \
+		xterm -e "cd $(PWD)/wstest && timeout 30 ./wstest --user bob" & \
 	else \
-		cd ws-test-harness && timeout 30 ./wstest --user bob > bob.log 2>&1 & \
-		echo "Participant (bob) running in background, see ws-test-harness/bob.log"; \
+		cd wstest && timeout 30 ./wstest --user bob > bob.log 2>&1 & \
+		echo "Participant (bob) running in background, see wstest/bob.log"; \
 	fi
 	@# Terminal 3: Participant (charlie)
 	@if [ "$$TERM_PROGRAM" = "Apple_Terminal" ] || [ "$$TERM_PROGRAM" = "iTerm.app" ]; then \
-		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/ws-test-harness && timeout 30 ./wstest --user charlie"' > /dev/null; \
+		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/wstest && timeout 30 ./wstest --user charlie"' > /dev/null; \
 	elif command -v gnome-terminal > /dev/null 2>&1; then \
-		gnome-terminal -- bash -c "cd $(PWD)/ws-test-harness && timeout 30 ./wstest --user charlie; exec bash" & \
+		gnome-terminal -- bash -c "cd $(PWD)/wstest && timeout 30 ./wstest --user charlie; exec bash" & \
 	elif command -v xterm > /dev/null 2>&1; then \
-		xterm -e "cd $(PWD)/ws-test-harness && timeout 30 ./wstest --user charlie" & \
+		xterm -e "cd $(PWD)/wstest && timeout 30 ./wstest --user charlie" & \
 	else \
-		cd ws-test-harness && timeout 30 ./wstest --user charlie > charlie.log 2>&1 & \
-		echo "Participant (charlie) running in background, see ws-test-harness/charlie.log"; \
+		cd wstest && timeout 30 ./wstest --user charlie > charlie.log 2>&1 & \
+		echo "Participant (charlie) running in background, see wstest/charlie.log"; \
 	fi
 	$(call log_success,WebSocket test started with 3 terminals)
 	@echo "Watch the terminals for WebSocket activity. Use 'make clean-wstest' to stop all instances."
@@ -1151,7 +1151,7 @@ monitor-wstest: build-wstest
 		exit 1; \
 	fi
 	@# Run monitor in foreground
-	@cd ws-test-harness && ./wstest --user monitor
+	@cd wstest && ./wstest --user monitor
 
 clean-wstest:
 	$(call log_info,Stopping all WebSocket test harness instances...)
@@ -1163,7 +1163,7 @@ clean-wstest:
 		echo -e "$(YELLOW)[WARNING]$(NC) No WebSocket test harness instances found"; \
 	fi
 	@# Clean up any log files
-	@rm -f ws-test-harness/*.log 2>/dev/null || true
+	@rm -f wstest/*.log 2>/dev/null || true
 
 # ============================================================================
 # SBOM GENERATION - Software Bill of Materials

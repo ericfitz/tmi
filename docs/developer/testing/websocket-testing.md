@@ -13,9 +13,9 @@ A standalone Go application for testing the TMI WebSocket interface for collabor
 ## Building
 
 ```bash
-cd ws-test-harness
+cd wstest
 go mod tidy
-go build -o ws-test-harness
+go build -o wstest
 ```
 
 ## Usage
@@ -26,13 +26,13 @@ Start as a host to create a new collaboration session:
 
 ```bash
 # Basic host mode
-./ws-test-harness --user alice --host
+./wstest --user alice --host
 
 # Host mode with participants
-./ws-test-harness --user alice --host --participants "bob,charlie,dave"
+./wstest --user alice --host --participants "bob,charlie,dave"
 
 # Custom server
-./ws-test-harness --server http://localhost:8080 --user alice --host
+./wstest --server http://localhost:8080 --user alice --host
 ```
 
 ### Participant Mode
@@ -41,11 +41,11 @@ Start as a participant to join existing collaboration sessions:
 
 ```bash
 # Join any available session
-./ws-test-harness --user bob
+./wstest --user bob
 
 # Multiple participants
-./ws-test-harness --user charlie &
-./ws-test-harness --user dave &
+./wstest --user charlie &
+./wstest --user dave &
 ```
 
 ### Command Line Options
@@ -60,27 +60,31 @@ Start as a participant to join existing collaboration sessions:
 ### Basic Two-User Test
 
 Terminal 1 (Host):
+
 ```bash
-./ws-test-harness --user alice --host --participants "bob"
+./wstest --user alice --host --participants "bob"
 ```
 
 Terminal 2 (Participant):
+
 ```bash
-./ws-test-harness --user bob
+./wstest --user bob
 ```
 
 ### Multi-User Collaboration
 
 Terminal 1 (Host):
+
 ```bash
-./ws-test-harness --user alice --host --participants "bob,charlie,dave"
+./wstest --user alice --host --participants "bob,charlie,dave"
 ```
 
 Terminals 2-4 (Participants):
+
 ```bash
-./ws-test-harness --user bob
-./ws-test-harness --user charlie
-./ws-test-harness --user dave
+./wstest --user bob
+./wstest --user charlie
+./wstest --user dave
 ```
 
 ## Expected WebSocket Messages
@@ -105,6 +109,7 @@ The harness implements the implicit OAuth flow:
 ## Logging
 
 All network interactions are logged to console:
+
 - HTTP requests show method, URL, and request bodies
 - HTTP responses show status codes and response bodies
 - WebSocket messages are timestamped and pretty-printed
