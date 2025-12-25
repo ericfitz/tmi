@@ -1,8 +1,8 @@
-asyncapi: '3.0.0'
+asyncapi: "3.0.0"
 
 info:
   title: TMI WebSocket API
-  version: '1.0.0'
+  version: "1.0.0"
   description: |
     AsyncAPI specification for the Collaborative Threat Modeling Interface (TMI) WebSocket messaging.
     This API enables real-time collaborative editing of threat model diagrams with role-based access control.
@@ -30,15 +30,15 @@ servers:
       - jwtAuth: []
 
   production:
-    host: api.tmi.example.com
+    host: api.tmi.dev
     protocol: wss
     description: Production server with TLS
     security:
       - jwtAuth: []
 
 channels:
-  '/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws':
-    address: '/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws'
+  "/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws":
+    address: "/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws"
     description: |
       WebSocket endpoint for collaborative diagram editing. Each diagram has its own collaboration session.
       Users must have at least reader permissions on the parent threat model to connect.
@@ -50,62 +50,64 @@ channels:
       - Each session tracks active participants and their join times
     parameters:
       threat_model_id:
-        description: Unique identifier of the threat model (matches OpenAPI path parameter)  
+        description: Unique identifier of the threat model (matches OpenAPI path parameter)
         schema:
           type: string
           format: uuid
-          example: '550e8400-e29b-41d4-a716-446655440000'
+          example: "550e8400-e29b-41d4-a716-446655440000"
       diagram_id:
         description: Unique identifier of the diagram
         schema:
           type: string
           format: uuid
-          example: '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
+          example: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
     messages:
       diagramOperationRequestMessage:
-        $ref: '#/components/messages/DiagramOperationRequestMessage'
+        $ref: "#/components/messages/DiagramOperationRequestMessage"
       diagramOperationEventMessage:
-        $ref: '#/components/messages/DiagramOperationEventMessage'
+        $ref: "#/components/messages/DiagramOperationEventMessage"
       presenterRequestMessage:
-        $ref: '#/components/messages/PresenterRequestMessage'
+        $ref: "#/components/messages/PresenterRequestMessage"
       presenterRequestEventMessage:
-        $ref: '#/components/messages/PresenterRequestEventMessage'
-      presenterDeniedMessage:
-        $ref: '#/components/messages/PresenterDeniedMessage'
+        $ref: "#/components/messages/PresenterRequestEventMessage"
+      presenterDeniedRequestMessage:
+        $ref: "#/components/messages/PresenterDeniedRequestMessage"
+      presenterDeniedEventMessage:
+        $ref: "#/components/messages/PresenterDeniedEventMessage"
       changePresenterRequestMessage:
-        $ref: '#/components/messages/ChangePresenterRequestMessage'
+        $ref: "#/components/messages/ChangePresenterRequestMessage"
       presenterCursorMessage:
-        $ref: '#/components/messages/PresenterCursorMessage'
+        $ref: "#/components/messages/PresenterCursorMessage"
       presenterSelectionMessage:
-        $ref: '#/components/messages/PresenterSelectionMessage'
+        $ref: "#/components/messages/PresenterSelectionMessage"
       authorizationDeniedMessage:
-        $ref: '#/components/messages/AuthorizationDeniedMessage'
+        $ref: "#/components/messages/AuthorizationDeniedMessage"
       stateCorrectionMessage:
-        $ref: '#/components/messages/StateCorrectionMessage'
+        $ref: "#/components/messages/StateCorrectionMessage"
       diagramStateSyncMessage:
-        $ref: '#/components/messages/DiagramStateSyncMessage'
+        $ref: "#/components/messages/DiagramStateSyncMessage"
       resyncRequestMessage:
-        $ref: '#/components/messages/ResyncRequestMessage'
+        $ref: "#/components/messages/ResyncRequestMessage"
       resyncResponseMessage:
-        $ref: '#/components/messages/ResyncResponseMessage'
+        $ref: "#/components/messages/ResyncResponseMessage"
       undoRequestMessage:
-        $ref: '#/components/messages/UndoRequestMessage'
+        $ref: "#/components/messages/UndoRequestMessage"
       redoRequestMessage:
-        $ref: '#/components/messages/RedoRequestMessage'
+        $ref: "#/components/messages/RedoRequestMessage"
       participantsUpdateMessage:
-        $ref: '#/components/messages/ParticipantsUpdateMessage'
+        $ref: "#/components/messages/ParticipantsUpdateMessage"
       removeParticipantRequestMessage:
-        $ref: '#/components/messages/RemoveParticipantRequestMessage'
+        $ref: "#/components/messages/RemoveParticipantRequestMessage"
       errorMessage:
-        $ref: '#/components/messages/ErrorMessage'
+        $ref: "#/components/messages/ErrorMessage"
       operationRejectedMessage:
-        $ref: '#/components/messages/OperationRejectedMessage'
+        $ref: "#/components/messages/OperationRejectedMessage"
 
 operations:
   sendDiagramOperation:
     action: send
     channel:
-      $ref: '#/channels/~1threat_models~1{id}~1diagrams~1{diagram_id}~1ws'
+      $ref: "#/channels/~1threat_models~1{id}~1diagrams~1{diagram_id}~1ws"
     summary: Send a diagram operation (client to server)
     description: |
       Send a diagram operation request (add, update, or remove) to be applied to the diagram
@@ -117,21 +119,21 @@ operations:
       - Operation size limit: 50KB per operation
       - Write timeout: 10 seconds per message
     messages:
-      - $ref: '#/components/messages/DiagramOperationRequestMessage'
-      - $ref: '#/components/messages/PresenterRequestMessage'
-      - $ref: '#/components/messages/ChangePresenterRequestMessage'
-      - $ref: '#/components/messages/PresenterCursorMessage'
-      - $ref: '#/components/messages/PresenterSelectionMessage'
-      - $ref: '#/components/messages/PresenterDeniedMessage'
-      - $ref: '#/components/messages/ResyncRequestMessage'
-      - $ref: '#/components/messages/UndoRequestMessage'
-      - $ref: '#/components/messages/RedoRequestMessage'
-      - $ref: '#/components/messages/RemoveParticipantRequestMessage'
+      - $ref: "#/components/messages/DiagramOperationRequestMessage"
+      - $ref: "#/components/messages/PresenterRequestMessage"
+      - $ref: "#/components/messages/ChangePresenterRequestMessage"
+      - $ref: "#/components/messages/PresenterCursorMessage"
+      - $ref: "#/components/messages/PresenterSelectionMessage"
+      - $ref: "#/components/messages/PresenterDeniedRequestMessage"
+      - $ref: "#/components/messages/ResyncRequestMessage"
+      - $ref: "#/components/messages/UndoRequestMessage"
+      - $ref: "#/components/messages/RedoRequestMessage"
+      - $ref: "#/components/messages/RemoveParticipantRequestMessage"
 
   receiveDiagramEvents:
     action: receive
     channel:
-      $ref: '#/channels/~1threat_models~1{id}~1diagrams~1{diagram_id}~1ws'
+      $ref: "#/channels/~1threat_models~1{id}~1diagrams~1{diagram_id}~1ws"
     summary: Receive diagram events (server to client)
     description: |
       Receive real-time events including diagram operations from other users and session updates.
@@ -147,16 +149,16 @@ operations:
       - System events (join/leave) have null initiating_user
       - User-initiated events (kick) include initiating_user
     messages:
-      - $ref: '#/components/messages/DiagramOperationEventMessage'
-      - $ref: '#/components/messages/PresenterDeniedMessage'
-      - $ref: '#/components/messages/PresenterCursorMessage'
-      - $ref: '#/components/messages/PresenterSelectionMessage'
-      - $ref: '#/components/messages/AuthorizationDeniedMessage'
-      - $ref: '#/components/messages/StateCorrectionMessage'
-      - $ref: '#/components/messages/ResyncResponseMessage'
-      - $ref: '#/components/messages/ParticipantsUpdateMessage'
-      - $ref: '#/components/messages/ErrorMessage'
-      - $ref: '#/components/messages/OperationRejectedMessage'
+      - $ref: "#/components/messages/DiagramOperationEventMessage"
+      - $ref: "#/components/messages/PresenterDeniedEventMessage"
+      - $ref: "#/components/messages/PresenterCursorMessage"
+      - $ref: "#/components/messages/PresenterSelectionMessage"
+      - $ref: "#/components/messages/AuthorizationDeniedMessage"
+      - $ref: "#/components/messages/StateCorrectionMessage"
+      - $ref: "#/components/messages/ResyncResponseMessage"
+      - $ref: "#/components/messages/ParticipantsUpdateMessage"
+      - $ref: "#/components/messages/ErrorMessage"
+      - $ref: "#/components/messages/OperationRejectedMessage"
 
 components:
   parameters:
@@ -165,14 +167,14 @@ components:
       schema:
         type: string
         format: uuid
-        example: '550e8400-e29b-41d4-a716-446655440000'
+        example: "550e8400-e29b-41d4-a716-446655440000"
 
     DiagramId:
       description: Unique identifier of the diagram
       schema:
         type: string
         format: uuid
-        example: '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
+        example: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
 
   messages:
     DiagramOperationRequestMessage:
@@ -184,7 +186,7 @@ components:
         sequence numbers for conflict resolution, and operation IDs for idempotency.
         Client does not send initiating_user - server uses authenticated client context.
       payload:
-        $ref: '#/components/schemas/DiagramOperationRequestPayload'
+        $ref: "#/components/schemas/DiagramOperationRequestPayload"
       examples:
         - name: BatchCellOperations
           summary: Example of batch cell operations request
@@ -219,7 +221,7 @@ components:
         Server-to-client broadcast of diagram operations. Includes initiating_user to show
         who triggered the operation. Server assigns sequence_number for ordering.
       payload:
-        $ref: '#/components/schemas/DiagramOperationEventPayload'
+        $ref: "#/components/schemas/DiagramOperationEventPayload"
       examples:
         - name: BatchCellOperations
           summary: Example of broadcast diagram operation event
@@ -260,7 +262,7 @@ components:
         requesting_user - server uses authenticated client context. Only the session
         host can approve presenter requests.
       payload:
-        $ref: '#/components/schemas/PresenterRequestPayload'
+        $ref: "#/components/schemas/PresenterRequestPayload"
       examples:
         - name: RequestPresenter
           summary: Example of requesting presenter mode
@@ -276,7 +278,7 @@ components:
         Only sent to the session host for approval. Includes requesting_user populated
         from authenticated client context (not client-asserted).
       payload:
-        $ref: '#/components/schemas/PresenterRequestEventPayload'
+        $ref: "#/components/schemas/PresenterRequestEventPayload"
       examples:
         - name: PresenterRequestEvent
           summary: Example of presenter request notification to host
@@ -289,28 +291,45 @@ components:
               email: alice@example.com
               display_name: Alice Johnson
 
-    PresenterDeniedMessage:
-      name: PresenterDeniedMessage
-      title: Presenter Request Denied Message (Host → Requester)
-      summary: Host denies presenter request
+    PresenterDeniedRequestMessage:
+      name: PresenterDeniedRequestMessage
+      title: Presenter Denied Request (Host → Server)
+      summary: Host requests to deny a presenter request
       description: |
-        Server-to-client message sent to requester when presenter request is denied by the host.
+        Client-to-server request sent by the host to deny a participant's presenter request.
         Only accepted from session host (validated via authenticated connection context).
-        Only sent to the denied user on their connection. Includes denied_user populated
-        from the target client context (not client-asserted).
+        Client sends denied_user to identify target; server validates and forwards event.
       payload:
-        $ref: '#/components/schemas/PresenterDeniedPayload'
+        $ref: "#/components/schemas/PresenterDeniedRequestPayload"
       examples:
-        - name: PresenterDenied
-          summary: Example of presenter request denial
+        - name: PresenterDeniedRequest
+          summary: Example of host denying presenter request
           payload:
-            message_type: presenter_denied
+            message_type: presenter_denied_request
             denied_user:
-              principal_type: user
-              provider: google
-              provider_id: alice@example.com
+              user_id: alice@example.com
               email: alice@example.com
-              display_name: Alice Johnson
+              displayName: Alice Johnson
+
+    PresenterDeniedEventMessage:
+      name: PresenterDeniedEventMessage
+      title: Presenter Denied Event (Server → Requester)
+      summary: Server notifies user their presenter request was denied
+      description: |
+        Server-to-client event sent to the user whose presenter request was denied.
+        Only sent to the denied user on their connection. Includes denied_user populated
+        from the target client's authenticated context (not client-asserted).
+      payload:
+        $ref: "#/components/schemas/PresenterDeniedEventPayload"
+      examples:
+        - name: PresenterDeniedEvent
+          summary: Example of presenter denial notification
+          payload:
+            message_type: presenter_denied_event
+            denied_user:
+              user_id: alice@example.com
+              email: alice@example.com
+              displayName: Alice Johnson
 
     ChangePresenterRequestMessage:
       name: ChangePresenterRequestMessage
@@ -321,7 +340,7 @@ components:
         from the session host. Client does not send initiating_user - server uses
         authenticated client context. Server validates new_presenter refers to connected user.
       payload:
-        $ref: '#/components/schemas/ChangePresenterRequestPayload'
+        $ref: "#/components/schemas/ChangePresenterRequestPayload"
       examples:
         - name: ChangePresenterRequest
           summary: Example of host changing presenter
@@ -340,7 +359,7 @@ components:
         Message sent by active presenter to share cursor position with all participants.
         Only the current presenter should send these messages.
       payload:
-        $ref: '#/components/schemas/PresenterCursorPayload'
+        $ref: "#/components/schemas/PresenterCursorPayload"
       examples:
         - name: PresenterCursor
           summary: Example of presenter cursor position
@@ -358,7 +377,7 @@ components:
         Message sent by active presenter to share selection state with all participants.
         Only the current presenter should send these messages.
       payload:
-        $ref: '#/components/schemas/PresenterSelectionPayload'
+        $ref: "#/components/schemas/PresenterSelectionPayload"
       examples:
         - name: PresenterSelection
           summary: Example of presenter selection
@@ -376,7 +395,7 @@ components:
         Message sent to users who attempt operations they don't have permission for.
         Includes the original operation ID for client tracking.
       payload:
-        $ref: '#/components/schemas/AuthorizationDeniedPayload'
+        $ref: "#/components/schemas/AuthorizationDeniedPayload"
       examples:
         - name: AuthorizationDenied
           summary: Example of authorization denial
@@ -410,7 +429,7 @@ components:
         2. If the server's update_vector is higher, fetch the latest diagram via REST API
         3. Update their local state and resume normal operations
       payload:
-        $ref: '#/components/schemas/StateCorrectionPayload'
+        $ref: "#/components/schemas/StateCorrectionPayload"
       examples:
         - name: RestApiUpdateNotification
           summary: Notification of REST API update with new update vector
@@ -459,7 +478,7 @@ components:
         should handle this message asynchronously and may choose to fetch via REST API
         instead of processing the embedded cells array.
       payload:
-        $ref: '#/components/schemas/DiagramStateSyncPayload'
+        $ref: "#/components/schemas/DiagramStateSyncPayload"
       examples:
         - name: InitialStateWithCells
           summary: Initial state sync with existing diagram cells
@@ -495,7 +514,7 @@ components:
         Message sent by clients when they detect they are out of sync and need
         to reload the complete diagram state.
       payload:
-        $ref: '#/components/schemas/ResyncRequestPayload'
+        $ref: "#/components/schemas/ResyncRequestPayload"
       examples:
         - name: ResyncRequest
           summary: Example of resync request
@@ -510,7 +529,7 @@ components:
         Message sent by server in response to resync requests. Tells the client
         to use REST API for authoritative diagram state recovery.
       payload:
-        $ref: '#/components/schemas/ResyncResponsePayload'
+        $ref: "#/components/schemas/ResyncResponsePayload"
       examples:
         - name: ResyncResponse
           summary: Example of resync response
@@ -529,7 +548,7 @@ components:
         Client does not send initiating_user - server uses authenticated client context.
         Server responds with DiagramOperationEvent showing the undone operation.
       payload:
-        $ref: '#/components/schemas/UndoRequestPayload'
+        $ref: "#/components/schemas/UndoRequestPayload"
       examples:
         - name: UndoRequest
           summary: Example of undo request
@@ -545,7 +564,7 @@ components:
         Client does not send initiating_user - server uses authenticated client context.
         Server responds with DiagramOperationEvent showing the redone operation.
       payload:
-        $ref: '#/components/schemas/RedoRequestPayload'
+        $ref: "#/components/schemas/RedoRequestPayload"
       examples:
         - name: RedoRequest
           summary: Example of redo request
@@ -568,7 +587,7 @@ components:
         The removed participant will not be able to rejoin the same session but can
         participate in other collaboration sessions.
       payload:
-        $ref: '#/components/schemas/RemoveParticipantRequestPayload'
+        $ref: "#/components/schemas/RemoveParticipantRequestPayload"
       examples:
         - name: HostRemovesParticipant
           summary: Example of host removing a participant
@@ -579,7 +598,6 @@ components:
               email: disruptive-user@example.com
               displayName: Disruptive User
 
-
     ErrorMessage:
       name: ErrorMessage
       title: Error Message
@@ -589,7 +607,7 @@ components:
         session errors, or other operational errors. Follows the standard
         message_type pattern with additional error details.
       payload:
-        $ref: '#/components/schemas/ErrorPayload'
+        $ref: "#/components/schemas/ErrorPayload"
       examples:
         - name: UnauthorizedError
           summary: Example of unauthorized access error
@@ -598,7 +616,7 @@ components:
             error: unauthorized
             message: You don't have sufficient permissions to collaborate on this diagram
             code: insufficient_permissions
-            timestamp: '2024-01-15T14:30:00Z'
+            timestamp: "2024-01-15T14:30:00Z"
         - name: SessionInvalidError
           summary: Example of invalid session error
           payload:
@@ -608,7 +626,7 @@ components:
             code: session_mismatch
             details:
               new_session_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
-            timestamp: '2024-01-15T14:35:00Z'
+            timestamp: "2024-01-15T14:35:00Z"
 
     OperationRejectedMessage:
       name: OperationRejectedMessage
@@ -635,7 +653,7 @@ components:
         - `invalid_operation_type`: Operation type is not recognized
         - `empty_operation`: Operation contains no cell operations
       payload:
-        $ref: '#/components/schemas/OperationRejectedPayload'
+        $ref: "#/components/schemas/OperationRejectedPayload"
       examples:
         - name: ConflictDetected
           summary: Operation rejected due to concurrent modification conflict
@@ -648,7 +666,7 @@ components:
             affected_cells:
               - cell-uuid-1
             requires_resync: true
-            timestamp: '2024-01-15T14:30:00Z'
+            timestamp: "2024-01-15T14:30:00Z"
         - name: ValidationFailed
           summary: Operation rejected due to invalid data
           payload:
@@ -658,7 +676,7 @@ components:
             message: Cell operation validation failed - cell ID mismatch
             details: "cell data ID (cell-uuid-1) must match operation ID (cell-uuid-2)"
             requires_resync: false
-            timestamp: '2024-01-15T14:32:00Z'
+            timestamp: "2024-01-15T14:32:00Z"
         - name: NoStateChange
           summary: Operation rejected because it would result in no state change
           payload:
@@ -668,7 +686,7 @@ components:
             reason: no_state_change
             message: Operation resulted in no state changes (idempotent or no-op)
             requires_resync: false
-            timestamp: '2024-01-15T14:33:00Z'
+            timestamp: "2024-01-15T14:33:00Z"
 
     ParticipantsUpdateMessage:
       name: ParticipantsUpdateMessage
@@ -683,7 +701,7 @@ components:
 
         This eliminates the need for clients to poll the REST API for participant information.
       payload:
-        $ref: '#/components/schemas/ParticipantsUpdatePayload'
+        $ref: "#/components/schemas/ParticipantsUpdatePayload"
       examples:
         - name: UserJoinedSystemEvent
           summary: Example of participants update after user joined (system event)
@@ -696,13 +714,13 @@ components:
                   name: Alice Johnson
                   email: alice@example.com
                 permissions: writer
-                last_activity: '2024-01-15T10:30:00Z'
+                last_activity: "2024-01-15T10:30:00Z"
               - user:
                   user_id: auth0|507f191e810c19729de860ea
                   name: Bob Smith
                   email: bob@example.com
                 permissions: reader
-                last_activity: '2024-01-15T10:35:00Z'
+                last_activity: "2024-01-15T10:35:00Z"
             host: auth0|507f1f77bcf86cd799439011
             current_presenter: auth0|507f191e810c19729de860ea
         - name: ParticipantKicked
@@ -719,7 +737,7 @@ components:
                   name: Alice Johnson
                   email: alice@example.com
                 permissions: writer
-                last_activity: '2024-01-15T10:30:00Z'
+                last_activity: "2024-01-15T10:30:00Z"
             host: auth0|507f1f77bcf86cd799439011
             current_presenter: auth0|507f1f77bcf86cd799439011
 
@@ -741,7 +759,7 @@ components:
           minimum: 0
           example: 12345
         operation:
-          $ref: '#/components/schemas/CellPatchOperation'
+          $ref: "#/components/schemas/CellPatchOperation"
       required:
         - message_type
         - operation_id
@@ -755,7 +773,7 @@ components:
         message_type:
           const: diagram_operation_event
         initiating_user:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
         operation_id:
           type: string
           format: uuid
@@ -767,7 +785,7 @@ components:
           minimum: 0
           example: 12345
         operation:
-          $ref: '#/components/schemas/CellPatchOperation'
+          $ref: "#/components/schemas/CellPatchOperation"
       required:
         - message_type
         - initiating_user
@@ -828,7 +846,7 @@ components:
                 enum: [add, update, remove]
                 description: Operation type to perform on the cell
               data:
-                $ref: '#/components/schemas/Cell'
+                $ref: "#/components/schemas/Cell"
             required:
               - id
               - operation
@@ -856,8 +874,8 @@ components:
 
     Cell:
       oneOf:
-        - $ref: 'tmi-openapi.json#/components/schemas/Node'
-        - $ref: 'tmi-openapi.json#/components/schemas/Edge'
+        - $ref: "tmi-openapi.json#/components/schemas/Node"
+        - $ref: "tmi-openapi.json#/components/schemas/Edge"
       description: |
         Represents a diagram cell following AntV X6 structure.
         Cells can be either nodes (process, store, actor, etc.) or edges (connectors).
@@ -880,21 +898,35 @@ components:
         message_type:
           const: presenter_request_event
         requesting_user:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
           description: User requesting to become presenter (from authenticated context)
       required:
         - message_type
         - requesting_user
       additionalProperties: false
 
-    PresenterDeniedPayload:
+    PresenterDeniedRequestPayload:
       type: object
-      description: Host-to-requester notification that presenter request was denied
+      description: Client-to-server request from host to deny a presenter request
       properties:
         message_type:
-          const: presenter_denied
+          const: presenter_denied_request
         denied_user:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
+          description: User whose presenter request should be denied (validated server-side)
+      required:
+        - message_type
+        - denied_user
+      additionalProperties: false
+
+    PresenterDeniedEventPayload:
+      type: object
+      description: Server-to-client notification that presenter request was denied
+      properties:
+        message_type:
+          const: presenter_denied_event
+        denied_user:
+          $ref: "#/components/schemas/User"
           description: User whose presenter request was denied (from authenticated context)
       required:
         - message_type
@@ -908,7 +940,7 @@ components:
         message_type:
           const: change_presenter_request
         new_presenter:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
           description: User to become new presenter (validated server-side)
       required:
         - message_type
@@ -1042,7 +1074,7 @@ components:
             API call. For large diagrams (100+ cells), clients may choose to ignore
             this array and fetch via REST API instead for better performance.
           items:
-            $ref: '#/components/schemas/Cell'
+            $ref: "#/components/schemas/Cell"
           example:
             - id: 123e4567-e89b-12d3-a456-426614174000
               shape: process
@@ -1123,7 +1155,7 @@ components:
           const: participants_update
         initiating_user:
           anyOf:
-            - $ref: '#/components/schemas/User'
+            - $ref: "#/components/schemas/User"
             - type: "null"
           description: |
             User who triggered this update (optional).
@@ -1195,13 +1227,12 @@ components:
         message_type:
           const: remove_participant_request
         removed_user:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
           description: User to remove from session (validated server-side)
       required:
         - message_type
         - removed_user
       additionalProperties: false
-
 
     ErrorPayload:
       type: object
@@ -1231,7 +1262,7 @@ components:
           type: string
           format: date-time
           description: UTC timestamp when the error occurred
-          example: '2024-01-15T14:30:00Z'
+          example: "2024-01-15T14:30:00Z"
       required:
         - message_type
         - error
@@ -1298,7 +1329,7 @@ components:
           type: string
           format: date-time
           description: UTC timestamp when the operation was rejected
-          example: '2024-01-15T14:30:00Z'
+          example: "2024-01-15T14:30:00Z"
       required:
         - message_type
         - operation_id

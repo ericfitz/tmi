@@ -1707,8 +1707,8 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 		slogging.Get().Info("Host %s not connected, cannot process presenter request from %s", host, client.UserID)
 
 		// Send denial to requester since host is not available
-		deniedMsg := PresenterDeniedMessage{
-			MessageType: MessageTypePresenterDenied,
+		deniedMsg := PresenterDeniedEvent{
+			MessageType: MessageTypePresenterDeniedEvent,
 			DeniedUser:  client.toUser(),
 		}
 		s.sendToClient(client, deniedMsg)
@@ -1880,9 +1880,9 @@ func (s *DiagramSession) sendErrorMessage(client *WebSocketClient, errorCode, er
 
 // processPresenterDenied handles host denying presenter requests
 func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message []byte) {
-	var msg PresenterDeniedMessage
+	var msg PresenterDeniedRequest
 	if err := json.Unmarshal(message, &msg); err != nil {
-		slogging.Get().Info("Error parsing presenter denied: %v", err)
+		slogging.Get().Info("Error parsing presenter denied request: %v", err)
 		return
 	}
 
@@ -1904,16 +1904,16 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	}
 
 	// Validate denied_user fields match target client (detect spoofing)
-	if !s.validateTargetUserIdentity(client, msg.DeniedUser, targetClient, "presenter_denied") {
+	if !s.validateTargetUserIdentity(client, msg.DeniedUser, targetClient, "presenter_denied_request") {
 		return // Client has been removed and blocked
 	}
 
-	// Create denial message with denied_user from authenticated target client context
-	denialMsg := PresenterDeniedMessage{
-		MessageType: MessageTypePresenterDenied,
+	// Create denial event with denied_user from authenticated target client context
+	denialEvent := PresenterDeniedEvent{
+		MessageType: MessageTypePresenterDeniedEvent,
 		DeniedUser:  targetClient.toUser(),
 	}
-	s.sendToClient(targetClient, denialMsg)
+	s.sendToClient(targetClient, denialEvent)
 	slogging.Get().Info("Host %s denied presenter request from %s in session %s", client.UserID, targetClient.UserID, s.ID)
 }
 

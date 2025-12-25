@@ -29,7 +29,7 @@ func NewMessageRouter() *MessageRouter {
 	router.RegisterHandler(&PresenterRequestHandler{})
 	router.RegisterHandler(&ChangePresenterRequestHandler{})
 	router.RegisterHandler(&RemoveParticipantRequestHandler{})
-	router.RegisterHandler(&PresenterDeniedHandler{})
+	router.RegisterHandler(&PresenterDeniedRequestHandler{})
 	router.RegisterHandler(&PresenterCursorHandler{})
 	router.RegisterHandler(&PresenterSelectionHandler{})
 	router.RegisterHandler(&ResyncRequestHandler{})
@@ -78,7 +78,7 @@ func (r *MessageRouter) RouteMessage(session *DiagramSession, client *WebSocketC
 
 	// Handle server-only message types that clients shouldn't send
 	switch baseMsg.MessageType {
-	case "participants_update", "diagram_operation_event":
+	case "participants_update", "diagram_operation_event", "presenter_denied_event", "presenter_request_event":
 		slogging.Get().Warn("Client %s sent server-only message type '%s' - protocol violation", client.UserID, baseMsg.MessageType)
 		session.sendErrorMessage(client, "invalid_message_type", "Message type '"+baseMsg.MessageType+"' is server-only and cannot be sent by clients")
 		return nil

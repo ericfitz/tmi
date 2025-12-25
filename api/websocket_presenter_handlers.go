@@ -63,14 +63,14 @@ func (h *RemoveParticipantRequestHandler) HandleMessage(session *DiagramSession,
 	return nil
 }
 
-// PresenterDeniedHandler handles presenter denied messages
-type PresenterDeniedHandler struct{}
+// PresenterDeniedRequestHandler handles presenter denied request messages from host
+type PresenterDeniedRequestHandler struct{}
 
-func (h *PresenterDeniedHandler) MessageType() string {
-	return "presenter_denied"
+func (h *PresenterDeniedRequestHandler) MessageType() string {
+	return "presenter_denied_request"
 }
 
-func (h *PresenterDeniedHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
+func (h *PresenterDeniedRequestHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
 			slogging.Get().Error("PANIC in PresenterDeniedHandler - Session: %s, User: %s, Error: %v, Stack: %s",

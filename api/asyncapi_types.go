@@ -38,21 +38,22 @@ type MessageType string
 
 const (
 	// Collaborative editing message types
-	MessageTypeDiagramOperation    MessageType = "diagram_operation"
-	MessageTypePresenterRequest    MessageType = "presenter_request"
-	MessageTypePresenterDenied     MessageType = "presenter_denied"
-	MessageTypeChangePresenter     MessageType = "change_presenter"
-	MessageTypeRemoveParticipant   MessageType = "remove_participant"
-	MessageTypePresenterCursor     MessageType = "presenter_cursor"
-	MessageTypePresenterSelection  MessageType = "presenter_selection"
-	MessageTypeAuthorizationDenied MessageType = "authorization_denied"
-	MessageTypeStateCorrection     MessageType = "state_correction"
-	MessageTypeDiagramStateSync    MessageType = "diagram_state_sync"
-	MessageTypeResyncRequest       MessageType = "resync_request"
-	MessageTypeResyncResponse      MessageType = "resync_response"
-	MessageTypeHistoryOperation    MessageType = "history_operation"
-	MessageTypeUndoRequest         MessageType = "undo_request"
-	MessageTypeRedoRequest         MessageType = "redo_request"
+	MessageTypeDiagramOperation       MessageType = "diagram_operation"
+	MessageTypePresenterRequest       MessageType = "presenter_request"
+	MessageTypePresenterDeniedRequest MessageType = "presenter_denied_request"
+	MessageTypePresenterDeniedEvent   MessageType = "presenter_denied_event"
+	MessageTypeChangePresenter        MessageType = "change_presenter"
+	MessageTypeRemoveParticipant      MessageType = "remove_participant"
+	MessageTypePresenterCursor        MessageType = "presenter_cursor"
+	MessageTypePresenterSelection     MessageType = "presenter_selection"
+	MessageTypeAuthorizationDenied    MessageType = "authorization_denied"
+	MessageTypeStateCorrection        MessageType = "state_correction"
+	MessageTypeDiagramStateSync       MessageType = "diagram_state_sync"
+	MessageTypeResyncRequest          MessageType = "resync_request"
+	MessageTypeResyncResponse         MessageType = "resync_response"
+	MessageTypeHistoryOperation       MessageType = "history_operation"
+	MessageTypeUndoRequest            MessageType = "undo_request"
+	MessageTypeRedoRequest            MessageType = "redo_request"
 
 	// New Request/Event pattern message types (Client→Server requests, Server→Client events)
 	MessageTypeDiagramOperationRequest  MessageType = "diagram_operation_request"
@@ -296,16 +297,35 @@ func (m PresenterRequestEvent) Validate() error {
 	return nil
 }
 
-type PresenterDeniedMessage struct {
+// PresenterDeniedRequest is sent by host to server to deny a presenter request
+type PresenterDeniedRequest struct {
 	MessageType MessageType `json:"message_type"`
 	DeniedUser  User        `json:"denied_user"`
 }
 
-func (m PresenterDeniedMessage) GetMessageType() MessageType { return m.MessageType }
+func (m PresenterDeniedRequest) GetMessageType() MessageType { return m.MessageType }
 
-func (m PresenterDeniedMessage) Validate() error {
-	if m.MessageType != MessageTypePresenterDenied {
-		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterDenied, m.MessageType)
+func (m PresenterDeniedRequest) Validate() error {
+	if m.MessageType != MessageTypePresenterDeniedRequest {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterDeniedRequest, m.MessageType)
+	}
+	if err := ValidateUserIdentity(m.DeniedUser); err != nil {
+		return fmt.Errorf("denied_user: %w", err)
+	}
+	return nil
+}
+
+// PresenterDeniedEvent is sent by server to the denied user
+type PresenterDeniedEvent struct {
+	MessageType MessageType `json:"message_type"`
+	DeniedUser  User        `json:"denied_user"`
+}
+
+func (m PresenterDeniedEvent) GetMessageType() MessageType { return m.MessageType }
+
+func (m PresenterDeniedEvent) Validate() error {
+	if m.MessageType != MessageTypePresenterDeniedEvent {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterDeniedEvent, m.MessageType)
 	}
 	if err := ValidateUserIdentity(m.DeniedUser); err != nil {
 		return fmt.Errorf("denied_user: %w", err)
