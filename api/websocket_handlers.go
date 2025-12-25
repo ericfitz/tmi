@@ -77,8 +77,10 @@ func (r *MessageRouter) RouteMessage(session *DiagramSession, client *WebSocketC
 		session.ID, baseMsg.MessageType, baseMsg.UserID)
 
 	// Handle server-only message types that clients shouldn't send
+	// These are all server-to-client messages defined in the AsyncAPI specification
 	switch baseMsg.MessageType {
-	case "participants_update", "diagram_operation_event", "presenter_denied_event", "presenter_request_event":
+	case "participants_update", "diagram_operation_event", "presenter_denied_event", "presenter_request_event",
+		"authorization_denied", "state_correction", "diagram_state_sync", "resync_response", "error", "operation_rejected":
 		slogging.Get().Warn("Client %s sent server-only message type '%s' - protocol violation", client.UserID, baseMsg.MessageType)
 		session.sendErrorMessage(client, "invalid_message_type", "Message type '"+baseMsg.MessageType+"' is server-only and cannot be sent by clients")
 		return nil
