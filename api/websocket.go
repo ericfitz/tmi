@@ -1421,6 +1421,9 @@ func (s *DiagramSession) Run() {
 				// Check if the leaving client was the host
 				wasHost := client.UserEmail == s.Host
 
+				// Check if there are remaining clients to notify
+				hasRemainingClients := len(s.Clients) > 0
+
 				s.mu.Unlock()
 
 				// Handle presenter leaving session
@@ -1433,16 +1436,22 @@ func (s *DiagramSession) Run() {
 					s.handleHostDisconnection(client.UserID)
 					return // Exit the session run loop to terminate the session
 				}
+
+				// Only broadcast if there are remaining clients to notify
+				// This prevents stale 0-participant messages from being queued and later
+				// delivered to newly connected clients
+				if hasRemainingClients {
+					s.broadcastParticipantsUpdate(nil)
+				}
+
+				// Trigger cleanup of empty sessions after user departure
+				if s.Hub != nil {
+					go s.Hub.CleanupEmptySessions()
+				}
 			} else {
 				s.mu.Unlock()
-			}
-
-			// Broadcast updated participant list to all remaining clients (system event - user left)
-			s.broadcastParticipantsUpdate(nil)
-
-			// Trigger cleanup of empty sessions after user departure
-			if s.Hub != nil {
-				go s.Hub.CleanupEmptySessions()
+				// Client was not in the session - no broadcast needed
+				// This can happen if the client was denied entry or already removed
 			}
 
 		case message := <-s.Broadcast:
