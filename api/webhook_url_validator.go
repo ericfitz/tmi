@@ -91,7 +91,7 @@ func (v *WebhookUrlValidator) validateDNSHostname(hostname string) error {
 }
 
 // validateDNSLabel validates a single DNS label according to RFC 1035 and RFC 1123
-func (v *WebhookUrlValidator) validateDNSLabel(label string, isLastLabel bool) error {
+func (v *WebhookUrlValidator) validateDNSLabel(label string, _ bool) error {
 	// Label length check (RFC 1035: 1-63 characters)
 	if len(label) < 1 || len(label) > 63 {
 		return fmt.Errorf("label length must be 1-63 characters: %d", len(label))

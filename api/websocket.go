@@ -170,20 +170,6 @@ func (c *WebSocketClient) closeClientChannel() {
 	}
 }
 
-// getUserByID finds a User in the session by user ID
-func (s *DiagramSession) getUserByID(userID string) *User {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	for client := range s.Clients {
-		if client.UserID == userID {
-			user := client.toUser()
-			return &user
-		}
-	}
-	return nil
-}
-
 // Enhanced message types for collaborative editing - using existing AsyncAPI types
 
 // Upgrader upgrades HTTP connections to WebSocket
@@ -2466,86 +2452,6 @@ func (s *DiagramSession) broadcastParticipantsUpdate(initiatingUser *User) {
 	}
 }
 
-// sendParticipantsUpdateToClient sends participant list to a specific client
-func (s *DiagramSession) sendParticipantsUpdateToClient(client *WebSocketClient) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	// Build participant list
-	participants := make([]AsyncParticipant, 0)
-
-	// Get threat model for permissions checking
-	var tm *ThreatModel
-	if s.ThreatModelID != "" {
-		if threatModel, err := ThreatModelStore.Get(s.ThreatModelID); err == nil {
-			tm = &threatModel
-		}
-	}
-
-	// Track processed users to avoid duplicates
-	processedUsers := make(map[string]bool)
-
-	// Add active WebSocket clients
-	for c := range s.Clients {
-		if processedUsers[c.UserName] {
-			continue
-		}
-
-		var permissions string
-		if tm != nil {
-			// Use email for permission check for backwards compatibility
-			permissionCheckID := c.UserEmail
-			if permissionCheckID == "" {
-				permissionCheckID = c.UserID
-			}
-			perms := getSessionPermissionsForUser(nil, permissionCheckID, tm)
-			if perms == nil {
-				// User is unauthorized, skip them
-				slogging.Get().Debug("Skipping user %s (%s) - no permissions found for threat model %s", c.UserID, permissionCheckID, tm.Id)
-				continue
-			}
-			permissions = string(*perms)
-		} else {
-			// No threat model, default to writer
-			permissions = "writer"
-		}
-
-		participants = append(participants, AsyncParticipant{
-			User: User{
-				PrincipalType: UserPrincipalTypeUser,
-				Provider:      c.UserProvider,
-				ProviderId:    c.UserID,
-				Email:         openapi_types.Email(c.UserEmail),
-				DisplayName:   c.UserName,
-			},
-			Permissions:  permissions,
-			LastActivity: c.LastActivity,
-		})
-		processedUsers[c.UserID] = true
-	}
-
-	// Create and send the message
-	msg := ParticipantsUpdateMessage{
-		MessageType:      MessageTypeParticipantsUpdate,
-		Participants:     participants,
-		Host:             s.Host,
-		CurrentPresenter: s.CurrentPresenter,
-	}
-
-	if msgBytes, err := json.Marshal(msg); err == nil {
-		// Send to specific client
-		slogging.Get().Debug("Sending participants update message to client %s with %d participants", client.UserID, len(participants))
-		select {
-		case client.Send <- msgBytes:
-			slogging.Get().Debug("Successfully queued participants update for client %s", client.UserID)
-		default:
-			slogging.Get().Error("Failed to send participants update to client %s: send channel full", client.UserID)
-		}
-	} else {
-		slogging.Get().Error("Failed to marshal participants update for client: %v", err)
-	}
-}
-
 // checkMutationPermission checks if user can perform mutations
 // Uses flexible user identifier matching (email, provider_user_id, or internal_uuid)
 func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
@@ -2730,55 +2636,6 @@ func (s *DiagramSession) trackCorrectionEvent(userID, reason string) {
 	}
 }
 
-//nolint:unused // Sync diagnostics for future monitoring
-func (s *DiagramSession) trackPotentialSyncIssue(userID, issueType string) {
-	// Simple in-memory tracking for sequence-related sync issues
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	issueKey := fmt.Sprintf("%s_%s", userID, issueType)
-
-	// Initialize tracking map if needed
-	if s.recentCorrections == nil {
-		s.recentCorrections = make(map[string]int)
-	}
-
-	s.recentCorrections[issueKey]++
-
-	// Log potential sync issues based on frequency
-	if s.recentCorrections[issueKey] >= 5 {
-		slogging.Get().Warn("WARNING: User %s has experienced %d '%s' issues - may need resync",
-			userID, s.recentCorrections[issueKey], issueType)
-
-		// Send automatic resync recommendation to client
-		s.sendResyncRecommendation(userID, issueType)
-
-		// Reset counter after sending recommendation
-		s.recentCorrections[issueKey] = 0
-	}
-}
-
-//nolint:unused // Sync recovery for future resilience
-func (s *DiagramSession) sendResyncRecommendation(userID, issueType string) {
-	// Find the client by user ID
-	client := s.findClientByUserID(userID)
-	if client == nil {
-		slogging.Get().Info("Cannot send resync recommendation: client %s not found", userID)
-		return
-	}
-
-	// Send a resync response message to recommend the client resync via REST API
-	resyncResponse := ResyncResponseMessage{
-		MessageType:   MessageTypeResyncResponse,
-		Method:        "rest_api",
-		DiagramID:     s.DiagramID,
-		ThreatModelID: s.ThreatModelID,
-	}
-
-	s.sendToClient(client, resyncResponse)
-	slogging.Get().Info("Sent automatic resync recommendation to %s due to %s issues", userID, issueType)
-}
-
 // applyHistoryState applies a historical state to the diagram (for undo)
 func (s *DiagramSession) applyHistoryState(state map[string]*DfdDiagram_Cells_Item) error {
 	// Convert state map to slice for centralized update
@@ -2876,17 +2733,6 @@ func (s *DiagramSession) sendToClient(client *WebSocketClient, message interface
 	default:
 		slogging.Get().Info("Client send channel full, dropping message")
 	}
-}
-
-// broadcastMessage broadcasts a message to all clients
-func (s *DiagramSession) broadcastMessage(message interface{}) {
-	msgBytes, err := json.Marshal(message)
-	if err != nil {
-		slogging.Get().Info("Error marshaling broadcast message: %v", err)
-		return
-	}
-
-	s.Broadcast <- msgBytes
 }
 
 // broadcastToOthers broadcasts a message to all clients except the sender

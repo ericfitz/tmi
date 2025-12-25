@@ -210,7 +210,7 @@ func (c *WebhookEventConsumer) filterSubscriptions(subscriptions []DBWebhookSubs
 }
 
 // createDelivery creates a webhook delivery record
-func (c *WebhookEventConsumer) createDelivery(ctx context.Context, subscription DBWebhookSubscription, eventType, payload string) error {
+func (c *WebhookEventConsumer) createDelivery(_ context.Context, subscription DBWebhookSubscription, eventType, payload string) error {
 	logger := slogging.Get()
 
 	// Generate UUIDv7 for delivery ID (time-ordered)

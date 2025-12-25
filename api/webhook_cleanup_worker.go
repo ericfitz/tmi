@@ -72,7 +72,7 @@ func (w *WebhookCleanupWorker) processLoop(ctx context.Context) {
 }
 
 // performCleanup performs all cleanup operations
-func (w *WebhookCleanupWorker) performCleanup(ctx context.Context) error {
+func (w *WebhookCleanupWorker) performCleanup(_ context.Context) error {
 	logger := slogging.Get()
 
 	if GlobalWebhookDeliveryStore == nil || GlobalWebhookSubscriptionStore == nil {
