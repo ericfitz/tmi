@@ -643,9 +643,9 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		err = json.Unmarshal(initialMsg, &msg)
 		require.NoError(t, err)
 
-		// Should receive current_presenter message
+		// Should receive diagram_state_sync or participants_update message
 		msgType, _ := msg["message_type"].(string)
-		assert.Contains(t, []string{"current_presenter", "participants_update"}, msgType)
+		assert.Contains(t, []string{"diagram_state_sync", "participants_update"}, msgType)
 
 		// Send a diagram operation
 		operation := map[string]interface{}{
@@ -681,9 +681,9 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		err = json.Unmarshal(participantsMsg, &participantsUpdate)
 		require.NoError(t, err)
 
-		// Verify message type
+		// Verify message type - second client receives diagram_state_sync or participants_update
 		msgType2, _ := participantsUpdate["message_type"].(string)
-		assert.Contains(t, []string{"current_presenter", "participants_update"}, msgType2)
+		assert.Contains(t, []string{"diagram_state_sync", "participants_update"}, msgType2)
 	})
 }
 

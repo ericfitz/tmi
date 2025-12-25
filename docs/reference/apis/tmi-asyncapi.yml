@@ -74,8 +74,6 @@ channels:
         $ref: '#/components/messages/PresenterDeniedMessage'
       changePresenterRequestMessage:
         $ref: '#/components/messages/ChangePresenterRequestMessage'
-      currentPresenterMessage:
-        $ref: '#/components/messages/CurrentPresenterMessage'
       presenterCursorMessage:
         $ref: '#/components/messages/PresenterCursorMessage'
       presenterSelectionMessage:
@@ -151,7 +149,6 @@ operations:
     messages:
       - $ref: '#/components/messages/DiagramOperationEventMessage'
       - $ref: '#/components/messages/PresenterDeniedMessage'
-      - $ref: '#/components/messages/CurrentPresenterMessage'
       - $ref: '#/components/messages/PresenterCursorMessage'
       - $ref: '#/components/messages/PresenterSelectionMessage'
       - $ref: '#/components/messages/AuthorizationDeniedMessage'
@@ -335,30 +332,6 @@ components:
               email: alice@example.com
               displayName: Alice Johnson
 
-    CurrentPresenterMessage:
-      name: CurrentPresenterMessage
-      title: Current Presenter Event (Server → Client)
-      summary: Server broadcasts current presenter to all clients
-      description: |
-        Server-to-client event broadcast to all session participants when the presenter changes.
-        Includes initiating_user showing who triggered the presenter change.
-        Keeps all clients synchronized on who the active presenter is.
-      payload:
-        $ref: '#/components/schemas/CurrentPresenterPayload'
-      examples:
-        - name: CurrentPresenter
-          summary: Example of current presenter broadcast
-          payload:
-            message_type: current_presenter
-            initiating_user:
-              user_id: host@example.com
-              email: host@example.com
-              displayName: Host Manager
-            current_presenter:
-              user_id: alice@example.com
-              email: alice@example.com
-              displayName: Alice Johnson
-
     PresenterCursorMessage:
       name: PresenterCursorMessage
       title: Presenter Cursor Position
@@ -469,7 +442,7 @@ components:
 
         ## When Sent
         - Immediately after client successfully joins WebSocket session
-        - Sent before any other initial messages (current_presenter, participants_update)
+        - Sent before participants_update message
         - Sent only to the newly connected client (not broadcasted)
 
         ## Client Handling
@@ -940,24 +913,6 @@ components:
       required:
         - message_type
         - new_presenter
-      additionalProperties: false
-
-    CurrentPresenterPayload:
-      type: object
-      description: Server-to-client event broadcasting current presenter
-      properties:
-        message_type:
-          const: current_presenter
-        initiating_user:
-          $ref: '#/components/schemas/User'
-          description: User who triggered the presenter change
-        current_presenter:
-          $ref: '#/components/schemas/User'
-          description: User who is now the presenter
-      required:
-        - message_type
-        - initiating_user
-        - current_presenter
       additionalProperties: false
 
     PresenterCursorPayload:

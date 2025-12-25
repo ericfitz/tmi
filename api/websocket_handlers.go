@@ -98,7 +98,7 @@ func (r *MessageRouter) RouteMessage(session *DiagramSession, client *WebSocketC
 		slogging.Get().Warn("Received deprecated message type '%s' from %s - protocol violation (no longer supported)", baseMsg.MessageType, client.UserID)
 		session.sendErrorMessage(client, "unsupported_message_type", "Message type '"+baseMsg.MessageType+"' is no longer supported")
 		return nil
-	case "participants_update", "current_presenter", "diagram_operation_event":
+	case "participants_update", "diagram_operation_event":
 		// Server-only message types - clients shouldn't send these
 		slogging.Get().Warn("Client %s sent server-only message type '%s' - protocol violation", client.UserID, baseMsg.MessageType)
 		session.sendErrorMessage(client, "invalid_message_type", "Message type '"+baseMsg.MessageType+"' is server-only and cannot be sent by clients")

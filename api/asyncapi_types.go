@@ -43,7 +43,6 @@ const (
 	MessageTypePresenterDenied     MessageType = "presenter_denied"
 	MessageTypeChangePresenter     MessageType = "change_presenter"
 	MessageTypeRemoveParticipant   MessageType = "remove_participant"
-	MessageTypeCurrentPresenter    MessageType = "current_presenter"
 	MessageTypePresenterCursor     MessageType = "presenter_cursor"
 	MessageTypePresenterSelection  MessageType = "presenter_selection"
 	MessageTypeAuthorizationDenied MessageType = "authorization_denied"
@@ -348,27 +347,6 @@ func (m RemoveParticipantMessage) Validate() error {
 	}
 	if m.RemovedUser.ProviderId == "" {
 		return fmt.Errorf("removed_user.user_id is required")
-	}
-	return nil
-}
-
-type CurrentPresenterMessage struct {
-	MessageType      MessageType `json:"message_type"`
-	InitiatingUser   User        `json:"initiating_user"`
-	CurrentPresenter User        `json:"current_presenter"`
-}
-
-func (m CurrentPresenterMessage) GetMessageType() MessageType { return m.MessageType }
-
-func (m CurrentPresenterMessage) Validate() error {
-	if m.MessageType != MessageTypeCurrentPresenter {
-		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeCurrentPresenter, m.MessageType)
-	}
-	if err := ValidateUserIdentity(m.InitiatingUser); err != nil {
-		return fmt.Errorf("initiating_user: %w", err)
-	}
-	if err := ValidateUserIdentity(m.CurrentPresenter); err != nil {
-		return fmt.Errorf("current_presenter: %w", err)
 	}
 	return nil
 }

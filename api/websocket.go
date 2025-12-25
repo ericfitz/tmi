@@ -1418,39 +1418,8 @@ func (s *DiagramSession) Run() {
 				}
 			}
 
-			// Second, send current presenter info
-			s.mu.RLock()
-			currentPresenter := s.CurrentPresenter
-			s.mu.RUnlock()
-
-			if currentPresenter != "" {
-				slogging.Get().Debug("Sending current presenter message to new client %s - presenter: %s", client.UserID, currentPresenter)
-				presenterMsg := CurrentPresenterMessage{
-					MessageType: MessageTypeCurrentPresenter,
-					CurrentPresenter: func() User {
-						if u := s.getUserByID(currentPresenter); u != nil {
-							return *u
-						}
-						return User{}
-					}(),
-				}
-				if msgBytes, err := json.Marshal(presenterMsg); err == nil {
-					select {
-					case client.Send <- msgBytes:
-						slogging.Get().Debug("Successfully queued current presenter message for client %s", client.UserID)
-					default:
-						slogging.Get().Error("Failed to send current presenter to new client")
-					}
-				}
-			} else {
-				slogging.Get().Debug("No current presenter set for session %s", s.ID)
-			}
-
-			// Send participant list to the new client
-			slogging.Get().Debug("Sending participants update to new client %s", client.UserID)
-			s.sendParticipantsUpdateToClient(client)
-
 			// Broadcast updated participant list to all clients (system event - user joined)
+			// This includes current_presenter info, so new client gets presenter info too
 			s.broadcastParticipantsUpdate(nil)
 
 		case client := <-s.Unregister:
@@ -1715,16 +1684,9 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 		s.CurrentPresenter = client.UserEmail
 		s.mu.Unlock()
 
-		// Broadcast new presenter to all clients
-		broadcastMsg := CurrentPresenterMessage{
-			MessageType:      MessageTypeCurrentPresenter,
-			InitiatingUser:   client.toUser(),
-			CurrentPresenter: client.toUser(),
-		}
-		s.broadcastMessage(broadcastMsg)
 		slogging.Get().Info("Host %s became presenter in session %s", client.UserID, s.ID)
 
-		// Also broadcast updated participant list since presenter has changed
+		// Broadcast updated participant list (includes current_presenter)
 		initiatingUser := client.toUser()
 		s.broadcastParticipantsUpdate(&initiatingUser)
 		return
@@ -1802,16 +1764,9 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 	s.CurrentPresenter = req.NewPresenter.ProviderId
 	s.mu.Unlock()
 
-	// Broadcast new presenter to all clients with initiating_user from auth context
-	broadcastMsg := CurrentPresenterMessage{
-		MessageType:      MessageTypeCurrentPresenter,
-		InitiatingUser:   client.toUser(),
-		CurrentPresenter: targetClient.toUser(),
-	}
-	s.broadcastMessage(broadcastMsg)
 	slogging.Get().Info("Host %s changed presenter to %s in session %s", client.UserID, req.NewPresenter.ProviderId, s.ID)
 
-	// Also broadcast updated participant list since presenter has changed
+	// Broadcast updated participant list (includes current_presenter)
 	initiatingUser := client.toUser()
 	s.broadcastParticipantsUpdate(&initiatingUser)
 }
@@ -1898,29 +1853,16 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 		}
 	}
 
-	// If the removed user was the current presenter, clear presenter
+	// If the removed user was the current presenter, reassign to host
 	s.mu.Lock()
 	if s.CurrentPresenter == req.RemovedUser.ProviderId {
-		s.CurrentPresenter = host // Host becomes presenter again (user ID)
+		s.CurrentPresenter = host // Host becomes presenter again
 		slogging.Get().Info("Removed participant %s was presenter, host %s is now presenter in session %s",
 			req.RemovedUser.ProviderId, host, s.ID)
-
-		// Broadcast new presenter with initiating_user from auth context
-		broadcastMsg := CurrentPresenterMessage{
-			MessageType:      MessageTypeCurrentPresenter,
-			InitiatingUser:   client.toUser(),
-			CurrentPresenter: *s.getUserByID(host),
-		}
-		s.mu.Unlock()
-		s.broadcastMessage(broadcastMsg)
-		// Also broadcast updated participant list since presenter has changed (user-initiated)
-		initiatingUser := client.toUser()
-		s.broadcastParticipantsUpdate(&initiatingUser)
-	} else {
-		s.mu.Unlock()
 	}
+	s.mu.Unlock()
 
-	// Broadcast updated participant list to all remaining participants (user-initiated removal)
+	// Broadcast updated participant list (includes current_presenter)
 	initiatingUser := client.toUser()
 	s.broadcastParticipantsUpdate(&initiatingUser)
 }
@@ -2251,26 +2193,9 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		}
 	}
 
-	// If we found a new presenter, assign and broadcast
+	// Assign new presenter (broadcast happens in caller via broadcastParticipantsUpdate)
 	if newPresenter != "" {
 		s.CurrentPresenter = newPresenter
-
-		// Broadcast new presenter to all clients
-		// Note: Use empty User{} for initiating_user since this is automatic reassignment (system event)
-		emptyUser := User{}
-		broadcastMsg := CurrentPresenterMessage{
-			MessageType:      MessageTypeCurrentPresenter,
-			InitiatingUser:   emptyUser, // System event - automatic reassignment
-			CurrentPresenter: *s.getUserByID(newPresenter),
-		}
-
-		// Release the lock before broadcasting to avoid deadlock
-		s.mu.Unlock()
-		s.broadcastMessage(broadcastMsg)
-		// Also broadcast updated participant list since presenter has changed (system event)
-		s.broadcastParticipantsUpdate(nil)
-		s.mu.Lock()
-
 		slogging.Get().Info("Set new presenter to %s in session %s after %s disconnected", newPresenter, s.ID, disconnectedUserID)
 	} else {
 		// No suitable presenter found, clear presenter
