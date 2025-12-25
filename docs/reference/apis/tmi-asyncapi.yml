@@ -145,9 +145,9 @@ operations:
       - Sessions persist for up to 15 minutes after last activity
 
       ## Participant Tracking
-      - participants_update message provides complete participant list with optional initiating_user
-      - System events (join/leave) have null initiating_user
-      - User-initiated events (kick) include initiating_user
+      - participants_update message provides complete participant list
+      - host field contains full User object for the session host
+      - current_presenter field contains User object or null if no presenter
     messages:
       - $ref: "#/components/messages/DiagramOperationEventMessage"
       - $ref: "#/components/messages/PresenterDeniedEventMessage"
@@ -582,7 +582,7 @@ components:
         When processed, the server will:
         1. Disconnect the specified user from the current session
         2. Add the user to a session-specific deny list
-        3. Broadcast a participants_update message with initiating_user to all remaining participants
+        3. Broadcast a participants_update message to all remaining participants
 
         The removed participant will not be able to rejoin the same session but can
         participate in other collaboration sessions.
@@ -695,51 +695,68 @@ components:
       description: |
         Server-to-client event sent to all participants whenever the participant list changes.
         Provides a complete snapshot of all current participants, their permissions, and
-        roles (host, presenter). Includes optional initiating_user field:
-        - null for system events (user join/leave)
-        - populated for user-initiated events (host kicks participant)
+        roles (host, presenter).
+
+        The host and current_presenter fields contain full User objects to enable clients
+        to properly display user names and match users by ID or email.
 
         This eliminates the need for clients to poll the REST API for participant information.
       payload:
         $ref: "#/components/schemas/ParticipantsUpdatePayload"
       examples:
-        - name: UserJoinedSystemEvent
-          summary: Example of participants update after user joined (system event)
+        - name: UserJoinedEvent
+          summary: Example of participants update after user joined
           payload:
             message_type: participants_update
-            initiating_user: null
             participants:
               - user:
-                  user_id: auth0|507f1f77bcf86cd799439011
-                  name: Alice Johnson
+                  principal_type: user
+                  provider: google
+                  provider_id: "101155414856250184779"
                   email: alice@example.com
+                  display_name: Alice Johnson
                 permissions: writer
                 last_activity: "2024-01-15T10:30:00Z"
               - user:
-                  user_id: auth0|507f191e810c19729de860ea
-                  name: Bob Smith
+                  principal_type: user
+                  provider: google
+                  provider_id: "109876543210987654321"
                   email: bob@example.com
+                  display_name: Bob Smith
                 permissions: reader
                 last_activity: "2024-01-15T10:35:00Z"
-            host: auth0|507f1f77bcf86cd799439011
-            current_presenter: auth0|507f191e810c19729de860ea
-        - name: ParticipantKicked
-          summary: Example of participants update after host kicked a user
+            host:
+              principal_type: user
+              provider: google
+              provider_id: "101155414856250184779"
+              email: alice@example.com
+              display_name: Alice Johnson
+            current_presenter:
+              principal_type: user
+              provider: google
+              provider_id: "109876543210987654321"
+              email: bob@example.com
+              display_name: Bob Smith
+        - name: NoPresenterEvent
+          summary: Example of participants update with no current presenter
           payload:
             message_type: participants_update
-            initiating_user:
-              user_id: auth0|507f1f77bcf86cd799439011
-              email: alice@example.com
-              displayName: Alice Johnson
             participants:
               - user:
-                  user_id: auth0|507f1f77bcf86cd799439011
-                  name: Alice Johnson
+                  principal_type: user
+                  provider: google
+                  provider_id: "101155414856250184779"
                   email: alice@example.com
+                  display_name: Alice Johnson
                 permissions: writer
                 last_activity: "2024-01-15T10:30:00Z"
-            host: auth0|507f1f77bcf86cd799439011
-            current_presenter: auth0|507f1f77bcf86cd799439011
+            host:
+              principal_type: user
+              provider: google
+              provider_id: "101155414856250184779"
+              email: alice@example.com
+              display_name: Alice Johnson
+            current_presenter: null
 
   schemas:
     DiagramOperationRequestPayload:
@@ -1153,14 +1170,6 @@ components:
       properties:
         message_type:
           const: participants_update
-        initiating_user:
-          anyOf:
-            - $ref: "#/components/schemas/User"
-            - type: "null"
-          description: |
-            User who triggered this update (optional).
-            - null for system events (user join/leave)
-            - populated for user-initiated events (host kicks participant)
         participants:
           type: array
           description: List of all current participants
@@ -1168,31 +1177,7 @@ components:
             type: object
             properties:
               user:
-                type: object
-                description: |
-                  User information with IdP-provided identifiers.
-                  user_id is the primary identifier for authorization matching.
-                properties:
-                  user_id:
-                    type: string
-                    description: |
-                      Primary user identifier from JWT 'sub' claim (IdP-provided unique identifier, immutable).
-                      This is the preferred identifier for user authorization and matching.
-                    example: auth0|507f1f77bcf86cd799439011
-                  name:
-                    type: string
-                    description: User display name from JWT 'name' claim
-                    example: Alice Johnson
-                  email:
-                    type: string
-                    description: |
-                      User email address from JWT 'email' claim.
-                      Used as fallback identifier for authorization when IdP user ID matching fails.
-                    example: alice@example.com
-                required:
-                  - user_id
-                  - name
-                  - email
+                $ref: "#/components/schemas/User"
               permissions:
                 type: string
                 enum: [reader, writer]
@@ -1206,18 +1191,19 @@ components:
               - permissions
               - last_activity
         host:
-          type: string
-          description: User ID of the host
-          example: alice@example.com
+          $ref: "#/components/schemas/User"
+          description: User information for the session host
         current_presenter:
-          type: string
-          description: User ID of the current presenter (may be empty)
-          example: bob@example.com
+          anyOf:
+            - $ref: "#/components/schemas/User"
+            - type: "null"
+          description: |
+            User information for the current presenter.
+            May be null if no presenter is currently assigned.
       required:
         - message_type
         - participants
         - host
-        - current_presenter
       additionalProperties: false
 
     RemoveParticipantRequestPayload:

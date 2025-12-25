@@ -75,10 +75,14 @@ type DiagramSession struct {
 	MessageRouter *MessageRouter
 
 	// Enhanced collaboration state
-	// Host (user who created the session)
+	// Host (user who created the session) - stores provider_id for lookup
 	Host string
-	// Current presenter (user whose cursor/selection is broadcast)
+	// Host user info for ParticipantsUpdate messages
+	HostUserInfo *User
+	// Current presenter (user whose cursor/selection is broadcast) - stores provider_id for lookup
 	CurrentPresenter string
+	// Current presenter user info for ParticipantsUpdate messages
+	CurrentPresenterUserInfo *User
 	// Deny list for removed participants (session-specific)
 	DeniedUsers map[string]bool
 	// Operation history for conflict resolution
@@ -1366,6 +1370,17 @@ func (s *DiagramSession) Run() {
 			s.mu.Lock()
 			s.Clients[client] = true
 			s.LastActivity = time.Now().UTC()
+
+			// If this is the host connecting and we don't have their user info cached, cache it
+			// The host is also the initial presenter
+			if (client.UserEmail == s.Host || client.UserID == s.Host) && s.HostUserInfo == nil {
+				hostUser := client.toUser()
+				s.HostUserInfo = &hostUser
+				// Host starts as presenter, so also set presenter user info
+				if s.CurrentPresenter == s.Host || s.CurrentPresenter == client.UserEmail || s.CurrentPresenter == client.UserID {
+					s.CurrentPresenterUserInfo = &hostUser
+				}
+			}
 			s.mu.Unlock()
 			slogging.Get().Debug("Client registered successfully in session - Session: %s, User: %s, Total clients: %d", s.ID, client.UserID, len(s.Clients))
 
@@ -1406,7 +1421,7 @@ func (s *DiagramSession) Run() {
 
 			// Broadcast updated participant list to all clients (system event - user joined)
 			// This includes current_presenter info, so new client gets presenter info too
-			s.broadcastParticipantsUpdate(nil)
+			s.broadcastParticipantsUpdate()
 
 		case client := <-s.Unregister:
 			s.mu.Lock()
@@ -1441,7 +1456,7 @@ func (s *DiagramSession) Run() {
 				// This prevents stale 0-participant messages from being queued and later
 				// delivered to newly connected clients
 				if hasRemainingClients {
-					s.broadcastParticipantsUpdate(nil)
+					s.broadcastParticipantsUpdate()
 				}
 
 				// Trigger cleanup of empty sessions after user departure
@@ -1677,13 +1692,15 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	if client.UserEmail == host {
 		s.mu.Lock()
 		s.CurrentPresenter = client.UserEmail
+		// Update cached presenter user info to host's info
+		hostUser := client.toUser()
+		s.CurrentPresenterUserInfo = &hostUser
 		s.mu.Unlock()
 
 		slogging.Get().Info("Host %s became presenter in session %s", client.UserID, s.ID)
 
 		// Broadcast updated participant list (includes current_presenter)
-		initiatingUser := client.toUser()
-		s.broadcastParticipantsUpdate(&initiatingUser)
+		s.broadcastParticipantsUpdate()
 		return
 	}
 
@@ -1754,16 +1771,18 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 		return
 	}
 
-	// Change presenter
+	// Change presenter and update cached user info
 	s.mu.Lock()
 	s.CurrentPresenter = req.NewPresenter.ProviderId
+	// Cache the new presenter's user info from the connected client
+	newPresenterUser := targetClient.toUser()
+	s.CurrentPresenterUserInfo = &newPresenterUser
 	s.mu.Unlock()
 
 	slogging.Get().Info("Host %s changed presenter to %s in session %s", client.UserID, req.NewPresenter.ProviderId, s.ID)
 
 	// Broadcast updated participant list (includes current_presenter)
-	initiatingUser := client.toUser()
-	s.broadcastParticipantsUpdate(&initiatingUser)
+	s.broadcastParticipantsUpdate()
 }
 
 // processRemoveParticipant handles host removing a participant from the session
@@ -1852,14 +1871,15 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 	s.mu.Lock()
 	if s.CurrentPresenter == req.RemovedUser.ProviderId {
 		s.CurrentPresenter = host // Host becomes presenter again
+		// Revert presenter user info to host's cached info
+		s.CurrentPresenterUserInfo = s.HostUserInfo
 		slogging.Get().Info("Removed participant %s was presenter, host %s is now presenter in session %s",
 			req.RemovedUser.ProviderId, host, s.ID)
 	}
 	s.mu.Unlock()
 
 	// Broadcast updated participant list (includes current_presenter)
-	initiatingUser := client.toUser()
-	s.broadcastParticipantsUpdate(&initiatingUser)
+	s.broadcastParticipantsUpdate()
 }
 
 // sendErrorMessage sends an error message to a specific client
@@ -2150,6 +2170,7 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 	// 2. If host has also left, set presenter to first remaining user with write permissions
 
 	var newPresenter string
+	var newPresenterUserInfo *User
 
 	// Check if host is still connected
 	managerConnected := false
@@ -2157,6 +2178,7 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		if client.UserEmail == s.Host {
 			managerConnected = true
 			newPresenter = s.Host
+			newPresenterUserInfo = s.HostUserInfo // Use cached host info
 			break
 		}
 	}
@@ -2182,6 +2204,8 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 				)
 				if err == nil && hasWriteAccess {
 					newPresenter = client.UserID
+					presenterUser := client.toUser()
+					newPresenterUserInfo = &presenterUser
 					break
 				}
 			}
@@ -2191,10 +2215,12 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 	// Assign new presenter (broadcast happens in caller via broadcastParticipantsUpdate)
 	if newPresenter != "" {
 		s.CurrentPresenter = newPresenter
+		s.CurrentPresenterUserInfo = newPresenterUserInfo
 		slogging.Get().Info("Set new presenter to %s in session %s after %s disconnected", newPresenter, s.ID, disconnectedUserID)
 	} else {
 		// No suitable presenter found, clear presenter
 		s.CurrentPresenter = ""
+		s.CurrentPresenterUserInfo = nil
 		slogging.Get().Info("No suitable presenter found for session %s after %s disconnected", s.ID, disconnectedUserID)
 	}
 }
@@ -2362,7 +2388,7 @@ func (s *DiagramSession) removeAndBlockClient(client *WebSocketClient, reason st
 			slogging.Get().Debug("Error broadcasting participants update after removing client: %v", r)
 		}
 	}()
-	s.broadcastParticipantsUpdate(nil) // System event - security violation
+	s.broadcastParticipantsUpdate() // System event - security violation
 }
 
 // findClientByUserEmail finds a connected client by their email address
@@ -2404,11 +2430,11 @@ func (s *DiagramSession) getUserRole(userID string) Role {
 }
 
 // broadcastParticipantsUpdate sends complete participant list to all clients
-func (s *DiagramSession) broadcastParticipantsUpdate(initiatingUser *User) {
+func (s *DiagramSession) broadcastParticipantsUpdate() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Build participant list
+	// Build participant list from connected clients
 	participants := make([]AsyncParticipant, 0)
 
 	// Track processed users to avoid duplicates
@@ -2427,26 +2453,40 @@ func (s *DiagramSession) broadcastParticipantsUpdate(initiatingUser *User) {
 		permissions := "writer"
 
 		participants = append(participants, AsyncParticipant{
-			User: User{
-				PrincipalType: UserPrincipalTypeUser,
-				Provider:      client.UserProvider,
-				ProviderId:    client.UserID,
-				Email:         openapi_types.Email(client.UserEmail),
-				DisplayName:   client.UserName,
-			},
+			User:         client.toUser(),
 			Permissions:  permissions,
 			LastActivity: client.LastActivity,
 		})
 		processedUsers[client.UserID] = true
 	}
 
+	// Get host user info from cached value
+	// HostUserInfo is set when the host first connects via WebSocket
+	var hostUser User
+	if s.HostUserInfo != nil {
+		hostUser = *s.HostUserInfo
+	} else {
+		// Fallback for edge case where host hasn't connected yet
+		// This shouldn't happen in normal operation since host creates the session
+		slogging.Get().Warn("HostUserInfo not set for session %s, using minimal fallback", s.ID)
+		hostUser = User{
+			PrincipalType: UserPrincipalTypeUser,
+			ProviderId:    s.Host,
+			Email:         openapi_types.Email(s.Host),
+			DisplayName:   s.Host,
+		}
+	}
+
+	// Get current presenter user info from cached value
+	// CurrentPresenterUserInfo is updated whenever the presenter changes
+	currentPresenter := s.CurrentPresenterUserInfo
+
 	// Create and send the message
 	msg := ParticipantsUpdateMessage{
 		MessageType:      MessageTypeParticipantsUpdate,
-		InitiatingUser:   initiatingUser, // nil for system events, set for user-initiated actions
 		Participants:     participants,
-		Host:             s.Host,
-		CurrentPresenter: s.CurrentPresenter,
+		Host:             hostUser,
+		CurrentPresenter: currentPresenter,
 	}
 
 	if msgBytes, err := json.Marshal(msg); err == nil {

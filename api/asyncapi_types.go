@@ -585,10 +585,9 @@ type AsyncParticipant struct {
 // ParticipantsUpdateMessage provides complete participant list with roles
 type ParticipantsUpdateMessage struct {
 	MessageType      MessageType        `json:"message_type"`
-	InitiatingUser   *User              `json:"initiating_user,omitempty"`
 	Participants     []AsyncParticipant `json:"participants"`
-	Host             string             `json:"host"`
-	CurrentPresenter string             `json:"current_presenter"`
+	Host             User               `json:"host"`
+	CurrentPresenter *User              `json:"current_presenter"`
 }
 
 func (m ParticipantsUpdateMessage) GetMessageType() MessageType { return m.MessageType }
@@ -597,16 +596,16 @@ func (m ParticipantsUpdateMessage) Validate() error {
 	if m.MessageType != MessageTypeParticipantsUpdate {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantsUpdate, m.MessageType)
 	}
-	// Validate initiating_user if present (optional for system events)
-	if m.InitiatingUser != nil {
-		if err := ValidateUserIdentity(*m.InitiatingUser); err != nil {
-			return fmt.Errorf("initiating_user: %w", err)
+	// Validate host (required)
+	if err := ValidateUserIdentity(m.Host); err != nil {
+		return fmt.Errorf("host: %w", err)
+	}
+	// Validate current_presenter if present (can be nil when no presenter)
+	if m.CurrentPresenter != nil {
+		if err := ValidateUserIdentity(*m.CurrentPresenter); err != nil {
+			return fmt.Errorf("current_presenter: %w", err)
 		}
 	}
-	if m.Host == "" {
-		return fmt.Errorf("host is required")
-	}
-	// Current presenter can be empty
 	// Validate participants
 	for i, p := range m.Participants {
 		if p.User.ProviderId == "" {
