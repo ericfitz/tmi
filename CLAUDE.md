@@ -890,12 +890,6 @@ TMI uses staticcheck for Go code quality analysis. The project has intentionally
   - Not worth customizing oapi-codegen templates for style compliance
   - **Expected behavior**: These warnings are acceptable and should be ignored
 
-- **Intentionally Kept Code**: Some unused functions are marked with `//nolint:unused` for future use:
-
-  - `trackPotentialSyncIssue` in [api/websocket.go](api/websocket.go:2803) - Sync diagnostics for future monitoring
-  - `sendResyncRecommendation` in [api/websocket.go](api/websocket.go:2831) - Sync recovery for future resilience
-  - These generate 2 U1000 warnings (unused code) which are intentional
-
 - **Auth Handler Functions**: 4 unused functions in [auth/handlers.go](auth/handlers.go) - left for potential future refactoring:
 
   - `setUserHintContext` (line 559)
