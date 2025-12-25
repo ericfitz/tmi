@@ -481,7 +481,7 @@ func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 }
 
 // getGroupsUsedInAuthorizations returns a list of groups that are used in threat model authorizations
-func (s *Server) getGroupsUsedInAuthorizations(ctx context.Context) []string {
+func (s *Server) getGroupsUsedInAuthorizations(_ context.Context) []string {
 	// Query the database for all unique groups used in authorizations
 	// For now, return empty list - this would require querying all Authorization objects
 	// and extracting unique group names

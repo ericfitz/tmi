@@ -410,12 +410,12 @@ func matchesProviderID(providerId string, userEmail string, userProviderID strin
 // Returns true if the principal or one of their groups has the required role
 // Uses flexible matching: email, provider_user_id, or internal_uuid
 func AccessCheckWithGroups(principal string, principalProviderID string, principalInternalUUID string, principalIdP string, principalGroups []string, requiredRole Role, authData AuthorizationData) bool {
-	return AccessCheckWithGroupsAndIdPLookup(context.Background(), nil, principal, principalProviderID, principalInternalUUID, principalIdP, principalGroups, requiredRole, authData)
+	return AccessCheckWithGroupsAndIdPLookup(principal, principalProviderID, principalInternalUUID, principalIdP, principalGroups, requiredRole, authData)
 }
 
 // checkUserMatch checks if an authorization entry matches the principal user
 // Returns true if the user matches, using flexible matching
-func checkUserMatch(ctx context.Context, authService AuthService, auth Authorization, principal string, principalProviderID string, principalInternalUUID string) bool {
+func checkUserMatch(auth Authorization, principal string, principalProviderID string, principalInternalUUID string) bool {
 	// Use flexible matching: email, provider_user_id, or internal_uuid
 	return matchesProviderID(auth.ProviderId, principal, principalProviderID, principalInternalUUID)
 }
@@ -456,8 +456,7 @@ func updateHighestRole(currentHighest Role, newRole Role, found bool) (Role, boo
 // Returns true if the principal or one of their groups has the required role
 // Uses flexible matching algorithm:
 // 1. Try direct match (internal_uuid, provider_user_id, or email)
-// 2. When authService is provided, enables IdP-based lookups
-func AccessCheckWithGroupsAndIdPLookup(ctx context.Context, authService AuthService, principal string, principalProviderID string, principalInternalUUID string, principalIdP string, principalGroups []string, requiredRole Role, authData AuthorizationData) bool {
+func AccessCheckWithGroupsAndIdPLookup(principal string, principalProviderID string, principalInternalUUID string, principalIdP string, principalGroups []string, requiredRole Role, authData AuthorizationData) bool {
 	// Validate authorization type
 	if authData.Type != AuthTypeTMI10 {
 		return false
@@ -475,7 +474,7 @@ func AccessCheckWithGroupsAndIdPLookup(ctx context.Context, authService AuthServ
 	for _, auth := range authData.Authorization {
 		// Check user authorization
 		if auth.PrincipalType == "" || auth.PrincipalType == AuthorizationPrincipalTypeUser {
-			if checkUserMatch(ctx, authService, auth, principal, principalProviderID, principalInternalUUID) {
+			if checkUserMatch(auth, principal, principalProviderID, principalInternalUUID) {
 				highestRole, found = updateHighestRole(highestRole, auth.Role, found)
 			}
 		}

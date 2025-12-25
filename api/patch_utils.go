@@ -244,7 +244,7 @@ func fixImageField(modifiedBytes, originalBytes []byte) []byte {
 // fixOwnerField ensures that owner fields are properly structured as User objects.
 // This fixes the issue where PATCH operations set owner to a string value, but the
 // ThreatModel struct expects a User object.
-func fixOwnerField(modifiedBytes, originalBytes []byte) []byte {
+func fixOwnerField(modifiedBytes, _ []byte) []byte {
 	// Parse modified JSON
 	var modifiedData map[string]interface{}
 	if err := json.Unmarshal(modifiedBytes, &modifiedData); err != nil {

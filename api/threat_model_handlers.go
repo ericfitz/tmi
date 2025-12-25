@@ -638,7 +638,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	}
 
 	// Phase 5: Apply business rules
-	if err := h.applyThreatModelBusinessRules(&modifiedTM, existingTM, ownerChanging, authChanging); err != nil {
+	if err := h.applyThreatModelBusinessRules(&modifiedTM, existingTM, ownerChanging); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -945,7 +945,7 @@ func (h *ThreatModelHandler) preserveThreatModelCriticalFields(modified, origina
 }
 
 // applyThreatModelBusinessRules applies threat model-specific business rules
-func (h *ThreatModelHandler) applyThreatModelBusinessRules(modifiedTM *ThreatModel, existingTM ThreatModel, ownerChanging, authChanging bool) error {
+func (h *ThreatModelHandler) applyThreatModelBusinessRules(modifiedTM *ThreatModel, existingTM ThreatModel, ownerChanging bool) error {
 	// Note: Post-enrichment duplicate detection removed.
 	// The database ON CONFLICT will handle duplicates gracefully after internal_uuid resolution.
 	// Pre-enrichment validation already caught obvious client mistakes.
