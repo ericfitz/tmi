@@ -146,6 +146,12 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 			return fmt.Errorf("failed to save diagram: %w", err)
 		}
 
+		// Get the updated update_vector after save
+		updateVector := int64(0)
+		if diagram.UpdateVector != nil {
+			updateVector = *diagram.UpdateVector
+		}
+
 		// Rebuild current state map after validation (diagram was modified in place)
 		newCurrentState := buildCellStateMap(diagram.Cells)
 
@@ -155,6 +161,7 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 			InitiatingUser: client.toUser(),
 			OperationID:    req.OperationID,
 			SequenceNumber: req.SequenceNumber,
+			UpdateVector:   updateVector,
 			Operation:      req.Operation,
 		}
 
@@ -176,12 +183,6 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 
 		session.sendOperationRejected(client, req.OperationID, req.SequenceNumber, rejectionReason,
 			rejectionMessage, detailsPtr, validationResult.CellsModified, requiresResync)
-
-		// Still send state correction if needed (for conflicts)
-		if validationResult.CorrectionNeeded {
-			slogging.Get().Info("Sending additional state correction to %s for cells: %v", client.UserID, validationResult.CellsModified)
-			session.sendStateCorrection(client, validationResult.CellsModified)
-		}
 	}
 
 	processingTime := time.Since(startTime)

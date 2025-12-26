@@ -6,22 +6,41 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
-// ResyncRequestHandler handles resync request messages
-type ResyncRequestHandler struct{}
+// SyncStatusRequestHandler handles sync status request messages
+type SyncStatusRequestHandler struct{}
 
-func (h *ResyncRequestHandler) MessageType() string {
-	return "resync_request"
+func (h *SyncStatusRequestHandler) MessageType() string {
+	return "sync_status_request"
 }
 
-func (h *ResyncRequestHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
+func (h *SyncStatusRequestHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			slogging.Get().Error("PANIC in ResyncRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+			slogging.Get().Error("PANIC in SyncStatusRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
 				session.ID, client.UserID, r, debug.Stack())
 		}
 	}()
 
-	session.processResyncRequest(client, message)
+	session.processSyncStatusRequest(client, message)
+	return nil
+}
+
+// SyncRequestHandler handles sync request messages
+type SyncRequestHandler struct{}
+
+func (h *SyncRequestHandler) MessageType() string {
+	return "sync_request"
+}
+
+func (h *SyncRequestHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
+	defer func() {
+		if r := recover(); r != nil {
+			slogging.Get().Error("PANIC in SyncRequestHandler - Session: %s, User: %s, Error: %v, Stack: %s",
+				session.ID, client.UserID, r, debug.Stack())
+		}
+	}()
+
+	session.processSyncRequest(client, message)
 	return nil
 }
 

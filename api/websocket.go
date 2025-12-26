@@ -89,8 +89,6 @@ type DiagramSession struct {
 	OperationHistory *OperationHistory
 	// Next sequence number for operations
 	NextSequenceNumber uint64
-	// Recent corrections tracking for sync issue detection
-	recentCorrections map[string]int
 	// Client sequence tracking for out-of-order detection
 	clientLastSequence map[string]uint64
 
@@ -346,11 +344,6 @@ func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagra
 		return nil, fmt.Errorf("failed to update diagram %s: %w", diagramID, err)
 	}
 
-	// Notify WebSocket clients if this update came from REST API and vector was incremented
-	if updateSource == "rest_api" && vectorIncremented {
-		h.notifyWebSocketClientsOfUpdate(diagramID, newVector, excludeUserID)
-	}
-
 	return &UpdateDiagramResult{
 		UpdatedDiagram:    updatedDiagram,
 		PreviousVector:    previousVector,
@@ -368,34 +361,6 @@ func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []DfdDiagra
 	}
 
 	return h.UpdateDiagram(diagramID, updateFunc, updateSource, excludeUserID)
-}
-
-// notifyWebSocketClientsOfUpdate sends state correction messages to active WebSocket sessions
-// to trigger client resync when diagram is updated via REST API
-func (h *WebSocketHub) notifyWebSocketClientsOfUpdate(diagramID string, newUpdateVector int64, excludeUserID string) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	session, exists := h.Diagrams[diagramID]
-	if !exists {
-		// No active WebSocket session for this diagram
-		return
-	}
-
-	// Create state correction message with update_vector
-	correctionMsg := StateCorrectionMessage{
-		MessageType:  "state_correction",
-		UpdateVector: &newUpdateVector,
-	}
-
-	// Send correction to all connected clients except the excluded user
-	for client := range session.Clients {
-		if client.UserID != excludeUserID {
-			session.sendToClient(client, correctionMsg)
-			slogging.Get().Debug("Sent state correction due to REST API update - diagram: %s, user: %s, update_vector: %d",
-				diagramID, client.UserID, newUpdateVector)
-		}
-	}
 }
 
 // buildWebSocketURL constructs the absolute WebSocket URL from request context
@@ -507,7 +472,6 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 		DeniedUsers:        make(map[string]bool),
 		NextSequenceNumber: 1,
 		OperationHistory:   NewOperationHistory(),
-		recentCorrections:  make(map[string]int),
 		clientLastSequence: make(map[string]uint64),
 	}
 
@@ -582,7 +546,6 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 		DeniedUsers:        make(map[string]bool),
 		NextSequenceNumber: 1,
 		OperationHistory:   NewOperationHistory(),
-		recentCorrections:  make(map[string]int),
 		clientLastSequence: make(map[string]uint64),
 	}
 
@@ -1385,36 +1348,36 @@ func (s *DiagramSession) Run() {
 			slogging.Get().Debug("Client registered successfully in session - Session: %s, User: %s, Total clients: %d", s.ID, client.UserID, len(s.Clients))
 
 			// Send initial state to the new client
-			// First, send diagram state sync to ensure client has current server state
+			// Send DiagramStateMessage to ensure client has current server state
 			diagram, err := DiagramStore.Get(s.DiagramID)
 			if err != nil {
 				slogging.Get().Error("Failed to get diagram for initial state sync - Session: %s, User: %s, DiagramID: %s, Error: %v",
 					s.ID, client.UserID, s.DiagramID, err)
-				// Continue anyway - client can request resync later via resync_request message
+				// Continue anyway - client can request sync later via sync_request message
 			} else {
 				updateVectorValue := int64(0)
 				if diagram.UpdateVector != nil {
 					updateVectorValue = *diagram.UpdateVector
 				}
 
-				stateSyncMsg := DiagramStateSyncMessage{
-					MessageType:  MessageTypeDiagramStateSync,
+				diagramStateMsg := DiagramStateMessage{
+					MessageType:  MessageTypeDiagramState,
 					DiagramID:    s.DiagramID,
-					UpdateVector: diagram.UpdateVector,
+					UpdateVector: updateVectorValue,
 					Cells:        diagram.Cells,
 				}
 
-				if msgBytes, err := json.Marshal(stateSyncMsg); err == nil {
+				if msgBytes, err := json.Marshal(diagramStateMsg); err == nil {
 					select {
 					case client.Send <- msgBytes:
-						slogging.Get().Info("Sent initial diagram state sync to client - Session: %s, User: %s, UpdateVector: %d, Cells: %d",
+						slogging.Get().Info("Sent initial diagram state to client - Session: %s, User: %s, UpdateVector: %d, Cells: %d",
 							s.ID, client.UserID, updateVectorValue, len(diagram.Cells))
 					default:
-						slogging.Get().Error("Failed to queue initial state sync for client - Session: %s, User: %s (channel full)",
+						slogging.Get().Error("Failed to queue initial state for client - Session: %s, User: %s (channel full)",
 							s.ID, client.UserID)
 					}
 				} else {
-					slogging.Get().Error("Failed to marshal diagram state sync message - Session: %s, User: %s, Error: %v",
+					slogging.Get().Error("Failed to marshal diagram state message - Session: %s, User: %s, Error: %v",
 						s.ID, client.UserID, err)
 				}
 			}
@@ -1982,29 +1945,75 @@ func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, mess
 	s.broadcastToOthers(client, msg)
 }
 
-// processResyncRequest handles client resync requests
-func (s *DiagramSession) processResyncRequest(client *WebSocketClient, message []byte) {
-	var msg ResyncRequestMessage
+// processSyncStatusRequest handles client requests for current server update vector
+func (s *DiagramSession) processSyncStatusRequest(client *WebSocketClient, _ []byte) {
+	// Get current update vector from diagram
+	updateVector := int64(0)
+	diagram, err := DiagramStore.Get(s.DiagramID)
+	if err == nil && diagram.UpdateVector != nil {
+		updateVector = *diagram.UpdateVector
+	}
+
+	response := SyncStatusResponseMessage{
+		MessageType:  MessageTypeSyncStatusResponse,
+		UpdateVector: updateVector,
+	}
+
+	s.sendToClient(client, response)
+	slogging.Get().Debug("Sent sync status response to %s - UpdateVector: %d", client.UserID, updateVector)
+}
+
+// processSyncRequest handles client requests for full diagram state if stale
+func (s *DiagramSession) processSyncRequest(client *WebSocketClient, message []byte) {
+	var msg SyncRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		slogging.Get().Info("Error parsing resync request: %v", err)
+		slogging.Get().Info("Error parsing sync request: %v", err)
 		return
 	}
 
-	// User authentication is validated by connection context
-
-	slogging.Get().Info("Client %s requested resync for diagram %s", client.UserID, s.DiagramID)
-
-	// According to the plan, we use REST API for resync for simplicity
-	// Send a message telling the client to use the REST endpoint for resync
-	resyncResponse := ResyncResponseMessage{
-		MessageType:   MessageTypeResyncResponse,
-		Method:        "rest_api",
-		DiagramID:     s.DiagramID,
-		ThreatModelID: s.ThreatModelID,
+	// Get current diagram state
+	diagram, err := DiagramStore.Get(s.DiagramID)
+	if err != nil {
+		slogging.Get().Error("Failed to get diagram for sync request - Session: %s, User: %s, Error: %v",
+			s.ID, client.UserID, err)
+		return
 	}
 
-	s.sendToClient(client, resyncResponse)
-	slogging.Get().Info("Sent resync response to %s for diagram %s", client.UserID, s.DiagramID)
+	updateVector := int64(0)
+	if diagram.UpdateVector != nil {
+		updateVector = *diagram.UpdateVector
+	}
+
+	// If client provided update_vector and it matches server's, just send status response
+	if msg.UpdateVector != nil && *msg.UpdateVector == updateVector {
+		response := SyncStatusResponseMessage{
+			MessageType:  MessageTypeSyncStatusResponse,
+			UpdateVector: updateVector,
+		}
+		s.sendToClient(client, response)
+		slogging.Get().Debug("Client %s is current (vector=%d), sent sync status response", client.UserID, updateVector)
+		return
+	}
+
+	// Client is stale or didn't provide vector - send full state
+	diagramStateMsg := DiagramStateMessage{
+		MessageType:  MessageTypeDiagramState,
+		DiagramID:    s.DiagramID,
+		UpdateVector: updateVector,
+		Cells:        diagram.Cells,
+	}
+
+	if msgBytes, err := json.Marshal(diagramStateMsg); err == nil {
+		select {
+		case client.Send <- msgBytes:
+			slogging.Get().Info("Sent diagram state to client %s - UpdateVector: %d, Cells: %d",
+				client.UserID, updateVector, len(diagram.Cells))
+		default:
+			slogging.Get().Error("Failed to queue diagram state for client %s (channel full)", client.UserID)
+		}
+	} else {
+		slogging.Get().Error("Failed to marshal diagram state message: %v", err)
+	}
 
 	// Record performance metrics
 	if GlobalPerformanceMonitor != nil {
@@ -2072,12 +2081,20 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 	// Update history position
 	s.OperationHistory.MoveToPosition(entry.SequenceNumber - 1)
 
+	// Get current update vector
+	updateVector := int64(0)
+	diagram, err := DiagramStore.Get(s.DiagramID)
+	if err == nil && diagram.UpdateVector != nil {
+		updateVector = *diagram.UpdateVector
+	}
+
 	// Broadcast the undo result to all clients as DiagramOperationEvent
 	event := DiagramOperationEvent{
 		MessageType:    MessageTypeDiagramOperationEvent,
 		InitiatingUser: client.toUser(),
 		OperationID:    entry.OperationID,
 		SequenceNumber: &entry.SequenceNumber,
+		UpdateVector:   updateVector,
 		Operation:      entry.Operation,
 	}
 	s.broadcastToAllClients(event)
@@ -2144,12 +2161,20 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 	// Update history position
 	s.OperationHistory.MoveToPosition(entry.SequenceNumber)
 
+	// Get current update vector
+	updateVector := int64(0)
+	diagram, err := DiagramStore.Get(s.DiagramID)
+	if err == nil && diagram.UpdateVector != nil {
+		updateVector = *diagram.UpdateVector
+	}
+
 	// Broadcast the redo result to all clients as DiagramOperationEvent
 	event := DiagramOperationEvent{
 		MessageType:    MessageTypeDiagramOperationEvent,
 		InitiatingUser: client.toUser(),
 		OperationID:    entry.OperationID,
 		SequenceNumber: &entry.SequenceNumber,
+		UpdateVector:   updateVector,
 		Operation:      entry.Operation,
 	}
 	s.broadcastToAllClients(event)
@@ -2557,10 +2582,18 @@ func (s *DiagramSession) sendAuthorizationDenied(client *WebSocketClient, operat
 
 // sendOperationRejected sends an operation_rejected message to the originating client
 func (s *DiagramSession) sendOperationRejected(client *WebSocketClient, operationID string, sequenceNumber *uint64, reason string, message string, details *string, affectedCells []string, requiresResync bool) {
+	// Get current update vector from diagram
+	updateVector := int64(0)
+	diagram, err := DiagramStore.Get(s.DiagramID)
+	if err == nil && diagram.UpdateVector != nil {
+		updateVector = *diagram.UpdateVector
+	}
+
 	rejectionMsg := OperationRejectedMessage{
 		MessageType:    MessageTypeOperationRejected,
 		OperationID:    operationID,
 		SequenceNumber: sequenceNumber,
+		UpdateVector:   updateVector,
 		Reason:         reason,
 		Message:        message,
 		Details:        details,
@@ -2571,118 +2604,8 @@ func (s *DiagramSession) sendOperationRejected(client *WebSocketClient, operatio
 
 	s.sendToClient(client, rejectionMsg)
 
-	slogging.Get().Info("Sent operation_rejected to %s - Session: %s, OperationID: %s, Reason: %s, RequiresResync: %v, AffectedCells: %v",
-		client.UserID, s.ID, operationID, reason, requiresResync, affectedCells)
-}
-
-// sendStateCorrection sends the current state of specified cells to correct client state
-func (s *DiagramSession) sendStateCorrection(client *WebSocketClient, affectedCellIDs []string) {
-	s.sendStateCorrectionWithReason(client, affectedCellIDs, "operation_failed")
-}
-
-// sendStateCorrectionWithReason sends state correction with detailed logging and reason tracking
-func (s *DiagramSession) sendStateCorrectionWithReason(client *WebSocketClient, affectedCellIDs []string, reason string) {
-	if len(affectedCellIDs) == 0 {
-		return
-	}
-
-	slogging.Get().Info("Sending state correction to %s for cells %v (reason: %s)", client.UserID, affectedCellIDs, reason)
-
-	// Check user permission level for enhanced messaging
-	// Use email for permission check for backwards compatibility
-	permissionCheckID := client.UserEmail
-	if permissionCheckID == "" {
-		permissionCheckID = client.UserID
-	}
-	userRole := s.getUserRole(permissionCheckID)
-	s.sendEnhancedStateCorrection(client, affectedCellIDs, reason, userRole)
-}
-
-// sendEnhancedStateCorrection sends enhanced state correction with update vector
-func (s *DiagramSession) sendEnhancedStateCorrection(client *WebSocketClient, _ []string, reason string, userRole Role) {
-
-	// Get current diagram state
-	diagram, err := DiagramStore.Get(s.DiagramID)
-	if err != nil {
-		slogging.Get().Info("Error getting diagram for state correction: %v", err)
-		return
-	}
-
-	// Get current update vector from diagram
-	updateVector := int64(0)
-	if diagram.UpdateVector != nil {
-		updateVector = *diagram.UpdateVector
-	}
-
-	// Send the correction with update vector
-	correctionMsg := StateCorrectionMessage{
-		MessageType:  "state_correction",
-		UpdateVector: &updateVector,
-	}
-	s.sendToClient(client, correctionMsg)
-
-	// Enhanced logging based on reason and user role
-	s.logEnhancedStateCorrection(client.UserID, reason, userRole)
-
-	// Track correction frequency for potential sync issues
-	s.trackCorrectionEvent(client.UserID, reason)
-
-	// Record performance metrics
-	if GlobalPerformanceMonitor != nil {
-		GlobalPerformanceMonitor.RecordStateCorrection(s.ID, client.UserID, reason)
-	}
-}
-
-// logEnhancedStateCorrection provides detailed logging for state corrections
-func (s *DiagramSession) logEnhancedStateCorrection(userID string, reason string, userRole Role) {
-	roleStr := string(userRole)
-
-	switch reason {
-	case "unauthorized_operation":
-		slogging.Get().Warn("STATE CORRECTION [UNAUTHORIZED]: User %s (%s role) attempted unauthorized operation - resync required",
-			userID, roleStr)
-
-		// Enhanced security logging for unauthorized operations
-		if userRole == RoleReader {
-			slogging.Get().Error("SECURITY ALERT: Read-only user %s attempted to modify diagram %s", userID, s.DiagramID)
-		}
-
-	case "operation_failed":
-		slogging.Get().Warn("STATE CORRECTION [OPERATION_FAILED]: User %s (%s role) operation failed - resync required",
-			userID, roleStr)
-
-	case "out_of_order_sequence", "duplicate_message", "message_gap":
-		slogging.Get().Warn("STATE CORRECTION [SYNC_ISSUE]: User %s (%s role) sync issue (%s) - resync required",
-			userID, roleStr, reason)
-
-	default:
-		slogging.Get().Warn("STATE CORRECTION [%s]: User %s (%s role) - resync required",
-			strings.ToUpper(reason), userID, roleStr)
-	}
-}
-
-// trackCorrectionEvent tracks state corrections for detecting sync issues
-func (s *DiagramSession) trackCorrectionEvent(userID, reason string) {
-	// Simple in-memory tracking - in production this might be more sophisticated
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Add correction tracking to session metadata if needed
-	// For now, just log patterns that might indicate sync issues
-	correctionKey := fmt.Sprintf("%s_%s", userID, reason)
-
-	// Check if this user is experiencing frequent corrections
-	if s.recentCorrections == nil {
-		s.recentCorrections = make(map[string]int)
-	}
-
-	s.recentCorrections[correctionKey]++
-
-	// Log potential sync issues
-	if s.recentCorrections[correctionKey] >= 3 {
-		slogging.Get().Warn("WARNING: User %s has received %d state corrections for reason '%s' - potential sync issue",
-			userID, s.recentCorrections[correctionKey], reason)
-	}
+	slogging.Get().Info("Sent operation_rejected to %s - Session: %s, OperationID: %s, Reason: %s, UpdateVector: %d, RequiresResync: %v, AffectedCells: %v",
+		client.UserID, s.ID, operationID, reason, updateVector, requiresResync, affectedCells)
 }
 
 // applyHistoryState applies a historical state to the diagram (for undo)

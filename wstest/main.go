@@ -150,10 +150,18 @@ type OperationRejectedMessage struct {
 	Timestamp      string   `json:"timestamp"`
 }
 
-// StateCorrectionMessage matches AsyncAPI StateCorrectionPayload
-type StateCorrectionMessage struct {
+// SyncStatusResponseMessage matches the new sync protocol
+type SyncStatusResponseMessage struct {
 	MessageType  string `json:"message_type"`
-	UpdateVector *int64 `json:"update_vector"`
+	UpdateVector int64  `json:"update_vector"`
+}
+
+// DiagramStateMessage matches the new sync protocol
+type DiagramStateMessage struct {
+	MessageType  string        `json:"message_type"`
+	DiagramID    string        `json:"diagram_id"`
+	UpdateVector int64         `json:"update_vector"`
+	Cells        []interface{} `json:"cells"`
 }
 
 // PresenterCursorMessage matches AsyncAPI PresenterCursorPayload
@@ -189,13 +197,6 @@ type AuthorizationDeniedMessage struct {
 	Reason              string `json:"reason"`
 }
 
-// ResyncResponseMessage matches AsyncAPI ResyncResponsePayload
-type ResyncResponseMessage struct {
-	MessageType   string `json:"message_type"`
-	Method        string `json:"method"`
-	DiagramID     string `json:"diagram_id"`
-	ThreatModelID string `json:"threat_model_id,omitempty"`
-}
 
 func main() {
 	config := parseArgs()
@@ -1027,11 +1028,20 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 						"sequence_number", msg.SequenceNumber)
 				}
 
-			case "state_correction":
-				var msg StateCorrectionMessage
+			case "sync_status_response":
+				var msg SyncStatusResponseMessage
 				if err := json.Unmarshal(message, &msg); err == nil {
-					slogging.Get().GetSlogger().Info("State Correction",
+					slogging.Get().GetSlogger().Info("Sync Status Response",
 						"update_vector", msg.UpdateVector)
+				}
+
+			case "diagram_state":
+				var msg DiagramStateMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Diagram State",
+						"diagram_id", msg.DiagramID,
+						"update_vector", msg.UpdateVector,
+						"cells_count", len(msg.Cells))
 				}
 
 			case "error":
@@ -1094,15 +1104,6 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 					slogging.Get().GetSlogger().Warn("Authorization Denied",
 						"operation_id", msg.OriginalOperationID,
 						"reason", msg.Reason)
-				}
-
-			case "resync_response":
-				var msg ResyncResponseMessage
-				if err := json.Unmarshal(message, &msg); err == nil {
-					slogging.Get().GetSlogger().Info("Resync Response",
-						"method", msg.Method,
-						"diagram_id", msg.DiagramID,
-						"threat_model_id", msg.ThreatModelID)
 				}
 
 			default:

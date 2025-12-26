@@ -47,15 +47,17 @@ const (
 	MessageTypePresenterCursor        MessageType = "presenter_cursor"
 	MessageTypePresenterSelection     MessageType = "presenter_selection"
 	MessageTypeAuthorizationDenied    MessageType = "authorization_denied"
-	MessageTypeStateCorrection        MessageType = "state_correction"
-	MessageTypeDiagramStateSync       MessageType = "diagram_state_sync"
-	MessageTypeResyncRequest          MessageType = "resync_request"
-	MessageTypeResyncResponse         MessageType = "resync_response"
 	MessageTypeHistoryOperation       MessageType = "history_operation"
 	MessageTypeUndoRequest            MessageType = "undo_request"
 	MessageTypeRedoRequest            MessageType = "redo_request"
 
-	// New Request/Event pattern message types (Client→Server requests, Server→Client events)
+	// Sync message types (new protocol)
+	MessageTypeSyncStatusRequest  MessageType = "sync_status_request"
+	MessageTypeSyncStatusResponse MessageType = "sync_status_response"
+	MessageTypeSyncRequest        MessageType = "sync_request"
+	MessageTypeDiagramState       MessageType = "diagram_state"
+
+	// Request/Event pattern message types (Client→Server requests, Server→Client events)
 	MessageTypeDiagramOperationRequest  MessageType = "diagram_operation_request"
 	MessageTypeDiagramOperationEvent    MessageType = "diagram_operation_event"
 	MessageTypePresenterRequestEvent    MessageType = "presenter_request_event"
@@ -169,7 +171,8 @@ func (op CellOperation) Validate() error {
 type DiagramOperationRequest struct {
 	MessageType    MessageType        `json:"message_type"`
 	OperationID    string             `json:"operation_id"`
-	SequenceNumber *uint64            `json:"sequence_number,omitempty"`
+	BaseVector     *int64             `json:"base_vector,omitempty"`     // Client's state when operation was created
+	SequenceNumber *uint64            `json:"sequence_number,omitempty"` // Server-assigned
 	Operation      CellPatchOperation `json:"operation"`
 }
 
@@ -238,6 +241,7 @@ type DiagramOperationEvent struct {
 	InitiatingUser User               `json:"initiating_user"`
 	OperationID    string             `json:"operation_id"`
 	SequenceNumber *uint64            `json:"sequence_number,omitempty"`
+	UpdateVector   int64              `json:"update_vector"` // Server's update vector after operation
 	Operation      CellPatchOperation `json:"operation"`
 }
 
@@ -437,48 +441,51 @@ func (m AuthorizationDeniedMessage) Validate() error {
 	return nil
 }
 
-type StateCorrectionMessage struct {
-	MessageType  MessageType `json:"message_type"`
-	UpdateVector *int64      `json:"update_vector"`
+// Sync Protocol Messages
+
+// SyncStatusRequestMessage is sent by client to check server's current update vector
+type SyncStatusRequestMessage struct {
+	MessageType MessageType `json:"message_type"`
 }
 
-func (m StateCorrectionMessage) GetMessageType() MessageType { return m.MessageType }
+func (m SyncStatusRequestMessage) GetMessageType() MessageType { return m.MessageType }
 
-func (m StateCorrectionMessage) Validate() error {
-	if m.MessageType != MessageTypeStateCorrection {
-		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeStateCorrection, m.MessageType)
+func (m SyncStatusRequestMessage) Validate() error {
+	if m.MessageType != MessageTypeSyncStatusRequest {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeSyncStatusRequest, m.MessageType)
 	}
-	if m.UpdateVector == nil {
-		return fmt.Errorf("update_vector is required for state correction")
+	return nil
+}
+
+// SyncStatusResponseMessage is sent by server with current update vector
+type SyncStatusResponseMessage struct {
+	MessageType  MessageType `json:"message_type"`
+	UpdateVector int64       `json:"update_vector"`
+}
+
+func (m SyncStatusResponseMessage) GetMessageType() MessageType { return m.MessageType }
+
+func (m SyncStatusResponseMessage) Validate() error {
+	if m.MessageType != MessageTypeSyncStatusResponse {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeSyncStatusResponse, m.MessageType)
 	}
-	if *m.UpdateVector < 0 {
+	if m.UpdateVector < 0 {
 		return fmt.Errorf("update_vector must be non-negative")
 	}
 	return nil
 }
 
-// DiagramStateSyncMessage is sent to clients immediately upon connection to synchronize state
-type DiagramStateSyncMessage struct {
-	MessageType  MessageType             `json:"message_type"`
-	DiagramID    string                  `json:"diagram_id"`
-	UpdateVector *int64                  `json:"update_vector"`
-	Cells        []DfdDiagram_Cells_Item `json:"cells"`
+// SyncRequestMessage is sent by client to request full state if stale
+type SyncRequestMessage struct {
+	MessageType  MessageType `json:"message_type"`
+	UpdateVector *int64      `json:"update_vector,omitempty"` // Client's current vector, nil means "send everything"
 }
 
-func (m DiagramStateSyncMessage) GetMessageType() MessageType { return m.MessageType }
+func (m SyncRequestMessage) GetMessageType() MessageType { return m.MessageType }
 
-func (m DiagramStateSyncMessage) Validate() error {
-	if m.MessageType != MessageTypeDiagramStateSync {
-		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeDiagramStateSync, m.MessageType)
-	}
-	if m.DiagramID == "" {
-		return fmt.Errorf("diagram_id is required for diagram state sync")
-	}
-	if _, err := uuid.Parse(m.DiagramID); err != nil {
-		return fmt.Errorf("diagram_id must be a valid UUID: %w", err)
-	}
-	if m.Cells == nil {
-		return fmt.Errorf("cells array is required (may be empty for new diagrams)")
+func (m SyncRequestMessage) Validate() error {
+	if m.MessageType != MessageTypeSyncRequest {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeSyncRequest, m.MessageType)
 	}
 	if m.UpdateVector != nil && *m.UpdateVector < 0 {
 		return fmt.Errorf("update_vector must be non-negative")
@@ -486,42 +493,36 @@ func (m DiagramStateSyncMessage) Validate() error {
 	return nil
 }
 
-// History and Sync Messages
-
-type ResyncRequestMessage struct {
-	MessageType MessageType `json:"message_type"`
+// DiagramStateMessage is sent by server with full diagram state
+type DiagramStateMessage struct {
+	MessageType  MessageType             `json:"message_type"`
+	DiagramID    string                  `json:"diagram_id"`
+	UpdateVector int64                   `json:"update_vector"`
+	Cells        []DfdDiagram_Cells_Item `json:"cells"`
 }
 
-func (m ResyncRequestMessage) GetMessageType() MessageType { return m.MessageType }
+func (m DiagramStateMessage) GetMessageType() MessageType { return m.MessageType }
 
-func (m ResyncRequestMessage) Validate() error {
-	if m.MessageType != MessageTypeResyncRequest {
-		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeResyncRequest, m.MessageType)
-	}
-	return nil
-}
-
-type ResyncResponseMessage struct {
-	MessageType   MessageType `json:"message_type"`
-	Method        string      `json:"method"`
-	DiagramID     string      `json:"diagram_id"`
-	ThreatModelID string      `json:"threat_model_id,omitempty"`
-}
-
-func (m ResyncResponseMessage) GetMessageType() MessageType { return m.MessageType }
-
-func (m ResyncResponseMessage) Validate() error {
-	if m.MessageType != MessageTypeResyncResponse {
-		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeResyncResponse, m.MessageType)
-	}
-	if m.Method == "" {
-		return fmt.Errorf("method is required")
+func (m DiagramStateMessage) Validate() error {
+	if m.MessageType != MessageTypeDiagramState {
+		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeDiagramState, m.MessageType)
 	}
 	if m.DiagramID == "" {
 		return fmt.Errorf("diagram_id is required")
 	}
+	if _, err := uuid.Parse(m.DiagramID); err != nil {
+		return fmt.Errorf("diagram_id must be a valid UUID: %w", err)
+	}
+	if m.Cells == nil {
+		return fmt.Errorf("cells array is required (may be empty for new diagrams)")
+	}
+	if m.UpdateVector < 0 {
+		return fmt.Errorf("update_vector must be non-negative")
+	}
 	return nil
 }
+
+// History Messages
 
 type HistoryOperationMessage struct {
 	MessageType   MessageType `json:"message_type"`
@@ -669,10 +670,14 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 		return parseAndValidate[PresenterCursorMessage](data, "presenter cursor")
 	case MessageTypePresenterSelection:
 		return parseAndValidate[PresenterSelectionMessage](data, "presenter selection")
-	case MessageTypeResyncRequest:
-		return parseAndValidate[ResyncRequestMessage](data, "resync request")
-	case MessageTypeResyncResponse:
-		return parseAndValidate[ResyncResponseMessage](data, "resync response")
+	case MessageTypeSyncStatusRequest:
+		return parseAndValidate[SyncStatusRequestMessage](data, "sync status request")
+	case MessageTypeSyncStatusResponse:
+		return parseAndValidate[SyncStatusResponseMessage](data, "sync status response")
+	case MessageTypeSyncRequest:
+		return parseAndValidate[SyncRequestMessage](data, "sync request")
+	case MessageTypeDiagramState:
+		return parseAndValidate[DiagramStateMessage](data, "diagram state")
 	case MessageTypeUndoRequest:
 		return parseAndValidate[UndoRequestMessage](data, "undo request")
 	case MessageTypeRedoRequest:
@@ -719,6 +724,7 @@ type OperationRejectedMessage struct {
 	MessageType    MessageType `json:"message_type"`
 	OperationID    string      `json:"operation_id"`
 	SequenceNumber *uint64     `json:"sequence_number,omitempty"` // May be assigned before rejection
+	UpdateVector   int64       `json:"update_vector"`             // Current server update vector
 	Reason         string      `json:"reason"`                    // Structured reason code
 	Message        string      `json:"message"`                   // Human-readable description
 	Details        *string     `json:"details,omitempty"`         // Optional technical details

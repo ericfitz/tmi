@@ -41,7 +41,6 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 		Clients:            make(map[*WebSocketClient]bool),
 		NextSequenceNumber: 1,
 		clientLastSequence: make(map[string]uint64),
-		recentCorrections:  make(map[string]int),
 		Hub:                hub,
 	}
 

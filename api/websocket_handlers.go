@@ -32,7 +32,8 @@ func NewMessageRouter() *MessageRouter {
 	router.RegisterHandler(&PresenterDeniedRequestHandler{})
 	router.RegisterHandler(&PresenterCursorHandler{})
 	router.RegisterHandler(&PresenterSelectionHandler{})
-	router.RegisterHandler(&ResyncRequestHandler{})
+	router.RegisterHandler(&SyncStatusRequestHandler{})
+	router.RegisterHandler(&SyncRequestHandler{})
 	router.RegisterHandler(&UndoRequestHandler{})
 	router.RegisterHandler(&RedoRequestHandler{})
 
