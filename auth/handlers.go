@@ -972,7 +972,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 
 // handleAuthorizationCodeGrant handles the authorization code grant flow with PKCE
 // This is called by both Token (for /oauth2/token) and Exchange (for backward compatibility)
-func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifier, redirectURI string) {
+func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifier, _ string) {
 	// Get provider ID from query parameter
 	providerID := c.Query("idp")
 	if providerID == "" {
