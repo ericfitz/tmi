@@ -82,14 +82,14 @@ channels:
         $ref: "#/components/messages/PresenterSelectionMessage"
       authorizationDeniedMessage:
         $ref: "#/components/messages/AuthorizationDeniedMessage"
-      stateCorrectionMessage:
-        $ref: "#/components/messages/StateCorrectionMessage"
-      diagramStateSyncMessage:
-        $ref: "#/components/messages/DiagramStateSyncMessage"
-      resyncRequestMessage:
-        $ref: "#/components/messages/ResyncRequestMessage"
-      resyncResponseMessage:
-        $ref: "#/components/messages/ResyncResponseMessage"
+      syncStatusRequestMessage:
+        $ref: "#/components/messages/SyncStatusRequestMessage"
+      syncStatusResponseMessage:
+        $ref: "#/components/messages/SyncStatusResponseMessage"
+      syncRequestMessage:
+        $ref: "#/components/messages/SyncRequestMessage"
+      diagramStateMessage:
+        $ref: "#/components/messages/DiagramStateMessage"
       undoRequestMessage:
         $ref: "#/components/messages/UndoRequestMessage"
       redoRequestMessage:
@@ -125,7 +125,8 @@ operations:
       - $ref: "#/components/messages/PresenterCursorMessage"
       - $ref: "#/components/messages/PresenterSelectionMessage"
       - $ref: "#/components/messages/PresenterDeniedRequestMessage"
-      - $ref: "#/components/messages/ResyncRequestMessage"
+      - $ref: "#/components/messages/SyncStatusRequestMessage"
+      - $ref: "#/components/messages/SyncRequestMessage"
       - $ref: "#/components/messages/UndoRequestMessage"
       - $ref: "#/components/messages/RedoRequestMessage"
       - $ref: "#/components/messages/RemoveParticipantRequestMessage"
@@ -154,8 +155,8 @@ operations:
       - $ref: "#/components/messages/PresenterCursorMessage"
       - $ref: "#/components/messages/PresenterSelectionMessage"
       - $ref: "#/components/messages/AuthorizationDeniedMessage"
-      - $ref: "#/components/messages/StateCorrectionMessage"
-      - $ref: "#/components/messages/ResyncResponseMessage"
+      - $ref: "#/components/messages/SyncStatusResponseMessage"
+      - $ref: "#/components/messages/DiagramStateMessage"
       - $ref: "#/components/messages/ParticipantsUpdateMessage"
       - $ref: "#/components/messages/ErrorMessage"
       - $ref: "#/components/messages/OperationRejectedMessage"
@@ -193,6 +194,7 @@ components:
           payload:
             message_type: diagram_operation_request
             operation_id: 123e4567-e89b-12d3-a456-426614174000
+            base_vector: 42
             operation:
               type: patch
               cells:
@@ -233,6 +235,7 @@ components:
               displayName: Alice Johnson
             operation_id: 123e4567-e89b-12d3-a456-426614174000
             sequence_number: 12345
+            update_vector: 43
             operation:
               type: patch
               cells:
@@ -404,86 +407,117 @@ components:
             original_operation_id: 123e4567-e89b-12d3-a456-426614174000
             reason: insufficient_permissions
 
-    StateCorrectionMessage:
-      name: StateCorrectionMessage
-      title: State Correction
-      summary: Server sends state correction notification with update vector
+    SyncStatusRequestMessage:
+      name: SyncStatusRequestMessage
+      title: Sync Status Request (Client → Server)
+      summary: Client asks server for current update vector
       description: |
-        Message sent by server to notify clients that diagram state has changed and they
-        should resynchronize with the server. Used in two primary scenarios:
+        Client-to-server request to check the server's current update vector without
+        receiving full diagram state. Useful when client suspects state drift and wants
+        to verify synchronization status before deciding whether to request full state.
 
-        ## REST API Updates
-        When a diagram is updated via REST API (not through WebSocket), all connected
-        WebSocket clients receive a state_correction message containing the new update_vector.
-        This signals them to fetch the latest diagram state via REST API and compare
-        update vectors to determine if they need to resync.
+        ## Use Case
+        Client can send this message when reconnecting or after a period of inactivity
+        to quickly check if their local state is current without the overhead of
+        receiving the full diagram state.
 
-        ## Conflict Resolution
-        When WebSocket operations result in conflicts or invalid state, affected clients
-        receive a state_correction message with the current authoritative update_vector.
-        Clients should compare this with their local state and resync if necessary.
-
-        ## Client Handling
-        Upon receiving a state_correction message, clients should:
-        1. Compare the provided update_vector with their local diagram state
-        2. If the server's update_vector is higher, fetch the latest diagram via REST API
-        3. Update their local state and resume normal operations
+        ## Response
+        Server responds with SyncStatusResponseMessage containing the current update_vector.
       payload:
-        $ref: "#/components/schemas/StateCorrectionPayload"
+        $ref: "#/components/schemas/SyncStatusRequestPayload"
       examples:
-        - name: RestApiUpdateNotification
-          summary: Notification of REST API update with new update vector
+        - name: CheckSyncStatus
+          summary: Check if client state is current
           payload:
-            message_type: state_correction
-            update_vector: 15
-        - name: ConflictResolution
-          summary: Conflict resolution with current authoritative update vector
-          payload:
-            message_type: state_correction
-            update_vector: 23
+            message_type: sync_status_request
 
-    DiagramStateSyncMessage:
-      name: DiagramStateSyncMessage
-      title: Initial Diagram State Synchronization
-      summary: Server sends complete diagram state upon client connection
+    SyncStatusResponseMessage:
+      name: SyncStatusResponseMessage
+      title: Sync Status Response (Server → Client)
+      summary: Server responds with current update vector
       description: |
-        Message sent by server immediately after a client connects to a WebSocket
-        collaboration session. This ensures the client has the current server state
-        before sending any operations.
-
-        ## Purpose
-        Prevents "cell_already_exists" validation errors that occur when clients
-        attempt to send operations based on stale REST API cached state. By receiving
-        the current diagram state (including update_vector and all cells), clients can:
-        1. Detect if their cached state is out of sync
-        2. Compare update vectors to determine staleness
-        3. Update their local state before sending operations
-
-        ## When Sent
-        - Immediately after client successfully joins WebSocket session
-        - Sent before participants_update message
-        - Sent only to the newly connected client (not broadcasted)
+        Server-to-client response containing only the current update vector.
+        Sent in response to SyncStatusRequestMessage, or as a response to
+        SyncRequestMessage when the client's update_vector matches the server's.
 
         ## Client Handling
-        Upon receiving a diagram_state_sync message, clients should:
-        1. Compare the received update_vector with their local cached version
-        2. If update_vector differs:
-           - Option A: Use the received cells array to update local state
-           - Option B: Fetch fresh diagram via REST API for complete synchronization
-        3. Update local state before sending any diagram_operation messages
-        4. If cells array is empty, the diagram has no cells yet (new diagram)
+        Compare the returned update_vector with local state:
+        - If equal: Client is synchronized, no action needed
+        - If different: Send SyncRequestMessage to get full diagram state
+      payload:
+        $ref: "#/components/schemas/SyncStatusResponsePayload"
+      examples:
+        - name: SyncStatusResponse
+          summary: Server reports current update vector
+          payload:
+            message_type: sync_status_response
+            update_vector: 42
+
+    SyncRequestMessage:
+      name: SyncRequestMessage
+      title: Sync Request (Client → Server)
+      summary: Client requests full diagram state if stale
+      description: |
+        Client-to-server request for full diagram state. Includes optional update_vector
+        for conditional synchronization.
+
+        ## Conditional Sync
+        - If update_vector is provided and matches server's: Server sends SyncStatusResponseMessage
+        - If update_vector is provided and differs: Server sends DiagramStateMessage
+        - If update_vector is omitted or null: Server always sends DiagramStateMessage
+
+        ## Use Case
+        Send after receiving SyncStatusResponseMessage with a different update_vector,
+        or when client detects potential state drift and wants to ensure synchronization.
+      payload:
+        $ref: "#/components/schemas/SyncRequestPayload"
+      examples:
+        - name: ConditionalSyncRequest
+          summary: Request state if stale (with update_vector)
+          payload:
+            message_type: sync_request
+            update_vector: 40
+        - name: ForceSyncRequest
+          summary: Request full state unconditionally
+          payload:
+            message_type: sync_request
+
+    DiagramStateMessage:
+      name: DiagramStateMessage
+      title: Diagram State (Server → Client)
+      summary: Server sends complete diagram state
+      description: |
+        Full diagram state sent by the server. Used for:
+
+        ## Initial Connection
+        Sent immediately after a client successfully joins a WebSocket session,
+        before the participants_update message.
+
+        ## Response to SyncRequestMessage
+        Sent when client requests full state and their update_vector differs from
+        the server's (or is omitted).
+
+        ## Contents
+        Contains the complete diagram state including:
+        - diagram_id: UUID of the diagram
+        - update_vector: Current authoritative version number
+        - cells: Array of all diagram cells (nodes and edges)
+
+        ## Client Handling
+        1. Replace local diagram state with received state
+        2. Update local update_vector to track future operations
+        3. If cells array is empty, the diagram has no cells yet
 
         ## Performance Considerations
-        For diagrams with many cells (100+), the cells array may be large. Clients
-        should handle this message asynchronously and may choose to fetch via REST API
-        instead of processing the embedded cells array.
+        For diagrams with many cells (100+), this message may be large. Clients
+        should handle asynchronously if needed.
       payload:
-        $ref: "#/components/schemas/DiagramStateSyncPayload"
+        $ref: "#/components/schemas/DiagramStatePayload"
       examples:
-        - name: InitialStateWithCells
-          summary: Initial state sync with existing diagram cells
+        - name: DiagramStateWithCells
+          summary: Diagram state with existing cells
           payload:
-            message_type: diagram_state_sync
+            message_type: diagram_state
             diagram_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
             update_vector: 42
             cells:
@@ -498,46 +532,13 @@ components:
                 shape: edge
                 source: 123e4567-e89b-12d3-a456-426614174000
                 target: 456e7890-abcd-12d3-a456-426614174000
-        - name: InitialStateEmpty
-          summary: Initial state sync for new diagram with no cells
+        - name: DiagramStateEmpty
+          summary: Diagram state for new diagram with no cells
           payload:
-            message_type: diagram_state_sync
+            message_type: diagram_state
             diagram_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
             update_vector: 1
             cells: []
-
-    ResyncRequestMessage:
-      name: ResyncRequestMessage
-      title: Resync Request
-      summary: Client requests full diagram synchronization
-      description: |
-        Message sent by clients when they detect they are out of sync and need
-        to reload the complete diagram state.
-      payload:
-        $ref: "#/components/schemas/ResyncRequestPayload"
-      examples:
-        - name: ResyncRequest
-          summary: Example of resync request
-          payload:
-            message_type: resync_request
-
-    ResyncResponseMessage:
-      name: ResyncResponseMessage
-      title: Resync Response
-      summary: Server response to resync request
-      description: |
-        Message sent by server in response to resync requests. Tells the client
-        to use REST API for authoritative diagram state recovery.
-      payload:
-        $ref: "#/components/schemas/ResyncResponsePayload"
-      examples:
-        - name: ResyncResponse
-          summary: Example of resync response
-          payload:
-            message_type: resync_response
-            method: rest_api
-            diagram_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
-            threat_model_id: 550e8400-e29b-41d4-a716-446655440000
 
     UndoRequestMessage:
       name: UndoRequestMessage
@@ -661,6 +662,7 @@ components:
             message_type: operation_rejected
             operation_id: 123e4567-e89b-12d3-a456-426614174000
             sequence_number: 12345
+            update_vector: 43
             reason: conflict_detected
             message: Cell 'cell-uuid-1' was modified by another user before your operation could be applied
             affected_cells:
@@ -672,6 +674,7 @@ components:
           payload:
             message_type: operation_rejected
             operation_id: 789e4567-e89b-12d3-a456-426614174999
+            update_vector: 42
             reason: validation_failed
             message: Cell operation validation failed - cell ID mismatch
             details: "cell data ID (cell-uuid-1) must match operation ID (cell-uuid-2)"
@@ -683,6 +686,7 @@ components:
             message_type: operation_rejected
             operation_id: 456e4567-e89b-12d3-a456-426614174333
             sequence_number: 12346
+            update_vector: 43
             reason: no_state_change
             message: Operation resulted in no state changes (idempotent or no-op)
             requires_resync: false
@@ -770,16 +774,21 @@ components:
           format: uuid
           description: Client-generated UUID for idempotency and tracking
           example: 123e4567-e89b-12d3-a456-426614174000
-        sequence_number:
+        base_vector:
           type: integer
-          description: Optional client-suggested sequence number (server may override)
+          format: int64
           minimum: 0
-          example: 12345
+          description: |
+            Client's current update_vector when operation was created.
+            Used for conflict detection - if server's update_vector is higher
+            and the same cells are affected, the operation may be rejected.
+          example: 42
         operation:
           $ref: "#/components/schemas/CellPatchOperation"
       required:
         - message_type
         - operation_id
+        - base_vector
         - operation
       additionalProperties: false
 
@@ -798,15 +807,25 @@ components:
           example: 123e4567-e89b-12d3-a456-426614174000
         sequence_number:
           type: integer
-          description: Server-assigned sequence number for operation ordering
+          description: Server-assigned sequence number for operation ordering within session
           minimum: 0
           example: 12345
+        update_vector:
+          type: integer
+          format: int64
+          minimum: 0
+          description: |
+            New diagram update_vector after this operation was applied.
+            Clients should update their local update_vector to this value.
+          example: 43
         operation:
           $ref: "#/components/schemas/CellPatchOperation"
       required:
         - message_type
         - initiating_user
         - operation_id
+        - sequence_number
+        - update_vector
         - operation
       additionalProperties: false
 
@@ -1033,63 +1052,78 @@ components:
         - reason
       additionalProperties: false
 
-    StateCorrectionPayload:
+    SyncStatusRequestPayload:
       type: object
-      description: |
-        Server sends state correction notification with the current authoritative
-        update vector. Clients should compare this with their local state and
-        resync if the server's update vector is higher than their local version.
+      description: Client asks server for current update vector
       properties:
         message_type:
-          const: state_correction
+          const: sync_status_request
+      required:
+        - message_type
+      additionalProperties: false
+
+    SyncStatusResponsePayload:
+      type: object
+      description: Server responds with current update vector only
+      properties:
+        message_type:
+          const: sync_status_response
         update_vector:
           type: integer
           format: int64
           minimum: 0
-          description: |
-            Current authoritative update vector for the diagram. Clients should
-            compare this with their local update vector and fetch the latest
-            diagram state via REST API if the server's vector is higher.
-          example: 15
+          description: Current authoritative update vector for the diagram
+          example: 42
       required:
         - message_type
         - update_vector
       additionalProperties: false
 
-    DiagramStateSyncPayload:
+    SyncRequestPayload:
       type: object
       description: |
-        Server sends complete diagram state to newly connected clients to ensure
-        synchronization before operations are sent. Contains the current update_vector
-        and full cells array for immediate state comparison and update.
+        Client requests full diagram state if stale. If update_vector is provided
+        and matches server's, server sends SyncStatusResponseMessage instead of
+        full state. If omitted or different, server sends DiagramStateMessage.
       properties:
         message_type:
-          const: diagram_state_sync
-        diagram_id:
-          type: string
-          format: uuid
-          description: |
-            UUID of the diagram being synchronized. Matches the diagram_id from the
-            WebSocket connection URL path parameter.
-          example: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+          const: sync_request
         update_vector:
           type: integer
           format: int64
           minimum: 0
           nullable: true
           description: |
-            Current authoritative update vector for the diagram. Clients should
-            compare this with their locally cached update_vector from REST API fetch.
-            If different, the client's cached state is stale and should be updated.
-            May be null for diagrams that have never been modified.
+            Client's current update_vector. If provided and matches server's,
+            server responds with SyncStatusResponseMessage. If omitted or different,
+            server responds with DiagramStateMessage.
+          example: 40
+      required:
+        - message_type
+      additionalProperties: false
+
+    DiagramStatePayload:
+      type: object
+      description: |
+        Full diagram state sent by server on initial connection or in response
+        to SyncRequestMessage when client is stale.
+      properties:
+        message_type:
+          const: diagram_state
+        diagram_id:
+          type: string
+          format: uuid
+          description: UUID of the diagram
+          example: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+        update_vector:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Current authoritative update vector for the diagram
           example: 42
         cells:
           type: array
-          description: |
-            Complete array of diagram cells (nodes and edges) in current server state.
-            Clients can use this to update their local state without an additional REST
-            API call. For large diagrams (100+ cells), clients may choose to ignore
-            this array and fetch via REST API instead for better performance.
+          description: Complete array of diagram cells (nodes and edges)
           items:
             $ref: "#/components/schemas/Cell"
           example:
@@ -1104,44 +1138,8 @@ components:
       required:
         - message_type
         - diagram_id
+        - update_vector
         - cells
-      additionalProperties: false
-
-    ResyncRequestPayload:
-      type: object
-      description: Client requests full diagram synchronization
-      properties:
-        message_type:
-          const: resync_request
-      required:
-        - message_type
-      additionalProperties: false
-
-    ResyncResponsePayload:
-      type: object
-      description: Server response to resync request
-      properties:
-        message_type:
-          const: resync_response
-        method:
-          type: string
-          description: Recommended resync method
-          enum: [rest_api]
-          example: rest_api
-        diagram_id:
-          type: string
-          format: uuid
-          description: Diagram ID to resync
-          example: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
-        threat_model_id:
-          type: string
-          format: uuid
-          description: Threat model ID containing the diagram
-          example: 550e8400-e29b-41d4-a716-446655440000
-      required:
-        - message_type
-        - method
-        - diagram_id
       additionalProperties: false
 
     UndoRequestPayload:
@@ -1275,6 +1273,14 @@ components:
           description: Server-assigned sequence number (if assigned before rejection)
           minimum: 1
           example: 12345
+        update_vector:
+          type: integer
+          format: int64
+          minimum: 0
+          description: |
+            Current server update_vector when rejection occurred.
+            Client can use this to determine if they need to resync.
+          example: 43
         reason:
           type: string
           description: Structured reason code for the rejection
@@ -1308,7 +1314,7 @@ components:
           type: boolean
           description: |
             Indicates whether the client should perform a full state resync.
-            - true: Conflict detected, client state may be out of sync (send resync_request)
+            - true: Conflict detected, client state may be out of sync (send sync_request)
             - false: Validation or no-op, client state is likely still valid
           example: true
         timestamp:
@@ -1319,6 +1325,7 @@ components:
       required:
         - message_type
         - operation_id
+        - update_vector
         - reason
         - message
         - requires_resync
