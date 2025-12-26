@@ -6,6 +6,27 @@ This directory contains high-level system design, architectural decisions, and d
 
 Authoritative architectural documentation that serves as the foundation for system understanding, design decisions, and implementation guidance across the TMI platform.
 
+## Files in this Directory
+
+### [AUTHORIZATION.md](AUTHORIZATION.md)
+**Authorization and access control architecture** for TMI.
+
+**Content includes:**
+- Role-based access control (RBAC) design
+- Permission model and inheritance
+- Resource-level authorization
+- Authorization middleware implementation
+
+### [oauth-flow-diagrams.md](oauth-flow-diagrams.md)
+**Comprehensive OAuth flow diagrams** for all supported authentication scenarios.
+
+**Content includes:**
+- OAuth 2.0 authorization code flow diagrams
+- PKCE flow for public clients
+- Multi-provider authentication flows (Google, GitHub, Microsoft)
+- Token refresh and revocation flows
+- Error handling scenarios
+
 ## Architectural Overview
 
 ### TMI System Architecture

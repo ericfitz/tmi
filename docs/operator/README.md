@@ -17,6 +17,40 @@ PostgreSQL and Redis operations, schema management, and performance tuning.
 ### 📊 [monitoring/](monitoring/) - Monitoring & Observability
 System monitoring, logging, alerting, and performance analysis.
 
+### 🔌 [addons/](addons/) - Addon Configuration
+Configuration and management of TMI addons and extensions.
+
+## Files in this Directory
+
+### [heroku-database-reset.md](heroku-database-reset.md)
+**Heroku database reset procedures** for TMI deployments on Heroku.
+
+**Content includes:**
+- Database schema drop and reset procedures
+- Migration re-execution steps
+- Post-reset verification
+- Warning and safety procedures
+
+### [oauth-environment-configuration.md](oauth-environment-configuration.md)
+**OAuth environment configuration** for production deployments.
+
+**Content includes:**
+- OAuth provider environment variables
+- Multi-provider configuration
+- Production vs development settings
+- Secret management best practices
+- Troubleshooting OAuth configuration
+
+### [webhook-configuration.md](webhook-configuration.md)
+**Webhook system configuration** for TMI event delivery.
+
+**Content includes:**
+- Webhook endpoint configuration
+- Event type configuration
+- Security settings (signatures, verification)
+- Retry policies and delivery guarantees
+- Monitoring and troubleshooting
+
 ## Getting Started
 
 1. **Start Here**: [deployment/deployment-guide.md](deployment/deployment-guide.md)

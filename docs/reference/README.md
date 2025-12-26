@@ -17,6 +17,32 @@ Database schema definitions, data models, and schema evolution documentation.
 ### 🔌 [apis/](apis/) - API Specifications & Reference
 OpenAPI specifications, API documentation, and integration references.
 
+## Files in this Directory
+
+### [collaboration-protocol.md](collaboration-protocol.md)
+**Complete WebSocket collaboration protocol specification** for real-time diagram editing.
+
+**Content includes:**
+- Role definitions (Host, Participant, Presenter)
+- Permission model (Reader, Writer)
+- All message types with field definitions
+- Session lifecycle (initiation, join, termination)
+- Heartbeat and timeout mechanisms
+- Deny list functionality
+- Conflict detection and resolution
+- Undo/redo stack mechanics
+- Security considerations
+- Message sequence diagrams for common operations
+
+### [quota-management.md](quota-management.md)
+**Quota and rate limiting system specification** for TMI resource management.
+
+**Content includes:**
+- User quota management
+- Rate limiting configuration
+- Resource allocation policies
+- Quota enforcement mechanisms
+
 ## Reference Categories
 
 ### Architecture Documentation

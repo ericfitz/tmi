@@ -6,6 +6,20 @@ This directory contains database schema definitions, data models, and schema evo
 
 Authoritative reference for all TMI data schemas including database table definitions, API request/response schemas, WebSocket message formats, and configuration schemas.
 
+## Files in this Directory
+
+### [database-schema-complete.md](database-schema-complete.md)
+**Complete database schema documentation** with all table definitions and relationships.
+
+**Content includes:**
+- Full PostgreSQL table definitions
+- Entity-relationship diagrams
+- Column specifications and data types
+- Primary and foreign key relationships
+- Index definitions and strategies
+- Constraint documentation
+- Migration history and evolution
+
 ## Schema Categories
 
 ### Database Schemas

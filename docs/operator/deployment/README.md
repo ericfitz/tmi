@@ -48,6 +48,21 @@ This directory contains production deployment guides, container security, and in
 - Resource limits and constraints
 - Network isolation policies
 
+### [heroku-deployment.md](heroku-deployment.md)
+**Heroku-specific deployment guide** for TMI.
+
+**Content includes:**
+- Heroku application configuration
+- Heroku Postgres setup and management
+- Heroku Redis configuration
+- Environment variable management
+- Dyno configuration and scaling
+- Heroku CLI commands
+- Add-on configuration
+- Deployment pipelines
+- Logging and monitoring on Heroku
+- Troubleshooting Heroku deployments
+
 ## Deployment Architecture
 
 ### Production Architecture Overview

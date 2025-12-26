@@ -8,6 +8,17 @@ Complete client integration documentation covering OAuth authentication, real-ti
 
 ## Files in this Directory
 
+### [client-integration-guide.md](client-integration-guide.md)
+**Comprehensive client integration guide** for TMI API consumers.
+
+**Content includes:**
+- Complete API integration patterns
+- Authentication setup and token management
+- REST API usage examples
+- WebSocket integration for collaboration
+- Error handling best practices
+- Client architecture recommendations
+
 ### [client-oauth-integration.md](client-oauth-integration.md)
 **OAuth client integration patterns** for TMI authentication.
 
@@ -20,27 +31,46 @@ Complete client integration documentation covering OAuth authentication, real-ti
 - Mobile and web client patterns
 - Token refresh strategies
 
-### [collaborative-editing-plan.md](collaborative-editing-plan.md)
-**Real-time collaborative editing architecture** and implementation planning.
+### [client-websocket-integration-guide.md](client-websocket-integration-guide.md)
+**WebSocket client integration** for real-time collaboration features.
 
 **Content includes:**
-- WebSocket protocol design
-- Collaborative editing algorithms
-- Conflict resolution strategies
-- State synchronization approaches
-- Multi-user session management
-- Performance and scalability considerations
-- Implementation roadmap and milestones
+- WebSocket connection management
+- Collaboration protocol implementation
+- Message handling and parsing
+- Session lifecycle (join, participate, leave)
+- Presenter mode integration
+- Cursor and selection sharing
+- Error recovery and reconnection
 
-### [workflow-generation-prompt.md](workflow-generation-prompt.md)
-**Automated workflow generation** for TMI integration and testing.
+### [webhook-subscriptions.md](webhook-subscriptions.md)
+**Webhook subscription integration** for event-driven architectures.
 
 **Content includes:**
-- Workflow automation patterns
-- Integration testing automation
-- Client SDK generation approaches
-- API testing workflow generation
-- Development workflow optimization
+- Webhook subscription API usage
+- Event types and payloads
+- Webhook security (signatures, verification)
+- Retry and delivery guarantees
+- Integration patterns and examples
+
+### [oauth-token-delivery-change.md](oauth-token-delivery-change.md)
+**OAuth token delivery change documentation** for client migration.
+
+**Content includes:**
+- Token delivery mechanism changes
+- Migration guide for existing clients
+- Backward compatibility considerations
+- Testing recommendations
+
+### [openapi-v1-migration-guide.md](openapi-v1-migration-guide.md)
+**OpenAPI v1 migration guide** for API version updates.
+
+**Content includes:**
+- Breaking changes summary
+- Endpoint migration mapping
+- Schema changes
+- Client update procedures
+- Deprecation timeline
 
 ## Integration Patterns
 

@@ -40,6 +40,25 @@ This directory contains essential setup guides for TMI development environment.
 - Microsoft Azure AD
 - Built-in test provider for development
 
+### [automatic-versioning.md](automatic-versioning.md)
+**Automatic semantic versioning system** for TMI releases.
+
+**Content includes:**
+- Conventional commit-based version incrementing
+- Post-commit hook automation
+- Version file format and management
+- Major/minor/patch version rules
+
+### [promtail-container.md](promtail-container.md)
+**Promtail log shipping container setup** for centralized logging.
+
+**Content includes:**
+- Promtail container configuration
+- Loki integration setup
+- Log collection pipeline
+- Docker Compose configuration
+- Troubleshooting guide
+
 ## Getting Started
 
 1. **Start with**: [development-setup.md](development-setup.md) for basic environment
