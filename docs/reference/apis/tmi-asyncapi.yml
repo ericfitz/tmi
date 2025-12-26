@@ -232,7 +232,7 @@ components:
             initiating_user:
               user_id: alice@example.com
               email: alice@example.com
-              displayName: Alice Johnson
+              display_name: Alice Johnson
             operation_id: 123e4567-e89b-12d3-a456-426614174000
             sequence_number: 12345
             update_vector: 43
@@ -312,7 +312,7 @@ components:
             denied_user:
               user_id: alice@example.com
               email: alice@example.com
-              displayName: Alice Johnson
+              display_name: Alice Johnson
 
     PresenterDeniedEventMessage:
       name: PresenterDeniedEventMessage
@@ -332,7 +332,7 @@ components:
             denied_user:
               user_id: alice@example.com
               email: alice@example.com
-              displayName: Alice Johnson
+              display_name: Alice Johnson
 
     ChangePresenterRequestMessage:
       name: ChangePresenterRequestMessage
@@ -352,7 +352,7 @@ components:
             new_presenter:
               user_id: alice@example.com
               email: alice@example.com
-              displayName: Alice Johnson
+              display_name: Alice Johnson
 
     PresenterCursorMessage:
       name: PresenterCursorMessage
@@ -597,7 +597,7 @@ components:
             removed_user:
               user_id: disruptive-user@example.com
               email: disruptive-user@example.com
-              displayName: Disruptive User
+              display_name: Disruptive User
 
     ErrorMessage:
       name: ErrorMessage
@@ -852,7 +852,7 @@ components:
             User email address from JWT 'email' claim.
             Used as fallback identifier for authorization when IdP user ID matching fails.
           example: alice@example.com
-        displayName:
+        display_name:
           type: string
           description: User display name from JWT 'name' claim (optional)
           example: Alice Johnson
