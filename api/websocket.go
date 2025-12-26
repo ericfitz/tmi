@@ -2429,31 +2429,6 @@ func (s *DiagramSession) findClientByUserEmail(userEmail string) *WebSocketClien
 	return nil
 }
 
-// getUserRole gets the user's role for the session's threat model
-func (s *DiagramSession) getUserRole(userID string) Role {
-	// Anonymous users are readers at best
-	if userID == "" {
-		return RoleReader
-	}
-
-	// If no threat model ID, assume writer for backward compatibility
-	if s.ThreatModelID == "" {
-		return RoleWriter
-	}
-
-	// Get the threat model to check access
-	tm, err := ThreatModelStore.Get(s.ThreatModelID)
-	if err != nil {
-		// If we can't get the threat model, assume reader for safety
-		return RoleReader
-	}
-
-	// Check user permissions using existing utility
-	// TODO: Get IdP and groups from user context when WebSocket supports it
-	role := GetUserRole(userID, "", "", "", []string{}, tm)
-	return role
-}
-
 // broadcastParticipantsUpdate sends complete participant list to all clients
 func (s *DiagramSession) broadcastParticipantsUpdate() {
 	s.mu.RLock()
