@@ -687,6 +687,43 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 	return user, nil
 }
 
+// GetUserByProviderAndEmail gets a user by provider and email address
+// This is used as a fallback when provider_user_id doesn't match but same provider + email does
+func (s *Service) GetUserByProviderAndEmail(ctx context.Context, provider, email string) (User, error) {
+	db := s.dbManager.Postgres().GetDB()
+
+	var user User
+	query := `
+		SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login
+		FROM users
+		WHERE provider = $1 AND email = $2
+	`
+	err := db.QueryRowContext(ctx, query, provider, email).Scan(
+		&user.InternalUUID,
+		&user.Provider,
+		&user.ProviderUserID,
+		&user.Email,
+		&user.Name,
+		&user.EmailVerified,
+		&user.AccessToken,
+		&user.RefreshToken,
+		&user.TokenExpiry,
+		&user.CreatedAt,
+		&user.ModifiedAt,
+		&user.LastLogin,
+	)
+
+	if err == sql.ErrNoRows {
+		return User{}, errors.New("user not found")
+	}
+
+	if err != nil {
+		return User{}, fmt.Errorf("failed to get user by provider and email: %w", err)
+	}
+
+	return user, nil
+}
+
 // GetUserByAnyProviderID gets a user by provider ID across all providers
 // This allows provider-independent authorization using IdP user IDs
 // NOTE: This can return ambiguous results if the same provider_user_id exists for multiple providers

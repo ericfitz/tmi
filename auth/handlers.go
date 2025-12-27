@@ -644,6 +644,152 @@ func (h *Handlers) extractEmailWithFallback(c *gin.Context, providerID string, u
 	return email, nil
 }
 
+// userMatchType indicates how a user was matched during login
+type userMatchType int
+
+const (
+	userMatchNone          userMatchType = iota // No match found, need to create new user
+	userMatchProviderID                         // Matched by provider + provider_user_id (strongest)
+	userMatchProviderEmail                      // Matched by provider + email
+	userMatchEmailOnly                          // Matched by email only (sparse record)
+)
+
+// findOrCreateUser implements tiered user matching strategy:
+// 1. Provider + Provider ID (strongest) - can update email and name
+// 2. Provider + Email - can update name
+// 3. Email only (sparse record) - can update provider, provider_id, and name
+// Returns the user, match type, and any error
+func (h *Handlers) findOrCreateUser(ctx context.Context, c *gin.Context, providerID, providerUserID, email, name string, emailVerified bool) (User, userMatchType, error) {
+	logger := slogging.Get().WithContext(c)
+
+	// Tier 1: Try to match by provider + provider_user_id (strongest match)
+	user, err := h.service.GetUserByProviderID(ctx, providerID, providerUserID)
+	if err == nil {
+		logger.Debug("User matched by provider+provider_id: provider=%s, provider_id=%s, email=%s",
+			providerID, providerUserID, user.Email)
+		return user, userMatchProviderID, nil
+	}
+
+	// Tier 2: Try to match by provider + email
+	user, err = h.service.GetUserByProviderAndEmail(ctx, providerID, email)
+	if err == nil {
+		logger.Debug("User matched by provider+email: provider=%s, email=%s, existing_provider_id=%s",
+			providerID, email, user.ProviderUserID)
+		return user, userMatchProviderEmail, nil
+	}
+
+	// Tier 3: Try to match by email only (sparse record or different provider)
+	user, err = h.service.GetUserByEmail(ctx, email)
+	if err == nil {
+		// Check if this is a sparse record (no provider set) or a different provider
+		if user.Provider == "" {
+			logger.Debug("User matched by email only (sparse record): email=%s", email)
+			return user, userMatchEmailOnly, nil
+		}
+		// User exists with a different provider - this is a conflict
+		// For now, we'll treat it as a sparse record match to allow completing it
+		// In a multi-provider setup, you might want to link accounts instead
+		logger.Info("User matched by email with different provider: email=%s, existing_provider=%s, new_provider=%s",
+			email, user.Provider, providerID)
+		return user, userMatchEmailOnly, nil
+	}
+
+	// No match found - need to create new user
+	logger.Debug("No existing user found, will create new: provider=%s, provider_id=%s, email=%s",
+		providerID, providerUserID, email)
+
+	nowTime := time.Now()
+	newUser := User{
+		Provider:       providerID,
+		ProviderUserID: providerUserID,
+		Email:          email,
+		Name:           name,
+		EmailVerified:  emailVerified,
+		CreatedAt:      nowTime,
+		ModifiedAt:     nowTime,
+		LastLogin:      &nowTime,
+	}
+
+	createdUser, err := h.service.CreateUser(ctx, newUser)
+	if err != nil {
+		logger.Error("Failed to create new user: email=%s, name=%s, error=%v", email, name, err)
+		return User{}, userMatchNone, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	return createdUser, userMatchNone, nil
+}
+
+// updateUserOnLogin updates user fields based on match type and OAuth data
+func (h *Handlers) updateUserOnLogin(ctx context.Context, c *gin.Context, user *User, matchType userMatchType, providerID, providerUserID, email, name string, emailVerified bool) error {
+	logger := slogging.Get().WithContext(c)
+	updateNeeded := false
+
+	now := time.Now()
+	user.LastLogin = &now
+	user.ModifiedAt = now
+
+	switch matchType {
+	case userMatchProviderID:
+		// Strongest match - can update email and name if changed
+		if email != "" && user.Email != email {
+			logger.Info("Updating user email on login: old=%s, new=%s (matched by provider_id)", user.Email, email)
+			user.Email = email
+			updateNeeded = true
+		}
+		if name != "" && user.Name != name {
+			logger.Info("Updating user name on login: old=%s, new=%s (matched by provider_id)", user.Name, name)
+			user.Name = name
+			updateNeeded = true
+		}
+
+	case userMatchProviderEmail:
+		// Medium match - can update name and provider_user_id if empty
+		if user.ProviderUserID == "" && providerUserID != "" {
+			logger.Info("Completing user record with provider_id: user=%s, provider_id=%s", user.Email, providerUserID)
+			user.ProviderUserID = providerUserID
+			updateNeeded = true
+		}
+		if name != "" && user.Name != name {
+			logger.Info("Updating user name on login: old=%s, new=%s (matched by provider+email)", user.Name, name)
+			user.Name = name
+			updateNeeded = true
+		}
+
+	case userMatchEmailOnly:
+		// Sparse record match - update provider, provider_id, and name
+		if user.Provider == "" && providerID != "" {
+			logger.Info("Completing sparse user record with provider: user=%s, provider=%s", user.Email, providerID)
+			user.Provider = providerID
+			updateNeeded = true
+		}
+		if user.ProviderUserID == "" && providerUserID != "" {
+			logger.Info("Completing sparse user record with provider_id: user=%s, provider_id=%s", user.Email, providerUserID)
+			user.ProviderUserID = providerUserID
+			updateNeeded = true
+		}
+		if name != "" && user.Name != name {
+			logger.Info("Updating user name on login: old=%s, new=%s (matched by email only)", user.Name, name)
+			user.Name = name
+			updateNeeded = true
+		}
+	}
+
+	// Always update email_verified status (one-way: false -> true)
+	if emailVerified && !user.EmailVerified {
+		user.EmailVerified = true
+		updateNeeded = true
+	}
+
+	if updateNeeded {
+		if err := h.service.UpdateUser(ctx, *user); err != nil {
+			logger.Error("Failed to update user profile during login: %v (user_id: %s)", err, user.InternalUUID)
+			return err
+		}
+	}
+
+	return nil
+}
+
 // createOrGetUser creates a new user or gets existing user
 func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, providerID string, userInfo *UserInfo, claims *IDTokenClaims, callbackURL string) (User, error) {
 	email, err := h.extractEmailWithFallback(c, providerID, userInfo, claims)
@@ -737,22 +883,8 @@ func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, 
 	return nil
 }
 
-// Exchange handles authorization code exchange for any provider
+// Exchange exchanges an authorization code for tokens (legacy endpoint, delegates to handleAuthorizationCodeGrant)
 func (h *Handlers) Exchange(c *gin.Context) {
-	providerID := c.Query("idp")
-	if providerID == "" {
-		// In non-production builds, default to "test" provider for convenience
-		if defaultProviderID := getDefaultProviderID(); defaultProviderID != "" {
-			slogging.Get().WithContext(c).Debug("No idp parameter provided, defaulting to provider: %s", defaultProviderID)
-			providerID = defaultProviderID
-		} else {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Missing required parameter: idp",
-			})
-			return
-		}
-	}
-
 	var req struct {
 		GrantType    string `json:"grant_type" form:"grant_type" binding:"required"`
 		Code         string `json:"code" form:"code" binding:"required"`
@@ -778,196 +910,8 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		return
 	}
 
-	// Get the provider
-	provider, err := h.getProvider(providerID)
-	if err != nil {
-		// Return 404 for unavailable providers (like test provider in production)
-		if strings.Contains(err.Error(), "not available in production") {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "Provider not available",
-			})
-		} else {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("Invalid provider: %s", providerID),
-			})
-		}
-		return
-	}
-
-	ctx := c.Request.Context()
-
-	// Validate code_verifier format
-	if err := ValidateCodeVerifierFormat(req.CodeVerifier); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": fmt.Sprintf("Invalid code_verifier format: %v", err),
-		})
-		return
-	}
-
-	// Retrieve PKCE challenge stored with authorization code
-	// The challenge was bound to the code during the authorization callback
-	codeKey := fmt.Sprintf("pkce:%s", req.Code)
-	pkceDataJSON, err := h.service.dbManager.Redis().Get(ctx, codeKey)
-	if err != nil {
-		slogging.Get().WithContext(c).Error("Failed to retrieve PKCE challenge for code (provider: %s): %v", providerID, err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_grant",
-			"error_description": "Authorization code is invalid or expired",
-		})
-		return
-	}
-
-	// Parse PKCE data
-	var pkceData map[string]string
-	if err := json.Unmarshal([]byte(pkceDataJSON), &pkceData); err != nil {
-		slogging.Get().WithContext(c).Error("Failed to parse PKCE data for code: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to validate PKCE challenge",
-		})
-		return
-	}
-
-	codeChallenge := pkceData["code_challenge"]
-	codeChallengeMethod := pkceData["code_challenge_method"]
-
-	// Validate PKCE challenge
-	if err := ValidateCodeChallenge(req.CodeVerifier, codeChallenge, codeChallengeMethod); err != nil {
-		slogging.Get().WithContext(c).Error("PKCE validation failed for code (provider: %s): %v", providerID, err)
-		// Delete the PKCE data to prevent retry attacks
-		_ = h.service.dbManager.Redis().Del(ctx, codeKey)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_grant",
-			"error_description": "PKCE verification failed",
-		})
-		return
-	}
-
-	// Delete the PKCE challenge (one-time use)
-	_ = h.service.dbManager.Redis().Del(ctx, codeKey)
-	slogging.Get().WithContext(c).Debug("PKCE validation successful for code")
-
-	// Exchange authorization code for tokens
-	// Note: login_hint is now encoded directly in the authorization code for test provider
-	tokenResponse, err := provider.ExchangeCode(ctx, req.Code)
-	if err != nil {
-		// Check if it's an invalid code error (client error) vs server error
-		if strings.Contains(err.Error(), "invalid authorization code") ||
-			strings.Contains(err.Error(), "authorization code is required") {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": err.Error(),
-			})
-		} else {
-			slogging.Get().WithContext(c).Error("Failed to exchange authorization code for tokens in callback (provider: %s, code prefix: %.10s...): %v", providerID, req.Code, err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to exchange authorization code: %v", err),
-			})
-		}
-		return
-	}
-
-	// Validate ID token if present
-	var claims *IDTokenClaims
-	if tokenResponse.IDToken != "" {
-		claims, err = provider.ValidateIDToken(ctx, tokenResponse.IDToken)
-		if err != nil {
-			// Log error but continue - we can get user info from userinfo endpoint
-			logger := slogging.Get().WithContext(c)
-			logger.Error("Failed to validate ID token: %v", err)
-		}
-	}
-
-	// Get user info from provider
-	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
-	if err != nil {
-		slogging.Get().WithContext(c).Error("Failed to get user info from OAuth provider in exchange (provider: %s): %v", providerID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get user info: %v", err),
-		})
-		return
-	}
-
-	// Extract email from userInfo or claims with fallback
-	email, err := h.extractEmailWithFallback(c, providerID, userInfo, claims)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user email or ID from provider"})
-		return
-	}
-
-	// Extract name
-	name := userInfo.Name
-	if name == "" && claims != nil {
-		name = claims.Name
-	}
-	if name == "" {
-		name = email
-	}
-
-	// Get or create user
-	user, err := h.service.GetUserByEmail(ctx, email)
-	if err != nil {
-		// Create new user
-		nowTime := time.Now()
-		user = User{
-			Provider:       providerID,
-			ProviderUserID: userInfo.ID,
-			Email:          email,
-			Name:           name,
-			CreatedAt:      nowTime,
-			ModifiedAt:     nowTime,
-			LastLogin:      &nowTime,
-		}
-
-		user, err = h.service.CreateUser(ctx, user)
-		if err != nil {
-			// Keep error logging - helps diagnose user creation failures
-			logger := slogging.Get().WithContext(c)
-			logger.Error("Failed to create new user in database during callback (email: %s, name: %s): %v", user.Email, user.Name, err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to create user: %v", err),
-			})
-			return
-		}
-	} else {
-		// User exists - update last login and populate provider_user_id if sparse user
-		now := time.Now()
-		user.LastLogin = &now
-
-		// CRITICAL: If this is a sparse user (provider_user_id is empty), populate it now
-		if user.ProviderUserID == "" {
-			logger := slogging.Get().WithContext(c)
-			logger.Info("Completing sparse user record: populating provider_user_id=%s for user %s (email: %s)",
-				userInfo.ID, user.InternalUUID, user.Email)
-			user.ProviderUserID = userInfo.ID
-			// Also update name and email_verified from OAuth claims if available
-			if name != "" {
-				user.Name = name
-			}
-			if claims != nil && claims.EmailVerified {
-				user.EmailVerified = true
-			}
-		}
-
-		err = h.service.UpdateUser(ctx, user)
-		if err != nil {
-			// Log error but continue
-			logger := slogging.Get().WithContext(c)
-			logger.Error("Failed to update user last login: %v (user_id: %s)", err, user.InternalUUID)
-		}
-	}
-
-	// Generate TMI JWT tokens (the provider ID will be used as subject in the JWT)
-	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
-	if err != nil {
-		slogging.Get().WithContext(c).Error("Failed to generate JWT tokens for user %s: %v", user.Email, err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
-		})
-		return
-	}
-
-	// Return TMI tokens
-	c.JSON(http.StatusOK, tokenPair)
+	// Delegate to the shared implementation
+	h.handleAuthorizationCodeGrant(c, req.Code, req.CodeVerifier, req.RedirectURI)
 }
 
 // handleAuthorizationCodeGrant handles the authorization code grant flow with PKCE
@@ -1113,57 +1057,25 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 		name = email
 	}
 
-	// Get or create user
-	user, err := h.service.GetUserByEmail(ctx, email)
+	// Determine email_verified status from userInfo or claims
+	emailVerified := userInfo.EmailVerified
+	if !emailVerified && claims != nil {
+		emailVerified = claims.EmailVerified
+	}
+
+	// Find or create user using tiered matching strategy
+	user, matchType, err := h.findOrCreateUser(ctx, c, providerID, userInfo.ID, email, name, emailVerified)
 	if err != nil {
-		// Create new user
-		nowTime := time.Now()
-		user = User{
-			Provider:       providerID,
-			ProviderUserID: userInfo.ID,
-			Email:          email,
-			Name:           name,
-			CreatedAt:      nowTime,
-			ModifiedAt:     nowTime,
-			LastLogin:      &nowTime,
-		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to find or create user: %v", err),
+		})
+		return
+	}
 
-		user, err = h.service.CreateUser(ctx, user)
-		if err != nil {
-			// Keep error logging - helps diagnose user creation failures
-			logger := slogging.Get().WithContext(c)
-			logger.Error("Failed to create new user in database during callback (email: %s, name: %s): %v", user.Email, user.Name, err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to create user: %v", err),
-			})
-			return
-		}
-	} else {
-		// User exists - update last login and populate provider_user_id if sparse user
-		now := time.Now()
-		user.LastLogin = &now
-
-		// CRITICAL: If this is a sparse user (provider_user_id is empty), populate it now
-		if user.ProviderUserID == "" {
-			logger := slogging.Get().WithContext(c)
-			logger.Info("Completing sparse user record: populating provider_user_id=%s for user %s (email: %s)",
-				userInfo.ID, user.InternalUUID, user.Email)
-			user.ProviderUserID = userInfo.ID
-			// Also update name and email_verified from OAuth claims if available
-			if name != "" {
-				user.Name = name
-			}
-			if claims != nil && claims.EmailVerified {
-				user.EmailVerified = true
-			}
-		}
-
-		err = h.service.UpdateUser(ctx, user)
-		if err != nil {
-			// Log error but continue
-			logger := slogging.Get().WithContext(c)
-			logger.Error("Failed to update user last login: %v (user_id: %s)", err, user.InternalUUID)
-		}
+	// Update user profile if this was an existing user match
+	if matchType != userMatchNone {
+		// Don't fail login on update error - user can still authenticate with stale data
+		_ = h.updateUserOnLogin(ctx, c, &user, matchType, providerID, userInfo.ID, email, name, emailVerified)
 	}
 
 	// Generate TMI JWT tokens (the provider ID will be used as subject in the JWT)
