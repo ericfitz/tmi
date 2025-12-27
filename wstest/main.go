@@ -140,6 +140,7 @@ type OperationRejectedMessage struct {
 	MessageType    string   `json:"message_type"`
 	OperationID    string   `json:"operation_id"`
 	SequenceNumber *uint64  `json:"sequence_number,omitempty"`
+	UpdateVector   int64    `json:"update_vector"`
 	Reason         string   `json:"reason"`
 	Message        string   `json:"message"`
 	Details        *string  `json:"details,omitempty"`
@@ -182,10 +183,28 @@ type PresenterRequestMessage struct {
 	MessageType string `json:"message_type"`
 }
 
-// PresenterDeniedMessage matches AsyncAPI PresenterDeniedPayload
-type PresenterDeniedMessage struct {
+// PresenterRequestEventMessage matches AsyncAPI PresenterRequestEventPayload (Server → Host)
+type PresenterRequestEventMessage struct {
+	MessageType    string `json:"message_type"`
+	RequestingUser User   `json:"requesting_user"`
+}
+
+// PresenterDeniedRequestMessage matches AsyncAPI PresenterDeniedRequestPayload (Host → Server)
+type PresenterDeniedRequestMessage struct {
 	MessageType string `json:"message_type"`
 	DeniedUser  User   `json:"denied_user"`
+}
+
+// PresenterDeniedEventMessage matches AsyncAPI PresenterDeniedEventPayload (Server → Client)
+type PresenterDeniedEventMessage struct {
+	MessageType string `json:"message_type"`
+	DeniedUser  User   `json:"denied_user"`
+}
+
+// ChangePresenterRequestMessage matches AsyncAPI ChangePresenterRequestPayload (Client → Server)
+type ChangePresenterRequestMessage struct {
+	MessageType  string `json:"message_type"`
+	NewPresenter User   `json:"new_presenter"`
 }
 
 // AuthorizationDeniedMessage matches AsyncAPI AuthorizationDeniedPayload
@@ -193,6 +212,41 @@ type AuthorizationDeniedMessage struct {
 	MessageType         string `json:"message_type"`
 	OriginalOperationID string `json:"original_operation_id"`
 	Reason              string `json:"reason"`
+}
+
+// SyncStatusRequestMessage matches AsyncAPI SyncStatusRequestPayload (Client → Server)
+type SyncStatusRequestMessage struct {
+	MessageType string `json:"message_type"`
+}
+
+// SyncRequestMessage matches AsyncAPI SyncRequestPayload (Client → Server)
+type SyncRequestMessage struct {
+	MessageType  string `json:"message_type"`
+	UpdateVector *int64 `json:"update_vector,omitempty"`
+}
+
+// UndoRequestMessage matches AsyncAPI UndoRequestPayload (Client → Server)
+type UndoRequestMessage struct {
+	MessageType string `json:"message_type"`
+}
+
+// RedoRequestMessage matches AsyncAPI RedoRequestPayload (Client → Server)
+type RedoRequestMessage struct {
+	MessageType string `json:"message_type"`
+}
+
+// RemoveParticipantRequestMessage matches AsyncAPI RemoveParticipantRequestPayload (Client → Server)
+type RemoveParticipantRequestMessage struct {
+	MessageType string `json:"message_type"`
+	RemovedUser User   `json:"removed_user"`
+}
+
+// DiagramOperationRequestMessage matches AsyncAPI DiagramOperationRequestPayload (Client → Server)
+type DiagramOperationRequestMessage struct {
+	MessageType string      `json:"message_type"`
+	OperationID string      `json:"operation_id"`
+	BaseVector  int64       `json:"base_vector"`
+	Operation   interface{} `json:"operation"`
 }
 
 
@@ -1052,6 +1106,7 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 					slogging.Get().GetSlogger().Warn("Operation Rejected",
 						"operation_id", msg.OperationID,
 						"sequence_number", msg.SequenceNumber,
+						"update_vector", msg.UpdateVector,
 						"reason", msg.Reason,
 						"message", msg.Message,
 						"details", msg.Details,
@@ -1082,8 +1137,16 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 					slogging.Get().GetSlogger().Info("Presenter Request received")
 				}
 
-			case "presenter_denied":
-				var msg PresenterDeniedMessage
+			case "presenter_request_event":
+				var msg PresenterRequestEventMessage
+				if err := json.Unmarshal(message, &msg); err == nil {
+					slogging.Get().GetSlogger().Info("Presenter Request Event (to host)",
+						"requesting_user_email", msg.RequestingUser.Email,
+						"requesting_user_name", msg.RequestingUser.DisplayName)
+				}
+
+			case "presenter_denied_event":
+				var msg PresenterDeniedEventMessage
 				if err := json.Unmarshal(message, &msg); err == nil {
 					slogging.Get().GetSlogger().Info("Presenter Request Denied",
 						"denied_user_email", msg.DeniedUser.Email,
