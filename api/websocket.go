@@ -3524,7 +3524,7 @@ func (c *WebSocketClient) ReadPump() {
 			slogging.LogWebSocketMessage(
 				slogging.WSMessageInbound,
 				c.Session.ID,
-				c.UserName,
+				c.UserID,
 				"text",
 				message,
 				c.Hub.LoggingConfig,
@@ -3579,7 +3579,7 @@ func (c *WebSocketClient) WritePump() {
 				slogging.LogWebSocketMessage(
 					slogging.WSMessageOutbound,
 					c.Session.ID,
-					c.UserName,
+					c.UserID,
 					"text",
 					message,
 					c.Hub.LoggingConfig,
