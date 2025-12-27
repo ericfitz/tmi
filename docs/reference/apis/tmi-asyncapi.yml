@@ -230,7 +230,9 @@ components:
           payload:
             message_type: diagram_operation_event
             initiating_user:
-              user_id: alice@example.com
+              principal_type: user
+              provider: google
+              provider_id: "101155414856250184779"
               email: alice@example.com
               display_name: Alice Johnson
             operation_id: 123e4567-e89b-12d3-a456-426614174000
@@ -310,7 +312,9 @@ components:
           payload:
             message_type: presenter_denied_request
             denied_user:
-              user_id: alice@example.com
+              principal_type: user
+              provider: google
+              provider_id: "101155414856250184779"
               email: alice@example.com
               display_name: Alice Johnson
 
@@ -330,7 +334,9 @@ components:
           payload:
             message_type: presenter_denied_event
             denied_user:
-              user_id: alice@example.com
+              principal_type: user
+              provider: google
+              provider_id: "101155414856250184779"
               email: alice@example.com
               display_name: Alice Johnson
 
@@ -350,7 +356,9 @@ components:
           payload:
             message_type: change_presenter_request
             new_presenter:
-              user_id: alice@example.com
+              principal_type: user
+              provider: google
+              provider_id: "101155414856250184779"
               email: alice@example.com
               display_name: Alice Johnson
 
@@ -595,7 +603,9 @@ components:
           payload:
             message_type: remove_participant_request
             removed_user:
-              user_id: disruptive-user@example.com
+              principal_type: user
+              provider: google
+              provider_id: "disruptive-user-id"
               email: disruptive-user@example.com
               display_name: Disruptive User
 
@@ -833,19 +843,28 @@ components:
       type: object
       description: |
         User information from JWT claims. Authorization uses a two-step matching process:
-        1. First attempts to match user_id as IdP user identifier (OAuth sub, SAML NameID/subject-id/pairwise-id)
+        1. First attempts to match provider_id as IdP user identifier (OAuth sub, SAML NameID/subject-id/pairwise-id)
         2. Falls back to email matching if no IdP user ID match is found
 
         This approach prioritizes IdP-provided user identifiers while maintaining backward compatibility
         with email-based authorization.
       properties:
-        user_id:
+        principal_type:
+          type: string
+          const: user
+          description: Always "user" for User objects
+          example: user
+        provider:
+          type: string
+          description: Identity provider name (e.g., "google", "github", "microsoft", "test")
+          example: google
+        provider_id:
           type: string
           description: |
-            Primary user identifier from JWT 'sub' claim (IdP-provided unique identifier).
+            Provider-assigned unique user identifier from JWT 'sub' claim.
             This is the preferred and immutable identifier for user authorization.
             Format varies by IdP: OAuth providers use 'sub' claim, SAML uses NameID/subject-id/pairwise-id.
-          example: auth0|507f1f77bcf86cd799439011
+          example: "101155414856250184779"
         email:
           type: string
           description: |
@@ -856,9 +875,12 @@ components:
           type: string
           description: User display name from JWT 'name' claim (optional)
           example: Alice Johnson
-      anyOf:
-        - required: [user_id]
-        - required: [email]
+      required:
+        - principal_type
+        - provider
+        - provider_id
+        - email
+        - display_name
       additionalProperties: false
 
     CellPatchOperation:
