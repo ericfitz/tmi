@@ -17,9 +17,9 @@ ENV LC_ALL=en_US.UTF-8
 # Expose PostgreSQL port
 EXPOSE 5432
 
-# Health check
+# Health check - no user specified since pg_isready just checks connection availability
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD ["pg_isready", "-U", "postgres", "-d", "postgres"]
+    CMD ["pg_isready", "-h", "localhost"]
 
 # Use postgres user (Chainguard images already have proper user setup)
 USER postgres
