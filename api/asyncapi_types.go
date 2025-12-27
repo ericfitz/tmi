@@ -11,11 +11,11 @@ import (
 
 // ValidateUserIdentity validates that a User struct contains at least one valid identifier
 func ValidateUserIdentity(u User) error {
-	hasUserId := u.ProviderId != ""
+	hasProviderId := u.ProviderId != ""
 	hasEmail := u.Email != ""
 
-	if !hasUserId && !hasEmail {
-		return fmt.Errorf("user must have either user_id or email")
+	if !hasProviderId && !hasEmail {
+		return fmt.Errorf("user must have either provider_id or email")
 	}
 
 	if hasEmail {
@@ -350,10 +350,10 @@ func (m ChangePresenterMessage) Validate() error {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeChangePresenter, m.MessageType)
 	}
 	if m.InitiatingUser.ProviderId == "" {
-		return fmt.Errorf("initiating_user.user_id is required")
+		return fmt.Errorf("initiating_user.provider_id is required")
 	}
 	if m.NewPresenter.ProviderId == "" {
-		return fmt.Errorf("new_presenter.user_id is required")
+		return fmt.Errorf("new_presenter.provider_id is required")
 	}
 	return nil
 }
@@ -370,7 +370,7 @@ func (m RemoveParticipantMessage) Validate() error {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeRemoveParticipant, m.MessageType)
 	}
 	if m.RemovedUser.ProviderId == "" {
-		return fmt.Errorf("removed_user.user_id is required")
+		return fmt.Errorf("removed_user.provider_id is required")
 	}
 	return nil
 }
@@ -554,7 +554,7 @@ func (m UndoRequestMessage) Validate() error {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeUndoRequest, m.MessageType)
 	}
 	if m.InitiatingUser.ProviderId == "" {
-		return fmt.Errorf("initiating_user.user_id is required")
+		return fmt.Errorf("initiating_user.provider_id is required")
 	}
 	return nil
 }
@@ -571,7 +571,7 @@ func (m RedoRequestMessage) Validate() error {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeRedoRequest, m.MessageType)
 	}
 	if m.InitiatingUser.ProviderId == "" {
-		return fmt.Errorf("initiating_user.user_id is required")
+		return fmt.Errorf("initiating_user.provider_id is required")
 	}
 	return nil
 }
