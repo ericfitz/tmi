@@ -647,17 +647,13 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		msgType, _ := msg["message_type"].(string)
 		assert.Contains(t, []string{"diagram_state_sync", "participants_update"}, msgType)
 
-		// Send a diagram operation
+		// Send a diagram operation (matches AsyncAPI DiagramOperationRequestPayload)
 		operation := map[string]interface{}{
-			"message_type": "diagram_operation",
+			"message_type": "diagram_operation_request",
 			"operation_id": uuid.New().String(),
-			"user": map[string]string{
-				"user_id":     userID,
-				"email":       userID,
-				"displayName": "Test User",
-			},
+			"base_vector":  0,
 			"operation": map[string]interface{}{
-				"type":  "cell_patch",
+				"type":  "patch",
 				"cells": []interface{}{},
 			},
 		}

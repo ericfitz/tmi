@@ -80,9 +80,11 @@ type CollaborationParticipant struct {
 
 // CollaborationUser matches the OpenAPI User schema
 type CollaborationUser struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
-	Name   string `json:"name"`
+	PrincipalType string `json:"principal_type"`
+	Provider      string `json:"provider"`
+	ProviderId    string `json:"provider_id"`
+	Email         string `json:"email"`
+	DisplayName   string `json:"display_name"`
 }
 
 // WebSocketMessage represents the base structure for all AsyncAPI messages
@@ -92,25 +94,20 @@ type WebSocketMessage struct {
 
 // User represents user information matching AsyncAPI spec
 type User struct {
-	UserID      string `json:"user_id"`
-	Email       string `json:"email"`
-	DisplayName string `json:"displayName"`
-}
-
-// CurrentPresenterMessage matches AsyncAPI CurrentPresenterPayload
-type CurrentPresenterMessage struct {
-	MessageType      string `json:"message_type"`
-	InitiatingUser   User   `json:"initiating_user"`
-	CurrentPresenter User   `json:"current_presenter"`
+	PrincipalType string `json:"principal_type"`
+	Provider      string `json:"provider"`
+	ProviderId    string `json:"provider_id"`
+	Email         string `json:"email"`
+	DisplayName   string `json:"display_name"`
 }
 
 // ParticipantsUpdateMessage matches AsyncAPI ParticipantsUpdatePayload
 type ParticipantsUpdateMessage struct {
-	MessageType    string        `json:"message_type"`
-	InitiatingUser *User         `json:"initiating_user,omitempty"` // Optional - null for system events, populated for user events
-	Participants   []Participant `json:"participants"`
-	Host           string        `json:"host"`
-	CurrentPresenter string        `json:"current_presenter"`
+	MessageType      string        `json:"message_type"`
+	InitiatingUser   *User         `json:"initiating_user,omitempty"` // Optional - null for system events, populated for user events
+	Participants     []Participant `json:"participants"`
+	Host             User          `json:"host"`
+	CurrentPresenter *User         `json:"current_presenter"` // Can be null if no presenter
 }
 
 type Participant struct {
@@ -125,6 +122,7 @@ type DiagramOperationEventMessage struct {
 	InitiatingUser User        `json:"initiating_user"`
 	OperationID    string      `json:"operation_id"`
 	SequenceNumber *uint64     `json:"sequence_number,omitempty"`
+	UpdateVector   int64       `json:"update_vector"`
 	Operation      interface{} `json:"operation"`
 }
 
@@ -987,16 +985,6 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 
 			// Handle different message types according to AsyncAPI spec
 			switch baseMsg.MessageType {
-			case "current_presenter":
-				var msg CurrentPresenterMessage
-				if err := json.Unmarshal(message, &msg); err == nil {
-					slogging.Get().GetSlogger().Info("Current Presenter",
-						"initiating_user", msg.InitiatingUser.Email,
-						"current_presenter_user_id", msg.CurrentPresenter.UserID,
-						"current_presenter_email", msg.CurrentPresenter.Email,
-						"current_presenter_name", msg.CurrentPresenter.DisplayName)
-				}
-
 			case "participants_update":
 				var msg ParticipantsUpdateMessage
 				if err := json.Unmarshal(message, &msg); err == nil {
@@ -1004,15 +992,19 @@ func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, 
 					if msg.InitiatingUser != nil {
 						initiatingUserEmail = msg.InitiatingUser.Email
 					}
+					currentPresenterEmail := "<none>"
+					if msg.CurrentPresenter != nil {
+						currentPresenterEmail = msg.CurrentPresenter.Email
+					}
 					slogging.Get().GetSlogger().Info("Participants Update",
 						"initiating_user", initiatingUserEmail,
 						"participant_count", len(msg.Participants),
-						"host", msg.Host,
-						"current_presenter", msg.CurrentPresenter)
+						"host_email", msg.Host.Email,
+						"current_presenter_email", currentPresenterEmail)
 					for i, p := range msg.Participants {
 						slogging.Get().GetSlogger().Debug("Participant",
 							"index", i,
-							"user_id", p.User.UserID,
+							"provider_id", p.User.ProviderId,
 							"email", p.User.Email,
 							"permissions", p.Permissions,
 							"last_activity", p.LastActivity)
