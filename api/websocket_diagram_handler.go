@@ -118,6 +118,22 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 		// Build current state map for detailed rejection feedback
 		currentState = buildCellStateMap(diagram.Cells)
 
+		// CRITICAL: Initialize OperationHistory.CurrentState with the database state
+		// This ensures subsequent operations validate against the full diagram state,
+		// not just cells that were added via operations during this session.
+		// Without this, updates to existing cells would be rejected as "update_nonexistent_cell"
+		// because CurrentState would be empty or incomplete.
+		if session.OperationHistory != nil {
+			session.OperationHistory.mutex.Lock()
+			for cellID, cellItem := range currentState {
+				cellCopy := *cellItem
+				session.OperationHistory.CurrentState[cellID] = &cellCopy
+			}
+			session.OperationHistory.mutex.Unlock()
+			slogging.Get().Debug("Initialized operation history CurrentState from database - Session: %s, CellCount: %d",
+				session.ID, len(currentState))
+		}
+
 		slogging.Get().Debug("Loaded diagram state from database - Session: %s, CellCount: %d",
 			session.ID, len(currentState))
 	}

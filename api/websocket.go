@@ -172,6 +172,26 @@ func (c *WebSocketClient) closeClientChannel() {
 	}
 }
 
+// trySend safely attempts to send a message to the client's Send channel.
+// Returns true if the message was sent, false if the channel is closed or full.
+// This prevents "send on closed channel" panics that can occur during session cleanup.
+func (c *WebSocketClient) trySend(msg []byte) bool {
+	c.closingMu.RLock()
+	isClosing := c.closing
+	c.closingMu.RUnlock()
+
+	if isClosing {
+		return false
+	}
+
+	select {
+	case c.Send <- msg:
+		return true
+	default:
+		return false
+	}
+}
+
 // Enhanced message types for collaborative editing - using existing AsyncAPI types
 
 // Upgrader upgrades HTTP connections to WebSocket
@@ -2328,13 +2348,14 @@ func (s *DiagramSession) broadcastSessionTermination(reason string) {
 		return
 	}
 
-	// Send to all clients
+	// Send to all clients using trySend to safely handle closed channels
+	// This prevents "send on closed channel" panics that can occur when
+	// CleanupInactiveSessions runs concurrently with session termination
 	for _, client := range clients {
-		select {
-		case client.Send <- msgBytes:
+		if client.trySend(msgBytes) {
 			slogging.Get().Debug("Sent session termination message to client %s", client.UserID)
-		default:
-			slogging.Get().Debug("Failed to send termination message to client %s (channel full)", client.UserID)
+		} else {
+			slogging.Get().Debug("Failed to send termination message to client %s (channel closed or full)", client.UserID)
 		}
 	}
 
@@ -2631,54 +2652,25 @@ func (s *DiagramSession) broadcastToAllClients(message interface{}) {
 	}
 	s.mu.RUnlock()
 
-	// Send to all clients
+	// Send to all clients using trySend to safely handle closed channels
 	for _, client := range clients {
-		select {
-		case client.Send <- msgBytes:
-		default:
-			slogging.Get().Info("Failed to send message to client %s", client.UserID)
+		if !client.trySend(msgBytes) {
+			slogging.Get().Info("Failed to send message to client %s (channel closed or full)", client.UserID)
 		}
 	}
 }
 
 // sendToClient sends a message to a specific client
 func (s *DiagramSession) sendToClient(client *WebSocketClient, message interface{}) {
-	// Check if client is closing to prevent send on closed channel
-	client.closingMu.RLock()
-	if client.closing {
-		client.closingMu.RUnlock()
-		slogging.Get().Debug("Skipping send to client %s - client is closing", client.UserID)
-		return
-	}
-	client.closingMu.RUnlock()
-
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
 		slogging.Get().Info("Error marshaling message: %v", err)
 		return
 	}
 
-	// Use defer/recover as additional safety against panics
-	defer func() {
-		if r := recover(); r != nil {
-			slogging.Get().Debug("Recovered from panic sending to client %s: %v", client.UserID, r)
-		}
-	}()
-
-	// Double-check closing flag right before send to minimize race window
-	client.closingMu.RLock()
-	if client.closing {
-		client.closingMu.RUnlock()
-		slogging.Get().Debug("Client %s closing flag set just before send, dropping message", client.UserID)
-		return
-	}
-	client.closingMu.RUnlock()
-
-	select {
-	case client.Send <- msgBytes:
-		// Successfully sent
-	default:
-		slogging.Get().Info("Client send channel full, dropping message")
+	// Use trySend to safely handle closed channels
+	if !client.trySend(msgBytes) {
+		slogging.Get().Debug("Failed to send to client %s (channel closed or full)", client.UserID)
 	}
 }
 
@@ -2715,16 +2707,15 @@ func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message inte
 			slogging.Get().Info("[TRACE-BROADCAST]   ✗ Skipping sender - User: %s, Pointer: %p (matches sender pointer)",
 				client.UserID, client)
 		} else {
-			// This is a recipient - send the message
+			// This is a recipient - send the message using trySend to handle closed channels
 			slogging.Get().Info("[TRACE-BROADCAST]   → Attempting to send to recipient - User: %s, Pointer: %p, Channel buffer: %d/%d",
 				client.UserID, client, len(client.Send), cap(client.Send))
 
-			select {
-			case client.Send <- msgBytes:
+			if client.trySend(msgBytes) {
 				recipientCount++
 				slogging.Get().Info("[TRACE-BROADCAST]     ✓✓✓ Message SUCCESSFULLY QUEUED to channel for %s ✓✓✓", client.UserID)
-			default:
-				slogging.Get().Error("[TRACE-BROADCAST]     ✗✗✗ Client send channel FULL - DROPPING MESSAGE for %s (channel: %d/%d) ✗✗✗",
+			} else {
+				slogging.Get().Error("[TRACE-BROADCAST]     ✗✗✗ Client send channel FULL or CLOSED - DROPPING MESSAGE for %s (channel: %d/%d) ✗✗✗",
 					client.UserID, len(client.Send), cap(client.Send))
 			}
 		}
