@@ -587,6 +587,15 @@ When completing any task involving code changes, follow this checklist:
 3. Run relevant tests (`make test-unit` and/or `make test-integration-new`) and fix any issues
 4. Suggest a conventional commit message
 
+## Git Commit Guidelines
+
+**ALWAYS use conventional commits. Do NOT run `git status` or `git diff` before committing.**
+
+When asked to commit changes:
+1. Stage the appropriate files with `git add`
+2. Commit directly using conventional commit format
+3. Do not waste time checking status or diff - you already know what changed from working on the task
+
 **Conventional Commit Format**:
 - Use the format: `<type>(<scope>): <description>`
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`, `revert`
