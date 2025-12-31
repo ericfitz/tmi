@@ -77,13 +77,57 @@ func startCacheRebuildJob(ctx context.Context, dbManager *db.Manager) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := rebuildCache(ctx, dbManager); err != nil {
-				slogging.Get().Error("Failed to rebuild cache: %v", err)
+			if err := rebuildCacheWithRetry(ctx, dbManager); err != nil {
+				slogging.Get().Error("Failed to rebuild cache after retries: %v", err)
 			} else {
 				slogging.Get().Info("Cache rebuilt successfully")
 			}
 		}
 	}
+}
+
+// rebuildCacheWithRetry attempts to rebuild the cache with exponential backoff retry
+func rebuildCacheWithRetry(ctx context.Context, dbManager *db.Manager) error {
+	const maxRetries = 3
+	baseDelay := 5 * time.Second
+
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: 5s, 10s, 20s
+			// #nosec G115 - attempt is always in range [1, maxRetries-1] so no overflow possible
+			delay := baseDelay * time.Duration(1<<uint(attempt-1))
+			slogging.Get().Info("Retrying cache rebuild in %v (attempt %d/%d)", delay, attempt+1, maxRetries)
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		// Verify database connection is healthy before attempting rebuild
+		pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		if err := dbManager.Postgres().Ping(pingCtx); err != nil {
+			cancel()
+			lastErr = fmt.Errorf("database connection unhealthy: %w", err)
+			slogging.Get().Warn("Database ping failed before cache rebuild (attempt %d/%d): %v", attempt+1, maxRetries, err)
+			continue
+		}
+		cancel()
+
+		// Attempt cache rebuild
+		if err := rebuildCache(ctx, dbManager); err != nil {
+			lastErr = err
+			slogging.Get().Warn("Cache rebuild failed (attempt %d/%d): %v", attempt+1, maxRetries, err)
+			continue
+		}
+
+		// Success
+		return nil
+	}
+
+	return fmt.Errorf("cache rebuild failed after %d attempts: %w", maxRetries, lastErr)
 }
 
 // rebuildCache rebuilds the Redis cache from PostgreSQL

@@ -45,11 +45,14 @@ func NewPostgresDB(cfg PostgresConfig) (*PostgresDB, error) {
 	}
 
 	// Set connection pool parameters
-	logger.Debug("Setting PostgreSQL connection pool parameters: maxOpen=10, maxIdle=2, maxLifetime=1h, maxIdleTime=30m")
+	// Use shorter max lifetime (5 min) to proactively recycle connections before they go stale
+	// This helps prevent "driver: bad connection" errors in cloud environments where
+	// connections may be terminated by load balancers, firewalls, or database restarts
+	logger.Debug("Setting PostgreSQL connection pool parameters: maxOpen=10, maxIdle=2, maxLifetime=5m, maxIdleTime=2m")
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(2)
-	db.SetConnMaxLifetime(time.Hour)
-	db.SetConnMaxIdleTime(30 * time.Minute)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(2 * time.Minute)
 
 	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
