@@ -95,8 +95,14 @@ func (v *MigrationBasedValidator) ValidateSchema() (*SchemaValidationResult, err
 		result.Valid = false
 	}
 
-	logger.Debug("Migration-based schema validation completed: valid=%v, errors=%d, warnings=%d",
-		result.Valid, len(result.Errors), len(result.Warnings))
+	// Log appropriate completion message based on validation result
+	if len(result.Errors) > 0 {
+		logger.Debug("Migration-based schema validation did not complete successfully")
+	} else if len(result.Warnings) > 0 {
+		logger.Debug("Migration-based schema validation completed with issues")
+	} else {
+		logger.Debug("Migration-based schema validation completed successfully")
+	}
 
 	return result, nil
 }
