@@ -197,8 +197,6 @@ func (s *ThreatModelDatabaseStore) Get(id string) (ThreatModel, error) {
 		&createdAt, &modifiedAt,
 	)
 
-	slogging.Get().GetSlogger().Debug("Query execution completed", "error", err)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			slogging.Get().GetSlogger().Debug("No rows found", "id", id)
