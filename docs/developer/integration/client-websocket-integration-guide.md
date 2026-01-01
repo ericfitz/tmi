@@ -77,6 +77,7 @@ await client.sendBatchOperation([
 The TMI API supports **two formats** for node position and size properties to ensure compatibility with both AntV/X6 formats:
 
 **Format 1 (Nested - Legacy):**
+
 ```javascript
 {
   "id": "uuid",
@@ -93,6 +94,7 @@ The TMI API supports **two formats** for node position and size properties to en
 ```
 
 **Format 2 (Flat - Recommended):**
+
 ```javascript
 {
   "id": "uuid",
@@ -114,6 +116,7 @@ The TMI API supports **two formats** for node position and size properties to en
 ### Code Examples
 
 **Sending nodes (either format works):**
+
 ```javascript
 // Using flat format (recommended)
 await client.addCell({
@@ -122,7 +125,7 @@ await client.addCell({
   x: 100,
   y: 150,
   width: 120,
-  height: 80
+  height: 80,
 });
 
 // Using nested format (legacy, still supported)
@@ -130,14 +133,15 @@ await client.addCell({
   id: uuid(),
   shape: "process",
   position: { x: 100, y: 150 },
-  size: { width: 120, height: 80 }
+  size: { width: 120, height: 80 },
 });
 ```
 
 **Receiving nodes (always flat format):**
+
 ```javascript
 client.on("diagramOperation", (operation) => {
-  operation.cells.forEach(cellOp => {
+  operation.cells.forEach((cellOp) => {
     if (cellOp.operation === "add" && cellOp.data) {
       // Response always uses flat format
       console.log(`Node at (${cellOp.data.x}, ${cellOp.data.y})`);
@@ -157,7 +161,7 @@ interface Node {
   shape: "actor" | "process" | "store" | "security-boundary" | "text-box";
   x: number;
   y: number;
-  width: number;  // Minimum: 40
+  width: number; // Minimum: 40
   height: number; // Minimum: 30
   // ... other optional fields
 }
@@ -194,14 +198,14 @@ async function getActiveCollaborationSessions(jwtToken) {
 // [
 //   {
 //     "session_id": "053d62c1-8a5d-48db-8a0a-707cacceb6ab",
-//     "host": "testuser-25542959@test.tmi",
+//     "host": "testuser-25542959@tmi",
 //     "threat_model_id": "60fd469a-e3aa-4d04-9ed7-f3203162563d",
 //     "threat_model_name": "My Threat Model",
 //     "diagram_id": "422b993e-a0ff-416a-8a6b-5dff8b4d6eef",
 //     "diagram_name": "Main DFD",
 //     "participants": [
 //       {
-//         "user_id": "testuser-25542959@test.tmi",
+//         "user_id": "testuser-25542959@tmi",
 //         "joined_at": "2025-08-14T02:45:13.534Z",
 //         "permissions": "writer"
 //       }
@@ -332,19 +336,19 @@ class NoSessionError extends Error {
 // Success Response (201/200) - CollaborationSession object:
 // {
 // "session_id": "053d62c1-8a5d-48db-8a0a-707cacceb6ab",
-// "host": "testuser-25542959@test.tmi",
+// "host": "testuser-25542959@tmi",
 // "threat_model_id": "60fd469a-e3aa-4d04-9ed7-f3203162563d",
 // "threat_model_name": "My Threat Model",
 // "diagram_id": "422b993e-a0ff-416a-8a6b-5dff8b4d6eef",
 // "diagram_name": "Main DFD",
 // "participants": [
 // {
-// "user_id": "testuser-25542959@test.tmi", // Original session creator
+// "user_id": "testuser-25542959@tmi", // Original session creator
 // "joined_at": "2025-08-14T02:45:10.000Z",
 // "permissions": "writer"
 // },
 // {
-// "user_id": "testuser-20492675@test.tmi", // Current user (newly joined)
+// "user_id": "testuser-20492675@tmi", // Current user (newly joined)
 // "joined_at": "2025-08-14T02:45:13.534Z",
 // "permissions": "writer"
 // }
@@ -988,14 +992,18 @@ class TMICollaborativeClient {
   }
 
   handleDiagramStateSync(message) {
-    console.log(`Received initial state sync - UpdateVector: ${message.update_vector}, Cells: ${message.cells.length}`);
+    console.log(
+      `Received initial state sync - UpdateVector: ${message.update_vector}, Cells: ${message.cells.length}`
+    );
 
     // Compare with locally cached diagram (from REST API fetch)
     const localVersion = this.cachedDiagram?.update_vector || 0;
     const serverVersion = message.update_vector || 0;
 
     if (localVersion !== serverVersion) {
-      console.warn(`State mismatch detected - Local: ${localVersion}, Server: ${serverVersion}`);
+      console.warn(
+        `State mismatch detected - Local: ${localVersion}, Server: ${serverVersion}`
+      );
 
       // Option A: Use the cells provided in the message (fastest)
       this.updateLocalDiagram(message.cells, message.update_vector);
@@ -1018,7 +1026,7 @@ class TMICollaborativeClient {
     this.cachedDiagram = {
       ...this.cachedDiagram,
       cells: cells,
-      update_vector: updateVector
+      update_vector: updateVector,
     };
 
     // Update UI to show current server state
@@ -1076,6 +1084,7 @@ function needsResync(localDiagram, stateSyncMessage) {
 When state mismatch is detected, clients have three options:
 
 **Option 1: Use Embedded Cells (Fastest)**
+
 ```javascript
 // Update local state immediately from the cells array in diagram_state_sync
 this.cachedDiagram.cells = stateSyncMessage.cells;
@@ -1083,18 +1092,24 @@ this.cachedDiagram.update_vector = stateSyncMessage.update_vector;
 ```
 
 **Option 2: Re-fetch via REST API (Most Reliable)**
+
 ```javascript
 // Fetch complete diagram via REST API for full synchronization
-const response = await fetch(`/api/threat_models/${tmId}/diagrams/${diagramId}`);
+const response = await fetch(
+  `/api/threat_models/${tmId}/diagrams/${diagramId}`
+);
 this.cachedDiagram = await response.json();
 ```
 
 **Option 3: Request Explicit Resync (Manual)**
+
 ```javascript
 // Send resync_request message to server
-this.ws.send(JSON.stringify({
-  message_type: "resync_request"
-}));
+this.ws.send(
+  JSON.stringify({
+    message_type: "resync_request",
+  })
+);
 
 // Server responds with resync_response telling client to use REST API
 // Then fetch via REST API as in Option 2
@@ -1103,6 +1118,7 @@ this.ws.send(JSON.stringify({
 #### State Correction Messages
 
 In addition to initial state sync, clients may receive `state_correction` messages during the session when:
+
 - Diagram is updated via REST API (outside WebSocket)
 - Operation conflicts are detected
 - Server state changes externally
@@ -1145,12 +1161,18 @@ handleStateCorrection(message) {
 class TMICollaborativeClient {
   async joinSession(threatModelId, diagramId) {
     // 1. Fetch diagram via REST API
-    const response = await fetch(`/api/threat_models/${threatModelId}/diagrams/${diagramId}`);
+    const response = await fetch(
+      `/api/threat_models/${threatModelId}/diagrams/${diagramId}`
+    );
     this.cachedDiagram = await response.json();
-    console.log(`Cached diagram - Version: ${this.cachedDiagram.update_vector}, Cells: ${this.cachedDiagram.cells.length}`);
+    console.log(
+      `Cached diagram - Version: ${this.cachedDiagram.update_vector}, Cells: ${this.cachedDiagram.cells.length}`
+    );
 
     // 2. Connect to WebSocket
-    this.ws = new WebSocket(`wss://api.tmi.example.com/threat_models/${threatModelId}/diagrams/${diagramId}/ws`);
+    this.ws = new WebSocket(
+      `wss://api.tmi.example.com/threat_models/${threatModelId}/diagrams/${diagramId}/ws`
+    );
 
     this.ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
@@ -1168,7 +1190,9 @@ class TMICollaborativeClient {
     const serverVector = message.update_vector || 0;
 
     if (serverVector !== localVector) {
-      console.warn(`State sync needed - Local: ${localVector}, Server: ${serverVector}`);
+      console.warn(
+        `State sync needed - Local: ${localVector}, Server: ${serverVector}`
+      );
 
       // Update local state with server cells
       this.cachedDiagram.cells = message.cells;
@@ -1180,7 +1204,7 @@ class TMICollaborativeClient {
 
     // Mark as synchronized and ready to send operations
     this.isStateSynchronized = true;
-    this.emit('ready');
+    this.emit("ready");
   }
 
   addCell(cellData) {
@@ -1189,19 +1213,23 @@ class TMICollaborativeClient {
     }
 
     // Check if cell already exists in our synchronized state
-    const cellExists = this.cachedDiagram.cells.some(c => c.id === cellData.id);
+    const cellExists = this.cachedDiagram.cells.some(
+      (c) => c.id === cellData.id
+    );
 
     const operation = {
       message_type: "diagram_operation",
       operation_id: crypto.randomUUID(),
       operation: {
         type: "patch",
-        cells: [{
-          id: cellData.id,
-          operation: cellExists ? "update" : "add", // Use correct operation type
-          data: cellData
-        }]
-      }
+        cells: [
+          {
+            id: cellData.id,
+            operation: cellExists ? "update" : "add", // Use correct operation type
+            data: cellData,
+          },
+        ],
+      },
     };
 
     this.ws.send(JSON.stringify(operation));
@@ -1895,7 +1923,7 @@ interface Cell {
   // Position and size in flat format (API always returns this format)
   x: number;
   y: number;
-  width: number;  // Minimum: 40
+  width: number; // Minimum: 40
   height: number; // Minimum: 30
   label: string;
   [key: string]: any;

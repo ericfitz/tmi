@@ -19,52 +19,64 @@ This refactoring consolidates the user identification architecture to eliminate 
 ## Key Decisions Made
 
 ### 1. Table Consolidation ✅
+
 **Decision**: Eliminate `user_providers` table entirely and consolidate into `users` table.
 
 **Rationale**:
+
 - Business logic treats each provider account as separate user
 - No account linking feature planned or implemented
 - Eliminates unnecessary JOIN on every authenticated request
 - Simplifies schema and aligns with actual usage
 
 ### 2. Naming Convention ✅
+
 **Decision**: Use prefix-based naming throughout (Option C+)
 
 **Standard**:
+
 - `internal_uuid` - Database primary key (UUID type)
 - `provider` - OAuth provider name ("test", "google", etc.)
 - `provider_user_id` - Provider's identifier for user
 - Foreign keys: `{relationship}_internal_uuid` (e.g., `owner_internal_uuid`)
 
 ### 3. Single Context Object ✅
+
 **Decision**: Store `*UserCacheEntry` in context instead of separate keys
 
 **Benefits**:
+
 - Type-safe access to all user fields
 - No risk of mismatched values
 - Cleaner handler code: `user := MustGetAuthenticatedUser(c)`
 
 ### 4. JWT Profile Updates ✅
+
 **Decision**: Middleware automatically updates email/name from JWT claims
 
 **Implementation**:
+
 - Extract `email` and `name` from JWT on every request
 - Compare with cached values
 - Update database if different
 - Don't fail request on update errors (log warning only)
 
 ### 5. User Cache Design ✅
+
 **Decision**: Redis-backed cache with 15-minute TTL
 
 **Key Structure**:
+
 - Primary storage: `user:cache:{internal_uuid}` → full `UserCacheEntry`
 - Index for lookups: `user:provider:{provider}:{provider_user_id}` → `internal_uuid`
 - Database fallback on cache miss or Redis unavailable
 
 ### 6. Migration Strategy ✅
+
 **Decision**: Consolidate all migrations into two base files
 
 **Approach**:
+
 - Archive existing migrations to `docs/archive/migrations/`
 - Consolidate into `000001_core_infrastructure.up.sql` and `000002_business_domain.up.sql`
 - Drop and recreate all databases (dev + Heroku)
@@ -77,22 +89,26 @@ This refactoring consolidates the user identification architecture to eliminate 
 The system needs to track FOUR distinct user identifiers:
 
 1. **Internal UUID** (`uuid.UUID`) - Auto-generated primary key in `users` table
+
    - Purpose: Internal database relationships, foreign keys, indices
    - Never exposed in API responses
    - Used for: Rate limiting, quotas, database joins, caching keys
 
 2. **Provider** (`string`) - OAuth provider name
+
    - Purpose: Identify which OAuth provider authenticated this user
    - Examples: "test", "google", "github", "azure"
    - Combined with Provider User ID for unique user identification
 
 3. **Provider User ID** (`string`) - Opaque identifier from OAuth provider
+
    - Purpose: External user identification from identity provider
    - Used in: JWT `sub` claim, API responses (as `id` field)
-   - Examples: "alice@test.tmi", "108234567890123456789" (Google)
+   - Examples: "alice@tmi", "108234567890123456789" (Google)
    - Unique per provider (not globally unique)
 
 4. **Email** (`string`) - User's email address
+
    - Purpose: User-visible identifier, communication
    - NOT unique across providers (alice@gmail.com from Google ≠ alice@gmail.com from GitHub)
    - Used in: API responses, JWT claims, display
@@ -106,6 +122,7 @@ The system needs to track FOUR distinct user identifiers:
 **The JWT `sub` claim ALWAYS contains the Provider ID, NEVER the Internal UUID.**
 
 Current implementation (auth/service.go:179):
+
 ```go
 Subject: providerID,  // ✅ CORRECT
 ```
@@ -120,6 +137,7 @@ Any code putting Internal UUID into JWT `sub` is a BUG.
 **File**: `cmd/server/jwt_auth.go:141`
 
 Current code:
+
 ```go
 c.Set("userID", sub)  // sub is Provider ID from JWT
 ```
@@ -127,6 +145,7 @@ c.Set("userID", sub)  // sub is Provider ID from JWT
 **Problem**: The variable name `userID` is misleading - it contains Provider ID, not Internal UUID.
 
 **Impact**: Every handler that calls `c.Get("userID")` expects different things:
+
 - Some treat it as a UUID (BUG)
 - Some treat it as a string Provider ID (CORRECT)
 - Inconsistent usage leads to type conversion errors
@@ -134,6 +153,7 @@ c.Set("userID", sub)  // sub is Provider ID from JWT
 ### 2. User Lookup Pattern
 
 **Current flow**:
+
 1. JWT middleware extracts `sub` (Provider ID)
 2. Sets `c.Set("userID", sub)`
 3. Handlers retrieve it with `c.Get("userID")`
@@ -144,6 +164,7 @@ c.Set("userID", sub)  // sub is Provider ID from JWT
 ### 3. Database Schema Issues
 
 **Current Table**: `users`
+
 ```sql
 - uuid (PRIMARY KEY, auto-generated) -- Internal UUID
 - id (TEXT, UNIQUE)                  -- Provider ID
@@ -153,6 +174,7 @@ c.Set("userID", sub)  // sub is Provider ID from JWT
 ```
 
 **Current Table**: `user_providers`
+
 ```sql
 - user_uuid (FOREIGN KEY -> users.uuid)  -- Internal UUID
 - provider (TEXT)                        -- "test", "google", "github"
@@ -164,6 +186,7 @@ c.Set("userID", sub)  // sub is Provider ID from JWT
 ```
 
 **Problems Identified**:
+
 1. ❌ **Duplication**: `users.id` and `user_providers.provider_user_id` both store Provider ID
 2. ❌ **Confusion**: Which table is source of truth for user identity?
 3. ❌ **Unnecessary Join**: Every authenticated request requires join between tables
@@ -173,6 +196,7 @@ c.Set("userID", sub)  // sub is Provider ID from JWT
 ### 4. API Response Representation
 
 **OpenAPI Generated**: `api.User`
+
 ```go
 type User struct {
     Id    string  // Provider ID
@@ -182,6 +206,7 @@ type User struct {
 ```
 
 **Auth Service**: `auth.User`
+
 ```go
 type User struct {
     ID               string    // Provider ID (confusing name!)
@@ -222,6 +247,7 @@ type AddonInvocation struct {
 ### 6. Rate Limiting & Quotas
 
 **Files**:
+
 - `api/addon_rate_limiter.go`
 - `api/addon_invocation_quota_store.go`
 
@@ -242,6 +268,7 @@ type AddonInvocation struct {
 5. **Context**: `c.Get("userID")` = Provider ID (misleading name!)
 
 **Why This Causes Bugs**:
+
 - Developers see "ID" and assume it's the primary key UUID
 - Variables named `userID` are sometimes UUID, sometimes string
 - No way to tell from the name which ID we're talking about
@@ -254,17 +281,20 @@ We need ONE consistent naming rubric across database, code, and API:
 #### Option A: Rename Database Column (BREAKING CHANGE)
 
 **Database Migration**:
+
 ```sql
 ALTER TABLE users RENAME COLUMN id TO provider_id;
 ALTER TABLE users RENAME COLUMN uuid TO id;  -- Make UUID the "id"
 ```
 
 **Pros**:
+
 - `id` becomes the actual primary key (standard convention)
 - Clear distinction: `id` vs `provider_id`
 - Aligns with Rails/Django conventions
 
 **Cons**:
+
 - Requires database migration
 - Breaks existing queries
 - Need to update all SQL statements
@@ -274,20 +304,22 @@ ALTER TABLE users RENAME COLUMN uuid TO id;  -- Make UUID the "id"
 
 **Keep database as-is, standardize variable names**:
 
-| Concept | Database Column | Go Struct Field | Variable Name | JSON Field (API) |
-|---------|----------------|-----------------|---------------|------------------|
-| Internal UUID | `users.uuid` | `UserUUID uuid.UUID` | `userUUID` | (never exposed) |
-| Provider ID | `users.id` | `ProviderID string` | `providerID` | `id` |
-| Email | `users.email` | `Email string` | `userEmail` | `email` |
-| Name | `users.name` | `Name string` | `userName` | `name` |
+| Concept       | Database Column | Go Struct Field      | Variable Name | JSON Field (API) |
+| ------------- | --------------- | -------------------- | ------------- | ---------------- |
+| Internal UUID | `users.uuid`    | `UserUUID uuid.UUID` | `userUUID`    | (never exposed)  |
+| Provider ID   | `users.id`      | `ProviderID string`  | `providerID`  | `id`             |
+| Email         | `users.email`   | `Email string`       | `userEmail`   | `email`          |
+| Name          | `users.name`    | `Name string`        | `userName`    | `name`           |
 
 **Pros**:
+
 - No database changes
 - Can implement incrementally
 - Type system helps (uuid.UUID vs string)
 - Clear naming in code
 
 **Cons**:
+
 - Database columns keep confusing names
 - SQL queries still use `users.id` for provider ID
 - Mismatch between database and code names
@@ -296,19 +328,21 @@ ALTER TABLE users RENAME COLUMN uuid TO id;  -- Make UUID the "id"
 
 **Add prefixes everywhere for clarity**:
 
-| Concept | Database Column | Go Struct Field | Variable Name | Context Key |
-|---------|----------------|-----------------|---------------|-------------|
+| Concept       | Database Column       | Go Struct Field          | Variable Name  | Context Key    |
+| ------------- | --------------------- | ------------------------ | -------------- | -------------- |
 | Internal UUID | `users.internal_uuid` | `InternalUUID uuid.UUID` | `internalUUID` | `internalUUID` |
-| Provider ID | `users.provider_id` | `ProviderID string` | `providerID` | `providerID` |
-| Email | `users.email` | `Email string` | `email` | `userEmail` |
-| Name | `users.name` | `Name string` | `name` | `userName` |
+| Provider ID   | `users.provider_id`   | `ProviderID string`      | `providerID`   | `providerID`   |
+| Email         | `users.email`         | `Email string`           | `email`        | `userEmail`    |
+| Name          | `users.name`          | `Name string`            | `name`         | `userName`     |
 
 **Pros**:
+
 - Crystal clear everywhere
 - Impossible to confuse
 - Self-documenting code
 
 **Cons**:
+
 - Verbose
 - Requires database migration
 - Large refactoring effort
@@ -320,17 +354,18 @@ ALTER TABLE users RENAME COLUMN uuid TO id;  -- Make UUID the "id"
 **RECOMMENDATION: Option C+ - Prefix-Based Naming with Database Migration AND Table Consolidation**
 
 This eliminates ALL ambiguity and prevents future bugs by:
+
 1. Using crystal-clear naming conventions
 2. Consolidating `user_providers` into `users` table
 3. Aligning schema with business logic (separate users per provider)
 
-| Concept | Database Column | Go Struct Field | Variable Name | Context Storage |
-|---------|----------------|-----------------|---------------|-----------------|
-| Internal UUID | `users.internal_uuid` | `InternalUUID uuid.UUID` | `internalUUID` | Part of `UserCacheEntry` object |
-| Provider | `users.provider` | `Provider string` | `provider` | Part of `UserCacheEntry` object |
-| Provider User ID | `users.provider_user_id` | `ProviderUserID string` | `providerUserID` | Part of `UserCacheEntry` object |
-| Email | `users.email` | `Email string` | `email` | Part of `UserCacheEntry` object |
-| Name | `users.name` | `Name string` | `name` | Part of `UserCacheEntry` object |
+| Concept          | Database Column          | Go Struct Field          | Variable Name    | Context Storage                 |
+| ---------------- | ------------------------ | ------------------------ | ---------------- | ------------------------------- |
+| Internal UUID    | `users.internal_uuid`    | `InternalUUID uuid.UUID` | `internalUUID`   | Part of `UserCacheEntry` object |
+| Provider         | `users.provider`         | `Provider string`        | `provider`       | Part of `UserCacheEntry` object |
+| Provider User ID | `users.provider_user_id` | `ProviderUserID string`  | `providerUserID` | Part of `UserCacheEntry` object |
+| Email            | `users.email`            | `Email string`           | `email`          | Part of `UserCacheEntry` object |
+| Name             | `users.name`             | `Name string`            | `name`           | Part of `UserCacheEntry` object |
 
 **Rationale for Table Consolidation**:
 
@@ -346,6 +381,7 @@ The current `user_providers` table exists to support linking multiple OAuth prov
 **Solution**: Consolidate all fields into single `users` table with `(provider, provider_user_id)` as unique identifier.
 
 **Benefits of Full Refactoring (Pre-Launch)**:
+
 - Crystal clear naming everywhere - impossible to confuse IDs
 - Self-documenting code - no need to check which "id" is meant
 - Type system helps prevent bugs (uuid.UUID vs string)
@@ -356,11 +392,13 @@ The current `user_providers` table exists to support linking multiple OAuth prov
 **Strict Naming Conventions**:
 
 1. **NEVER use generic "ID" anywhere** - always fully qualified:
+
    - ❌ `userID`, `id`, `ID` (ambiguous)
    - ✅ `internalUUID` (database primary key)
    - ✅ `providerID` (OAuth provider's identifier)
 
 2. **Struct field naming**:
+
    ```go
    type User struct {
        InternalUUID uuid.UUID `db:"internal_uuid"` // Database primary key
@@ -371,6 +409,7 @@ The current `user_providers` table exists to support linking multiple OAuth prov
    ```
 
 3. **Variable naming patterns**:
+
    ```go
    var internalUUID uuid.UUID   // Database primary key
    var providerID string         // OAuth provider ID
@@ -379,6 +418,7 @@ The current `user_providers` table exists to support linking multiple OAuth prov
    ```
 
 4. **Context keys** (use in `c.Set()`/`c.Get()`):
+
    ```go
    "internalUUID"  // Internal UUID (stored as string, parse to uuid.UUID)
    "providerID"    // Provider ID
@@ -387,6 +427,7 @@ The current `user_providers` table exists to support linking multiple OAuth prov
    ```
 
 5. **Function parameters** - always use full names:
+
    ```go
    func GetUser(ctx context.Context, internalUUID uuid.UUID) (*User, error)
    func GetUserByProviderID(ctx context.Context, providerID string) (*User, error)
@@ -400,6 +441,7 @@ The current `user_providers` table exists to support linking multiple OAuth prov
 ### Implementation Steps for Terminology Normalization
 
 **Phase 1: Database Migration (FIRST)**
+
 1. Create migration to rename columns:
    - `users.uuid` → `users.internal_uuid`
    - `users.id` → `users.provider_id`
@@ -407,18 +449,21 @@ The current `user_providers` table exists to support linking multiple OAuth prov
 3. Test database operations
 
 **Phase 2: Update Struct Definitions**
+
 1. Rename `auth.User.ID` to `auth.User.ProviderID`
 2. Rename `auth.User.UUID` to `auth.User.InternalUUID` (if exists)
 3. Update all struct tags to match new column names
 4. Regenerate any code that depends on struct definitions
 
 **Phase 3: Update All Code References**
+
 1. Update all variable declarations to follow conventions
 2. Update context keys in middleware
 3. Update all handler code
 4. Update all test code
 
 **Phase 4: Verification**
+
 1. Run all tests (unit + integration)
 2. Verify no generic "ID" usage remains
 3. Add linter rules to prevent future violations
@@ -429,6 +474,7 @@ The current `user_providers` table exists to support linking multiple OAuth prov
 ### Design Principles
 
 1. **Internal UUID for all internal operations**
+
    - Database foreign keys
    - Rate limiting keys
    - Quota tracking
@@ -439,6 +485,7 @@ The current `user_providers` table exists to support linking multiple OAuth prov
    - **Type**: `uuid.UUID`
 
 2. **Provider ID for external identification**
+
    - JWT `sub` claim
    - API responses (as `id` field)
    - Provider lookups
@@ -459,12 +506,14 @@ The current `user_providers` table exists to support linking multiple OAuth prov
 **Strategy: Consolidate ALL migrations + Merge user_providers into users table**
 
 Since we're doing a breaking refactoring with no backwards compatibility, we will:
+
 1. Consolidate all existing migrations into the original two base migrations
 2. **ELIMINATE** `user_providers` table entirely
 3. Move all provider-specific fields into `users` table
 4. Use `(provider, provider_user_id)` as unique identifier
 
 **File**: `auth/migrations/000001_core_infrastructure.up.sql`
+
 ```sql
 -- Consolidated users table with provider information
 CREATE TABLE users (
@@ -496,6 +545,7 @@ CREATE INDEX idx_users_provider_lookup ON users(provider, provider_user_id);
 ```
 
 **File**: `auth/migrations/000002_business_domain.up.sql`
+
 ```sql
 -- Update all foreign key references to use internal_uuid with descriptive names
 CREATE TABLE threat_models (
@@ -525,6 +575,7 @@ CREATE TABLE threat_model_permissions (
 ```
 
 **Migration Consolidation Steps**:
+
 1. Archive existing migrations to `docs/archive/migrations/` for reference
 2. Update `000001_core_infrastructure.up.sql` with consolidated schema
 3. Update `000002_business_domain.up.sql` with new foreign key names
@@ -534,6 +585,7 @@ CREATE TABLE threat_model_permissions (
 7. Drop and recreate Heroku database (using `make heroku-reset-db`)
 
 **Result After Consolidation**:
+
 - ✅ `users.internal_uuid`: Internal UUID (primary key)
 - ✅ `users.provider`: OAuth provider name ("test", "google", etc.)
 - ✅ `users.provider_user_id`: Provider's user ID (unique per provider)
@@ -592,6 +644,7 @@ func buildProviderIndexKey(provider, providerUserID string) string {
 ```
 
 **Cache Strategy**:
+
 - **Primary Key**: Internal UUID (for user data storage)
 - **Index Key**: `provider:provider_user_id` → Internal UUID (for lookups)
 - **TTL**: 15 minutes (matches typical JWT refresh cycle)
@@ -640,6 +693,7 @@ c.Set("authenticatedUser", userEntry)
 ```
 
 **Benefits of Single Context Object**:
+
 - ✅ Type-safe access to all user fields
 - ✅ No risk of mismatched values between separate keys
 - ✅ Cleaner handler code: `userEntry := c.MustGet("authenticatedUser").(*UserCacheEntry)`
@@ -686,6 +740,7 @@ func UserToAPIResponse(entry *auth.UserCacheEntry) api.User {
 ```
 
 **Usage in Handlers**:
+
 ```go
 // Before: Multiple context lookups, type conversions, error handling
 userID, _ := c.Get("userID").(string)
@@ -700,10 +755,12 @@ user := MustGetAuthenticatedUser(c)
 #### Step 5: Remove Duplicate Structures
 
 **Remove or consolidate**:
+
 - `authUserToAPIUser` converter - shouldn't be needed
 - Multiple user representation structures
 
 **Keep**:
+
 - `api.User` (OpenAPI generated) - for API responses
 - `auth.User` (full database model) - for auth service operations
 - `UserCacheEntry` (new) - for efficient lookups
@@ -713,25 +770,30 @@ user := MustGetAuthenticatedUser(c)
 ### Critical Path (Must Fix)
 
 1. **`cmd/server/jwt_auth.go`**
+
    - Change: Implement user lookup after JWT validation
    - Change: Set both `providerID` and `internalUUID` in context
    - Impact: All authenticated requests
 
 2. **`auth/user_cache.go`** (NEW FILE)
+
    - Create: User cache implementation
    - Redis-backed with database fallback
 
 3. **`api/request_utils.go`** or **`api/auth_utils.go`**
+
    - Change: Update `ValidateAuthenticatedUser` to return both IDs
    - Add: `GetAuthenticatedUser` helper
    - Add: `GetUserForAPI` helper
 
 4. **`api/addon_invocation_handlers.go`**
+
    - Fix: Use `internalUUID` for rate limiting/quotas
    - Fix: Use `providerID`, `email`, `name` for invocation storage
    - Lines: ~42-85 (user ID extraction), ~146-164 (rate limiting), ~167-182 (invocation creation)
 
 5. **`api/addon_rate_limiter.go`**
+
    - Verify: Already uses `uuid.UUID` correctly ✅
    - No changes needed (already correct)
 
@@ -742,16 +804,19 @@ user := MustGetAuthenticatedUser(c)
 ### Secondary Updates (Should Fix)
 
 7. **`api/websocket.go`**
+
    - Fix: `toUser()` method (line 158-164)
    - Fix: Any user ID comparisons
    - Update: Use proper ID fields
 
 8. **`api/asyncapi_types.go`**
+
    - Fix: User field references (`UserId` -> `Id`)
    - Fix: Validation methods
    - Lines: ~166, 184, 187, 204, 221, 408, 425, 554, 573
 
 9. **`api/user_deletion_handlers.go`**
+
    - Review: User lookup patterns
    - Ensure: Uses Internal UUID for database operations
 
@@ -762,6 +827,7 @@ user := MustGetAuthenticatedUser(c)
 ### Testing Files
 
 11. **`api/*_test.go`**
+
     - Update: All test files that create users or mock authentication
     - Ensure: Tests use correct ID types
 
@@ -778,6 +844,7 @@ user := MustGetAuthenticatedUser(c)
 **IMPORTANT**: Since we're consolidating migrations AND eliminating the `user_providers` table, this is a fresh-start approach. All databases will be dropped and recreated.
 
 1. **Migration Consolidation & Archive** (45 minutes)
+
    - Create `docs/archive/migrations/` directory
    - Copy all existing migrations to archive for reference
    - Create `docs/archive/MIGRATION_CONSOLIDATION.md` documenting what was consolidated
@@ -798,12 +865,14 @@ user := MustGetAuthenticatedUser(c)
    - Delete migration files beyond 000002
 
 2. **Database Recreation** (15 minutes)
+
    - Stop all local services: `make clean-everything`
    - Drop and recreate development database: `make start-dev`
    - Drop and recreate Heroku database: `make heroku-reset-db`
    - Verify schema with manual inspection
 
 3. **Auth Package Update** (60 minutes)
+
    - Update `auth.User` struct with new fields:
      - `UUID` → `InternalUUID uuid.UUID` with tag `db:"internal_uuid"`
      - Add `Provider string` with tag `db:"provider"`
@@ -822,6 +891,7 @@ user := MustGetAuthenticatedUser(c)
    - Run auth package unit tests: `make test-unit`
 
 4. **Create User Cache** (60 minutes)
+
    - Implement `auth/user_cache.go` with `UserCacheEntry` struct
    - Fields: `InternalUUID`, `Provider`, `ProviderUserID`, `Email`, `Name`
    - Add Redis-backed cache with 15-minute TTL
@@ -839,6 +909,7 @@ user := MustGetAuthenticatedUser(c)
    - Write cache unit tests
 
 5. **Update JWT Middleware** (45 minutes)
+
    - Update `cmd/server/jwt_auth.go` to integrate user cache
    - Extract claims: `sub` (provider user ID), `email`, `name`
    - Determine provider from JWT (issuer or custom claim)
@@ -853,6 +924,7 @@ user := MustGetAuthenticatedUser(c)
    - Add error handling for user not found
 
 6. **Create Handler Utilities** (30 minutes)
+
    - Create `api/auth_utils.go` with helper functions:
      - `GetAuthenticatedUser(c)` → `(*auth.UserCacheEntry, error)`
      - `MustGetAuthenticatedUser(c)` → `*auth.UserCacheEntry` (panic on error)
@@ -861,6 +933,7 @@ user := MustGetAuthenticatedUser(c)
    - Add comprehensive error handling and documentation
 
 7. **Update All Handlers** (2-2.5 hours)
+
    - **Pattern**: Replace `c.Get("userID")` calls with `MustGetAuthenticatedUser(c)`
    - Update `api/addon_invocation_handlers.go`:
      - Use `user.InternalUUID` for rate limiting and quotas
@@ -882,6 +955,7 @@ user := MustGetAuthenticatedUser(c)
    - Fix all compilation errors as they arise
 
 8. **Update All Tests** (1.5-2 hours)
+
    - Update test fixtures to use new `auth.User` field names:
      - `ID` → `ProviderUserID`
      - `UUID` → `InternalUUID`
@@ -899,6 +973,7 @@ user := MustGetAuthenticatedUser(c)
    - Run test suite incrementally after each file update
 
 9. **Update Type Converters** (20 minutes)
+
    - Update `authUserToAPIUser()`:
      - Use `u.ProviderUserID` instead of `u.ID` for API `id` field
      - Handle new struct field names
@@ -907,6 +982,7 @@ user := MustGetAuthenticatedUser(c)
    - Add `UserCacheEntryToAPIUser()` converter
 
 10. **Add Linter Rules** (15 minutes)
+
     - Add golangci-lint rules to prevent:
       - Variable names: `userID`, `userId` (enforce `internalUUID` or `providerUserID`)
       - Generic `id` variables without prefix
@@ -931,6 +1007,7 @@ user := MustGetAuthenticatedUser(c)
       - Verify cache hit rates in logs
 
 **Total Estimated Time**: 7-8 hours for complete refactoring including:
+
 - Migration consolidation and archival
 - Table consolidation (eliminating user_providers)
 - JWT profile update feature
@@ -939,6 +1016,7 @@ user := MustGetAuthenticatedUser(c)
 - Comprehensive testing
 
 **Rollback Plan**:
+
 - Since databases are dropped/recreated, rollback means reverting code changes
 - Keep git branch for rollback: `git checkout main` to undo
 - No database rollback needed - just recreate from old migrations if needed
@@ -949,6 +1027,7 @@ user := MustGetAuthenticatedUser(c)
 After implementation, verify:
 
 ### Database Schema
+
 - [ ] `users` table has `internal_uuid`, `provider`, `provider_user_id` columns
 - [ ] NO `user_providers` table exists
 - [ ] UNIQUE constraint on `(provider, provider_user_id)` enforced
@@ -956,6 +1035,7 @@ After implementation, verify:
 - [ ] OAuth tokens stored in `users` table (`access_token`, `refresh_token`, `token_expiry`)
 
 ### JWT & Authentication
+
 - [ ] JWT `sub` claim contains Provider User ID (never Internal UUID)
 - [ ] JWT middleware extracts `email` and `name` claims
 - [ ] Profile updates happen when JWT email/name differs from cached values
@@ -963,6 +1043,7 @@ After implementation, verify:
 - [ ] User cache lookup uses `(provider, provider_user_id)` pair
 
 ### User Cache
+
 - [ ] Cache hit rate > 90% (monitor in production)
 - [ ] TTL set to 15 minutes
 - [ ] Invalidation works for both provider lookup and UUID lookup
@@ -970,6 +1051,7 @@ After implementation, verify:
 - [ ] Cache stores all 5 fields: `InternalUUID`, `Provider`, `ProviderUserID`, `Email`, `Name`
 
 ### Code Patterns
+
 - [ ] All rate limiting uses `InternalUUID`
 - [ ] All quota checks use `InternalUUID`
 - [ ] All database foreign keys reference `internal_uuid`
@@ -980,6 +1062,7 @@ After implementation, verify:
 - [ ] No variables named `userID`, `userId`, or generic `id`
 
 ### Testing
+
 - [ ] All unit tests pass (`make test-unit`)
 - [ ] All integration tests pass (`make test-integration`)
 - [ ] Tests verify `(provider, provider_user_id)` uniqueness
@@ -988,6 +1071,7 @@ After implementation, verify:
 - [ ] Mock authentication uses `UserCacheEntry` object
 
 ### Documentation & Code Quality
+
 - [ ] Linter rules prevent ambiguous variable names
 - [ ] `make lint` passes with no warnings
 - [ ] Naming conventions documented in `CLAUDE.md`
@@ -1000,7 +1084,7 @@ After implementation, verify:
 2. ❌ `api/addon_invocation_handlers.go:272` - References `InvokedBy` (removed field)
 3. ❌ `api/asyncapi_types.go` - Multiple references to `UserId` (should be `Id`)
 4. ❌ `api/websocket.go:160` - Returns `User{UserId: ...}` (should be `Id`)
-5. ⚠️  Context variable `userID` is ambiguous throughout codebase
+5. ⚠️ Context variable `userID` is ambiguous throughout codebase
 
 ## Success Criteria
 
@@ -1037,6 +1121,7 @@ This refactoring addresses fundamental architectural confusion around user ident
 **Risk Level**: Low (pre-launch, can drop/recreate databases without user impact)
 
 **Benefits**:
+
 - Clearer, more maintainable codebase
 - Better performance (no joins, cache hits)
 - Automatic profile synchronization

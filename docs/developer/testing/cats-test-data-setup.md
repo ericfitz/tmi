@@ -7,6 +7,7 @@
 ## Problem Statement
 
 CATS fuzzing currently reports errors when testing endpoints that require prerequisite objects. For example:
+
 - Testing `GET /threat_models/{id}` fails with 404 when no threat model exists
 - Testing `GET /threat_models/{id}/threats/{threat_id}` fails when parent threat model doesn't exist
 - These are **false positives** - the API is working correctly, but prerequisites aren't met
@@ -14,6 +15,7 @@ CATS fuzzing currently reports errors when testing endpoints that require prereq
 ## Goal
 
 Pre-create a complete object hierarchy before CATS testing so that:
+
 1. Every endpoint can be tested with valid parent objects
 2. Path parameters reference actual existing objects
 3. CATS can focus on fuzzing request bodies and headers, not object existence
@@ -53,7 +55,7 @@ client_credentials (independent root)
 
 ### Phase 1: Authentication (Already Implemented)
 
-✅ **Current:** `cats-prepare-database.sh` creates admin user (charlie@test.tmi)
+✅ **Current:** `cats-prepare-database.sh` creates admin user (charlie@tmi)
 
 ```bash
 # Already implemented
@@ -66,7 +68,7 @@ Create a new script: `scripts/cats-create-test-data.sh`
 
 This script should:
 
-1. **Authenticate** as charlie@test.tmi
+1. **Authenticate** as charlie@tmi
 2. **Create one of each object type** with stable, known IDs
 3. **Store IDs** in a reference file for CATS to use
 4. **Verify creation** before proceeding
@@ -80,7 +82,7 @@ This script should:
   "user": {
     "provider_user_id": "charlie",
     "provider": "test",
-    "email": "charlie@test.tmi"
+    "email": "charlie@tmi"
   },
   "objects": {
     "threat_model": {
@@ -489,6 +491,7 @@ cats --contract="${OPENAPI_SPEC}" \
 ```
 
 CATS will then use IDs from the reference file when testing endpoints like:
+
 - `GET /threat_models/{threat_model_id}` → uses `threat_model.id` from refData
 - `GET /threat_models/{threat_model_id}/threats/{threat_id}` → uses both IDs from refData
 
@@ -545,11 +548,13 @@ make analyze-cats-results
 ## Expected Impact
 
 **Before (current state):**
+
 - ~231 404 errors from missing parent objects
 - False positives on Happy Path tests
 - Can't distinguish between "endpoint broken" vs "no test data"
 
 **After (with test data):**
+
 - ✅ All path parameters reference real objects
 - ✅ 404 errors only indicate actual bugs (broken queries, wrong IDs)
 - ✅ Happy Path tests validate actual functionality
@@ -560,11 +565,13 @@ make analyze-cats-results
 ## Maintenance
 
 **When to re-create test data:**
+
 - After `make clean-everything` (database reset)
 - Before each CATS run (safest approach)
 - When adding new endpoints that require new object types
 
 **Idempotency:**
+
 - Script should be idempotent (safe to run multiple times)
 - Check if objects exist before creating
 - Update reference file with existing IDs if found

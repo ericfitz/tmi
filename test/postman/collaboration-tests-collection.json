@@ -89,7 +89,7 @@
                 "exec": [
                   "// Generate collaboration session data",
                   "const sessionData = {",
-                  "    participants: ['bob@test.tmi', 'charlie@test.tmi'],",
+                  "    participants: ['bob@tmi', 'charlie@tmi'],",
                   "    permissions: 'writer'",
                   "};",
                   "",
@@ -170,7 +170,7 @@
                 "exec": [
                   "// Try to start another session on same diagram",
                   "const duplicateSessionData = {",
-                  "    participants: ['diana@test.tmi'],",
+                  "    participants: ['diana@tmi'],",
                   "    permissions: 'reader'",
                   "};",
                   "",
@@ -455,7 +455,7 @@
                   "",
                   "// Generate session update data",
                   "const updateData = {",
-                  "    participants: ['bob@test.tmi', 'charlie@test.tmi', 'diana@test.tmi'],",
+                  "    participants: ['bob@tmi', 'charlie@tmi', 'diana@tmi'],",
                   "    permissions: 'reader'",
                   "};",
                   "",

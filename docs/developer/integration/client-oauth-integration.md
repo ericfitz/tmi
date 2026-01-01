@@ -73,17 +73,14 @@ class PKCEHelper {
   static async generateCodeChallenge(verifier) {
     const encoder = new TextEncoder();
     const data = encoder.encode(verifier);
-    const digest = await crypto.subtle.digest('SHA-256', data);
+    const digest = await crypto.subtle.digest("SHA-256", data);
     return this.base64URLEncode(new Uint8Array(digest));
   }
 
   // Base64URL encoding (without padding)
   static base64URLEncode(buffer) {
     const base64 = btoa(String.fromCharCode(...buffer));
-    return base64
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
+    return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
   }
 }
 
@@ -91,8 +88,8 @@ class PKCEHelper {
 const verifier = PKCEHelper.generateCodeVerifier();
 const challenge = await PKCEHelper.generateCodeChallenge(verifier);
 
-console.log('Verifier:', verifier);    // Length: 43 characters
-console.log('Challenge:', challenge);  // Length: 43 characters
+console.log("Verifier:", verifier); // Length: 43 characters
+console.log("Challenge:", challenge); // Length: 43 characters
 ```
 
 **Python:**
@@ -141,7 +138,7 @@ print(f'Challenge: {challenge}')  # Length: 43 characters
 
 ### PKCE Parameter Requirements
 
-- **code_verifier**: 43-128 characters, [A-Z] / [a-z] / [0-9] / "-" / "." / "_" / "~"
+- **code_verifier**: 43-128 characters, [A-Z] / [a-z] / [0-9] / "-" / "." / "\_" / "~"
 - **code_challenge**: Base64URL-encoded SHA-256 hash of code_verifier (43 characters)
 - **code_challenge_method**: Must be "S256" (TMI only supports S256, not "plain")
 
@@ -277,7 +274,8 @@ async function loginWithGoogle() {
 
   // Build OAuth URL with PKCE parameters
   const separator = provider.auth_url.includes("?") ? "&" : "?";
-  const authUrl = `${provider.auth_url}${separator}` +
+  const authUrl =
+    `${provider.auth_url}${separator}` +
     `state=${encodeURIComponent(state)}` +
     `&client_callback=${encodeURIComponent(clientCallbackUrl)}` +
     `&code_challenge=${encodeURIComponent(codeChallenge)}` +
@@ -315,7 +313,8 @@ async function loginWithTestProvider(userHint = null) {
 
   // Build OAuth URL with PKCE parameters and optional login_hint
   const separator = provider.auth_url.includes("?") ? "&" : "?";
-  let authUrl = `${provider.auth_url}${separator}` +
+  let authUrl =
+    `${provider.auth_url}${separator}` +
     `state=${encodeURIComponent(state)}` +
     `&client_callback=${encodeURIComponent(clientCallbackUrl)}` +
     `&code_challenge=${encodeURIComponent(codeChallenge)}` +
@@ -331,9 +330,9 @@ async function loginWithTestProvider(userHint = null) {
 }
 
 // Examples:
-// await loginWithTestProvider('alice');     // Creates alice@test.tmi
-// await loginWithTestProvider('qa-user');   // Creates qa-user@test.tmi
-// await loginWithTestProvider();            // Creates random testuser-12345678@test.tmi
+// await loginWithTestProvider('alice');     // Creates alice@tmi
+// await loginWithTestProvider('qa-user');   // Creates qa-user@tmi
+// await loginWithTestProvider();            // Creates random testuser-12345678@tmi
 ```
 
 ### Step 2: TMI Handles OAuth
@@ -403,18 +402,21 @@ async function exchangeCodeForTokens(code) {
 
   try {
     // Exchange code + verifier for tokens
-    const response = await fetch(`http://localhost:8080/oauth2/token?idp=${providerId}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        grant_type: "authorization_code",
-        code: code,
-        code_verifier: codeVerifier,
-        redirect_uri: `${window.location.origin}/oauth2/callback`
-      })
-    });
+    const response = await fetch(
+      `http://localhost:8080/oauth2/token?idp=${providerId}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          grant_type: "authorization_code",
+          code: code,
+          code_verifier: codeVerifier,
+          redirect_uri: `${window.location.origin}/oauth2/callback`,
+        }),
+      }
+    );
 
     if (!response.ok) {
       const error = await response.json();
@@ -441,7 +443,6 @@ async function exchangeCodeForTokens(code) {
 
     // Redirect to main application
     window.location.href = "/dashboard";
-
   } catch (error) {
     console.error("Token exchange error:", error);
     handleOAuthError("network_error");
