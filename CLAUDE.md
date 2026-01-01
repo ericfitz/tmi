@@ -148,7 +148,7 @@ CATS (Contract-driven Automatic Testing Suite) performs security fuzzing of the 
 
 **Key Features**:
 
-- Automatic OAuth authentication flow with test provider
+- Automatic OAuth authentication flow with TMI provider
 - Rate limit handling (automatically cleared before testing)
 - Public endpoint awareness (uses `--skipFuzzersForExtension` to skip `BypassAuthentication` fuzzer on endpoints marked with `x-public-endpoint: true` in OpenAPI spec)
 - UUID field skipping (avoids false positives with malformed UUIDs)
@@ -202,7 +202,7 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
   - **Location**: `scripts/oauth-client-callback-stub.py` (standalone Python script)
   - **Purpose**: Full-featured OAuth 2.0 testing harness supporting manual flows and fully automated end-to-end testing with PKCE (RFC 7636)
   - **Smart Defaults**: All parameters optional with intelligent defaults:
-    - `idp`: Defaults to "test" provider
+    - `idp`: Defaults to "tmi" provider
     - `scopes`: Defaults to "openid profile email"
     - `state`, `code_verifier`, `code_challenge`: Auto-generated if not provided
     - Caller-specified values always override defaults
@@ -329,7 +329,7 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
   - **Location**: `wstest/` directory contains the Go source code
   - **Purpose**: Test WebSocket connections, diagnose collaboration bugs, and validate message flows
   - **Features**:
-    - OAuth authentication with test provider using login hints
+    - OAuth authentication with TMI provider using login hints
     - Host mode: Creates threat models, diagrams, and starts collaboration sessions
     - Participant mode: Polls for and joins existing collaboration sessions
     - Comprehensive logging of all WebSocket messages with timestamps
@@ -683,8 +683,8 @@ JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
 
 ## Authentication Memories
 
-- Always use a normal oauth login flow with the "test" provider when performing any development or testing task that requires authentication
-- The oauth-client-callback-stub can receive callbacks from the test oauth provider with the token, and you can retrieve the token from the oauth-client-callback-stub with a REST api call.
+- Always use a normal oauth login flow with the "tmi" provider when performing any development or testing task that requires authentication
+- The oauth-client-callback-stub can receive callbacks from the TMI oauth provider with the token, and you can retrieve the token from the oauth-client-callback-stub with a REST api call.
     - start stub: make start-oauth-stub
     - stop stub: make oauth-stub-stop
     - get JWT:
@@ -692,34 +692,34 @@ JWT Middleware → Auth Context → Resource Middleware → Endpoint Handlers
         - perform a normal authorization request, using http://localhost:8079 as the callback url and specifying a user name as a login_hint
         - retrieve the JWT from http://localhost:8079/creds?userid=<username-hint>
 
-### Test OAuth Provider login_hints
+### TMI OAuth Provider login_hints
 
-The test OAuth provider supports **login_hints** for automation-friendly testing with predictable user identities:
+The TMI OAuth provider supports **login_hints** for automation-friendly testing with predictable user identities:
 
-- **Parameter**: `login_hint` - Query parameter for `/oauth2/authorize?idp=test`
+- **Parameter**: `login_hint` - Query parameter for `/oauth2/authorize?idp=tmi`
 - **Purpose**: Generate predictable test users instead of random usernames
 - **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive
 - **Validation**: Pattern: `^[a-zA-Z0-9-]{3,20}$`
-- **Scope**: Test provider only, not available in production builds
+- **Scope**: TMI provider only, not available in production builds
 
 **Examples**:
 
 ```bash
-# Create user 'alice@test.tmi' with name 'Alice (Test User)'
-curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice"
+# Create user 'alice@tmi' with name 'Alice (TMI User)'
+curl "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=alice"
 
-# Create user 'qa-automation@test.tmi' with name 'Qa Automation (Test User)'
-curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=qa-automation"
+# Create user 'qa-automation@tmi' with name 'Qa Automation (TMI User)'
+curl "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=qa-automation"
 
-# Without login_hint - generates random user like 'testuser-12345678@test.tmi'
-curl "http://localhost:8080/oauth2/authorize?idp=test"
+# Without login_hint - generates random user like 'testuser-12345678@tmi'
+curl "http://localhost:8080/oauth2/authorize?idp=tmi"
 ````
 
 **Automation Integration**:
 
 ```bash
 # OAuth callback stub with login_hint
-curl "http://localhost:8080/oauth2/authorize?idp=test&login_hint=alice&client_callback=http://localhost:8079/"
+curl "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=alice&client_callback=http://localhost:8079/"
 ```
 
 ### Client Credentials Grant (Machine-to-Machine Authentication)
@@ -736,7 +736,7 @@ TMI supports OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4) for machi
 
 **TMI Provider**:
 
-- **Provider IDs**: Both "test" and "tmi" work as aliases in all builds
+- **Provider ID**: "tmi" is the primary provider ID
 - **Dev/Test Mode**: Supports both Authorization Code flow (ephemeral users) and Client Credentials Grant
 - **Production Mode**: Only supports Client Credentials Grant (Authorization Code flow disabled)
 - **Configuration**: Set `TMI_BUILD_MODE=dev` or `TMI_BUILD_MODE=production` in environment

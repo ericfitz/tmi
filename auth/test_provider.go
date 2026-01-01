@@ -172,7 +172,7 @@ func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 	if userHint != "" {
 		// Use the provided login_hint
 		username := userHint
-		email := fmt.Sprintf("%s@test.tmi", username)
+		email := fmt.Sprintf("%s@tmi", username)
 		displayName := p.generateDisplayName(username)
 
 		return &UserInfo{
@@ -191,7 +191,7 @@ func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 	}
 
 	username := fmt.Sprintf("testuser-%08d", randomNum)
-	email := fmt.Sprintf("%s@test.tmi", username)
+	email := fmt.Sprintf("%s@tmi", username)
 
 	return &UserInfo{
 		ID:            username,
@@ -208,7 +208,7 @@ func (p *TestProvider) ValidateIDToken(ctx context.Context, idToken string) (*ID
 	if userHint, ok := ctx.Value(userHintContextKey).(string); ok && userHint != "" {
 		if validatedHint := p.validateUserHint(userHint); validatedHint != "" {
 			username := validatedHint
-			email := fmt.Sprintf("%s@test.tmi", username)
+			email := fmt.Sprintf("%s@tmi", username)
 			displayName := p.generateDisplayName(username)
 
 			return &IDTokenClaims{
@@ -230,7 +230,7 @@ func (p *TestProvider) ValidateIDToken(ctx context.Context, idToken string) (*ID
 	}
 
 	username := fmt.Sprintf("testuser-%08d", randomNum)
-	email := fmt.Sprintf("%s@test.tmi", username)
+	email := fmt.Sprintf("%s@tmi", username)
 
 	return &IDTokenClaims{
 		Subject:   username,
@@ -348,8 +348,8 @@ func (p *TestProvider) generateDisplayName(username string) string {
 	}
 	displayName := strings.Join(words, " ")
 
-	// Add "(Test User)" suffix to indicate it's from test provider
-	return fmt.Sprintf("%s (Test User)", displayName)
+	// Add "(TMI User)" suffix to indicate it's from TMI provider
+	return fmt.Sprintf("%s (TMI User)", displayName)
 }
 
 // isDevOrTestBuild checks if the current build mode allows ephemeral user creation

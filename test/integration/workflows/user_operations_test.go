@@ -64,7 +64,7 @@ func TestUserOperations(t *testing.T) {
 		framework.AssertValidUUID(t, resp, "id")
 		framework.AssertValidTimestamp(t, resp, "created_at")
 
-		// Validate email format (should be from test provider)
+		// Validate email format (should be from TMI provider)
 		if email, ok := user["email"].(string); ok {
 			if email == "" {
 				t.Error("Expected non-empty email")
@@ -76,8 +76,8 @@ func TestUserOperations(t *testing.T) {
 
 		// Validate provider
 		if provider, ok := user["provider"].(string); ok {
-			if provider != "test" {
-				t.Errorf("Expected provider 'test', got '%s'", provider)
+			if provider != "tmi" {
+				t.Errorf("Expected provider 'tmi', got '%s'", provider)
 			}
 		}
 	})

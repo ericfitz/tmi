@@ -76,7 +76,7 @@ class TMIMultiUserAuth {
         return new Promise((resolve, reject) => {
             // Step 1: Trigger OAuth flow
             pm.sendRequest({
-                url: `${this.TMI_URL}/oauth2/authorize?idp=test&login_hint=${user.loginHint}&client_callback=${this.STUB_URL}/&scope=openid`,
+                url: `${this.TMI_URL}/oauth2/authorize?idp=tmi&login_hint=${user.loginHint}&client_callback=${this.STUB_URL}/&scope=openid`,
                 method: 'GET'
             }, (err, response) => {
                 if (err) {

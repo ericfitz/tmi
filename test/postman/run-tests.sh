@@ -177,7 +177,7 @@ authenticate_user() {
     echo "🔄 No valid cached token found, authenticating $username..." >&2
     
     # Trigger OAuth flow with login_hint
-    curl -sL "http://127.0.0.1:8080/oauth2/authorize?idp=test&login_hint=$username&client_callback=http://127.0.0.1:8079/&scope=openid" >/dev/null
+    curl -sL "http://127.0.0.1:8080/oauth2/authorize?idp=tmi&login_hint=$username&client_callback=http://127.0.0.1:8079/&scope=openid" >/dev/null
     
     # Wait for token to be stored
     sleep 3

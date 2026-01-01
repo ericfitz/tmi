@@ -119,7 +119,7 @@ test/
 #### OAuth Integration (`framework/oauth.go`)
 
 - Leverage `test/tools/oauth-stub/`
-- Automatic authentication with test provider
+- Automatic authentication with TMI provider
 - PKCE flow support
 - Token refresh handling
 

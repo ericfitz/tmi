@@ -9,14 +9,14 @@ import (
 
 func TestTestProvider(t *testing.T) {
 	config := OAuthProviderConfig{
-		ID:               "test",
-		Name:             "Test Provider",
+		ID:               "tmi",
+		Name:             "TMI Provider",
 		Enabled:          true,
 		Icon:             "flask-vial",
-		ClientID:         "test-client-id",
-		ClientSecret:     "test-oauth-secret-12345",
-		AuthorizationURL: "http://localhost:8080/oauth2/authorize?idp=test",
-		TokenURL:         "http://localhost:8080/oauth2/token?idp=test",
+		ClientID:         "tmi-client-id",
+		ClientSecret:     "tmi-oauth-secret-12345",
+		AuthorizationURL: "http://localhost:8080/oauth2/authorize?idp=tmi",
+		TokenURL:         "http://localhost:8080/oauth2/token?idp=tmi",
 		Scopes:           []string{"profile", "email"},
 		EmailClaim:       "email",
 		NameClaim:        "name",
@@ -52,8 +52,8 @@ func TestTestProvider(t *testing.T) {
 	if userInfo.Email == "" || userInfo.ID == "" {
 		t.Error("Expected user info with email and ID")
 	}
-	if userInfo.Email != userInfo.ID+"@test.tmi" {
-		t.Errorf("Expected email format %s@test.tmi, got %s", userInfo.ID, userInfo.Email)
+	if userInfo.Email != userInfo.ID+"@tmi" {
+		t.Errorf("Expected email format %s@tmi, got %s", userInfo.ID, userInfo.Email)
 	}
 	t.Logf("User Info: %+v", userInfo)
 
@@ -70,10 +70,10 @@ func TestTestProvider(t *testing.T) {
 
 func TestNewProvider_Test(t *testing.T) {
 	config := OAuthProviderConfig{
-		ID:       "test",
-		Name:     "Test Provider",
+		ID:       "tmi",
+		Name:     "TMI Provider",
 		Enabled:  true,
-		ClientID: "test-client-id",
+		ClientID: "tmi-client-id",
 	}
 
 	provider, err := NewProvider(config, "http://localhost:8080/oauth2/callback")

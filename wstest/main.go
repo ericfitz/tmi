@@ -515,8 +515,8 @@ func ensureUserExists(config Config, tokens *AuthTokens) error {
 }
 
 func exchangeCodeForTokens(code string, redirectURI string) (*AuthTokens, error) {
-	// For the TMI test OAuth provider, exchange the authorization code for tokens
-	// The test provider's /oauth2/token endpoint handles this exchange
+	// For the TMI OAuth provider, exchange the authorization code for tokens
+	// The TMI provider's /oauth2/token endpoint handles this exchange
 
 	slogging.Get().GetSlogger().Info("Exchanging authorization code for tokens", "code", code, "redirect_uri", redirectURI)
 
@@ -647,8 +647,8 @@ func startCallbackServer(ctx context.Context, handler *OAuthCallbackHandler) (ne
 				"code", code,
 				"state", state)
 
-			// For the TMI test provider, exchange the authorization code for tokens
-			// The test provider uses a special endpoint for token exchange
+			// For the TMI provider, exchange the authorization code for tokens
+			// The TMI provider uses a special endpoint for token exchange
 			tokenResp, err := exchangeCodeForTokens(code, handler.callbackURL)
 			if err != nil {
 				slogging.Get().GetSlogger().Error("Failed to exchange code for tokens", "error", err, "code", code)
@@ -788,7 +788,7 @@ func createThreatModel(config Config, tokens *AuthTokens, participants []string)
 		// Convert hint to email format if needed
 		email := participant
 		if !strings.Contains(email, "@") {
-			email = fmt.Sprintf("%s@test.tmi", participant)
+			email = fmt.Sprintf("%s@tmi", participant)
 		}
 
 		// Randomly select permission

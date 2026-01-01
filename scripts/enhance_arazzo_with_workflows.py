@@ -192,7 +192,7 @@ class ArazzoEnhancer:
                     'login_hint': {
                         'type': 'string',
                         'default': 'alice',
-                        'description': 'User identity hint for test provider (3-20 alphanumeric + hyphens)',
+                        'description': 'User identity hint for TMI provider (3-20 alphanumeric + hyphens)',
                     },
                     'client_callback': {
                         'type': 'string',
@@ -574,7 +574,7 @@ class ArazzoEnhancer:
         # Collaboration
         if '/collaborate' in path and method == 'POST':
             return {
-                'participants': ['bob@test.tmi', 'charlie@test.tmi'],
+                'participants': ['bob@tmi', 'charlie@tmi'],
                 'permissions': {
                     'can_edit': True,
                     'can_comment': True,

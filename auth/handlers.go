@@ -364,7 +364,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	slogging.Get().WithContext(c).Debug("Stored PKCE challenge for state: %s (method: %s)", state, codeChallengeMethod)
 
 	// For authorization code flow, handle client_callback if provided
-	if providerID == "test" && clientCallback != "" {
+	if (providerID == "tmi" || providerID == "test") && clientCallback != "" {
 		slogging.Get().WithContext(c).Debug("Authorization code flow with client_callback, redirecting directly to client")
 		// Generate test authorization code with login_hint encoded if available
 		authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
@@ -555,13 +555,13 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 	return nil
 }
 
-// setUserHintContext adds login_hint to context for test provider
+// setUserHintContext adds login_hint to context for TMI provider
 func (h *Handlers) setUserHintContext(c *gin.Context, ctx context.Context, stateData *callbackStateData) context.Context {
-	if stateData.UserHint != "" && stateData.ProviderID == "test" {
-		slogging.Get().WithContext(c).Debug("Setting login_hint in context for test provider: %s", stateData.UserHint)
+	if stateData.UserHint != "" && (stateData.ProviderID == "tmi" || stateData.ProviderID == "test") {
+		slogging.Get().WithContext(c).Debug("Setting login_hint in context for TMI provider: %s", stateData.UserHint)
 		return context.WithValue(ctx, userHintContextKey, stateData.UserHint)
-	} else if stateData.ProviderID == "test" {
-		slogging.Get().WithContext(c).Debug("No login_hint provided for test provider: provider=%s userHint=%s",
+	} else if stateData.ProviderID == "tmi" || stateData.ProviderID == "test" {
+		slogging.Get().WithContext(c).Debug("No login_hint provided for TMI provider: provider=%s userHint=%s",
 			stateData.ProviderID, stateData.UserHint)
 	}
 	return ctx

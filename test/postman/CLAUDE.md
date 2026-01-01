@@ -12,21 +12,21 @@ Certain REST APIs are dependent on other APIs having been called previously, suc
 
 - Collection has pre-request script that triggers OAuth and retrieves tokens
 - Use IPv4 (127.0.0.1) not localhost to avoid IPv6 issues with newman
-- OAuth stub saves tokens by user: `GET /creds?userid=alice` returns tokens for alice@test.tmi
+- OAuth stub saves tokens by user: `GET /creds?userid=alice` returns tokens for alice@tmi
 
 ## Variables Required
 
 ```javascript
 baseUrl: "http://127.0.0.1:8080"; // TMI server
 oauthStubUrl: "http://127.0.0.1:8079"; // OAuth stub
-loginHint: "alice"; // User for test provider
+loginHint: "alice"; // User for TMI provider
 access_token: ""; // Set by pre-request script
 ```
 
 ## Pre-Request Script Pattern
 
 1. Check if cached token is valid (exp - 60 seconds)
-2. If not, trigger OAuth: `GET /oauth2/authorize?idp=test&login_hint=X&client_callback=stub&scope=openid`
+2. If not, trigger OAuth: `GET /oauth2/authorize?idp=tmi&login_hint=X&client_callback=stub&scope=openid`
 3. Wait 2 seconds for redirect processing
 4. Query stub: `GET /creds?userid=X` to get saved token
 5. Store in `pm.collectionVariables.set('access_token', token)`
@@ -58,7 +58,7 @@ newman run tmi-postman-collection.json \
 ## Shell Script Flow (test_diagram_metadata.sh pattern)
 
 ```bash
-curl -sL "http://localhost:8080/oauth2/authorize?idp=test&login_hint=$USER&client_callback=http://localhost:8079/&scope=openid"
+curl -sL "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=$USER&client_callback=http://localhost:8079/&scope=openid"
 sleep 2
 TOKEN=$(curl -s "http://localhost:8079/creds?userid=$USER" | jq -r '.access_token')
 ```

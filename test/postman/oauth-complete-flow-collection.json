@@ -81,11 +81,11 @@
                   "    pm.expect(jsonData.providers.length).to.be.greaterThan(0);",
                   "});",
                   "",
-                  "pm.test('Test provider exists', function () {",
+                  "pm.test('TMI provider exists', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    const testProvider = jsonData.providers.find(p => p.id === 'test');",
-                  "    pm.expect(testProvider).to.exist;",
-                  "    pm.expect(testProvider.name).to.exist;",
+                  "    const tmiProvider = jsonData.providers.find(p => p.id === 'tmi');",
+                  "    pm.expect(tmiProvider).to.exist;",
+                  "    pm.expect(tmiProvider.name).to.exist;",
                   "});",
                   "",
                   "pm.test('Response time is acceptable', function () {",
@@ -107,7 +107,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/oauth2/authorize?idp=test&login_hint={{testUser}}&client_callback={{oauthStubUrl}}&scope=openid",
+              "raw": "{{baseUrl}}/oauth2/authorize?idp=tmi&login_hint={{testUser}}&client_callback={{oauthStubUrl}}&scope=openid",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -118,7 +118,7 @@
               "query": [
                 {
                   "key": "idp",
-                  "value": "test"
+                  "value": "tmi"
                 },
                 {
                   "key": "login_hint",

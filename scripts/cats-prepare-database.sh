@@ -2,7 +2,7 @@
 # cats-prepare-database.sh
 # Prepares the database for CATS fuzzing by granting admin privileges to the test user
 #
-# This script grants administrator privileges to the CATS test user (charlie@test.tmi)
+# This script grants administrator privileges to the CATS test user (charlie@tmi)
 # to eliminate 86% of CATS fuzzing errors related to 401/403 authorization failures.
 #
 # Usage: ./scripts/cats-prepare-database.sh
@@ -18,7 +18,7 @@ DB_PASSWORD="${DB_PASSWORD:-tmi_dev}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-tmi-postgresql}"
 
 echo "🔧 Preparing database for CATS fuzzing..."
-echo "   Target user: charlie@test.tmi (test provider)"
+echo "   Target user: charlie@tmi (TMI provider)"
 echo "   Database: ${DB_NAME} on ${DB_HOST}:${DB_PORT}"
 echo ""
 
@@ -35,15 +35,15 @@ DECLARE
     v_user_uuid UUID;
     v_admin_count INT;
 BEGIN
-    -- Get the internal UUID for charlie@test.tmi
+    -- Get the internal UUID for charlie@tmi
     SELECT internal_uuid INTO v_user_uuid
     FROM users
     WHERE provider_user_id = 'charlie'
-      AND provider = 'test'
+      AND provider = 'tmi'
     LIMIT 1;
 
     IF v_user_uuid IS NULL THEN
-        RAISE NOTICE 'CATS test user (charlie@test.tmi) not found in database.';
+        RAISE NOTICE 'CATS test user (charlie@tmi) not found in database.';
         RAISE NOTICE 'The user will be created during the first OAuth login.';
         RAISE NOTICE 'Run CATS fuzzing once, then run this script again.';
     ELSE
@@ -54,7 +54,7 @@ BEGIN
           AND subject_type = 'user';
 
         IF v_admin_count > 0 THEN
-            RAISE NOTICE 'User charlie@test.tmi is already an administrator.';
+            RAISE NOTICE 'User charlie@tmi is already an administrator.';
         ELSE
             -- Grant admin privileges
             INSERT INTO administrators (
@@ -65,11 +65,11 @@ BEGIN
             ) VALUES (
                 v_user_uuid,
                 'user',
-                'test',
+                'tmi',
                 'Auto-granted for CATS fuzzing - allows comprehensive API testing'
             );
 
-            RAISE NOTICE 'Successfully granted admin privileges to charlie@test.tmi';
+            RAISE NOTICE 'Successfully granted admin privileges to charlie@tmi';
         END IF;
 
         -- Display the user info
@@ -89,15 +89,15 @@ DECLARE
     v_user_uuid UUID;
     v_admin_count INT;
 BEGIN
-    -- Get the internal UUID for charlie@test.tmi
+    -- Get the internal UUID for charlie@tmi
     SELECT internal_uuid INTO v_user_uuid
     FROM users
     WHERE provider_user_id = 'charlie'
-      AND provider = 'test'
+      AND provider = 'tmi'
     LIMIT 1;
 
     IF v_user_uuid IS NULL THEN
-        RAISE NOTICE 'CATS test user (charlie@test.tmi) not found in database.';
+        RAISE NOTICE 'CATS test user (charlie@tmi) not found in database.';
         RAISE NOTICE 'The user will be created during the first OAuth login.';
         RAISE NOTICE 'Run CATS fuzzing once, then run this script again.';
     ELSE
@@ -108,7 +108,7 @@ BEGIN
           AND subject_type = 'user';
 
         IF v_admin_count > 0 THEN
-            RAISE NOTICE 'User charlie@test.tmi is already an administrator.';
+            RAISE NOTICE 'User charlie@tmi is already an administrator.';
         ELSE
             -- Grant admin privileges
             INSERT INTO administrators (
@@ -119,11 +119,11 @@ BEGIN
             ) VALUES (
                 v_user_uuid,
                 'user',
-                'test',
+                'tmi',
                 'Auto-granted for CATS fuzzing - allows comprehensive API testing'
             );
 
-            RAISE NOTICE 'Successfully granted admin privileges to charlie@test.tmi';
+            RAISE NOTICE 'Successfully granted admin privileges to charlie@tmi';
         END IF;
 
         -- Display the user info

@@ -13,11 +13,11 @@ import (
 func TestTestProviderURLs(t *testing.T) {
 	t.Run("TestProvider_Uses_Config_URLs", func(t *testing.T) {
 		config := OAuthProviderConfig{
-			ID:               "test",
-			ClientID:         "test-client-id",
-			ClientSecret:     "test-oauth-secret-12345",
-			AuthorizationURL: "http://localhost:8080/oauth2/authorize?idp=test",
-			TokenURL:         "http://localhost:8080/oauth2/token?idp=test",
+			ID:               "tmi",
+			ClientID:         "tmi-client-id",
+			ClientSecret:     "tmi-oauth-secret-12345",
+			AuthorizationURL: "http://localhost:8080/oauth2/authorize?idp=tmi",
+			TokenURL:         "http://localhost:8080/oauth2/token?idp=tmi",
 			UserInfoURL:      "",
 			Scopes:           []string{"profile", "email"},
 		}
@@ -38,10 +38,10 @@ func TestTestProviderURLs(t *testing.T) {
 
 	t.Run("TestProvider_GetAuthorizationURL", func(t *testing.T) {
 		config := OAuthProviderConfig{
-			ID:               "test",
-			ClientID:         "test-client-id",
-			AuthorizationURL: "http://localhost:8080/oauth2/authorize?idp=test",
-			TokenURL:         "http://localhost:8080/oauth2/token?idp=test",
+			ID:               "tmi",
+			ClientID:         "tmi-client-id",
+			AuthorizationURL: "http://localhost:8080/oauth2/authorize?idp=tmi",
+			TokenURL:         "http://localhost:8080/oauth2/token?idp=tmi",
 			Scopes:           []string{"profile", "email"},
 		}
 
@@ -49,7 +49,7 @@ func TestTestProviderURLs(t *testing.T) {
 		state := "test-state-123"
 		authURL := provider.GetAuthorizationURL(state)
 
-		// For test provider, it should return a direct callback URL with auth code
+		// For TMI provider, it should return a direct callback URL with auth code
 		assert.Contains(t, authURL, "http://localhost:8080/oauth2/callback")
 		assert.Contains(t, authURL, "state=test-state-123")
 		assert.Contains(t, authURL, "code=test_auth_code_")

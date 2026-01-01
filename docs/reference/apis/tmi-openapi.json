@@ -4186,7 +4186,7 @@
           },
           "provider": {
             "type": "string",
-            "description": "Identity provider name (e.g., \"google\", \"github\", \"microsoft\", \"test\"). Use \"*\" for provider-independent groups.",
+            "description": "Identity provider name (e.g., \"google\", \"github\", \"microsoft\", \"tmi\"). Use \"*\" for provider-independent groups.",
             "pattern": "^[a-zA-Z][a-zA-Z0-9_*-]*$",
             "maxLength": 100
           },
@@ -6249,7 +6249,7 @@
         "name": "idp",
         "in": "query",
         "required": false,
-        "description": "OAuth provider identifier. Defaults to 'test' provider in non-production builds if not specified.",
+        "description": "OAuth provider identifier. Defaults to 'tmi' provider in non-production builds if not specified.",
         "schema": {
           "type": "string",
           "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
@@ -6285,7 +6285,7 @@
         "name": "login_hint",
         "in": "query",
         "required": false,
-        "description": "User identity hint for test OAuth provider. Allows specifying a desired user identity for testing and automation. Only supported by the test provider (ignored by production providers like Google, GitHub, etc.). Must be 3-20 characters, alphanumeric and hyphens only.",
+        "description": "User identity hint for TMI OAuth provider. Allows specifying a desired user identity for testing and automation. Only supported by the TMI provider (ignored by production providers like Google, GitHub, etc.). Must be 3-20 characters, alphanumeric and hyphens only.",
         "schema": {
           "type": "string",
           "pattern": "^[a-zA-Z0-9-]{3,20}$",

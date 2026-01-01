@@ -28,7 +28,7 @@ func TestTokenGeneration(t *testing.T) {
 	// Create test user
 	user := User{
 		InternalUUID:   "test-user-internal-uuid",
-		Provider:       "test",
+		Provider:       "tmi",
 		ProviderUserID: "test-user-provider-id",
 		Email:          "test@example.com",
 		Name:           "Test User",

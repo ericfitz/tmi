@@ -67,7 +67,7 @@ oauth_flows = {}
 logger = None
 
 # Default configuration
-DEFAULT_IDP = "test"
+DEFAULT_IDP = "tmi"
 DEFAULT_SCOPES = "openid profile email"
 DEFAULT_TMI_SERVER = "http://localhost:8080"
 DEFAULT_CALLBACK_URL = "http://localhost:8079/"
@@ -122,7 +122,7 @@ def build_authorization_url(idp, state, code_challenge, scopes, login_hint=None,
         state: CSRF protection state parameter
         code_challenge: PKCE code challenge
         scopes: Space-separated OAuth scopes
-        login_hint: Optional user identity hint for test provider
+        login_hint: Optional user identity hint for TMI provider
         tmi_server: TMI server base URL (defaults to DEFAULT_TMI_SERVER)
 
     Returns:
@@ -159,7 +159,7 @@ def create_flow(userid=None, idp=None, scopes=None, state=None, code_verifier=No
         state: CSRF state (auto-generated if not specified)
         code_verifier: PKCE verifier (auto-generated if not specified)
         code_challenge: PKCE challenge (auto-generated from verifier if not specified)
-        login_hint: User identity hint for test provider
+        login_hint: User identity hint for TMI provider
         tmi_server: TMI server URL (defaults to DEFAULT_TMI_SERVER)
 
     Returns:
@@ -410,7 +410,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     if login_hint and login_hint not in ["exit"]:
                         # Validate login_hint format
                         if re.match(r"^[a-zA-Z0-9-]{3,20}$", login_hint):
-                            user_id = f"{login_hint}@test.tmi"
+                            user_id = f"{login_hint}@tmi"
                             login_hint_user = login_hint
                     
                     # If no login_hint, use default user for testing
@@ -418,7 +418,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                         # For API testing, use postman-user as the default user ID
                         # This ensures consistency with test collection expectations
                         login_hint_user = "postman-user"
-                        user_id = f"{login_hint_user}@test.tmi"
+                        user_id = f"{login_hint_user}@tmi"
                         logger.info(f"  Using default test user ID: {user_id}")
                     
                     # If we have a valid user_id, exchange the code for real tokens using TMI server
@@ -445,7 +445,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                 expires_in = "3600"
                             else:
                                 # PKCE verifier found - proceed with token exchange
-                                token_url = "http://localhost:8080/oauth2/token?idp=test"
+                                token_url = "http://localhost:8080/oauth2/token?idp=tmi"
                                 token_data = {
                                     "grant_type": "authorization_code",
                                     "code": code,
@@ -713,7 +713,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     return
 
                 # Form complete user ID
-                complete_user_id = f"{userid_part}@test.tmi"
+                complete_user_id = f"{userid_part}@tmi"
                 logger.info(f"Looking up credentials for user: {complete_user_id}")
 
                 # Read credentials file
@@ -1031,7 +1031,7 @@ def cleanup_temp_files():
 
 def extract_user_id_from_credentials(credentials):
     """Extract user ID from OAuth credentials if available."""
-    # For TMI test provider, the user ID would typically be in the access token or state
+    # For TMI provider, the user ID would typically be in the access token or state
     # Since we don't decode JWTs here, we'll look for patterns in the state or other fields
 
     # Try to extract from state parameter (common pattern: contains user info)
@@ -1039,7 +1039,7 @@ def extract_user_id_from_credentials(credentials):
     if state:
         # Look for email patterns in state - TMI includes login_hint in state
         email_match = re.search(
-            r"([a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9])@test\.tmi", state
+            r"([a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9])@tmi\.local", state
         )
         if email_match:
             return email_match.group(0)  # Return full email
@@ -1051,7 +1051,7 @@ def extract_user_id_from_credentials(credentials):
             state_data = json.loads(decoded_state)
             login_hint = state_data.get("login_hint")
             if login_hint and validate_userid_parameter(login_hint):
-                return f"{login_hint}@test.tmi"
+                return f"{login_hint}@tmi"
         except:
             pass  # Not JSON or base64, continue with other methods
 
@@ -1071,7 +1071,7 @@ def extract_user_id_from_credentials(credentials):
 
                 # Look for email claim
                 email = payload.get("email")
-                if email and email.endswith("@test.tmi"):
+                if email and email.endswith("@tmi"):
                     return email
         except:
             pass  # JWT decoding failed, continue
