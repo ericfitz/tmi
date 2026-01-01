@@ -1378,6 +1378,7 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 	var diagramUuid uuid.UUID
 	var threatModelId uuid.UUID
 	var name, diagramType string
+	var description *string
 	var cellsJSON []byte
 	var createdAt, modifiedAt time.Time
 	var updateVector int64
@@ -1386,12 +1387,12 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 	var svgImageBytes []byte
 
 	query := `
-		SELECT id, threat_model_id, name, type, cells, svg_image, image_update_vector, update_vector, created_at, modified_at
-		FROM diagrams 
+		SELECT id, threat_model_id, name, description, type, cells, svg_image, image_update_vector, update_vector, created_at, modified_at
+		FROM diagrams
 		WHERE id = $1`
 
 	err := s.db.QueryRow(query, id).Scan(
-		&diagramUuid, &threatModelId, &name, &diagramType,
+		&diagramUuid, &threatModelId, &name, &description, &diagramType,
 		&cellsJSON, &svgImageBytes, &imageUpdateVector, &updateVector, &createdAt, &modifiedAt,
 	)
 
@@ -1440,6 +1441,7 @@ func (s *DiagramDatabaseStore) Get(id string) (DfdDiagram, error) {
 	diagram = DfdDiagram{
 		Id:           &diagramUuid,
 		Name:         name,
+		Description:  description,
 		Type:         diagType,
 		Cells:        cells,
 		Metadata:     &metadata,
@@ -1500,15 +1502,22 @@ func (s *DiagramDatabaseStore) CreateWithThreatModel(item DfdDiagram, threatMode
 	}
 
 	query := `
-		INSERT INTO diagrams (id, threat_model_id, name, type, cells, svg_image, image_update_vector, update_vector, created_at, modified_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+		INSERT INTO diagrams (id, threat_model_id, name, description, type, cells, svg_image, image_update_vector, update_vector, created_at, modified_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
 	_, err = s.db.Exec(query,
-		id, threatModelUUID, item.Name, string(item.Type),
+		id, threatModelUUID, item.Name, item.Description, string(item.Type),
 		cellsJSON, svgImageBytes, imageUpdateVector, updateVector, item.CreatedAt, item.ModifiedAt,
 	)
 	if err != nil {
 		return item, fmt.Errorf("failed to insert diagram: %w", err)
+	}
+
+	// Save metadata if present
+	if item.Metadata != nil && len(*item.Metadata) > 0 {
+		if err := s.saveMetadata(id.String(), *item.Metadata); err != nil {
+			return item, fmt.Errorf("failed to save diagram metadata: %w", err)
+		}
 	}
 
 	return item, nil
@@ -1547,12 +1556,12 @@ func (s *DiagramDatabaseStore) Update(id string, item DfdDiagram) error {
 	}
 
 	query := `
-		UPDATE diagrams 
-		SET name = $2, type = $3, cells = $4, svg_image = $5, image_update_vector = $6, update_vector = $7, modified_at = $8
+		UPDATE diagrams
+		SET name = $2, description = $3, type = $4, cells = $5, svg_image = $6, image_update_vector = $7, update_vector = $8, modified_at = $9
 		WHERE id = $1`
 
 	result, err := s.db.Exec(query,
-		id, item.Name, string(item.Type),
+		id, item.Name, item.Description, string(item.Type),
 		cellsJSON, svgImageBytes, imageUpdateVector, updateVector, item.ModifiedAt,
 	)
 	if err != nil {
@@ -1565,6 +1574,13 @@ func (s *DiagramDatabaseStore) Update(id string, item DfdDiagram) error {
 	}
 	if rowsAffected == 0 {
 		return fmt.Errorf("diagram with ID %s not found", id)
+	}
+
+	// Update metadata if present
+	if item.Metadata != nil {
+		if err := s.updateMetadata(id, *item.Metadata); err != nil {
+			return fmt.Errorf("failed to update diagram metadata: %w", err)
+		}
 	}
 
 	return nil
@@ -1643,4 +1659,40 @@ func (s *DiagramDatabaseStore) loadMetadata(entityType, entityID string) ([]Meta
 	}
 
 	return metadata, nil
+}
+
+// saveMetadata saves metadata for a diagram to the metadata table
+func (s *DiagramDatabaseStore) saveMetadata(diagramID string, metadata []Metadata) error {
+	if len(metadata) == 0 {
+		return nil
+	}
+
+	for _, meta := range metadata {
+		query := `
+			INSERT INTO metadata (id, entity_type, entity_id, key, value, created_at, modified_at)
+			VALUES ($1, 'diagram', $2, $3, $4, $5, $6)
+			ON CONFLICT (entity_type, entity_id, key)
+			DO UPDATE SET value = EXCLUDED.value, modified_at = EXCLUDED.modified_at`
+
+		now := time.Now().UTC()
+		id := uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata)
+		_, err := s.db.Exec(query, id, diagramID, meta.Key, meta.Value, now, now)
+		if err != nil {
+			return fmt.Errorf("failed to save diagram metadata: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// updateMetadata updates metadata for a diagram (deletes existing, inserts new)
+func (s *DiagramDatabaseStore) updateMetadata(diagramID string, metadata []Metadata) error {
+	// Delete existing metadata for this diagram
+	_, err := s.db.Exec(`DELETE FROM metadata WHERE entity_type = 'diagram' AND entity_id = $1`, diagramID)
+	if err != nil {
+		return fmt.Errorf("failed to delete existing diagram metadata: %w", err)
+	}
+
+	// Insert new metadata
+	return s.saveMetadata(diagramID, metadata)
 }

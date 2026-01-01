@@ -197,6 +197,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	// Create DfdDiagram directly for the store
 	d := DfdDiagram{
 		Name:         request.Name,
+		Description:  request.Description,
 		Type:         DfdDiagramType(request.Type),
 		CreatedAt:    &now,
 		ModifiedAt:   &now,

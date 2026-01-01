@@ -574,11 +574,12 @@ func TestDiagramDatabaseStore_Get(t *testing.T) {
 		// Mock cells JSON
 		cellsJSON, _ := json.Marshal([]DfdDiagram_Cells_Item{{}})
 
-		// Mock diagram query
+		// Mock diagram query (includes description column)
+		testDescription := "Test description"
 		rows := sqlmock.NewRows([]string{
-			"id", "threat_model_id", "name", "type", "cells", "svg_image", "image_update_vector", "update_vector", "created_at", "modified_at",
+			"id", "threat_model_id", "name", "description", "type", "cells", "svg_image", "image_update_vector", "update_vector", "created_at", "modified_at",
 		}).AddRow(
-			testUUID, threatModelUUID, "Test Diagram", "DFD-1.0.0",
+			testUUID, threatModelUUID, "Test Diagram", testDescription, "DFD-1.0.0",
 			cellsJSON, nil, nil, int64(1), time.Now(), time.Now(),
 		)
 		mock.ExpectQuery("SELECT (.+) FROM diagrams").WithArgs(testID).WillReturnRows(rows)
@@ -632,8 +633,15 @@ func TestDiagramDatabaseStore_CreateWithThreatModel(t *testing.T) {
 
 		mock.ExpectExec("INSERT INTO diagrams").
 			WithArgs(
-				sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.Name, "DFD-1.0.0",
+				sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.Name, testDiagram.Description, "DFD-1.0.0",
 				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.CreatedAt, testDiagram.ModifiedAt,
+			).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+
+		// Expect metadata insert (testDiagram has one metadata entry)
+		mock.ExpectExec("INSERT INTO metadata").
+			WithArgs(
+				sqlmock.AnyArg(), sqlmock.AnyArg(), "priority", "high", sqlmock.AnyArg(), sqlmock.AnyArg(),
 			).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -676,10 +684,21 @@ func TestDiagramDatabaseStore_Update(t *testing.T) {
 
 		mock.ExpectExec("UPDATE diagrams").
 			WithArgs(
-				testID, testDiagram.Name, "DFD-1.0.0",
+				testID, testDiagram.Name, testDiagram.Description, "DFD-1.0.0",
 				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), testDiagram.ModifiedAt,
 			).
 			WillReturnResult(sqlmock.NewResult(0, 1))
+
+		// Expect metadata delete then insert (testDiagram has one metadata entry)
+		mock.ExpectExec("DELETE FROM metadata").
+			WithArgs(testID).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+
+		mock.ExpectExec("INSERT INTO metadata").
+			WithArgs(
+				sqlmock.AnyArg(), testID, "priority", "high", sqlmock.AnyArg(), sqlmock.AnyArg(),
+			).
+			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		err = store.Update(testID, testDiagram)
 
@@ -698,7 +717,7 @@ func TestDiagramDatabaseStore_Update(t *testing.T) {
 
 		mock.ExpectExec("UPDATE diagrams").
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-									sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+									sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(0, 0)) // 0 rows affected
 
 		err = store.Update(testID, testDiagram)
