@@ -306,9 +306,24 @@ func extractEdgeLabels(edge Edge) []string {
 }
 
 // serializeAsYAML converts MinimalDiagramModel to YAML format.
+// First serializes to JSON to properly handle union types, then converts to YAML.
 // Returns YAML bytes and any error encountered during marshaling.
 func serializeAsYAML(model MinimalDiagramModel) ([]byte, error) {
-	return yaml.Marshal(model)
+	// First marshal to JSON to properly handle the MinimalCell union types
+	// (MinimalCell uses json.RawMessage internally which yaml.Marshal doesn't handle)
+	jsonBytes, err := json.Marshal(model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal model to JSON: %w", err)
+	}
+
+	// Unmarshal JSON into a generic interface for YAML conversion
+	var generic interface{}
+	if err := json.Unmarshal(jsonBytes, &generic); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON for YAML conversion: %w", err)
+	}
+
+	// Marshal the generic structure to YAML
+	return yaml.Marshal(generic)
 }
 
 // serializeAsGraphML converts MinimalDiagramModel to GraphML XML format.
@@ -417,21 +432,24 @@ func buildGraphMLGraph(model MinimalDiagramModel) GraphMLGraph {
 
 	// Add all cells (nodes and edges)
 	for _, cellUnion := range model.Cells {
-		// Try to unmarshal as MinimalNode
-		cellBytes, _ := json.Marshal(cellUnion)
-
-		var node MinimalNode
-		if err := json.Unmarshal(cellBytes, &node); err == nil && node.Shape != "" {
-			// It's a node
-			graph.Nodes = append(graph.Nodes, buildGraphMLNode(node))
-			continue
+		// Use the discriminator to determine the cell type
+		discriminator, err := cellUnion.Discriminator()
+		if err != nil {
+			continue // Skip cells we can't identify
 		}
 
-		// Try to unmarshal as MinimalEdge
-		var edge MinimalEdge
-		if err := json.Unmarshal(cellBytes, &edge); err == nil && edge.Shape == MinimalEdgeShapeEdge {
-			// It's an edge
-			graph.Edges = append(graph.Edges, buildGraphMLEdge(edge))
+		// "edge" is the only edge discriminator value; all others are node shapes
+		if discriminator == "edge" {
+			edge, err := cellUnion.AsMinimalEdge()
+			if err == nil {
+				graph.Edges = append(graph.Edges, buildGraphMLEdge(edge))
+			}
+		} else {
+			// Node shapes: actor, process, store, security-boundary, text-box
+			node, err := cellUnion.AsMinimalNode()
+			if err == nil {
+				graph.Nodes = append(graph.Nodes, buildGraphMLNode(node))
+			}
 		}
 	}
 
