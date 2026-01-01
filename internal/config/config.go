@@ -381,7 +381,7 @@ func getDefaultOAuthProviders() map[string]OAuthProviderConfig {
 
 // loadFromYAML loads configuration from a YAML file
 func loadFromYAML(config *Config, filename string) error {
-	data, err := os.ReadFile(filename) // #nosec G304
+	data, err := os.ReadFile(filename) // #nosec G304 -- filename comes from CLI flag set by server operator, not untrusted input
 	if err != nil {
 		return fmt.Errorf("failed to read config file %s: %w", filename, err)
 	}
