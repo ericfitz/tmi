@@ -57,6 +57,10 @@ func InitAuth(router *gin.Engine) error {
 	// Note: Route registration is handled via OpenAPI specification
 	_ = NewHandlers(service, config)
 
+	// Start background health monitor to keep connection pool warm
+	// Use 25-second interval to stay under Heroku's ~30s idle timeout
+	db.StartHealthMonitor(context.Background(), dbManager.Postgres().GetDB(), 25*time.Second)
+
 	// Start background job for periodic cache rebuilding
 	go startCacheRebuildJob(context.Background(), dbManager)
 
@@ -90,6 +94,7 @@ func startCacheRebuildJob(ctx context.Context, dbManager *db.Manager) {
 func rebuildCacheWithRetry(ctx context.Context, dbManager *db.Manager) error {
 	const maxRetries = 3
 	baseDelay := 5 * time.Second
+	logger := slogging.Get()
 
 	var lastErr error
 	for attempt := 0; attempt < maxRetries; attempt++ {
@@ -97,7 +102,7 @@ func rebuildCacheWithRetry(ctx context.Context, dbManager *db.Manager) error {
 			// Exponential backoff: 5s, 10s, 20s
 			// #nosec G115 - attempt is always in range [1, maxRetries-1] so no overflow possible
 			delay := baseDelay * time.Duration(1<<uint(attempt-1))
-			slogging.Get().Info("Retrying cache rebuild in %v (attempt %d/%d)", delay, attempt+1, maxRetries)
+			logger.Info("Retrying cache rebuild in %v (attempt %d/%d)", delay, attempt+1, maxRetries)
 
 			select {
 			case <-ctx.Done():
@@ -106,20 +111,28 @@ func rebuildCacheWithRetry(ctx context.Context, dbManager *db.Manager) error {
 			}
 		}
 
-		// Verify database connection is healthy before attempting rebuild
-		pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		if err := dbManager.Postgres().Ping(pingCtx); err != nil {
-			cancel()
-			lastErr = fmt.Errorf("database connection unhealthy: %w", err)
-			slogging.Get().Warn("Database ping failed before cache rebuild (attempt %d/%d): %v", attempt+1, maxRetries, err)
+		// CRITICAL: Refresh the connection pool before each attempt
+		// This closes stale idle connections and creates fresh ones
+		// A simple Ping() only validates ONE connection, but the subsequent
+		// transaction may get a DIFFERENT (stale) connection from the pool
+		sqlDB := dbManager.Postgres().GetDB()
+		if err := db.RefreshConnectionPool(sqlDB); err != nil {
+			lastErr = fmt.Errorf("failed to refresh connection pool: %w", err)
+			logger.Warn("Connection pool refresh failed (attempt %d/%d): %v", attempt+1, maxRetries, err)
 			continue
 		}
-		cancel()
+		logger.Debug("Connection pool refreshed successfully before cache rebuild")
 
-		// Attempt cache rebuild
+		// Attempt cache rebuild with the refreshed pool
 		if err := rebuildCache(ctx, dbManager); err != nil {
 			lastErr = err
-			slogging.Get().Warn("Cache rebuild failed (attempt %d/%d): %v", attempt+1, maxRetries, err)
+			// Check if this is a connection error that warrants retry
+			if db.IsConnectionError(err) {
+				logger.Warn("Cache rebuild failed with connection error (attempt %d/%d): %v", attempt+1, maxRetries, err)
+				continue
+			}
+			// Non-connection error - log as warning and retry anyway for resilience
+			logger.Warn("Cache rebuild failed (attempt %d/%d): %v", attempt+1, maxRetries, err)
 			continue
 		}
 

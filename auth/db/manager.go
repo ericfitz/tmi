@@ -11,6 +11,7 @@ import (
 // Manager handles database connections
 type Manager struct {
 	postgres *PostgresDB
+	gorm     *GormDB
 	redis    *RedisDB
 	mu       sync.Mutex
 }
@@ -41,6 +42,30 @@ func (m *Manager) InitPostgres(cfg PostgresConfig) error {
 
 	logger.Debug("PostgreSQL connection successfully initialized in database manager")
 	m.postgres = db
+	return nil
+}
+
+// InitGorm initializes the GORM database connection (supports PostgreSQL and Oracle)
+func (m *Manager) InitGorm(cfg GormConfig) error {
+	logger := slogging.Get()
+	logger.Debug("Initializing GORM connection in database manager (type: %s)", cfg.Type)
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.gorm != nil {
+		logger.Warn("GORM connection already initialized")
+		return fmt.Errorf("gorm connection already initialized")
+	}
+
+	db, err := NewGormDB(cfg)
+	if err != nil {
+		logger.Error("Failed to initialize GORM: %v", err)
+		return fmt.Errorf("failed to initialize gorm: %w", err)
+	}
+
+	logger.Debug("GORM connection successfully initialized in database manager")
+	m.gorm = db
 	return nil
 }
 
@@ -75,6 +100,13 @@ func (m *Manager) Postgres() *PostgresDB {
 	return m.postgres
 }
 
+// Gorm returns the GORM database connection
+func (m *Manager) Gorm() *GormDB {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.gorm
+}
+
 // Redis returns the Redis connection
 func (m *Manager) Redis() *RedisDB {
 	m.mu.Lock()
@@ -97,6 +129,14 @@ func (m *Manager) Close() error {
 		if err := m.postgres.Close(); err != nil {
 			logger.Error("Failed to close PostgreSQL connection: %v", err)
 			errs = append(errs, fmt.Errorf("failed to close postgres: %w", err))
+		}
+	}
+
+	if m.gorm != nil {
+		logger.Debug("Closing GORM connection")
+		if err := m.gorm.Close(); err != nil {
+			logger.Error("Failed to close GORM connection: %v", err)
+			errs = append(errs, fmt.Errorf("failed to close gorm: %w", err))
 		}
 	}
 
@@ -139,6 +179,18 @@ func (m *Manager) Ping(ctx context.Context) error {
 		logger.Debug("PostgreSQL connection not initialized, skipping ping")
 	}
 
+	if m.gorm != nil {
+		logger.Debug("Pinging GORM connection")
+		if err := m.gorm.Ping(ctx); err != nil {
+			logger.Error("GORM ping failed: %v", err)
+			errs = append(errs, fmt.Errorf("gorm ping failed: %w", err))
+		} else {
+			logger.Debug("GORM ping successful")
+		}
+	} else {
+		logger.Debug("GORM connection not initialized, skipping ping")
+	}
+
 	if m.redis != nil {
 		logger.Debug("Pinging Redis connection")
 		if err := m.redis.Ping(ctx); err != nil {
@@ -171,6 +223,11 @@ func (m *Manager) LogConnectionStats(ctx context.Context) {
 	if m.postgres != nil {
 		logger.Debug("Logging PostgreSQL connection stats")
 		m.postgres.LogStats()
+	}
+
+	if m.gorm != nil {
+		logger.Debug("Logging GORM connection stats")
+		m.gorm.LogStats()
 	}
 
 	if m.redis != nil {
