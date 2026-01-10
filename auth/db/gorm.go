@@ -108,11 +108,13 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	}
 
 	// Set connection pool parameters (same as existing PostgresDB)
-	log.Debug("Setting GORM connection pool parameters: maxOpen=10, maxIdle=2, maxLifetime=5m, maxIdleTime=2m")
+	// Use shorter max lifetime (4 min) to proactively recycle connections before they go stale
+	// Use 30s idle timeout to match Heroku Postgres which terminates idle connections after ~30s
+	log.Debug("Setting GORM connection pool parameters: maxOpen=10, maxIdle=2, maxLifetime=4m, maxIdleTime=30s")
 	sqlDB.SetMaxOpenConns(10)
 	sqlDB.SetMaxIdleConns(2)
-	sqlDB.SetConnMaxLifetime(5 * time.Minute)
-	sqlDB.SetConnMaxIdleTime(2 * time.Minute)
+	sqlDB.SetConnMaxLifetime(4 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(30 * time.Second)
 
 	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
