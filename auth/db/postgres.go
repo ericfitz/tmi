@@ -45,14 +45,15 @@ func NewPostgresDB(cfg PostgresConfig) (*PostgresDB, error) {
 	}
 
 	// Set connection pool parameters
-	// Use shorter max lifetime (5 min) to proactively recycle connections before they go stale
+	// Use shorter max lifetime (4 min) to proactively recycle connections before they go stale
+	// Use 30s idle timeout to match Heroku Postgres which terminates idle connections after ~30s
 	// This helps prevent "driver: bad connection" errors in cloud environments where
 	// connections may be terminated by load balancers, firewalls, or database restarts
-	logger.Debug("Setting PostgreSQL connection pool parameters: maxOpen=10, maxIdle=2, maxLifetime=5m, maxIdleTime=2m")
+	logger.Debug("Setting PostgreSQL connection pool parameters: maxOpen=10, maxIdle=2, maxLifetime=4m, maxIdleTime=30s")
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(2)
-	db.SetConnMaxLifetime(5 * time.Minute)
-	db.SetConnMaxIdleTime(2 * time.Minute)
+	db.SetConnMaxLifetime(4 * time.Minute)
+	db.SetConnMaxIdleTime(30 * time.Second)
 
 	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

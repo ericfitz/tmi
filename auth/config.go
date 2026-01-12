@@ -14,7 +14,8 @@ import (
 
 // Config holds all authentication configuration
 type Config struct {
-	Postgres  PostgresConfig
+	Database  DatabaseConfig // New unified database config
+	Postgres  PostgresConfig // Legacy - kept for backward compatibility
 	Redis     RedisConfig
 	JWT       JWTConfig
 	OAuth     OAuthConfig
@@ -22,7 +23,26 @@ type Config struct {
 	BuildMode string // dev, test, or production
 }
 
-// PostgresConfig holds PostgreSQL configuration
+// DatabaseConfig holds unified database configuration for both PostgreSQL and Oracle
+type DatabaseConfig struct {
+	Type string // "postgres" or "oracle"
+
+	// PostgreSQL configuration
+	PostgresHost     string
+	PostgresPort     string
+	PostgresUser     string
+	PostgresPassword string
+	PostgresDatabase string
+	PostgresSSLMode  string
+
+	// Oracle configuration
+	OracleUser           string
+	OraclePassword       string
+	OracleConnectString  string // format: host:port/service or tnsnames alias
+	OracleWalletLocation string // path to Oracle wallet for ADB
+}
+
+// PostgresConfig holds PostgreSQL configuration (legacy - for backward compatibility)
 type PostgresConfig struct {
 	Host     string
 	Port     string
@@ -139,22 +159,57 @@ func LoadConfig() (Config, error) {
 		jwtExpiration = 3600
 	}
 
-	// Require explicit database configuration - no fallback to localhost
-	postgresHost := envutil.Get("POSTGRES_HOST", "")
-	if postgresHost == "" {
-		logger.Error("Database configuration missing: POSTGRES_HOST environment variable must be set")
-		return Config{}, fmt.Errorf("POSTGRES_HOST environment variable is required")
+	// Database type selection (defaults to postgres for backward compatibility)
+	databaseType := envutil.Get("DATABASE_TYPE", "postgres")
+	logger.Debug("Database type configured: %s", databaseType)
+
+	// Load database configuration based on type
+	var dbConfig DatabaseConfig
+	dbConfig.Type = databaseType
+
+	switch databaseType {
+	case "oracle":
+		// Oracle configuration
+		dbConfig.OracleUser = envutil.Get("ORACLE_USER", "")
+		dbConfig.OraclePassword = envutil.Get("ORACLE_PASSWORD", "")
+		dbConfig.OracleConnectString = envutil.Get("ORACLE_CONNECT_STRING", "")
+		dbConfig.OracleWalletLocation = envutil.Get("ORACLE_WALLET_LOCATION", "")
+
+		if dbConfig.OracleConnectString == "" {
+			logger.Error("Database configuration missing: ORACLE_CONNECT_STRING environment variable must be set")
+			return Config{}, fmt.Errorf("ORACLE_CONNECT_STRING environment variable is required for Oracle database")
+		}
+		logger.Debug("Oracle connection string configured: %s", dbConfig.OracleConnectString)
+
+	case "postgres":
+		fallthrough
+	default:
+		// PostgreSQL configuration (default)
+		postgresHost := envutil.Get("POSTGRES_HOST", "")
+		if postgresHost == "" {
+			logger.Error("Database configuration missing: POSTGRES_HOST environment variable must be set")
+			return Config{}, fmt.Errorf("POSTGRES_HOST environment variable is required")
+		}
+		logger.Debug("PostgreSQL host configured: %s", postgresHost)
+
+		dbConfig.PostgresHost = postgresHost
+		dbConfig.PostgresPort = envutil.Get("POSTGRES_PORT", "5432")
+		dbConfig.PostgresUser = envutil.Get("POSTGRES_USER", "postgres")
+		dbConfig.PostgresPassword = envutil.Get("POSTGRES_PASSWORD", "")
+		dbConfig.PostgresDatabase = envutil.Get("POSTGRES_DATABASE", envutil.Get("POSTGRES_DB", "tmi"))
+		dbConfig.PostgresSSLMode = envutil.Get("POSTGRES_SSL_MODE", envutil.Get("POSTGRES_SSLMODE", "disable"))
 	}
-	logger.Debug("PostgreSQL host configured: %s", postgresHost)
 
 	config := Config{
+		Database: dbConfig,
+		// Legacy Postgres config - populated from Database config for backward compatibility
 		Postgres: PostgresConfig{
-			Host:     postgresHost,
-			Port:     envutil.Get("POSTGRES_PORT", "5432"),
-			User:     envutil.Get("POSTGRES_USER", "postgres"),
-			Password: envutil.Get("POSTGRES_PASSWORD", ""),
-			Database: envutil.Get("POSTGRES_DATABASE", envutil.Get("POSTGRES_DB", "tmi")),
-			SSLMode:  envutil.Get("POSTGRES_SSL_MODE", envutil.Get("POSTGRES_SSLMODE", "disable")),
+			Host:     dbConfig.PostgresHost,
+			Port:     dbConfig.PostgresPort,
+			User:     dbConfig.PostgresUser,
+			Password: dbConfig.PostgresPassword,
+			Database: dbConfig.PostgresDatabase,
+			SSLMode:  dbConfig.PostgresSSLMode,
 		},
 		Redis: RedisConfig{
 			Host:     envutil.Get("REDIS_HOST", "localhost"),
@@ -195,7 +250,7 @@ func LoadConfig() (Config, error) {
 	return config, nil
 }
 
-// ToDBConfig converts Config to db.PostgresConfig and db.RedisConfig
+// ToDBConfig converts Config to db.PostgresConfig and db.RedisConfig (legacy method)
 func (c *Config) ToDBConfig() (db.PostgresConfig, db.RedisConfig) {
 	return db.PostgresConfig{
 			Host:     c.Postgres.Host,
@@ -210,6 +265,37 @@ func (c *Config) ToDBConfig() (db.PostgresConfig, db.RedisConfig) {
 			Password: c.Redis.Password,
 			DB:       c.Redis.DB,
 		}
+}
+
+// ToGormConfig converts Config to db.GormConfig for GORM database connections
+func (c *Config) ToGormConfig() db.GormConfig {
+	return db.GormConfig{
+		Type: db.DatabaseType(c.Database.Type),
+
+		// PostgreSQL configuration
+		PostgresHost:     c.Database.PostgresHost,
+		PostgresPort:     c.Database.PostgresPort,
+		PostgresUser:     c.Database.PostgresUser,
+		PostgresPassword: c.Database.PostgresPassword,
+		PostgresDatabase: c.Database.PostgresDatabase,
+		PostgresSSLMode:  c.Database.PostgresSSLMode,
+
+		// Oracle configuration
+		OracleUser:           c.Database.OracleUser,
+		OraclePassword:       c.Database.OraclePassword,
+		OracleConnectString:  c.Database.OracleConnectString,
+		OracleWalletLocation: c.Database.OracleWalletLocation,
+	}
+}
+
+// ToRedisConfig converts Config to db.RedisConfig
+func (c *Config) ToRedisConfig() db.RedisConfig {
+	return db.RedisConfig{
+		Host:     c.Redis.Host,
+		Port:     c.Redis.Port,
+		Password: c.Redis.Password,
+		DB:       c.Redis.DB,
+	}
 }
 
 // GetJWTDuration returns the JWT expiration duration

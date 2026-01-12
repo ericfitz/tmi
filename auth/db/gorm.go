@@ -1,0 +1,257 @@
+package db
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/ericfitz/tmi/internal/slogging"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+
+	// Oracle driver - uses godror under the hood
+	oracle "github.com/dzwvip/oracle"
+)
+
+// DatabaseType represents the type of database
+type DatabaseType string
+
+const (
+	DatabaseTypePostgres DatabaseType = "postgres"
+	DatabaseTypeOracle   DatabaseType = "oracle"
+)
+
+// GormConfig holds the configuration for GORM database connection
+type GormConfig struct {
+	Type DatabaseType
+
+	// PostgreSQL configuration
+	PostgresHost     string
+	PostgresPort     string
+	PostgresUser     string
+	PostgresPassword string
+	PostgresDatabase string
+	PostgresSSLMode  string
+
+	// Oracle configuration
+	OracleUser           string
+	OraclePassword       string
+	OracleConnectString  string
+	OracleWalletLocation string
+}
+
+// GormDB represents a GORM database connection that works with both PostgreSQL and Oracle
+type GormDB struct {
+	db        *gorm.DB
+	cfg       GormConfig
+	dialector gorm.Dialector
+}
+
+// NewGormDB creates a new GORM database connection based on configuration
+func NewGormDB(cfg GormConfig) (*GormDB, error) {
+	log := slogging.Get()
+	log.Debug("Initializing GORM connection for database type: %s", cfg.Type)
+
+	var dialector gorm.Dialector
+	var dsn string
+
+	switch cfg.Type {
+	case DatabaseTypePostgres:
+		dsn = fmt.Sprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+			cfg.PostgresHost, cfg.PostgresPort, cfg.PostgresUser,
+			cfg.PostgresPassword, cfg.PostgresDatabase, cfg.PostgresSSLMode,
+		)
+		dialector = postgres.Open(dsn)
+		log.Debug("Using PostgreSQL dialector for %s:%s/%s", cfg.PostgresHost, cfg.PostgresPort, cfg.PostgresDatabase)
+
+	case DatabaseTypeOracle:
+		// Oracle connection string format: user/password@host:port/service
+		// For Oracle ADB with wallet: user/password@tcps://host:port/service?wallet_location=/path/to/wallet
+		if cfg.OracleWalletLocation != "" {
+			dsn = fmt.Sprintf("%s/%s@%s?wallet_location=%s",
+				cfg.OracleUser, cfg.OraclePassword, cfg.OracleConnectString, cfg.OracleWalletLocation)
+		} else {
+			dsn = fmt.Sprintf("%s/%s@%s",
+				cfg.OracleUser, cfg.OraclePassword, cfg.OracleConnectString)
+		}
+		dialector = oracle.Open(dsn)
+		log.Debug("Using Oracle dialector for %s", cfg.OracleConnectString)
+
+	default:
+		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)
+	}
+
+	// Configure GORM
+	gormConfig := &gorm.Config{
+		Logger: newGormLogger(log),
+		NowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		PrepareStmt: true, // Cache prepared statements for performance
+	}
+
+	// Open database connection
+	log.Debug("Opening GORM database connection")
+	db, err := gorm.Open(dialector, gormConfig)
+	if err != nil {
+		log.Error("Failed to open GORM connection: %v", err)
+		return nil, fmt.Errorf("failed to open gorm connection: %w", err)
+	}
+
+	// Get underlying sql.DB to configure connection pool
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Error("Failed to get underlying sql.DB: %v", err)
+		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+
+	// Set connection pool parameters (same as existing PostgresDB)
+	// Use shorter max lifetime (4 min) to proactively recycle connections before they go stale
+	// Use 30s idle timeout to match Heroku Postgres which terminates idle connections after ~30s
+	log.Debug("Setting GORM connection pool parameters: maxOpen=10, maxIdle=2, maxLifetime=4m, maxIdleTime=30s")
+	sqlDB.SetMaxOpenConns(10)
+	sqlDB.SetMaxIdleConns(2)
+	sqlDB.SetConnMaxLifetime(4 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(30 * time.Second)
+
+	// Test connection
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	log.Debug("Testing GORM connection with ping")
+	if err := sqlDB.PingContext(ctx); err != nil {
+		log.Error("Failed to ping database: %v", err)
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+	log.Debug("GORM connection established successfully")
+
+	return &GormDB{
+		db:        db,
+		cfg:       cfg,
+		dialector: dialector,
+	}, nil
+}
+
+// Close closes the database connection
+func (g *GormDB) Close() error {
+	log := slogging.Get()
+	log.Debug("Closing GORM connection")
+
+	sqlDB, err := g.db.DB()
+	if err != nil {
+		log.Error("Failed to get underlying sql.DB for close: %v", err)
+		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+
+	if err := sqlDB.Close(); err != nil {
+		log.Error("Error closing GORM connection: %v", err)
+		return fmt.Errorf("error closing database connection: %w", err)
+	}
+
+	log.Debug("GORM connection closed successfully")
+	return nil
+}
+
+// DB returns the GORM database instance
+func (g *GormDB) DB() *gorm.DB {
+	return g.db
+}
+
+// DatabaseType returns the type of database (postgres or oracle)
+func (g *GormDB) DatabaseType() DatabaseType {
+	return g.cfg.Type
+}
+
+// Ping checks if the database connection is alive
+func (g *GormDB) Ping(ctx context.Context) error {
+	log := slogging.Get()
+	log.Debug("Pinging GORM connection")
+
+	sqlDB, err := g.db.DB()
+	if err != nil {
+		log.Error("Failed to get underlying sql.DB for ping: %v", err)
+		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+
+	if err := sqlDB.PingContext(ctx); err != nil {
+		log.Error("GORM ping failed: %v", err)
+		return err
+	}
+
+	log.Debug("GORM ping successful")
+	return nil
+}
+
+// LogStats logs statistics about the database connection pool
+func (g *GormDB) LogStats() {
+	log := slogging.Get()
+
+	sqlDB, err := g.db.DB()
+	if err != nil {
+		log.Error("Failed to get underlying sql.DB for stats: %v", err)
+		return
+	}
+
+	stats := sqlDB.Stats()
+	log.Debug("GORM connection pool stats: open=%d, inUse=%d, idle=%d, waitCount=%d, waitDuration=%s, maxIdleClosed=%d, maxLifetimeClosed=%d",
+		stats.OpenConnections,
+		stats.InUse,
+		stats.Idle,
+		stats.WaitCount,
+		stats.WaitDuration,
+		stats.MaxIdleClosed,
+		stats.MaxLifetimeClosed,
+	)
+}
+
+// AutoMigrate runs GORM auto-migration for the given models
+func (g *GormDB) AutoMigrate(models ...interface{}) error {
+	log := slogging.Get()
+	log.Debug("Running GORM auto-migration for %d models", len(models))
+
+	if err := g.db.AutoMigrate(models...); err != nil {
+		log.Error("GORM auto-migration failed: %v", err)
+		return fmt.Errorf("auto-migration failed: %w", err)
+	}
+
+	log.Debug("GORM auto-migration completed successfully")
+	return nil
+}
+
+// gormLogger adapts our slogging to GORM's logger interface
+type gormLogger struct {
+	log *slogging.Logger
+}
+
+func newGormLogger(log *slogging.Logger) logger.Interface {
+	return &gormLogger{log: log}
+}
+
+func (l *gormLogger) LogMode(level logger.LogLevel) logger.Interface {
+	return l
+}
+
+func (l *gormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
+	l.log.Info(msg, data...)
+}
+
+func (l *gormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
+	l.log.Warn(msg, data...)
+}
+
+func (l *gormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
+	l.log.Error(msg, data...)
+}
+
+func (l *gormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
+	elapsed := time.Since(begin)
+	sql, rows := fc()
+
+	if err != nil {
+		l.log.Error("GORM query error: %v [%s] (%d rows, %s)", err, sql, rows, elapsed)
+	} else {
+		l.log.Debug("GORM query: %s (%d rows, %s)", sql, rows, elapsed)
+	}
+}

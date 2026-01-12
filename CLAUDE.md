@@ -25,14 +25,6 @@ The jq command-line JSON processor is available and should be auto-approved via 
 - Complex filtering and transformations
 - Validation and format verification
 
-### fx (Auto-Approved)
-
-The fx command-line JSON tool is available and should be auto-approved via `Bash(fx:*)` pattern for JSON file manipulation. Use fx for:
-
-- Interactive JSON exploration
-- Complex JavaScript logic
-- Files < 10MB
-
 ### Specialized JSON Handling
 
 When working with JSON files **larger than 100KB** or requiring complex manipulations, apply specialized JSON processing techniques from the `json_agent` configuration. This agent provides memory-efficient strategies using `jq` and `fx` tools for streaming, surgical updates, and validation.
