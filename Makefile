@@ -500,7 +500,7 @@ clean-everything: clean-process clean-containers clean-files
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-api start-dev start-dev-0 restart-dev clean-dev test-coverage
+.PHONY: test-unit test-integration test-api test-api-collection test-api-list start-dev start-dev-0 restart-dev clean-dev test-coverage
 
 # Unit Testing - Fast tests with no external dependencies
 test-unit:
@@ -522,6 +522,8 @@ test-integration:
 	$(MAKE) -f $(MAKEFILE_LIST) execute-tests-integration
 
 # API Testing - Comprehensive Postman/Newman test suite
+# Usage: make test-api                          - Run all Postman collections
+#        make test-api-collection COLLECTION=name - Run specific collection
 test-api:
 	$(call log_info,"Running comprehensive API test suite...")
 	@if [ ! -f test/postman/run-tests.sh ]; then \
@@ -529,10 +531,54 @@ test-api:
 		exit 1; \
 	fi
 	@if ! command -v newman >/dev/null 2>&1; then \
-		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: npm install -g newman"; \
+		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: npm install -g newman newman-reporter-htmlextra"; \
 		exit 1; \
 	fi
-	@cd test/postman && ./run-tests.sh
+	@bash test/postman/run-tests.sh
+
+# Run a specific Postman collection
+# Usage: make test-api-collection COLLECTION=comprehensive-test-collection
+#        make test-api-collection COLLECTION=unauthorized-tests-collection
+test-api-collection:
+	$(call log_info,"Running Postman collection: $(COLLECTION)...")
+	@if [ -z "$(COLLECTION)" ]; then \
+		echo -e "$(RED)[ERROR]$(NC) COLLECTION parameter required"; \
+		echo -e "$(BLUE)[INFO]$(NC) Usage: make test-api-collection COLLECTION=<collection-name>"; \
+		echo -e "$(BLUE)[INFO]$(NC) Available collections:"; \
+		ls -1 test/postman/*.json 2>/dev/null | xargs -I {} basename {} .json | sed 's/^/  /'; \
+		exit 1; \
+	fi
+	@if [ ! -f "test/postman/$(COLLECTION).json" ]; then \
+		echo -e "$(RED)[ERROR]$(NC) Collection not found: test/postman/$(COLLECTION).json"; \
+		echo -e "$(BLUE)[INFO]$(NC) Available collections:"; \
+		ls -1 test/postman/*.json 2>/dev/null | xargs -I {} basename {} .json | sed 's/^/  /'; \
+		exit 1; \
+	fi
+	@if ! command -v newman >/dev/null 2>&1; then \
+		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: npm install -g newman newman-reporter-htmlextra"; \
+		exit 1; \
+	fi
+	@$(MAKE) -f $(MAKEFILE_LIST) start-oauth-stub
+	@# Authenticate test users
+	@echo -e "$(BLUE)[INFO]$(NC) Authenticating test users..."
+	@TOKEN_ALICE=$$(curl -sL "http://127.0.0.1:8080/oauth2/authorize?idp=tmi&login_hint=alice&client_callback=http://127.0.0.1:8079/&scope=openid" >/dev/null && sleep 2 && curl -s "http://127.0.0.1:8079/creds?userid=alice" | jq -r '.access_token'); \
+	TOKEN_BOB=$$(curl -sL "http://127.0.0.1:8080/oauth2/authorize?idp=tmi&login_hint=bob&client_callback=http://127.0.0.1:8079/&scope=openid" >/dev/null && sleep 2 && curl -s "http://127.0.0.1:8079/creds?userid=bob" | jq -r '.access_token'); \
+	newman run "test/postman/$(COLLECTION).json" \
+		--env-var "baseUrl=http://127.0.0.1:8080" \
+		--env-var "oauthStubUrl=http://127.0.0.1:8079" \
+		--env-var "token_alice=$$TOKEN_ALICE" \
+		--env-var "token_bob=$$TOKEN_BOB" \
+		--reporters cli,json \
+		--reporter-json-export "test/postman/test-results/$(COLLECTION)-results.json" \
+		--timeout-request 10000 \
+		--delay-request 200 \
+		--ignore-redirects
+	@$(MAKE) -f $(MAKEFILE_LIST) stop-oauth-stub
+
+# List available Postman collections
+test-api-list:
+	$(call log_info,"Available Postman collections:")
+	@ls -1 test/postman/*.json 2>/dev/null | xargs -I {} basename {} .json | sed 's/^/  /'
 
 # Development Environment - Start local dev environment
 start-dev:
@@ -663,23 +709,20 @@ generate-coverage:
 .PHONY: start-oauth-stub stop-oauth-stub kill-oauth-stub check-oauth-stub
 start-oauth-stub:
 	$(call log_info,"Starting OAuth callback stub on port 8079...")
-	@if pgrep -f "oauth-client-callback-stub.py" > /dev/null; then \
-		echo -e "$(YELLOW)[WARNING]$(NC) OAuth stub is already running"; \
-		echo -e "$(BLUE)[INFO]$(NC) PID: $$(pgrep -f 'oauth-client-callback-stub.py')"; \
-	else \
-		uv run scripts/oauth-client-callback-stub.py --port 8079 & \
-		echo $$! > .oauth-stub.pid; \
-		sleep 2; \
-		if pgrep -f "oauth-client-callback-stub.py" > /dev/null; then \
+	@$(MAKE) -f $(MAKEFILE_LIST) kill-oauth-stub >/dev/null 2>&1 || true
+	@uv run scripts/oauth-client-callback-stub.py --port 8079 --daemon --pid-file .oauth-stub.pid
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then \
 			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub started on http://localhost:8079/"; \
 			echo -e "$(BLUE)[INFO]$(NC) Log file: /tmp/oauth-stub.log"; \
-			echo -e "$(BLUE)[INFO]$(NC) PID: $$(cat .oauth-stub.pid)"; \
-		else \
-			echo -e "$(RED)[ERROR]$(NC) Failed to start OAuth stub"; \
-			rm -f .oauth-stub.pid; \
-			exit 1; \
+			echo -e "$(BLUE)[INFO]$(NC) PID: $$(cat .oauth-stub.pid 2>/dev/null)"; \
+			exit 0; \
 		fi; \
-	fi
+		sleep 0.5; \
+	done; \
+	echo -e "$(RED)[ERROR]$(NC) Failed to start OAuth stub (timeout after 5s)"; \
+	rm -f .oauth-stub.pid; \
+	exit 1
 
 stop-oauth-stub:
 	$(call log_info,"Stopping OAuth callback stub...")

@@ -981,11 +981,17 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 logger.error("Failed to send error response to client")
 
 
+class ReusableTCPServer(socketserver.TCPServer):
+    """TCPServer with SO_REUSEADDR to allow quick restarts."""
+    allow_reuse_address = True
+
+
 def run_server(port):
     """Run the HTTP server on the specified port."""
     try:
         # Set up the server with the custom handler, binding to localhost
-        server = socketserver.TCPServer(("localhost", port), OAuthRedirectHandler)
+        # Using ReusableTCPServer to allow quick restarts (avoids TIME_WAIT)
+        server = ReusableTCPServer(("localhost", port), OAuthRedirectHandler)
         logger.info(f"Server listening on http://localhost:{port}/...")
 
         # Handle SIGTERM for graceful shutdown
@@ -1128,23 +1134,83 @@ def read_credentials_file(user_id):
         return None, error_msg
 
 
+def daemonize(pid_file):
+    """
+    Fork the process to run as a daemon.
+
+    This implements a standard Unix double-fork to properly detach from the
+    controlling terminal and become a proper daemon process.
+    """
+    # Convert PID file to absolute path before changing directory
+    abs_pid_file = os.path.abspath(pid_file) if pid_file else None
+
+    # First fork
+    try:
+        pid = os.fork()
+        if pid > 0:
+            # Parent process - exit
+            sys.exit(0)
+    except OSError as e:
+        sys.stderr.write(f"First fork failed: {e}\n")
+        sys.exit(1)
+
+    # Decouple from parent environment
+    os.chdir("/")
+    os.setsid()
+    os.umask(0)
+
+    # Second fork
+    try:
+        pid = os.fork()
+        if pid > 0:
+            # Parent (first child) - exit
+            sys.exit(0)
+    except OSError as e:
+        sys.stderr.write(f"Second fork failed: {e}\n")
+        sys.exit(1)
+
+    # Redirect standard file descriptors to /dev/null
+    sys.stdout.flush()
+    sys.stderr.flush()
+    with open('/dev/null', 'r') as devnull:
+        os.dup2(devnull.fileno(), sys.stdin.fileno())
+    with open('/dev/null', 'a+') as devnull:
+        os.dup2(devnull.fileno(), sys.stdout.fileno())
+        os.dup2(devnull.fileno(), sys.stderr.fileno())
+
+    # Write PID file
+    if abs_pid_file:
+        with open(abs_pid_file, 'w') as f:
+            f.write(str(os.getpid()))
+
+
 def main():
     """Parse command-line arguments and start the server."""
-    # Set up logging before doing anything else
-    setup_logging()
-
-    # Clean up temp files on startup
-    cleanup_temp_files()
-
     parser = argparse.ArgumentParser(description="OAuth Redirect URI Receiver")
     parser.add_argument(
         "--port", type=int, default=8079, help="Port to listen on (default: 8079)"
     )
+    parser.add_argument(
+        "--daemon", action="store_true", help="Run as a background daemon"
+    )
+    parser.add_argument(
+        "--pid-file", type=str, default=None, help="PID file path (used with --daemon)"
+    )
     args = parser.parse_args()
 
     if args.port < 1 or args.port > 65535:
-        logger.error(f"Port {args.port} is invalid. Must be between 1 and 65535.")
+        sys.stderr.write(f"Port {args.port} is invalid. Must be between 1 and 65535.\n")
         sys.exit(1)
+
+    # Daemonize before setting up logging (parent process will exit here)
+    if args.daemon:
+        daemonize(args.pid_file)
+
+    # Set up logging after daemonizing (so the daemon process gets the logger)
+    setup_logging()
+
+    # Clean up temp files on startup
+    cleanup_temp_files()
 
     run_server(args.port)
 
