@@ -46,8 +46,9 @@ func RequestResponseLogger(config RequestResponseLoggingConfig) gin.HandlerFunc 
 		}
 
 		// Check if request is authenticated
-		userName, hasUser := c.Get("userName")
-		isAuthenticated := hasUser && userName != nil && userName != ""
+		// Note: JWT middleware sets "userEmail", not "userName"
+		userEmail, hasUser := c.Get("userEmail")
+		isAuthenticated := hasUser && userEmail != nil && userEmail != ""
 
 		// Skip logging if configured to suppress unauthenticated logs
 		if Get().suppressUnauthenticatedLogs && !isAuthenticated {

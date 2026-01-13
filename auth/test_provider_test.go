@@ -52,7 +52,7 @@ func TestTestProvider(t *testing.T) {
 	if userInfo.Email == "" || userInfo.ID == "" {
 		t.Error("Expected user info with email and ID")
 	}
-	if userInfo.Email != userInfo.ID+"@tmi" {
+	if userInfo.Email != userInfo.ID+"@tmi.local" {
 		t.Errorf("Expected email format %s@tmi, got %s", userInfo.ID, userInfo.Email)
 	}
 	t.Logf("User Info: %+v", userInfo)

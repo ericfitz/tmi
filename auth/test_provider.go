@@ -172,7 +172,7 @@ func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 	if userHint != "" {
 		// Use the provided login_hint
 		username := userHint
-		email := fmt.Sprintf("%s@tmi", username)
+		email := fmt.Sprintf("%s@tmi.local", username)
 		displayName := p.generateDisplayName(username)
 
 		return &UserInfo{
@@ -191,7 +191,7 @@ func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 	}
 
 	username := fmt.Sprintf("testuser-%08d", randomNum)
-	email := fmt.Sprintf("%s@tmi", username)
+	email := fmt.Sprintf("%s@tmi.local", username)
 
 	return &UserInfo{
 		ID:            username,
@@ -208,7 +208,7 @@ func (p *TestProvider) ValidateIDToken(ctx context.Context, idToken string) (*ID
 	if userHint, ok := ctx.Value(userHintContextKey).(string); ok && userHint != "" {
 		if validatedHint := p.validateUserHint(userHint); validatedHint != "" {
 			username := validatedHint
-			email := fmt.Sprintf("%s@tmi", username)
+			email := fmt.Sprintf("%s@tmi.local", username)
 			displayName := p.generateDisplayName(username)
 
 			return &IDTokenClaims{
@@ -230,7 +230,7 @@ func (p *TestProvider) ValidateIDToken(ctx context.Context, idToken string) (*ID
 	}
 
 	username := fmt.Sprintf("testuser-%08d", randomNum)
-	email := fmt.Sprintf("%s@tmi", username)
+	email := fmt.Sprintf("%s@tmi.local", username)
 
 	return &IDTokenClaims{
 		Subject:   username,
