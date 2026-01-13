@@ -40,9 +40,9 @@
           "const aliceToken = pm.environment.get('token_alice');",
           "if (aliceToken) {",
           "    pm.collectionVariables.set('accessToken', aliceToken);",
-          "    console.log('\u2705 Using pre-authenticated token for alice');",
+          "    console.log('✅ Using pre-authenticated token for alice');",
           "} else {",
-          "    console.error('\u274c No pre-authenticated token found for alice');",
+          "    console.error('❌ No pre-authenticated token found for alice');",
           "}"
         ]
       }
@@ -146,7 +146,7 @@
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData.id).to.exist;",
                   "    pm.expect(jsonData.name).to.exist;",
-                  "    pm.expect(jsonData.url).to.exist;",
+                  "    pm.expect(jsonData.uri).to.exist;",
                   "    pm.collectionVariables.set('documentId', jsonData.id);",
                   "});",
                   "",
@@ -505,7 +505,7 @@
                   "    const documentId = pm.collectionVariables.get('documentId');",
                   "    pm.expect(jsonData.id).to.equal(documentId);",
                   "    pm.expect(jsonData.name).to.exist;",
-                  "    pm.expect(jsonData.url).to.exist;",
+                  "    pm.expect(jsonData.uri).to.exist;",
                   "});",
                   "",
                   "pm.test('Response time is acceptable', function () {",
@@ -644,7 +644,7 @@
                   "pm.test('Document was updated', function () {",
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData.name).to.include('Updated');",
-                  "    pm.expect(jsonData.url).to.include('updated');",
+                  "    pm.expect(jsonData.uri).to.include('updated');",
                   "});",
                   "",
                   "pm.test('Document ID unchanged', function () {",

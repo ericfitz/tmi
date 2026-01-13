@@ -40,9 +40,9 @@
           "const aliceToken = pm.environment.get('token_alice');",
           "if (aliceToken) {",
           "    pm.collectionVariables.set('accessToken', aliceToken);",
-          "    console.log('\u2705 Using pre-authenticated token for alice');",
+          "    console.log('✅ Using pre-authenticated token for alice');",
           "} else {",
-          "    console.error('\u274c No pre-authenticated token found for alice');",
+          "    console.error('❌ No pre-authenticated token found for alice');",
           "}"
         ]
       }
@@ -147,7 +147,7 @@
                   "    pm.expect(jsonData.id).to.exist;",
                   "    pm.expect(jsonData.name).to.exist;",
                   "    pm.expect(jsonData.type).to.exist;",
-                  "    pm.expect(jsonData.url).to.exist;",
+                  "    pm.expect(jsonData.uri).to.exist;",
                   "    pm.collectionVariables.set('sourceId', jsonData.id);",
                   "});",
                   "",
@@ -179,7 +179,7 @@
           ]
         },
         {
-          "name": "Create Repository - Missing URL (400)",
+          "name": "Create Repository - Missing URI (400)",
           "request": {
             "method": "POST",
             "header": [
@@ -194,7 +194,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"description\": \"Missing url field\"\n}"
+              "raw": "{\n  \"name\": \"Test Source\",\n  \"type\": \"git\",\n  \"description\": \"Missing uri field\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/repositories",
@@ -570,7 +570,7 @@
                   "    pm.expect(jsonData.id).to.equal(sourceId);",
                   "    pm.expect(jsonData.name).to.exist;",
                   "    pm.expect(jsonData.type).to.exist;",
-                  "    pm.expect(jsonData.url).to.exist;",
+                  "    pm.expect(jsonData.uri).to.exist;",
                   "});",
                   "",
                   "pm.test('Response time is acceptable', function () {",
@@ -709,7 +709,7 @@
                   "pm.test('Source was updated', function () {",
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData.name).to.include('Updated');",
-                  "    pm.expect(jsonData.url).to.include('updated');",
+                  "    pm.expect(jsonData.uri).to.include('updated');",
                   "    pm.expect(jsonData.parameters.refType).to.equal('tag');",
                   "    pm.expect(jsonData.parameters.refValue).to.equal('v2.0');",
                   "});",

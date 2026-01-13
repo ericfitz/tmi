@@ -35,7 +35,7 @@ class TMITestDataFactory {
             name: options.name || `Test Threat Model ${this.testRunId}`,
             description: options.description || "A comprehensive threat model for testing purposes",
             threat_model_framework: options.framework || "STRIDE",
-            issue_url: options.issueUrl || "https://github.com/example/project/issues/123",
+            issue_uri: options.issueUri || "https://github.com/example/project/issues/123",
             ...options.additional
         };
     }
@@ -63,11 +63,11 @@ class TMITestDataFactory {
                 description: "x".repeat(1025),
                 threat_model_framework: "STRIDE"
             },
-            // Invalid issue URL - should trigger 400
-            invalid_url: {
+            // Invalid issue URI - should trigger 400
+            invalid_uri: {
                 name: "Valid Name",
                 threat_model_framework: "STRIDE",
-                issue_url: "not-a-url"
+                issue_uri: "not-a-url"
             },
             // Wrong data types - should trigger 400
             wrong_types: {
@@ -83,15 +83,18 @@ class TMITestDataFactory {
     // ========================================
 
     validThreat(options = {}) {
+        // threat_type is now an array per OpenAPI spec
+        const threatType = options.threatType || options.threat_type || ["Spoofing"];
         return {
             name: options.name || `Test Threat ${this.testRunId}`,
             description: options.description || "A test threat for comprehensive API testing",
-            threat_type: options.threatType || "Spoofing",
+            threat_type: Array.isArray(threatType) ? threatType : [threatType],
             severity: options.severity || "High",
-            priority: options.priority || "High", 
+            priority: options.priority || "High",
             score: options.score || 8.5,
             status: options.status || "Open",
-            mitigated: options.mitigated || false,
+            mitigated: options.mitigated !== undefined ? options.mitigated : false,
+            issue_uri: options.issueUri || options.issue_uri || null,
             ...options.additional
         };
     }
@@ -99,56 +102,43 @@ class TMITestDataFactory {
     invalidThreatData() {
         return {
             // Missing required fields - should trigger 400
+            // Required: name and threat_type (as array)
             missing_name: {
-                threat_type: "Spoofing",
+                threat_type: ["Spoofing"],
                 severity: "High",
                 priority: "High",
                 mitigated: false,
                 status: "Open"
             },
-            missing_severity: {
+            missing_threat_type: {
                 name: "Valid Name",
-                threat_type: "Spoofing",
-                priority: "High",
-                mitigated: false,
-                status: "Open"
-            },
-            // Invalid enum values - should trigger 400  
-            invalid_threat_type: {
-                name: "Valid Name",
-                threat_type: "InvalidType",
                 severity: "High",
                 priority: "High",
                 mitigated: false,
                 status: "Open"
             },
-            invalid_severity: {
+            // Empty threat_type array - should trigger 400
+            empty_threat_type: {
                 name: "Valid Name",
-                threat_type: "Spoofing",
-                severity: "InvalidSeverity",
-                priority: "High", 
-                mitigated: false,
-                status: "Open"
-            },
-            invalid_priority: {
-                name: "Valid Name",
-                threat_type: "Spoofing",
-                severity: "High",
-                priority: "InvalidPriority",
-                mitigated: false,
-                status: "Open"
-            },
-            invalid_status: {
-                name: "Valid Name",
-                threat_type: "Spoofing", 
+                threat_type: [],
                 severity: "High",
                 priority: "High",
                 mitigated: false,
-                status: "InvalidStatus"
+                status: "Open"
+            },
+            // threat_type as string instead of array - should trigger 400
+            threat_type_not_array: {
+                name: "Valid Name",
+                threat_type: "Spoofing",
+                severity: "High",
+                priority: "High",
+                mitigated: false,
+                status: "Open"
             },
             // Wrong data types - should trigger 400
             wrong_types: {
                 name: 123, // should be string
+                threat_type: "Spoofing", // should be array
                 severity: true, // should be string
                 mitigated: "true", // should be boolean
                 score: "high" // should be number
@@ -156,8 +146,8 @@ class TMITestDataFactory {
             // Score out of range - should trigger 400
             score_negative: {
                 name: "Valid Name",
-                threat_type: "Spoofing",
-                severity: "High", 
+                threat_type: ["Spoofing"],
+                severity: "High",
                 priority: "High",
                 mitigated: false,
                 status: "Open",
@@ -165,9 +155,9 @@ class TMITestDataFactory {
             },
             score_too_high: {
                 name: "Valid Name",
-                threat_type: "Spoofing",
+                threat_type: ["Spoofing"],
                 severity: "High",
-                priority: "High", 
+                priority: "High",
                 mitigated: false,
                 status: "Open",
                 score: 11
@@ -248,84 +238,16 @@ class TMITestDataFactory {
     }
 
     // ========================================
-    // DOCUMENT TEST DATA
+    // DOCUMENT TEST DATA (first definition - kept for compatibility)
     // ========================================
 
-    validDocument(options = {}) {
-        return {
-            name: options.name || `Test Document ${this.testRunId}`,
-            description: options.description || "A test document for API testing",
-            url: options.url || "https://docs.example.com/test-doc",
-            ...options.additional
-        };
-    }
-
-    invalidDocumentData() {
-        return {
-            // Missing required fields - should trigger 400
-            missing_name: {
-                url: "https://docs.example.com/test"
-            },
-            missing_url: {
-                name: "Valid Name"
-            },
-            // Invalid URL - should trigger 400
-            invalid_url: {
-                name: "Valid Name",
-                url: "not-a-valid-url"
-            },
-            // Wrong data types - should trigger 400
-            wrong_types: {
-                name: 123, // should be string
-                url: true // should be string
-            }
-        };
-    }
+    // Note: This is overridden by a more complete definition below
 
     // ========================================
-    // SOURCE TEST DATA
+    // SOURCE/REPOSITORY TEST DATA (first definition - kept for compatibility)
     // ========================================
 
-    validSource(options = {}) {
-        return {
-            name: options.name || `Test Source ${this.testRunId}`,
-            description: options.description || "A test source for API testing",
-            url: options.url || "https://github.com/example/repo",
-            ref: options.ref || {
-                refType: "branch",
-                refValue: "main"
-            },
-            ...options.additional
-        };
-    }
-
-    invalidSourceData() {
-        return {
-            // Missing required URL - should trigger 400
-            missing_url: {
-                name: "Valid Name"
-            },
-            // Invalid URL - should trigger 400
-            invalid_url: {
-                url: "not-a-valid-url"
-            },
-            // Invalid ref structure - should trigger 400
-            invalid_ref: {
-                name: "Valid Name",
-                url: "https://github.com/example/repo",
-                ref: {
-                    // Missing required refType and refValue
-                    invalidProp: "invalid"
-                }
-            },
-            // Wrong data types - should trigger 400
-            wrong_types: {
-                name: 123, // should be string
-                url: true, // should be string
-                ref: "invalid" // should be object
-            }
-        };
-    }
+    // Note: This is overridden by a more complete definition below
 
     // ========================================
     // METADATA TEST DATA  
@@ -446,7 +368,7 @@ class TMITestDataFactory {
     validDocument(options = {}) {
         return {
             name: options.name || `Test Document ${this.testRunId}`,
-            url: options.url || `https://example.com/documents/test-${this.testRunId}.pdf`,
+            uri: options.uri || options.url || `https://example.com/documents/test-${this.testRunId}.pdf`,
             description: options.description || "A test document for comprehensive API testing",
             ...options.additional
         };
@@ -456,49 +378,49 @@ class TMITestDataFactory {
         return {
             // Missing required 'name' field - should trigger 400
             missing_name: {
-                url: "https://example.com/test.pdf",
+                uri: "https://example.com/test.pdf",
                 description: "Missing name field"
             },
-            // Missing required 'url' field - should trigger 400
-            missing_url: {
+            // Missing required 'uri' field - should trigger 400
+            missing_uri: {
                 name: "Test Document",
-                description: "Missing url field"
+                description: "Missing uri field"
             },
             // Empty name - should trigger 400
             empty_name: {
                 name: "",
-                url: "https://example.com/test.pdf"
+                uri: "https://example.com/test.pdf"
             },
             // Name too long (> 256 chars) - should trigger 400
             name_too_long: {
                 name: "x".repeat(257),
-                url: "https://example.com/test.pdf"
+                uri: "https://example.com/test.pdf"
             },
-            // URL too long (> 1024 chars) - should trigger 400
-            url_too_long: {
+            // URI too long (> 1000 chars) - should trigger 400
+            uri_too_long: {
                 name: "Valid Name",
-                url: "https://example.com/" + "x".repeat(1024)
+                uri: "https://example.com/" + "x".repeat(1000)
             },
-            // Invalid URL format - should trigger 400
-            invalid_url: {
-                name: "Valid Name", 
-                url: "not-a-valid-url"
+            // Invalid URI format - should trigger 400
+            invalid_uri: {
+                name: "Valid Name",
+                uri: "not-a-valid-uri"
             },
             // Description too long (> 1024 chars) - should trigger 400
             description_too_long: {
                 name: "Valid Name",
-                url: "https://example.com/test.pdf",
+                uri: "https://example.com/test.pdf",
                 description: "x".repeat(1025)
             },
             // Invalid characters in name - should trigger 400
             invalid_name_chars: {
                 name: "Test<script>alert('xss')</script>",
-                url: "https://example.com/test.pdf"
+                uri: "https://example.com/test.pdf"
             },
             // Wrong data types - should trigger 400
             wrong_types: {
                 name: 123, // should be string
-                url: true, // should be string
+                uri: true, // should be string
                 description: [] // should be string
             }
         };
@@ -509,7 +431,7 @@ class TMITestDataFactory {
         for (let i = 0; i < count; i++) {
             documents.push(this.validDocument({
                 name: `Bulk Document ${i + 1} - ${this.testRunId}`,
-                url: `https://example.com/documents/bulk-${i + 1}-${this.testRunId}.pdf`,
+                uri: `https://example.com/documents/bulk-${i + 1}-${this.testRunId}.pdf`,
                 description: `Generated document ${i + 1} for bulk operations testing`,
                 ...options
             }));
@@ -517,16 +439,20 @@ class TMITestDataFactory {
         return documents;
     }
 
-    // ========================================  
-    // SOURCE TEST DATA
+    // ========================================
+    // REPOSITORY TEST DATA (renamed from SOURCE per OpenAPI spec)
     // ========================================
 
     validSource(options = {}) {
+        return this.validRepository(options);
+    }
+
+    validRepository(options = {}) {
         return {
-            name: options.name || `Test Source ${this.testRunId}`,
+            name: options.name || `Test Repository ${this.testRunId}`,
             type: options.type || "git",
-            url: options.url || `https://github.com/example/test-repo-${this.testRunId}.git`,
-            description: options.description || "A test source for comprehensive API testing",
+            uri: options.uri || options.url || `https://github.com/example/test-repo-${this.testRunId}.git`,
+            description: options.description || "A test repository for comprehensive API testing",
             parameters: options.parameters || {
                 refType: "branch",
                 refValue: "main"
@@ -536,49 +462,53 @@ class TMITestDataFactory {
     }
 
     invalidSourceData() {
+        return this.invalidRepositoryData();
+    }
+
+    invalidRepositoryData() {
         return {
-            // Missing required 'url' field - should trigger 400
-            missing_url: {
-                name: "Test Source",
+            // Missing required 'uri' field - should trigger 400
+            missing_uri: {
+                name: "Test Repository",
                 type: "git",
-                description: "Missing url field"
+                description: "Missing uri field"
             },
-            // Invalid URL format - should trigger 400
-            invalid_url: {
-                name: "Test Source",
+            // Invalid URI format - should trigger 400
+            invalid_uri: {
+                name: "Test Repository",
                 type: "git",
-                url: "not-a-valid-url"
+                uri: "not-a-valid-uri"
             },
             // Invalid type - should trigger 400
             invalid_type: {
                 name: "Valid Name",
-                url: "https://github.com/example/test.git",
+                uri: "https://github.com/example/test.git",
                 type: "invalid-type"
             },
             // Name too long (> 256 chars) - should trigger 400
             name_too_long: {
                 name: "x".repeat(257),
                 type: "git",
-                url: "https://github.com/example/test.git"
+                uri: "https://github.com/example/test.git"
             },
-            // URL too long (> 1024 chars) - should trigger 400
-            url_too_long: {
+            // URI too long (> 1000 chars) - should trigger 400
+            uri_too_long: {
                 name: "Valid Name",
                 type: "git",
-                url: "https://github.com/" + "x".repeat(1024)
+                uri: "https://github.com/" + "x".repeat(1000)
             },
             // Description too long (> 1024 chars) - should trigger 400
             description_too_long: {
                 name: "Valid Name",
                 type: "git",
-                url: "https://github.com/example/test.git",
+                uri: "https://github.com/example/test.git",
                 description: "x".repeat(1025)
             },
             // Invalid parameters - should trigger 400
             invalid_parameters: {
                 name: "Valid Name",
                 type: "git",
-                url: "https://github.com/example/test.git",
+                uri: "https://github.com/example/test.git",
                 parameters: {
                     refType: "invalid-ref",
                     refValue: "main"
@@ -586,9 +516,9 @@ class TMITestDataFactory {
             },
             // Missing required parameter fields - should trigger 400
             missing_param_fields: {
-                name: "Valid Name", 
+                name: "Valid Name",
                 type: "git",
-                url: "https://github.com/example/test.git",
+                uri: "https://github.com/example/test.git",
                 parameters: {
                     refType: "branch"
                     // missing refValue
@@ -598,22 +528,26 @@ class TMITestDataFactory {
             wrong_types: {
                 name: 123, // should be string
                 type: true, // should be string
-                url: [], // should be string
+                uri: [], // should be string
                 description: {} // should be string
             }
         };
     }
 
     generateSourceList(count = 5, options = {}) {
-        const sources = [];
+        return this.generateRepositoryList(count, options);
+    }
+
+    generateRepositoryList(count = 5, options = {}) {
+        const repositories = [];
         const types = ["git", "svn", "mercurial", "other"];
         const refTypes = ["branch", "tag", "commit"];
         for (let i = 0; i < count; i++) {
-            sources.push(this.validSource({
-                name: `Bulk Source ${i + 1} - ${this.testRunId}`,
+            repositories.push(this.validRepository({
+                name: `Bulk Repository ${i + 1} - ${this.testRunId}`,
                 type: this.randomChoice(types),
-                url: `https://github.com/example/bulk-${i + 1}-${this.testRunId}.git`,
-                description: `Generated source ${i + 1} for bulk operations testing`,
+                uri: `https://github.com/example/bulk-${i + 1}-${this.testRunId}.git`,
+                description: `Generated repository ${i + 1} for bulk operations testing`,
                 parameters: {
                     refType: this.randomChoice(refTypes),
                     refValue: i % 2 === 0 ? "main" : `v${i}.0`
@@ -621,7 +555,7 @@ class TMITestDataFactory {
                 ...options
             }));
         }
-        return sources;
+        return repositories;
     }
 
     // ========================================

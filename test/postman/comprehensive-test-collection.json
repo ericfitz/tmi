@@ -36,14 +36,14 @@
           "            name: options.name || 'Test Threat Model ' + this.testRunId,",
           "            description: options.description || 'A comprehensive threat model for testing purposes',",
           "            threat_model_framework: options.framework || 'STRIDE',",
-          "            issue_url: options.issueUrl || 'https://github.com/example/project/issues/123',",
+          "            issue_uri: options.issueUri || 'https://github.com/example/project/issues/123',",
           "            ...options.additional",
           "        };",
           "    }",
           "}",
           "`;",
           "    pm.globals.set('TMITestDataFactory', factoryCode);",
-          "    console.log('\u2705 TMITestDataFactory loaded into globals');",
+          "    console.log('✅ TMITestDataFactory loaded into globals');",
           "}"
         ]
       }
@@ -81,16 +81,16 @@
                   "            name: options.name || 'Test Threat Model ' + this.testRunId,",
                   "            description: options.description || 'A comprehensive threat model for testing purposes',",
                   "            threat_model_framework: options.framework || 'STRIDE',",
-                  "            issue_url: options.issueUrl || 'https://github.com/example/project/issues/123'",
+                  "            issue_uri: options.issueUri || 'https://github.com/example/project/issues/123'",
                   "        };",
                   "    }",
                   "}",
                   "const factory = new TMITestDataFactory();",
                   "pm.globals.set('testDataFactory', JSON.stringify(factory));",
-                  "console.log('\u2705 Test data factory loaded and instantiated');",
+                  "console.log('✅ Test data factory loaded and instantiated');",
                   "",
                   "// Setup authentication tokens from environment variables",
-                  "console.log('\ud83d\udd11 Setting up pre-authenticated user tokens...');",
+                  "console.log('🔑 Setting up pre-authenticated user tokens...');",
                   "",
                   "// Get tokens from environment variables (passed by run-tests.sh)",
                   "pm.collectionVariables.set('token_alice', pm.environment.get('token_alice'));",
@@ -102,7 +102,7 @@
                   "pm.collectionVariables.set('token_alice', pm.environment.get('token_alice'));",
                   "pm.collectionVariables.set('currentUser', 'alice');",
                   "",
-                  "console.log('\u2705 Authentication tokens configured for all users');"
+                  "console.log('✅ Authentication tokens configured for all users');"
                 ]
               }
             },
@@ -162,7 +162,7 @@
                   "const aliceToken = pm.collectionVariables.get('token_alice');",
                   "pm.collectionVariables.set('token_alice', aliceToken);",
                   "pm.collectionVariables.set('currentUser', 'alice');",
-                  "console.log('\ud83d\udd04 Switched to Alice (Owner)');"
+                  "console.log('🔄 Switched to Alice (Owner)');"
                 ]
               }
             },
@@ -222,7 +222,7 @@
                   "const bobToken = pm.collectionVariables.get('token_bob');",
                   "pm.collectionVariables.set('token_bob', bobToken);",
                   "pm.collectionVariables.set('currentUser', 'bob');",
-                  "console.log('\ud83d\udd04 Switched to Bob (Writer)');"
+                  "console.log('🔄 Switched to Bob (Writer)');"
                 ]
               }
             },
@@ -277,7 +277,7 @@
                   "const charlieToken = pm.collectionVariables.get('token_charlie');",
                   "pm.collectionVariables.set('token_charlie', charlieToken);",
                   "pm.collectionVariables.set('currentUser', 'charlie');",
-                  "console.log('\ud83d\udd04 Switched to Charlie (Reader)');"
+                  "console.log('🔄 Switched to Charlie (Reader)');"
                 ]
               }
             },
@@ -537,7 +537,7 @@
                   "            name: options.name || 'Test Threat Model ' + this.testRunId,",
                   "            description: options.description || 'A comprehensive threat model for testing purposes',",
                   "            threat_model_framework: options.framework || 'STRIDE',",
-                  "            issue_url: options.issueUrl || 'https://github.com/example/project/issues/123'",
+                  "            issue_uri: options.issueUri || 'https://github.com/example/project/issues/123'",
                   "        };",
                   "    }",
                   "}",
@@ -993,7 +993,7 @@
                   "            name: options.name || 'Test Threat Model ' + this.testRunId,",
                   "            description: options.description || 'A comprehensive threat model for testing purposes',",
                   "            threat_model_framework: options.framework || 'STRIDE',",
-                  "            issue_url: options.issueUrl || 'https://github.com/example/project/issues/123'",
+                  "            issue_uri: options.issueUri || 'https://github.com/example/project/issues/123'",
                   "        };",
                   "    }",
                   "}",
