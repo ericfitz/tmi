@@ -788,7 +788,7 @@ func createThreatModel(config Config, tokens *AuthTokens, participants []string)
 		// Convert hint to email format if needed
 		email := participant
 		if !strings.Contains(email, "@") {
-			email = fmt.Sprintf("%s@tmi", participant)
+			email = fmt.Sprintf("%s@tmi.local", participant)
 		}
 
 		// Randomly select permission

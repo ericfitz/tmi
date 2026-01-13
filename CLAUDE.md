@@ -697,13 +697,13 @@ The TMI OAuth provider supports **login_hints** for automation-friendly testing 
 **Examples**:
 
 ```bash
-# Create user 'alice@tmi' with name 'Alice (TMI User)'
+# Create user 'alice@tmi.local' with name 'Alice (TMI User)'
 curl "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=alice"
 
-# Create user 'qa-automation@tmi' with name 'Qa Automation (TMI User)'
+# Create user 'qa-automation@tmi.local' with name 'Qa Automation (TMI User)'
 curl "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=qa-automation"
 
-# Without login_hint - generates random user like 'testuser-12345678@tmi'
+# Without login_hint - generates random user like 'testuser-12345678@tmi.local'
 curl "http://localhost:8080/oauth2/authorize?idp=tmi"
 ````
 

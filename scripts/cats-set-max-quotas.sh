@@ -2,7 +2,7 @@
 # cats-set-max-quotas.sh
 # Sets maximum quotas and rate limits for CATS test user to prevent rate-limit errors
 #
-# This script sets all quotas to maximum values for the CATS test user (charlie@tmi)
+# This script sets all quotas to maximum values for the CATS test user (charlie@tmi.local)
 # to eliminate rate-limiting and quota-related errors during intensive fuzzing.
 #
 # Usage: ./scripts/cats-set-max-quotas.sh
@@ -18,7 +18,7 @@ DB_PASSWORD="${DB_PASSWORD:-tmi_dev}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-tmi-postgresql}"
 
 echo "🚀 Setting maximum quotas for CATS test user..."
-echo "   Target user: charlie@tmi (TMI provider)"
+echo "   Target user: charlie@tmi.local (TMI provider)"
 echo "   Database: ${DB_NAME} on ${DB_HOST}:${DB_PORT}"
 echo ""
 
@@ -35,7 +35,7 @@ DECLARE
     v_user_uuid UUID;
     v_quota_count INT;
 BEGIN
-    -- Get the internal UUID for charlie@tmi
+    -- Get the internal UUID for charlie@tmi.local
     SELECT internal_uuid INTO v_user_uuid
     FROM users
     WHERE provider_user_id = 'charlie'
@@ -43,7 +43,7 @@ BEGIN
     LIMIT 1;
 
     IF v_user_uuid IS NULL THEN
-        RAISE NOTICE 'CATS test user (charlie@tmi) not found in database.';
+        RAISE NOTICE 'CATS test user (charlie@tmi.local) not found in database.';
         RAISE NOTICE 'The user will be created during the first OAuth login.';
         RAISE NOTICE 'Run CATS fuzzing once, then run this script again.';
     ELSE
@@ -67,7 +67,7 @@ BEGIN
                 updated_at = NOW()
             WHERE user_internal_uuid = v_user_uuid;
 
-            RAISE NOTICE 'Updated quotas for charlie@tmi to maximum values';
+            RAISE NOTICE 'Updated quotas for charlie@tmi.local to maximum values';
         ELSE
             -- Insert maximum quotas
             INSERT INTO user_quotas (
@@ -96,7 +96,7 @@ BEGIN
                 NOW()
             );
 
-            RAISE NOTICE 'Created maximum quotas for charlie@tmi';
+            RAISE NOTICE 'Created maximum quotas for charlie@tmi.local';
         END IF;
 
         -- Display current quota settings
@@ -124,7 +124,7 @@ DECLARE
     v_user_uuid UUID;
     v_quota_count INT;
 BEGIN
-    -- Get the internal UUID for charlie@tmi
+    -- Get the internal UUID for charlie@tmi.local
     SELECT internal_uuid INTO v_user_uuid
     FROM users
     WHERE provider_user_id = 'charlie'
@@ -132,7 +132,7 @@ BEGIN
     LIMIT 1;
 
     IF v_user_uuid IS NULL THEN
-        RAISE NOTICE 'CATS test user (charlie@tmi) not found in database.';
+        RAISE NOTICE 'CATS test user (charlie@tmi.local) not found in database.';
         RAISE NOTICE 'The user will be created during the first OAuth login.';
         RAISE NOTICE 'Run CATS fuzzing once, then run this script again.';
     ELSE
@@ -156,7 +156,7 @@ BEGIN
                 updated_at = NOW()
             WHERE user_internal_uuid = v_user_uuid;
 
-            RAISE NOTICE 'Updated quotas for charlie@tmi to maximum values';
+            RAISE NOTICE 'Updated quotas for charlie@tmi.local to maximum values';
         ELSE
             -- Insert maximum quotas
             INSERT INTO user_quotas (
@@ -185,7 +185,7 @@ BEGIN
                 NOW()
             );
 
-            RAISE NOTICE 'Created maximum quotas for charlie@tmi';
+            RAISE NOTICE 'Created maximum quotas for charlie@tmi.local';
         END IF;
 
         -- Display current quota settings

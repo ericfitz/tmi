@@ -615,9 +615,9 @@ Test Provider Flow (Development Only):
 │   - PKCE validation for testing security flows              │
 │                                                              │
 │ Login Hint Support:                                          │
-│   - login_hint=alice → alice@tmi                       │
-│   - login_hint=bob → bob@tmi                           │
-│   - No hint → random testuser-{timestamp}@tmi          │
+│   - login_hint=alice → alice@tmi.local                       │
+│   - login_hint=bob → bob@tmi.local                           │
+│   - No hint → random testuser-{timestamp}@tmi.local          │
 │                                                              │
 │ Availability:                                                │
 │   - Development builds only                                 │

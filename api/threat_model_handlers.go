@@ -183,9 +183,12 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 // CreateThreatModel creates a new threat model
 func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	type CreateThreatModelRequest struct {
-		Name          string          `json:"name" binding:"required"`
-		Description   *string         `json:"description,omitempty"`
-		Authorization []Authorization `json:"authorization,omitempty"`
+		Name                 string          `json:"name" binding:"required"`
+		Description          *string         `json:"description,omitempty"`
+		ThreatModelFramework *string         `json:"threat_model_framework,omitempty"`
+		IssueUri             *string         `json:"issue_uri,omitempty"`
+		Metadata             *[]Metadata     `json:"metadata,omitempty"`
+		Authorization        []Authorization `json:"authorization,omitempty"`
 	}
 
 	// Parse and validate request body with prohibited field checking
@@ -258,16 +261,30 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Email:         openapi_types.Email(userEmail),
 	}
 
+	// Set metadata - use provided value or default to empty array
+	metadata := &[]Metadata{}
+	if request.Metadata != nil {
+		metadata = request.Metadata
+	}
+
+	// Set threat_model_framework - use provided value or default to empty string
+	var framework string
+	if request.ThreatModelFramework != nil {
+		framework = *request.ThreatModelFramework
+	}
+
 	tm := ThreatModel{
-		Name:          request.Name,
-		Description:   request.Description,
-		CreatedAt:     &now,
-		ModifiedAt:    &now,
-		Owner:         userObj,
-		CreatedBy:     &userObj,
-		Authorization: authorizations,
-		Metadata:      &[]Metadata{},
-		Threats:       &threatIDs,
+		Name:                 request.Name,
+		Description:          request.Description,
+		ThreatModelFramework: framework,
+		IssueUri:             request.IssueUri,
+		CreatedAt:            &now,
+		ModifiedAt:           &now,
+		Owner:                userObj,
+		CreatedBy:            &userObj,
+		Authorization:        authorizations,
+		Metadata:             metadata,
+		Threats:              &threatIDs,
 	}
 
 	// Add to store
@@ -330,13 +347,14 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 // UpdateThreatModel fully updates a threat model
 func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Define allowed fields for PUT requests - excludes calculated and read-only fields
+	// Per OpenAPI spec (ThreatModelInput), only 'name' is required
 	type UpdateThreatModelRequest struct {
 		Name                 string          `json:"name" binding:"required"`
 		Description          *string         `json:"description,omitempty"`
 		Owner                *string         `json:"owner,omitempty"` // Optional: if not provided, preserves existing owner
-		ThreatModelFramework string          `json:"threat_model_framework" binding:"required"`
+		ThreatModelFramework *string         `json:"threat_model_framework,omitempty"`
 		IssueUri             *string         `json:"issue_uri,omitempty"`
-		Authorization        []Authorization `json:"authorization" binding:"required"`
+		Authorization        []Authorization `json:"authorization,omitempty"`
 		Metadata             *[]Metadata     `json:"metadata,omitempty"`
 	}
 
@@ -360,19 +378,22 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		return
 	}
 
-	// Strip response-only fields from authorization entries before validation
-	request.Authorization = StripResponseOnlyAuthFields(request.Authorization)
+	// Only validate authorization if provided
+	if request.Authorization != nil {
+		// Strip response-only fields from authorization entries before validation
+		request.Authorization = StripResponseOnlyAuthFields(request.Authorization)
 
-	// Validate authorization entries with format checking
-	if err := ValidateAuthorizationEntriesWithFormat(request.Authorization); err != nil {
-		HandleRequestError(c, err)
-		return
-	}
+		// Validate authorization entries with format checking
+		if err := ValidateAuthorizationEntriesWithFormat(request.Authorization); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
 
-	// Validate authorization list for duplicates
-	if err := ValidateDuplicateSubjects(request.Authorization); err != nil {
-		HandleRequestError(c, err)
-		return
+		// Validate authorization list for duplicates
+		if err := ValidateDuplicateSubjects(request.Authorization); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
 	}
 
 	// Get existing threat model
@@ -402,16 +423,34 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		}
 	}
 
+	// Determine threat_model_framework: use provided value or preserve existing
+	framework := tm.ThreatModelFramework
+	if request.ThreatModelFramework != nil {
+		framework = *request.ThreatModelFramework
+	}
+
+	// Determine authorization: use provided value or preserve existing
+	authorization := tm.Authorization
+	if request.Authorization != nil {
+		authorization = request.Authorization
+	}
+
+	// Determine metadata: use provided value or preserve existing
+	metadata := tm.Metadata
+	if request.Metadata != nil {
+		metadata = request.Metadata
+	}
+
 	// Build full threat model from request
 	updatedTM := ThreatModel{
 		Id:                   &uuid,
 		Name:                 request.Name,
 		Description:          request.Description,
 		Owner:                owner,
-		ThreatModelFramework: request.ThreatModelFramework,
+		ThreatModelFramework: framework,
 		IssueUri:             request.IssueUri,
-		Authorization:        request.Authorization,
-		Metadata:             request.Metadata,
+		Authorization:        authorization,
+		Metadata:             metadata,
 		// Preserve server-controlled fields
 		CreatedAt:  tm.CreatedAt,
 		ModifiedAt: func() *time.Time { now := time.Now().UTC(); return &now }(),

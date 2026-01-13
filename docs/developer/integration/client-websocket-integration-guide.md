@@ -198,14 +198,14 @@ async function getActiveCollaborationSessions(jwtToken) {
 // [
 //   {
 //     "session_id": "053d62c1-8a5d-48db-8a0a-707cacceb6ab",
-//     "host": "testuser-25542959@tmi",
+//     "host": "testuser-25542959@tmi.local",
 //     "threat_model_id": "60fd469a-e3aa-4d04-9ed7-f3203162563d",
 //     "threat_model_name": "My Threat Model",
 //     "diagram_id": "422b993e-a0ff-416a-8a6b-5dff8b4d6eef",
 //     "diagram_name": "Main DFD",
 //     "participants": [
 //       {
-//         "user_id": "testuser-25542959@tmi",
+//         "user_id": "testuser-25542959@tmi.local",
 //         "joined_at": "2025-08-14T02:45:13.534Z",
 //         "permissions": "writer"
 //       }
@@ -336,19 +336,19 @@ class NoSessionError extends Error {
 // Success Response (201/200) - CollaborationSession object:
 // {
 // "session_id": "053d62c1-8a5d-48db-8a0a-707cacceb6ab",
-// "host": "testuser-25542959@tmi",
+// "host": "testuser-25542959@tmi.local",
 // "threat_model_id": "60fd469a-e3aa-4d04-9ed7-f3203162563d",
 // "threat_model_name": "My Threat Model",
 // "diagram_id": "422b993e-a0ff-416a-8a6b-5dff8b4d6eef",
 // "diagram_name": "Main DFD",
 // "participants": [
 // {
-// "user_id": "testuser-25542959@tmi", // Original session creator
+// "user_id": "testuser-25542959@tmi.local", // Original session creator
 // "joined_at": "2025-08-14T02:45:10.000Z",
 // "permissions": "writer"
 // },
 // {
-// "user_id": "testuser-20492675@tmi", // Current user (newly joined)
+// "user_id": "testuser-20492675@tmi.local", // Current user (newly joined)
 // "joined_at": "2025-08-14T02:45:13.534Z",
 // "permissions": "writer"
 // }

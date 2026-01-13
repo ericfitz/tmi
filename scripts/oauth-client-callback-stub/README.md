@@ -149,7 +149,7 @@ Retrieves saved credentials for a specific user ID from persistent storage.
 
 **Parameters:**
 
-- `userid` (required): User ID part before `@tmi` (e.g., `alice` for `alice@tmi`)
+- `userid` (required): User ID part before `@tmi.local` (e.g., `alice` for `alice@tmi.local`)
 - Must match regex: `^[a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9]$`
 
 **Responses:**
@@ -176,7 +176,7 @@ curl "http://localhost:8079/creds?userid=a"
 
 # User not found (404)
 curl "http://localhost:8079/creds?userid=nonexistent"
-{"error": "No credentials found for user: nonexistent@tmi"}
+{"error": "No credentials found for user: nonexistent@tmi.local"}
 ```
 
 **Authorization Code Flow Response:**
@@ -393,7 +393,7 @@ curl "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=alice&client_cal
 curl "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=bob&client_callback=http://localhost:8079/"
 curl "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=qa-automation&client_callback=http://localhost:8079/"
 
-# Results in users: alice@tmi, bob@tmi, qa-automation@tmi
+# Results in users: alice@tmi.local, bob@tmi.local, qa-automation@tmi.local
 # login_hint format: 3-20 characters, alphanumeric + hyphens, case-insensitive
 ```
 

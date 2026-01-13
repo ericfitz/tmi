@@ -751,12 +751,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Diana (no access user)",
-                  "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.authenticateUser('diana').then(() => {",
-                  "        tmiAuth.setActiveUser('diana');",
-                  "    });",
-                  "}"
+                  "// Using Diana token (no access user) via request auth"
                 ]
               }
             },
@@ -765,13 +760,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code is 403', function () {",
+                  "pm.test(\"Status code is 403\", function () {",
                   "    pm.response.to.have.status(403);",
                   "});",
                   "",
-                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "pm.test(\"Error indicates insufficient permissions\", function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal(\"forbidden\");",
                   "});"
                 ]
               }
@@ -779,13 +774,6 @@
           ],
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token_diana}}",
-                "type": "text"
-              }
-            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
               "host": [
@@ -796,7 +784,17 @@
                 "{{aliceThreatModelId}}"
               ]
             },
-            "description": "Try to get Alice's threat model as Diana (no access)"
+            "description": "Try to get Alice's threat model as Diana (no access)",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_diana}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -1002,7 +1000,7 @@
                   "const updatedThreatModel = factory.validThreatModel({",
                   "    name: `Updated Threat Model ${Date.now()}`,",
                   "    description: 'This threat model has been updated via PUT request',",
-                  "    framework: 'PASTA'",
+                  "    framework: 'LINDDUN'",
                   "});",
                   "",
                   "pm.collectionVariables.set('updatedThreatModelData', JSON.stringify(updatedThreatModel));"
@@ -1074,22 +1072,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Diana (unauthorized user)",
-                  "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('diana');",
-                  "}",
-                  "",
-                  "// Use same update data",
-                  "const updatedData = JSON.parse(pm.collectionVariables.get('updatedThreatModelData') || '{}');",
-                  "if (Object.keys(updatedData).length === 0) {",
-                  "    // Fallback data if not set",
-                  "    const fallbackData = {",
-                  "        name: 'Unauthorized Update Attempt',",
-                  "        description: 'This should be rejected',",
-                  "        threat_model_framework: 'STRIDE'",
-                  "    };",
-                  "    pm.collectionVariables.set('updatedThreatModelData', JSON.stringify(fallbackData));",
-                  "}"
+                  "// Using Diana token (no access user) via request auth"
                 ]
               }
             },
@@ -1098,13 +1081,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code is 403', function () {",
+                  "pm.test(\"Status code is 403\", function () {",
                   "    pm.response.to.have.status(403);",
                   "});",
                   "",
-                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "pm.test(\"Error indicates insufficient permissions\", function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('forbidden');",
+                  "    pm.expect(responseData.error).to.equal(\"forbidden\");",
                   "});"
                 ]
               }
@@ -1116,11 +1099,6 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token_diana}}",
-                "type": "text"
               }
             ],
             "body": {
@@ -1137,7 +1115,17 @@
                 "{{aliceThreatModelId}}"
               ]
             },
-            "description": "Try to update Alice's threat model as unauthorized user Diana"
+            "description": "Try to update Alice's threat model as unauthorized user Diana",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_diana}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -1298,21 +1286,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Diana (unauthorized user)",
-                  "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('diana');",
-                  "}",
-                  "",
-                  "// Simple patch operation",
-                  "const patchOps = [",
-                  "    {",
-                  "        op: 'replace',",
-                  "        path: '/description',",
-                  "        value: 'Unauthorized patch attempt'",
-                  "    }",
-                  "];",
-                  "",
-                  "pm.collectionVariables.set('forbiddenPatchOps', JSON.stringify(patchOps));"
+                  "// Using Diana token (no access user) via request auth",
+                  "// Set valid patch operations for the test",
+                  "pm.collectionVariables.set(\"forbiddenPatchOps\", JSON.stringify([{\"op\": \"replace\", \"path\": \"/name\", \"value\": \"Hacked Name\"}]));"
                 ]
               }
             },
@@ -1321,13 +1297,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code is 403', function () {",
+                  "pm.test(\"Status code is 403\", function () {",
                   "    pm.response.to.have.status(403);",
                   "});",
                   "",
-                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "pm.test(\"Error indicates insufficient permissions\", function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('forbidden');",
+                  "    pm.expect(responseData.error).to.equal(\"forbidden\");",
                   "});"
                 ]
               }
@@ -1339,11 +1315,6 @@
               {
                 "key": "Content-Type",
                 "value": "application/json-patch+json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token_diana}}",
-                "type": "text"
               }
             ],
             "body": {
@@ -1360,7 +1331,17 @@
                 "{{aliceThreatModelId}}"
               ]
             },
-            "description": "Try to patch Alice's threat model as unauthorized user Diana"
+            "description": "Try to patch Alice's threat model as unauthorized user Diana",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_diana}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -1445,10 +1426,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Diana (unauthorized user)",
-                  "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('diana');",
-                  "}"
+                  "// Using Diana token (no access user) via request auth"
                 ]
               }
             },
@@ -1457,13 +1435,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code is 403', function () {",
+                  "pm.test(\"Status code is 403\", function () {",
                   "    pm.response.to.have.status(403);",
                   "});",
                   "",
-                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "pm.test(\"Error indicates insufficient permissions\", function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('forbidden');",
+                  "    pm.expect(responseData.error).to.equal(\"forbidden\");",
                   "});"
                 ]
               }
@@ -1471,13 +1449,7 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token_diana}}",
-                "type": "text"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
               "host": [
@@ -1488,7 +1460,17 @@
                 "{{aliceThreatModelId}}"
               ]
             },
-            "description": "Try to delete Alice's threat model as unauthorized user Diana"
+            "description": "Try to delete Alice's threat model as unauthorized user Diana",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_diana}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {

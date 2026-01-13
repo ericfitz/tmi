@@ -89,7 +89,7 @@
                   "",
                   "// Generate authorization grant",
                   "const authGrant = {",
-                  "    subject: 'charlie@tmi',",
+                  "    subject: 'charlie@tmi.local',",
                   "    role: 'reader'",
                   "};",
                   "",

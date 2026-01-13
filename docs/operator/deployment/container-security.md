@@ -54,7 +54,7 @@ make containers-secure
 The project includes security-enhanced Dockerfiles:
 
 - **`Dockerfile.postgres.secure`** - PostgreSQL with security patches
-- **`Dockerfile.redis.secure`** - Redis with security patches  
+- **`Dockerfile.redis.secure`** - Redis with security patches
 - **`Dockerfile.dev.secure`** - Application with security hardening
 
 #### Security Improvements:
@@ -79,13 +79,13 @@ docker scout cves my-image:latest --format sarif --output security.sarif
 
 #### Makefile Targets
 
-| Target | Description |
-|--------|-------------|
-| `containers-security-scan` | Scan images for vulnerabilities |
-| `containers-security-report` | Generate comprehensive reports |
-| `containers-secure-build` | Build patched containers |
-| `containers-secure-dev` | Start development with secure containers |
-| `containers-secure` | Full security workflow |
+| Target                       | Description                              |
+| ---------------------------- | ---------------------------------------- |
+| `containers-security-scan`   | Scan images for vulnerabilities          |
+| `containers-security-report` | Generate comprehensive reports           |
+| `containers-secure-build`    | Build patched containers                 |
+| `containers-secure-dev`      | Start development with secure containers |
+| `containers-secure`          | Full security workflow                   |
 
 ### 3. CI/CD Integration
 
@@ -104,26 +104,28 @@ IMAGES_TO_SCAN="my-app:latest redis:7" ./scripts/ci-security-scan.sh
 
 #### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MAX_CRITICAL_CVES` | 0 | Maximum critical CVEs allowed |
-| `MAX_HIGH_CVES` | 3 | Maximum high CVEs allowed |
-| `MAX_MEDIUM_CVES` | 10 | Maximum medium CVEs allowed |
-| `FAIL_ON_CRITICAL` | true | Fail build on critical CVEs |
-| `FAIL_ON_HIGH` | false | Fail build on high CVEs |
-| `IMAGES_TO_SCAN` | (default set) | Images to scan |
-| `ARTIFACT_DIR` | ./security-artifacts | Output directory |
+| Variable            | Default              | Description                   |
+| ------------------- | -------------------- | ----------------------------- |
+| `MAX_CRITICAL_CVES` | 0                    | Maximum critical CVEs allowed |
+| `MAX_HIGH_CVES`     | 3                    | Maximum high CVEs allowed     |
+| `MAX_MEDIUM_CVES`   | 10                   | Maximum medium CVEs allowed   |
+| `FAIL_ON_CRITICAL`  | true                 | Fail build on critical CVEs   |
+| `FAIL_ON_HIGH`      | false                | Fail build on high CVEs       |
+| `IMAGES_TO_SCAN`    | (default set)        | Images to scan                |
+| `ARTIFACT_DIR`      | ./security-artifacts | Output directory              |
 
 ### 4. Security Reports
 
 #### Report Types
 
 1. **Summary Report** (`security-summary.md`)
+
    - High-level vulnerability counts
    - Pass/fail status by image
    - Remediation recommendations
 
 2. **Detailed Scan Results** (`security-scan-results.json`)
+
    - Complete vulnerability details
    - CVSS scores and vectors
    - Affected packages and versions
@@ -143,11 +145,11 @@ IMAGES_TO_SCAN="my-app:latest redis:7" ./scripts/ci-security-scan.sh
 
 ## Vulnerability Summary
 
-| Image | Critical | High | Status |
-|-------|----------|------|--------|
-| postgresql | 0 | 2 | ✅ Good |
-| redis | 0 | 1 | ✅ Good |
-| application | 0 | 0 | ✅ Good |
+| Image       | Critical | High | Status  |
+| ----------- | -------- | ---- | ------- |
+| postgresql  | 0        | 2    | ✅ Good |
+| redis       | 0        | 1    | ✅ Good |
+| application | 0        | 0    | ✅ Good |
 
 ## Recommendations
 
@@ -180,25 +182,28 @@ MAX_HIGH_CVES=10 FAIL_ON_HIGH=false make containers-security-scan
 ### Development Workflow
 
 1. **Daily Development**
+
    ```bash
    # Start secure development environment
    make containers-secure-dev
    ```
 
 2. **Before Committing**
+
    ```bash
    # Run security checks
    make containers-security-report
-   
+
    # Review security summary
    cat security-reports/security-summary.md
    ```
 
 3. **Weekly Security Review**
+
    ```bash
    # Build updated secure containers
    make containers-secure-build
-   
+
    # Compare vulnerability trends
    diff security-reports/security-summary.md.old security-reports/security-summary.md
    ```
@@ -216,21 +221,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Install Docker Scout
         run: |
           curl -sSfL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
-          
+
       - name: Run Security Scan
         run: |
           ./scripts/ci-security-scan.sh
-          
+
       - name: Upload Security Reports
         uses: actions/upload-artifact@v3
         with:
           name: security-reports
           path: security-artifacts/
-          
+
       - name: Comment PR with Security Results
         if: github.event_name == 'pull_request'
         run: |
@@ -258,12 +263,14 @@ container-security:
 ### Production Deployment
 
 1. **Pre-deployment Validation**
+
    ```bash
    # Ensure all containers pass security scan
    MAX_CRITICAL_CVES=0 MAX_HIGH_CVES=2 ./scripts/ci-security-scan.sh
    ```
 
 2. **Secure Container Deployment**
+
    ```bash
    # Use secure container images
    docker run tmi/tmi-postgresql:latest
@@ -358,6 +365,7 @@ tail -f security-artifacts/security-summary.md
 ### 4. Incident Response
 
 1. **High/Critical Vulnerabilities Detected**
+
    - Immediately rebuild affected containers
    - Test patched versions in development
    - Schedule maintenance window for production updates
@@ -382,5 +390,5 @@ tail -f security-artifacts/security-summary.md
 
 ---
 
-*Last Updated: September 2025*
-*Version: 1.0*
+_Last Updated: September 2025_
+_Version: 1.0_

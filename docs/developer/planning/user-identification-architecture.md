@@ -104,7 +104,7 @@ The system needs to track FOUR distinct user identifiers:
 
    - Purpose: External user identification from identity provider
    - Used in: JWT `sub` claim, API responses (as `id` field)
-   - Examples: "alice@tmi", "108234567890123456789" (Google)
+   - Examples: "alice@tmi.local", "108234567890123456789" (Google)
    - Unique per provider (not globally unique)
 
 4. **Email** (`string`) - User's email address

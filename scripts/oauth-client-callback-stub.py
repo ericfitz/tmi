@@ -87,7 +87,7 @@ class PKCEHelper:
         # Generate 32 random bytes
         verifier_bytes = secrets.token_bytes(32)
         # Encode as base64url without padding
-        verifier = base64.urlsafe_b64encode(verifier_bytes).decode('utf-8').rstrip('=')
+        verifier = base64.urlsafe_b64encode(verifier_bytes).decode("utf-8").rstrip("=")
         return verifier
 
     @staticmethod
@@ -102,9 +102,9 @@ class PKCEHelper:
             base64url(SHA256(verifier)) without padding
         """
         # Compute SHA-256 hash of the verifier
-        digest = hashlib.sha256(verifier.encode('utf-8')).digest()
+        digest = hashlib.sha256(verifier.encode("utf-8")).digest()
         # Encode as base64url without padding
-        challenge = base64.urlsafe_b64encode(digest).decode('utf-8').rstrip('=')
+        challenge = base64.urlsafe_b64encode(digest).decode("utf-8").rstrip("=")
         return challenge
 
 
@@ -113,7 +113,9 @@ def generate_state():
     return secrets.token_urlsafe(32)
 
 
-def build_authorization_url(idp, state, code_challenge, scopes, login_hint=None, tmi_server=None):
+def build_authorization_url(
+    idp, state, code_challenge, scopes, login_hint=None, tmi_server=None
+):
     """
     Build TMI OAuth authorization URL with all required parameters.
 
@@ -147,8 +149,16 @@ def build_authorization_url(idp, state, code_challenge, scopes, login_hint=None,
     return f"{tmi_server}/oauth2/authorize?{query_string}"
 
 
-def create_flow(userid=None, idp=None, scopes=None, state=None, code_verifier=None,
-                code_challenge=None, login_hint=None, tmi_server=None):
+def create_flow(
+    userid=None,
+    idp=None,
+    scopes=None,
+    state=None,
+    code_verifier=None,
+    code_challenge=None,
+    login_hint=None,
+    tmi_server=None,
+):
     """
     Create a new OAuth flow with generated or caller-provided parameters.
 
@@ -191,7 +201,7 @@ def create_flow(userid=None, idp=None, scopes=None, state=None, code_verifier=No
         code_challenge=code_challenge,
         scopes=scopes,
         login_hint=login_hint or userid,
-        tmi_server=tmi_server
+        tmi_server=tmi_server,
     )
 
     # Store PKCE verifier for token exchange
@@ -217,7 +227,9 @@ def create_flow(userid=None, idp=None, scopes=None, state=None, code_verifier=No
 
     oauth_flows[flow_id] = flow_data
 
-    logger.info(f"Created OAuth flow {flow_id} for user {userid or 'anonymous'} with provider {idp}")
+    logger.info(
+        f"Created OAuth flow {flow_id} for user {userid or 'anonymous'} with provider {idp}"
+    )
 
     return flow_data
 
@@ -243,18 +255,22 @@ def refresh_token(refresh_token_value, userid=None, idp=None, tmi_server=None):
     token_url = f"{tmi_server}/oauth2/refresh?idp={idp}"
 
     try:
-        logger.info(f"Refreshing token for user {userid or 'anonymous'} with provider {idp}")
+        logger.info(
+            f"Refreshing token for user {userid or 'anonymous'} with provider {idp}"
+        )
 
         response = requests.post(
             token_url,
             json={"refresh_token": refresh_token_value},
             headers={"Content-Type": "application/json"},
-            timeout=10
+            timeout=10,
         )
 
         if response.status_code == 200:
             token_data = response.json()
-            logger.info(f"Successfully refreshed token for user {userid or 'anonymous'}")
+            logger.info(
+                f"Successfully refreshed token for user {userid or 'anonymous'}"
+            )
             return {
                 "success": True,
                 "access_token": token_data.get("access_token"),
@@ -263,7 +279,9 @@ def refresh_token(refresh_token_value, userid=None, idp=None, tmi_server=None):
                 "expires_in": token_data.get("expires_in", 3600),
             }
         else:
-            error_msg = f"Token refresh failed: {response.status_code} - {response.text}"
+            error_msg = (
+                f"Token refresh failed: {response.status_code} - {response.text}"
+            )
             logger.error(error_msg)
             return {
                 "success": False,
@@ -371,7 +389,9 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
 
                 # Check if code is 'exit' to trigger graceful shutdown BEFORE any processing
                 if code == "exit":
-                    logger.info("Received 'exit' in code parameter, shutting down gracefully...")
+                    logger.info(
+                        "Received 'exit' in code parameter, shutting down gracefully..."
+                    )
 
                     # Send simple response
                     response_body = b"OAuth stub shutting down..."
@@ -398,29 +418,27 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 # TMI only supports Authorization Code Flow with PKCE
                 if code:
                     flow_type = "authorization_code"
-                    logger.info(
-                        "  FLOW TYPE: Authorization Code Flow with PKCE"
-                    )
-                    
+                    logger.info("  FLOW TYPE: Authorization Code Flow with PKCE")
+
                     # For authorization code flow, generate access tokens for testing
                     # Extract user info from login_hint or create a default user from the authorization code
                     user_id = None
                     login_hint_user = None
-                    
+
                     if login_hint and login_hint not in ["exit"]:
                         # Validate login_hint format
                         if re.match(r"^[a-zA-Z0-9-]{3,20}$", login_hint):
-                            user_id = f"{login_hint}@tmi"
+                            user_id = f"{login_hint}@tmi.local"
                             login_hint_user = login_hint
-                    
+
                     # If no login_hint, use default user for testing
                     if not user_id and code:
                         # For API testing, use postman-user as the default user ID
                         # This ensures consistency with test collection expectations
                         login_hint_user = "postman-user"
-                        user_id = f"{login_hint_user}@tmi"
+                        user_id = f"{login_hint_user}@tmi.local"
                         logger.info(f"  Using default test user ID: {user_id}")
-                    
+
                     # If we have a valid user_id, exchange the code for real tokens using TMI server
                     if user_id and login_hint_user and code:
                         # Use TMI server's token exchange endpoint to get real tokens with PKCE
@@ -428,14 +446,22 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                             # Retrieve code_verifier for this state (required for PKCE)
                             code_verifier = pkce_verifiers.get(state)
                             if not code_verifier:
-                                logger.error(f"  PKCE verifier not found for state {state} - cannot exchange code without verifier")
-                                logger.error(f"  This likely means the OAuth flow was not initiated through this stub")
-                                logger.error(f"  Available states: {list(pkce_verifiers.keys())}")
+                                logger.error(
+                                    f"  PKCE verifier not found for state {state} - cannot exchange code without verifier"
+                                )
+                                logger.error(
+                                    f"  This likely means the OAuth flow was not initiated through this stub"
+                                )
+                                logger.error(
+                                    f"  Available states: {list(pkce_verifiers.keys())}"
+                                )
                                 # Update flow with error if this belongs to a tracked flow
                                 for fid, fdata in oauth_flows.items():
                                     if fdata.get("state") == state:
                                         oauth_flows[fid]["status"] = "error"
-                                        oauth_flows[fid]["error"] = "PKCE verifier not found - flow was not initiated through this stub"
+                                        oauth_flows[fid]["error"] = (
+                                            "PKCE verifier not found - flow was not initiated through this stub"
+                                        )
                                         oauth_flows[fid]["authorization_code"] = code
                                         break
                                 # Skip token exchange - just store the code
@@ -450,31 +476,43 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                     "grant_type": "authorization_code",
                                     "code": code,
                                     "code_verifier": code_verifier,
-                                    "redirect_uri": "http://localhost:8079/"
+                                    "redirect_uri": "http://localhost:8079/",
                                 }
 
-                                logger.info(f"  Exchanging authorization code for real tokens via TMI server (PKCE)...")
+                                logger.info(
+                                    f"  Exchanging authorization code for real tokens via TMI server (PKCE)..."
+                                )
                                 logger.info(f"    Token URL: {token_url}")
                                 logger.info(f"    Code: {code}")
-                                logger.info(f"    Code Verifier: {code_verifier[:20]}... (length: {len(code_verifier)})")
+                                logger.info(
+                                    f"    Code Verifier: {code_verifier[:20]}... (length: {len(code_verifier)})"
+                                )
 
                                 # Make the token exchange request to TMI server
                                 response = requests.post(
                                     token_url,
                                     json=token_data,
                                     headers={"Content-Type": "application/json"},
-                                    timeout=10
+                                    timeout=10,
                                 )
 
                                 if response.status_code == 200:
                                     token_response = response.json()
                                     access_token = token_response.get("access_token")
                                     refresh_token = token_response.get("refresh_token")
-                                    token_type = token_response.get("token_type", "Bearer")
-                                    expires_in = str(token_response.get("expires_in", 3600))
+                                    token_type = token_response.get(
+                                        "token_type", "Bearer"
+                                    )
+                                    expires_in = str(
+                                        token_response.get("expires_in", 3600)
+                                    )
 
-                                    logger.info(f"  Successfully exchanged code for real tokens:")
-                                    logger.info(f"    Access Token: {access_token[:50] if access_token else 'None'}...")
+                                    logger.info(
+                                        f"  Successfully exchanged code for real tokens:"
+                                    )
+                                    logger.info(
+                                        f"    Access Token: {access_token[:50] if access_token else 'None'}..."
+                                    )
                                     logger.info(f"    Refresh Token: {refresh_token}")
                                     logger.info(f"    Token Type: {token_type}")
                                     logger.info(f"    Expires In: {expires_in}s")
@@ -487,14 +525,22 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                                 "access_token": access_token,
                                                 "refresh_token": refresh_token,
                                                 "token_type": token_type,
-                                                "expires_in": int(expires_in) if expires_in else 3600,
+                                                "expires_in": int(expires_in)
+                                                if expires_in
+                                                else 3600,
                                             }
-                                            oauth_flows[fid]["error"] = None  # Clear any timeout errors
-                                            logger.info(f"  Updated flow {fid} with tokens")
+                                            oauth_flows[fid]["error"] = (
+                                                None  # Clear any timeout errors
+                                            )
+                                            logger.info(
+                                                f"  Updated flow {fid} with tokens"
+                                            )
                                             break
 
                                 else:
-                                    logger.error(f"  Token exchange failed: {response.status_code} - {response.text}")
+                                    logger.error(
+                                        f"  Token exchange failed: {response.status_code} - {response.text}"
+                                    )
                                     # Fall back to storing just the code for client to handle
                                     access_token = None
                                     refresh_token = None
@@ -505,13 +551,21 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                     for fid, fdata in oauth_flows.items():
                                         if fdata.get("state") == state:
                                             oauth_flows[fid]["status"] = "error"
-                                            oauth_flows[fid]["error"] = f"Token exchange failed: {response.status_code}"
-                                            oauth_flows[fid]["authorization_code"] = code
-                                            logger.info(f"  Updated flow {fid} with error")
+                                            oauth_flows[fid]["error"] = (
+                                                f"Token exchange failed: {response.status_code}"
+                                            )
+                                            oauth_flows[fid]["authorization_code"] = (
+                                                code
+                                            )
+                                            logger.info(
+                                                f"  Updated flow {fid} with error"
+                                            )
                                             break
-                                
+
                         except Exception as e:
-                            logger.error(f"  Failed to exchange authorization code: {e}")
+                            logger.error(
+                                f"  Failed to exchange authorization code: {e}"
+                            )
                             # Fall back to storing just the code for client to handle
                             access_token = None
                             refresh_token = None
@@ -547,7 +601,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                             if access_token:
                                 # Save the final exchanged tokens
                                 credentials_to_save = {
-                                    "flow_type": "authorization_code", 
+                                    "flow_type": "authorization_code",
                                     "state": state,
                                     "access_token": access_token,
                                     "refresh_token": refresh_token,
@@ -579,7 +633,9 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 logger.info(f"  Flow Type: {flow_type}")
 
                 # Send simple response - authorization code flow always uses query params
-                response_body = b"OAuth callback received. Check server logs for details."
+                response_body = (
+                    b"OAuth callback received. Check server logs for details."
+                )
                 self.send_response(200)
                 self.send_header("Content-type", "text/plain")
                 self.end_headers()
@@ -648,7 +704,9 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     self.end_headers()
                     error_response = {"error": error_msg}
                     self.wfile.write(json.dumps(error_response).encode())
-                    logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 404 "{error_msg}"')
+                    logger.info(
+                        f'API request: {client_ip} {method} {self.path} {http_version} 404 "{error_msg}"'
+                    )
                     return
 
                 # Build response based on flow status
@@ -671,7 +729,9 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
 
                 # Include authorization code if present (for debugging)
                 if flow_data.get("authorization_code"):
-                    response_data["authorization_code"] = flow_data["authorization_code"]
+                    response_data["authorization_code"] = flow_data[
+                        "authorization_code"
+                    ]
 
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")
@@ -713,7 +773,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     return
 
                 # Form complete user ID
-                complete_user_id = f"{userid_part}@tmi"
+                complete_user_id = f"{userid_part}@tmi.local"
                 logger.info(f"Looking up credentials for user: {complete_user_id}")
 
                 # Read credentials file
@@ -807,8 +867,12 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
             logger.info(f"  Path: {path}")
 
             # Read request body
-            content_length = int(self.headers.get('Content-Length', 0))
-            request_body = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else "{}"
+            content_length = int(self.headers.get("Content-Length", 0))
+            request_body = (
+                self.rfile.read(content_length).decode("utf-8")
+                if content_length > 0
+                else "{}"
+            )
 
             try:
                 request_data = json.loads(request_body) if request_body else {}
@@ -844,7 +908,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     code_verifier=code_verifier,
                     code_challenge=code_challenge,
                     login_hint=login_hint,
-                    tmi_server=tmi_server
+                    tmi_server=tmi_server,
                 )
 
                 # Return initialization data (exclude sensitive verifier)
@@ -886,10 +950,12 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     refresh_token_value=refresh_token_value,
                     userid=userid,
                     idp=idp,
-                    tmi_server=tmi_server
+                    tmi_server=tmi_server,
                 )
 
-                status_code = 200 if result.get("success") else result.get("status_code", 500)
+                status_code = (
+                    200 if result.get("success") else result.get("status_code", 500)
+                )
                 self.send_response(status_code)
                 self.send_header("Content-type", "application/json")
                 self.end_headers()
@@ -913,7 +979,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     idp=idp,
                     scopes=scopes,
                     login_hint=login_hint,
-                    tmi_server=tmi_server
+                    tmi_server=tmi_server,
                 )
 
                 flow_id = flow_data["flow_id"]
@@ -921,17 +987,25 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 # Initiate authorization by fetching the authorization URL
                 # This simulates the user clicking the authorization link
                 try:
-                    auth_response = requests.get(flow_data["authorization_url"], allow_redirects=True, timeout=10)
+                    auth_response = requests.get(
+                        flow_data["authorization_url"], allow_redirects=True, timeout=10
+                    )
 
                     if auth_response.status_code == 200:
                         # Authorization succeeded - the callback should have been triggered
                         # Update flow status
                         oauth_flows[flow_id]["status"] = "authorization_completed"
-                        logger.info(f"Flow {flow_id}: Authorization completed successfully")
+                        logger.info(
+                            f"Flow {flow_id}: Authorization completed successfully"
+                        )
                     else:
                         oauth_flows[flow_id]["status"] = "error"
-                        oauth_flows[flow_id]["error"] = f"Authorization failed: {auth_response.status_code}"
-                        logger.error(f"Flow {flow_id}: Authorization failed with status {auth_response.status_code}")
+                        oauth_flows[flow_id]["error"] = (
+                            f"Authorization failed: {auth_response.status_code}"
+                        )
+                        logger.error(
+                            f"Flow {flow_id}: Authorization failed with status {auth_response.status_code}"
+                        )
 
                 except Exception as e:
                     oauth_flows[flow_id]["status"] = "error"
@@ -965,7 +1039,9 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
                 error_response = {"error": error_msg}
                 self.wfile.write(json.dumps(error_response).encode())
-                logger.info(f'API request: {client_ip} {method} {self.path} {http_version} 404 "{error_msg}"')
+                logger.info(
+                    f'API request: {client_ip} {method} {self.path} {http_version} 404 "{error_msg}"'
+                )
 
         except Exception as e:
             error_msg = f"Server error: {str(e)}"
@@ -983,6 +1059,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
 
 class ReusableTCPServer(socketserver.TCPServer):
     """TCPServer with SO_REUSEADDR to allow quick restarts."""
+
     allow_reuse_address = True
 
 
@@ -1045,7 +1122,7 @@ def extract_user_id_from_credentials(credentials):
     if state:
         # Look for email patterns in state - TMI includes login_hint in state
         email_match = re.search(
-            r"([a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9])@tmi\.local", state
+            r"([a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9])@tmi.local\.local", state
         )
         if email_match:
             return email_match.group(0)  # Return full email
@@ -1057,7 +1134,7 @@ def extract_user_id_from_credentials(credentials):
             state_data = json.loads(decoded_state)
             login_hint = state_data.get("login_hint")
             if login_hint and validate_userid_parameter(login_hint):
-                return f"{login_hint}@tmi"
+                return f"{login_hint}@tmi.local"
         except:
             pass  # Not JSON or base64, continue with other methods
 
@@ -1077,7 +1154,7 @@ def extract_user_id_from_credentials(credentials):
 
                 # Look for email claim
                 email = payload.get("email")
-                if email and email.endswith("@tmi"):
+                if email and email.endswith("@tmi.local"):
                     return email
         except:
             pass  # JWT decoding failed, continue
@@ -1172,15 +1249,15 @@ def daemonize(pid_file):
     # Redirect standard file descriptors to /dev/null
     sys.stdout.flush()
     sys.stderr.flush()
-    with open('/dev/null', 'r') as devnull:
+    with open("/dev/null", "r") as devnull:
         os.dup2(devnull.fileno(), sys.stdin.fileno())
-    with open('/dev/null', 'a+') as devnull:
+    with open("/dev/null", "a+") as devnull:
         os.dup2(devnull.fileno(), sys.stdout.fileno())
         os.dup2(devnull.fileno(), sys.stderr.fileno())
 
     # Write PID file
     if abs_pid_file:
-        with open(abs_pid_file, 'w') as f:
+        with open(abs_pid_file, "w") as f:
             f.write(str(os.getpid()))
 
 

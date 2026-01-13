@@ -330,9 +330,9 @@ async function loginWithTestProvider(userHint = null) {
 }
 
 // Examples:
-// await loginWithTestProvider('alice');     // Creates alice@tmi
-// await loginWithTestProvider('qa-user');   // Creates qa-user@tmi
-// await loginWithTestProvider();            // Creates random testuser-12345678@tmi
+// await loginWithTestProvider('alice');     // Creates alice@tmi.local
+// await loginWithTestProvider('qa-user');   // Creates qa-user@tmi.local
+// await loginWithTestProvider();            // Creates random testuser-12345678@tmi.local
 ```
 
 ### Step 2: TMI Handles OAuth

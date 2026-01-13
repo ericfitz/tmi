@@ -655,7 +655,7 @@ func TestAccessCheck(t *testing.T) {
 		Provider:      "test",
 		ProviderId:    "owner1",
 		DisplayName:   "Owner One",
-		Email:         "owner1@tmi",
+		Email:         "owner1@tmi.local",
 	}
 
 	tests := []struct {
@@ -918,7 +918,7 @@ func TestExtractAuthData(t *testing.T) {
 		Provider:      "test",
 		ProviderId:    "testowner",
 		DisplayName:   "Test Owner",
-		Email:         openapi_types.Email("testowner@tmi"),
+		Email:         openapi_types.Email("testowner@tmi.local"),
 	}
 
 	// Save original test fixtures
@@ -1013,7 +1013,7 @@ func TestCheckResourceAccess(t *testing.T) {
 		Provider:      "test",
 		ProviderId:    "owner1",
 		DisplayName:   "Owner One",
-		Email:         "owner1@tmi",
+		Email:         "owner1@tmi.local",
 	}
 
 	// Save original test fixtures
@@ -1278,7 +1278,7 @@ func TestPermissionResolution(t *testing.T) {
 				Provider:      "test",
 				ProviderId:    tt.owner,
 				DisplayName:   tt.owner,
-				Email:         openapi_types.Email(tt.owner + "@tmi"),
+				Email:         openapi_types.Email(tt.owner + "@tmi.local"),
 			}
 
 			authData := AuthorizationData{

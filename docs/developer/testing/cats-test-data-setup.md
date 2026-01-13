@@ -55,7 +55,7 @@ client_credentials (independent root)
 
 ### Phase 1: Authentication (Already Implemented)
 
-✅ **Current:** `cats-prepare-database.sh` creates admin user (charlie@tmi)
+✅ **Current:** `cats-prepare-database.sh` creates admin user (charlie@tmi.local)
 
 ```bash
 # Already implemented
@@ -68,7 +68,7 @@ Create a new script: `scripts/cats-create-test-data.sh`
 
 This script should:
 
-1. **Authenticate** as charlie@tmi
+1. **Authenticate** as charlie@tmi.local
 2. **Create one of each object type** with stable, known IDs
 3. **Store IDs** in a reference file for CATS to use
 4. **Verify creation** before proceeding
@@ -82,7 +82,7 @@ This script should:
   "user": {
     "provider_user_id": "charlie",
     "provider": "test",
-    "email": "charlie@tmi"
+    "email": "charlie@tmi.local"
   },
   "objects": {
     "threat_model": {

@@ -12,7 +12,7 @@ Certain REST APIs are dependent on other APIs having been called previously, suc
 
 - Collection has pre-request script that triggers OAuth and retrieves tokens
 - Use IPv4 (127.0.0.1) not localhost to avoid IPv6 issues with newman
-- OAuth stub saves tokens by user: `GET /creds?userid=alice` returns tokens for alice@tmi
+- OAuth stub saves tokens by user: `GET /creds?userid=alice` returns tokens for alice@tmi.local
 
 ## Variables Required
 
