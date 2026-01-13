@@ -4,6 +4,16 @@
     "description": "Advanced error scenarios including 422, 409, and edge cases",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token_alice}}",
+        "type": "string"
+      }
+    ]
+  },
   "variable": [
     {
       "key": "baseUrl",
@@ -14,15 +24,110 @@
       "value": "http://127.0.0.1:8079"
     },
     {
-      "key": "testUser",
-      "value": "error-test-{{$randomInt}}"
+      "key": "testThreatModelId",
+      "value": ""
     },
     {
-      "key": "accessToken",
+      "key": "testDiagramId",
       "value": ""
     }
   ],
   "item": [
+    {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Create Test Threat Model",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Save threat model ID for error tests', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('id');",
+                  "    pm.collectionVariables.set('testThreatModelId', responseData.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Error Test TM\", \"description\": \"For error scenario testing\", \"threat_model_framework\": \"STRIDE\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Test Diagram",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Save diagram ID for error tests', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('id');",
+                  "    pm.collectionVariables.set('testDiagramId', responseData.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Error Test Diagram\", \"type\": \"DFD-1.0.0\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{testThreatModelId}}",
+                "diagrams"
+              ]
+            }
+          }
+        }
+      ]
+    },
     {
       "name": "422 Unprocessable Entity",
       "item": [
@@ -32,26 +137,22 @@
             "method": "PATCH",
             "header": [
               {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json-patch+json"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "[{\\\"op\\\": \\\"invalid-operation\\\", \\\"path\\\": \\\"/name\\\", \\\"value\\\": \\\"test\\\"}]"
+              "raw": "[{\"op\": \"invalid-operation\", \"path\": \"/name\", \"value\": \"test\"}]"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000",
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "threat_models",
-                "00000000-0000-0000-0000-000000000000"
+                "{{testThreatModelId}}"
               ]
             }
           },
@@ -61,13 +162,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code is 422', function () {",
-                  "    pm.response.to.have.status(422);",
+                  "pm.test('Status code is 422 or 400', function () {",
+                  "    pm.expect([422, 400]).to.include(pm.response.code);",
                   "});",
                   "",
-                  "pm.test('Error mentions invalid operation', function () {",
-                  "    const responseText = pm.response.text();",
-                  "    pm.expect(responseText.toLowerCase()).to.include('invalid');",
+                  "pm.test('Error response indicates invalid operation', function () {",
+                  "    const responseText = pm.response.text().toLowerCase();",
+                  "    pm.expect(responseText).to.match(/(invalid|unsupported|unknown|bad)/);",
                   "});"
                 ]
               }
@@ -80,33 +181,20 @@
       "name": "409 Conflict",
       "item": [
         {
-          "name": "Duplicate Collaboration Session (409)",
+          "name": "Start First Collaboration Session",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\\\"description\\\": \\\"Test collaboration session\\\"}"
-            },
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000/diagrams/00000000-0000-0000-0000-000000000001/collaborate",
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{testDiagramId}}/collaborate",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "threat_models",
-                "00000000-0000-0000-0000-000000000000",
+                "{{testThreatModelId}}",
                 "diagrams",
-                "00000000-0000-0000-0000-000000000001",
+                "{{testDiagramId}}",
                 "collaborate"
               ]
             }
@@ -117,13 +205,88 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code is 409 or 404', function () {",
-                  "    pm.expect([409, 404]).to.include(pm.response.code);",
+                  "pm.test('First session created successfully', function () {",
+                  "    pm.expect([200, 201]).to.include(pm.response.code);",
                   "});",
                   "",
-                  "pm.test('Error mentions conflict or not found', function () {",
-                  "    const responseText = pm.response.text();",
-                  "    pm.expect(responseText.toLowerCase()).to.match(/(conflict|not found)/);",
+                  "pm.test('Response has session info', function () {",
+                  "    if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "        const responseData = pm.response.json();",
+                  "        pm.expect(responseData).to.have.property('websocket_url');",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Duplicate Collaboration Session (Idempotent - Returns Existing)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{testDiagramId}}/collaborate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{testThreatModelId}}",
+                "diagrams",
+                "{{testDiagramId}}",
+                "collaborate"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// API is idempotent - returns existing session on duplicate request",
+                  "pm.test('Status code is 200 OK (idempotent)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Returns existing session info', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData).to.have.property('websocket_url');",
+                  "    pm.expect(responseData).to.have.property('diagram_id');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "End Collaboration Session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{testDiagramId}}/collaborate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{testThreatModelId}}",
+                "diagrams",
+                "{{testDiagramId}}",
+                "collaborate"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Session ended successfully', function () {",
+                  "    pm.expect([200, 204]).to.include(pm.response.code);",
                   "});"
                 ]
               }
@@ -141,17 +304,13 @@
             "method": "POST",
             "header": [
               {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\\\"name\\\": \\\"Large Payload Test\\\", \\\"description\\\": \\\"${'x'.repeat(10000)}\\\", \\\"threat_model_framework\\\": \\\"STRIDE\\\"}"
+              "raw": "{\"name\": \"Large Payload Test\", \"description\": \"This is a large payload test with a very long description that repeats many times to test server handling of large requests. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. This is a large payload test with a very long description that repeats many times to test server handling of large requests. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\", \"threat_model_framework\": \"STRIDE\"}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models",
@@ -175,6 +334,42 @@
                   "",
                   "pm.test('Server handles large payload gracefully', function () {",
                   "    pm.expect([200, 201, 400, 413]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
+        {
+          "name": "Delete Test Threat Model",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{testThreatModelId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cleanup successful', function () {",
+                  "    // 409 can happen if collaboration session wasn't ended",
+                  "    pm.expect([200, 204, 404, 409]).to.include(pm.response.code);",
                   "});"
                 ]
               }

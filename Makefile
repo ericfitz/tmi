@@ -558,22 +558,8 @@ test-api-collection:
 		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: npm install -g newman newman-reporter-htmlextra"; \
 		exit 1; \
 	fi
-	@$(MAKE) -f $(MAKEFILE_LIST) start-oauth-stub
-	@# Authenticate test users
-	@echo -e "$(BLUE)[INFO]$(NC) Authenticating test users..."
-	@TOKEN_ALICE=$$(curl -sL "http://127.0.0.1:8080/oauth2/authorize?idp=tmi&login_hint=alice&client_callback=http://127.0.0.1:8079/&scope=openid" >/dev/null && sleep 2 && curl -s "http://127.0.0.1:8079/creds?userid=alice" | jq -r '.access_token'); \
-	TOKEN_BOB=$$(curl -sL "http://127.0.0.1:8080/oauth2/authorize?idp=tmi&login_hint=bob&client_callback=http://127.0.0.1:8079/&scope=openid" >/dev/null && sleep 2 && curl -s "http://127.0.0.1:8079/creds?userid=bob" | jq -r '.access_token'); \
-	newman run "test/postman/$(COLLECTION).json" \
-		--env-var "baseUrl=http://127.0.0.1:8080" \
-		--env-var "oauthStubUrl=http://127.0.0.1:8079" \
-		--env-var "token_alice=$$TOKEN_ALICE" \
-		--env-var "token_bob=$$TOKEN_BOB" \
-		--reporters cli,json \
-		--reporter-json-export "test/postman/test-results/$(COLLECTION)-results.json" \
-		--timeout-request 10000 \
-		--delay-request 200 \
-		--ignore-redirects
-	@$(MAKE) -f $(MAKEFILE_LIST) stop-oauth-stub
+	@# Use script that handles PKCE OAuth authentication properly
+	@bash test/postman/run-postman-collection.sh "$(COLLECTION)"
 
 # List available Postman collections
 test-api-list:
