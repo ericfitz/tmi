@@ -222,7 +222,7 @@ authenticate_user() {
     local flow_request=$(cat <<EOF
 {
     "userid": "${user}",
-    "idp": "test",
+    "idp": "tmi",
     "tmi_server": "${server}"
 }
 EOF

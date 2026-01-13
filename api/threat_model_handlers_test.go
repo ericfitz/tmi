@@ -246,11 +246,11 @@ func TestCreateThreatModelWithDuplicateSubjects(t *testing.T) {
 		"description": "This should fail due to duplicate subjects",
 		"authorization": []map[string]interface{}{
 			{
-				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com",
+				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com",
 				"role": "reader",
 			},
 			{
-				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com", // Duplicate subject
+				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com", // Duplicate subject
 				"role": "writer",
 			},
 		},
@@ -287,7 +287,7 @@ func TestCreateThreatModelWithDuplicateOwner(t *testing.T) {
 		"description": "This should fail due to duplicate with owner",
 		"authorization": []map[string]interface{}{
 			{
-				"principal_type": "user", "provider": "test", "provider_id": "test@example.com", // Same as the owner from middleware
+				"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com", // Same as the owner from middleware
 				"role": "reader",
 			},
 		},
@@ -327,7 +327,7 @@ func TestUpdateThreatModelOwnerChange(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "test", "provider_id": "newowner@example.com",
+				"principal_type": "user", "provider": "tmi", "provider_id": "newowner@example.com",
 				"role": "owner", // Need owner role to change owner
 			},
 		},
@@ -396,15 +396,15 @@ func TestUpdateThreatModelWithDuplicateSubjects(t *testing.T) {
 		"threat_model_framework": "STRIDE",            // Required field
 		"authorization": []map[string]interface{}{
 			{
-				"principal_type": "user", "provider": "test", "provider_id": "test@example.com",
+				"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com",
 				"role": "owner",
 			},
 			{
-				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com",
+				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com",
 				"role": "reader",
 			},
 			{
-				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com", // Duplicate subject
+				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com", // Duplicate subject
 				"role": "writer",
 			},
 		},
@@ -440,7 +440,7 @@ func TestNonOwnerCannotChangeOwner(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "test", "provider_id": "reader@example.com",
+				"principal_type": "user", "provider": "tmi", "provider_id": "reader@example.com",
 				"role": "reader",
 			},
 		},
@@ -500,7 +500,7 @@ func TestOwnershipTransferViaPatching(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "test", "provider_id": "newowner@example.com",
+				"principal_type": "user", "provider": "tmi", "provider_id": "newowner@example.com",
 				"role": "owner",
 			},
 		},
@@ -572,7 +572,7 @@ func TestDuplicateSubjectViaPatching(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com",
+				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com",
 				"role": "reader",
 			},
 		},
@@ -591,7 +591,7 @@ func TestDuplicateSubjectViaPatching(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com",
+				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com",
 				"role": "writer", // Updated role
 			},
 		},
@@ -640,7 +640,7 @@ func TestReadWriteDeletePermissions(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "test", "provider_id": "reader@example.com",
+				"principal_type": "user", "provider": "tmi", "provider_id": "reader@example.com",
 				"role": "reader",
 			},
 		},
@@ -648,7 +648,7 @@ func TestReadWriteDeletePermissions(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "test", "provider_id": "writer@example.com",
+				"principal_type": "user", "provider": "tmi", "provider_id": "writer@example.com",
 				"role": "writer",
 			},
 		},
@@ -737,7 +737,7 @@ func TestWriterCannotChangeOwnerOrAuth(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "test", "provider_id": "writer@example.com",
+				"principal_type": "user", "provider": "tmi", "provider_id": "writer@example.com",
 				"role": "writer",
 			},
 		},
@@ -775,7 +775,7 @@ func TestWriterCannotChangeOwnerOrAuth(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "test", "provider_id": "another@example.com",
+				"principal_type": "user", "provider": "tmi", "provider_id": "another@example.com",
 				"role": "reader",
 			},
 		},
@@ -816,7 +816,7 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "test", "provider_id": readerUser,
+				"principal_type": "user", "provider": "tmi", "provider_id": readerUser,
 				"role": "reader",
 			},
 		},
@@ -837,7 +837,7 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "test", "provider_id": writerUser,
+				"principal_type": "user", "provider": "tmi", "provider_id": writerUser,
 				"role": "writer",
 			},
 		},

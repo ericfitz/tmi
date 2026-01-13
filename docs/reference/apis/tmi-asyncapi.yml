@@ -856,7 +856,7 @@ components:
           example: user
         provider:
           type: string
-          description: Identity provider name (e.g., "google", "github", "microsoft", "test")
+          description: Identity provider name (e.g., "google", "github", "microsoft", "tmi")
           example: google
         provider_id:
           type: string

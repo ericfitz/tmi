@@ -55,16 +55,16 @@ func TestOAuthFlow(t *testing.T) {
 		err = json.Unmarshal(resp.Body, &providers)
 		framework.AssertNoError(t, err, "Failed to parse providers response")
 
-		// Should have at least the 'test' provider
+		// Should have at least the 'tmi' provider
 		found := false
 		for _, provider := range providers {
-			if name, ok := provider["name"].(string); ok && name == "test" {
+			if name, ok := provider["name"].(string); ok && name == "tmi" {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Errorf("Expected to find 'test' provider in list")
+			t.Errorf("Expected to find 'tmi' provider in list")
 		}
 
 		t.Log("✓ Listed OAuth providers successfully")

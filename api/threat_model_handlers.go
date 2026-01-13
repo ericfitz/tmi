@@ -416,7 +416,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		// Owner is being changed - convert string to User object
 		owner = User{
 			PrincipalType: UserPrincipalTypeUser,
-			Provider:      "test", // TODO: Get provider from auth context
+			Provider:      "tmi", // TODO: Get provider from auth context
 			ProviderId:    *request.Owner,
 			DisplayName:   *request.Owner,
 			Email:         openapi_types.Email(*request.Owner),

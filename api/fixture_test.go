@@ -220,8 +220,8 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 		"owner": "%s",
 		"threat_model_framework": "STRIDE",
 		"authorization": [
-			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "writer"},
-			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "reader"}
+			{"principal_type": "user", "provider": "tmi", "provider_id": "%s", "role": "writer"},
+			{"principal_type": "user", "provider": "tmi", "provider_id": "%s", "role": "reader"}
 		]
 	}`, threatModelID, TestFixtures.OwnerUser, TestFixtures.WriterUser, TestFixtures.WriterUser)
 
@@ -246,8 +246,8 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 		"owner": "%s",
 		"threat_model_framework": "STRIDE",
 		"authorization": [
-			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "writer"},
-			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "reader"}
+			{"principal_type": "user", "provider": "tmi", "provider_id": "%s", "role": "writer"},
+			{"principal_type": "user", "provider": "tmi", "provider_id": "%s", "role": "reader"}
 		]
 	}`, threatModelID, newOwner, TestFixtures.WriterUser, TestFixtures.ReaderUser)
 
@@ -280,7 +280,7 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 
 	patchChangeOwner := fmt.Sprintf(`[
 		{"op":"replace","path":"/owner","value":"%s"},
-		{"op":"replace","path":"/authorization","value":[{"principal_type":"user","provider":"test","provider_id":"%s","role":"writer"}]},
+		{"op":"replace","path":"/authorization","value":[{"principal_type":"user","provider":"tmi","provider_id":"%s","role":"writer"}]},
 		{"op":"replace","path":"/name","value":"Patched Model"}
 	]`, newOwner, TestFixtures.WriterUser)
 

@@ -10,35 +10,22 @@ import (
 
 func TestTMIProviderAvailableInProduction(t *testing.T) {
 	// TMI provider should be available in all builds (including production)
-	// Both "test" and "tmi" provider IDs are accepted as aliases
 
-	testCases := []struct {
-		name       string
-		providerID string
-	}{
-		{"test alias", "test"},
-		{"tmi provider", "tmi"},
+	config := OAuthProviderConfig{
+		ID:       "tmi",
+		Name:     "TMI Provider",
+		Enabled:  true,
+		ClientID: "test-client-id",
+		TokenURL: "http://localhost:8080/oauth2/token",
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			config := OAuthProviderConfig{
-				ID:       tc.providerID,
-				Name:     "TMI Provider",
-				Enabled:  true,
-				ClientID: "test-client-id",
-				TokenURL: "http://localhost:8080/oauth2/token",
-			}
+	provider, err := NewProvider(config, "http://localhost:8080/oauth2/callback")
 
-			provider, err := NewProvider(config, "http://localhost:8080/oauth2/callback")
-
-			if err != nil {
-				t.Errorf("Expected TMI provider to be available in production, but got error: %v", err)
-			}
-			if provider == nil {
-				t.Error("Expected non-nil provider for TMI provider in production")
-			}
-		})
+	if err != nil {
+		t.Errorf("Expected TMI provider to be available in production, but got error: %v", err)
+	}
+	if provider == nil {
+		t.Error("Expected non-nil provider for TMI provider in production")
 	}
 }
 

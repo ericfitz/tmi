@@ -42,13 +42,13 @@ func TestUpdateThreatModel(t *testing.T) {
 		"authorization": []map[string]interface{}{
 			{
 				"principal_type": "user",
-				"provider":       "test",
+				"provider":       "tmi",
 				"provider_id":    TestFixtures.WriterUser,
 				"role":           "writer",
 			},
 			{
 				"principal_type": "user",
-				"provider":       "test",
+				"provider":       "tmi",
 				"provider_id":    TestFixtures.ReaderUser,
 				"role":           "reader",
 			},
@@ -119,13 +119,13 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 		"authorization": []map[string]interface{}{
 			{
 				"principal_type": "user",
-				"provider":       "test",
+				"provider":       "tmi",
 				"provider_id":    TestFixtures.WriterUser,
 				"role":           "writer",
 			},
 			{
 				"principal_type": "user",
-				"provider":       "test",
+				"provider":       "tmi",
 				"provider_id":    TestFixtures.ReaderUser,
 				"role":           "reader",
 			},
@@ -198,13 +198,13 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 		"authorization": []map[string]interface{}{
 			{
 				"principal_type": "user",
-				"provider":       "test",
+				"provider":       "tmi",
 				"provider_id":    TestFixtures.WriterUser,
 				"role":           "writer",
 			},
 			{
 				"principal_type": "user",
-				"provider":       "test",
+				"provider":       "tmi",
 				"provider_id":    TestFixtures.WriterUser, // Duplicate subject
 				"role":           "reader",
 			},

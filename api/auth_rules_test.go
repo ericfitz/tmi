@@ -57,13 +57,13 @@ func TestOwnerCanChangeOwner(t *testing.T) {
 		"authorization": []map[string]interface{}{
 			{
 				"principal_type": "user",
-				"provider":       "test",
+				"provider":       "tmi",
 				"provider_id":    TestFixtures.WriterUser,
 				"role":           "writer",
 			},
 			{
 				"principal_type": "user",
-				"provider":       "test",
+				"provider":       "tmi",
 				"provider_id":    TestFixtures.ReaderUser,
 				"role":           "reader",
 			},

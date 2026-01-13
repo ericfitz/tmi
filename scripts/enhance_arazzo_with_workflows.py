@@ -196,8 +196,8 @@ class ArazzoEnhancer:
                 "properties": {
                     "idp": {
                         "type": "string",
-                        "default": "test",
-                        "description": "OAuth provider (test, google, github)",
+                        "default": "tmi",
+                        "description": "OAuth provider (tmi, google, github)",
                     },
                     "login_hint": {
                         "type": "string",

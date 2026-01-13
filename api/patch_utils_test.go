@@ -102,13 +102,13 @@ func TestApplyPatchOperations(t *testing.T) {
 				{Op: "replace", Path: "/authorization", Value: []interface{}{
 					map[string]interface{}{
 						"principal_type": "user",
-						"provider":       "test",
+						"provider":       "tmi",
 						"provider_id":    "user2",
 						"role":           "writer",
 					},
 					map[string]interface{}{
 						"principal_type": "user",
-						"provider":       "test",
+						"provider":       "tmi",
 						"provider_id":    "user3",
 						"role":           "owner",
 					},

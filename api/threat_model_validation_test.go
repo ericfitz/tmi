@@ -300,7 +300,7 @@ func TestValidThreatModelRequests(t *testing.T) {
 			"name":        "Valid Threat Model",
 			"description": "This is a valid threat model",
 			"authorization": []map[string]interface{}{
-				{"principal_type": "user", "provider": "test", "provider_id": "reader@example.com", "role": "reader"},
+				{"principal_type": "user", "provider": "tmi", "provider_id": "reader@example.com", "role": "reader"},
 			},
 		}
 
@@ -327,7 +327,7 @@ func TestValidThreatModelRequests(t *testing.T) {
 			"description":            "Updated description",
 			"threat_model_framework": "STRIDE",
 			"authorization": []map[string]interface{}{
-				{"principal_type": "user", "provider": "test", "provider_id": "test@example.com", "role": "owner"},
+				{"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com", "role": "owner"},
 			},
 		}
 

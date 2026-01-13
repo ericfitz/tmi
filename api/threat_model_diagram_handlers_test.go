@@ -511,7 +511,7 @@ func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 			Path: "/authorization/-",
 			Value: map[string]string{
 				"principal_type": "user",
-				"provider":       "test",
+				"provider":       "tmi",
 				"provider_id":    "reader@example.com",
 				"role":           "reader",
 			},
@@ -521,7 +521,7 @@ func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 			Path: "/authorization/-",
 			Value: map[string]string{
 				"principal_type": "user",
-				"provider":       "test",
+				"provider":       "tmi",
 				"provider_id":    "writer@example.com",
 				"role":           "writer",
 			},

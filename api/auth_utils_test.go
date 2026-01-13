@@ -21,15 +21,15 @@ func TestValidateDuplicateSubjects(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleWriter},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user3", Role: RoleOwner},
 			},
 			expectError: false,
@@ -44,7 +44,7 @@ func TestValidateDuplicateSubjects(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 			},
 			expectError: false,
@@ -54,15 +54,15 @@ func TestValidateDuplicateSubjects(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleWriter},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleOwner}, // Duplicate
 			},
 			expectError: true,
@@ -73,19 +73,19 @@ func TestValidateDuplicateSubjects(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleWriter},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleOwner}, // First duplicate
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleReader}, // Second duplicate
 			},
 			expectError: true,
@@ -124,11 +124,11 @@ func TestApplyOwnershipTransferRule(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleWriter},
 			},
 			originalOwner: "owner1",
@@ -136,11 +136,11 @@ func TestApplyOwnershipTransferRule(t *testing.T) {
 			expected: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleWriter},
 			},
 		},
@@ -149,11 +149,11 @@ func TestApplyOwnershipTransferRule(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleWriter},
 			},
 			originalOwner: "oldowner",
@@ -161,15 +161,15 @@ func TestApplyOwnershipTransferRule(t *testing.T) {
 			expected: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleWriter},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "oldowner", Role: RoleOwner}, // Added
 			},
 		},
@@ -178,11 +178,11 @@ func TestApplyOwnershipTransferRule(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "oldowner", Role: RoleWriter}, // Will be updated
 			},
 			originalOwner: "oldowner",
@@ -190,11 +190,11 @@ func TestApplyOwnershipTransferRule(t *testing.T) {
 			expected: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "oldowner", Role: RoleOwner}, // Role updated
 			},
 		},
@@ -203,11 +203,11 @@ func TestApplyOwnershipTransferRule(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "oldowner", Role: RoleOwner}, // Already owner
 			},
 			originalOwner: "oldowner",
@@ -215,11 +215,11 @@ func TestApplyOwnershipTransferRule(t *testing.T) {
 			expected: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "oldowner", Role: RoleOwner}, // Unchanged
 			},
 		},
@@ -231,7 +231,7 @@ func TestApplyOwnershipTransferRule(t *testing.T) {
 			expected: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "oldowner", Role: RoleOwner}, // Added
 			},
 		},
@@ -280,19 +280,19 @@ func TestExtractOwnershipChangesFromOperations(t *testing.T) {
 			name: "authorization change only",
 			operations: []PatchOperation{
 				{Op: "replace", Path: "/authorization", Value: []interface{}{
-					map[string]interface{}{"principal_type": "user", "provider": "test", "provider_id": "user1", "role": "reader"},
-					map[string]interface{}{"principal_type": "user", "provider": "test", "provider_id": "user2", "role": "writer"},
+					map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "reader"},
+					map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user2", "role": "writer"},
 				}},
 			},
 			expectedOwner: "",
 			expectedAuth: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleWriter},
 			},
 			expectedOwnerCh: false,
@@ -303,14 +303,14 @@ func TestExtractOwnershipChangesFromOperations(t *testing.T) {
 			operations: []PatchOperation{
 				{Op: "replace", Path: "/owner", Value: "newowner"},
 				{Op: "replace", Path: "/authorization", Value: []interface{}{
-					map[string]interface{}{"principal_type": "user", "provider": "test", "provider_id": "user1", "role": "reader"},
+					map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "reader"},
 				}},
 			},
 			expectedOwner: "newowner",
 			expectedAuth: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 			},
 			expectedOwnerCh: true,
@@ -321,14 +321,14 @@ func TestExtractOwnershipChangesFromOperations(t *testing.T) {
 			operations: []PatchOperation{
 				{Op: "add", Path: "/owner", Value: "addedowner"},
 				{Op: "add", Path: "/authorization", Value: []interface{}{
-					map[string]interface{}{"principal_type": "user", "provider": "test", "provider_id": "user1", "role": "owner"},
+					map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "owner"},
 				}},
 			},
 			expectedOwner: "addedowner",
 			expectedAuth: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleOwner},
 			},
 			expectedOwnerCh: true,
@@ -392,35 +392,35 @@ func TestConvertInterfaceToAuthList(t *testing.T) {
 		{
 			name: "valid authorization entries",
 			input: []interface{}{
-				map[string]interface{}{"principal_type": "user", "provider": "test", "provider_id": "user1", "role": "reader"},
-				map[string]interface{}{"principal_type": "user", "provider": "test", "provider_id": "user2", "role": "writer"},
-				map[string]interface{}{"principal_type": "user", "provider": "test", "provider_id": "user3", "role": "owner"},
+				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "reader"},
+				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user2", "role": "writer"},
+				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user3", "role": "owner"},
 			},
 			expected: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleWriter},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user3", Role: RoleOwner},
 			},
 		},
 		{
 			name: "partial entries",
 			input: []interface{}{
-				map[string]interface{}{"principal_type": "user", "provider": "test", "provider_id": "user1"}, // No role
-				map[string]interface{}{"role": "reader"},                                                     // No principal_type, provider, or provider_id
+				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1"}, // No role
+				map[string]interface{}{"role": "reader"},                                                    // No principal_type, provider, or provider_id
 			},
 			expected: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: ""},
 				{
 					PrincipalType: "",
@@ -433,29 +433,29 @@ func TestConvertInterfaceToAuthList(t *testing.T) {
 			input: []interface{}{
 				"invalid string", // Will be ignored
 				123,              // Will be ignored
-				map[string]interface{}{"principal_type": "user", "provider": "test", "provider_id": "user1", "role": "reader"}, // Valid
+				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "reader"}, // Valid
 			},
 			expected: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader}, // Only valid map processed
 			},
 		},
 		{
 			name: "invalid subject/role types",
 			input: []interface{}{
-				map[string]interface{}{"principal_type": "user", "provider": "test", "provider_id": 123, "role": "reader"}, // Invalid subject type -> empty subject
-				map[string]interface{}{"principal_type": "user", "provider": "test", "provider_id": "user1", "role": 456},  // Invalid role type -> empty role
+				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": 123, "role": "reader"}, // Invalid subject type -> empty subject
+				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": 456},  // Invalid role type -> empty role
 			},
 			expected: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "", Role: RoleReader}, // Subject was not string, role was
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: ""}, // Subject was string, role was not
 			},
 		},
@@ -480,11 +480,11 @@ func TestValidateAuthorizationEntries(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleWriter},
 			},
 			expectError: false,
@@ -499,11 +499,11 @@ func TestValidateAuthorizationEntries(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "", Role: RoleWriter}, // Empty subject
 			},
 			expectError: true,
@@ -513,11 +513,11 @@ func TestValidateAuthorizationEntries(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "", Role: RoleReader}, // First empty
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleWriter},
 			},
 			expectError: true,
@@ -554,15 +554,15 @@ func TestValidateAuthorizationEntriesWithFormat(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleWriter},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user3", Role: RoleOwner},
 			},
 			expectError: false,
@@ -577,11 +577,11 @@ func TestValidateAuthorizationEntriesWithFormat(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "", Role: RoleWriter}, // Empty subject
 			},
 			expectError: true,
@@ -592,11 +592,11 @@ func TestValidateAuthorizationEntriesWithFormat(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    string(make([]byte, 256)), Role: RoleWriter}, // 256 chars
 			},
 			expectError: true,
@@ -607,11 +607,11 @@ func TestValidateAuthorizationEntriesWithFormat(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: "invalid_role"}, // Invalid role
 			},
 			expectError: true,
@@ -622,7 +622,7 @@ func TestValidateAuthorizationEntriesWithFormat(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "", Role: RoleReader}, // First entry error
 			},
 			expectError: true,
@@ -652,7 +652,7 @@ func TestAccessCheck(t *testing.T) {
 	// Helper User objects for tests
 	owner1 := User{
 		PrincipalType: UserPrincipalTypeUser,
-		Provider:      "test",
+		Provider:      "tmi",
 		ProviderId:    "owner1",
 		DisplayName:   "Owner One",
 		Email:         "owner1@tmi.local",
@@ -675,7 +675,7 @@ func TestAccessCheck(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "user1", Role: RoleReader},
 				},
 			},
@@ -691,7 +691,7 @@ func TestAccessCheck(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "user1", Role: RoleReader},
 				},
 			},
@@ -707,7 +707,7 @@ func TestAccessCheck(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "user1", Role: RoleReader},
 				},
 			},
@@ -723,7 +723,7 @@ func TestAccessCheck(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "user1", Role: RoleWriter},
 				},
 			},
@@ -739,7 +739,7 @@ func TestAccessCheck(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "user1", Role: RoleReader},
 				},
 			},
@@ -755,7 +755,7 @@ func TestAccessCheck(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "user1", Role: RoleReader},
 				},
 			},
@@ -771,7 +771,7 @@ func TestAccessCheck(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "user1", Role: RoleReader},
 				},
 			},
@@ -798,15 +798,15 @@ func TestAccessCheck(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "user1", Role: RoleReader},
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "user2", Role: RoleWriter},
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "user3", Role: RoleOwner},
 				},
 			},
@@ -915,7 +915,7 @@ func TestExtractAuthData(t *testing.T) {
 	// Helper User object for tests
 	testOwner := User{
 		PrincipalType: UserPrincipalTypeUser,
-		Provider:      "test",
+		Provider:      "tmi",
 		ProviderId:    "testowner",
 		DisplayName:   "Test Owner",
 		Email:         openapi_types.Email("testowner@tmi.local"),
@@ -950,11 +950,11 @@ func TestExtractAuthData(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "user1", Role: RoleReader},
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "user2", Role: RoleWriter},
 				},
 			},
@@ -962,11 +962,11 @@ func TestExtractAuthData(t *testing.T) {
 			expectedAuth: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleWriter},
 			},
 			expectedType: AuthTypeTMI10,
@@ -1010,7 +1010,7 @@ func TestCheckResourceAccess(t *testing.T) {
 	// Helper User object for tests
 	owner1 := User{
 		PrincipalType: UserPrincipalTypeUser,
-		Provider:      "test",
+		Provider:      "tmi",
 		ProviderId:    "owner1",
 		DisplayName:   "Owner One",
 		Email:         "owner1@tmi.local",
@@ -1042,7 +1042,7 @@ func TestCheckResourceAccess(t *testing.T) {
 					Authorization: []Authorization{
 						{
 							PrincipalType: AuthorizationPrincipalTypeUser,
-							Provider:      "test",
+							Provider:      "tmi",
 							ProviderId:    "user1", Role: RoleReader},
 					},
 				}
@@ -1061,7 +1061,7 @@ func TestCheckResourceAccess(t *testing.T) {
 					Authorization: []Authorization{
 						{
 							PrincipalType: AuthorizationPrincipalTypeUser,
-							Provider:      "test",
+							Provider:      "tmi",
 							ProviderId:    "user1", Role: RoleWriter},
 					},
 				}
@@ -1080,7 +1080,7 @@ func TestCheckResourceAccess(t *testing.T) {
 					Authorization: []Authorization{
 						{
 							PrincipalType: AuthorizationPrincipalTypeUser,
-							Provider:      "test",
+							Provider:      "tmi",
 							ProviderId:    "user1", Role: RoleReader},
 					},
 				}
@@ -1099,7 +1099,7 @@ func TestCheckResourceAccess(t *testing.T) {
 					Authorization: []Authorization{
 						{
 							PrincipalType: AuthorizationPrincipalTypeUser,
-							Provider:      "test",
+							Provider:      "tmi",
 							ProviderId:    "user1", Role: RoleReader},
 					},
 				}
@@ -1158,7 +1158,7 @@ func TestPermissionResolution(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "owner1", Role: RoleReader}, // Lower permission in auth list
 			},
 			expectedReaderAccess: true, // Owner always has reader access
@@ -1173,11 +1173,11 @@ func TestPermissionResolution(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader}, // Lower permission
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleWriter}, // Higher permission should win
 			},
 			expectedReaderAccess: true,  // Writer includes reader access
@@ -1192,11 +1192,11 @@ func TestPermissionResolution(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader}, // Lower permission
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleOwner}, // Higher permission should win
 			},
 			expectedReaderAccess: true, // Owner includes reader access
@@ -1211,11 +1211,11 @@ func TestPermissionResolution(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleWriter}, // Lower permission
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleOwner}, // Higher permission should win
 			},
 			expectedReaderAccess: true, // Owner includes reader access
@@ -1230,7 +1230,7 @@ func TestPermissionResolution(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleWriter},
 			},
 			expectedReaderAccess: true,  // Writer includes reader access
@@ -1245,7 +1245,7 @@ func TestPermissionResolution(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user1", Role: RoleReader},
 			},
 			expectedReaderAccess: true,  // Reader can read
@@ -1260,7 +1260,7 @@ func TestPermissionResolution(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "user2", Role: RoleOwner},
 			},
 			expectedReaderAccess: false, // Not found in auth list
@@ -1275,7 +1275,7 @@ func TestPermissionResolution(t *testing.T) {
 			// Convert owner string to User object
 			ownerUser := User{
 				PrincipalType: UserPrincipalTypeUser,
-				Provider:      "test",
+				Provider:      "tmi",
 				ProviderId:    tt.owner,
 				DisplayName:   tt.owner,
 				Email:         openapi_types.Email(tt.owner + "@tmi.local"),
@@ -1387,7 +1387,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 	// Helper User objects for tests
 	ownerUser := User{
 		PrincipalType: UserPrincipalTypeUser,
-		Provider:      "test",
+		Provider:      "tmi",
 		ProviderId:    "owner@example.com",
 		DisplayName:   "Owner",
 		Email:         openapi_types.Email("owner@example.com"),
@@ -1406,7 +1406,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 		{
 			name:         "everyone grants reader access to any user",
 			principal:    "alice@example.com",
-			principalIdP: "test",
+			principalIdP: "tmi",
 			groups:       []string{},
 			requiredRole: RoleReader,
 			authData: AuthorizationData{
@@ -1469,7 +1469,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 		{
 			name:         "everyone works with nil IdP field",
 			principal:    "dave@example.com",
-			principalIdP: "test",
+			principalIdP: "tmi",
 			groups:       []string{},
 			requiredRole: RoleReader,
 			authData: AuthorizationData{
@@ -1511,7 +1511,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 		{
 			name:         "specific user role overrides everyone (higher role)",
 			principal:    "alice@example.com",
-			principalIdP: "test",
+			principalIdP: "tmi",
 			groups:       []string{},
 			requiredRole: RoleOwner,
 			authData: AuthorizationData{
@@ -1526,7 +1526,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 					},
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "alice@example.com",
 						Role:          RoleOwner,
 					},
@@ -1538,7 +1538,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 		{
 			name:         "everyone provides fallback when user has no specific grant",
 			principal:    "bob@example.com",
-			principalIdP: "test",
+			principalIdP: "tmi",
 			groups:       []string{},
 			requiredRole: RoleReader,
 			authData: AuthorizationData{
@@ -1553,7 +1553,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 					},
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
-						Provider:      "test",
+						Provider:      "tmi",
 						ProviderId:    "alice@example.com",
 						Role:          RoleOwner,
 					},
@@ -1592,7 +1592,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 		{
 			name:         "everyone reader cannot access writer-required resource",
 			principal:    "frank@example.com",
-			principalIdP: "test",
+			principalIdP: "tmi",
 			groups:       []string{},
 			requiredRole: RoleWriter,
 			authData: AuthorizationData{
@@ -1634,7 +1634,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 		{
 			name:         "owner field still takes precedence over everyone",
 			principal:    "owner@example.com",
-			principalIdP: "test",
+			principalIdP: "tmi",
 			groups:       []string{},
 			requiredRole: RoleOwner,
 			authData: AuthorizationData{
@@ -1655,7 +1655,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 		{
 			name:         "multiple everyone entries - highest role wins",
 			principal:    "harry@example.com",
-			principalIdP: "test",
+			principalIdP: "tmi",
 			groups:       []string{},
 			requiredRole: RoleWriter,
 			authData: AuthorizationData{
@@ -1694,7 +1694,7 @@ func TestEveryonePseudoGroupMixedScenarios(t *testing.T) {
 	// Helper User object
 	adminUser := User{
 		PrincipalType: UserPrincipalTypeUser,
-		Provider:      "test",
+		Provider:      "tmi",
 		ProviderId:    "admin@example.com",
 		DisplayName:   "Admin",
 		Email:         openapi_types.Email("admin@example.com"),
@@ -1719,7 +1719,7 @@ func TestEveryonePseudoGroupMixedScenarios(t *testing.T) {
 				},
 				{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "test",
+					Provider:      "tmi",
 					ProviderId:    "power-user@example.com",
 					Role:          RoleOwner,
 				},
@@ -1727,8 +1727,8 @@ func TestEveryonePseudoGroupMixedScenarios(t *testing.T) {
 		}
 
 		// Test 1: Random user gets reader via everyone
-		assert.True(t, AccessCheckWithGroups("random@example.com", "", "", "test", []string{}, RoleReader, authData))
-		assert.False(t, AccessCheckWithGroups("random@example.com", "", "", "test", []string{}, RoleWriter, authData))
+		assert.True(t, AccessCheckWithGroups("random@example.com", "", "", "tmi", []string{}, RoleReader, authData))
+		assert.False(t, AccessCheckWithGroups("random@example.com", "", "", "tmi", []string{}, RoleWriter, authData))
 
 		// Test 2: Editor from google gets writer (higher than everyone reader)
 		assert.True(t, AccessCheckWithGroups("editor@example.com", "", "", "google", []string{"editors"}, RoleReader, authData))
@@ -1740,9 +1740,9 @@ func TestEveryonePseudoGroupMixedScenarios(t *testing.T) {
 		assert.True(t, AccessCheckWithGroups("editor@example.com", "", "", "okta", []string{"editors"}, RoleWriter, authData))
 
 		// Test 4: Power user gets owner
-		assert.True(t, AccessCheckWithGroups("power-user@example.com", "", "", "test", []string{}, RoleOwner, authData))
+		assert.True(t, AccessCheckWithGroups("power-user@example.com", "", "", "tmi", []string{}, RoleOwner, authData))
 
 		// Test 5: Admin (owner) gets owner permissions
-		assert.True(t, AccessCheckWithGroups("admin@example.com", "", "", "test", []string{}, RoleOwner, authData))
+		assert.True(t, AccessCheckWithGroups("admin@example.com", "", "", "tmi", []string{}, RoleOwner, authData))
 	})
 }

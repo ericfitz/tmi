@@ -199,7 +199,7 @@ func (h *Handlers) getProvider(providerID string) (Provider, error) {
 func (h *Handlers) Authorize(c *gin.Context) {
 	providerID := c.Query("idp")
 	if providerID == "" {
-		// In non-production builds, default to "test" provider for convenience
+		// In non-production builds, default to "tmi" provider for convenience
 		if defaultProviderID := getDefaultProviderID(); defaultProviderID != "" {
 			slogging.Get().WithContext(c).Debug("No idp parameter provided, defaulting to provider: %s", defaultProviderID)
 			providerID = defaultProviderID
@@ -364,7 +364,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	slogging.Get().WithContext(c).Debug("Stored PKCE challenge for state: %s (method: %s)", state, codeChallengeMethod)
 
 	// For authorization code flow, handle client_callback if provided
-	if (providerID == "tmi" || providerID == "test") && clientCallback != "" {
+	if providerID == "tmi" && clientCallback != "" {
 		slogging.Get().WithContext(c).Debug("Authorization code flow with client_callback, redirecting directly to client")
 		// Generate test authorization code with login_hint encoded if available
 		authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
@@ -557,10 +557,10 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 
 // setUserHintContext adds login_hint to context for TMI provider
 func (h *Handlers) setUserHintContext(c *gin.Context, ctx context.Context, stateData *callbackStateData) context.Context {
-	if stateData.UserHint != "" && (stateData.ProviderID == "tmi" || stateData.ProviderID == "test") {
+	if stateData.UserHint != "" && stateData.ProviderID == "tmi" {
 		slogging.Get().WithContext(c).Debug("Setting login_hint in context for TMI provider: %s", stateData.UserHint)
 		return context.WithValue(ctx, userHintContextKey, stateData.UserHint)
-	} else if stateData.ProviderID == "tmi" || stateData.ProviderID == "test" {
+	} else if stateData.ProviderID == "tmi" {
 		slogging.Get().WithContext(c).Debug("No login_hint provided for TMI provider: provider=%s userHint=%s",
 			stateData.ProviderID, stateData.UserHint)
 	}
@@ -920,7 +920,7 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	// Get provider ID from query parameter
 	providerID := c.Query("idp")
 	if providerID == "" {
-		// In non-production builds, default to "test" provider for convenience
+		// In non-production builds, default to "tmi" provider for convenience
 		if defaultProviderID := getDefaultProviderID(); defaultProviderID != "" {
 			slogging.Get().WithContext(c).Debug("No idp parameter provided, defaulting to provider: %s", defaultProviderID)
 			providerID = defaultProviderID

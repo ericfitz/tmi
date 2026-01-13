@@ -78,8 +78,8 @@ func NewProvider(config OAuthProviderConfig, callbackURL string) (Provider, erro
 	logger.Debug("Creating OAuth provider: %s (%s)", config.ID, config.Name)
 
 	switch config.ID {
-	case "test", "tmi":
-		// TMI internal OAuth provider (formerly "test" provider)
+	case "tmi":
+		// TMI internal OAuth provider
 		// In dev/test builds: Supports Authorization Code flow with ephemeral user creation
 		// In production builds: Only supports Client Credentials Grant
 		logger.Debug("Creating TMI provider provider_id=%v", config.ID)

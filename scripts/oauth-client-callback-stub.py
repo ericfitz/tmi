@@ -120,7 +120,7 @@ def build_authorization_url(
     Build TMI OAuth authorization URL with all required parameters.
 
     Args:
-        idp: OAuth provider ID (e.g., "test", "google")
+        idp: OAuth provider ID (e.g., "tmi", "google")
         state: CSRF protection state parameter
         code_challenge: PKCE code challenge
         scopes: Space-separated OAuth scopes

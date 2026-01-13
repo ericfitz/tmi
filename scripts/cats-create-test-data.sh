@@ -9,7 +9,7 @@
 # Options:
 #   -u, --user USER      OAuth user (default: charlie)
 #   -s, --server URL     Server URL (default: http://localhost:8080)
-#   -i, --idp IDP        Identity provider (default: test)
+#   -i, --idp IDP        Identity provider (default: tmi)
 #   -o, --output FILE    Output reference file (default: cats-test-data.json)
 #   -h, --help           Show help
 
@@ -18,7 +18,7 @@ set -euo pipefail
 # Configuration
 DEFAULT_USER="charlie"
 DEFAULT_SERVER="http://localhost:8080"
-DEFAULT_IDP="test"
+DEFAULT_IDP="tmi"
 DEFAULT_OUTPUT="test/outputs/cats/cats-test-data.json"
 OAUTH_STUB_PORT=8079
 OAUTH_STUB_URL="http://localhost:${OAUTH_STUB_PORT}"

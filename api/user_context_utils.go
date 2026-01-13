@@ -87,7 +87,7 @@ func GetUserEmail(c *gin.Context) (string, error) {
 }
 
 // GetUserProvider retrieves the user's OAuth provider from the context
-// Returns the provider name (e.g., "test", "google", "github", "microsoft", "azure")
+// Returns the provider name (e.g., "tmi", "google", "github", "microsoft", "azure")
 // Returns error if user is not authenticated or provider is not available
 func GetUserProvider(c *gin.Context) (string, error) {
 	providerInterface, exists := c.Get("userProvider")

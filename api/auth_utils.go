@@ -161,7 +161,7 @@ func ApplyOwnershipTransferRule(authList []Authorization, originalOwner, newOwne
 	if !originalOwnerFound {
 		authList = append(authList, Authorization{
 			PrincipalType: AuthorizationPrincipalTypeUser,
-			Provider:      "test", // TODO: Need provider context from caller
+			Provider:      "tmi", // TODO: Need provider context from caller
 			ProviderId:    originalOwner,
 			Role:          RoleOwner,
 		})

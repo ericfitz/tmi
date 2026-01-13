@@ -10,7 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Create users table with consolidated provider information
 CREATE TABLE IF NOT EXISTS users (
     internal_uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    provider TEXT NOT NULL,                           -- OAuth provider: "test", "google", "github", "microsoft", "azure"
+    provider TEXT NOT NULL,                           -- OAuth provider: "tmi", "google", "github", "microsoft", "azure"
     provider_user_id TEXT,                            -- Provider's user ID (from JWT sub claim) - nullable for sparse users
     email TEXT NOT NULL,
     name TEXT NOT NULL,                               -- Display name for UI presentation

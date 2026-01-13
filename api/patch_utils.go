@@ -263,7 +263,7 @@ func fixOwnerField(modifiedBytes, _ []byte) []byte {
 			}
 			modifiedData["owner"] = map[string]interface{}{
 				"principal_type": "user",
-				"provider":       "test", // Default to test provider for now
+				"provider":       "tmi", // Default to tmi provider for now
 				"provider_id":    ownerStr,
 				"display_name":   ownerStr, // Use email as display name initially
 				"email":          email,    // Email is required in User struct and must be valid format

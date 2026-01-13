@@ -229,7 +229,7 @@ const (
 	Move    JsonPatchDocumentOp = "move"
 	Remove  JsonPatchDocumentOp = "remove"
 	Replace JsonPatchDocumentOp = "replace"
-	Test    JsonPatchDocumentOp = "test"
+	Test    JsonPatchDocumentOp = "tmi"
 )
 
 // Defines values for MinimalEdgeShape.
@@ -827,7 +827,7 @@ type Authorization struct {
 	// PrincipalType Type of principal: user (individual) or group
 	PrincipalType AuthorizationPrincipalType `json:"principal_type"`
 
-	// Provider Identity provider name (e.g., "google", "github", "microsoft", "test"). Use "*" for provider-independent groups.
+	// Provider Identity provider name (e.g., "google", "github", "microsoft", "tmi"). Use "*" for provider-independent groups.
 	Provider string `json:"provider"`
 
 	// ProviderId Provider-assigned identifier. For users: provider_user_id (e.g., email or OAuth sub). For groups: group_name.
@@ -2072,7 +2072,7 @@ type Principal struct {
 	// PrincipalType Type of principal: user (individual) or group
 	PrincipalType PrincipalPrincipalType `json:"principal_type"`
 
-	// Provider Identity provider name (e.g., "google", "github", "microsoft", "test"). Use "*" for provider-independent groups.
+	// Provider Identity provider name (e.g., "google", "github", "microsoft", "tmi"). Use "*" for provider-independent groups.
 	Provider string `json:"provider"`
 
 	// ProviderId Provider-assigned identifier. For users: provider_user_id (e.g., email or OAuth sub). For groups: group_name.
@@ -2582,7 +2582,7 @@ type User struct {
 	// PrincipalType Always "user" for User objects
 	PrincipalType UserPrincipalType `json:"principal_type"`
 
-	// Provider Identity provider name (e.g., "google", "github", "microsoft", "test"). Use "*" for provider-independent groups.
+	// Provider Identity provider name (e.g., "google", "github", "microsoft", "tmi"). Use "*" for provider-independent groups.
 	Provider string `json:"provider"`
 
 	// ProviderId Provider-assigned identifier. For users: provider_user_id (e.g., email or OAuth sub). For groups: group_name.
@@ -2633,7 +2633,7 @@ type UserWithAdminStatus struct {
 	// PrincipalType Always "user" for User objects
 	PrincipalType UserWithAdminStatusPrincipalType `json:"principal_type"`
 
-	// Provider Identity provider name (e.g., "google", "github", "microsoft", "test"). Use "*" for provider-independent groups.
+	// Provider Identity provider name (e.g., "google", "github", "microsoft", "tmi"). Use "*" for provider-independent groups.
 	Provider string `json:"provider"`
 
 	// ProviderId Provider-assigned identifier. For users: provider_user_id (e.g., email or OAuth sub). For groups: group_name.

@@ -1484,7 +1484,7 @@
             {
               "user": {
                 "principal_type": "user",
-                "provider": "test",
+                "provider": "tmi",
                 "provider_id": "admin@example.com",
                 "email": "admin@example.com",
                 "display_name": "Admin User"
@@ -2372,7 +2372,7 @@
           "authorization": [
             {
               "principal_type": "user",
-              "provider": "test",
+              "provider": "tmi",
               "provider_id": "alice@example.com",
               "display_name": "Alice Anderson",
               "email": "alice@example.com",
@@ -2667,7 +2667,7 @@
         "example": {
           "user": {
             "principal_type": "user",
-            "provider": "test",
+            "provider": "tmi",
             "provider_id": "bob@example.com",
             "email": "bob@example.com",
             "display_name": "Bob Smith"
@@ -4027,7 +4027,7 @@
           "object_id": "880e8400-e29b-41d4-a716-446655440003",
           "invoked_by": {
             "principal_type": "user",
-            "provider": "test",
+            "provider": "tmi",
             "provider_id": "alice@example.com",
             "email": "alice@example.com",
             "display_name": "Alice Anderson"
@@ -4076,7 +4076,7 @@
               "threat_model_id": "660e8400-e29b-41d4-a716-446655440001",
               "invoked_by": {
                 "principal_type": "user",
-                "provider": "test",
+                "provider": "tmi",
                 "provider_id": "alice@example.com",
                 "email": "alice@example.com",
                 "display_name": "Alice Anderson"
