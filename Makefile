@@ -424,6 +424,7 @@ clean-files:
 	@$(MAKE) -f $(MAKEFILE_LIST) clean-logs
 	$(call log_info,"Cleaning CATS artifacts...")
 	@rm -rf test/outputs/cats
+	@rm -rf cats-report
 	$(call log_success,"File cleanup completed")
 
 clean-containers:

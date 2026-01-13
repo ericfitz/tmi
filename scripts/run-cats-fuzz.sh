@@ -389,6 +389,7 @@ run_cats_fuzz() {
         "--skipFieldFormat=uuid"
         "--skipField=offset"
         "--refData=${PROJECT_ROOT}/test/outputs/cats/cats-test-data.yml"
+        "--output=${PROJECT_ROOT}/test/outputs/cats/report"
         # Skip BypassAuthentication fuzzer on public endpoints marked in OpenAPI spec
         # Public endpoints (OAuth, OIDC, SAML) are marked with x-public-endpoint: true
         # per RFCs 8414, 7517, 6749, and SAML 2.0 specifications

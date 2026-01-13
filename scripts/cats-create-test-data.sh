@@ -341,9 +341,9 @@ create_webhook() {
         -H "Authorization: Bearer ${JWT_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{
+            "name": "CATS Test Webhook",
             "url": "https://webhook.site/cats-test-webhook",
-            "events": ["threat_model.created", "threat.created"],
-            "description": "CATS test webhook subscription"
+            "events": ["threat_model.created", "threat.created"]
         }')
 
     WEBHOOK_ID=$(echo "${RESPONSE}" | jq -r '.id' 2>/dev/null)
