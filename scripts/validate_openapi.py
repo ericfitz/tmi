@@ -20,18 +20,8 @@ This script performs comprehensive validation of OpenAPI specifications includin
 
 import json
 import sys
-import re
 import argparse
-from pathlib import Path
-from typing import Dict, List, Tuple, Any, Set
-from collections import defaultdict
-
-try:
-    import jsonschema
-
-    JSONSCHEMA_AVAILABLE = True
-except ImportError:
-    JSONSCHEMA_AVAILABLE = False
+from typing import Dict, List, Tuple, Any
 
 
 def load_openapi_spec(file_path: str) -> Dict[str, Any]:

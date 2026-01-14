@@ -20,7 +20,7 @@ import logging
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional, Tuple
 from contextlib import contextmanager
 
 # Configure logging
@@ -242,7 +242,7 @@ class CATSResultsParser:
 
     def __init__(self, db_path: str):
         self.db_path = db_path
-        self.conn = None
+        self._conn: Optional[sqlite3.Connection] = None
 
         # Lookup caches to avoid repeated DB queries
         self.result_type_cache: Dict[str, int] = {}
@@ -258,21 +258,29 @@ class CATSResultsParser:
             'skipped': 0
         }
 
+    @property
+    def conn(self) -> sqlite3.Connection:
+        """Get the database connection, raising if not connected."""
+        if self._conn is None:
+            raise RuntimeError("Database not connected. Call connect() first.")
+        return self._conn
+
     def connect(self):
         """Establish database connection with optimizations"""
         logger.info(f"Connecting to database: {self.db_path}")
-        self.conn = sqlite3.connect(self.db_path)
-        self.conn.execute("PRAGMA foreign_keys = ON")
-        self.conn.execute("PRAGMA journal_mode = WAL")
-        self.conn.execute("PRAGMA synchronous = NORMAL")
-        self.conn.execute("PRAGMA cache_size = -64000")  # 64MB cache
-        self.conn.execute("PRAGMA temp_store = MEMORY")
+        self._conn = sqlite3.connect(self.db_path)
+        self._conn.execute("PRAGMA foreign_keys = ON")
+        self._conn.execute("PRAGMA journal_mode = WAL")
+        self._conn.execute("PRAGMA synchronous = NORMAL")
+        self._conn.execute("PRAGMA cache_size = -64000")  # 64MB cache
+        self._conn.execute("PRAGMA temp_store = MEMORY")
         logger.info("Database connection established with optimizations")
 
     def close(self):
         """Close database connection"""
-        if self.conn:
-            self.conn.close()
+        if self._conn:
+            self._conn.close()
+            self._conn = None
             logger.info("Database connection closed")
 
     @contextmanager

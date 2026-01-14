@@ -23,7 +23,7 @@ This script:
 import json
 import yaml
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 
 class ArazzoEnhancer:
@@ -90,7 +90,7 @@ class ArazzoEnhancer:
         self._add_workflow_outputs(arazzo)
 
         # Write outputs
-        print(f"\n💾 Writing enhanced specifications:")
+        print("\n💾 Writing enhanced specifications:")
         print(f"   YAML: {output_yaml}")
         with open(output_yaml, "w") as f:
             yaml.dump(
@@ -104,7 +104,7 @@ class ArazzoEnhancer:
         # Summary
         workflow_count = len(arazzo.get("workflows", []))
         total_steps = sum(len(w.get("steps", [])) for w in arazzo.get("workflows", []))
-        print(f"\n✅ Enhancement complete!")
+        print("\n✅ Enhancement complete!")
         print(f"   Workflows: {workflow_count}")
         print(f"   Total steps: {total_steps}")
 
@@ -310,11 +310,11 @@ class ArazzoEnhancer:
         - webhook_workflow
         - addon_workflow
         """
-        workflows = []
+        workflows: List[Dict[str, Any]] = []
         sequences = self.workflows.get("complete_workflow_sequences", {})
 
         for seq_name, steps_data in sequences.items():
-            workflow = {
+            workflow: Dict[str, Any] = {
                 "workflowId": self._sanitize_id(seq_name),
                 "summary": f"{seq_name.replace('_', ' ').title()}",
                 "description": f"Complete end-to-end workflow for {seq_name.replace('_', ' ')}",
@@ -504,7 +504,7 @@ class ArazzoEnhancer:
             method.upper(), [{"condition": "$statusCode >= 200 && $statusCode < 300"}]
         )
 
-    def _generate_sample_payload(self, path: str, method: str) -> Dict:
+    def _generate_sample_payload(self, path: str, method: str) -> Dict | List:
         """Generate sample request payload based on endpoint."""
         # Threat models
         if "threat_models" in path and method == "POST":

@@ -21,9 +21,9 @@ Dependencies are automatically managed by uv using PEP 723 inline script metadat
 # ]
 # ///
 
+import json
 import subprocess
 import sys
-import os
 import argparse
 import re
 from getpass import getpass
@@ -32,9 +32,7 @@ from typing import Optional, Dict, List, Tuple
 
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
-from rich.table import Table
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 console = Console()
 
@@ -89,7 +87,6 @@ def check_heroku_cli() -> bool:
 def list_heroku_apps() -> List[Tuple[str, str]]:
     """Get list of available Heroku apps with their URLs."""
     result = run_command(["heroku", "apps", "--json"])
-    import json
     apps = json.loads(result.stdout)
 
     app_list = []
@@ -123,7 +120,6 @@ def select_or_create_app(role: str, non_interactive: bool = False, app_name: Opt
         # Verify app exists
         try:
             result = run_command(["heroku", "apps:info", "--app", app_name, "--json"])
-            import json
             app_info = json.loads(result.stdout)
             app_url = app_info.get("web_url", f"https://{app_name}.herokuapp.com")
             console.print(f"[green]✓ {role_display}: {app_name} ({app_url})[/green]")
@@ -158,30 +154,29 @@ def select_or_create_app(role: str, non_interactive: bool = False, app_name: Opt
     if choice.isdigit():
         idx = int(choice) - 1
         if 0 <= idx < len(apps):
-            app_name, app_url = apps[idx]
-            console.print(f"[green]✓ Selected: {app_name}[/green]")
-            return app_name, app_url
+            selected_name, selected_url = apps[idx]
+            console.print(f"[green]✓ Selected: {selected_name}[/green]")
+            return selected_name, selected_url
 
     # Treat as app name
-    app_name = choice
+    chosen_name: str = choice
 
     # Check if app exists
     try:
-        result = run_command(["heroku", "apps:info", "--app", app_name, "--json"])
-        import json
+        result = run_command(["heroku", "apps:info", "--app", chosen_name, "--json"])
         app_info = json.loads(result.stdout)
-        app_url = app_info.get("web_url", f"https://{app_name}.herokuapp.com")
-        console.print(f"[green]✓ Found: {app_name} ({app_url})[/green]")
-        return app_name, app_url
+        app_url = app_info.get("web_url", f"https://{chosen_name}.herokuapp.com")
+        console.print(f"[green]✓ Found: {chosen_name} ({app_url})[/green]")
+        return chosen_name, app_url
     except subprocess.CalledProcessError:
         # App doesn't exist, offer to create
-        if Confirm.ask(f"App '{app_name}' doesn't exist. Create it?"):
-            console.print(f"[yellow]Creating app '{app_name}'...[/yellow]")
+        if Confirm.ask(f"App '{chosen_name}' doesn't exist. Create it?"):
+            console.print(f"[yellow]Creating app '{chosen_name}'...[/yellow]")
             try:
-                run_command(["heroku", "create", app_name])
-                app_url = f"https://{app_name}.herokuapp.com"
-                console.print(f"[green]✓ Created: {app_name}[/green]")
-                return app_name, app_url
+                run_command(["heroku", "create", chosen_name])
+                app_url = f"https://{chosen_name}.herokuapp.com"
+                console.print(f"[green]✓ Created: {chosen_name}[/green]")
+                return chosen_name, app_url
             except subprocess.CalledProcessError as e:
                 console.print(f"[red]✗ Failed to create app: {e}[/red]")
                 return None, None
@@ -193,7 +188,6 @@ def detect_addons(app_name: str) -> Dict[str, bool]:
     """Detect which addons are provisioned for the app."""
     try:
         result = run_command(["heroku", "addons", "--app", app_name, "--json"])
-        import json
         addons = json.loads(result.stdout)
 
         has_postgres = any("postgresql" in addon.get("addon_service", {}).get("name", "").lower() for addon in addons)
@@ -233,15 +227,14 @@ def extract_redis_credentials(app_name: str) -> Optional[Dict[str, str]]:
     """Extract Redis credentials from Heroku Redis addon."""
     try:
         result = run_command(["heroku", "redis:credentials", "--app", app_name, "--json"])
-        import json
-        creds = json.loads(result.stdout)
+        creds: Dict = json.loads(result.stdout)
 
         if isinstance(creds, list) and len(creds) > 0:
             creds = creds[0]
 
-        host = creds.get("host", "")
-        port = creds.get("port", "6379")
-        password = creds.get("password", "")
+        host: str = creds.get("host", "")
+        port: str = str(creds.get("port", "6379"))
+        password: str = creds.get("password", "")
 
         return {
             "REDIS_HOST": host,
@@ -325,10 +318,10 @@ def set_config_vars(app_name: str, config_vars: Dict[str, str], dry_run: bool = 
     console.print(f"\n[bold]⚙️  Applying configuration to {app_name}...[/bold]")
     try:
         run_command(cmd, capture_output=False)
-        console.print(f"[green]✓ Configuration applied successfully[/green]")
+        console.print("[green]✓ Configuration applied successfully[/green]")
         return True
     except subprocess.CalledProcessError:
-        console.print(f"[red]✗ Failed to apply configuration[/red]")
+        console.print("[red]✗ Failed to apply configuration[/red]")
         return False
 
 
@@ -365,22 +358,22 @@ def display_next_steps(server_app: str, server_url: str, client_url: Optional[st
     """Display next steps after configuration."""
     console.print("\n[bold green]🚀 Next Steps:[/bold green]\n")
 
-    console.print(f"[bold]1. Deploy your server application:[/bold]")
-    console.print(f"   git push heroku main")
-    console.print(f"   [dim]Note: Database migrations run automatically on deployment via release phase[/dim]\n")
+    console.print("[bold]1. Deploy your server application:[/bold]")
+    console.print("   git push heroku main")
+    console.print("   [dim]Note: Database migrations run automatically on deployment via release phase[/dim]\n")
 
-    console.print(f"[bold]2. Monitor deployment:[/bold]")
+    console.print("[bold]2. Monitor deployment:[/bold]")
     console.print(f"   heroku logs --tail --app {server_app}\n")
 
-    console.print(f"[bold]3. Test your deployment:[/bold]")
+    console.print("[bold]3. Test your deployment:[/bold]")
     console.print(f"   curl {server_url}version\n")
 
-    console.print(f"[bold]4. Test WebSocket connectivity:[/bold]")
-    console.print(f"   wscat -c \"wss://{urlparse(server_url).netloc}/ws/diagrams/{{id}}\" \\")
-    console.print(f"     -H \"Authorization: Bearer YOUR_JWT_TOKEN\"\n")
+    console.print("[bold]4. Test WebSocket connectivity:[/bold]")
+    console.print(f'   wscat -c "wss://{urlparse(server_url).netloc}/ws/diagrams/{{id}}" \\')
+    console.print('     -H "Authorization: Bearer YOUR_JWT_TOKEN"\n')
 
     if client_url:
-        console.print(f"[bold]5. Configure your client app to use:[/bold]")
+        console.print("[bold]5. Configure your client app to use:[/bold]")
         console.print(f"   API URL: {server_url}")
         console.print(f"   WebSocket URL: wss://{urlparse(server_url).netloc}\n")
 
@@ -424,9 +417,13 @@ def main():
         app_name=args.server_app
     )
 
-    if not server_app:
+    if not server_app or not server_url:
         console.print("[red]✗ Server app is required[/red]")
         sys.exit(1)
+
+    # Type narrowing: server_app and server_url are now guaranteed to be str
+    assert server_app is not None
+    assert server_url is not None
 
     client_app, client_url = None, None
     if not args.no_client_app:
@@ -518,7 +515,7 @@ def main():
             if Confirm.ask("  Generate new JWT secret?", default=False):
                 jwt_secret = generate_jwt_secret()
                 config_vars["JWT_SECRET"] = jwt_secret
-                console.print(f"  [green]✓ Generated new JWT secret[/green]")
+                console.print("  [green]✓ Generated new JWT secret[/green]")
                 console.print(f"  [yellow]⚠ SAVE THIS: {jwt_secret}[/yellow]")
             else:
                 console.print("  [dim]Keeping existing JWT_SECRET[/dim]")
@@ -527,7 +524,7 @@ def main():
     else:
         jwt_secret = generate_jwt_secret()
         config_vars["JWT_SECRET"] = jwt_secret
-        console.print(f"  [green]✓ Generated JWT secret[/green]")
+        console.print("  [green]✓ Generated JWT secret[/green]")
         console.print(f"  [yellow]⚠ SAVE THIS: {jwt_secret}[/yellow]")
 
     # OAuth and WebSocket

@@ -16,11 +16,10 @@ Run with: uv run validate_asyncapi.py tmi-asyncapi.yml
 
 import sys
 import yaml
-import json
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field, field_validator
-import jsonschema
 from jsonschema import Draft7Validator
+from jsonschema.exceptions import SchemaError
 import argparse
 
 
@@ -115,7 +114,7 @@ def validate_json_schemas(spec_data: Dict[str, Any]) -> List[str]:
         try:
             # Validate that each schema is a valid JSON schema
             Draft7Validator.check_schema(schema_def)
-        except jsonschema.exceptions.SchemaError as e:
+        except SchemaError as e:
             issues.append(f"Invalid JSON Schema in '{schema_name}': {e.message}")
     
     return issues
@@ -189,7 +188,7 @@ def validate_asyncapi_spec(filename: str) -> bool:
     # Validate basic structure with Pydantic
     validation_errors = []
     try:
-        spec = AsyncAPISpec.model_validate(spec_data)
+        AsyncAPISpec.model_validate(spec_data)
         print("✓ Basic AsyncAPI structure is valid")
     except Exception as e:
         validation_errors.append(f"Pydantic validation failed: {e}")

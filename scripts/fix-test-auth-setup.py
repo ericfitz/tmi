@@ -33,7 +33,8 @@ def fix_test_file(filepath):
 
                     # Generate a provider ID based on the email variable
                     # Extract indentation from current line
-                    indent = re.match(r'^(\s*)', line).group(1)
+                    indent_match = re.match(r'^(\s*)', line)
+                    indent = indent_match.group(1) if indent_match else ''
 
                     # Add userID line after userEmail
                     # For test purposes, we'll create a simple provider ID based on the email
