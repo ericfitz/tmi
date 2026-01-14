@@ -37,6 +37,8 @@ var (
 const (
 	// MaxIconLength is the maximum allowed length for icon strings
 	MaxIconLength = 60
+	// MaxAddonObjects is the maximum number of objects allowed in an add-on
+	MaxAddonObjects = 100
 )
 
 // ValidateIcon validates an icon string against Material Symbols or FontAwesome formats
@@ -92,6 +94,15 @@ func ValidateObjects(objects []string) error {
 	if len(objects) == 0 {
 		// Empty objects array is allowed
 		return nil
+	}
+
+	// Check array size to prevent overflow attacks
+	if len(objects) > MaxAddonObjects {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Objects array exceeds maximum size of %d (got %d)", MaxAddonObjects, len(objects)),
+		}
 	}
 
 	// Create map for efficient lookup

@@ -86,6 +86,11 @@ func ParseRequestBody[T any](c *gin.Context) (T, error) {
 		}
 	}
 
+	// Check for duplicate keys in JSON object (RFC 8259 recommends unique keys)
+	if err := checkDuplicateJSONKeys(bodyBytes); err != nil {
+		return zero, err
+	}
+
 	// Pre-process the JSON to handle invalid UUID values
 	cleanedJSON, err := sanitizeJSONForUUIDs(bodyBytes)
 	if err != nil {
@@ -175,6 +180,75 @@ func isValidUUIDString(s string) bool {
 // isHexDigit checks if a rune is a valid hexadecimal digit (0-9, a-f, A-F)
 func isHexDigit(r rune) bool {
 	return (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
+}
+
+// checkDuplicateJSONKeys checks for duplicate keys in a JSON object
+// RFC 8259 recommends unique keys, and duplicate keys can cause unexpected behavior
+func checkDuplicateJSONKeys(jsonBytes []byte) error {
+	dec := json.NewDecoder(strings.NewReader(string(jsonBytes)))
+	return checkDuplicateKeysInDecoder(dec, "")
+}
+
+// checkDuplicateKeysInDecoder recursively checks for duplicate keys in JSON
+func checkDuplicateKeysInDecoder(dec *json.Decoder, path string) error {
+	// Read opening token
+	t, err := dec.Token()
+	if err != nil {
+		return nil // Let json.Unmarshal handle syntax errors
+	}
+
+	switch t {
+	case json.Delim('{'):
+		// Object - check for duplicate keys
+		keys := make(map[string]bool)
+		for dec.More() {
+			// Read key
+			keyToken, err := dec.Token()
+			if err != nil {
+				return nil // Let json.Unmarshal handle syntax errors
+			}
+
+			key, ok := keyToken.(string)
+			if !ok {
+				continue
+			}
+
+			if keys[key] {
+				return &RequestError{
+					Status:  http.StatusBadRequest,
+					Code:    "invalid_input",
+					Message: fmt.Sprintf("Duplicate key '%s' in JSON object", key),
+				}
+			}
+			keys[key] = true
+
+			// Recursively check the value
+			keyPath := key
+			if path != "" {
+				keyPath = path + "." + key
+			}
+			if err := checkDuplicateKeysInDecoder(dec, keyPath); err != nil {
+				return err
+			}
+		}
+		// Read closing brace
+		_, _ = dec.Token()
+
+	case json.Delim('['):
+		// Array - check each element
+		for dec.More() {
+			if err := checkDuplicateKeysInDecoder(dec, path); err != nil {
+				return err
+			}
+		}
+		// Read closing bracket
+		_, _ = dec.Token()
+
+	default:
+		// Primitive value - nothing to check
+	}
+
+	return nil
 }
 
 // ValidateAuthenticatedUser extracts and validates the authenticated user from context

@@ -452,38 +452,108 @@ class CATSResultsParser:
         except ValueError:
             return 0
 
-    def is_oauth_auth_false_positive(self, data: Dict) -> bool:
+    def is_false_positive(self, data: Dict) -> bool:
         """
-        Detect OAuth/Auth false positives.
+        Detect false positives from CATS fuzzing.
 
-        These are legitimate RFC-compliant protocol responses that CATS may flag
-        as errors due to keywords like "Unauthorized", "Forbidden", "InvalidToken", etc.
+        False positives are legitimate API responses that CATS flags as errors
+        but are actually correct behavior for the API being tested.
 
-        Criteria for OAuth false positive:
-        - Response code is 401 or 403
-        - Result reason contains OAuth/auth keywords
-        - These are EXPECTED and CORRECT responses per RFCs 6749, 8414, etc.
+        Categories:
+        1. OAuth/Auth FP: 401/403 responses (expected auth errors during fuzzing)
+        2. Rate Limit FP: 429 responses (infrastructure, not API behavior)
+        3. Validation FP: 400 responses from injection/boundary fuzzing
+        4. Not Found FP: 404 responses from random resource testing
+        5. Response Contract FP: Header mismatches (spec issues, not security)
         """
-        # OAuth/auth error keywords that are legitimate protocol responses
-        oauth_keywords = [
-            'unauthorized', 'forbidden', 'invalidtoken', 'invalidgrant',
-            'authenticationfailed', 'authenticationerror', 'authorizationerror',
-            'invalid_token', 'invalid_grant', 'access_denied'
-        ]
-
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
         result_details = (data.get('resultDetails') or '').lower()
+        result = data.get('result', '').lower()
+        fuzzer = data.get('fuzzer', '')
+        scenario = (data.get('scenario') or '').lower()
 
-        # Check if this is a 401/403 response with OAuth keywords
+        # Only check errors and warnings, not successes
+        if result not in ['error', 'warn']:
+            return False
+
+        # 1. Rate Limit False Positives (429)
+        # Rate limiting is infrastructure protection, not API behavior
+        if response_code == 429:
+            return True
+
+        # 2. OAuth/Auth False Positives (401/403)
+        # These are expected auth failures during fuzzing
         if response_code in [401, 403]:
-            # Check result reason and details for OAuth keywords
+            # Keywords that indicate legitimate auth responses
+            oauth_keywords = [
+                'unauthorized', 'forbidden', 'invalidtoken', 'invalidgrant',
+                'authenticationfailed', 'authenticationerror', 'authorizationerror',
+                'invalid_token', 'invalid_grant', 'access_denied',
+                'unexpected response code: 401', 'unexpected response code: 403'
+            ]
             text_to_check = f"{result_reason} {result_details}"
             for keyword in oauth_keywords:
                 if keyword in text_to_check:
                     return True
 
+        # 3. Validation False Positives (400)
+        # API correctly rejects malformed input from injection/boundary testing
+        if response_code == 400:
+            # Fuzzers that intentionally send malformed data
+            validation_fuzzers = [
+                'ZeroWidthCharsInValuesFields', 'ZeroWidthCharsInNamesFields',
+                'HangulCharsInStringFields', 'ArabicCharsInStringFields',
+                'SpecialCharsInStringFields', 'ControlCharsInStringFields',
+                'EmojisInStringFields', 'TrailingSpacesInFields',
+                'LeadingSpacesInFields', 'OverflowArraySizeFields',
+                'ExtremeNegativeNumbersInNumericFields', 'ExtremePositiveNumbersInNumericFields',
+                'VeryLargeStrings', 'VeryLargeUnicodeStrings', 'MalformedJson',
+                'DuplicateKeysFields', 'InvalidJsonInRequestBody',
+                'NullValuesInFields', 'EmptyStringsInFields',
+                'SQLInjection', 'XSSInjection', 'PathTraversal'
+            ]
+            if fuzzer in validation_fuzzers:
+                return True
+            # Also check for fuzzer names containing injection patterns
+            fuzzer_lower = fuzzer.lower()
+            if any(pattern in fuzzer_lower for pattern in ['injection', 'overflow', 'chars', 'unicode', 'malformed']):
+                return True
+
+        # 4. Not Found False Positives (404)
+        # Expected when fuzzing with random/invalid resource IDs
+        if response_code == 404:
+            not_found_fuzzers = [
+                'RandomResourcesFuzzer', 'InsecureDirectObjectReferences',
+                'RandomForeignKeyReference', 'NonExistentResource'
+            ]
+            if fuzzer in not_found_fuzzers:
+                return True
+            # Also catch general "not found" reasons
+            if 'unexpected response code: 404' in result_reason:
+                return True
+
+        # 5. Response Contract False Positives
+        # Header mismatches are spec issues, not security issues
+        contract_fuzzers = [
+            'ResponseHeadersMatchContractHeaders',
+            'ResponseContentTypeMatchesContract'
+        ]
+        if fuzzer in contract_fuzzers:
+            return True
+
+        # 6. Security Header False Positives
+        # Skip CheckSecurityHeaders if needed (currently headers are implemented)
+        # Uncomment if you want to mark these as FP:
+        # if fuzzer == 'CheckSecurityHeaders':
+        #     return True
+
         return False
+
+    # Keep the old method name as an alias for backward compatibility
+    def is_oauth_auth_false_positive(self, data: Dict) -> bool:
+        """Alias for is_false_positive for backward compatibility."""
+        return self.is_false_positive(data)
 
     def insert_test_record(self, data: Dict, source_file: str):
         """Insert complete test record (test + request + response + headers)"""

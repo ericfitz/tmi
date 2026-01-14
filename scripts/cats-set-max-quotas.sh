@@ -29,11 +29,12 @@ if docker ps --format "{{.Names}}" | grep -q "^${POSTGRES_CONTAINER}$"; then
     docker exec -i "${POSTGRES_CONTAINER}" psql -U "${DB_USER}" -d "${DB_NAME}" <<'EOF'
 -- Set maximum quotas for CATS test user
 -- This prevents rate-limiting during intensive fuzzing
+-- Uses very high values (100000/min, 1000000/hour) to handle 14000+ CATS tests
 
 DO $$
 DECLARE
     v_user_uuid UUID;
-    v_quota_count INT;
+    v_api_quota_count INT;
 BEGIN
     -- Get the internal UUID for charlie@tmi.local
     SELECT internal_uuid INTO v_user_uuid
@@ -47,68 +48,44 @@ BEGIN
         RAISE NOTICE 'The user will be created during the first OAuth login.';
         RAISE NOTICE 'Run CATS fuzzing once, then run this script again.';
     ELSE
-        -- Check if user already has quotas set
-        SELECT COUNT(*) INTO v_quota_count
-        FROM user_quotas
+        -- Check if user already has API quotas set
+        SELECT COUNT(*) INTO v_api_quota_count
+        FROM user_api_quotas
         WHERE user_internal_uuid = v_user_uuid;
 
-        IF v_quota_count > 0 THEN
-            -- Update existing quotas to maximum values
-            UPDATE user_quotas
+        IF v_api_quota_count > 0 THEN
+            -- Update existing API quotas to maximum values
+            UPDATE user_api_quotas
             SET
-                max_requests_per_minute = 10000,
-                max_requests_per_hour = 600000,
-                max_subscriptions = 100,
-                max_events_per_minute = 1000,
-                max_subscription_requests_per_minute = 100,
-                max_subscription_requests_per_day = 10000,
-                max_active_invocations = 10,
-                max_invocations_per_hour = 1000,
-                updated_at = NOW()
+                max_requests_per_minute = 100000,
+                max_requests_per_hour = 1000000,
+                modified_at = NOW()
             WHERE user_internal_uuid = v_user_uuid;
 
-            RAISE NOTICE 'Updated quotas for charlie@tmi.local to maximum values';
+            RAISE NOTICE 'Updated API quotas for charlie@tmi.local';
         ELSE
-            -- Insert maximum quotas
-            INSERT INTO user_quotas (
+            -- Insert maximum API quotas
+            INSERT INTO user_api_quotas (
                 user_internal_uuid,
                 max_requests_per_minute,
                 max_requests_per_hour,
-                max_subscriptions,
-                max_events_per_minute,
-                max_subscription_requests_per_minute,
-                max_subscription_requests_per_day,
-                max_active_invocations,
-                max_invocations_per_hour,
                 created_at,
-                updated_at
+                modified_at
             ) VALUES (
                 v_user_uuid,
-                10000,  -- MaxRequestsPerMinute
-                600000, -- MaxRequestsPerHour
-                100,    -- MaxSubscriptions
-                1000,   -- MaxEventsPerMinute
-                100,    -- MaxSubscriptionRequestsPerMinute
-                10000,  -- MaxSubscriptionRequestsPerDay
-                10,     -- MaxActiveInvocations
-                1000,   -- MaxInvocationsPerHour
+                100000,  -- Very high limit for CATS fuzzing
+                1000000, -- Very high limit for CATS fuzzing
                 NOW(),
                 NOW()
             );
 
-            RAISE NOTICE 'Created maximum quotas for charlie@tmi.local';
+            RAISE NOTICE 'Created maximum API quotas for charlie@tmi.local';
         END IF;
 
         -- Display current quota settings
         RAISE NOTICE 'Current quota settings:';
-        RAISE NOTICE '  max_requests_per_minute: 10000';
-        RAISE NOTICE '  max_requests_per_hour: 600000';
-        RAISE NOTICE '  max_subscriptions: 100';
-        RAISE NOTICE '  max_events_per_minute: 1000';
-        RAISE NOTICE '  max_subscription_requests_per_minute: 100';
-        RAISE NOTICE '  max_subscription_requests_per_day: 10000';
-        RAISE NOTICE '  max_active_invocations: 10';
-        RAISE NOTICE '  max_invocations_per_hour: 1000';
+        RAISE NOTICE '  max_requests_per_minute: 100000';
+        RAISE NOTICE '  max_requests_per_hour: 1000000';
     END IF;
 END $$;
 EOF
@@ -118,11 +95,12 @@ else
     PGPASSWORD="${DB_PASSWORD}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" <<'EOF'
 -- Set maximum quotas for CATS test user
 -- This prevents rate-limiting during intensive fuzzing
+-- Uses very high values (100000/min, 1000000/hour) to handle 14000+ CATS tests
 
 DO $$
 DECLARE
     v_user_uuid UUID;
-    v_quota_count INT;
+    v_api_quota_count INT;
 BEGIN
     -- Get the internal UUID for charlie@tmi.local
     SELECT internal_uuid INTO v_user_uuid
@@ -136,68 +114,44 @@ BEGIN
         RAISE NOTICE 'The user will be created during the first OAuth login.';
         RAISE NOTICE 'Run CATS fuzzing once, then run this script again.';
     ELSE
-        -- Check if user already has quotas set
-        SELECT COUNT(*) INTO v_quota_count
-        FROM user_quotas
+        -- Check if user already has API quotas set
+        SELECT COUNT(*) INTO v_api_quota_count
+        FROM user_api_quotas
         WHERE user_internal_uuid = v_user_uuid;
 
-        IF v_quota_count > 0 THEN
-            -- Update existing quotas to maximum values
-            UPDATE user_quotas
+        IF v_api_quota_count > 0 THEN
+            -- Update existing API quotas to maximum values
+            UPDATE user_api_quotas
             SET
-                max_requests_per_minute = 10000,
-                max_requests_per_hour = 600000,
-                max_subscriptions = 100,
-                max_events_per_minute = 1000,
-                max_subscription_requests_per_minute = 100,
-                max_subscription_requests_per_day = 10000,
-                max_active_invocations = 10,
-                max_invocations_per_hour = 1000,
-                updated_at = NOW()
+                max_requests_per_minute = 100000,
+                max_requests_per_hour = 1000000,
+                modified_at = NOW()
             WHERE user_internal_uuid = v_user_uuid;
 
-            RAISE NOTICE 'Updated quotas for charlie@tmi.local to maximum values';
+            RAISE NOTICE 'Updated API quotas for charlie@tmi.local';
         ELSE
-            -- Insert maximum quotas
-            INSERT INTO user_quotas (
+            -- Insert maximum API quotas
+            INSERT INTO user_api_quotas (
                 user_internal_uuid,
                 max_requests_per_minute,
                 max_requests_per_hour,
-                max_subscriptions,
-                max_events_per_minute,
-                max_subscription_requests_per_minute,
-                max_subscription_requests_per_day,
-                max_active_invocations,
-                max_invocations_per_hour,
                 created_at,
-                updated_at
+                modified_at
             ) VALUES (
                 v_user_uuid,
-                10000,  -- MaxRequestsPerMinute
-                600000, -- MaxRequestsPerHour
-                100,    -- MaxSubscriptions
-                1000,   -- MaxEventsPerMinute
-                100,    -- MaxSubscriptionRequestsPerMinute
-                10000,  -- MaxSubscriptionRequestsPerDay
-                10,     -- MaxActiveInvocations
-                1000,   -- MaxInvocationsPerHour
+                100000,  -- Very high limit for CATS fuzzing
+                1000000, -- Very high limit for CATS fuzzing
                 NOW(),
                 NOW()
             );
 
-            RAISE NOTICE 'Created maximum quotas for charlie@tmi.local';
+            RAISE NOTICE 'Created maximum API quotas for charlie@tmi.local';
         END IF;
 
         -- Display current quota settings
         RAISE NOTICE 'Current quota settings:';
-        RAISE NOTICE '  max_requests_per_minute: 10000';
-        RAISE NOTICE '  max_requests_per_hour: 600000';
-        RAISE NOTICE '  max_subscriptions: 100';
-        RAISE NOTICE '  max_events_per_minute: 1000';
-        RAISE NOTICE '  max_subscription_requests_per_minute: 100';
-        RAISE NOTICE '  max_subscription_requests_per_day: 10000';
-        RAISE NOTICE '  max_active_invocations: 10';
-        RAISE NOTICE '  max_invocations_per_hour: 1000';
+        RAISE NOTICE '  max_requests_per_minute: 100000';
+        RAISE NOTICE '  max_requests_per_hour: 1000000';
     END IF;
 END $$;
 EOF
