@@ -395,11 +395,13 @@ run_cats_fuzz() {
         # per RFCs 8414, 7517, 6749, and SAML 2.0 specifications
         # See: docs/developer/testing/cats-public-endpoints.md
         "--skipFuzzersForExtension=x-public-endpoint=true:BypassAuthentication"
-        # Skip MassAssignmentFuzzer due to CATS 13.5.0 bug causing crash with
-        # JsonPath.InvalidModificationException on certain request bodies
-        # This prevents CATS from processing all paths beyond /threat_models
-        # TODO: Re-enable when CATS fixes https://github.com/Endava/cats/issues/XXX
-        "--skipFuzzers=MassAssignmentFuzzer"
+        # Skip fuzzers that crash due to CATS 13.5.0 bugs:
+        # - MassAssignmentFuzzer: JsonPath.InvalidModificationException on array properties
+        #   https://github.com/Endava/cats/issues/191
+        # - InsertRandomValuesInBodyFuzzer: String.repeat count negative during HTML report
+        #   generation (IllegalArgumentException: count is negative: -1)
+        # TODO: Re-enable when CATS fixes these issues
+        "--skipFuzzers=MassAssignmentFuzzer,InsertRandomValuesInBodyFuzzer"
     )
 
     # Add path filter if specified
