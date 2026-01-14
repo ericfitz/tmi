@@ -135,7 +135,8 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context) {
 	}
 
 	// Convert to OpenAPI response type
-	var apiCreds []ClientCredentialInfo
+	// Initialize as empty slice (not nil) to ensure JSON serializes to [] instead of null
+	apiCreds := make([]ClientCredentialInfo, 0)
 	for _, cred := range creds {
 		// Convert internal service type to OpenAPI type
 		// Service has Description as string, OpenAPI expects *string
