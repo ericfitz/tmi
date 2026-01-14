@@ -114,7 +114,7 @@ start_oauth_stub() {
 
 # Authenticate and get JWT token
 authenticate() {
-    log "Authenticating as ${USER}@${IDP}.tmi..."
+    log "Authenticating as ${USER}@tmi.local..."
 
     # Initiate OAuth flow
     local FLOW_RESPONSE
@@ -534,7 +534,7 @@ write_reference_file() {
   "user": {
     "provider_user_id": "${USER}",
     "provider": "${IDP}",
-    "email": "${USER}@${IDP}.tmi"
+    "email": "${USER}@tmi.local"
   },
   "objects": {
     "threat_model": {
@@ -648,7 +648,7 @@ print_summary() {
 # Main execution
 main() {
     log "🔧 CATS Test Data Creation"
-    log "   User:   ${USER}@${IDP}.tmi"
+    log "   User:   ${USER}@tmi.local"
     log "   Server: ${SERVER}"
     log "   Output: ${OUTPUT_FILE}"
     echo ""
