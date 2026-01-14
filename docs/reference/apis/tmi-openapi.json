@@ -6069,6 +6069,25 @@
             }
           }
         }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "notFoundError": {
+                "summary": "Resource not found",
+                "value": {
+                  "error": "not_found",
+                  "error_description": "The requested resource does not exist"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "parameters": {
@@ -26641,6 +26660,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         },
         "security": [],
@@ -26745,6 +26767,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         },
         "security": [],
@@ -27720,6 +27745,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         },
         "x-admin-only": true
@@ -27983,6 +28011,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         },
         "x-admin-only": true
@@ -28437,6 +28468,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         },
         "x-admin-only": true
@@ -28700,6 +28734,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         },
         "x-admin-only": true
@@ -31436,6 +31473,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         },
         "x-same-provider-required": true
@@ -33122,6 +33162,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         },
         "x-admin-only": true
@@ -33385,6 +33428,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         },
         "x-admin-only": true

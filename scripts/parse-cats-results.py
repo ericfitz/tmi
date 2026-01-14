@@ -603,7 +603,31 @@ class CATSResultsParser:
         if fuzzer in contract_fuzzers:
             return True
 
-        # 7. Injection False Positives for JSON API
+        # 7. 409 Conflict False Positives on POST /admin/groups
+        # When fuzzers modify field values (zero-width chars, etc.), the modified
+        # group name may still collide with existing groups. The API correctly
+        # returns 409 Conflict for duplicate names. This is expected behavior.
+        if response_code == 409:
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            # POST to /admin/groups with duplicate name triggers 409
+            if path == '/admin/groups' and request_method == 'POST':
+                return True
+
+        # 8. Non-JSON Content Type False Positives from Go HTTP layer
+        # When fuzzers send invalid Content-Length headers, Go's net/http package
+        # rejects the request at the transport layer BEFORE it reaches Gin middleware.
+        # Go returns "400 Bad Request" as text/plain, not JSON.
+        # This is expected HTTP behavior, not a security issue.
+        if fuzzer == 'InvalidContentLengthHeaders':
+            if 'content type not matching' in result_reason or 'content type not matching' in result_details:
+                return True
+            # Also catch the actual response showing text/plain
+            response_content_type = data.get('response', {}).get('responseContentType', '')
+            if response_content_type == 'text/plain; charset=utf-8' and response_code == 400:
+                return True
+
+        # 9. Injection False Positives for JSON API
         # TMI is a JSON API, not an HTML-rendering web application
         # "Payload reflected in response" means data is stored and returned as JSON
         # This is NOT XSS - XSS requires HTML context. JSON clients must escape output.
@@ -621,7 +645,7 @@ class CATSResultsParser:
                 # The API doesn't execute the payloads - it stores them as string data
                 return True
 
-        # 6. Security Header False Positives
+        # 10. Security Header False Positives
         # Skip CheckSecurityHeaders if needed (currently headers are implemented)
         # Uncomment if you want to mark these as FP:
         # if fuzzer == 'CheckSecurityHeaders':

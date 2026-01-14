@@ -145,9 +145,30 @@ The **better approach** is:
 | 401 with "invalid_token" | ✅ Yes | Correct OAuth error response |
 | 401 with "unauthorized" | ✅ Yes | Standard HTTP auth response |
 | 403 with "forbidden" | ✅ Yes | Correct permission denied |
+| 409 on POST /admin/groups | ✅ Yes | Duplicate name from fuzzed values |
+| 400 with text/plain content-type | ✅ Yes | Go HTTP layer transport error |
 | 500 with "NullPointerException" | ❌ No | Actual server error |
 | 400 with "invalid_request" | ❌ No | Input validation error |
 | 200 with "unauthorized" in body | ⚠️ Maybe | Needs manual review |
+
+## Additional False Positive Categories
+
+### 409 Conflict on POST /admin/groups
+
+When CATS fuzzers modify field values (zero-width characters, Hangul fillers, etc.), the modified group name may still collide with existing groups created during test data setup. The API correctly returns 409 Conflict for duplicate names. This is expected behavior, not a security issue.
+
+**Example**: `ZeroWidthCharsInValuesFields` inserts invisible characters into the group name field. The API strips or normalizes these, resulting in the same effective name as an existing group → 409 Conflict.
+
+### Non-JSON Content Types from Go HTTP Layer
+
+When the `InvalidContentLengthHeaders` fuzzer sends requests with mismatched `Content-Length` headers (e.g., `Content-Length: 1` with a larger body), Go's `net/http` package rejects the request at the **transport layer** before it reaches Gin middleware.
+
+Go returns:
+- Status: `400 Bad Request`
+- Content-Type: `text/plain; charset=utf-8`
+- Body: `400 Bad Request`
+
+This is standard HTTP behavior at the transport layer. Our `JSONErrorHandler` middleware cannot intercept it because the request is rejected before routing occurs. This is a known limitation, not a security issue.
 
 ## Troubleshooting
 

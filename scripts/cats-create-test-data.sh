@@ -441,15 +441,17 @@ create_admin_group() {
             \"description\": \"Test group for CATS fuzzing - created $(date -u +%Y-%m-%dT%H:%M:%SZ)\"
         }")
 
-    ADMIN_GROUP_ID=$(echo "${RESPONSE}" | jq -r '.id // .internal_uuid' 2>/dev/null)
+    # API returns internal_uuid for groups (not id)
+    ADMIN_GROUP_ID=$(echo "${RESPONSE}" | jq -r '.internal_uuid // .id' 2>/dev/null)
 
     if [ -z "${ADMIN_GROUP_ID}" ] || [ "${ADMIN_GROUP_ID}" = "null" ]; then
         warn "Failed to create admin group (may require admin). Response: ${RESPONSE}"
-        # Try to get existing group
+        # Try to get existing group from the list
         RESPONSE=$(curl -s -X GET "${SERVER}/admin/groups" \
             -H "Authorization: Bearer ${JWT_TOKEN}")
-        ADMIN_GROUP_ID=$(echo "${RESPONSE}" | jq -r '.groups[0].internal_uuid // .groups[0].id // empty' 2>/dev/null)
+        ADMIN_GROUP_ID=$(echo "${RESPONSE}" | jq -r '.groups[0].internal_uuid // empty' 2>/dev/null)
         if [ -z "${ADMIN_GROUP_ID}" ] || [ "${ADMIN_GROUP_ID}" = "null" ]; then
+            warn "No existing groups found, using placeholder UUID"
             ADMIN_GROUP_ID="00000000-0000-0000-0000-000000000000"
         else
             success "Using existing admin group: ${ADMIN_GROUP_ID}"
@@ -632,13 +634,20 @@ all:
   key: ${METADATA_KEY}
   # Admin resource identifiers
   group_id: ${ADMIN_GROUP_ID}
-  # internal_uuid for /admin/users/{internal_uuid} endpoint
+  # internal_uuid for /admin/users/{internal_uuid} and /admin/groups/{internal_uuid} endpoints
   internal_uuid: ${ADMIN_USER_INTERNAL_UUID}
   # User identity uses provider:provider_id format
   user_provider: ${USER_PROVIDER}
   user_provider_id: ${USER_PROVIDER_ID}
   admin_user_provider: ${ADMIN_USER_PROVIDER}
   admin_user_provider_id: ${ADMIN_USER_PROVIDER_ID}
+  # SAML/OAuth provider endpoints - uses the IDP name directly
+  provider: ${IDP}
+  idp: ${IDP}
+  # Admin quota endpoints - user_id is federated identity format (provider:provider_id)
+  user_id: ${USER_PROVIDER}:${USER_PROVIDER_ID}
+  # Group member endpoints - user_uuid is the internal UUID of the test user
+  user_uuid: ${ADMIN_USER_INTERNAL_UUID}
 YAMLEOF
     success "YAML version written to ${YAML_FILE}"
 }
