@@ -645,7 +645,24 @@ class CATSResultsParser:
                 # The API doesn't execute the payloads - it stores them as string data
                 return True
 
-        # 10. Security Header False Positives
+        # 10. Header Validation False Positives
+        # These fuzzers send malformed/unusual headers and expect success.
+        # Returning 400 Bad Request for invalid headers is CORRECT behavior.
+        # This is proper input validation, not a security issue.
+        header_validation_fuzzers = [
+            'AcceptLanguageHeaders',      # Malformed Accept-Language values
+            'UnsupportedContentTypesHeaders',  # Invalid Content-Type values
+            'DummyContentLengthHeaders',  # Invalid Content-Length values
+            'LargeNumberOfRandomAlphanumericHeaders',  # Header flooding
+            'DuplicateHeaders',           # Duplicate header injection
+            'ExtraHeaders',               # Unknown headers added
+        ]
+        if fuzzer in header_validation_fuzzers:
+            # 400 Bad Request is correct for invalid headers
+            if response_code == 400:
+                return True
+
+        # 11. Security Header False Positives
         # Skip CheckSecurityHeaders if needed (currently headers are implemented)
         # Uncomment if you want to mark these as FP:
         # if fuzzer == 'CheckSecurityHeaders':

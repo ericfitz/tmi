@@ -424,40 +424,28 @@ get_current_user_identity() {
     fi
 }
 
-# Create admin group for testing
-create_admin_group() {
-    log "Creating admin group..."
+# Use built-in administrators group for testing
+# The built-in administrators group has a well-known UUID of all zeros.
+# We do NOT create this group - it exists automatically.
+use_builtin_admin_group() {
+    log "Using built-in administrators group..."
 
-    # Use timestamp to ensure unique group name (avoids 409 conflicts on repeat runs)
-    local TIMESTAMP=$(date +%s)
-    local GROUP_NAME="CATS Test Group ${TIMESTAMP}"
+    # The built-in administrators group has a well-known UUID
+    ADMIN_GROUP_ID="00000000-0000-0000-0000-000000000000"
 
+    # Verify it exists by fetching it
     local RESPONSE
-    RESPONSE=$(curl -s -X POST "${SERVER}/admin/groups" \
-        -H "Authorization: Bearer ${JWT_TOKEN}" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"name\": \"${GROUP_NAME}\",
-            \"description\": \"Test group for CATS fuzzing - created $(date -u +%Y-%m-%dT%H:%M:%SZ)\"
-        }")
+    RESPONSE=$(curl -s -X GET "${SERVER}/admin/groups/${ADMIN_GROUP_ID}" \
+        -H "Authorization: Bearer ${JWT_TOKEN}")
 
-    # API returns internal_uuid for groups (not id)
-    ADMIN_GROUP_ID=$(echo "${RESPONSE}" | jq -r '.internal_uuid // .id' 2>/dev/null)
+    local GROUP_NAME
+    GROUP_NAME=$(echo "${RESPONSE}" | jq -r '.name' 2>/dev/null)
 
-    if [ -z "${ADMIN_GROUP_ID}" ] || [ "${ADMIN_GROUP_ID}" = "null" ]; then
-        warn "Failed to create admin group (may require admin). Response: ${RESPONSE}"
-        # Try to get existing group from the list
-        RESPONSE=$(curl -s -X GET "${SERVER}/admin/groups" \
-            -H "Authorization: Bearer ${JWT_TOKEN}")
-        ADMIN_GROUP_ID=$(echo "${RESPONSE}" | jq -r '.groups[0].internal_uuid // empty' 2>/dev/null)
-        if [ -z "${ADMIN_GROUP_ID}" ] || [ "${ADMIN_GROUP_ID}" = "null" ]; then
-            warn "No existing groups found, using placeholder UUID"
-            ADMIN_GROUP_ID="00000000-0000-0000-0000-000000000000"
-        else
-            success "Using existing admin group: ${ADMIN_GROUP_ID}"
-        fi
+    if [ -z "${GROUP_NAME}" ] || [ "${GROUP_NAME}" = "null" ]; then
+        warn "Could not verify built-in administrators group exists. Response: ${RESPONSE}"
+        warn "Proceeding with UUID: ${ADMIN_GROUP_ID}"
     else
-        success "Created admin group: ${ADMIN_GROUP_ID}"
+        success "Verified built-in administrators group: ${GROUP_NAME} (${ADMIN_GROUP_ID})"
     fi
 }
 
@@ -644,8 +632,8 @@ all:
   # SAML/OAuth provider endpoints - uses the IDP name directly
   provider: ${IDP}
   idp: ${IDP}
-  # Admin quota endpoints - user_id is federated identity format (provider:provider_id)
-  user_id: ${USER_PROVIDER}:${USER_PROVIDER_ID}
+  # Admin quota endpoints - user_id is internal UUID (OpenAPI spec defines it as UUID format)
+  user_id: ${ADMIN_USER_INTERNAL_UUID}
   # Group member endpoints - user_uuid is the internal UUID of the test user
   user_uuid: ${ADMIN_USER_INTERNAL_UUID}
 YAMLEOF
@@ -705,7 +693,7 @@ main() {
     create_metadata
 
     # Admin resources (requires admin privileges)
-    create_admin_group
+    use_builtin_admin_group
     get_admin_users
 
     write_reference_file

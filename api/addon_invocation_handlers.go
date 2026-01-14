@@ -20,8 +20,8 @@ import (
 func InvokeAddon(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get addon ID from path
-	addonIDStr := c.Param("addon_id")
+	// Get addon ID from path (OpenAPI routes use "id" as the parameter name)
+	addonIDStr := c.Param("id")
 	addonID, err := uuid.Parse(addonIDStr)
 	if err != nil {
 		logger.Error("Invalid add-on ID: %s", addonIDStr)
@@ -224,8 +224,8 @@ func InvokeAddon(c *gin.Context) {
 func GetInvocation(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get invocation ID from path
-	invocationIDStr := c.Param("invocation_id")
+	// Get invocation ID from path (OpenAPI routes use "id" as the parameter name)
+	invocationIDStr := c.Param("id")
 	invocationID, err := uuid.Parse(invocationIDStr)
 	if err != nil {
 		logger.Error("Invalid invocation ID: %s", invocationIDStr)
@@ -379,8 +379,8 @@ func ListInvocations(c *gin.Context) {
 func UpdateInvocationStatus(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get invocation ID from path
-	invocationIDStr := c.Param("invocation_id")
+	// Get invocation ID from path (OpenAPI routes use "id" as the parameter name)
+	invocationIDStr := c.Param("id")
 	invocationID, err := uuid.Parse(invocationIDStr)
 	if err != nil {
 		logger.Error("Invalid invocation ID: %s", invocationIDStr)

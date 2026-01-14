@@ -147,6 +147,7 @@ The **better approach** is:
 | 403 with "forbidden" | ✅ Yes | Correct permission denied |
 | 409 on POST /admin/groups | ✅ Yes | Duplicate name from fuzzed values |
 | 400 with text/plain content-type | ✅ Yes | Go HTTP layer transport error |
+| 400 from header fuzzers | ✅ Yes | Correct header validation |
 | 500 with "NullPointerException" | ❌ No | Actual server error |
 | 400 with "invalid_request" | ❌ No | Input validation error |
 | 200 with "unauthorized" in body | ⚠️ Maybe | Needs manual review |
@@ -169,6 +170,20 @@ Go returns:
 - Body: `400 Bad Request`
 
 This is standard HTTP behavior at the transport layer. Our `JSONErrorHandler` middleware cannot intercept it because the request is rejected before routing occurs. This is a known limitation, not a security issue.
+
+### Header Validation Responses (400 Bad Request)
+
+Several CATS fuzzers send malformed or unusual HTTP headers and expect the request to succeed. When TMI returns `400 Bad Request` for invalid headers, this is **correct input validation behavior**, not a security issue.
+
+Fuzzers in this category:
+- `AcceptLanguageHeaders` - Malformed Accept-Language header values
+- `UnsupportedContentTypesHeaders` - Invalid Content-Type values
+- `DummyContentLengthHeaders` - Invalid Content-Length values
+- `LargeNumberOfRandomAlphanumericHeaders` - Header flooding
+- `DuplicateHeaders` - Duplicate header injection
+- `ExtraHeaders` - Unknown headers added
+
+Returning 400 for these requests demonstrates proper header validation.
 
 ## Troubleshooting
 

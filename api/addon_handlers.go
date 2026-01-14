@@ -101,8 +101,8 @@ func CreateAddon(c *gin.Context) {
 func GetAddon(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get addon ID from path
-	addonIDStr := c.Param("addon_id")
+	// Get addon ID from path (OpenAPI routes use "id" as the parameter name)
+	addonIDStr := c.Param("id")
 	addonID, err := uuid.Parse(addonIDStr)
 	if err != nil {
 		logger.Error("Invalid add-on ID: %s", addonIDStr)
@@ -208,8 +208,8 @@ func DeleteAddon(c *gin.Context) {
 		return // Error response already sent by requireAdministrator
 	}
 
-	// Get addon ID from path
-	addonIDStr := c.Param("addon_id")
+	// Get addon ID from path (OpenAPI routes use "id" as the parameter name)
+	addonIDStr := c.Param("id")
 	addonID, err := uuid.Parse(addonIDStr)
 	if err != nil {
 		logger.Error("Invalid add-on ID: %s", addonIDStr)
