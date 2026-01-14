@@ -403,21 +403,24 @@ create_client_credential() {
     success "Created client credential: ${CLIENT_CRED_ID}"
 }
 
-# Get current user's internal UUID for admin operations
-get_current_user_uuid() {
-    log "Getting current user's internal UUID..."
+# Get current user's identity (provider + provider_id)
+get_current_user_identity() {
+    log "Getting current user's identity..."
 
     local RESPONSE
     RESPONSE=$(curl -s -X GET "${SERVER}/users/me" \
         -H "Authorization: Bearer ${JWT_TOKEN}")
 
-    USER_INTERNAL_UUID=$(echo "${RESPONSE}" | jq -r '.internal_uuid // .id' 2>/dev/null)
+    USER_PROVIDER=$(echo "${RESPONSE}" | jq -r '.provider' 2>/dev/null)
+    USER_PROVIDER_ID=$(echo "${RESPONSE}" | jq -r '.provider_id' 2>/dev/null)
 
-    if [ -z "${USER_INTERNAL_UUID}" ] || [ "${USER_INTERNAL_UUID}" = "null" ]; then
-        warn "Could not get user internal UUID. Response: ${RESPONSE}"
-        USER_INTERNAL_UUID="00000000-0000-0000-0000-000000000000"
+    if [ -z "${USER_PROVIDER}" ] || [ "${USER_PROVIDER}" = "null" ] || \
+       [ -z "${USER_PROVIDER_ID}" ] || [ "${USER_PROVIDER_ID}" = "null" ]; then
+        warn "Could not get user identity. Response: ${RESPONSE}"
+        USER_PROVIDER="${IDP}"
+        USER_PROVIDER_ID="${USER}"
     else
-        success "Got user internal UUID: ${USER_INTERNAL_UUID}"
+        success "Got user identity: ${USER_PROVIDER}:${USER_PROVIDER_ID}"
     fi
 }
 
@@ -452,7 +455,7 @@ create_admin_group() {
     fi
 }
 
-# Get list of admin users for testing
+# Get list of admin users for testing (uses federated identity)
 get_admin_users() {
     log "Getting admin users list..."
 
@@ -460,13 +463,16 @@ get_admin_users() {
     RESPONSE=$(curl -s -X GET "${SERVER}/admin/users" \
         -H "Authorization: Bearer ${JWT_TOKEN}")
 
-    ADMIN_USER_UUID=$(echo "${RESPONSE}" | jq -r '.users[0].internal_uuid // .users[0].id // empty' 2>/dev/null)
+    ADMIN_USER_PROVIDER=$(echo "${RESPONSE}" | jq -r '.users[0].provider // empty' 2>/dev/null)
+    ADMIN_USER_PROVIDER_ID=$(echo "${RESPONSE}" | jq -r '.users[0].provider_id // empty' 2>/dev/null)
 
-    if [ -z "${ADMIN_USER_UUID}" ] || [ "${ADMIN_USER_UUID}" = "null" ]; then
-        warn "Could not get admin user UUID, using current user UUID"
-        ADMIN_USER_UUID="${USER_INTERNAL_UUID}"
+    if [ -z "${ADMIN_USER_PROVIDER}" ] || [ "${ADMIN_USER_PROVIDER}" = "null" ] || \
+       [ -z "${ADMIN_USER_PROVIDER_ID}" ] || [ "${ADMIN_USER_PROVIDER_ID}" = "null" ]; then
+        warn "Could not get admin user identity, using current user identity"
+        ADMIN_USER_PROVIDER="${USER_PROVIDER}"
+        ADMIN_USER_PROVIDER_ID="${USER_PROVIDER_ID}"
     else
-        success "Got admin user UUID: ${ADMIN_USER_UUID}"
+        success "Got admin user identity: ${ADMIN_USER_PROVIDER}:${ADMIN_USER_PROVIDER_ID}"
     fi
 }
 
@@ -611,11 +617,13 @@ all:
   addon_id: ${ADDON_ID}
   client_credential_id: ${CLIENT_CRED_ID}
   key: ${METADATA_KEY}
-  # Admin resource IDs
-  internal_uuid: ${USER_INTERNAL_UUID}
-  user_id: ${ADMIN_USER_UUID}
-  user_uuid: ${ADMIN_USER_UUID}
+  # Admin resource identifiers (federated identity)
   group_id: ${ADMIN_GROUP_ID}
+  # User identity uses provider:provider_id format
+  user_provider: ${USER_PROVIDER}
+  user_provider_id: ${USER_PROVIDER_ID}
+  admin_user_provider: ${ADMIN_USER_PROVIDER}
+  admin_user_provider_id: ${ADMIN_USER_PROVIDER_ID}
 YAMLEOF
     success "YAML version written to ${YAML_FILE}"
 }
@@ -657,8 +665,8 @@ main() {
     start_oauth_stub
     authenticate
 
-    # Get user info for admin operations
-    get_current_user_uuid
+    # Get user identity for admin operations
+    get_current_user_identity
 
     create_threat_model
     create_threat
