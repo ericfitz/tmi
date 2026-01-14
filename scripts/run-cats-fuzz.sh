@@ -395,6 +395,12 @@ run_cats_fuzz() {
         # per RFCs 8414, 7517, 6749, and SAML 2.0 specifications
         # See: docs/developer/testing/cats-public-endpoints.md
         "--skipFuzzersForExtension=x-public-endpoint=true:BypassAuthentication"
+        # Skip CheckSecurityHeaders fuzzer on cacheable discovery endpoints
+        # Discovery endpoints (OIDC, OAuth metadata, JWKS, provider lists) intentionally use
+        # Cache-Control: public, max-age=3600 instead of no-store per RFC 8414/7517
+        # CATS expects no-store on all endpoints, but caching discovery metadata is correct
+        # See: docs/developer/testing/cats-public-endpoints.md#cacheable-endpoints
+        "--skipFuzzersForExtension=x-cacheable-endpoint=true:CheckSecurityHeaders"
         # Skip fuzzers that crash due to CATS 13.5.0 bugs:
         # - MassAssignmentFuzzer: JsonPath.InvalidModificationException on array properties
         #   https://github.com/Endava/cats/issues/191

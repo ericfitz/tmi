@@ -311,3 +311,165 @@ func isLikelyRequiredField(fieldName string) bool {
 	}
 	return false
 }
+
+// StrictJSONValidationMiddleware validates JSON syntax strictly, rejecting:
+// - Trailing garbage after valid JSON (e.g., `{"name":"test"}bla`)
+// - Duplicate keys in objects (RFC 8259 recommends unique keys)
+// This ensures all handlers receive well-formed JSON regardless of which
+// binding method they use (ShouldBindJSON vs ParseRequestBody).
+func StrictJSONValidationMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		logger := slogging.Get().WithContext(c)
+
+		// Only process JSON requests with a body
+		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodDelete || c.Request.Method == http.MethodHead {
+			c.Next()
+			return
+		}
+
+		contentType := c.GetHeader("Content-Type")
+		if !strings.Contains(contentType, "application/json") {
+			c.Next()
+			return
+		}
+
+		// Read the request body
+		bodyBytes, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			logger.Error("Failed to read request body: %v", err)
+			c.Next()
+			return
+		}
+
+		// Close the original body
+		_ = c.Request.Body.Close()
+
+		// Skip validation for empty bodies (will be handled by handlers)
+		if len(bodyBytes) == 0 {
+			c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			c.Next()
+			return
+		}
+
+		// Use json.Decoder with DisallowUnknownFields equivalent for strict parsing
+		// and check for trailing garbage by ensuring we're at EOF after decoding
+		decoder := json.NewDecoder(bytes.NewReader(bodyBytes))
+
+		// Decode to validate the JSON is well-formed
+		var temp interface{}
+		if err := decoder.Decode(&temp); err != nil {
+			logger.Warn("Invalid JSON syntax: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_input",
+				"error_description": "Request body contains invalid JSON syntax",
+			})
+			c.Abort()
+			return
+		}
+
+		// Check for trailing garbage after the JSON value
+		// If we can read another token, there's extra content
+		if decoder.More() {
+			logger.Warn("JSON contains trailing garbage after valid value")
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_input",
+				"error_description": "Request body contains invalid JSON: unexpected content after JSON value",
+			})
+			c.Abort()
+			return
+		}
+
+		// Also check if there's any non-whitespace content remaining
+		remaining, _ := io.ReadAll(decoder.Buffered())
+		if len(bytes.TrimSpace(remaining)) > 0 {
+			logger.Warn("JSON contains trailing content: %q", remaining)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_input",
+				"error_description": "Request body contains invalid JSON: unexpected content after JSON value",
+			})
+			c.Abort()
+			return
+		}
+
+		// Check for duplicate keys in the JSON object
+		if err := validateNoDuplicateKeys(bodyBytes); err != nil {
+			logger.Warn("JSON contains duplicate keys: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_input",
+				"error_description": err.Error(),
+			})
+			c.Abort()
+			return
+		}
+
+		// Reset the request body for handlers
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+		c.Next()
+	}
+}
+
+// validateNoDuplicateKeys checks for duplicate keys in a JSON object
+// RFC 8259 recommends unique keys, and duplicate keys can cause unexpected behavior
+func validateNoDuplicateKeys(jsonBytes []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(jsonBytes))
+	return checkDuplicateKeysRecursive(dec, "")
+}
+
+// checkDuplicateKeysRecursive recursively checks for duplicate keys in JSON
+func checkDuplicateKeysRecursive(dec *json.Decoder, path string) error {
+	// Read opening token
+	t, err := dec.Token()
+	if err != nil {
+		return nil // Let json.Unmarshal handle syntax errors
+	}
+
+	switch t {
+	case json.Delim('{'):
+		// Object - check for duplicate keys
+		keys := make(map[string]bool)
+		for dec.More() {
+			// Read key
+			keyToken, err := dec.Token()
+			if err != nil {
+				return nil // Let json.Unmarshal handle syntax errors
+			}
+
+			key, ok := keyToken.(string)
+			if !ok {
+				continue
+			}
+
+			if keys[key] {
+				return fmt.Errorf("duplicate key '%s' in JSON object", key)
+			}
+			keys[key] = true
+
+			// Recursively check the value
+			keyPath := key
+			if path != "" {
+				keyPath = path + "." + key
+			}
+			if err := checkDuplicateKeysRecursive(dec, keyPath); err != nil {
+				return err
+			}
+		}
+		// Read closing brace
+		_, _ = dec.Token()
+
+	case json.Delim('['):
+		// Array - check each element
+		for dec.More() {
+			if err := checkDuplicateKeysRecursive(dec, path); err != nil {
+				return err
+			}
+		}
+		// Read closing bracket
+		_, _ = dec.Token()
+
+	default:
+		// Primitive value - nothing to check
+	}
+
+	return nil
+}

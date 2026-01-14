@@ -32,11 +32,12 @@ func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 	offset := 0
 	if params.Offset != nil {
 		offset = *params.Offset
-		if offset < 0 {
+		// Validate offset is reasonable (max 1 billion to prevent DoS and integer overflow issues)
+		if offset < 0 || offset > 1000000000 {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "invalid_offset",
-				Message: "offset must be a non-negative integer",
+				Message: "offset must be between 0 and 1000000000",
 			})
 			return
 		}
@@ -296,10 +297,21 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	// Track what changed for audit log
 	changes := []string{}
 
-	// Apply updates
-	if req.Name != nil && *req.Name != group.Name {
-		changes = append(changes, fmt.Sprintf("name: %s -> %s", group.Name, *req.Name))
-		group.Name = *req.Name
+	// Apply updates with validation
+	if req.Name != nil {
+		// Validate name is not empty if provided
+		if *req.Name == "" {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_input",
+				Message: "name cannot be empty",
+			})
+			return
+		}
+		if *req.Name != group.Name {
+			changes = append(changes, fmt.Sprintf("name: %s -> %s", group.Name, *req.Name))
+			group.Name = *req.Name
+		}
 	}
 
 	if req.Description != nil && *req.Description != group.Description {

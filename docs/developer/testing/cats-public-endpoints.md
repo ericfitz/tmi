@@ -167,6 +167,60 @@ TMI has 17 public endpoint operations across 4 categories:
 
 **RFC Compliance**: SAML 2.0 Web Browser SSO Profile
 
+## Cacheable Endpoints
+
+Some discovery endpoints intentionally use `Cache-Control: public, max-age=3600` instead of the default `no-store` security header. This is **correct behavior** per OAuth/OIDC RFCs, as these endpoints return static configuration metadata that benefits from caching.
+
+### The Problem
+
+CATS `CheckSecurityHeaders` fuzzer expects all endpoints to return `Cache-Control: no-store` (or similar non-caching directives). However, discovery endpoints legitimately use public caching to:
+- Reduce server load from repeated metadata requests
+- Improve client performance during OAuth/OIDC flows
+- Follow RFC recommendations for metadata caching
+
+### Solution
+
+TMI marks cacheable endpoints with `x-cacheable-endpoint: true` in the OpenAPI specification, and CATS is configured to skip the `CheckSecurityHeaders` fuzzer on these endpoints.
+
+### Cacheable Endpoints (6 endpoints)
+
+| Endpoint | Purpose | RFC Reference |
+|----------|---------|---------------|
+| `GET /.well-known/openid-configuration` | OIDC discovery metadata | RFC 8414 |
+| `GET /.well-known/oauth-authorization-server` | OAuth AS metadata | RFC 8414 |
+| `GET /.well-known/oauth-protected-resource` | Protected resource metadata | RFC 9728 |
+| `GET /.well-known/jwks.json` | JSON Web Key Set | RFC 7517 |
+| `GET /oauth2/providers` | OAuth provider list | Static config |
+| `GET /saml/providers` | SAML provider list | Static config |
+
+### Implementation
+
+The [scripts/run-cats-fuzz.sh](../../../scripts/run-cats-fuzz.sh) script uses:
+
+```bash
+"--skipFuzzersForExtension=x-cacheable-endpoint=true:CheckSecurityHeaders"
+```
+
+This skips **only** the `CheckSecurityHeaders` fuzzer on endpoints marked with `x-cacheable-endpoint: true`. All other security fuzzers still run on these endpoints.
+
+### Vendor Extensions
+
+Each cacheable endpoint includes:
+
+```json
+{
+  "x-cacheable-endpoint": true,
+  "x-cacheable-endpoint-reason": "OIDC discovery metadata is static configuration data, cacheable per RFC 8414"
+}
+```
+
+### Verifying Cacheable Endpoints
+
+List all cacheable endpoints:
+```bash
+jq -r '.paths | to_entries[] | .key as $path | .value | to_entries[] | select(.value."x-cacheable-endpoint" == true) | "\($path) [\(.key | ascii_upcase)]"' docs/reference/apis/tmi-openapi.json
+```
+
 ## Maintaining Public Endpoints
 
 ### Adding a New Public Endpoint
@@ -300,7 +354,9 @@ cats --list
 **CATS Issue #185** ✅ **Implemented**: The CATS team added support for skipping fuzzers based on vendor extensions:
 - Feature request: https://github.com/Endava/cats/issues/185
 - Implementation: `--skipFuzzersForExtension` parameter
-- TMI Usage: `--skipFuzzersForExtension=x-public-endpoint=true:BypassAuthentication`
+- TMI Usage:
+  - `--skipFuzzersForExtension=x-public-endpoint=true:BypassAuthentication` (skip auth bypass tests on public endpoints)
+  - `--skipFuzzersForExtension=x-cacheable-endpoint=true:CheckSecurityHeaders` (skip security header checks on cacheable discovery endpoints)
 - This allows vendor extension-based test filtering, providing a cleaner alternative to maintaining path lists in shell scripts
 
 ## References
@@ -308,6 +364,7 @@ cats --list
 - **RFC 8414**: OAuth 2.0 Authorization Server Metadata - https://datatracker.ietf.org/doc/html/rfc8414
 - **RFC 7517**: JSON Web Key (JWK) - https://datatracker.ietf.org/doc/html/rfc7517
 - **RFC 6749**: OAuth 2.0 Authorization Framework - https://datatracker.ietf.org/doc/html/rfc6749
+- **RFC 9728**: OAuth 2.0 Protected Resource Metadata - https://datatracker.ietf.org/doc/html/rfc9728
 - **CATS Tool**: https://github.com/Endava/cats
 - **CATS Issue #185**: Tag-based test filtering - https://github.com/Endava/cats/issues/185
 - **OpenAPI Vendor Extensions**: https://swagger.io/docs/specification/openapi-extensions/

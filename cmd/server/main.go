@@ -1148,6 +1148,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.Use(api.ContentTypeValidationMiddleware())      // Validate Content-Type (415 for unsupported)
 	r.Use(api.AcceptLanguageMiddleware())             // Handle Accept-Language gracefully
 	r.Use(api.UnicodeNormalizationMiddleware())       // Normalize and reject problematic Unicode (security hardening)
+	r.Use(api.StrictJSONValidationMiddleware())       // Reject malformed JSON (trailing garbage, duplicate keys)
 	r.Use(api.BoundaryValueValidationMiddleware())    // Enhanced validation for boundary values
 
 	// Now add JWT middleware with token blacklist support and auth handlers for user lookup

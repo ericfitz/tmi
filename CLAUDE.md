@@ -155,6 +155,14 @@ CATS (Contract-driven Automatic Testing Suite) performs security fuzzing of the 
 - Public endpoints are intentionally accessible without authentication per RFCs (8414, 7517, 6749, SAML 2.0)
 - See [docs/developer/testing/cats-public-endpoints.md](docs/developer/testing/cats-public-endpoints.md) for complete documentation
 
+**Cacheable Endpoint Handling**:
+
+- 6 discovery endpoints use `Cache-Control: public, max-age=3600` (intentionally cacheable per RFC 8414/7517/9728)
+- These endpoints are marked with `x-cacheable-endpoint: true` vendor extension
+- CATS uses `--skipFuzzersForExtension=x-cacheable-endpoint=true:CheckSecurityHeaders` to avoid false positives
+- CATS `CheckSecurityHeaders` fuzzer expects `no-store`, but caching discovery metadata is correct behavior
+- See [docs/developer/testing/cats-public-endpoints.md#cacheable-endpoints](docs/developer/testing/cats-public-endpoints.md#cacheable-endpoints) for details
+
 ### Arazzo Workflow Generation
 
 TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow sequences and dependencies:

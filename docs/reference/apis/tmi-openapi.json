@@ -4886,7 +4886,8 @@
           "name": {
             "type": "string",
             "maxLength": 256,
-            "description": "Updated human-readable group name"
+            "description": "Updated human-readable group name",
+            "minLength": 1
           },
           "description": {
             "type": "string",
@@ -6200,7 +6201,8 @@
         "schema": {
           "type": "integer",
           "minimum": 0,
-          "default": 0
+          "default": 0,
+          "maximum": 1000000000
         },
         "description": "Number of results to skip"
       },
@@ -7117,7 +7119,9 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "OIDC Discovery"
+        "x-public-endpoint-purpose": "OIDC Discovery",
+        "x-cacheable-endpoint": true,
+        "x-cacheable-endpoint-reason": "OIDC discovery metadata is static configuration data, cacheable per RFC 8414"
       }
     },
     "/.well-known/oauth-authorization-server": {
@@ -7262,7 +7266,9 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "OIDC Discovery"
+        "x-public-endpoint-purpose": "OIDC Discovery",
+        "x-cacheable-endpoint": true,
+        "x-cacheable-endpoint-reason": "OAuth AS metadata is static configuration data, cacheable per RFC 8414"
       }
     },
     "/.well-known/jwks.json": {
@@ -7374,7 +7380,9 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "OIDC Discovery"
+        "x-public-endpoint-purpose": "OIDC Discovery",
+        "x-cacheable-endpoint": true,
+        "x-cacheable-endpoint-reason": "JWKS contains public keys that change infrequently, cacheable per RFC 7517"
       }
     },
     "/.well-known/oauth-protected-resource": {
@@ -7444,7 +7452,9 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "OIDC Discovery"
+        "x-public-endpoint-purpose": "OIDC Discovery",
+        "x-cacheable-endpoint": true,
+        "x-cacheable-endpoint-reason": "OAuth protected resource metadata is static configuration data, cacheable per RFC 9728"
       }
     },
     "/oauth2/introspect": {
@@ -7767,7 +7777,9 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "OAuth Flow"
+        "x-public-endpoint-purpose": "OAuth Flow",
+        "x-cacheable-endpoint": true,
+        "x-cacheable-endpoint-reason": "OAuth provider list is static configuration data"
       }
     },
     "/oauth2/providers/{idp}/groups": {
@@ -26592,7 +26604,9 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "SAML Flow"
+        "x-public-endpoint-purpose": "SAML Flow",
+        "x-cacheable-endpoint": true,
+        "x-cacheable-endpoint-reason": "SAML provider list is static configuration data"
       }
     },
     "/saml/{provider}/login": {
