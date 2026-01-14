@@ -400,6 +400,7 @@ run_cats_fuzz() {
         #   https://github.com/Endava/cats/issues/191
         # - InsertRandomValuesInBodyFuzzer: String.repeat count negative during HTML report
         #   generation (IllegalArgumentException: count is negative: -1)
+        #   https://github.com/Endava/cats/issues/193
         # TODO: Re-enable when CATS fixes these issues
         "--skipFuzzers=MassAssignmentFuzzer,InsertRandomValuesInBodyFuzzer"
     )
