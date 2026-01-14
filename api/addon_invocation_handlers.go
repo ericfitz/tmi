@@ -50,9 +50,9 @@ func InvokeAddon(c *gin.Context) {
 			if err != nil {
 				logger.Error("Invalid user ID in context: %s", userIDStr)
 				HandleRequestError(c, &RequestError{
-					Status:  http.StatusInternalServerError,
-					Code:    "server_error",
-					Message: "Invalid user context",
+					Status:  http.StatusUnauthorized,
+					Code:    "unauthorized",
+					Message: "Invalid authentication context",
 				})
 				return
 			}
@@ -61,9 +61,9 @@ func InvokeAddon(c *gin.Context) {
 	if userUUID == uuid.Nil {
 		logger.Error("User ID not found in context for email: %s", userEmail)
 		HandleRequestError(c, &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "User ID not available",
+			Status:  http.StatusUnauthorized,
+			Code:    "unauthorized",
+			Message: "User identity not available",
 		})
 		return
 	}
