@@ -3750,7 +3750,8 @@
             "threat_model",
             "diagram"
           ]
-        }
+        },
+        "additionalProperties": false
       },
       "AddonResponse": {
         "type": "object",
@@ -3902,7 +3903,8 @@
             "scan_type": "full",
             "include_recommendations": true
           }
-        }
+        },
+        "additionalProperties": false
       },
       "InvokeAddonResponse": {
         "type": "object",
@@ -4122,7 +4124,8 @@
           "status": "completed",
           "status_percent": 100,
           "status_message": "Security scan completed successfully. Found 3 vulnerabilities."
-        }
+        },
+        "additionalProperties": false
       },
       "UpdateInvocationStatusResponse": {
         "type": "object",
@@ -4165,7 +4168,8 @@
           "status": "completed",
           "status_percent": 100,
           "status_updated_at": "2024-01-20T15:50:00Z"
-        }
+        },
+        "additionalProperties": false
       },
       "Principal": {
         "type": "object",
@@ -4378,7 +4382,8 @@
         "example": {
           "user_id": "h80eabcd-e89b-41d4-a716-446655440017",
           "provider": "github"
-        }
+        },
+        "additionalProperties": false
       },
       "ListAdministratorsResponse": {
         "type": "object",
@@ -5118,7 +5123,8 @@
         },
         "example": {
           "user_internal_uuid": "550e8400-e29b-41d4-a716-446655440000"
-        }
+        },
+        "additionalProperties": false
       },
       "AddonInvocationQuota": {
         "type": "object",
@@ -5640,7 +5646,8 @@
         },
         "required": [
           "grant_type"
-        ]
+        ],
+        "additionalProperties": false
       },
       "TokenIntrospectionRequest": {
         "type": "object",
@@ -5683,7 +5690,8 @@
             "minimum": 1,
             "description": "Maximum addon invocations per hour"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "UserQuotaUpdate": {
         "type": "object",
@@ -5702,7 +5710,8 @@
             "nullable": true,
             "description": "Maximum API requests per hour (optional)"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "WebhookQuotaUpdate": {
         "type": "object",
@@ -5733,7 +5742,8 @@
             "minimum": 1,
             "description": "Maximum subscription requests per day"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "SamlAssertionConsumerRequest": {
         "type": "object",

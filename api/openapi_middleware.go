@@ -25,15 +25,29 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 	// Check for "no matching operation" errors (route/method not found in OpenAPI spec)
 	messageLower := strings.ToLower(message)
 	if strings.Contains(messageLower, "no matching operation") {
-		// Provide detailed error message explaining what went wrong
-		detailedMessage := fmt.Sprintf(
-			"The endpoint '%s %s' is not defined in the API specification. "+
-				"Check the request method and path (including trailing slashes).",
-			c.Request.Method, c.Request.URL.Path)
-		tmiError = &RequestError{
-			Code:    "not_found",
-			Message: detailedMessage,
-			Status:  http.StatusNotFound,
+		// Determine if this is a 404 (path not found) or 405 (method not allowed)
+		// Check if the path exists with any method in the spec
+		pathExists := pathExistsInSpec(c.Request.URL.Path)
+
+		if pathExists {
+			// Path exists but method doesn't - return 405 Method Not Allowed
+			c.Header("Allow", getAllowedMethodsForPath(c.Request.URL.Path))
+			tmiError = &RequestError{
+				Code:    "method_not_allowed",
+				Message: fmt.Sprintf("The HTTP method '%s' is not supported for this endpoint", c.Request.Method),
+				Status:  http.StatusMethodNotAllowed,
+			}
+		} else {
+			// Path doesn't exist - return 404 Not Found
+			detailedMessage := fmt.Sprintf(
+				"The endpoint '%s %s' is not defined in the API specification. "+
+					"Check the request method and path (including trailing slashes).",
+				c.Request.Method, c.Request.URL.Path)
+			tmiError = &RequestError{
+				Code:    "not_found",
+				Message: detailedMessage,
+				Status:  http.StatusNotFound,
+			}
 		}
 	} else {
 		// Handle other validation errors
@@ -176,4 +190,131 @@ func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 		logger.Debug("OPENAPI_VALIDATION_PASSED [%s] %s %s",
 			requestID, c.Request.Method, c.Request.URL.Path)
 	}, nil
+}
+
+// cachedSwagger holds the parsed OpenAPI spec for path lookups
+var cachedSwagger *openapi3.T
+
+// initCachedSwagger initializes the cached swagger spec
+func initCachedSwagger() {
+	if cachedSwagger == nil {
+		swagger, err := GetSwagger()
+		if err == nil {
+			cachedSwagger = swagger
+		}
+	}
+}
+
+// pathExistsInSpec checks if a path exists in the OpenAPI spec (with any method)
+// It handles path parameters by normalizing the path
+func pathExistsInSpec(requestPath string) bool {
+	initCachedSwagger()
+	if cachedSwagger == nil {
+		return false
+	}
+
+	// First, try exact match
+	if _, ok := cachedSwagger.Paths.Map()[requestPath]; ok {
+		return true
+	}
+
+	// Try matching with path parameters
+	// Convert request path segments to template patterns for matching
+	requestParts := strings.Split(strings.Trim(requestPath, "/"), "/")
+
+	for specPath := range cachedSwagger.Paths.Map() {
+		specParts := strings.Split(strings.Trim(specPath, "/"), "/")
+
+		if len(specParts) != len(requestParts) {
+			continue
+		}
+
+		match := true
+		for i, specPart := range specParts {
+			// Path parameter segments start with { and end with }
+			if strings.HasPrefix(specPart, "{") && strings.HasSuffix(specPart, "}") {
+				// This is a path parameter, it matches any value
+				continue
+			}
+			if specPart != requestParts[i] {
+				match = false
+				break
+			}
+		}
+
+		if match {
+			return true
+		}
+	}
+
+	return false
+}
+
+// getAllowedMethodsForPath returns the allowed HTTP methods for a path
+func getAllowedMethodsForPath(requestPath string) string {
+	initCachedSwagger()
+	if cachedSwagger == nil {
+		return "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+	}
+
+	// Find the matching path item
+	var pathItem *openapi3.PathItem
+
+	// First, try exact match
+	if item, ok := cachedSwagger.Paths.Map()[requestPath]; ok {
+		pathItem = item
+	} else {
+		// Try matching with path parameters
+		requestParts := strings.Split(strings.Trim(requestPath, "/"), "/")
+
+		for specPath, item := range cachedSwagger.Paths.Map() {
+			specParts := strings.Split(strings.Trim(specPath, "/"), "/")
+
+			if len(specParts) != len(requestParts) {
+				continue
+			}
+
+			match := true
+			for i, specPart := range specParts {
+				if strings.HasPrefix(specPart, "{") && strings.HasSuffix(specPart, "}") {
+					continue
+				}
+				if specPart != requestParts[i] {
+					match = false
+					break
+				}
+			}
+
+			if match {
+				pathItem = item
+				break
+			}
+		}
+	}
+
+	if pathItem == nil {
+		return "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+	}
+
+	// Build list of allowed methods
+	var methods []string
+	if pathItem.Get != nil {
+		methods = append(methods, "GET")
+	}
+	if pathItem.Post != nil {
+		methods = append(methods, "POST")
+	}
+	if pathItem.Put != nil {
+		methods = append(methods, "PUT")
+	}
+	if pathItem.Patch != nil {
+		methods = append(methods, "PATCH")
+	}
+	if pathItem.Delete != nil {
+		methods = append(methods, "DELETE")
+	}
+	// Always allow OPTIONS for CORS preflight
+	methods = append(methods, "OPTIONS")
+
+	return strings.Join(methods, ", ")
 }

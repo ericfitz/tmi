@@ -52,9 +52,11 @@ func SecurityHeaders() gin.HandlerFunc {
 		// Prevent clickjacking attacks
 		c.Header("X-Frame-Options", "DENY")
 
-		// XSS Protection (legacy browsers - defense in depth)
-		// Modern browsers rely on CSP, but this provides additional protection for older browsers
-		c.Header("X-XSS-Protection", "1; mode=block")
+		// XSS Protection - set to 0 per modern security guidance
+		// Modern browsers have built-in XSS filters that can be exploited, and CSP provides better protection
+		// Setting to 0 disables legacy XSS auditors which can introduce vulnerabilities
+		// Reference: https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html
+		c.Header("X-XSS-Protection", "0")
 
 		// Content Security Policy
 		// Check if we're in development mode (can be set via context from config)

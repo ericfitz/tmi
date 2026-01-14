@@ -403,6 +403,73 @@ create_client_credential() {
     success "Created client credential: ${CLIENT_CRED_ID}"
 }
 
+# Get current user's internal UUID for admin operations
+get_current_user_uuid() {
+    log "Getting current user's internal UUID..."
+
+    local RESPONSE
+    RESPONSE=$(curl -s -X GET "${SERVER}/users/me" \
+        -H "Authorization: Bearer ${JWT_TOKEN}")
+
+    USER_INTERNAL_UUID=$(echo "${RESPONSE}" | jq -r '.internal_uuid // .id' 2>/dev/null)
+
+    if [ -z "${USER_INTERNAL_UUID}" ] || [ "${USER_INTERNAL_UUID}" = "null" ]; then
+        warn "Could not get user internal UUID. Response: ${RESPONSE}"
+        USER_INTERNAL_UUID="00000000-0000-0000-0000-000000000000"
+    else
+        success "Got user internal UUID: ${USER_INTERNAL_UUID}"
+    fi
+}
+
+# Create admin group for testing
+create_admin_group() {
+    log "Creating admin group..."
+
+    local RESPONSE
+    RESPONSE=$(curl -s -X POST "${SERVER}/admin/groups" \
+        -H "Authorization: Bearer ${JWT_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "name": "CATS Test Group",
+            "description": "Test group for CATS fuzzing"
+        }')
+
+    ADMIN_GROUP_ID=$(echo "${RESPONSE}" | jq -r '.id // .internal_uuid' 2>/dev/null)
+
+    if [ -z "${ADMIN_GROUP_ID}" ] || [ "${ADMIN_GROUP_ID}" = "null" ]; then
+        warn "Failed to create admin group (may already exist or require admin). Response: ${RESPONSE}"
+        # Try to get existing group
+        RESPONSE=$(curl -s -X GET "${SERVER}/admin/groups" \
+            -H "Authorization: Bearer ${JWT_TOKEN}")
+        ADMIN_GROUP_ID=$(echo "${RESPONSE}" | jq -r '.groups[0].internal_uuid // .groups[0].id // empty' 2>/dev/null)
+        if [ -z "${ADMIN_GROUP_ID}" ] || [ "${ADMIN_GROUP_ID}" = "null" ]; then
+            ADMIN_GROUP_ID="00000000-0000-0000-0000-000000000000"
+        else
+            success "Using existing admin group: ${ADMIN_GROUP_ID}"
+        fi
+    else
+        success "Created admin group: ${ADMIN_GROUP_ID}"
+    fi
+}
+
+# Get list of admin users for testing
+get_admin_users() {
+    log "Getting admin users list..."
+
+    local RESPONSE
+    RESPONSE=$(curl -s -X GET "${SERVER}/admin/users" \
+        -H "Authorization: Bearer ${JWT_TOKEN}")
+
+    ADMIN_USER_UUID=$(echo "${RESPONSE}" | jq -r '.users[0].internal_uuid // .users[0].id // empty' 2>/dev/null)
+
+    if [ -z "${ADMIN_USER_UUID}" ] || [ "${ADMIN_USER_UUID}" = "null" ]; then
+        warn "Could not get admin user UUID, using current user UUID"
+        ADMIN_USER_UUID="${USER_INTERNAL_UUID}"
+    else
+        success "Got admin user UUID: ${ADMIN_USER_UUID}"
+    fi
+}
+
 # Create metadata entries
 create_metadata() {
     log "Creating metadata entries..."
@@ -544,6 +611,11 @@ all:
   addon_id: ${ADDON_ID}
   client_credential_id: ${CLIENT_CRED_ID}
   key: ${METADATA_KEY}
+  # Admin resource IDs
+  internal_uuid: ${USER_INTERNAL_UUID}
+  user_id: ${ADMIN_USER_UUID}
+  user_uuid: ${ADMIN_USER_UUID}
+  group_id: ${ADMIN_GROUP_ID}
 YAMLEOF
     success "YAML version written to ${YAML_FILE}"
 }
@@ -585,6 +657,9 @@ main() {
     start_oauth_stub
     authenticate
 
+    # Get user info for admin operations
+    get_current_user_uuid
+
     create_threat_model
     create_threat
     create_diagram
@@ -596,6 +671,10 @@ main() {
     create_addon
     create_client_credential
     create_metadata
+
+    # Admin resources (requires admin privileges)
+    create_admin_group
+    get_admin_users
 
     write_reference_file
     print_summary

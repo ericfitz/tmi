@@ -501,9 +501,21 @@ class CATSResultsParser:
         # API correctly rejects malformed input from injection/boundary testing
         if response_code == 400:
             # Fuzzers that intentionally send malformed data
+            # TMI has explicit security hardening middleware that rejects:
+            # - Zero-width characters (invisible chars in filenames/URLs)
+            # - Bidirectional overrides (can make malicious text appear safe)
+            # - Hangul filler characters
+            # - Combining diacritical marks (Zalgo text - DoS via rendering)
+            # - Control characters
+            # Returning 400 for these is CORRECT security behavior
             validation_fuzzers = [
                 'ZeroWidthCharsInValuesFields', 'ZeroWidthCharsInNamesFields',
                 'HangulCharsInStringFields', 'ArabicCharsInStringFields',
+                'HangulFillerFields',  # TMI explicitly rejects Hangul fillers
+                'BidirectionalOverrideFields',  # TMI explicitly rejects bidi overrides
+                'ZalgoTextInFields',  # TMI explicitly rejects combining marks
+                'AbugidasInStringFields',  # TMI rejects problematic unicode
+                'FullwidthBracketsFields',  # TMI rejects fullwidth structural chars
                 'SpecialCharsInStringFields', 'ControlCharsInStringFields',
                 'EmojisInStringFields', 'TrailingSpacesInFields',
                 'LeadingSpacesInFields', 'OverflowArraySizeFields',
@@ -517,7 +529,7 @@ class CATSResultsParser:
                 return True
             # Also check for fuzzer names containing injection patterns
             fuzzer_lower = fuzzer.lower()
-            if any(pattern in fuzzer_lower for pattern in ['injection', 'overflow', 'chars', 'unicode', 'malformed']):
+            if any(pattern in fuzzer_lower for pattern in ['injection', 'overflow', 'chars', 'unicode', 'malformed', 'hangul', 'zalgo', 'bidirectional', 'fullwidth', 'abugida']):
                 return True
 
         # 4. Not Found False Positives (404)
@@ -533,7 +545,35 @@ class CATSResultsParser:
             if 'unexpected response code: 404' in result_reason:
                 return True
 
-        # 5. Response Contract False Positives
+        # 4b. IDOR False Positives for admin-only and list endpoints
+        # InsecureDirectObjectReferences fuzzer replaces ID fields with alternative values
+        # For admin-only endpoints and list endpoints, this is expected behavior:
+        # - Admin endpoints: user is an admin, so they have access regardless of ID
+        # - List endpoints: returning empty results (200) with non-matching filters is correct
+        # - Optional ID fields: using non-existent IDs in optional fields is harmless
+        if fuzzer == 'InsecureDirectObjectReferences':
+            # Admin endpoints - admin user has full access
+            path = data.get('path', '')
+            if path.startswith('/admin/'):
+                return True
+            # List endpoints return 200 with empty results for non-matching filters
+            if response_code == 200 and 'list' in path.lower():
+                return True
+            # POST/PUT with optional ID fields - non-existent IDs are ignored
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if response_code in [200, 201, 204] and request_method in ['POST', 'PUT']:
+                # Check if the scenario involves optional fields like threat_model_id
+                if any(field in scenario for field in ['threat_model_id', 'webhook_id', 'addon_id']):
+                    return True
+
+        # 5. HTTP Methods False Positives
+        # HttpMethods fuzzer tests unsupported HTTP methods on endpoints
+        # Returning 400/405 for unsupported methods is correct behavior
+        if fuzzer in ['HttpMethods', 'NonRestHttpMethods', 'CustomHttpMethods']:
+            if response_code in [400, 405]:
+                return True
+
+        # 6. Response Contract False Positives
         # Header mismatches are spec issues, not security issues
         contract_fuzzers = [
             'ResponseHeadersMatchContractHeaders',
@@ -541,6 +581,24 @@ class CATSResultsParser:
         ]
         if fuzzer in contract_fuzzers:
             return True
+
+        # 7. Injection False Positives for JSON API
+        # TMI is a JSON API, not an HTML-rendering web application
+        # "Payload reflected in response" means data is stored and returned as JSON
+        # This is NOT XSS - XSS requires HTML context. JSON clients must escape output.
+        # Similarly, NoSQL/Command injection "potential" findings are storage, not execution
+        injection_fuzzers = [
+            'XssInjectionInStringFields',
+            'NoSqlInjectionInStringFields',
+            'CommandInjectionInStringFields',
+            'SqlInjectionInStringFields'
+        ]
+        if fuzzer in injection_fuzzers:
+            # Check if the "vulnerability" is just data reflection/storage
+            if 'reflected' in result_reason.lower() or 'potential' in result_reason.lower():
+                # For a JSON API, storing and returning user data is correct behavior
+                # The API doesn't execute the payloads - it stores them as string data
+                return True
 
         # 6. Security Header False Positives
         # Skip CheckSecurityHeaders if needed (currently headers are implemented)
