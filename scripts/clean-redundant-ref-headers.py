@@ -14,6 +14,16 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime
+from typing import TypedDict
+
+
+class ProcessStats(TypedDict):
+    """Type definition for process statistics."""
+    total_ref_responses: int
+    responses_with_local_headers: int
+    responses_cleaned: int
+    headers_removed: int
+    endpoints_modified: list[str]
 
 OPENAPI_PATH = Path(__file__).parent.parent / "docs/reference/apis/tmi-openapi.json"
 
@@ -74,14 +84,14 @@ def clean_redundant_headers(response: dict, component_headers: set[str]) -> tupl
     return len(removed_headers) > 0, removed_headers
 
 
-def process_openapi_spec(spec: dict) -> dict:
+def process_openapi_spec(spec: dict) -> ProcessStats:
     """
     Process the OpenAPI spec and remove redundant headers from $ref responses.
 
     Returns:
         Dictionary with statistics about the operation
     """
-    stats = {
+    stats: ProcessStats = {
         "total_ref_responses": 0,
         "responses_with_local_headers": 0,
         "responses_cleaned": 0,

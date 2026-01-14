@@ -13,6 +13,15 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime
+from typing import TypedDict
+
+
+class ProcessStats(TypedDict):
+    """Type definition for process statistics."""
+    total_429_responses: int
+    already_had_retry_after: int
+    added_retry_after: int
+    endpoints_modified: list[str]
 
 OPENAPI_PATH = Path(__file__).parent.parent / "docs/reference/apis/tmi-openapi.json"
 
@@ -47,14 +56,14 @@ def add_retry_after_to_response(response: dict) -> tuple[bool, str]:
     return True, "added Retry-After"
 
 
-def process_openapi_spec(spec: dict) -> dict:
+def process_openapi_spec(spec: dict) -> ProcessStats:
     """
     Process the OpenAPI spec and add Retry-After headers to all 429 responses.
 
     Returns:
         Dictionary with statistics about the operation
     """
-    stats = {
+    stats: ProcessStats = {
         "total_429_responses": 0,
         "already_had_retry_after": 0,
         "added_retry_after": 0,

@@ -21,7 +21,7 @@ This script:
 """
 
 import json
-import yaml
+import yaml  # pyright: ignore[reportMissingModuleSource]  # ty:ignore[unresolved-import]
 from pathlib import Path
 from typing import Dict, List, Any
 

@@ -30,21 +30,20 @@ from getpass import getpass
 from urllib.parse import urlparse
 from typing import Optional, Dict, List, Tuple
 
-from rich.console import Console
-from rich.prompt import Prompt, Confirm
-from rich.panel import Panel
+from rich.console import Console  # pyright: ignore[reportMissingImports]  # ty:ignore[unresolved-import]
+from rich.prompt import Prompt, Confirm  # pyright: ignore[reportMissingImports]  # ty:ignore[unresolved-import]
+from rich.panel import Panel  # pyright: ignore[reportMissingImports]  # ty:ignore[unresolved-import]
 
 console = Console()
 
 
-def run_command(cmd: List[str], capture_output: bool = True, check: bool = True) -> subprocess.CompletedProcess:
+def run_command(
+    cmd: List[str], capture_output: bool = True, check: bool = True
+) -> subprocess.CompletedProcess:
     """Run a shell command and return the result."""
     try:
         result = subprocess.run(
-            cmd,
-            capture_output=capture_output,
-            text=True,
-            check=check
+            cmd, capture_output=capture_output, text=True, check=check
         )
         return result
     except subprocess.CalledProcessError as e:
@@ -98,7 +97,9 @@ def list_heroku_apps() -> List[Tuple[str, str]]:
     return sorted(app_list)
 
 
-def select_or_create_app(role: str, non_interactive: bool = False, app_name: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+def select_or_create_app(
+    role: str, non_interactive: bool = False, app_name: Optional[str] = None
+) -> Tuple[Optional[str], Optional[str]]:
     """
     Select or create a Heroku app.
 
@@ -110,10 +111,14 @@ def select_or_create_app(role: str, non_interactive: bool = False, app_name: Opt
     Returns:
         Tuple of (app_name, app_url) or (None, None) if skipped
     """
-    role_display = "Server (TMI API Backend)" if role == "server" else "Client (Frontend/UX)"
+    role_display = (
+        "Server (TMI API Backend)" if role == "server" else "Client (Frontend/UX)"
+    )
 
     if non_interactive and not app_name:
-        console.print(f"[yellow]⚠ {role_display}: No app specified in non-interactive mode[/yellow]")
+        console.print(
+            f"[yellow]⚠ {role_display}: No app specified in non-interactive mode[/yellow]"
+        )
         return None, None
 
     if app_name:
@@ -144,7 +149,9 @@ def select_or_create_app(role: str, non_interactive: bool = False, app_name: Opt
     else:
         prompt_text = "Select from list or type new app name"
 
-    choice = Prompt.ask(f"  → {prompt_text}", default="skip" if role == "client" else "")
+    choice = Prompt.ask(
+        f"  → {prompt_text}", default="skip" if role == "client" else ""
+    )
 
     if choice.lower() == "skip":
         console.print(f"[yellow]⊘ Skipped {role} app selection[/yellow]")
@@ -190,8 +197,14 @@ def detect_addons(app_name: str) -> Dict[str, bool]:
         result = run_command(["heroku", "addons", "--app", app_name, "--json"])
         addons = json.loads(result.stdout)
 
-        has_postgres = any("postgresql" in addon.get("addon_service", {}).get("name", "").lower() for addon in addons)
-        has_redis = any("redis" in addon.get("addon_service", {}).get("name", "").lower() for addon in addons)
+        has_postgres = any(
+            "postgresql" in addon.get("addon_service", {}).get("name", "").lower()
+            for addon in addons
+        )
+        has_redis = any(
+            "redis" in addon.get("addon_service", {}).get("name", "").lower()
+            for addon in addons
+        )
 
         return {"postgres": has_postgres, "redis": has_redis}
     except subprocess.CalledProcessError:
@@ -201,12 +214,14 @@ def detect_addons(app_name: str) -> Dict[str, bool]:
 def extract_postgres_credentials(app_name: str) -> Optional[Dict[str, str]]:
     """Extract PostgreSQL credentials from Heroku Postgres addon."""
     try:
-        result = run_command(["heroku", "pg:credentials:url", "DATABASE", "--app", app_name])
+        result = run_command(
+            ["heroku", "pg:credentials:url", "DATABASE", "--app", app_name]
+        )
         output = result.stdout
 
         # Parse connection string from output
         # Format: postgres://user:password@host:port/database
-        match = re.search(r'postgres://([^:]+):([^@]+)@([^:]+):(\d+)/([^\s]+)', output)
+        match = re.search(r"postgres://([^:]+):([^@]+)@([^:]+):(\d+)/([^\s]+)", output)
         if match:
             user, password, host, port, database = match.groups()
             return {
@@ -215,7 +230,7 @@ def extract_postgres_credentials(app_name: str) -> Optional[Dict[str, str]]:
                 "POSTGRES_USER": user,
                 "POSTGRES_PASSWORD": password,
                 "POSTGRES_DATABASE": database,
-                "POSTGRES_SSL_MODE": "require"
+                "POSTGRES_SSL_MODE": "require",
             }
     except subprocess.CalledProcessError:
         pass
@@ -226,7 +241,9 @@ def extract_postgres_credentials(app_name: str) -> Optional[Dict[str, str]]:
 def extract_redis_credentials(app_name: str) -> Optional[Dict[str, str]]:
     """Extract Redis credentials from Heroku Redis addon."""
     try:
-        result = run_command(["heroku", "redis:credentials", "--app", app_name, "--json"])
+        result = run_command(
+            ["heroku", "redis:credentials", "--app", app_name, "--json"]
+        )
         creds: Dict = json.loads(result.stdout)
 
         if isinstance(creds, list) and len(creds) > 0:
@@ -236,11 +253,7 @@ def extract_redis_credentials(app_name: str) -> Optional[Dict[str, str]]:
         port: str = str(creds.get("port", "6379"))
         password: str = creds.get("password", "")
 
-        return {
-            "REDIS_HOST": host,
-            "REDIS_PORT": str(port),
-            "REDIS_PASSWORD": password
-        }
+        return {"REDIS_HOST": host, "REDIS_PORT": str(port), "REDIS_PASSWORD": password}
     except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
         pass
 
@@ -263,14 +276,18 @@ def get_existing_config(app_name: str, key: str) -> Optional[str]:
         return None
 
 
-def prompt_oauth_provider(provider_name: str, provider_display: str, skip_oauth: bool) -> Optional[Dict[str, str]]:
+def prompt_oauth_provider(
+    provider_name: str, provider_display: str, skip_oauth: bool
+) -> Optional[Dict[str, str]]:
     """Prompt for OAuth provider configuration."""
     if skip_oauth:
         return None
 
     console.print(f"\n[bold cyan]OAuth Provider: {provider_display}[/bold cyan]")
 
-    choice = Prompt.ask("  Enable this provider?", choices=["y", "n", "skip"], default="skip")
+    choice = Prompt.ask(
+        "  Enable this provider?", choices=["y", "n", "skip"], default="skip"
+    )
 
     if choice == "skip" or choice == "n":
         return None
@@ -281,11 +298,13 @@ def prompt_oauth_provider(provider_name: str, provider_display: str, skip_oauth:
     return {
         f"OAUTH_PROVIDERS_{provider_name.upper()}_ENABLED": "true",
         f"OAUTH_PROVIDERS_{provider_name.upper()}_CLIENT_ID": client_id,
-        f"OAUTH_PROVIDERS_{provider_name.upper()}_CLIENT_SECRET": client_secret
+        f"OAUTH_PROVIDERS_{provider_name.upper()}_CLIENT_SECRET": client_secret,
     }
 
 
-def set_config_vars(app_name: str, config_vars: Dict[str, str], dry_run: bool = False) -> bool:
+def set_config_vars(
+    app_name: str, config_vars: Dict[str, str], dry_run: bool = False
+) -> bool:
     """Apply configuration variables to Heroku app."""
     if not config_vars:
         console.print("[yellow]⚠ No configuration variables to set[/yellow]")
@@ -298,7 +317,9 @@ def set_config_vars(app_name: str, config_vars: Dict[str, str], dry_run: bool = 
     cmd.extend(["--app", app_name])
 
     if dry_run:
-        console.print("\n[bold yellow]🔍 DRY RUN MODE - Command that would be executed:[/bold yellow]")
+        console.print(
+            "\n[bold yellow]🔍 DRY RUN MODE - Command that would be executed:[/bold yellow]"
+        )
         console.print()
 
         # Display with redacted secrets
@@ -336,15 +357,21 @@ def display_summary(app_name: str, config_vars: Dict[str, str]):
         "🔐 Authentication": ["JWT_", "OAUTH_"],
         "🌐 WebSocket": ["WEBSOCKET_"],
         "⚙️  Server": ["SERVER_", "LOGGING_"],
-        "📇 Operator": ["OPERATOR_"]
+        "📇 Operator": ["OPERATOR_"],
     }
 
     for category, prefixes in categories.items():
-        matching_vars = {k: v for k, v in config_vars.items() if any(k.startswith(p) for p in prefixes)}
+        matching_vars = {
+            k: v
+            for k, v in config_vars.items()
+            if any(k.startswith(p) for p in prefixes)
+        }
         if matching_vars:
             console.print(f"\n[bold]{category}[/bold]")
             for key, value in sorted(matching_vars.items()):
-                if any(secret in key.upper() for secret in ["SECRET", "PASSWORD", "TOKEN"]):
+                if any(
+                    secret in key.upper() for secret in ["SECRET", "PASSWORD", "TOKEN"]
+                ):
                     display_value = "********"
                 else:
                     display_value = value[:50] + "..." if len(value) > 50 else value
@@ -360,7 +387,9 @@ def display_next_steps(server_app: str, server_url: str, client_url: Optional[st
 
     console.print("[bold]1. Deploy your server application:[/bold]")
     console.print("   git push heroku main")
-    console.print("   [dim]Note: Database migrations run automatically on deployment via release phase[/dim]\n")
+    console.print(
+        "   [dim]Note: Database migrations run automatically on deployment via release phase[/dim]\n"
+    )
 
     console.print("[bold]2. Monitor deployment:[/bold]")
     console.print(f"   heroku logs --tail --app {server_app}\n")
@@ -369,7 +398,9 @@ def display_next_steps(server_app: str, server_url: str, client_url: Optional[st
     console.print(f"   curl {server_url}version\n")
 
     console.print("[bold]4. Test WebSocket connectivity:[/bold]")
-    console.print(f'   wscat -c "wss://{urlparse(server_url).netloc}/ws/diagrams/{{id}}" \\')
+    console.print(
+        f'   wscat -c "wss://{urlparse(server_url).netloc}/ws/diagrams/{{id}}" \\'
+    )
     console.print('     -H "Authorization: Bearer YOUR_JWT_TOKEN"\n')
 
     if client_url:
@@ -384,24 +415,39 @@ def display_next_steps(server_app: str, server_url: str, client_url: Optional[st
 def main():
     parser = argparse.ArgumentParser(
         description="Configure Heroku environment variables for TMI server and client apps",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--server-app", help="Server app name (skip selection)")
     parser.add_argument("--client-app", help="Client app name (skip selection)")
-    parser.add_argument("--no-client-app", action="store_true", help="Skip client app configuration")
-    parser.add_argument("--websocket-origins", help="Override WebSocket allowed origins (comma-separated)")
-    parser.add_argument("--dry-run", action="store_true", help="Show commands without executing")
-    parser.add_argument("--non-interactive", action="store_true", help="Batch mode, no prompts")
-    parser.add_argument("--skip-oauth", action="store_true", help="Skip OAuth provider configuration")
-    parser.add_argument("--skip-addons", action="store_true", help="Don't provision missing addons")
+    parser.add_argument(
+        "--no-client-app", action="store_true", help="Skip client app configuration"
+    )
+    parser.add_argument(
+        "--websocket-origins",
+        help="Override WebSocket allowed origins (comma-separated)",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show commands without executing"
+    )
+    parser.add_argument(
+        "--non-interactive", action="store_true", help="Batch mode, no prompts"
+    )
+    parser.add_argument(
+        "--skip-oauth", action="store_true", help="Skip OAuth provider configuration"
+    )
+    parser.add_argument(
+        "--skip-addons", action="store_true", help="Don't provision missing addons"
+    )
 
     args = parser.parse_args()
 
     # Display header
-    console.print(Panel.fit(
-        "[bold cyan]🎯 TMI Heroku Configuration Setup[/bold cyan]",
-        border_style="cyan"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold cyan]🎯 TMI Heroku Configuration Setup[/bold cyan]",
+            border_style="cyan",
+        )
+    )
 
     # Check prerequisites
     if not check_heroku_cli():
@@ -412,9 +458,7 @@ def main():
     console.print("=" * 60)
 
     server_app, server_url = select_or_create_app(
-        "server",
-        non_interactive=args.non_interactive,
-        app_name=args.server_app
+        "server", non_interactive=args.non_interactive, app_name=args.server_app
     )
 
     if not server_app or not server_url:
@@ -428,9 +472,7 @@ def main():
     client_app, client_url = None, None
     if not args.no_client_app:
         client_app, client_url = select_or_create_app(
-            "client",
-            non_interactive=args.non_interactive,
-            app_name=args.client_app
+            "client", non_interactive=args.non_interactive, app_name=args.client_app
         )
 
     # Auto-configure URLs
@@ -439,12 +481,11 @@ def main():
     if args.websocket_origins:
         websocket_origins = args.websocket_origins
     elif client_url:
-        websocket_origins = client_url.rstrip('/')
+        websocket_origins = client_url.rstrip("/")
     else:
         if not args.non_interactive:
             websocket_origins = Prompt.ask(
-                "\nWebSocket Allowed Origins (comma-separated URLs)",
-                default=""
+                "\nWebSocket Allowed Origins (comma-separated URLs)", default=""
             )
         else:
             websocket_origins = ""
@@ -469,14 +510,24 @@ def main():
         pg_creds = extract_postgres_credentials(server_app)
         if pg_creds:
             config_vars.update(pg_creds)
-            console.print(f"  [dim]Extracted {len(pg_creds)} PostgreSQL variables[/dim]")
+            console.print(
+                f"  [dim]Extracted {len(pg_creds)} PostgreSQL variables[/dim]"
+            )
     else:
         console.print("[yellow]⚠ PostgreSQL addon not found[/yellow]")
         if not args.skip_addons and not args.non_interactive:
             if Confirm.ask("  Provision Heroku Postgres (essential-0)?"):
                 console.print("  [yellow]Provisioning PostgreSQL...[/yellow]")
                 try:
-                    run_command(["heroku", "addons:create", "heroku-postgresql:essential-0", "--app", server_app])
+                    run_command(
+                        [
+                            "heroku",
+                            "addons:create",
+                            "heroku-postgresql:essential-0",
+                            "--app",
+                            server_app,
+                        ]
+                    )
                     console.print("  [green]✓ PostgreSQL provisioned[/green]")
                     # Extract credentials
                     pg_creds = extract_postgres_credentials(server_app)
@@ -497,7 +548,15 @@ def main():
             if Confirm.ask("  Provision Heroku Redis (mini)?"):
                 console.print("  [yellow]Provisioning Redis...[/yellow]")
                 try:
-                    run_command(["heroku", "addons:create", "heroku-redis:mini", "--app", server_app])
+                    run_command(
+                        [
+                            "heroku",
+                            "addons:create",
+                            "heroku-redis:mini",
+                            "--app",
+                            server_app,
+                        ]
+                    )
                     console.print("  [green]✓ Redis provisioned[/green]")
                     # Extract credentials
                     redis_creds = extract_redis_credentials(server_app)
@@ -520,7 +579,9 @@ def main():
             else:
                 console.print("  [dim]Keeping existing JWT_SECRET[/dim]")
         else:
-            console.print("  [dim]Keeping existing JWT_SECRET (non-interactive mode)[/dim]")
+            console.print(
+                "  [dim]Keeping existing JWT_SECRET (non-interactive mode)[/dim]"
+            )
     else:
         jwt_secret = generate_jwt_secret()
         config_vars["JWT_SECRET"] = jwt_secret
@@ -533,22 +594,28 @@ def main():
         config_vars["WEBSOCKET_ALLOWED_ORIGINS"] = websocket_origins
 
     # Server defaults
-    config_vars.update({
-        "SERVER_INTERFACE": "0.0.0.0",
-        "LOGGING_LEVEL": "info",
-        "LOGGING_IS_DEV": "false",
-        "SERVER_TLS_ENABLED": "false",
-        "LOGGING_LOG_API_REQUESTS": "true",
-        "LOGGING_REDACT_AUTH_TOKENS": "true",
-        "LOGGING_LOG_WEBSOCKET_MSG": "false"
-    })
+    config_vars.update(
+        {
+            "SERVER_INTERFACE": "0.0.0.0",
+            "LOGGING_LEVEL": "info",
+            "LOGGING_IS_DEV": "false",
+            "SERVER_TLS_ENABLED": "false",
+            "LOGGING_LOG_API_REQUESTS": "true",
+            "LOGGING_REDACT_AUTH_TOKENS": "true",
+            "LOGGING_LOG_WEBSOCKET_MSG": "false",
+        }
+    )
 
     # Phase 3: User Input
     if not args.non_interactive and not args.skip_oauth:
         console.print("\n[bold]🔐 STEP 3: OAuth Providers[/bold]")
         console.print("=" * 60)
 
-        for provider, display in [("google", "Google"), ("github", "GitHub"), ("microsoft", "Microsoft")]:
+        for provider, display in [
+            ("google", "Google"),
+            ("github", "GitHub"),
+            ("microsoft", "Microsoft"),
+        ]:
             oauth_config = prompt_oauth_provider(provider, display, args.skip_oauth)
             if oauth_config:
                 config_vars.update(oauth_config)

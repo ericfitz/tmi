@@ -37,9 +37,8 @@ import glob
 import re
 import tempfile
 import base64
-import time
 import uuid
-import requests
+import requests  # ty:ignore[unresolved-import]
 import hashlib
 import secrets
 
@@ -47,7 +46,7 @@ import secrets
 should_exit = False
 
 # Global storage for latest OAuth credentials
-latest_oauth_credentials = {
+latest_oauth_credentials: dict[str, str | None] = {
     "flow_type": None,
     "code": None,
     "state": None,
@@ -63,8 +62,9 @@ pkce_verifiers = {}
 # Global storage for OAuth flows (flow_id -> flow_data)
 oauth_flows = {}
 
-# Global logger instance
-logger = None
+# Global logger instance - initialized with NullHandler, configured in setup_logging()
+logger: logging.Logger = logging.getLogger("oauth_stub")
+logger.addHandler(logging.NullHandler())
 
 # Default configuration
 DEFAULT_IDP = "tmi"
@@ -300,13 +300,10 @@ def refresh_token(refresh_token_value, userid=None, idp=None, tmi_server=None):
 
 def setup_logging():
     """Set up dual logging to file and console with RFC3339 timestamps."""
-    global logger
-
-    # Create logger
-    logger = logging.getLogger("oauth_stub")
+    # Configure the global logger (already created at module level)
     logger.setLevel(logging.INFO)
 
-    # Clear any existing handlers
+    # Clear any existing handlers (including NullHandler from initialization)
     logger.handlers.clear()
 
     # Create custom formatter with RFC3339 timestamp
@@ -415,6 +412,12 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 # Extract additional OAuth parameters that may help identify the user
                 login_hint = query_params.get("login_hint", [None])[0]
 
+                # Initialize token variables with defaults (will be set in all code paths)
+                access_token: str | None = None
+                refresh_token: str | None = None
+                token_type: str | None = None
+                expires_in: str | None = None
+
                 # TMI only supports Authorization Code Flow with PKCE
                 if code:
                     flow_type = "authorization_code"
@@ -450,7 +453,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                     f"  PKCE verifier not found for state {state} - cannot exchange code without verifier"
                                 )
                                 logger.error(
-                                    f"  This likely means the OAuth flow was not initiated through this stub"
+                                    "  This likely means the OAuth flow was not initiated through this stub"
                                 )
                                 logger.error(
                                     f"  Available states: {list(pkce_verifiers.keys())}"
@@ -480,7 +483,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                 }
 
                                 logger.info(
-                                    f"  Exchanging authorization code for real tokens via TMI server (PKCE)..."
+                                    "  Exchanging authorization code for real tokens via TMI server (PKCE)..."
                                 )
                                 logger.info(f"    Token URL: {token_url}")
                                 logger.info(f"    Code: {code}")
@@ -508,7 +511,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                     )
 
                                     logger.info(
-                                        f"  Successfully exchanged code for real tokens:"
+                                        "  Successfully exchanged code for real tokens:"
                                     )
                                     logger.info(
                                         f"    Access Token: {access_token[:50] if access_token else 'None'}..."
@@ -623,7 +626,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                         save_credentials_to_file(credentials_to_save, user_id)
 
                 # Enhanced logging
-                logger.info(f"OAUTH REDIRECT ANALYSIS:")
+                logger.info("OAUTH REDIRECT ANALYSIS:")
                 logger.info(f"  Authorization Code: {code}")
                 logger.info(f"  State: {state}")
                 logger.info(f"  Access Token: {access_token}")
@@ -800,7 +803,8 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     )
                     return
 
-                # Return credentials
+                # Return credentials (credentials is guaranteed non-None here since we returned on error)
+                assert credentials is not None
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")
                 self.end_headers()
@@ -846,7 +850,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 logger.info(
                     f'API request: {client_ip} {method} {self.path} {http_version} 500 "{error_msg}"'
                 )
-            except:
+            except Exception:
                 # If we can't even send an error response, just log it
                 logger.error("Failed to send error response to client")
 
@@ -1053,7 +1057,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
                 error_response = {"error": error_msg}
                 self.wfile.write(json.dumps(error_response).encode())
-            except:
+            except Exception:
                 logger.error("Failed to send error response to client")
 
 
@@ -1065,6 +1069,7 @@ class ReusableTCPServer(socketserver.TCPServer):
 
 def run_server(port):
     """Run the HTTP server on the specified port."""
+    server: ReusableTCPServer | None = None
     try:
         # Set up the server with the custom handler, binding to localhost
         # Using ReusableTCPServer to allow quick restarts (avoids TIME_WAIT)
@@ -1086,11 +1091,14 @@ def run_server(port):
 
     except KeyboardInterrupt:
         logger.info("Received KeyboardInterrupt, shutting down gracefully...")
-        server.server_close()
+        if server is not None:
+            server.server_close()
         cleanup_temp_files()
         sys.exit(0)
     except Exception as e:
         logger.error(f"Server error: {str(e)}")
+        if server is not None:
+            server.server_close()
         cleanup_temp_files()
         sys.exit(1)
 
@@ -1135,7 +1143,7 @@ def extract_user_id_from_credentials(credentials):
             login_hint = state_data.get("login_hint")
             if login_hint and validate_userid_parameter(login_hint):
                 return f"{login_hint}@tmi.local"
-        except:
+        except Exception:
             pass  # Not JSON or base64, continue with other methods
 
     # Try to decode JWT access token for email claim (simple approach)
@@ -1156,7 +1164,7 @@ def extract_user_id_from_credentials(credentials):
                 email = payload.get("email")
                 if email and email.endswith("@tmi.local"):
                     return email
-        except:
+        except Exception:
             pass  # JWT decoding failed, continue
 
     # For now, if we can't extract user ID, we'll use a default pattern
