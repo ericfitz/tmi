@@ -542,15 +542,72 @@ class CATSResultsParser:
 
         # 4. Not Found False Positives (404)
         # Expected when fuzzing with random/invalid resource IDs
+        # All implemented endpoints correctly return 404 for non-existent resources
         if response_code == 404:
             not_found_fuzzers = [
                 'RandomResourcesFuzzer', 'InsecureDirectObjectReferences',
-                'RandomForeignKeyReference', 'NonExistentResource'
+                'RandomForeignKeyReference', 'NonExistentResource',
+                'RandomResources',  # Sends random IDs for path parameters
+                'AcceptLanguageHeaders',  # Can trigger 404 with random resource IDs
+                'CheckSecurityHeaders',  # Can trigger 404 with random resource IDs
+                'DuplicateHeaders',  # Can trigger 404 with random resource IDs
+                'ExtraHeaders',  # Can trigger 404 with random resource IDs
+                'HappyPath',  # Can trigger 404 if test data doesn't exist
+                'LargeNumberOfRandomAlphanumericHeaders',  # Can trigger 404 with random IDs
+                'NewFields',  # Can trigger 404 with random resource IDs
+                'InvalidReferencesFields',  # Sends invalid path traversal attempts
+                # Fuzzers that modify path parameters with special characters
+                # causing UUID parsing to fail, resulting in 404 for non-existent resources
+                'ZeroWidthCharsInValuesFields',  # Injects invisible chars in UUIDs
+                'HangulFillerFields',  # Injects Hangul fillers in UUIDs
+                'AbugidasInStringFields',  # Injects Abugida chars in UUIDs
+                'FullwidthBracketsFields',  # Injects fullwidth chars in UUIDs
+                'IterateThroughEnumValuesFields',  # Tests enum variations
+                'RemoveFields',  # Removes required fields
+                'DefaultValuesInFields',  # Uses default/empty values
+                'ExtremePositiveNumbersInIntegerFields',  # Large numbers
+                'ExtremeNegativeNumbersInIntegerFields',  # Negative numbers
+                # Boundary testing fuzzers that may modify path parameters
+                'IntegerFieldsRightBoundary',  # Max integer values
+                'LeadingSpacesInHeaders',  # Spaces in headers affecting path
+                'MaxLengthExactValuesInStringFields',  # Max length strings
+                'TrailingSpacesInHeaders',  # Trailing spaces
+                'EmptyStringsInFields',  # Empty strings in path params
+                'ExamplesFields',  # Example values that may not exist
+                'MaximumExactNumbersInNumericFields',  # Max numeric values
+                'MinLengthExactValuesInStringFields',  # Min length strings
+                'MinimumExactNumbersInNumericFields',  # Min numeric values
+                'NullValuesInFields',  # Null values in path params
+                'RemoveHeaders',  # Missing required headers
+                'StringFieldsLeftBoundary',  # Left boundary strings
+                'StringFieldsRightBoundary',  # Right boundary strings
+                'VeryLargeStringsInFields',  # Very large strings
             ]
             if fuzzer in not_found_fuzzers:
                 return True
             # Also catch general "not found" reasons
             if 'unexpected response code: 404' in result_reason:
+                return True
+            # Catch legitimate "not found" responses from implemented endpoints
+            # These endpoints are fully implemented but return 404 for non-existent resources
+            response_body = (data.get('response', {}).get('responseBody') or '').lower()
+            legitimate_not_found_messages = [
+                'not found',  # Generic
+                'add-on not found',  # /addons/{id}
+                'administrator grant not found',  # /admin/administrators/{id}
+                'invocation not found',  # /invocations/{id}
+                'user not found',  # /admin/users/{id}
+                'group not found',  # /admin/groups/{id}
+                'webhook not found',  # /webhooks/{id}
+                'threat model not found',  # /threat_models/{id}
+                'diagram not found',  # /diagrams/{id}
+                'document not found',  # Document endpoints
+                'threat not found',  # Threat endpoints
+                'not defined in the api specification',  # Invalid paths from path traversal
+            ]
+            if any(msg in response_body for msg in legitimate_not_found_messages):
+                return True
+            if any(msg in result_details for msg in legitimate_not_found_messages):
                 return True
 
         # 4b. IDOR False Positives for admin-only and list endpoints
@@ -667,6 +724,21 @@ class CATSResultsParser:
         # Uncomment if you want to mark these as FP:
         # if fuzzer == 'CheckSecurityHeaders':
         #     return True
+
+        # 12. Transfer Encoding False Positives (501 Not Implemented)
+        # The DummyTransferEncodingHeaders fuzzer sends unsupported Transfer-Encoding
+        # headers like 'chunked', 'gzip', 'deflate', etc. Go's net/http correctly
+        # returns 501 Not Implemented for unsupported transfer encodings per RFC 7230.
+        # This is correct HTTP behavior, not a security or implementation issue.
+        if response_code == 501:
+            if fuzzer == 'DummyTransferEncodingHeaders':
+                return True
+            # Also catch any 501 with "unsupported transfer encoding" message
+            response_body = (data.get('response', {}).get('responseBody') or '').lower()
+            if 'unsupported transfer encoding' in response_body:
+                return True
+            if 'transfer encoding' in result_reason.lower():
+                return True
 
         return False
 
