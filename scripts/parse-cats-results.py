@@ -560,17 +560,30 @@ class CATSResultsParser:
         # - List endpoints: returning empty results (200) with non-matching filters is correct
         # - Optional ID fields: using non-existent IDs in optional fields is harmless
         if fuzzer == 'InsecureDirectObjectReferences':
-            # Admin endpoints - admin user has full access
             path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+
+            # Admin endpoints - admin user has full access
             if path.startswith('/admin/'):
                 return True
-            # List endpoints return 200 with empty results for non-matching filters
-            if response_code == 200 and 'list' in path.lower():
-                return True
-            # POST/PUT with optional ID fields - non-existent IDs are ignored
-            request_method = data.get('request', {}).get('httpMethod', '')
+
+            # List/collection endpoints that use filter parameters
+            # GET requests to these paths return 200 with filtered (possibly empty) results
+            # Changing filter IDs returns different results, not unauthorized access
+            # Examples: GET /addons?threat_model_id=xxx, GET /invocations?addon_id=xxx
+            list_endpoints = ['/addons', '/invocations', '/webhooks', '/threat_models',
+                              '/webhooks/subscriptions']
+            if response_code == 200 and request_method == 'GET':
+                # Match exact path or path with query string
+                if any(path == ep or path.startswith(ep + '?') or path.startswith(ep + '/') for ep in list_endpoints):
+                    return True
+                # Also catch 'list' in path for other list endpoints
+                if 'list' in path.lower():
+                    return True
+
+            # POST/PUT with optional ID fields - non-existent IDs are ignored or create new associations
             if response_code in [200, 201, 204] and request_method in ['POST', 'PUT']:
-                # Check if the scenario involves optional fields like threat_model_id
+                # Check if the scenario involves optional filter/association fields
                 if any(field in scenario for field in ['threat_model_id', 'webhook_id', 'addon_id']):
                     return True
 

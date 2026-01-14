@@ -428,19 +428,23 @@ get_current_user_identity() {
 create_admin_group() {
     log "Creating admin group..."
 
+    # Use timestamp to ensure unique group name (avoids 409 conflicts on repeat runs)
+    local TIMESTAMP=$(date +%s)
+    local GROUP_NAME="CATS Test Group ${TIMESTAMP}"
+
     local RESPONSE
     RESPONSE=$(curl -s -X POST "${SERVER}/admin/groups" \
         -H "Authorization: Bearer ${JWT_TOKEN}" \
         -H "Content-Type: application/json" \
-        -d '{
-            "name": "CATS Test Group",
-            "description": "Test group for CATS fuzzing"
-        }')
+        -d "{
+            \"name\": \"${GROUP_NAME}\",
+            \"description\": \"Test group for CATS fuzzing - created $(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+        }")
 
     ADMIN_GROUP_ID=$(echo "${RESPONSE}" | jq -r '.id // .internal_uuid' 2>/dev/null)
 
     if [ -z "${ADMIN_GROUP_ID}" ] || [ "${ADMIN_GROUP_ID}" = "null" ]; then
-        warn "Failed to create admin group (may already exist or require admin). Response: ${RESPONSE}"
+        warn "Failed to create admin group (may require admin). Response: ${RESPONSE}"
         # Try to get existing group
         RESPONSE=$(curl -s -X GET "${SERVER}/admin/groups" \
             -H "Authorization: Bearer ${JWT_TOKEN}")
@@ -465,6 +469,8 @@ get_admin_users() {
 
     ADMIN_USER_PROVIDER=$(echo "${RESPONSE}" | jq -r '.users[0].provider // empty' 2>/dev/null)
     ADMIN_USER_PROVIDER_ID=$(echo "${RESPONSE}" | jq -r '.users[0].provider_id // empty' 2>/dev/null)
+    # Extract internal_uuid for /admin/users/{internal_uuid} endpoint testing
+    ADMIN_USER_INTERNAL_UUID=$(echo "${RESPONSE}" | jq -r '.users[0].internal_uuid // empty' 2>/dev/null)
 
     if [ -z "${ADMIN_USER_PROVIDER}" ] || [ "${ADMIN_USER_PROVIDER}" = "null" ] || \
        [ -z "${ADMIN_USER_PROVIDER_ID}" ] || [ "${ADMIN_USER_PROVIDER_ID}" = "null" ]; then
@@ -473,6 +479,13 @@ get_admin_users() {
         ADMIN_USER_PROVIDER_ID="${USER_PROVIDER_ID}"
     else
         success "Got admin user identity: ${ADMIN_USER_PROVIDER}:${ADMIN_USER_PROVIDER_ID}"
+    fi
+
+    if [ -z "${ADMIN_USER_INTERNAL_UUID}" ] || [ "${ADMIN_USER_INTERNAL_UUID}" = "null" ]; then
+        warn "Could not get admin user internal_uuid, using placeholder"
+        ADMIN_USER_INTERNAL_UUID="00000000-0000-0000-0000-000000000000"
+    else
+        success "Got admin user internal_uuid: ${ADMIN_USER_INTERNAL_UUID}"
     fi
 }
 
@@ -617,8 +630,10 @@ all:
   addon_id: ${ADDON_ID}
   client_credential_id: ${CLIENT_CRED_ID}
   key: ${METADATA_KEY}
-  # Admin resource identifiers (federated identity)
+  # Admin resource identifiers
   group_id: ${ADMIN_GROUP_ID}
+  # internal_uuid for /admin/users/{internal_uuid} endpoint
+  internal_uuid: ${ADMIN_USER_INTERNAL_UUID}
   # User identity uses provider:provider_id format
   user_provider: ${USER_PROVIDER}
   user_provider_id: ${USER_PROVIDER_ID}

@@ -106,8 +106,8 @@ func TestLogoutWithJWT(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		// Should return 400 Bad Request for missing Authorization header
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		// Should return 401 Unauthorized for missing Authorization header (RFC 7009)
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 
 		// Check error message
 		var response map[string]string

@@ -359,6 +359,40 @@ cats --list
   - `--skipFuzzersForExtension=x-cacheable-endpoint=true:CheckSecurityHeaders` (skip security header checks on cacheable discovery endpoints)
 - This allows vendor extension-based test filtering, providing a cleaner alternative to maintaining path lists in shell scripts
 
+## IDOR False Positives
+
+The CATS `InsecureDirectObjectReferences` fuzzer tests for Insecure Direct Object Reference vulnerabilities by replacing ID fields with alternative values and checking if the API returns success (indicating potential unauthorized access).
+
+### Filter Parameters Are Not IDOR Vulnerabilities
+
+TMI has several endpoints that accept **filter parameters** (query parameters that narrow results). When CATS changes these filter values, the API correctly returns 200 with different (or empty) results - this is **expected REST API behavior**, not an IDOR vulnerability.
+
+**Affected Endpoints**:
+
+| Endpoint | Filter Parameter | Behavior |
+|----------|------------------|----------|
+| `GET /addons` | `threat_model_id` | Returns addons filtered by threat model (empty if no match) |
+| `GET /invocations` | `addon_id` | Returns invocations filtered by addon (empty if no match) |
+| `GET /webhooks/subscriptions` | various filters | Returns subscriptions matching filters |
+| `GET /threat_models` | various filters | Returns threat models matching filters |
+
+**Why This Is Correct Behavior**:
+
+1. **Filter parameters narrow results, not authorize access** - Changing a filter returns different data, not unauthorized data
+2. **Empty results are valid** - A filter that matches nothing returns an empty list (200), not an error
+3. **Addons are globally visible** - They are admin-only to create/modify but visible to all authenticated users
+4. **No sensitive data exposure** - The user only sees data they are authorized to see
+
+**Resolution**: The CATS results parser (`scripts/parse-cats-results.py`) automatically marks these as false positives in the `is_false_positive()` function. They appear in the database with `is_oauth_false_positive = 1` and are excluded from the `test_results_filtered_view`.
+
+### Admin Endpoint Access
+
+Admin endpoints (`/admin/*`) are also marked as IDOR false positives because:
+
+1. The test user (e.g., `charlie`) is an administrator
+2. Administrators have full access to admin resources regardless of ID values
+3. Returning 200 for modified IDs is correct admin behavior
+
 ## References
 
 - **RFC 8414**: OAuth 2.0 Authorization Server Metadata - https://datatracker.ietf.org/doc/html/rfc8414

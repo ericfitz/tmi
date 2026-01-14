@@ -1212,7 +1212,8 @@ func (h *Handlers) Logout(c *gin.Context) {
 	// Get JWT token from Authorization header
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
+		// Return 401 per RFC 7009 - missing authentication credentials
+		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "Missing Authorization header",
 		})
 		return
@@ -1220,7 +1221,8 @@ func (h *Handlers) Logout(c *gin.Context) {
 
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
-		c.JSON(http.StatusBadRequest, gin.H{
+		// Return 401 for malformed auth header (not proper Bearer token format)
+		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "Invalid Authorization header format",
 		})
 		return
