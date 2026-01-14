@@ -146,6 +146,8 @@ CATS (Contract-driven Automatic Testing Suite) performs security fuzzing of the 
 - UUID field skipping (avoids false positives with malformed UUIDs)
 - Structured analysis with SQLite database and views
 
+**Known Issue - MassAssignmentFuzzer**: CATS 13.5.0 has a bug where the `MassAssignmentFuzzer` crashes with `JsonPath.InvalidModificationException` on certain request bodies (e.g., those with nested array fields). This causes CATS to silently stop fuzzing after `/threat_models` endpoints, skipping all sub-entity paths (`/threat_models/{id}/threats/*`, `/users/me/*`, `/webhooks/*`, etc.). The workaround is `--skipFuzzers=MassAssignmentFuzzer`, which is already configured in `run-cats-fuzz.sh`.
+
 **Public Endpoint Handling**:
 
 - TMI has 17 public endpoints (OAuth, OIDC, SAML) marked with `x-public-endpoint: true` vendor extension
