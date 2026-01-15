@@ -4360,62 +4360,31 @@
         "required": [
           "provider"
         ],
-        "oneOf": [
-          {
-            "required": [
-              "email"
-            ],
-            "properties": {
-              "email": {
-                "type": "string",
-                "format": "email",
-                "description": "User email to grant admin privileges"
-              },
-              "provider": {
-                "type": "string",
-                "description": "OAuth/SAML provider"
-              }
-            },
-            "additionalProperties": false
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "User email to grant admin privileges (mutually exclusive with provider_user_id and group_name)"
           },
-          {
-            "required": [
-              "provider_user_id"
-            ],
-            "properties": {
-              "provider_user_id": {
-                "type": "string",
-                "description": "Provider user ID to grant admin privileges"
-              },
-              "provider": {
-                "type": "string",
-                "description": "OAuth/SAML provider"
-              }
-            },
-            "additionalProperties": false
+          "provider_user_id": {
+            "type": "string",
+            "description": "Provider user ID to grant admin privileges (mutually exclusive with email and group_name)"
           },
-          {
-            "required": [
-              "group_name"
-            ],
-            "properties": {
-              "group_name": {
-                "type": "string",
-                "description": "Group name to grant admin privileges"
-              },
-              "provider": {
-                "type": "string",
-                "description": "OAuth/SAML provider"
-              }
-            },
-            "additionalProperties": false
+          "group_name": {
+            "type": "string",
+            "description": "Group name to grant admin privileges (mutually exclusive with email and provider_user_id)"
+          },
+          "provider": {
+            "type": "string",
+            "description": "OAuth/SAML provider"
           }
-        ],
+        },
         "description": "Request to create an administrator grant. Exactly one of email, provider_user_id, or group_name must be specified.",
         "example": {
           "email": "admin@example.com",
           "provider": "github"
-        }
+        },
+        "additionalProperties": false
       },
       "ListAdministratorsResponse": {
         "type": "object",
