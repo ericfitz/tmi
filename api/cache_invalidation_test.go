@@ -221,12 +221,11 @@ func TestBulkInvalidate(t *testing.T) {
 			},
 		}
 
-		// This should not error even though we can't fully test the mocking
-		// The function separates strategies correctly
+		// This should not error - nil cache service is gracefully handled
+		// The function separates strategies correctly and logs when cache is unavailable
 		err := invalidator.BulkInvalidate(ctx, events)
 
-		// We expect this to fail due to nil cache service, but we're testing the strategy separation logic
-		assert.Error(t, err)
+		assert.NoError(t, err)
 	})
 }
 

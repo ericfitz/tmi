@@ -211,13 +211,14 @@ func TestHandleCollaborationSessions(t *testing.T) {
 			setupSessions: func(hub *WebSocketHub) {
 				// Create session for accessible diagram 1 (user owns threat model)
 				session1 := &DiagramSession{
-					ID:           uuid.New().String(),
-					DiagramID:    d1.Id.String(),
-					Clients:      make(map[*WebSocketClient]bool),
-					Broadcast:    make(chan []byte),
-					Register:     make(chan *WebSocketClient),
-					Unregister:   make(chan *WebSocketClient),
-					LastActivity: time.Now().UTC(),
+					ID:            uuid.New().String(),
+					DiagramID:     d1.Id.String(),
+					ThreatModelID: tm1.Id.String(), // Required for authorization lookup
+					Clients:       make(map[*WebSocketClient]bool),
+					Broadcast:     make(chan []byte),
+					Register:      make(chan *WebSocketClient),
+					Unregister:    make(chan *WebSocketClient),
+					LastActivity:  time.Now().UTC(),
 				}
 				client1 := &WebSocketClient{UserName: "alice@example.com"}
 				session1.Clients[client1] = true
@@ -225,13 +226,14 @@ func TestHandleCollaborationSessions(t *testing.T) {
 
 				// Create session for accessible diagram 2 (user is reader)
 				session2 := &DiagramSession{
-					ID:           uuid.New().String(),
-					DiagramID:    d2.Id.String(),
-					Clients:      make(map[*WebSocketClient]bool),
-					Broadcast:    make(chan []byte),
-					Register:     make(chan *WebSocketClient),
-					Unregister:   make(chan *WebSocketClient),
-					LastActivity: time.Now().UTC(),
+					ID:            uuid.New().String(),
+					DiagramID:     d2.Id.String(),
+					ThreatModelID: tm2.Id.String(), // Required for authorization lookup
+					Clients:       make(map[*WebSocketClient]bool),
+					Broadcast:     make(chan []byte),
+					Register:      make(chan *WebSocketClient),
+					Unregister:    make(chan *WebSocketClient),
+					LastActivity:  time.Now().UTC(),
 				}
 				client2 := &WebSocketClient{UserName: "bob@example.com"}
 				session2.Clients[client2] = true
@@ -239,13 +241,14 @@ func TestHandleCollaborationSessions(t *testing.T) {
 
 				// Create session for inaccessible diagram (user has no access)
 				session3 := &DiagramSession{
-					ID:           uuid.New().String(),
-					DiagramID:    d3.Id.String(),
-					Clients:      make(map[*WebSocketClient]bool),
-					Broadcast:    make(chan []byte),
-					Register:     make(chan *WebSocketClient),
-					Unregister:   make(chan *WebSocketClient),
-					LastActivity: time.Now().UTC(),
+					ID:            uuid.New().String(),
+					DiagramID:     d3.Id.String(),
+					ThreatModelID: tm3.Id.String(), // Required for authorization lookup
+					Clients:       make(map[*WebSocketClient]bool),
+					Broadcast:     make(chan []byte),
+					Register:      make(chan *WebSocketClient),
+					Unregister:    make(chan *WebSocketClient),
+					LastActivity:  time.Now().UTC(),
 				}
 				client3 := &WebSocketClient{UserName: "charlie@example.com"}
 				session3.Clients[client3] = true
