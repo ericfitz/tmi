@@ -1,0 +1,568 @@
+{
+  "info": {
+    "name": "TMI SAML Tests",
+    "description": "Complete SAML endpoint testing for SSO authentication flows",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "samlProvider",
+      "value": "okta"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Note: SAML endpoints are mostly public (no auth required)",
+          "// Some endpoints may require auth token for provider configuration",
+          "const aliceToken = pm.environment.get('token_alice');",
+          "if (aliceToken) {",
+          "    pm.collectionVariables.set('accessToken', aliceToken);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "SAML Provider Discovery (Public)",
+      "item": [
+        {
+          "name": "List SAML Providers - Success (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/saml/providers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saml",
+                "providers"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is array of providers', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Providers have required fields', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        pm.expect(jsonData[0]).to.have.property('id');",
+                  "        pm.expect(jsonData[0]).to.have.property('name');",
+                  "        // Store first provider for subsequent tests",
+                  "        pm.collectionVariables.set('samlProvider', jsonData[0].id);",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Public endpoint - no auth required', function () {",
+                  "    // This endpoint should be accessible without auth",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Provider Users - Success (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/saml/providers/{{samlProvider}}/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saml",
+                "providers",
+                "{{samlProvider}}",
+                "users"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 404', function () {",
+                  "    // 200 if provider exists, 404 if not configured",
+                  "    pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SAML Metadata (Public)",
+      "item": [
+        {
+          "name": "Get Provider Metadata - Success (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/saml/{{samlProvider}}/metadata",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saml",
+                "{{samlProvider}}",
+                "metadata"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 404', function () {",
+                  "    // 200 if provider configured, 404 if not",
+                  "    pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Response is XML metadata', function () {",
+                  "        const contentType = pm.response.headers.get('Content-Type');",
+                  "        pm.expect(contentType).to.match(/xml/);",
+                  "    });",
+                  "    ",
+                  "    pm.test('Contains EntityDescriptor', function () {",
+                  "        const responseText = pm.response.text();",
+                  "        pm.expect(responseText).to.include('EntityDescriptor');",
+                  "    });",
+                  "}",
+                  "",
+                  "pm.test('Public endpoint - no auth required', function () {",
+                  "    // Metadata endpoints must be public per SAML spec",
+                  "    pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Metadata - Invalid Provider (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/saml/nonexistent-provider/metadata",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saml",
+                "nonexistent-provider",
+                "metadata"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates provider not found', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SAML Login Flow (Public)",
+      "item": [
+        {
+          "name": "Initiate SAML Login - Redirect (302)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/saml/{{samlProvider}}/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saml",
+                "{{samlProvider}}",
+                "login"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 302 or 200 or 404', function () {",
+                  "    // 302 redirect to IdP, 200 if returning HTML form, 404 if not configured",
+                  "    pm.expect([200, 302, 404]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 302) {",
+                  "    pm.test('Redirect to IdP', function () {",
+                  "        const location = pm.response.headers.get('Location');",
+                  "        pm.expect(location).to.exist;",
+                  "    });",
+                  "    ",
+                  "    pm.test('SAML request in redirect URL', function () {",
+                  "        const location = pm.response.headers.get('Location');",
+                  "        pm.expect(location).to.match(/SAMLRequest/i);",
+                  "    });",
+                  "}",
+                  "",
+                  "pm.test('Public endpoint - no auth required', function () {",
+                  "    // Login initiation must be public",
+                  "    pm.expect([200, 302, 404]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(1000);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SAML Login - Invalid Provider (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/saml/nonexistent-provider/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saml",
+                "nonexistent-provider",
+                "login"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates provider not found', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SAML Assertion Consumer Service (Public)",
+      "item": [
+        {
+          "name": "ACS Endpoint - No SAML Response (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": []
+            },
+            "url": {
+              "raw": "{{baseUrl}}/saml/acs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saml",
+                "acs"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400 or 500', function () {",
+                  "    // Should fail without valid SAML response",
+                  "    pm.expect([400, 500]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates missing SAML response', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.match(/(saml|response|missing|invalid)/);",
+                  "});",
+                  "",
+                  "pm.test('Public endpoint - no auth required', function () {",
+                  "    // ACS must be public to receive IdP responses",
+                  "    pm.expect(pm.response.code).to.not.equal(401);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ACS Endpoint - Invalid SAML Response (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "SAMLResponse",
+                  "value": "invalid-base64-saml-response"
+                },
+                {
+                  "key": "RelayState",
+                  "value": "some-relay-state"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/saml/acs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saml",
+                "acs"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400 or 500', function () {",
+                  "    // Invalid SAML response should be rejected",
+                  "    pm.expect([400, 500]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates invalid SAML', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.match(/(saml|response|invalid|decode|parse)/);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SAML Single Logout (Public)",
+      "item": [
+        {
+          "name": "SLO GET Endpoint - No Request (400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/saml/slo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saml",
+                "slo"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400 or 302 or 200', function () {",
+                  "    // May redirect, return error, or show logout page",
+                  "    pm.expect([200, 302, 400]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test('Public endpoint - no auth required', function () {",
+                  "    // SLO must be public to receive IdP-initiated logout",
+                  "    pm.expect(pm.response.code).to.not.equal(401);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SLO POST Endpoint - No Request (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": []
+            },
+            "url": {
+              "raw": "{{baseUrl}}/saml/slo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saml",
+                "slo"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400 or 500', function () {",
+                  "    // Should fail without valid logout request",
+                  "    pm.expect([400, 500]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test('Public endpoint - no auth required', function () {",
+                  "    // SLO must be public to receive IdP-initiated logout",
+                  "    pm.expect(pm.response.code).to.not.equal(401);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SLO POST - Invalid Request (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "SAMLRequest",
+                  "value": "invalid-logout-request"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/saml/slo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saml",
+                "slo"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400 or 500', function () {",
+                  "    // Invalid logout request should be rejected",
+                  "    pm.expect([400, 500]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates invalid request', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.match(/(saml|request|invalid|decode|parse)/);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
