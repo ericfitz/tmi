@@ -408,7 +408,13 @@ run_cats_fuzz() {
         #   generation (IllegalArgumentException: count is negative: -1)
         #   https://github.com/Endava/cats/issues/193
         # TODO: Re-enable when CATS fixes these issues
-        "--skipFuzzers=MassAssignmentFuzzer,InsertRandomValuesInBodyFuzzer"
+        #
+        # Skip fuzzers that produce false positives due to valid API behavior:
+        # - DuplicateHeaders: TMI ignores duplicate/unknown headers (valid per HTTP spec)
+        # - LargeNumberOfRandomAlphanumericHeaders: TMI ignores extra headers (valid behavior)
+        # - EnumCaseVariantFields: TMI uses case-sensitive enum validation (stricter is valid)
+        # See: docs/developer/testing/cats-remediation-plan.md
+        "--skipFuzzers=MassAssignmentFuzzer,InsertRandomValuesInBodyFuzzer,DuplicateHeaders,LargeNumberOfRandomAlphanumericHeaders,EnumCaseVariantFields"
     )
 
     # Add path filter if specified

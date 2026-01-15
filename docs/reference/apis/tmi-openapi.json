@@ -4360,30 +4360,62 @@
         "required": [
           "provider"
         ],
-        "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "description": "User email to grant admin privileges (mutually exclusive with provider_user_id and group_name)"
+        "oneOf": [
+          {
+            "required": [
+              "email"
+            ],
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email",
+                "description": "User email to grant admin privileges"
+              },
+              "provider": {
+                "type": "string",
+                "description": "OAuth/SAML provider"
+              }
+            },
+            "additionalProperties": false
           },
-          "provider_user_id": {
-            "type": "string",
-            "description": "Provider's user ID to grant admin privileges (mutually exclusive with email and group_name)"
+          {
+            "required": [
+              "provider_user_id"
+            ],
+            "properties": {
+              "provider_user_id": {
+                "type": "string",
+                "description": "Provider user ID to grant admin privileges"
+              },
+              "provider": {
+                "type": "string",
+                "description": "OAuth/SAML provider"
+              }
+            },
+            "additionalProperties": false
           },
-          "group_name": {
-            "type": "string",
-            "description": "Group name to grant admin privileges (mutually exclusive with email and provider_user_id)"
-          },
-          "provider": {
-            "type": "string",
-            "description": "OAuth/SAML provider"
+          {
+            "required": [
+              "group_name"
+            ],
+            "properties": {
+              "group_name": {
+                "type": "string",
+                "description": "Group name to grant admin privileges"
+              },
+              "provider": {
+                "type": "string",
+                "description": "OAuth/SAML provider"
+              }
+            },
+            "additionalProperties": false
           }
-        },
+        ],
+        "description": "Request to create an administrator grant. Exactly one of email, provider_user_id, or group_name must be specified.",
         "example": {
-          "user_id": "h80eabcd-e89b-41d4-a716-446655440017",
+          "email": "admin@example.com",
           "provider": "github"
-        },
-        "additionalProperties": false
+        }
       },
       "ListAdministratorsResponse": {
         "type": "object",
@@ -4525,6 +4557,16 @@
             "type": "integer",
             "minimum": 1,
             "description": "Maximum subscription requests per day"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when the quota was created"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when the quota was last modified"
           }
         },
         "example": {
@@ -5684,12 +5726,14 @@
           "max_active_invocations": {
             "type": "integer",
             "minimum": 1,
-            "description": "Maximum concurrent active addon invocations"
+            "description": "Maximum concurrent active addon invocations",
+            "maximum": 10
           },
           "max_invocations_per_hour": {
             "type": "integer",
             "minimum": 1,
-            "description": "Maximum addon invocations per hour"
+            "description": "Maximum addon invocations per hour",
+            "maximum": 1000
           }
         },
         "additionalProperties": false
@@ -5703,13 +5747,15 @@
           "max_requests_per_minute": {
             "type": "integer",
             "minimum": 1,
-            "description": "Maximum API requests per minute"
+            "description": "Maximum API requests per minute",
+            "maximum": 10000
           },
           "max_requests_per_hour": {
             "type": "integer",
             "minimum": 1,
             "nullable": true,
-            "description": "Maximum API requests per hour (optional)"
+            "description": "Maximum API requests per hour (optional)",
+            "maximum": 600000
           }
         },
         "additionalProperties": false
@@ -5726,22 +5772,26 @@
           "max_subscriptions": {
             "type": "integer",
             "minimum": 1,
-            "description": "Maximum webhook subscriptions"
+            "description": "Maximum webhook subscriptions",
+            "maximum": 100
           },
           "max_events_per_minute": {
             "type": "integer",
             "minimum": 1,
-            "description": "Maximum webhook events per minute"
+            "description": "Maximum webhook events per minute",
+            "maximum": 1000
           },
           "max_subscription_requests_per_minute": {
             "type": "integer",
             "minimum": 1,
-            "description": "Maximum subscription requests per minute"
+            "description": "Maximum subscription requests per minute",
+            "maximum": 100
           },
           "max_subscription_requests_per_day": {
             "type": "integer",
             "minimum": 1,
-            "description": "Maximum subscription requests per day"
+            "description": "Maximum subscription requests per day",
+            "maximum": 10000
           }
         },
         "additionalProperties": false
@@ -26663,6 +26713,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "400": {
+            "description": "Bad Request - Invalid provider name or client_callback URL format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "security": [],
@@ -26770,6 +26830,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "400": {
+            "description": "Bad Request - Invalid provider name format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "security": [],
