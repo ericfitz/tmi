@@ -624,6 +624,11 @@ class CATSResultsParser:
             if path.startswith('/admin/'):
                 return True
 
+            # DELETE /addons/{id} is admin-only by design (see api/addon_handlers.go:207)
+            # Administrators can delete any addon, so IDOR tests showing 204 are expected
+            if path.startswith('/addons/') and request_method == 'DELETE':
+                return True
+
             # List/collection endpoints that use filter parameters
             # GET requests to these paths return 200 with filtered (possibly empty) results
             # Changing filter IDs returns different results, not unauthorized access
