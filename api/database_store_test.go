@@ -261,30 +261,48 @@ func TestThreatModelDatabaseStore_Create(t *testing.T) {
 
 		store := NewThreatModelDatabaseStore(db)
 		testModel := createTestThreatModelDB()
+		userUUID := "user-internal-uuid-12345"
 
 		// Mock transaction
 		mock.ExpectBegin()
 
-		// Mock INSERT query
+		// Mock user resolution for owner - resolveUserIdentifierToUUID
+		// Step 1: Try as UUID (will fail since "test@example.com" is not a UUID)
+		// Step 2: Try as provider_user_id
+		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
+			WithArgs("test@example.com").
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(userUUID))
+
+		// Mock user resolution for created_by (same user, so same query)
+		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
+			WithArgs("test@example.com").
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(userUUID))
+
+		// Mock INSERT query - now uses resolved UUIDs for owner and created_by
 		mock.ExpectExec("INSERT INTO threat_models").
 			WithArgs(
-				sqlmock.AnyArg(), testModel.Name, testModel.Description, testModel.Owner, testModel.CreatedBy,
-				"STRIDE", testModel.IssueUri, testModel.CreatedAt, testModel.ModifiedAt,
-				0, 0, 0, 0,
+				sqlmock.AnyArg(), testModel.Name, testModel.Description, userUUID, userUUID,
+				"STRIDE", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
 			).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
-		// Mock authorization insert
+		// Mock authorization insert - also needs user resolution
+		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
+			WithArgs("test@example.com").
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(userUUID))
+
+		// INSERT INTO threat_model_access has 7 args:
+		// threat_model_id, user_internal_uuid, group_internal_uuid, subject_type, role, created_at, modified_at
 		mock.ExpectExec("INSERT INTO threat_model_access").
-			WithArgs(sqlmock.AnyArg(), "test@example.com", "owner", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(sqlmock.AnyArg(), userUUID, sqlmock.AnyArg(), sqlmock.AnyArg(), "owner", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		// Mock metadata insert (note the parameter order from the actual SQL)
 		mock.ExpectExec("INSERT INTO metadata").
-			WithArgs(sqlmock.AnyArg(), "priority", "high", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "priority", "high", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectExec("INSERT INTO metadata").
-			WithArgs(sqlmock.AnyArg(), "status", "active", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "status", "active", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		mock.ExpectCommit()
@@ -324,13 +342,25 @@ func TestThreatModelDatabaseStore_Create(t *testing.T) {
 
 		store := NewThreatModelDatabaseStore(db)
 		testModel := createTestThreatModelDB()
+		userUUID := "user-internal-uuid-12345"
 
 		mock.ExpectBegin()
+
+		// Mock user resolution for owner
+		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
+			WithArgs("test@example.com").
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(userUUID))
+
+		// Mock user resolution for created_by
+		mock.ExpectQuery("SELECT internal_uuid FROM users WHERE provider_user_id").
+			WithArgs("test@example.com").
+			WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}).AddRow(userUUID))
+
+		// Mock INSERT query to return error
 		mock.ExpectExec("INSERT INTO threat_models").
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
 				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-				sqlmock.AnyArg()).
+				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnError(assert.AnError)
 		mock.ExpectRollback()
 

@@ -325,6 +325,7 @@ func TestThreatMetadata(t *testing.T) {
 			key := "priority"
 
 			requestBody := map[string]interface{}{
+				"key":   key, // Required by binding validation
 				"value": "critical",
 			}
 
@@ -577,6 +578,7 @@ func TestDocumentMetadata(t *testing.T) {
 		key := "format"
 
 		requestBody := map[string]interface{}{
+			"key":   key, // Required by binding validation
 			"value": "docx",
 		}
 
@@ -707,8 +709,8 @@ func TestDocumentMetadata(t *testing.T) {
 	})
 }
 
-// setupSourceMetadataHandler creates a test router with source metadata handlers
-func setupSourceMetadataHandler() (*gin.Engine, *MockMetadataStore) {
+// setupRepositoryMetadataHandler creates a test router with repository metadata handlers
+func setupRepositoryMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
@@ -788,25 +790,25 @@ func setupDiagramMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 	return r, mockMetadataStore
 }
 
-// TestSourceMetadata tests source metadata operations
-func TestSourceMetadata(t *testing.T) {
+// TestRepositoryMetadata tests repository metadata operations
+func TestRepositoryMetadata(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
-	t.Run("GetSourceMetadata", func(t *testing.T) {
-		r, mockStore := setupSourceMetadataHandler()
+	t.Run("GetRepositoryMetadata", func(t *testing.T) {
+		r, mockStore := setupRepositoryMetadataHandler()
 
 		threatModelID := "00000000-0000-0000-0000-000000000001"
-		sourceID := "00000000-0000-0000-0000-000000000002"
+		repositoryID := "00000000-0000-0000-0000-000000000002"
 
 		metadata := []Metadata{
 			{Key: "repository_type", Value: "git"},
 			{Key: "main_branch", Value: "main"},
 		}
 
-		mockStore.On("List", mock.Anything, "source", sourceID).Return(metadata, nil)
+		mockStore.On("List", mock.Anything, "repository", repositoryID).Return(metadata, nil)
 
-		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/sources/"+sourceID+"/metadata", nil)
+		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/repositories/"+repositoryID+"/metadata", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -823,11 +825,11 @@ func TestSourceMetadata(t *testing.T) {
 		mockStore.AssertExpectations(t)
 	})
 
-	t.Run("CreateSourceMetadata", func(t *testing.T) {
-		r, mockStore := setupSourceMetadataHandler()
+	t.Run("CreateRepositoryMetadata", func(t *testing.T) {
+		r, mockStore := setupRepositoryMetadataHandler()
 
 		threatModelID := "00000000-0000-0000-0000-000000000001"
-		sourceID := "00000000-0000-0000-0000-000000000002"
+		repositoryID := "00000000-0000-0000-0000-000000000002"
 
 		requestBody := map[string]interface{}{
 			"key":   "repository_type",
@@ -836,11 +838,11 @@ func TestSourceMetadata(t *testing.T) {
 
 		createdMetadata := &Metadata{Key: "repository_type", Value: "git"}
 
-		mockStore.On("Create", mock.Anything, "source", sourceID, mock.AnythingOfType("*api.Metadata")).Return(nil)
-		mockStore.On("Get", mock.Anything, "source", sourceID, "repository_type").Return(createdMetadata, nil)
+		mockStore.On("Create", mock.Anything, "repository", repositoryID, mock.AnythingOfType("*api.Metadata")).Return(nil)
+		mockStore.On("Get", mock.Anything, "repository", repositoryID, "repository_type").Return(createdMetadata, nil)
 
 		body, _ := json.Marshal(requestBody)
-		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/sources/"+sourceID+"/metadata", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/repositories/"+repositoryID+"/metadata", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -858,24 +860,25 @@ func TestSourceMetadata(t *testing.T) {
 		mockStore.AssertExpectations(t)
 	})
 
-	t.Run("UpdateSourceMetadata", func(t *testing.T) {
-		r, mockStore := setupSourceMetadataHandler()
+	t.Run("UpdateRepositoryMetadata", func(t *testing.T) {
+		r, mockStore := setupRepositoryMetadataHandler()
 
 		threatModelID := "00000000-0000-0000-0000-000000000001"
-		sourceID := "00000000-0000-0000-0000-000000000002"
+		repositoryID := "00000000-0000-0000-0000-000000000002"
 		key := "repository_type"
 
 		requestBody := map[string]interface{}{
+			"key":   key, // Required by binding validation
 			"value": "svn",
 		}
 
 		updatedMetadata := &Metadata{Key: "repository_type", Value: "svn"}
 
-		mockStore.On("Update", mock.Anything, "source", sourceID, mock.AnythingOfType("*api.Metadata")).Return(nil)
-		mockStore.On("Get", mock.Anything, "source", sourceID, key).Return(updatedMetadata, nil)
+		mockStore.On("Update", mock.Anything, "repository", repositoryID, mock.AnythingOfType("*api.Metadata")).Return(nil)
+		mockStore.On("Get", mock.Anything, "repository", repositoryID, key).Return(updatedMetadata, nil)
 
 		body, _ := json.Marshal(requestBody)
-		req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/sources/"+sourceID+"/metadata/"+key, bytes.NewBuffer(body))
+		req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/repositories/"+repositoryID+"/metadata/"+key, bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -893,16 +896,16 @@ func TestSourceMetadata(t *testing.T) {
 		mockStore.AssertExpectations(t)
 	})
 
-	t.Run("DeleteSourceMetadata", func(t *testing.T) {
-		r, mockStore := setupSourceMetadataHandler()
+	t.Run("DeleteRepositoryMetadata", func(t *testing.T) {
+		r, mockStore := setupRepositoryMetadataHandler()
 
 		threatModelID := "00000000-0000-0000-0000-000000000001"
-		sourceID := "00000000-0000-0000-0000-000000000002"
+		repositoryID := "00000000-0000-0000-0000-000000000002"
 		key := "repository_type"
 
-		mockStore.On("Delete", mock.Anything, "source", sourceID, key).Return(nil)
+		mockStore.On("Delete", mock.Anything, "repository", repositoryID, key).Return(nil)
 
-		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/sources/"+sourceID+"/metadata/"+key, nil)
+		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/repositories/"+repositoryID+"/metadata/"+key, nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -911,11 +914,11 @@ func TestSourceMetadata(t *testing.T) {
 		mockStore.AssertExpectations(t)
 	})
 
-	t.Run("BulkCreateSourceMetadata", func(t *testing.T) {
-		r, mockStore := setupSourceMetadataHandler()
+	t.Run("BulkCreateRepositoryMetadata", func(t *testing.T) {
+		r, mockStore := setupRepositoryMetadataHandler()
 
 		threatModelID := "00000000-0000-0000-0000-000000000001"
-		sourceID := "00000000-0000-0000-0000-000000000002"
+		repositoryID := "00000000-0000-0000-0000-000000000002"
 
 		requestBody := []map[string]interface{}{
 			{"key": "repository_type", "value": "git"},
@@ -927,11 +930,11 @@ func TestSourceMetadata(t *testing.T) {
 			{Key: "main_branch", Value: "main"},
 		}
 
-		mockStore.On("BulkCreate", mock.Anything, "source", sourceID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
-		mockStore.On("List", mock.Anything, "source", sourceID).Return(createdMetadata, nil)
+		mockStore.On("BulkCreate", mock.Anything, "repository", repositoryID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
+		mockStore.On("List", mock.Anything, "repository", repositoryID).Return(createdMetadata, nil)
 
 		body, _ := json.Marshal(requestBody)
-		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/sources/"+sourceID+"/metadata/bulk", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/repositories/"+repositoryID+"/metadata/bulk", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()

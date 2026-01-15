@@ -172,29 +172,27 @@ func TestUpdateThreatModelRejectsCalculatedFields(t *testing.T) {
 			name: "reject created_at in PUT",
 			requestBody: map[string]interface{}{
 				"name":                   "Updated Threat Model",
-				"owner":                  "test@example.com",
 				"threat_model_framework": "STRIDE",
 				"authorization": []map[string]interface{}{
-					{"subject": "test@example.com", "role": "owner"},
+					{"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com", "role": "owner"},
 				},
 				"created_at": "2025-01-01T00:00:00Z",
 			},
 			expectedField: "created_at",
-			expectedError: "Creation timestamp is read-only and set by the server.",
+			expectedError: "is unsupported", // OpenAPI validation rejects unsupported properties
 		},
 		{
 			name: "reject diagrams in PUT",
 			requestBody: map[string]interface{}{
 				"name":                   "Updated Threat Model",
-				"owner":                  "test@example.com",
 				"threat_model_framework": "STRIDE",
 				"authorization": []map[string]interface{}{
-					{"subject": "test@example.com", "role": "owner"},
+					{"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com", "role": "owner"},
 				},
 				"diagrams": []interface{}{},
 			},
 			expectedField: "diagrams",
-			expectedError: "Diagrams must be managed via the /threat_models/:threat_model_id/diagrams sub-entity endpoints.",
+			expectedError: "is unsupported", // OpenAPI validation rejects unsupported properties
 		},
 	}
 
