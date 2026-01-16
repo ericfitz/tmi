@@ -388,6 +388,7 @@ run_cats_fuzz() {
         "-X=${HTTP_METHODS}"
         "--skipFieldFormat=uuid"
         "--skipField=offset"
+        "--printExecutionStatistics"
         "--refData=${PROJECT_ROOT}/test/outputs/cats/cats-test-data.yml"
         "--output=${PROJECT_ROOT}/test/outputs/cats/report"
         # Skip BypassAuthentication fuzzer on public endpoints marked in OpenAPI spec
