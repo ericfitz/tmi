@@ -136,10 +136,48 @@ func convertSAMLProviders(unified map[string]config.SAMLProviderConfig) map[stri
 	return providers
 }
 
-// InitAuthWithConfig initializes the auth system with unified configuration
+// InitAuthWithDB initializes the auth system with an existing database manager.
+// This is the preferred initialization method for explicit dependency injection.
+// The caller is responsible for initializing the database connections before calling this function.
+func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, error) {
+	if dbManager == nil {
+		return nil, fmt.Errorf("database manager is required")
+	}
+
+	authConfig := ConfigFromUnified(unified)
+	logger := slogging.Get()
+
+	logger.Info("[AUTH_CONFIG_ADAPTER] Initializing auth system with provided database manager")
+
+	// Create authentication service
+	service, err := NewService(dbManager, authConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create auth service: %w", err)
+	}
+
+	// Create authentication handlers
+	handlers := NewHandlers(service, authConfig)
+
+	// Start background job for periodic cache rebuilding
+	go startCacheRebuildJob(context.Background(), dbManager)
+
+	// Note: db.SetGlobalManager is called by main.go during Phase 1
+	// We don't set it here to avoid duplicate initialization
+
+	logger.Info("Authentication system initialized successfully with injected database manager")
+	return handlers, nil
+}
+
+// InitAuthWithConfig initializes the auth system with unified configuration.
+// Deprecated: Use InitAuthWithDB for explicit dependency injection.
+// This function creates its own database manager internally, which can lead to
+// duplicate initialization and DRY violations. Prefer passing a pre-initialized
+// db.Manager to InitAuthWithDB instead.
 func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, error) {
 	authConfig := ConfigFromUnified(unified)
 	logger := slogging.Get()
+
+	logger.Warn("[AUTH_CONFIG_ADAPTER] Using deprecated InitAuthWithConfig - prefer InitAuthWithDB for explicit dependency injection")
 
 	// Create database manager
 	dbManager := db.NewManager()
@@ -198,7 +236,7 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 	go startCacheRebuildJob(context.Background(), dbManager)
 
 	// Store global reference to database manager
-	globalDBManager = dbManager
+	db.SetGlobalManager(dbManager)
 
 	logger.Info("Authentication system initialized successfully (database type: %s)", gormConfig.Type)
 	return handlers, nil

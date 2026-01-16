@@ -13,9 +13,6 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-// Global database manager for access from other packages
-var globalDBManager *db.Manager
-
 // InitAuth initializes the authentication system
 func InitAuth(router *gin.Engine) error {
 	// Load configuration
@@ -65,7 +62,7 @@ func InitAuth(router *gin.Engine) error {
 	go startCacheRebuildJob(context.Background(), dbManager)
 
 	// Store global reference to database manager
-	globalDBManager = dbManager
+	db.SetGlobalManager(dbManager)
 
 	slogging.Get().Info("Authentication system initialized successfully")
 	return nil
@@ -326,15 +323,18 @@ func rebuildDiagramMappingCache(ctx context.Context, tx *sql.Tx, redis *redis.Cl
 	return rows.Err()
 }
 
-// GetDatabaseManager returns the global database manager
+// GetDatabaseManager returns the global database manager.
+// Deprecated: Use db.GetGlobalManager() instead.
+// This function is retained for backward compatibility with code that uses
+// auth.GetDatabaseManager() after calling auth.InitAuthWithConfig().
 func GetDatabaseManager() *db.Manager {
-	return globalDBManager
+	return db.GetGlobalManager()
 }
 
 // Shutdown gracefully shuts down the authentication system
 func Shutdown(ctx context.Context) error {
-	if globalDBManager != nil {
-		return globalDBManager.Close()
+	if mgr := db.GetGlobalManager(); mgr != nil {
+		return mgr.Close()
 	}
 	return nil
 }

@@ -1001,67 +1001,49 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Note: API server creation moved to after store initialization
 	// to ensure global stores are properly initialized first
 
-	// Initialize auth package with database connections
-	// This must be done before registering API routes to avoid conflicts
 	logger := slogging.Get()
-	logger.Info("Initializing authentication system with database connections")
-	authHandlers, err := auth.InitAuthWithConfig(r, config)
-	if err != nil {
-		logger.Error("Failed to initialize authentication system: %v", err)
-		// Continue anyway for development purposes
-	}
 
-	// Note: Auth service adapter setup moved to after server creation
+	// ==== PHASE 1: Database Connections ====
+	// Create and initialize all database connections first, before any subsystems
+	logger.Info("==== PHASE 1: Initializing database connections ====")
+	dbManager := db.NewManager()
 
-	// Note: Middleware setup and route registration moved to after server creation
-
-	// Initialize database stores for API data persistence
-	logger.Info("Initializing database stores for all data persistence")
-	dbManager := auth.GetDatabaseManager()
-
-	// Create auth service adapter for user store initialization
-	var authServiceAdapter *api.AuthServiceAdapter
-	if authHandlers != nil {
-		authServiceAdapter = api.NewAuthServiceAdapter(authHandlers)
-	}
-
-	// Check database type and initialize GORM stores for all databases
+	// Determine database type
 	dbType := config.Database.Type
 	if dbType == "" {
 		dbType = "postgres" // Default to postgres for backward compatibility
 	}
 
-	// Get or initialize GORM for all database types (unified code path)
-	// Note: GORM may already be initialized by the auth system, so check first
+	// Initialize GORM (required for all database types)
+	logger.Info("Initializing GORM database connection for %s", dbType)
+	gormCfg := buildGormConfig(config)
+	if err := dbManager.InitGorm(gormCfg); err != nil {
+		logger.Error("Failed to initialize GORM database: %v", err)
+		os.Exit(1)
+	}
 	gormDB := dbManager.Gorm()
 	if gormDB == nil {
-		logger.Info("Initializing GORM database connection for %s", dbType)
-		gormCfg := buildGormConfig(config)
-		if err := dbManager.InitGorm(gormCfg); err != nil {
-			logger.Error("Failed to initialize GORM database: %v", err)
-			os.Exit(1)
-		}
-		gormDB = dbManager.Gorm()
-		if gormDB == nil {
-			logger.Error("GORM database not available after initialization")
-			os.Exit(1)
-		}
-	} else {
-		logger.Info("Reusing existing GORM database connection for %s", dbType)
+		logger.Error("GORM database not available after initialization")
+		os.Exit(1)
 	}
 
-	// Run AutoMigrate for non-postgres databases
-	// PostgreSQL uses SQL migration files for schema management
-	if dbType != "postgres" {
-		logger.Info("Running GORM AutoMigrate for %s database", dbType)
-		if err := gormDB.AutoMigrate(api.GetAllModels()...); err != nil {
-			logger.Error("Failed to auto-migrate schema: %v", err)
-			os.Exit(1)
+	// Initialize legacy PostgreSQL connection if using postgres (for migrations and backward compatibility)
+	if dbType == "postgres" {
+		logger.Info("Initializing legacy PostgreSQL connection for migrations")
+		pgConfig := buildPostgresConfig(config)
+		if err := dbManager.InitPostgres(pgConfig); err != nil {
+			logger.Warn("Failed to initialize legacy PostgreSQL connection: %v", err)
+			// Don't fail - GORM connection is primary
 		}
 	}
 
-	logger.Info("Using GORM-backed stores for %s database", dbType)
-	api.InitializeGormStores(gormDB.DB(), authServiceAdapter, nil, nil)
+	// Initialize Redis
+	logger.Info("Initializing Redis connection")
+	redisConfig := buildRedisConfig(config)
+	if err := dbManager.InitRedis(redisConfig); err != nil {
+		logger.Error("Failed to initialize Redis: %v", err)
+		os.Exit(1)
+	}
 
 	// Test database connection via GORM
 	if err := gormDB.Ping(context.Background()); err != nil {
@@ -1069,6 +1051,52 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		os.Exit(1)
 	}
 	logger.Info("Database connection verified successfully")
+
+	// Set the global database manager for use throughout the application
+	db.SetGlobalManager(dbManager)
+	logger.Info("Global database manager set")
+
+	// ==== PHASE 2: Migrations ====
+	logger.Info("==== PHASE 2: Running database migrations ====")
+	if dbType == "postgres" {
+		// PostgreSQL uses SQL migration files
+		migrationsPath := "auth/migrations"
+		if err := dbManager.RunMigrations(db.MigrationConfig{
+			MigrationsPath: migrationsPath,
+			DatabaseName:   config.Database.Postgres.Database,
+		}); err != nil {
+			logger.Error("Failed to run migrations: %v", err)
+			os.Exit(1)
+		}
+	} else {
+		// Non-postgres databases use GORM AutoMigrate
+		logger.Info("Running GORM AutoMigrate for %s database", dbType)
+		if err := gormDB.AutoMigrate(api.GetAllModels()...); err != nil {
+			logger.Error("Failed to auto-migrate schema: %v", err)
+			os.Exit(1)
+		}
+	}
+
+	// ==== PHASE 3: Auth System ====
+	// Initialize auth with the already-initialized database manager
+	logger.Info("==== PHASE 3: Initializing authentication system ====")
+	authHandlers, err := auth.InitAuthWithDB(dbManager, config)
+	if err != nil {
+		logger.Error("Failed to initialize authentication system: %v", err)
+		os.Exit(1)
+	}
+
+	// ==== PHASE 4: API Stores ====
+	logger.Info("==== PHASE 4: Initializing API stores ====")
+
+	// Create auth service adapter for user store initialization
+	var authServiceAdapter *api.AuthServiceAdapter
+	if authHandlers != nil {
+		authServiceAdapter = api.NewAuthServiceAdapter(authHandlers)
+	}
+
+	logger.Info("Using GORM-backed stores for %s database", dbType)
+	api.InitializeGormStores(gormDB.DB(), authServiceAdapter, nil, nil)
 
 	// Ensure "everyone" pseudo-group exists and initialize administrators
 	if err := ensureEveryonePseudoGroupGorm(gormDB.DB()); err != nil {
@@ -1115,8 +1143,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		logger.Warn("Auth handlers not available - auth endpoints will return errors")
 	}
 
-	// Initialize token blacklist service
-	// Note: dbManager was already retrieved during store initialization
+	// ==== PHASE 5: Redis Services ====
+	// Initialize Redis-backed services (token blacklist, rate limiters, event emitter)
+	logger.Info("==== PHASE 5: Initializing Redis services ====")
 	if dbManager != nil && dbManager.Redis() != nil {
 		logger.Info("Initializing token blacklist service")
 		server.tokenBlacklist = auth.NewTokenBlacklist(dbManager.Redis().GetClient(), authHandlers.Service().GetKeyManager())
@@ -1287,7 +1316,7 @@ func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.W
 	logger := slogging.Get()
 
 	// Start webhook workers if database and Redis are available
-	dbManager := auth.GetDatabaseManager()
+	dbManager := db.GetGlobalManager()
 	var webhookConsumer *api.WebhookEventConsumer
 	var challengeWorker *api.WebhookChallengeWorker
 	var deliveryWorker *api.WebhookDeliveryWorker
@@ -1822,5 +1851,27 @@ func buildGormConfig(cfg *config.Config) db.GormConfig {
 
 		// SQLite configuration
 		SQLitePath: cfg.Database.SQLite.Path,
+	}
+}
+
+// buildPostgresConfig creates a PostgreSQL configuration from the application config
+func buildPostgresConfig(cfg *config.Config) db.PostgresConfig {
+	return db.PostgresConfig{
+		Host:     cfg.Database.Postgres.Host,
+		Port:     cfg.Database.Postgres.Port,
+		User:     cfg.Database.Postgres.User,
+		Password: cfg.Database.Postgres.Password,
+		Database: cfg.Database.Postgres.Database,
+		SSLMode:  cfg.Database.Postgres.SSLMode,
+	}
+}
+
+// buildRedisConfig creates a Redis configuration from the application config
+func buildRedisConfig(cfg *config.Config) db.RedisConfig {
+	return db.RedisConfig{
+		Host:     cfg.Database.Redis.Host,
+		Port:     cfg.Database.Redis.Port,
+		Password: cfg.Database.Redis.Password,
+		DB:       cfg.Database.Redis.DB,
 	}
 }

@@ -8,6 +8,28 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
+// globalManager is the singleton database manager instance
+var (
+	globalManager   *Manager
+	globalManagerMu sync.RWMutex
+)
+
+// SetGlobalManager sets the global database manager singleton.
+// This should be called once during application startup after the manager is fully initialized.
+func SetGlobalManager(m *Manager) {
+	globalManagerMu.Lock()
+	defer globalManagerMu.Unlock()
+	globalManager = m
+}
+
+// GetGlobalManager returns the global database manager singleton.
+// Returns nil if SetGlobalManager has not been called.
+func GetGlobalManager() *Manager {
+	globalManagerMu.RLock()
+	defer globalManagerMu.RUnlock()
+	return globalManager
+}
+
 // Manager handles database connections
 type Manager struct {
 	postgres *PostgresDB
