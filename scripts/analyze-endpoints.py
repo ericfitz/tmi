@@ -13,7 +13,7 @@ Analyzes all endpoints in the TMI API to determine:
 - Middleware stack for each endpoint
 - OpenAPI specification compliance
 
-Usage: python3 scripts/analyze_endpoints.py
+Usage: uv run scripts/analyze-endpoints.py
 """
 
 import json
@@ -623,7 +623,7 @@ def main():
             print(
                 "Error: Could not find TMI project root. Please run from project root or specify path."
             )
-            print("Usage: python3 scripts/analyze_endpoints.py [project_root]")
+            print("Usage: uv run scripts/analyze-endpoints.py [project_root]")
             sys.exit(1)
 
     print(f"🚀 Starting TMI API endpoint analysis...")

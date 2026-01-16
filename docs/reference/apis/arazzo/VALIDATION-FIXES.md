@@ -8,7 +8,7 @@ This document tracks the fixes applied to resolve Arazzo specification validatio
 **Initial Status**: 199 validation problems (133 errors, 66 warnings)
 **Final Status**: ✅ 0 errors, 132 warnings (expected)
 **Files Modified**:
-- [scripts/enhance_arazzo_with_workflows.py](../../../scripts/enhance_arazzo_with_workflows.py)
+- [scripts/enhance-arazzo-with-workflows.py](../../../scripts/enhance-arazzo-with-workflows.py)
 - [.spectral.yaml](../../../.spectral.yaml)
 
 ## Validation Issues Fixed
@@ -293,7 +293,7 @@ make validate-arazzo
 ## References
 
 - [Arazzo Specification v1.0.1](https://spec.openapis.org/arazzo/latest.html)
-- [Enhancement Script](../../../scripts/enhance_arazzo_with_workflows.py)
+- [Enhancement Script](../../../scripts/enhance-arazzo-with-workflows.py)
 - [Spectral Configuration](../../../.spectral.yaml)
 - [Arazzo Generation Documentation](../arazzo-generation.md)
 

@@ -1267,17 +1267,17 @@ arazzo-install:
 
 arazzo-scaffold: arazzo-install
 	$(call log_info,Generating base scaffold with Redocly CLI...)
-	@bash scripts/generate_arazzo_scaffold.sh
+	@bash scripts/generate-arazzo-scaffold.sh
 	$(call log_success,Base scaffold generated)
 
 arazzo-enhance:
 	$(call log_info,Enhancing with TMI workflow data...)
-	@uv run scripts/enhance_arazzo_with_workflows.py
+	@uv run scripts/enhance-arazzo-with-workflows.py
 	$(call log_success,Enhanced Arazzo created at docs/reference/apis/tmi.arazzo.{yaml,json})
 
 validate-arazzo:
 	$(call log_info,Validating Arazzo specifications...)
-	@uv run scripts/validate_arazzo.py \
+	@uv run scripts/validate-arazzo.py \
 		docs/reference/apis/tmi.arazzo.yaml \
 		docs/reference/apis/tmi.arazzo.json
 	$(call log_success,Arazzo specifications are valid)
@@ -1294,7 +1294,7 @@ arazzo-all: arazzo-install generate-arazzo
 
 validate-openapi:
 	$(call log_info,Validating OpenAPI specification...)
-	@uv run scripts/validate_openapi.py docs/reference/apis/tmi-openapi.json
+	@uv run scripts/validate-openapi.py docs/reference/apis/tmi-openapi.json
 	@if command -v cats >/dev/null 2>&1; then \
 		echo -e "$(BLUE)[INFO]$(NC) Running CATS OpenAPI validation..."; \
 		cats validate -d -c docs/reference/apis/tmi-openapi.json; \
@@ -1306,7 +1306,7 @@ validate-openapi:
 
 validate-asyncapi:
 	$(call log_info,Validating AsyncAPI specification...)
-	@uv run scripts/validate_asyncapi.py docs/reference/apis/tmi-asyncapi.yml
+	@uv run scripts/validate-asyncapi.py docs/reference/apis/tmi-asyncapi.yml
 	$(call log_success,AsyncAPI specification is valid)
 
 scan-openapi-security:
