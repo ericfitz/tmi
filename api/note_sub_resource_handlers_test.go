@@ -1,0 +1,470 @@
+package api
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+)
+
+// MockNoteStore is a mock implementation of NoteStore for testing
+type MockNoteStore struct {
+	mock.Mock
+}
+
+func (m *MockNoteStore) Create(ctx context.Context, note *Note, threatModelID string) error {
+	args := m.Called(ctx, note, threatModelID)
+	return args.Error(0)
+}
+
+func (m *MockNoteStore) Get(ctx context.Context, id string) (*Note, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*Note), args.Error(1)
+}
+
+func (m *MockNoteStore) Update(ctx context.Context, note *Note, threatModelID string) error {
+	args := m.Called(ctx, note, threatModelID)
+	return args.Error(0)
+}
+
+func (m *MockNoteStore) Delete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockNoteStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Note, error) {
+	args := m.Called(ctx, threatModelID, offset, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]Note), args.Error(1)
+}
+
+func (m *MockNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Note, error) {
+	args := m.Called(ctx, id, operations)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*Note), args.Error(1)
+}
+
+func (m *MockNoteStore) InvalidateCache(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockNoteStore) WarmCache(ctx context.Context, threatModelID string) error {
+	args := m.Called(ctx, threatModelID)
+	return args.Error(0)
+}
+
+// setupNoteSubResourceHandler creates a test router with note sub-resource handlers
+func setupNoteSubResourceHandler() (*gin.Engine, *MockNoteStore) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockNoteStore := &MockNoteStore{}
+	handler := NewNoteSubResourceHandler(mockNoteStore, nil, nil, nil)
+
+	// Add fake auth middleware
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userID", "test-provider-id")
+		c.Set("userRole", RoleWriter)
+		c.Next()
+	})
+
+	// Register note sub-resource routes
+	r.GET("/threat_models/:threat_model_id/notes", handler.GetNotes)
+	r.POST("/threat_models/:threat_model_id/notes", handler.CreateNote)
+	r.GET("/threat_models/:threat_model_id/notes/:note_id", handler.GetNote)
+	r.PUT("/threat_models/:threat_model_id/notes/:note_id", handler.UpdateNote)
+	r.PATCH("/threat_models/:threat_model_id/notes/:note_id", handler.PatchNote)
+	r.DELETE("/threat_models/:threat_model_id/notes/:note_id", handler.DeleteNote)
+
+	return r, mockNoteStore
+}
+
+// TestGetNotes tests retrieving notes for a threat model
+func TestGetNotes(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+		notes := []Note{
+			{Name: "Security Review", Content: "Security review findings", Description: stringPointer("Review note")},
+			{Name: "Architecture Notes", Content: "Architecture design notes", Description: stringPointer("Design note")},
+		}
+
+		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
+		uuid2, _ := uuid.Parse("00000000-0000-0000-0000-000000000002")
+		notes[0].Id = &uuid1
+		notes[1].Id = &uuid2
+
+		mockStore.On("List", mock.Anything, threatModelID, 0, 20).Return(notes, nil)
+
+		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response []map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Len(t, response, 2)
+		assert.Equal(t, "Security review findings", response[0]["content"])
+		assert.Equal(t, "Architecture design notes", response[1]["content"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("InvalidThreatModelID", func(t *testing.T) {
+		r, _ := setupNoteSubResourceHandler()
+
+		req := httptest.NewRequest("GET", "/threat_models/invalid-uuid/notes", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("WithPagination", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+		notes := []Note{
+			{Name: "Security Review", Content: "Security Review Note"},
+		}
+
+		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
+		notes[0].Id = &uuid1
+
+		mockStore.On("List", mock.Anything, threatModelID, 10, 5).Return(notes, nil)
+
+		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes?limit=5&offset=10", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("InvalidLimit", func(t *testing.T) {
+		r, _ := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+
+		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes?limit=150", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("InvalidOffset", func(t *testing.T) {
+		r, _ := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+
+		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes?offset=-1", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// TestGetNote tests retrieving a specific note
+func TestGetNote(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+		noteID := "00000000-0000-0000-0000-000000000002"
+
+		note := &Note{Name: "Findings Note", Content: "Important findings", Description: stringPointer("Security review note")}
+		uuid1, _ := uuid.Parse(noteID)
+		note.Id = &uuid1
+
+		mockStore.On("Get", mock.Anything, noteID).Return(note, nil)
+
+		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes/"+noteID, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Equal(t, "Important findings", response["content"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+		noteID := "00000000-0000-0000-0000-000000000002"
+
+		mockStore.On("Get", mock.Anything, noteID).Return(nil, NotFoundError("Note not found"))
+
+		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes/"+noteID, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("InvalidNoteID", func(t *testing.T) {
+		r, _ := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+
+		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes/invalid-uuid", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// TestCreateNote tests creating a new note
+func TestCreateNote(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+
+		requestBody := map[string]interface{}{
+			"name":        "Security Review Note",
+			"content":     "Important security findings",
+			"description": "New Security Note",
+		}
+
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Note"), threatModelID).Return(nil)
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/notes", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Equal(t, "Important security findings", response["content"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("InvalidRequestBody", func(t *testing.T) {
+		r, _ := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+
+		// Missing required content field
+		requestBody := map[string]interface{}{
+			"description": "A note without content",
+		}
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/notes", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("InvalidThreatModelID", func(t *testing.T) {
+		r, _ := setupNoteSubResourceHandler()
+
+		requestBody := map[string]interface{}{
+			"content": "Test Note Content",
+		}
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/invalid-uuid/notes", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// TestUpdateNote tests updating an existing note
+func TestUpdateNote(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+		noteID := "00000000-0000-0000-0000-000000000002"
+
+		requestBody := map[string]interface{}{
+			"name":        "Updated Note Name",
+			"content":     "Updated content",
+			"description": "Updated Note",
+		}
+
+		mockStore.On("Update", mock.Anything, mock.AnythingOfType("*api.Note"), threatModelID).Return(nil)
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/notes/"+noteID, bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("InvalidNoteID", func(t *testing.T) {
+		r, _ := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+
+		requestBody := map[string]interface{}{
+			"content": "Test Note Content",
+		}
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/notes/invalid-uuid", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// TestPatchNote tests applying JSON patch operations to a note
+func TestPatchNote(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+		noteID := "00000000-0000-0000-0000-000000000002"
+
+		patchOps := []map[string]interface{}{
+			{"op": "replace", "path": "/content", "value": "Patched Content"},
+		}
+
+		updatedNote := &Note{Name: "Patched Note", Content: "Patched Content"}
+		uuid1, _ := uuid.Parse(noteID)
+		updatedNote.Id = &uuid1
+
+		mockStore.On("Patch", mock.Anything, noteID, mock.AnythingOfType("[]api.PatchOperation")).Return(updatedNote, nil)
+
+		body, _ := json.Marshal(patchOps)
+		req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/notes/"+noteID, bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json-patch+json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Equal(t, "Patched Content", response["content"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("InvalidNoteID", func(t *testing.T) {
+		r, _ := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+
+		patchOps := []map[string]interface{}{
+			{"op": "replace", "path": "/title", "value": "Patched Title"},
+		}
+
+		body, _ := json.Marshal(patchOps)
+		req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/notes/invalid-uuid", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json-patch+json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("EmptyPatchOperations", func(t *testing.T) {
+		r, _ := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+		noteID := "00000000-0000-0000-0000-000000000002"
+
+		patchOps := []map[string]interface{}{}
+
+		body, _ := json.Marshal(patchOps)
+		req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/notes/"+noteID, bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json-patch+json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// TestDeleteNote tests deleting a note
+func TestDeleteNote(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+		noteID := "00000000-0000-0000-0000-000000000002"
+
+		mockStore.On("Delete", mock.Anything, noteID).Return(nil)
+
+		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/notes/"+noteID, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNoContent, w.Code)
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("InvalidNoteID", func(t *testing.T) {
+		r, _ := setupNoteSubResourceHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+
+		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/notes/invalid-uuid", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}

@@ -1244,3 +1244,613 @@ func TestDiagramMetadata(t *testing.T) {
 		})
 	})
 }
+
+// setupNoteMetadataHandler creates a test router with note metadata handlers
+func setupNoteMetadataHandler() (*gin.Engine, *MockMetadataStore) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockMetadataStore := &MockMetadataStore{}
+	handler := NewNoteMetadataHandler(mockMetadataStore, nil, nil, nil)
+
+	// Add fake auth middleware
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userID", "test-provider-id")
+		c.Set("userRole", RoleWriter)
+		c.Next()
+	})
+
+	// Register note metadata routes
+	r.GET("/threat_models/:threat_model_id/notes/:note_id/metadata", handler.GetNoteMetadata)
+	r.GET("/threat_models/:threat_model_id/notes/:note_id/metadata/:key", handler.GetNoteMetadataByKey)
+	r.POST("/threat_models/:threat_model_id/notes/:note_id/metadata", handler.CreateNoteMetadata)
+	r.PUT("/threat_models/:threat_model_id/notes/:note_id/metadata/:key", handler.UpdateNoteMetadata)
+	r.DELETE("/threat_models/:threat_model_id/notes/:note_id/metadata/:key", handler.DeleteNoteMetadata)
+	r.POST("/threat_models/:threat_model_id/notes/:note_id/metadata/bulk", handler.BulkCreateNoteMetadata)
+
+	return r, mockMetadataStore
+}
+
+// setupAssetMetadataHandler creates a test router with asset metadata handlers
+func setupAssetMetadataHandler() (*gin.Engine, *MockMetadataStore) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockMetadataStore := &MockMetadataStore{}
+	handler := NewAssetMetadataHandler(mockMetadataStore, nil, nil, nil)
+
+	// Add fake auth middleware
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userID", "test-provider-id")
+		c.Set("userRole", RoleWriter)
+		c.Next()
+	})
+
+	// Register asset metadata routes
+	r.GET("/threat_models/:threat_model_id/assets/:asset_id/metadata", handler.GetAssetMetadata)
+	r.GET("/threat_models/:threat_model_id/assets/:asset_id/metadata/:key", handler.GetAssetMetadataByKey)
+	r.POST("/threat_models/:threat_model_id/assets/:asset_id/metadata", handler.CreateAssetMetadata)
+	r.PUT("/threat_models/:threat_model_id/assets/:asset_id/metadata/:key", handler.UpdateAssetMetadata)
+	r.DELETE("/threat_models/:threat_model_id/assets/:asset_id/metadata/:key", handler.DeleteAssetMetadata)
+	r.POST("/threat_models/:threat_model_id/assets/:asset_id/metadata/bulk", handler.BulkCreateAssetMetadata)
+
+	return r, mockMetadataStore
+}
+
+// TestNoteMetadata tests note metadata operations
+func TestNoteMetadata(t *testing.T) {
+	t.Run("GetNoteMetadata", func(t *testing.T) {
+		r, mockStore := setupNoteMetadataHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+		noteID := "00000000-0000-0000-0000-000000000002"
+
+		metadata := []Metadata{
+			{Key: "author", Value: "alice"},
+			{Key: "status", Value: "draft"},
+		}
+
+		mockStore.On("List", mock.Anything, "note", noteID).Return(metadata, nil)
+
+		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes/"+noteID+"/metadata", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response []map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Len(t, response, 2)
+		assert.Equal(t, "author", response[0]["key"])
+		assert.Equal(t, "alice", response[0]["value"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("GetNoteMetadataByKey", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupNoteMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			noteID := "00000000-0000-0000-0000-000000000002"
+			key := "author"
+
+			metadata := &Metadata{Key: "author", Value: "alice"}
+
+			mockStore.On("Get", mock.Anything, "note", noteID, key).Return(metadata, nil)
+
+			req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes/"+noteID+"/metadata/"+key, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			var response map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+
+			assert.Equal(t, "author", response["key"])
+			assert.Equal(t, "alice", response["value"])
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("NotFound", func(t *testing.T) {
+			r, mockStore := setupNoteMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			noteID := "00000000-0000-0000-0000-000000000002"
+			key := "nonexistent"
+
+			mockStore.On("Get", mock.Anything, "note", noteID, key).Return(nil, NotFoundError("Metadata not found"))
+
+			req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes/"+noteID+"/metadata/"+key, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusNotFound, w.Code)
+			mockStore.AssertExpectations(t)
+		})
+	})
+
+	t.Run("CreateNoteMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupNoteMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			noteID := "00000000-0000-0000-0000-000000000002"
+
+			requestBody := map[string]interface{}{
+				"key":   "author",
+				"value": "alice",
+			}
+
+			createdMetadata := &Metadata{Key: "author", Value: "alice"}
+
+			mockStore.On("Create", mock.Anything, "note", noteID, mock.AnythingOfType("*api.Metadata")).Return(nil)
+			mockStore.On("Get", mock.Anything, "note", noteID, "author").Return(createdMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/notes/"+noteID+"/metadata", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusCreated, w.Code)
+
+			var response map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+
+			assert.Equal(t, "author", response["key"])
+			assert.Equal(t, "alice", response["value"])
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("InvalidNoteID", func(t *testing.T) {
+			r, _ := setupNoteMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+
+			requestBody := map[string]interface{}{
+				"key":   "author",
+				"value": "alice",
+			}
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/notes/invalid-uuid/metadata", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	})
+
+	t.Run("UpdateNoteMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupNoteMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			noteID := "00000000-0000-0000-0000-000000000002"
+			key := "author"
+
+			requestBody := map[string]interface{}{
+				"key":   key,
+				"value": "bob",
+			}
+
+			updatedMetadata := &Metadata{Key: "author", Value: "bob"}
+
+			mockStore.On("Update", mock.Anything, "note", noteID, mock.AnythingOfType("*api.Metadata")).Return(nil)
+			mockStore.On("Get", mock.Anything, "note", noteID, key).Return(updatedMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/notes/"+noteID+"/metadata/"+key, bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			var response map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+
+			assert.Equal(t, "author", response["key"])
+			assert.Equal(t, "bob", response["value"])
+
+			mockStore.AssertExpectations(t)
+		})
+	})
+
+	t.Run("DeleteNoteMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupNoteMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			noteID := "00000000-0000-0000-0000-000000000002"
+			key := "author"
+
+			mockStore.On("Delete", mock.Anything, "note", noteID, key).Return(nil)
+
+			req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/notes/"+noteID+"/metadata/"+key, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusNoContent, w.Code)
+
+			mockStore.AssertExpectations(t)
+		})
+	})
+
+	t.Run("BulkCreateNoteMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupNoteMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			noteID := "00000000-0000-0000-0000-000000000002"
+
+			requestBody := []map[string]interface{}{
+				{"key": "author", "value": "alice"},
+				{"key": "status", "value": "draft"},
+			}
+
+			createdMetadata := []Metadata{
+				{Key: "author", Value: "alice"},
+				{Key: "status", Value: "draft"},
+			}
+
+			mockStore.On("BulkCreate", mock.Anything, "note", noteID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
+			mockStore.On("List", mock.Anything, "note", noteID).Return(createdMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/notes/"+noteID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusCreated, w.Code)
+
+			var response []map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+			assert.Len(t, response, 2)
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("TooManyMetadata", func(t *testing.T) {
+			r, _ := setupNoteMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			noteID := "00000000-0000-0000-0000-000000000002"
+
+			// Create 21 metadata entries (over the limit of 20)
+			metadata := make([]map[string]interface{}, 21)
+			for i := 0; i < 21; i++ {
+				metadata[i] = map[string]interface{}{
+					"key":   fmt.Sprintf("key%d", i),
+					"value": fmt.Sprintf("value%d", i),
+				}
+			}
+
+			body, _ := json.Marshal(metadata)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/notes/"+noteID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+
+		t.Run("DuplicateKeys", func(t *testing.T) {
+			r, _ := setupNoteMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			noteID := "00000000-0000-0000-0000-000000000002"
+
+			requestBody := []map[string]interface{}{
+				{"key": "author", "value": "alice"},
+				{"key": "author", "value": "bob"}, // duplicate key
+			}
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/notes/"+noteID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	})
+}
+
+// TestAssetMetadata tests asset metadata operations
+func TestAssetMetadata(t *testing.T) {
+	t.Run("GetAssetMetadata", func(t *testing.T) {
+		r, mockStore := setupAssetMetadataHandler()
+
+		threatModelID := "00000000-0000-0000-0000-000000000001"
+		assetID := "00000000-0000-0000-0000-000000000002"
+
+		metadata := []Metadata{
+			{Key: "criticality", Value: "high"},
+			{Key: "owner", Value: "security-team"},
+		}
+
+		mockStore.On("List", mock.Anything, "asset", assetID).Return(metadata, nil)
+
+		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/assets/"+assetID+"/metadata", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response []map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Len(t, response, 2)
+		assert.Equal(t, "criticality", response[0]["key"])
+		assert.Equal(t, "high", response[0]["value"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("GetAssetMetadataByKey", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupAssetMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			assetID := "00000000-0000-0000-0000-000000000002"
+			key := "criticality"
+
+			metadata := &Metadata{Key: "criticality", Value: "high"}
+
+			mockStore.On("Get", mock.Anything, "asset", assetID, key).Return(metadata, nil)
+
+			req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/assets/"+assetID+"/metadata/"+key, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			var response map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+
+			assert.Equal(t, "criticality", response["key"])
+			assert.Equal(t, "high", response["value"])
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("NotFound", func(t *testing.T) {
+			r, mockStore := setupAssetMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			assetID := "00000000-0000-0000-0000-000000000002"
+			key := "nonexistent"
+
+			mockStore.On("Get", mock.Anything, "asset", assetID, key).Return(nil, NotFoundError("Metadata not found"))
+
+			req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/assets/"+assetID+"/metadata/"+key, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusNotFound, w.Code)
+			mockStore.AssertExpectations(t)
+		})
+	})
+
+	t.Run("CreateAssetMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupAssetMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			assetID := "00000000-0000-0000-0000-000000000002"
+
+			requestBody := map[string]interface{}{
+				"key":   "criticality",
+				"value": "high",
+			}
+
+			createdMetadata := &Metadata{Key: "criticality", Value: "high"}
+
+			mockStore.On("Create", mock.Anything, "asset", assetID, mock.AnythingOfType("*api.Metadata")).Return(nil)
+			mockStore.On("Get", mock.Anything, "asset", assetID, "criticality").Return(createdMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/assets/"+assetID+"/metadata", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusCreated, w.Code)
+
+			var response map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+
+			assert.Equal(t, "criticality", response["key"])
+			assert.Equal(t, "high", response["value"])
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("InvalidAssetID", func(t *testing.T) {
+			r, _ := setupAssetMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+
+			requestBody := map[string]interface{}{
+				"key":   "criticality",
+				"value": "high",
+			}
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/assets/invalid-uuid/metadata", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	})
+
+	t.Run("UpdateAssetMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupAssetMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			assetID := "00000000-0000-0000-0000-000000000002"
+			key := "criticality"
+
+			requestBody := map[string]interface{}{
+				"key":   key,
+				"value": "critical",
+			}
+
+			updatedMetadata := &Metadata{Key: "criticality", Value: "critical"}
+
+			mockStore.On("Update", mock.Anything, "asset", assetID, mock.AnythingOfType("*api.Metadata")).Return(nil)
+			mockStore.On("Get", mock.Anything, "asset", assetID, key).Return(updatedMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/assets/"+assetID+"/metadata/"+key, bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			var response map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+
+			assert.Equal(t, "criticality", response["key"])
+			assert.Equal(t, "critical", response["value"])
+
+			mockStore.AssertExpectations(t)
+		})
+	})
+
+	t.Run("DeleteAssetMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupAssetMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			assetID := "00000000-0000-0000-0000-000000000002"
+			key := "criticality"
+
+			mockStore.On("Delete", mock.Anything, "asset", assetID, key).Return(nil)
+
+			req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/assets/"+assetID+"/metadata/"+key, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusNoContent, w.Code)
+
+			mockStore.AssertExpectations(t)
+		})
+	})
+
+	t.Run("BulkCreateAssetMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupAssetMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			assetID := "00000000-0000-0000-0000-000000000002"
+
+			requestBody := []map[string]interface{}{
+				{"key": "criticality", "value": "high"},
+				{"key": "owner", "value": "security-team"},
+			}
+
+			createdMetadata := []Metadata{
+				{Key: "criticality", Value: "high"},
+				{Key: "owner", Value: "security-team"},
+			}
+
+			mockStore.On("BulkCreate", mock.Anything, "asset", assetID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
+			mockStore.On("List", mock.Anything, "asset", assetID).Return(createdMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/assets/"+assetID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusCreated, w.Code)
+
+			var response []map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+			assert.Len(t, response, 2)
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("TooManyMetadata", func(t *testing.T) {
+			r, _ := setupAssetMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			assetID := "00000000-0000-0000-0000-000000000002"
+
+			// Create 21 metadata entries (over the limit of 20)
+			metadata := make([]map[string]interface{}, 21)
+			for i := 0; i < 21; i++ {
+				metadata[i] = map[string]interface{}{
+					"key":   fmt.Sprintf("key%d", i),
+					"value": fmt.Sprintf("value%d", i),
+				}
+			}
+
+			body, _ := json.Marshal(metadata)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/assets/"+assetID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+
+		t.Run("DuplicateKeys", func(t *testing.T) {
+			r, _ := setupAssetMetadataHandler()
+
+			threatModelID := "00000000-0000-0000-0000-000000000001"
+			assetID := "00000000-0000-0000-0000-000000000002"
+
+			requestBody := []map[string]interface{}{
+				{"key": "criticality", "value": "high"},
+				{"key": "criticality", "value": "low"}, // duplicate key
+			}
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/assets/"+assetID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	})
+}
