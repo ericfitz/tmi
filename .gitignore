@@ -88,3 +88,7 @@ scripts/configure-heroku-env.sh
 test/outputs/
 test/deprecated/
 test/tools/wstest/wstest
+
+# Oracle wallet (contains sensitive credentials)
+wallet/
+Wallet_*.zip

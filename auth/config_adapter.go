@@ -13,7 +13,28 @@ import (
 
 // ConfigFromUnified converts unified config to auth-specific config
 func ConfigFromUnified(unified *config.Config) Config {
+	// Normalize database type (default to postgres for backward compatibility)
+	dbType := unified.Database.Type
+	if dbType == "" {
+		dbType = "postgres"
+	}
+
 	return Config{
+		Database: DatabaseConfig{
+			Type: dbType,
+			// PostgreSQL configuration
+			PostgresHost:     unified.Database.Postgres.Host,
+			PostgresPort:     unified.Database.Postgres.Port,
+			PostgresUser:     unified.Database.Postgres.User,
+			PostgresPassword: unified.Database.Postgres.Password,
+			PostgresDatabase: unified.Database.Postgres.Database,
+			PostgresSSLMode:  unified.Database.Postgres.SSLMode,
+			// Oracle configuration
+			OracleUser:           unified.Database.Oracle.User,
+			OraclePassword:       unified.Database.Oracle.Password,
+			OracleConnectString:  unified.Database.Oracle.ConnectString,
+			OracleWalletLocation: unified.Database.Oracle.WalletLocation,
+		},
 		Postgres: PostgresConfig{
 			Host:     unified.Database.Postgres.Host,
 			Port:     unified.Database.Postgres.Port,
@@ -118,28 +139,45 @@ func convertSAMLProviders(unified map[string]config.SAMLProviderConfig) map[stri
 // InitAuthWithConfig initializes the auth system with unified configuration
 func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, error) {
 	authConfig := ConfigFromUnified(unified)
+	logger := slogging.Get()
 
 	// Create database manager
 	dbManager := db.NewManager()
 
-	// Initialize PostgreSQL
-	pgConfig, redisConfig := authConfig.ToDBConfig()
-	if err := dbManager.InitPostgres(pgConfig); err != nil {
-		return nil, fmt.Errorf("failed to initialize postgres: %w", err)
+	// Initialize database based on type (use GORM for unified PostgreSQL/Oracle support)
+	gormConfig := authConfig.ToGormConfig()
+	logger.Info("[AUTH_CONFIG_ADAPTER] Initializing database connection (type: %s)", gormConfig.Type)
+
+	if err := dbManager.InitGorm(gormConfig); err != nil {
+		return nil, fmt.Errorf("failed to initialize database (%s): %w", gormConfig.Type, err)
+	}
+
+	// Also initialize legacy PostgreSQL connection if using postgres (for backward compatibility)
+	if gormConfig.Type == db.DatabaseTypePostgres {
+		pgConfig, _ := authConfig.ToDBConfig()
+		if err := dbManager.InitPostgres(pgConfig); err != nil {
+			logger.Warn("[AUTH_CONFIG_ADAPTER] Failed to initialize legacy PostgreSQL connection: %v", err)
+			// Don't fail - GORM connection is primary
+		}
 	}
 
 	// Initialize Redis
+	redisConfig := authConfig.ToRedisConfig()
 	if err := dbManager.InitRedis(redisConfig); err != nil {
 		return nil, fmt.Errorf("failed to initialize redis: %w", err)
 	}
 
-	// Run database migrations
-	migrationsPath := filepath.Join("auth", "migrations")
-	if err := dbManager.RunMigrations(db.MigrationConfig{
-		MigrationsPath: migrationsPath,
-		DatabaseName:   authConfig.Postgres.Database,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
+	// Run database migrations (only for PostgreSQL - Oracle uses GORM AutoMigrate)
+	if gormConfig.Type == db.DatabaseTypePostgres {
+		migrationsPath := filepath.Join("auth", "migrations")
+		if err := dbManager.RunMigrations(db.MigrationConfig{
+			MigrationsPath: migrationsPath,
+			DatabaseName:   authConfig.Postgres.Database,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to run migrations: %w", err)
+		}
+	} else {
+		logger.Info("[AUTH_CONFIG_ADAPTER] Using Oracle - migrations handled by GORM AutoMigrate")
 	}
 
 	// Create authentication service
@@ -153,7 +191,7 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 
 	// Register routes
 	// Skip route registration - routes will be handled by OpenAPI integration
-	slogging.Get().Info("[AUTH_CONFIG_ADAPTER] Route registration DISABLED - delegating to OpenAPI")
+	logger.Info("[AUTH_CONFIG_ADAPTER] Route registration DISABLED - delegating to OpenAPI")
 	// handlers.RegisterRoutes(router) // Disabled to avoid conflicts with OpenAPI routes
 
 	// Start background job for periodic cache rebuilding
@@ -162,6 +200,6 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 	// Store global reference to database manager
 	globalDBManager = dbManager
 
-	slogging.Get().Info("Authentication system initialized successfully")
+	logger.Info("Authentication system initialized successfully (database type: %s)", gormConfig.Type)
 	return handlers, nil
 }

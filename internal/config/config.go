@@ -50,8 +50,18 @@ type ServerConfig struct {
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
+	Type     string         `yaml:"type" env:"DATABASE_TYPE"` // "postgres" or "oracle" (default: postgres)
 	Postgres PostgresConfig `yaml:"postgres"`
+	Oracle   OracleConfig   `yaml:"oracle"`
 	Redis    RedisConfig    `yaml:"redis"`
+}
+
+// OracleConfig holds Oracle Autonomous Database configuration
+type OracleConfig struct {
+	User           string `yaml:"user" env:"ORACLE_USER"`
+	Password       string `yaml:"password" env:"ORACLE_PASSWORD"`
+	ConnectString  string `yaml:"connect_string" env:"ORACLE_CONNECT_STRING"`   // TNS alias or full connect descriptor
+	WalletLocation string `yaml:"wallet_location" env:"ORACLE_WALLET_LOCATION"` // Path to Oracle wallet directory
 }
 
 // PostgresConfig holds PostgreSQL configuration
@@ -248,6 +258,7 @@ func getDefaultConfig() *Config {
 			HTTPToHTTPSRedirect: true,
 		},
 		Database: DatabaseConfig{
+			Type: "postgres", // Default to PostgreSQL for backward compatibility
 			Postgres: PostgresConfig{
 				Host:     "localhost",
 				Port:     "5432",
@@ -255,6 +266,12 @@ func getDefaultConfig() *Config {
 				Password: "",
 				Database: "tmi",
 				SSLMode:  "disable",
+			},
+			Oracle: OracleConfig{
+				User:           "",
+				Password:       "",
+				ConnectString:  "",
+				WalletLocation: "",
 			},
 			Redis: RedisConfig{
 				Host:     "localhost",
@@ -680,6 +697,36 @@ func (c *Config) validateServer() error {
 }
 
 func (c *Config) validateDatabase() error {
+	// Normalize database type (default to postgres)
+	dbType := c.Database.Type
+	if dbType == "" {
+		dbType = "postgres"
+	}
+
+	switch dbType {
+	case "postgres":
+		if err := c.validatePostgres(); err != nil {
+			return err
+		}
+	case "oracle":
+		if err := c.validateOracle(); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported database type: %s (must be 'postgres' or 'oracle')", dbType)
+	}
+
+	// Redis is always required regardless of database type
+	if c.Database.Redis.Host == "" {
+		return fmt.Errorf("redis host is required")
+	}
+	if c.Database.Redis.Port == "" {
+		return fmt.Errorf("redis port is required")
+	}
+	return nil
+}
+
+func (c *Config) validatePostgres() error {
 	if c.Database.Postgres.Host == "" {
 		return fmt.Errorf("postgres host is required")
 	}
@@ -692,13 +739,17 @@ func (c *Config) validateDatabase() error {
 	if c.Database.Postgres.Database == "" {
 		return fmt.Errorf("postgres database is required")
 	}
+	return nil
+}
 
-	if c.Database.Redis.Host == "" {
-		return fmt.Errorf("redis host is required")
+func (c *Config) validateOracle() error {
+	if c.Database.Oracle.User == "" {
+		return fmt.Errorf("oracle user is required")
 	}
-	if c.Database.Redis.Port == "" {
-		return fmt.Errorf("redis port is required")
+	if c.Database.Oracle.ConnectString == "" {
+		return fmt.Errorf("oracle connect_string is required (TNS alias or full connect descriptor)")
 	}
+	// Password and WalletLocation are optional depending on authentication method
 	return nil
 }
 
