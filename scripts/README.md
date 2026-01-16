@@ -52,7 +52,6 @@ This directory contains scripts that are actively used by the refactored build s
 ### Testing Tools
 
 - **`generate-test-matrix.py`** - Generates test matrix from Newman API test results showing endpoint coverage
-- **`add_postman_tests.py`** - Adds appropriate tests to Postman request items based on method and expected responses
 
 ### Code Fix Scripts
 
