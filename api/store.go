@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // AuthServiceGetter defines an interface for getting the auth service
@@ -103,10 +105,78 @@ func InitializeDatabaseStores(db *sql.DB, authService interface{}) {
 
 // NOTE: InitializeInMemoryStores function removed - all stores now use database implementations
 
+// InitializeGormStores initializes all stores with GORM implementations
+// This function should be used instead of InitializeDatabaseStores for multi-database support
+func InitializeGormStores(db *gorm.DB, authService interface{}, cache *CacheService, invalidator *CacheInvalidator) {
+	// Core stores
+	ThreatModelStore = NewGormThreatModelStore(db)
+	DiagramStore = NewGormDiagramStore(db)
+
+	// Sub-resource stores
+	GlobalDocumentStore = NewGormDocumentStore(db, cache, invalidator)
+	GlobalNoteStore = NewGormNoteStore(db, cache, invalidator)
+	GlobalRepositoryStore = NewGormRepositoryStore(db, cache, invalidator)
+	GlobalAssetStore = NewGormAssetStore(db, cache, invalidator)
+	GlobalThreatStore = NewGormThreatStore(db, cache, invalidator)
+	GlobalMetadataStore = NewGormMetadataStore(db, cache, invalidator)
+
+	// Webhook stores
+	GlobalWebhookSubscriptionStore = NewGormWebhookSubscriptionStore(db)
+	GlobalWebhookDeliveryStore = NewGormWebhookDeliveryStore(db)
+	GlobalWebhookQuotaStore = NewGormWebhookQuotaStore(db)
+	GlobalWebhookUrlDenyListStore = NewGormWebhookUrlDenyListStore(db)
+
+	// Admin/quota stores
+	GlobalUserAPIQuotaStore = NewGormUserAPIQuotaStore(db)
+	GlobalAddonStore = NewGormAddonStore(db)
+	GlobalAdministratorStore = NewGormAdministratorStore(db)
+	GlobalGroupMemberStore = NewGormGroupMemberStore(db)
+	GlobalAddonInvocationQuotaStore = NewGormAddonInvocationQuotaStore(db)
+
+	// User/Group stores with auth service
+	if authService != nil {
+		if svc, ok := authService.(AuthServiceGetter); ok {
+			GlobalUserStore = NewGormUserStore(db, svc.GetService())
+			GlobalGroupStore = NewGormGroupStore(db, svc.GetService())
+		}
+	}
+}
+
 // ParseUUIDOrNil parses a UUID string, returning a nil UUID on error
 func ParseUUIDOrNil(s string) uuid.UUID {
 	if u, err := uuid.Parse(s); err == nil {
 		return u
 	}
 	return uuid.Nil
+}
+
+// GetAllModels returns all GORM models for AutoMigrate
+// This function is used by the server to run database migrations for non-postgres databases
+func GetAllModels() []interface{} {
+	return []interface{}{
+		&models.User{},
+		&models.RefreshTokenRecord{},
+		&models.ClientCredential{},
+		&models.ThreatModel{},
+		&models.Diagram{},
+		&models.Asset{},
+		&models.Threat{},
+		&models.Group{},
+		&models.ThreatModelAccess{},
+		&models.Document{},
+		&models.Note{},
+		&models.Repository{},
+		&models.Metadata{},
+		&models.CollaborationSession{},
+		&models.SessionParticipant{},
+		&models.WebhookSubscription{},
+		&models.WebhookDelivery{},
+		&models.WebhookQuota{},
+		&models.WebhookURLDenyList{},
+		&models.Administrator{},
+		&models.Addon{},
+		&models.AddonInvocationQuota{},
+		&models.UserAPIQuota{},
+		&models.GroupMember{},
+	}
 }

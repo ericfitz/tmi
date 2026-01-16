@@ -76,5 +76,14 @@ type GroupStore interface {
 // GlobalGroupStore is the global singleton for group storage
 var GlobalGroupStore GroupStore
 
+// GroupMemberStore defines the interface for group membership storage operations
+type GroupMemberStore interface {
+	ListMembers(ctx context.Context, filter GroupMemberFilter) ([]GroupMember, error)
+	CountMembers(ctx context.Context, groupInternalUUID uuid.UUID) (int, error)
+	AddMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID, addedByInternalUUID *uuid.UUID, notes *string) (*GroupMember, error)
+	RemoveMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID) error
+	IsMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID) (bool, error)
+}
+
 // GlobalGroupMemberStore is the global singleton for group membership storage
-var GlobalGroupMemberStore *GroupMemberDatabaseStore
+var GlobalGroupMemberStore GroupMemberStore

@@ -50,10 +50,13 @@ type ServerConfig struct {
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-	Type     string         `yaml:"type" env:"DATABASE_TYPE"` // "postgres" or "oracle" (default: postgres)
-	Postgres PostgresConfig `yaml:"postgres"`
-	Oracle   OracleConfig   `yaml:"oracle"`
-	Redis    RedisConfig    `yaml:"redis"`
+	Type      string          `yaml:"type" env:"DATABASE_TYPE"` // "postgres", "oracle", "mysql", "sqlserver", or "sqlite" (default: postgres)
+	Postgres  PostgresConfig  `yaml:"postgres"`
+	Oracle    OracleConfig    `yaml:"oracle"`
+	MySQL     MySQLConfig     `yaml:"mysql"`
+	SQLServer SQLServerConfig `yaml:"sqlserver"`
+	SQLite    SQLiteConfig    `yaml:"sqlite"`
+	Redis     RedisConfig     `yaml:"redis"`
 }
 
 // OracleConfig holds Oracle Autonomous Database configuration
@@ -72,6 +75,29 @@ type PostgresConfig struct {
 	Password string `yaml:"password" env:"POSTGRES_PASSWORD"`
 	Database string `yaml:"database" env:"POSTGRES_DATABASE"`
 	SSLMode  string `yaml:"sslmode" env:"POSTGRES_SSL_MODE"`
+}
+
+// MySQLConfig holds MySQL configuration
+type MySQLConfig struct {
+	Host     string `yaml:"host" env:"MYSQL_HOST"`
+	Port     string `yaml:"port" env:"MYSQL_PORT"`
+	User     string `yaml:"user" env:"MYSQL_USER"`
+	Password string `yaml:"password" env:"MYSQL_PASSWORD"`
+	Database string `yaml:"database" env:"MYSQL_DATABASE"`
+}
+
+// SQLServerConfig holds SQL Server configuration
+type SQLServerConfig struct {
+	Host     string `yaml:"host" env:"SQLSERVER_HOST"`
+	Port     string `yaml:"port" env:"SQLSERVER_PORT"`
+	User     string `yaml:"user" env:"SQLSERVER_USER"`
+	Password string `yaml:"password" env:"SQLSERVER_PASSWORD"`
+	Database string `yaml:"database" env:"SQLSERVER_DATABASE"`
+}
+
+// SQLiteConfig holds SQLite configuration
+type SQLiteConfig struct {
+	Path string `yaml:"path" env:"SQLITE_PATH"` // File path or ":memory:" for in-memory database
 }
 
 // RedisConfig holds Redis configuration
@@ -272,6 +298,23 @@ func getDefaultConfig() *Config {
 				Password:       "",
 				ConnectString:  "",
 				WalletLocation: "",
+			},
+			MySQL: MySQLConfig{
+				Host:     "localhost",
+				Port:     "3306",
+				User:     "root",
+				Password: "",
+				Database: "tmi",
+			},
+			SQLServer: SQLServerConfig{
+				Host:     "localhost",
+				Port:     "1433",
+				User:     "sa",
+				Password: "",
+				Database: "tmi",
+			},
+			SQLite: SQLiteConfig{
+				Path: "./tmi.db",
 			},
 			Redis: RedisConfig{
 				Host:     "localhost",
@@ -712,8 +755,20 @@ func (c *Config) validateDatabase() error {
 		if err := c.validateOracle(); err != nil {
 			return err
 		}
+	case "mysql":
+		if err := c.validateMySQL(); err != nil {
+			return err
+		}
+	case "sqlserver":
+		if err := c.validateSQLServer(); err != nil {
+			return err
+		}
+	case "sqlite":
+		if err := c.validateSQLite(); err != nil {
+			return err
+		}
 	default:
-		return fmt.Errorf("unsupported database type: %s (must be 'postgres' or 'oracle')", dbType)
+		return fmt.Errorf("unsupported database type: %s (must be 'postgres', 'oracle', 'mysql', 'sqlserver', or 'sqlite')", dbType)
 	}
 
 	// Redis is always required regardless of database type
@@ -750,6 +805,45 @@ func (c *Config) validateOracle() error {
 		return fmt.Errorf("oracle connect_string is required (TNS alias or full connect descriptor)")
 	}
 	// Password and WalletLocation are optional depending on authentication method
+	return nil
+}
+
+func (c *Config) validateMySQL() error {
+	if c.Database.MySQL.Host == "" {
+		return fmt.Errorf("mysql host is required")
+	}
+	if c.Database.MySQL.Port == "" {
+		return fmt.Errorf("mysql port is required")
+	}
+	if c.Database.MySQL.User == "" {
+		return fmt.Errorf("mysql user is required")
+	}
+	if c.Database.MySQL.Database == "" {
+		return fmt.Errorf("mysql database is required")
+	}
+	return nil
+}
+
+func (c *Config) validateSQLServer() error {
+	if c.Database.SQLServer.Host == "" {
+		return fmt.Errorf("sqlserver host is required")
+	}
+	if c.Database.SQLServer.Port == "" {
+		return fmt.Errorf("sqlserver port is required")
+	}
+	if c.Database.SQLServer.User == "" {
+		return fmt.Errorf("sqlserver user is required")
+	}
+	if c.Database.SQLServer.Database == "" {
+		return fmt.Errorf("sqlserver database is required")
+	}
+	return nil
+}
+
+func (c *Config) validateSQLite() error {
+	if c.Database.SQLite.Path == "" {
+		return fmt.Errorf("sqlite path is required")
+	}
 	return nil
 }
 

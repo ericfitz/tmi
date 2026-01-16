@@ -6,7 +6,10 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
+	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -18,8 +21,11 @@ import (
 type DatabaseType string
 
 const (
-	DatabaseTypePostgres DatabaseType = "postgres"
-	DatabaseTypeOracle   DatabaseType = "oracle"
+	DatabaseTypePostgres  DatabaseType = "postgres"
+	DatabaseTypeOracle    DatabaseType = "oracle"
+	DatabaseTypeMySQL     DatabaseType = "mysql"
+	DatabaseTypeSQLServer DatabaseType = "sqlserver"
+	DatabaseTypeSQLite    DatabaseType = "sqlite"
 )
 
 // GormConfig holds the configuration for GORM database connection
@@ -39,9 +45,26 @@ type GormConfig struct {
 	OraclePassword       string
 	OracleConnectString  string
 	OracleWalletLocation string
+
+	// MySQL configuration
+	MySQLHost     string
+	MySQLPort     string
+	MySQLUser     string
+	MySQLPassword string
+	MySQLDatabase string
+
+	// SQL Server configuration
+	SQLServerHost     string
+	SQLServerPort     string
+	SQLServerUser     string
+	SQLServerPassword string
+	SQLServerDatabase string
+
+	// SQLite configuration
+	SQLitePath string // File path or ":memory:" for in-memory database
 }
 
-// GormDB represents a GORM database connection that works with both PostgreSQL and Oracle
+// GormDB represents a GORM database connection that works with PostgreSQL, Oracle, MySQL, SQL Server, and SQLite
 type GormDB struct {
 	db        *gorm.DB
 	cfg       GormConfig
@@ -78,6 +101,27 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		}
 		dialector = oracle.Open(dsn)
 		log.Debug("Using Oracle dialector for %s", cfg.OracleConnectString)
+
+	case DatabaseTypeMySQL:
+		// MySQL DSN format: user:password@tcp(host:port)/dbname?parseTime=true
+		// parseTime=true is required for proper time.Time scanning
+		dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
+			cfg.MySQLUser, cfg.MySQLPassword, cfg.MySQLHost, cfg.MySQLPort, cfg.MySQLDatabase)
+		dialector = mysql.Open(dsn)
+		log.Debug("Using MySQL dialector for %s:%s/%s", cfg.MySQLHost, cfg.MySQLPort, cfg.MySQLDatabase)
+
+	case DatabaseTypeSQLServer:
+		// SQL Server DSN format: sqlserver://user:password@host:port?database=dbname
+		dsn = fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s",
+			cfg.SQLServerUser, cfg.SQLServerPassword, cfg.SQLServerHost, cfg.SQLServerPort, cfg.SQLServerDatabase)
+		dialector = sqlserver.Open(dsn)
+		log.Debug("Using SQL Server dialector for %s:%s/%s", cfg.SQLServerHost, cfg.SQLServerPort, cfg.SQLServerDatabase)
+
+	case DatabaseTypeSQLite:
+		// SQLite DSN is just the file path, or ":memory:" for in-memory database
+		dsn = cfg.SQLitePath
+		dialector = sqlite.Open(dsn)
+		log.Debug("Using SQLite dialector for %s", cfg.SQLitePath)
 
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)
