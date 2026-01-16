@@ -153,17 +153,11 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 	gormAsset := s.toGormModel(asset, threatModelID)
 	gormAsset.ModifiedAt = now
 
+	// Use struct-based Updates to ensure custom types (like StringArray) are properly
+	// serialized via their Value() method. Map-based Updates bypasses custom type handling.
 	result := s.db.WithContext(ctx).Model(&models.Asset{}).
 		Where("id = ? AND threat_model_id = ?", asset.Id.String(), threatModelID).
-		Updates(map[string]interface{}{
-			"name":           gormAsset.Name,
-			"description":    gormAsset.Description,
-			"type":           gormAsset.Type,
-			"criticality":    gormAsset.Criticality,
-			"classification": gormAsset.Classification,
-			"sensitivity":    gormAsset.Sensitivity,
-			"modified_at":    gormAsset.ModifiedAt,
-		})
+		Updates(gormAsset)
 
 	if result.Error != nil {
 		logger.Error("Failed to update asset in database: %v", result.Error)

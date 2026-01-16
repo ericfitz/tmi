@@ -251,23 +251,11 @@ func (s *GormWebhookSubscriptionStore) Update(id string, item DBWebhookSubscript
 	item = *updatedItem
 
 	// Convert to GORM model
+	// Use struct-based Updates to ensure custom types (like StringArray for Events)
+	// are properly serialized via their Value() method. Map-based Updates bypasses custom type handling.
 	gormSub := s.toGormModel(&item)
 
-	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"owner_internal_uuid":  gormSub.OwnerInternalUUID,
-		"threat_model_id":      gormSub.ThreatModelID,
-		"name":                 gormSub.Name,
-		"url":                  gormSub.URL,
-		"events":               gormSub.Events,
-		"secret":               gormSub.Secret,
-		"status":               gormSub.Status,
-		"challenge":            gormSub.Challenge,
-		"challenges_sent":      gormSub.ChallengesSent,
-		"modified_at":          gormSub.ModifiedAt,
-		"last_successful_use":  gormSub.LastSuccessfulUse,
-		"publication_failures": gormSub.PublicationFailures,
-		"timeout_count":        gormSub.TimeoutCount,
-	})
+	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(gormSub)
 
 	if result.Error != nil {
 		return result.Error

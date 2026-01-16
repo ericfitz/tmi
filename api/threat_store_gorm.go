@@ -153,24 +153,11 @@ func (s *GormThreatStore) Update(ctx context.Context, threat *Threat) error {
 	}
 
 	// Convert to GORM model and update
+	// Use struct-based Updates to ensure custom types (like StringArray for ThreatType)
+	// are properly serialized via their Value() method. Map-based Updates bypasses custom type handling.
 	gormThreat := s.toGormModel(threat)
 
-	result := s.db.WithContext(ctx).Model(&models.Threat{}).Where("id = ?", threat.Id.String()).Updates(map[string]interface{}{
-		"name":        gormThreat.Name,
-		"description": gormThreat.Description,
-		"severity":    gormThreat.Severity,
-		"mitigation":  gormThreat.Mitigation,
-		"threat_type": gormThreat.ThreatType,
-		"status":      gormThreat.Status,
-		"priority":    gormThreat.Priority,
-		"mitigated":   gormThreat.Mitigated,
-		"score":       gormThreat.Score,
-		"issue_uri":   gormThreat.IssueURI,
-		"diagram_id":  gormThreat.DiagramID,
-		"cell_id":     gormThreat.CellID,
-		"asset_id":    gormThreat.AssetID,
-		"modified_at": gormThreat.ModifiedAt,
-	})
+	result := s.db.WithContext(ctx).Model(&models.Threat{}).Where("id = ?", threat.Id.String()).Updates(gormThreat)
 
 	if result.Error != nil {
 		logger.Error("Failed to update threat in database: %v", result.Error)
