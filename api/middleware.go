@@ -538,31 +538,16 @@ func DiagramMiddleware() gin.HandlerFunc {
 func GetUserRoleForDiagram(userEmail string, userProviderID string, userInternalUUID string, userIdP string, userGroups []string, diagram DfdDiagram) Role {
 	// Diagrams inherit permissions from their parent threat model
 	// For database-backed diagrams, we need to find the parent threat model
+	// Try to get the diagram from the store and find its parent threat model
+	if diagram.Id != nil {
+		diagramID := diagram.Id.String()
 
-	// Try to find the parent threat model from the database
-	if dbStore, ok := DiagramStore.(*DiagramDatabaseStore); ok {
-		// This is a database-backed diagram
-		// Query the database directly to get the threat model ID for this diagram
-		if diagram.Id != nil {
-			diagramID := diagram.Id.String()
-
-			// Query the database to get the threat model ID
-			var threatModelID string
-			query := `SELECT threat_model_id FROM diagrams WHERE id = $1`
-			err := dbStore.db.QueryRow(query, diagramID).Scan(&threatModelID)
-			if err != nil {
-				// If we can't find the threat model, deny access
-				return ""
-			}
-
+		// Get the threat model ID for this diagram
+		threatModelID, err := DiagramStore.GetThreatModelID(diagramID)
+		if err == nil && threatModelID != "" {
 			// Get the threat model from the store
-			if tmStore, ok := ThreatModelStore.(*ThreatModelDatabaseStore); ok {
-				threatModel, err := tmStore.Get(threatModelID)
-				if err != nil {
-					// If we can't get the threat model, deny access
-					return ""
-				}
-
+			threatModel, err := ThreatModelStore.Get(threatModelID)
+			if err == nil {
 				// Use group-based authorization check
 				return GetUserRole(userEmail, userProviderID, userInternalUUID, userIdP, userGroups, threatModel)
 			}

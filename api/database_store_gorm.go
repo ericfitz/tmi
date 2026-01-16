@@ -908,6 +908,23 @@ func (s *GormDiagramStore) Get(id string) (DfdDiagram, error) {
 	return s.convertToAPIDiagram(&diagram)
 }
 
+// GetThreatModelID returns the threat model ID for a given diagram
+func (s *GormDiagramStore) GetThreatModelID(diagramID string) (string, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var diagram models.Diagram
+	result := s.db.Select("threat_model_id").First(&diagram, "id = ?", diagramID)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return "", fmt.Errorf("diagram with ID %s not found", diagramID)
+		}
+		return "", fmt.Errorf("failed to get diagram: %w", result.Error)
+	}
+
+	return diagram.ThreatModelID, nil
+}
+
 // convertToAPIDiagram converts a GORM Diagram to the API DfdDiagram
 func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiagram, error) {
 	diagramUUID, _ := uuid.Parse(diagram.ID)

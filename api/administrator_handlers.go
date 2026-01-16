@@ -49,7 +49,7 @@ func (s *Server) ListAdministrators(c *gin.Context, params ListAdministratorsPar
 	}
 
 	// Get administrators from store
-	if dbStore, ok := GlobalAdministratorStore.(*AdministratorDatabaseStore); ok {
+	if dbStore, ok := GlobalAdministratorStore.(*GormAdministratorStore); ok {
 		admins, err := dbStore.ListFiltered(c.Request.Context(), filter)
 		if err != nil {
 			logger.Error("Failed to list administrators: %v", err)
@@ -218,21 +218,8 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 		admin.UserInternalUUID = &userUUID
 		admin.SubjectType = "user"
 	} else {
-		// Lookup group by group_name
-		dbStore, ok := GlobalAdministratorStore.(*AdministratorDatabaseStore)
-		if !ok {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
-				Message: "Administrator store not properly initialized",
-			})
-			return
-		}
-
-		var groupUUID string
-		err := dbStore.db.QueryRowContext(c.Request.Context(),
-			"SELECT internal_uuid FROM groups WHERE provider = $1 AND group_name = $2",
-			req.Provider, *req.GroupName).Scan(&groupUUID)
+		// Lookup group by group_name using GlobalGroupStore
+		group, err := GlobalGroupStore.GetByProviderAndName(c.Request.Context(), req.Provider, *req.GroupName)
 		if err != nil {
 			logger.Warn("Group not found: provider=%s, group_name=%s, error=%v", req.Provider, *req.GroupName, err)
 			HandleRequestError(c, &RequestError{
@@ -242,8 +229,7 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 			})
 			return
 		}
-		groupInternalUUID := uuid.MustParse(groupUUID)
-		admin.GroupInternalUUID = &groupInternalUUID
+		admin.GroupInternalUUID = &group.InternalUUID
 		admin.SubjectType = "group"
 	}
 
@@ -277,7 +263,7 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 	}
 
 	// Enrich response with email/group name
-	if dbStore, ok := GlobalAdministratorStore.(*AdministratorDatabaseStore); ok {
+	if dbStore, ok := GlobalAdministratorStore.(*GormAdministratorStore); ok {
 		enriched, err := dbStore.EnrichAdministrators(c.Request.Context(), []DBAdministrator{admin})
 		if err == nil && len(enriched) > 0 {
 			admin = enriched[0]
@@ -305,7 +291,7 @@ func (s *Server) DeleteAdministrator(c *gin.Context, id openapi_types.UUID) {
 	// Get the administrator grant to check self-revocation
 	var adminGrant *DBAdministrator
 	var err error
-	if dbStore, ok := GlobalAdministratorStore.(*AdministratorDatabaseStore); ok {
+	if dbStore, ok := GlobalAdministratorStore.(*GormAdministratorStore); ok {
 		adminGrant, err = dbStore.Get(c.Request.Context(), grantID)
 		if err != nil {
 			logger.Warn("Administrator grant not found: id=%s", grantID)

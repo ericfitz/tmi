@@ -76,6 +76,13 @@ type GroupStore interface {
 // GlobalGroupStore is the global singleton for group storage
 var GlobalGroupStore GroupStore
 
+// GroupMemberFilter defines filtering and pagination for group membership queries
+type GroupMemberFilter struct {
+	GroupInternalUUID uuid.UUID
+	Limit             int
+	Offset            int
+}
+
 // GroupMemberStore defines the interface for group membership storage operations
 type GroupMemberStore interface {
 	ListMembers(ctx context.Context, filter GroupMemberFilter) ([]GroupMember, error)

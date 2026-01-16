@@ -338,7 +338,7 @@ func IsUserAdministrator(c *gin.Context) (bool, error) {
 
 	// Convert group names to group UUIDs
 	var groupUUIDs []uuid.UUID
-	if dbStore, ok := GlobalAdministratorStore.(*AdministratorDatabaseStore); ok && len(groupNames) > 0 {
+	if dbStore, ok := GlobalAdministratorStore.(*GormAdministratorStore); ok && len(groupNames) > 0 {
 		var err error
 		groupUUIDs, err = dbStore.GetGroupUUIDsByNames(c.Request.Context(), provider, groupNames)
 		if err != nil {

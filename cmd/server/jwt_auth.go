@@ -371,10 +371,10 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 		return fmt.Errorf("GlobalAdministratorStore not initialized")
 	}
 
-	// Check if this is a database store (required for HasAnyAdministrators)
-	dbStore, ok := api.GlobalAdministratorStore.(*api.AdministratorDatabaseStore)
+	// Check if this is a GORM store (required for HasAnyAdministrators)
+	dbStore, ok := api.GlobalAdministratorStore.(*api.GormAdministratorStore)
 	if !ok {
-		return fmt.Errorf("GlobalAdministratorStore is not a database store")
+		return fmt.Errorf("GlobalAdministratorStore is not a GORM store")
 	}
 
 	// Check if any administrators exist

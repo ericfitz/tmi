@@ -1,7 +1,6 @@
 package api
 
 import (
-	"database/sql"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -55,6 +54,7 @@ type ThreatModelStoreInterface interface {
 
 type DiagramStoreInterface interface {
 	Get(id string) (DfdDiagram, error)
+	GetThreatModelID(diagramID string) (string, error)
 	List(offset, limit int, filter func(DfdDiagram) bool) []DfdDiagram
 	Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error)
 	CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error)
@@ -73,40 +73,8 @@ var GlobalAssetStore AssetStore
 var GlobalThreatStore ThreatStore
 var GlobalMetadataStore MetadataStore
 
-// InitializeDatabaseStores initializes stores with database implementations
-func InitializeDatabaseStores(db *sql.DB, authService interface{}) {
-	ThreatModelStore = NewThreatModelDatabaseStore(db)
-	DiagramStore = NewDiagramDatabaseStore(db)
-	GlobalDocumentStore = NewDatabaseDocumentStore(db, nil, nil)
-	GlobalNoteStore = NewDatabaseNoteStore(db, nil, nil)
-	GlobalRepositoryStore = NewDatabaseRepositoryStore(db, nil, nil)
-	GlobalAssetStore = NewDatabaseAssetStore(db, nil, nil)
-	GlobalThreatStore = NewDatabaseThreatStore(db, nil, nil)
-	GlobalMetadataStore = NewDatabaseMetadataStore(db, nil, nil)
-	GlobalWebhookSubscriptionStore = NewDBWebhookSubscriptionDatabaseStore(db)
-	GlobalWebhookDeliveryStore = NewDBWebhookDeliveryDatabaseStore(db)
-	GlobalWebhookQuotaStore = NewWebhookQuotaDatabaseStore(db)
-	GlobalWebhookUrlDenyListStore = NewWebhookUrlDenyListDatabaseStore(db)
-	GlobalUserAPIQuotaStore = NewUserAPIQuotaDatabaseStore(db)
-	GlobalAddonStore = NewAddonDatabaseStore(db)
-	GlobalAdministratorStore = NewAdministratorDatabaseStore(db)
-	GlobalGroupMemberStore = NewGroupMemberDatabaseStore(db)
-	GlobalAddonInvocationQuotaStore = NewAddonInvocationQuotaDatabaseStore(db)
-
-	// Initialize GlobalUserStore and GlobalGroupStore if auth service is available
-	if authService != nil {
-		// Type assertion to get the concrete auth.Service type
-		if svc, ok := authService.(AuthServiceGetter); ok {
-			GlobalUserStore = NewUserDatabaseStore(db, svc.GetService())
-			GlobalGroupStore = NewGroupDatabaseStore(db, svc.GetService())
-		}
-	}
-}
-
-// NOTE: InitializeInMemoryStores function removed - all stores now use database implementations
-
 // InitializeGormStores initializes all stores with GORM implementations
-// This function should be used instead of InitializeDatabaseStores for multi-database support
+// This is the only store initialization function - all databases use GORM
 func InitializeGormStores(db *gorm.DB, authService interface{}, cache *CacheService, invalidator *CacheInvalidator) {
 	// Core stores
 	ThreatModelStore = NewGormThreatModelStore(db)

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+	"gorm.io/gorm"
 )
 
 // ThreatModelHandler provides handlers for threat model operations
@@ -612,8 +612,8 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// This allows API callers to modify user roles incrementally without error.
 
 	// Get database connection for enrichment
-	var db *sql.DB
-	if dbStore, ok := ThreatModelStore.(*ThreatModelDatabaseStore); ok {
+	var db *gorm.DB
+	if dbStore, ok := ThreatModelStore.(*GormThreatModelStore); ok {
 		db = dbStore.GetDB()
 	} else {
 		// Fallback for test environments without database

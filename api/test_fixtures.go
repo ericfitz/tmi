@@ -327,6 +327,13 @@ func (m *MockDiagramStore) Get(id string) (DfdDiagram, error) {
 	return DfdDiagram{}, fmt.Errorf("diagram not found")
 }
 
+func (m *MockDiagramStore) GetThreatModelID(diagramID string) (string, error) {
+	if tmID, exists := m.threatModelMapping[diagramID]; exists {
+		return tmID, nil
+	}
+	return "", fmt.Errorf("diagram not found")
+}
+
 func (m *MockDiagramStore) List(offset, limit int, filter func(DfdDiagram) bool) []DfdDiagram {
 	var result []DfdDiagram
 	for _, item := range m.data {

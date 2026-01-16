@@ -1025,84 +1025,59 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		authServiceAdapter = api.NewAuthServiceAdapter(authHandlers)
 	}
 
-	// Check database type and initialize appropriate stores
+	// Check database type and initialize GORM stores for all databases
 	dbType := config.Database.Type
 	if dbType == "" {
 		dbType = "postgres" // Default to postgres for backward compatibility
 	}
 
-	// For non-postgres databases, use GORM; for postgres, use raw SQL (for now)
-	// This allows gradual migration to GORM while maintaining backward compatibility
-	if dbType != "postgres" {
-		// Initialize GORM for non-postgres databases
+	// Get or initialize GORM for all database types (unified code path)
+	// Note: GORM may already be initialized by the auth system, so check first
+	gormDB := dbManager.Gorm()
+	if gormDB == nil {
 		logger.Info("Initializing GORM database connection for %s", dbType)
 		gormCfg := buildGormConfig(config)
 		if err := dbManager.InitGorm(gormCfg); err != nil {
 			logger.Error("Failed to initialize GORM database: %v", err)
 			os.Exit(1)
 		}
-
-		gormDB := dbManager.Gorm()
+		gormDB = dbManager.Gorm()
 		if gormDB == nil {
 			logger.Error("GORM database not available after initialization")
 			os.Exit(1)
 		}
+	} else {
+		logger.Info("Reusing existing GORM database connection for %s", dbType)
+	}
 
-		// Run AutoMigrate for non-postgres databases
+	// Run AutoMigrate for non-postgres databases
+	// PostgreSQL uses SQL migration files for schema management
+	if dbType != "postgres" {
 		logger.Info("Running GORM AutoMigrate for %s database", dbType)
 		if err := gormDB.AutoMigrate(api.GetAllModels()...); err != nil {
 			logger.Error("Failed to auto-migrate schema: %v", err)
 			os.Exit(1)
 		}
-
-		logger.Info("Using GORM-backed stores for %s database", dbType)
-		api.InitializeGormStores(gormDB.DB(), authServiceAdapter, nil, nil)
-
-		// Test database connection via GORM
-		if err := gormDB.Ping(context.Background()); err != nil {
-			logger.Error("Database connection failed: %v", err)
-			os.Exit(1)
-		}
-		logger.Info("Database connection verified successfully")
-	} else {
-		// Use existing postgres raw SQL stores for backward compatibility
-		if dbManager == nil || dbManager.Postgres() == nil {
-			logger.Error("PostgreSQL database not available - database is required")
-			os.Exit(1)
-		}
-
-		logger.Info("Using database-backed stores for PostgreSQL data persistence")
-		api.InitializeDatabaseStores(dbManager.Postgres().GetDB(), authServiceAdapter)
-
-		// Test database connection
-		if err := dbManager.Postgres().GetDB().Ping(); err != nil {
-			logger.Error("Database connection failed: %v", err)
-			os.Exit(1)
-		}
-		logger.Info("Database connection verified successfully")
 	}
 
+	logger.Info("Using GORM-backed stores for %s database", dbType)
+	api.InitializeGormStores(gormDB.DB(), authServiceAdapter, nil, nil)
+
+	// Test database connection via GORM
+	if err := gormDB.Ping(context.Background()); err != nil {
+		logger.Error("Database connection failed: %v", err)
+		os.Exit(1)
+	}
+	logger.Info("Database connection verified successfully")
+
 	// Ensure "everyone" pseudo-group exists and initialize administrators
-	// For non-postgres databases, use GORM; for postgres, use raw SQL
-	if dbType != "postgres" {
-		gormDB := dbManager.Gorm()
-		if err := ensureEveryonePseudoGroupGorm(gormDB.DB()); err != nil {
-			logger.Error("Failed to ensure everyone pseudo-group: %v", err)
-			os.Exit(1)
-		}
-		if err := initializeAdministratorsGorm(config, gormDB.DB()); err != nil {
-			logger.Error("Failed to initialize administrators: %v", err)
-			os.Exit(1)
-		}
-	} else {
-		if err := ensureEveryonePseudoGroup(dbManager.Postgres().GetDB()); err != nil {
-			logger.Error("Failed to ensure everyone pseudo-group: %v", err)
-			os.Exit(1)
-		}
-		if err := initializeAdministrators(config, dbManager.Postgres().GetDB()); err != nil {
-			logger.Error("Failed to initialize administrators: %v", err)
-			os.Exit(1)
-		}
+	if err := ensureEveryonePseudoGroupGorm(gormDB.DB()); err != nil {
+		logger.Error("Failed to ensure everyone pseudo-group: %v", err)
+		os.Exit(1)
+	}
+	if err := initializeAdministratorsGorm(config, gormDB.DB()); err != nil {
+		logger.Error("Failed to initialize administrators: %v", err)
+		os.Exit(1)
 	}
 
 	// Initialize performance monitoring
@@ -1129,12 +1104,12 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		logger.Info("Global auth service configured for webhook event owner UUID lookups")
 
 		// Set up admin checker adapter for /users/me endpoint
-		if dbStore, ok := api.GlobalAdministratorStore.(*api.AdministratorDatabaseStore); ok {
-			adminChecker := api.NewAdminCheckerAdapter(dbStore)
+		if dbStore, ok := api.GlobalAdministratorStore.(*api.GormAdministratorStore); ok {
+			adminChecker := api.NewGormAdminCheckerAdapter(dbStore)
 			authHandlers.SetAdminChecker(adminChecker)
 			logger.Info("Admin checker adapter configured for auth handlers")
 		} else {
-			logger.Warn("GlobalAdministratorStore is not a database store - admin status won't be available in /users/me")
+			logger.Warn("GlobalAdministratorStore is not a GORM store - admin status won't be available in /users/me")
 		}
 	} else {
 		logger.Warn("Auth handlers not available - auth endpoints will return errors")
@@ -1372,179 +1347,6 @@ func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.W
 	}
 
 	return webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker
-}
-
-// ensureEveryonePseudoGroup ensures the "everyone" pseudo-group exists in the database
-func ensureEveryonePseudoGroup(db *sql.DB) error {
-	logger := slogging.Get()
-
-	query := `
-		INSERT INTO groups (internal_uuid, provider, group_name, name, usage_count)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (provider, group_name) DO NOTHING
-	`
-
-	_, err := db.Exec(query,
-		api.EveryonePseudoGroupUUID,
-		"*",
-		"everyone",
-		"Everyone (Pseudo-group)",
-		0,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to ensure everyone pseudo-group exists: %w", err)
-	}
-
-	logger.Info("Everyone pseudo-group verified/created successfully")
-	return nil
-}
-
-// initializeAdministrators initializes administrators from configuration
-func initializeAdministrators(cfg *config.Config, db *sql.DB) error {
-	logger := slogging.Get()
-	logger.Info("Initializing administrators from configuration")
-
-	if len(cfg.Administrators) == 0 {
-		logger.Warn("No administrators configured - add at least one admin to manage the system")
-		return nil
-	}
-
-	ctx := context.Background()
-	store := api.NewAdministratorDatabaseStore(db)
-
-	for i, adminCfg := range cfg.Administrators {
-		logger.Debug("Processing administrator config[%d]: provider=%s, type=%s", i, adminCfg.Provider, adminCfg.SubjectType)
-
-		var userUUID *uuid.UUID
-		var groupUUID *uuid.UUID
-
-		if adminCfg.SubjectType == "user" {
-			// Look up user by provider + (provider_id OR email)
-			user, err := findUserByProviderIdentity(ctx, db, adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email)
-			if err != nil {
-				// User doesn't exist - attempt to create if we have required fields
-				if adminCfg.Email == "" {
-					logger.Warn("Cannot create user for admin config[%d]: email is required but not provided", i)
-					continue
-				}
-
-				// Create the user with available information
-				createdUser, createErr := createUserForAdministrator(ctx, db, adminCfg)
-				if createErr != nil {
-					logger.Error("Failed to create user for admin config[%d]: provider=%s, provider_id=%s, email=%s, error=%v",
-						i, adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email, createErr)
-					continue
-				}
-
-				logger.Info("Created user for configured administrator: provider=%s, provider_id=%s, email=%s, internal_uuid=%s",
-					adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email, createdUser)
-				userUUID = &createdUser
-			} else {
-				userUUID = &user
-			}
-		} else if adminCfg.SubjectType == "group" {
-			// Look up group by provider + group_name
-			group, err := findGroupByProviderAndName(ctx, db, adminCfg.Provider, adminCfg.GroupName)
-			if err != nil {
-				logger.Warn("Could not find group for admin config[%d]: provider=%s, group_name=%s, error=%v",
-					i, adminCfg.Provider, adminCfg.GroupName, err)
-				// Group doesn't exist yet - it will be created when first referenced
-				continue
-			}
-			groupUUID = &group
-		}
-
-		// Create administrator entry
-		admin := api.DBAdministrator{
-			ID:                uuid.New(),
-			UserInternalUUID:  userUUID,
-			GroupInternalUUID: groupUUID,
-			SubjectType:       adminCfg.SubjectType,
-			Provider:          adminCfg.Provider,
-			GrantedAt:         time.Now(),
-			GrantedBy:         nil, // System-granted from config
-			Notes:             "Configured via YAML/environment",
-		}
-
-		if err := store.Create(ctx, admin); err != nil {
-			logger.Info("Administrator entry already exists or created: type=%s, provider=%s", adminCfg.SubjectType, adminCfg.Provider)
-		} else {
-			logger.Info("Administrator configured: type=%s, provider=%s, user_uuid=%v, group_uuid=%v",
-				adminCfg.SubjectType, adminCfg.Provider, userUUID, groupUUID)
-		}
-	}
-
-	logger.Info("Administrator initialization complete")
-	return nil
-}
-
-// findUserByProviderIdentity looks up a user by provider and provider_id or email
-func findUserByProviderIdentity(ctx context.Context, db *sql.DB, provider string, providerID string, email string) (uuid.UUID, error) {
-	query := `
-		SELECT internal_uuid FROM users
-		WHERE provider = $1
-		AND (
-			($2 != '' AND provider_user_id = $2)
-			OR ($3 != '' AND email = $3)
-		)
-		LIMIT 1
-	`
-
-	var userUUID uuid.UUID
-	err := db.QueryRowContext(ctx, query, provider, providerID, email).Scan(&userUUID)
-	return userUUID, err
-}
-
-// createUserForAdministrator creates a new user record for a configured administrator
-func createUserForAdministrator(ctx context.Context, db *sql.DB, adminCfg config.AdministratorConfig) (uuid.UUID, error) {
-	logger := slogging.Get()
-
-	// Generate internal UUID for the new user
-	internalUUID := uuid.New()
-
-	// Derive a name from the email if not provided
-	name := adminCfg.Email
-	if idx := strings.Index(name, "@"); idx > 0 {
-		name = name[:idx] // Use email prefix as name
-	}
-
-	// Insert user into database
-	query := `
-		INSERT INTO users (internal_uuid, provider, provider_user_id, email, name, email_verified, created_at, modified_at)
-		VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		RETURNING internal_uuid
-	`
-
-	var returnedUUID uuid.UUID
-	err := db.QueryRowContext(ctx, query,
-		internalUUID,
-		adminCfg.Provider,
-		adminCfg.ProviderId, // Can be empty string if not provided
-		adminCfg.Email,
-		name,
-		false, // email_verified defaults to false
-	).Scan(&returnedUUID)
-
-	if err != nil {
-		logger.Error("Failed to insert user for administrator: provider=%s, email=%s, error=%v",
-			adminCfg.Provider, adminCfg.Email, err)
-		return uuid.Nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	return returnedUUID, nil
-}
-
-// findGroupByProviderAndName looks up a group by provider and group_name
-func findGroupByProviderAndName(ctx context.Context, db *sql.DB, provider string, groupName string) (uuid.UUID, error) {
-	query := `
-		SELECT internal_uuid FROM groups
-		WHERE provider = $1 AND group_name = $2
-		LIMIT 1
-	`
-
-	var groupUUID uuid.UUID
-	err := db.QueryRowContext(ctx, query, provider, groupName).Scan(&groupUUID)
-	return groupUUID, err
 }
 
 func main() {

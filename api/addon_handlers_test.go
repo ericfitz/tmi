@@ -77,6 +77,10 @@ func (m *mockAdminStore) List(ctx context.Context) ([]DBAdministrator, error) {
 	return nil, nil
 }
 
+func (m *mockAdminStore) ListFiltered(ctx context.Context, filter AdminFilter) ([]DBAdministrator, error) {
+	return nil, nil
+}
+
 func (m *mockAdminStore) IsAdmin(ctx context.Context, userUUID *uuid.UUID, provider string, groupUUIDs []uuid.UUID) (bool, error) {
 	return m.isAdminResult, m.isAdminError
 }

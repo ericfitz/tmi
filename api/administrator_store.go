@@ -54,6 +54,15 @@ func (db *DBAdministrator) ToAPI() Administrator {
 	return admin
 }
 
+// AdminFilter defines filtering options for administrator queries
+type AdminFilter struct {
+	Provider string     // Filter by provider (optional)
+	UserID   *uuid.UUID // Filter by user_internal_uuid (optional)
+	GroupID  *uuid.UUID // Filter by group_internal_uuid (optional)
+	Limit    int        // Pagination limit (default 50, max 100)
+	Offset   int        // Pagination offset (default 0)
+}
+
 // AdministratorStore defines the interface for administrator storage operations
 type AdministratorStore interface {
 	// Create adds a new administrator entry
@@ -64,6 +73,9 @@ type AdministratorStore interface {
 
 	// List returns all administrator entries
 	List(ctx context.Context) ([]DBAdministrator, error)
+
+	// ListFiltered retrieves administrator grants with optional filtering
+	ListFiltered(ctx context.Context, filter AdminFilter) ([]DBAdministrator, error)
 
 	// IsAdmin checks if a user or any of their groups is an administrator
 	// Checks by user UUID and provider, or by group UUIDs and provider
