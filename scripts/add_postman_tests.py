@@ -2,6 +2,17 @@
 # /// script
 # dependencies = ["click>=8.3.0"]
 # ///
+"""
+Add unit tests to Postman collections.
+
+This script processes Postman collection JSON files and adds appropriate test
+scripts to each request based on its HTTP method and expected responses. Tests
+include status code validation, response time checks, content-type verification,
+JSON response validation, security header checks, and authentication verification.
+
+Usage:
+    uv run add_postman_tests.py <input_file> [-o <output_file>]
+"""
 
 import json
 

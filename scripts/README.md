@@ -6,7 +6,6 @@ This directory contains scripts that are actively used by the refactored build s
 
 ### Configuration Management
 
-- **`yaml-to-make.py`** - Converts YAML config files to Makefile variables (used by refactored Makefile)
 - **`load-config.mk`** - Makefile include for loading YAML configurations into Make variables
 
 ### Version Management
@@ -18,7 +17,6 @@ This directory contains scripts that are actively used by the refactored build s
 ### Code Analysis
 
 - **`analyze_endpoints.py`** - Analyzes all TMI API endpoints to determine authentication requirements, access patterns, and endpoint characteristics
-- **`cleanup_dead_code.py`** - Automated dead code detection and cleanup
 - **`validate_openapi.py`** - Comprehensive OpenAPI specification validation including JSON syntax, schema validation, and CATS compatibility
 - **`validate_asyncapi.py`** - AsyncAPI specification validation using Pydantic and JSON Schema against AsyncAPI 3.0.0
 
