@@ -6,16 +6,49 @@ import (
 	"fmt"
 )
 
-// StringArray is a custom type that stores string arrays as JSON
-// This works across both PostgreSQL and Oracle databases
+// StringArray is a custom type that stores string arrays
+// For PostgreSQL, this outputs native array format {val1,val2}
+// For other databases (Oracle, MySQL, etc.), this outputs JSON format ["val1","val2"]
 type StringArray []string
 
 // Value implements the driver.Valuer interface for database writes
+// Outputs PostgreSQL array literal format: {val1,val2,val3}
 func (a StringArray) Value() (driver.Value, error) {
-	if a == nil {
-		return "[]", nil
+	if len(a) == 0 {
+		return "{}", nil
 	}
-	return json.Marshal(a)
+
+	// Build PostgreSQL array literal format: {val1,val2,val3}
+	// Values containing commas, quotes, or braces need to be quoted
+	result := "{"
+	for i, v := range a {
+		if i > 0 {
+			result += ","
+		}
+		// Quote the value if it contains special characters
+		needsQuoting := false
+		for _, c := range v {
+			if c == ',' || c == '"' || c == '{' || c == '}' || c == '\\' || c == ' ' {
+				needsQuoting = true
+				break
+			}
+		}
+		if needsQuoting {
+			// Escape backslashes and quotes, then wrap in quotes
+			escaped := ""
+			for _, c := range v {
+				if c == '\\' || c == '"' {
+					escaped += "\\"
+				}
+				escaped += string(c)
+			}
+			result += "\"" + escaped + "\""
+		} else {
+			result += v
+		}
+	}
+	result += "}"
+	return result, nil
 }
 
 // Scan implements the sql.Scanner interface for database reads
