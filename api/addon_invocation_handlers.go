@@ -431,6 +431,18 @@ func UpdateInvocationStatus(c *gin.Context) {
 		return
 	}
 
+	// Validate status_message length (max 1024 characters per OpenAPI spec)
+	const maxStatusMessageLength = 1024
+	if req.StatusMessage != nil && len(*req.StatusMessage) > maxStatusMessageLength {
+		logger.Error("Status message too long: %d characters", len(*req.StatusMessage))
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Status message exceeds maximum length of %d characters (got %d)", maxStatusMessageLength, len(*req.StatusMessage)),
+		})
+		return
+	}
+
 	// Get invocation
 	invocation, err := GlobalAddonInvocationStore.Get(c.Request.Context(), invocationID)
 	if err != nil {

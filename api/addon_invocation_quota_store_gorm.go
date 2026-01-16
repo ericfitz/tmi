@@ -151,7 +151,7 @@ func (s *GormAddonInvocationQuotaStore) Delete(ctx context.Context, ownerID uuid
 
 	if result.RowsAffected == 0 {
 		logger.Debug("No quota to delete for owner_id=%s", ownerID)
-		return nil
+		return fmt.Errorf("quota not found for owner_id=%s", ownerID)
 	}
 
 	logger.Info("Quota deleted for owner_id=%s (reverted to defaults)", ownerID)

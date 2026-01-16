@@ -15,32 +15,21 @@ import (
 func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 	logger := slogging.Get().WithContext(c)
 
+	// Validate pagination parameters
+	if err := ValidatePaginationParams(params.Limit, params.Offset); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
 	// Extract parameters with defaults
 	limit := 50
 	if params.Limit != nil {
 		limit = *params.Limit
-		if limit < 0 || limit > 200 {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_limit",
-				Message: "limit must be between 0 and 200",
-			})
-			return
-		}
 	}
 
 	offset := 0
 	if params.Offset != nil {
 		offset = *params.Offset
-		// Validate offset is reasonable (max 1 billion to prevent DoS and integer overflow issues)
-		if offset < 0 || offset > 1000000000 {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_offset",
-				Message: "offset must be between 0 and 1000000000",
-			})
-			return
-		}
 	}
 
 	sortBy := "group_name"

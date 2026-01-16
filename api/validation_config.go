@@ -241,7 +241,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 			"id", "created_at", "modified_at",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
-			"uuid_fields", "threat_severity", "no_html_injection", "string_length",
+			"uuid_fields", "threat_severity", "no_html_injection", "string_length", "score_precision",
 		}), func(data interface{}) error {
 			// Validate required fields for threats
 			threat, ok := data.(*Threat)
@@ -261,7 +261,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 			"id", "created_at", "modified_at",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
-			"uuid_fields", "threat_severity", "no_html_injection", "string_length",
+			"uuid_fields", "threat_severity", "no_html_injection", "string_length", "score_precision",
 		}), func(data interface{}) error {
 			// Validate required fields for threats
 			threat, ok := data.(*Threat)

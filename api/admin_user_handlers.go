@@ -14,31 +14,21 @@ import (
 func (s *Server) ListAdminUsers(c *gin.Context, params ListAdminUsersParams) {
 	logger := slogging.Get().WithContext(c)
 
+	// Validate pagination parameters
+	if err := ValidatePaginationParams(params.Limit, params.Offset); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
 	// Extract parameters with defaults
 	limit := 50
 	if params.Limit != nil {
 		limit = *params.Limit
-		if limit < 0 || limit > 200 {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_limit",
-				Message: "limit must be between 0 and 200",
-			})
-			return
-		}
 	}
 
 	offset := 0
 	if params.Offset != nil {
 		offset = *params.Offset
-		if offset < 0 {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_offset",
-				Message: "offset must be a non-negative integer",
-			})
-			return
-		}
 	}
 
 	sortBy := "created_at"

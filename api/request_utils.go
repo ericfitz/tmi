@@ -17,6 +17,38 @@ const (
 	ProtectedGroupEveryone = "everyone"
 )
 
+// Pagination validation constants
+const (
+	// MaxPaginationLimit is the maximum allowed value for limit parameter
+	MaxPaginationLimit = 1000
+	// MaxPaginationOffset is the maximum allowed value for offset parameter
+	MaxPaginationOffset = 1000000 // 1 million - reasonable for web UI pagination
+)
+
+// ValidatePaginationParams validates limit and offset parameters
+// Returns a RequestError if validation fails, nil otherwise
+func ValidatePaginationParams(limit, offset *int) *RequestError {
+	if limit != nil {
+		if *limit < 0 || *limit > MaxPaginationLimit {
+			return &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_limit",
+				Message: fmt.Sprintf("limit must be between 0 and %d", MaxPaginationLimit),
+			}
+		}
+	}
+	if offset != nil {
+		if *offset < 0 || *offset > MaxPaginationOffset {
+			return &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_offset",
+				Message: fmt.Sprintf("offset must be between 0 and %d", MaxPaginationOffset),
+			}
+		}
+	}
+	return nil
+}
+
 // ParsePatchRequest parses JSON Patch operations from the request body
 func ParsePatchRequest(c *gin.Context) ([]PatchOperation, error) {
 	bodyBytes, err := c.GetRawData()

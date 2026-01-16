@@ -39,6 +39,9 @@ const (
 	MaxIconLength = 60
 	// MaxAddonObjects is the maximum number of objects allowed in an add-on
 	MaxAddonObjects = 100
+	// MaxAddonDescriptionLength is the maximum allowed length for add-on descriptions
+	// Consistent with ThreatBase.description maxLength in OpenAPI spec
+	MaxAddonDescriptionLength = 1024
 )
 
 // ValidateIcon validates an icon string against Material Symbols or FontAwesome formats
@@ -163,11 +166,20 @@ func ValidateAddonName(name string) error {
 	return nil
 }
 
-// ValidateAddonDescription validates the add-on description for XSS
+// ValidateAddonDescription validates the add-on description for XSS and length
 func ValidateAddonDescription(description string) error {
 	if description == "" {
 		// Empty description is allowed
 		return nil
+	}
+
+	// Check max length
+	if len(description) > MaxAddonDescriptionLength {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Description exceeds maximum length of %d characters (got %d)", MaxAddonDescriptionLength, len(description)),
+		}
 	}
 
 	// Check for problematic Unicode characters

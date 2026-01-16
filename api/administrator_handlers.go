@@ -16,6 +16,12 @@ import (
 func (s *Server) ListAdministrators(c *gin.Context, params ListAdministratorsParams) {
 	logger := slogging.Get().WithContext(c)
 
+	// Validate pagination parameters
+	if err := ValidatePaginationParams(params.Limit, params.Offset); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
 	// Set defaults
 	limit := 50
 	offset := 0

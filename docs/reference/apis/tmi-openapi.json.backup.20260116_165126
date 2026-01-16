@@ -2500,8 +2500,7 @@
             "type": "number",
             "description": "Numeric score representing the risk or impact of the threat",
             "minimum": 0.0,
-            "maximum": 10.0,
-            "multipleOf": 0.1
+            "maximum": 10.0
           },
           "priority": {
             "type": "string",
@@ -3710,8 +3709,7 @@
           },
           "description": {
             "type": "string",
-            "description": "Description of what the add-on does",
-            "maxLength": 1024
+            "description": "Description of what the add-on does"
           },
           "icon": {
             "type": "string",
@@ -4119,8 +4117,7 @@
           },
           "status_message": {
             "type": "string",
-            "description": "Optional status description",
-            "maxLength": 1024
+            "description": "Optional status description"
           }
         },
         "example": {
@@ -6716,8 +6713,7 @@
         "schema": {
           "type": "integer",
           "minimum": 0,
-          "default": 50,
-          "maximum": 1000
+          "default": 50
         },
         "description": "Maximum number of results to return"
       },
@@ -6727,8 +6723,7 @@
         "schema": {
           "type": "integer",
           "minimum": 0,
-          "default": 0,
-          "maximum": 1000000
+          "default": 0
         },
         "description": "Number of results to skip"
       },
@@ -27323,39 +27318,6 @@
                 "example": {
                   "error": "Rate limit exceeded. Please try again later.",
                   "retry_after": 60
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found - The specified email, provider_user_id, or group_name does not match an existing user or group",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "The maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "The number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "The time at which the current rate limit window resets (Unix timestamp)",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
                 }
               }
             }

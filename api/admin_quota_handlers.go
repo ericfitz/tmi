@@ -14,6 +14,12 @@ import (
 func (s *Server) ListUserAPIQuotas(c *gin.Context, params ListUserAPIQuotasParams) {
 	logger := slogging.Get().WithContext(c)
 
+	// Validate pagination parameters
+	if err := ValidatePaginationParams(params.Limit, params.Offset); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
 	// Set default values if not provided
 	limit := 50
 	offset := 0
@@ -163,6 +169,12 @@ func (s *Server) DeleteUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 // ListWebhookQuotas retrieves all custom webhook quotas (admin only)
 func (s *Server) ListWebhookQuotas(c *gin.Context, params ListWebhookQuotasParams) {
 	logger := slogging.Get().WithContext(c)
+
+	// Validate pagination parameters
+	if err := ValidatePaginationParams(params.Limit, params.Offset); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	// Set default values if not provided
 	limit := 50
@@ -325,6 +337,12 @@ func (s *Server) DeleteWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 // ListAddonInvocationQuotas retrieves all custom addon invocation quotas (admin only)
 func (s *Server) ListAddonInvocationQuotas(c *gin.Context, params ListAddonInvocationQuotasParams) {
 	logger := slogging.Get().WithContext(c)
+
+	// Validate pagination parameters
+	if err := ValidatePaginationParams(params.Limit, params.Offset); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	// Set default values if not provided
 	limit := 50

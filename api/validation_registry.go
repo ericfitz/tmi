@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"regexp"
 	"strings"
@@ -33,6 +34,7 @@ func NewValidatorRegistry() *CommonValidatorRegistry {
 	registry.Register("note_markdown", ValidateNoteMarkdown)
 	registry.Register("string_length", ValidateStringLengths)
 	registry.Register("no_duplicates", ValidateNoDuplicateEntries)
+	registry.Register("score_precision", ValidateScorePrecision)
 
 	return registry
 }
@@ -269,6 +271,51 @@ func ValidateNoDuplicateEntries(data interface{}) error {
 		if field.Tag.Get("unique") == "true" && value.Kind() == reflect.Slice {
 			if err := validateUniqueSlice(value, field); err != nil {
 				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// ValidateScorePrecision validates that score fields have at most 1 decimal place
+// This matches the OpenAPI spec constraint: multipleOf: 0.1
+func ValidateScorePrecision(data interface{}) error {
+	v := reflect.ValueOf(data)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	t := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		field := t.Field(i)
+		value := v.Field(i)
+
+		// Check for "score" field by name (case insensitive)
+		fieldName := strings.ToLower(field.Name)
+		jsonName := strings.ToLower(getJSONFieldName(field))
+
+		if fieldName == "score" || jsonName == "score" {
+			// Handle *float32 (the type used in generated API code)
+			if value.Kind() == reflect.Ptr && !value.IsNil() {
+				elemKind := value.Elem().Kind()
+				var scoreValue float64
+
+				switch elemKind {
+				case reflect.Float32:
+					scoreValue = float64(value.Elem().Float())
+				case reflect.Float64:
+					scoreValue = value.Elem().Float()
+				default:
+					continue
+				}
+
+				// Check if the value has more than 1 decimal place
+				// Multiply by 10 and check if there's a fractional part
+				scaled := scoreValue * 10
+				if math.Abs(scaled-math.Round(scaled)) > 0.0001 {
+					return InvalidInputError(fmt.Sprintf("Field 'score' must have at most 1 decimal place (got %.6f)", scoreValue))
+				}
 			}
 		}
 	}
