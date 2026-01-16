@@ -3,6 +3,9 @@
 
 .PHONY: help list-targets
 
+# Set default target to help (must be before any includes that define targets)
+.DEFAULT_GOAL := help
+
 # Include integration test framework targets
 -include test-framework.mk
 
