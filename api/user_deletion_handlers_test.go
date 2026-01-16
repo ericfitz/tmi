@@ -88,8 +88,10 @@ func setupUserDeletionTest(t *testing.T) (*gin.Engine, *auth.Service, *auth.User
 	ctx := context.Background()
 	timestamp := time.Now().Unix()
 	testUser := auth.User{
-		Email: fmt.Sprintf("delete-test-%d@example.com", timestamp),
-		Name:  "Delete Test User",
+		Provider:       "test",
+		ProviderUserID: fmt.Sprintf("delete-test-%d", timestamp),
+		Email:          fmt.Sprintf("delete-test-%d@example.com", timestamp),
+		Name:           "Delete Test User",
 	}
 
 	user, err := authService.CreateUser(ctx, testUser)
@@ -204,9 +206,12 @@ func TestUserDeletion_OwnershipTransfer(t *testing.T) {
 	ctx := context.Background()
 
 	// Create second user as alternate owner
+	timestamp2 := time.Now().Unix()
 	user2 := auth.User{
-		Email: fmt.Sprintf("alternate-owner-%d@example.com", time.Now().Unix()),
-		Name:  "Alternate Owner",
+		Provider:       "test",
+		ProviderUserID: fmt.Sprintf("alternate-owner-%d", timestamp2),
+		Email:          fmt.Sprintf("alternate-owner-%d@example.com", timestamp2),
+		Name:           "Alternate Owner",
 	}
 	user2Created, err := authService.CreateUser(ctx, user2)
 	require.NoError(t, err)
