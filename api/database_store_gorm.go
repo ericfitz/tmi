@@ -14,26 +14,26 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// ThreatModelGormStore handles threat model database operations using GORM
-type ThreatModelGormStore struct {
+// GormThreatModelStore handles threat model database operations using GORM
+type GormThreatModelStore struct {
 	db    *gorm.DB
 	mutex sync.RWMutex
 }
 
-// NewThreatModelGormStore creates a new threat model GORM store
-func NewThreatModelGormStore(database *gorm.DB) *ThreatModelGormStore {
-	return &ThreatModelGormStore{
+// NewGormThreatModelStore creates a new threat model GORM store
+func NewGormThreatModelStore(database *gorm.DB) *GormThreatModelStore {
+	return &GormThreatModelStore{
 		db: database,
 	}
 }
 
 // GetDB returns the underlying GORM database connection
-func (s *ThreatModelGormStore) GetDB() *gorm.DB {
+func (s *GormThreatModelStore) GetDB() *gorm.DB {
 	return s.db
 }
 
 // resolveUserIdentifierToUUID attempts to resolve a user identifier to an internal_uuid using GORM
-func (s *ThreatModelGormStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifier string) (string, error) {
+func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifier string) (string, error) {
 	var user models.User
 
 	// Step 1: Check if it's already a valid internal_uuid
@@ -60,7 +60,7 @@ func (s *ThreatModelGormStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifi
 }
 
 // resolveGroupToUUID attempts to resolve a group identifier to an internal_uuid using GORM
-func (s *ThreatModelGormStore) resolveGroupToUUID(tx *gorm.DB, groupName string, idp *string) (string, error) {
+func (s *GormThreatModelStore) resolveGroupToUUID(tx *gorm.DB, groupName string, idp *string) (string, error) {
 	provider := "*"
 	if idp != nil && *idp != "" {
 		provider = *idp
@@ -79,7 +79,7 @@ func (s *ThreatModelGormStore) resolveGroupToUUID(tx *gorm.DB, groupName string,
 }
 
 // ensureGroupExists creates a group entry if it doesn't exist and returns its internal_uuid using GORM
-func (s *ThreatModelGormStore) ensureGroupExists(tx *gorm.DB, groupName string, idp *string) (string, error) {
+func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, idp *string) (string, error) {
 	provider := "*"
 	if idp != nil && *idp != "" {
 		provider = *idp
@@ -115,12 +115,12 @@ func (s *ThreatModelGormStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 }
 
 // Get retrieves a threat model by ID using GORM
-func (s *ThreatModelGormStore) Get(id string) (ThreatModel, error) {
+func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	logger := slogging.Get()
-	logger.Debug("ThreatModelGormStore.Get() called id=%s", id)
+	logger.Debug("GormThreatModelStore.Get() called id=%s", id)
 
 	// Validate UUID format
 	if _, err := uuid.Parse(id); err != nil {
@@ -142,7 +142,7 @@ func (s *ThreatModelGormStore) Get(id string) (ThreatModel, error) {
 }
 
 // convertToAPIModel converts a GORM ThreatModel to the API ThreatModel
-func (s *ThreatModelGormStore) convertToAPIModel(tm *models.ThreatModel) (ThreatModel, error) {
+func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (ThreatModel, error) {
 	tmUUID, _ := uuid.Parse(tm.ID)
 
 	// Create owner User
@@ -216,7 +216,7 @@ func (s *ThreatModelGormStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 }
 
 // List returns filtered and paginated threat models using GORM
-func (s *ThreatModelGormStore) List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel {
+func (s *GormThreatModelStore) List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -254,7 +254,7 @@ func (s *ThreatModelGormStore) List(offset, limit int, filter func(ThreatModel) 
 }
 
 // ListWithCounts returns filtered and paginated threat models with count information using GORM
-func (s *ThreatModelGormStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool) []ThreatModelWithCounts {
+func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool) []ThreatModelWithCounts {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -300,14 +300,14 @@ func (s *ThreatModelGormStore) ListWithCounts(offset, limit int, filter func(Thr
 }
 
 // calculateCount counts records in a table for a threat model using GORM
-func (s *ThreatModelGormStore) calculateCount(tableName, threatModelID string) int {
+func (s *GormThreatModelStore) calculateCount(tableName, threatModelID string) int {
 	var count int64
 	s.db.Table(tableName).Where("threat_model_id = ?", threatModelID).Count(&count)
 	return int(count)
 }
 
 // Create adds a new threat model using GORM
-func (s *ThreatModelGormStore) Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
+func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -405,7 +405,7 @@ func (s *ThreatModelGormStore) Create(item ThreatModel, idSetter func(ThreatMode
 }
 
 // Update modifies an existing threat model using GORM
-func (s *ThreatModelGormStore) Update(id string, item ThreatModel) error {
+func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -520,7 +520,7 @@ func (s *ThreatModelGormStore) Update(id string, item ThreatModel) error {
 }
 
 // Delete removes a threat model using GORM
-func (s *ThreatModelGormStore) Delete(id string) error {
+func (s *GormThreatModelStore) Delete(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -536,7 +536,7 @@ func (s *ThreatModelGormStore) Delete(id string) error {
 }
 
 // Count returns the total number of threat models using GORM
-func (s *ThreatModelGormStore) Count() int {
+func (s *GormThreatModelStore) Count() int {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -546,7 +546,7 @@ func (s *ThreatModelGormStore) Count() int {
 }
 
 // loadAuthorization loads authorization entries for a threat model using GORM
-func (s *ThreatModelGormStore) loadAuthorization(threatModelID string) ([]Authorization, error) {
+func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Authorization, error) {
 	var accessEntries []models.ThreatModelAccess
 	result := s.db.Preload("User").Preload("Group").
 		Where("threat_model_id = ?", threatModelID).
@@ -588,7 +588,7 @@ func (s *ThreatModelGormStore) loadAuthorization(threatModelID string) ([]Author
 }
 
 // loadMetadata loads metadata for a threat model using GORM
-func (s *ThreatModelGormStore) loadMetadata(threatModelID string) ([]Metadata, error) {
+func (s *GormThreatModelStore) loadMetadata(threatModelID string) ([]Metadata, error) {
 	var metadataEntries []models.Metadata
 	result := s.db.Where("entity_type = ? AND entity_id = ?", "threat_model", threatModelID).Find(&metadataEntries)
 	if result.Error != nil {
@@ -607,7 +607,7 @@ func (s *ThreatModelGormStore) loadMetadata(threatModelID string) ([]Metadata, e
 }
 
 // loadThreats loads threats for a threat model using GORM
-func (s *ThreatModelGormStore) loadThreats(threatModelID string) ([]Threat, error) {
+func (s *GormThreatModelStore) loadThreats(threatModelID string) ([]Threat, error) {
 	var threatModels []models.Threat
 	result := s.db.Where("threat_model_id = ?", threatModelID).Find(&threatModels)
 	if result.Error != nil {
@@ -679,7 +679,7 @@ func (s *ThreatModelGormStore) loadThreats(threatModelID string) ([]Threat, erro
 }
 
 // loadThreatMetadata loads metadata for a threat using GORM
-func (s *ThreatModelGormStore) loadThreatMetadata(threatID string) ([]Metadata, error) {
+func (s *GormThreatModelStore) loadThreatMetadata(threatID string) ([]Metadata, error) {
 	var metadataEntries []models.Metadata
 	result := s.db.Where("entity_type = ? AND entity_id = ?", "threat", threatID).Order("key ASC").Find(&metadataEntries)
 	if result.Error != nil {
@@ -698,7 +698,7 @@ func (s *ThreatModelGormStore) loadThreatMetadata(threatID string) ([]Metadata, 
 }
 
 // loadDiagramsDynamically loads diagrams using the DiagramStore for single source of truth
-func (s *ThreatModelGormStore) loadDiagramsDynamically(threatModelID string) (*[]Diagram, error) {
+func (s *GormThreatModelStore) loadDiagramsDynamically(threatModelID string) (*[]Diagram, error) {
 	var diagramIDs []string
 	result := s.db.Model(&models.Diagram{}).
 		Where("threat_model_id = ?", threatModelID).
@@ -740,7 +740,7 @@ func (s *ThreatModelGormStore) loadDiagramsDynamically(threatModelID string) (*[
 }
 
 // saveAuthorizationTx saves authorization entries within a transaction using GORM
-func (s *ThreatModelGormStore) saveAuthorizationTx(tx *gorm.DB, threatModelID string, authorization []Authorization) error {
+func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID string, authorization []Authorization) error {
 	logger := slogging.Get()
 	logger.Debug("[GORM-STORE] saveAuthorizationTx: Called with %d entries for threat model %s", len(authorization), threatModelID)
 
@@ -822,7 +822,7 @@ func (s *ThreatModelGormStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 }
 
 // saveMetadataTx saves metadata entries within a transaction using GORM
-func (s *ThreatModelGormStore) saveMetadataTx(tx *gorm.DB, threatModelID string, metadata []Metadata) error {
+func (s *GormThreatModelStore) saveMetadataTx(tx *gorm.DB, threatModelID string, metadata []Metadata) error {
 	if len(metadata) == 0 {
 		return nil
 	}
@@ -850,7 +850,7 @@ func (s *ThreatModelGormStore) saveMetadataTx(tx *gorm.DB, threatModelID string,
 }
 
 // updateAuthorizationTx updates authorization entries within a transaction using GORM
-func (s *ThreatModelGormStore) updateAuthorizationTx(tx *gorm.DB, threatModelID string, authorization []Authorization) error {
+func (s *GormThreatModelStore) updateAuthorizationTx(tx *gorm.DB, threatModelID string, authorization []Authorization) error {
 	logger := slogging.Get()
 	logger.Debug("[GORM-STORE] updateAuthorizationTx: Deleting existing authorization for threat model %s", threatModelID)
 
@@ -867,7 +867,7 @@ func (s *ThreatModelGormStore) updateAuthorizationTx(tx *gorm.DB, threatModelID 
 }
 
 // updateMetadataTx updates metadata entries within a transaction using GORM
-func (s *ThreatModelGormStore) updateMetadataTx(tx *gorm.DB, threatModelID string, metadata []Metadata) error {
+func (s *GormThreatModelStore) updateMetadataTx(tx *gorm.DB, threatModelID string, metadata []Metadata) error {
 	// Delete existing metadata
 	result := tx.Where("entity_type = ? AND entity_id = ?", "threat_model", threatModelID).Delete(&models.Metadata{})
 	if result.Error != nil {
@@ -878,21 +878,21 @@ func (s *ThreatModelGormStore) updateMetadataTx(tx *gorm.DB, threatModelID strin
 	return s.saveMetadataTx(tx, threatModelID, metadata)
 }
 
-// DiagramGormStore handles diagram database operations using GORM
-type DiagramGormStore struct {
+// GormDiagramStore handles diagram database operations using GORM
+type GormDiagramStore struct {
 	db    *gorm.DB
 	mutex sync.RWMutex
 }
 
-// NewDiagramGormStore creates a new diagram GORM store
-func NewDiagramGormStore(database *gorm.DB) *DiagramGormStore {
-	return &DiagramGormStore{
+// NewGormDiagramStore creates a new diagram GORM store
+func NewGormDiagramStore(database *gorm.DB) *GormDiagramStore {
+	return &GormDiagramStore{
 		db: database,
 	}
 }
 
 // Get retrieves a diagram by ID using GORM
-func (s *DiagramGormStore) Get(id string) (DfdDiagram, error) {
+func (s *GormDiagramStore) Get(id string) (DfdDiagram, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -909,7 +909,7 @@ func (s *DiagramGormStore) Get(id string) (DfdDiagram, error) {
 }
 
 // convertToAPIDiagram converts a GORM Diagram to the API DfdDiagram
-func (s *DiagramGormStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiagram, error) {
+func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiagram, error) {
 	diagramUUID, _ := uuid.Parse(diagram.ID)
 
 	// Parse cells JSON
@@ -963,12 +963,12 @@ func (s *DiagramGormStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 }
 
 // List returns all diagrams (not used in current implementation)
-func (s *DiagramGormStore) List(offset, limit int, filter func(DfdDiagram) bool) []DfdDiagram {
+func (s *GormDiagramStore) List(offset, limit int, filter func(DfdDiagram) bool) []DfdDiagram {
 	return []DfdDiagram{}
 }
 
 // CreateWithThreatModel adds a new diagram with a specific threat model ID using GORM
-func (s *DiagramGormStore) CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
+func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -1042,12 +1042,12 @@ func (s *DiagramGormStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 }
 
 // Create adds a new diagram using GORM (maintains backward compatibility)
-func (s *DiagramGormStore) Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
+func (s *GormDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
 	return s.CreateWithThreatModel(item, uuid.Nil.String(), idSetter)
 }
 
 // Update modifies an existing diagram using GORM
-func (s *DiagramGormStore) Update(id string, item DfdDiagram) error {
+func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -1109,7 +1109,7 @@ func (s *DiagramGormStore) Update(id string, item DfdDiagram) error {
 }
 
 // Delete removes a diagram using GORM
-func (s *DiagramGormStore) Delete(id string) error {
+func (s *GormDiagramStore) Delete(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -1125,7 +1125,7 @@ func (s *DiagramGormStore) Delete(id string) error {
 }
 
 // Count returns the total number of diagrams using GORM
-func (s *DiagramGormStore) Count() int {
+func (s *GormDiagramStore) Count() int {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -1135,7 +1135,7 @@ func (s *DiagramGormStore) Count() int {
 }
 
 // loadMetadata loads metadata for a diagram using GORM
-func (s *DiagramGormStore) loadMetadata(entityType, entityID string) ([]Metadata, error) {
+func (s *GormDiagramStore) loadMetadata(entityType, entityID string) ([]Metadata, error) {
 	var metadataEntries []models.Metadata
 	result := s.db.Where("entity_type = ? AND entity_id = ?", entityType, entityID).Order("key ASC").Find(&metadataEntries)
 	if result.Error != nil {
@@ -1154,7 +1154,7 @@ func (s *DiagramGormStore) loadMetadata(entityType, entityID string) ([]Metadata
 }
 
 // saveMetadata saves metadata for a diagram using GORM
-func (s *DiagramGormStore) saveMetadata(diagramID string, metadata []Metadata) error {
+func (s *GormDiagramStore) saveMetadata(diagramID string, metadata []Metadata) error {
 	if len(metadata) == 0 {
 		return nil
 	}
@@ -1182,7 +1182,7 @@ func (s *DiagramGormStore) saveMetadata(diagramID string, metadata []Metadata) e
 }
 
 // updateMetadata updates metadata for a diagram using GORM
-func (s *DiagramGormStore) updateMetadata(diagramID string, metadata []Metadata) error {
+func (s *GormDiagramStore) updateMetadata(diagramID string, metadata []Metadata) error {
 	// Delete existing metadata
 	result := s.db.Where("entity_type = ? AND entity_id = ?", "diagram", diagramID).Delete(&models.Metadata{})
 	if result.Error != nil {
