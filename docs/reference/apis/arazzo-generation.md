@@ -43,7 +43,7 @@ make validate-arazzo   # Validate output
 
 ### Pipeline Components
 
-#### 1. Scaffold Generation ([scripts/generate_arazzo_scaffold.sh](../../../scripts/generate_arazzo_scaffold.sh))
+#### 1. Scaffold Generation ([scripts/generate-arazzo-scaffold.sh](../../../scripts/generate-arazzo-scaffold.sh))
 
 Uses Redocly CLI to generate initial Arazzo structure:
 
@@ -54,7 +54,7 @@ npx @redocly/cli generate-arazzo docs/reference/apis/tmi-openapi.json \
 
 **Output**: Base scaffold with all OpenAPI operations mapped to potential workflow steps, but without TMI-specific workflow logic.
 
-#### 2. Workflow Enhancement ([scripts/enhance_arazzo_with_workflows.py](../../../scripts/enhance_arazzo_with_workflows.py))
+#### 2. Workflow Enhancement ([scripts/enhance-arazzo-with-workflows.py](../../../scripts/enhance-arazzo-with-workflows.py))
 
 Python script (500+ lines) that:
 
@@ -94,7 +94,7 @@ Python script (500+ lines) that:
 # ///
 ```
 
-#### 3. Validation ([scripts/validate_arazzo.py](../../../scripts/validate_arazzo.py))
+#### 3. Validation ([scripts/validate-arazzo.py](../../../scripts/validate-arazzo.py))
 
 Uses Spectral CLI with Arazzo ruleset:
 
@@ -237,12 +237,12 @@ Each child resource step automatically depends on parent resource creation.
 make generate-arazzo
 ├── arazzo-scaffold
 │   ├── arazzo-install (npm install)
-│   └── scripts/generate_arazzo_scaffold.sh
+│   └── scripts/generate-arazzo-scaffold.sh
 │       └── npx @redocly/cli generate-arazzo
 ├── arazzo-enhance
-│   └── uv run scripts/enhance_arazzo_with_workflows.py
+│   └── uv run scripts/enhance-arazzo-with-workflows.py
 └── validate-arazzo
-    └── uv run scripts/validate_arazzo.py
+    └── uv run scripts/validate-arazzo.py
 ```
 
 ## Validation Results
@@ -287,7 +287,7 @@ This runs Spectral CLI validation against both YAML and JSON outputs using the r
 
 **Cause**: Running script directly with `python3` instead of `uv run`
 
-**Solution**: Always use `uv run scripts/enhance_arazzo_with_workflows.py` to automatically manage dependencies
+**Solution**: Always use `uv run scripts/enhance-arazzo-with-workflows.py` to automatically manage dependencies
 
 #### 3. Scaffold Not Found
 

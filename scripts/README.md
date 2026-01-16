@@ -16,9 +16,9 @@ This directory contains scripts that are actively used by the refactored build s
 
 ### Code Analysis
 
-- **`analyze_endpoints.py`** - Analyzes all TMI API endpoints to determine authentication requirements, access patterns, and endpoint characteristics
-- **`validate_openapi.py`** - Comprehensive OpenAPI specification validation including JSON syntax, schema validation, and CATS compatibility
-- **`validate_asyncapi.py`** - AsyncAPI specification validation using Pydantic and JSON Schema against AsyncAPI 3.0.0
+- **`analyze-endpoints.py`** - Analyzes all TMI API endpoints to determine authentication requirements, access patterns, and endpoint characteristics
+- **`validate-openapi.py`** - Comprehensive OpenAPI specification validation including JSON syntax, schema validation, and CATS compatibility
+- **`validate-asyncapi.py`** - AsyncAPI specification validation using Pydantic and JSON Schema against AsyncAPI 3.0.0
 
 ### OpenAPI Specification Tools
 
@@ -33,9 +33,9 @@ This directory contains scripts that are actively used by the refactored build s
 
 ### Arazzo Workflow Tools
 
-- **`generate_arazzo_scaffold.sh`** - Generates base Arazzo scaffold from OpenAPI using Redocly CLI
-- **`enhance_arazzo_with_workflows.py`** - Enhances Arazzo specifications with TMI workflow knowledge from api-workflows.json
-- **`validate_arazzo.py`** - Validates Arazzo specification using Spectral
+- **`generate-arazzo-scaffold.sh`** - Generates base Arazzo scaffold from OpenAPI using Redocly CLI
+- **`enhance-arazzo-with-workflows.py`** - Enhances Arazzo specifications with TMI workflow knowledge from api-workflows.json
+- **`validate-arazzo.py`** - Validates Arazzo specification using Spectral
 
 ### Development Utilities
 
@@ -110,9 +110,9 @@ make start-dev                # Replaces start-dev.sh
 ### For Development Analysis
 
 ```bash
-uv run scripts/analyze_endpoints.py
-uv run scripts/validate_openapi.py docs/reference/apis/tmi-openapi.json
-uv run scripts/validate_asyncapi.py docs/reference/apis/tmi-asyncapi.yaml
+uv run scripts/analyze-endpoints.py
+uv run scripts/validate-openapi.py docs/reference/apis/tmi-openapi.json
+uv run scripts/validate-asyncapi.py docs/reference/apis/tmi-asyncapi.yaml
 ```
 
 ### OAuth Callback Stub for Development
