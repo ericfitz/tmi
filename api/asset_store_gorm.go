@@ -59,6 +59,14 @@ func (s *GormAssetStore) Create(ctx context.Context, asset *Asset, threatModelID
 		return fmt.Errorf("failed to create asset: %w", err)
 	}
 
+	// Save metadata if present
+	if asset.Metadata != nil && len(*asset.Metadata) > 0 {
+		if err := s.saveMetadata(ctx, asset.Id.String(), asset.Metadata); err != nil {
+			logger.Error("Failed to save asset metadata: %v", err)
+			// Don't fail the request if metadata saving fails
+		}
+	}
+
 	// Cache the new asset
 	if s.cache != nil {
 		if cacheErr := s.cache.CacheAsset(ctx, asset); cacheErr != nil {
@@ -166,6 +174,14 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("asset not found: %s", asset.Id)
+	}
+
+	// Save metadata if present
+	if asset.Metadata != nil && len(*asset.Metadata) > 0 {
+		if err := s.saveMetadata(ctx, asset.Id.String(), asset.Metadata); err != nil {
+			logger.Error("Failed to save asset metadata: %v", err)
+			// Don't fail the request if metadata saving fails
+		}
 	}
 
 	// Update cache
