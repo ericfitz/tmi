@@ -111,15 +111,32 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 		return
 	}
 
+	// Extract the identification field from the oneOf union
+	// Try each variant to see which one has data
+	var email *string
+	var providerUserID *string
+	var groupName *string
+
+	if emailVariant, err := req.AsCreateAdministratorRequest0(); err == nil && emailVariant.Email != "" {
+		emailStr := string(emailVariant.Email)
+		email = &emailStr
+	}
+	if providerIDVariant, err := req.AsCreateAdministratorRequest1(); err == nil && providerIDVariant.ProviderUserId != "" {
+		providerUserID = &providerIDVariant.ProviderUserId
+	}
+	if groupVariant, err := req.AsCreateAdministratorRequest2(); err == nil && groupVariant.GroupName != "" {
+		groupName = &groupVariant.GroupName
+	}
+
 	// Count how many identification fields are set
 	fieldCount := 0
-	if req.Email != nil {
+	if email != nil {
 		fieldCount++
 	}
-	if req.ProviderUserId != nil {
+	if providerUserID != nil {
 		fieldCount++
 	}
-	if req.GroupName != nil {
+	if groupName != nil {
 		fieldCount++
 	}
 
@@ -184,15 +201,15 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 	}
 
 	// Lookup user or group by the provided identifier
-	if req.Email != nil {
+	if email != nil {
 		// Lookup user by email
-		user, err := authService.GetUserByEmail(c.Request.Context(), string(*req.Email))
+		user, err := authService.GetUserByEmail(c.Request.Context(), *email)
 		if err != nil {
-			logger.Warn("User not found: provider=%s, email=%s, error=%v", req.Provider, *req.Email, err)
+			logger.Warn("User not found: provider=%s, email=%s, error=%v", req.Provider, *email, err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "user_not_found",
-				Message: fmt.Sprintf("User not found with email %s and provider %s", *req.Email, req.Provider),
+				Message: fmt.Sprintf("User not found with email %s and provider %s", *email, req.Provider),
 			})
 			return
 		}
@@ -201,22 +218,22 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "provider_mismatch",
-				Message: fmt.Sprintf("User %s belongs to provider %s, not %s", *req.Email, user.Provider, req.Provider),
+				Message: fmt.Sprintf("User %s belongs to provider %s, not %s", *email, user.Provider, req.Provider),
 			})
 			return
 		}
 		userUUID := uuid.MustParse(user.InternalUUID)
 		admin.UserInternalUUID = &userUUID
 		admin.SubjectType = "user"
-	} else if req.ProviderUserId != nil {
+	} else if providerUserID != nil {
 		// Lookup user by provider_user_id
-		user, err := authService.GetUserByProviderID(c.Request.Context(), req.Provider, *req.ProviderUserId)
+		user, err := authService.GetUserByProviderID(c.Request.Context(), req.Provider, *providerUserID)
 		if err != nil {
-			logger.Warn("User not found: provider=%s, provider_user_id=%s, error=%v", req.Provider, *req.ProviderUserId, err)
+			logger.Warn("User not found: provider=%s, provider_user_id=%s, error=%v", req.Provider, *providerUserID, err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "user_not_found",
-				Message: fmt.Sprintf("User not found with provider_user_id %s and provider %s", *req.ProviderUserId, req.Provider),
+				Message: fmt.Sprintf("User not found with provider_user_id %s and provider %s", *providerUserID, req.Provider),
 			})
 			return
 		}
@@ -225,13 +242,13 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 		admin.SubjectType = "user"
 	} else {
 		// Lookup group by group_name using GlobalGroupStore
-		group, err := GlobalGroupStore.GetByProviderAndName(c.Request.Context(), req.Provider, *req.GroupName)
+		group, err := GlobalGroupStore.GetByProviderAndName(c.Request.Context(), req.Provider, *groupName)
 		if err != nil {
-			logger.Warn("Group not found: provider=%s, group_name=%s, error=%v", req.Provider, *req.GroupName, err)
+			logger.Warn("Group not found: provider=%s, group_name=%s, error=%v", req.Provider, *groupName, err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "group_not_found",
-				Message: fmt.Sprintf("Group not found with name %s and provider %s", *req.GroupName, req.Provider),
+				Message: fmt.Sprintf("Group not found with name %s and provider %s", *groupName, req.Provider),
 			})
 			return
 		}

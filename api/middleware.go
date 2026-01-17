@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"html"
 	"net/http"
@@ -797,29 +799,81 @@ func ValidateSubResourceAccessOwner(db *sql.DB, cache *CacheService) gin.Handler
 	return ValidateSubResourceAccess(db, cache, RoleOwner)
 }
 
+// bufferedResponseWriter wraps gin.ResponseWriter to buffer responses
+// This allows us to intercept and transform plain text error responses to JSON
+type bufferedResponseWriter struct {
+	gin.ResponseWriter
+	body       *bytes.Buffer
+	statusCode int
+}
+
+func (w *bufferedResponseWriter) Write(b []byte) (int, error) {
+	return w.body.Write(b)
+}
+
+func (w *bufferedResponseWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+}
+
+func (w *bufferedResponseWriter) WriteString(s string) (int, error) {
+	return w.body.WriteString(s)
+}
+
 // JSONErrorHandler middleware converts plain text error responses to JSON format
 // This catches Gin framework errors that bypass application error handling
+// It uses a buffered response writer to intercept responses before they're sent
 func JSONErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Create a buffered response writer
+		blw := &bufferedResponseWriter{
+			ResponseWriter: c.Writer,
+			body:           bytes.NewBufferString(""),
+			statusCode:     http.StatusOK,
+		}
+		c.Writer = blw
+
+		// Process the request
 		c.Next()
 
-		// After handlers execute, check if we have a plain text error response
-		status := c.Writer.Status()
-		if status >= 400 {
-			contentType := c.Writer.Header().Get("Content-Type")
+		// Get the response details
+		statusCode := blw.statusCode
+		if statusCode == 0 {
+			statusCode = http.StatusOK
+		}
+		contentType := blw.Header().Get("Content-Type")
+		bodyContent := blw.body.String()
 
-			// If no content type set or it's plain text, ensure JSON format
-			if contentType == "" || strings.Contains(contentType, "text/plain") {
-				// Set proper headers
-				c.Header("Content-Type", "application/json; charset=utf-8")
-				c.Header("Cache-Control", "no-store")
+		// Check if this is a plain text error response that needs conversion
+		if statusCode >= 400 && (contentType == "" || strings.Contains(contentType, "text/plain")) {
+			// Convert to JSON format
+			blw.Header().Set("Content-Type", "application/json; charset=utf-8")
+			blw.Header().Set("Cache-Control", "no-store")
 
-				// Use standard error response format
-				c.JSON(status, Error{
-					Error:            http.StatusText(status),
-					ErrorDescription: "The request could not be processed",
-				})
+			// Create proper error response
+			errorResponse := Error{
+				Error:            http.StatusText(statusCode),
+				ErrorDescription: "The request could not be processed",
 			}
+
+			// If the original body contains useful info, try to include it
+			if bodyContent != "" && bodyContent != http.StatusText(statusCode) {
+				errorResponse.ErrorDescription = strings.TrimSpace(bodyContent)
+			}
+
+			// Marshal the JSON response
+			jsonBody, err := json.Marshal(errorResponse)
+			if err != nil {
+				// Fallback if JSON marshaling fails
+				jsonBody = []byte(`{"error":"` + http.StatusText(statusCode) + `","error_description":"The request could not be processed"}`)
+			}
+
+			// Write the transformed response
+			blw.ResponseWriter.WriteHeader(statusCode)
+			_, _ = blw.ResponseWriter.Write(jsonBody)
+		} else {
+			// Pass through the original response unchanged
+			blw.ResponseWriter.WriteHeader(statusCode)
+			_, _ = blw.ResponseWriter.Write(blw.body.Bytes())
 		}
 	}
 }

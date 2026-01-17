@@ -166,15 +166,8 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 		return
 	}
 
-	// Validate group_name
-	if len(req.GroupName) == 0 || len(req.GroupName) > 256 {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_group_name",
-			Message: "group_name must be between 1 and 256 characters",
-		})
-		return
-	}
+	// Note: group_name validation (minLength, maxLength, pattern) is now handled by OpenAPI spec
+	// via oapi-codegen middleware. No duplicate validation needed here.
 
 	// Get actor information for audit logging
 	actorUserID := c.GetString("userInternalUUID")

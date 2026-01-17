@@ -575,7 +575,14 @@ Key developer documentation:
 ## User Preferences
 
 - After changing any file, run `make lint` and fix any issues caused by the change
-- After changing any executable or test file, run `make build-server` and fix any issues, then run `make test-unit` and fix any issues
+- After changing the OpenAPI specification (`docs/reference/apis/tmi-openapi.json`):
+  1. Run `make validate-openapi` and fix any validation issues
+  2. Run `make generate-api` to regenerate the API code
+  3. Run `make lint` and fix any linting issues
+  4. Run `make build-server` and fix any build issues
+  5. Run `make test-unit` and fix any test failures
+- After changing any Go file (`.go`), run `make build-server` and `make test-unit` and fix any issues
+- Do not need to run `make build-server` or `make test-unit` if no Go files were modified
 - Do not disable or skip failing tests, either diagnose to root cause and fix either the test issue or code issue, or ask the user what to do
 - Always use make targets for testing - never run `go test` commands directly
 - For API functionality, run `make test-integration-new` (with server running) to ensure full integration works
@@ -584,10 +591,16 @@ Key developer documentation:
 
 When completing any task involving code changes, follow this checklist:
 
-1. Run `make lint` and fix any linting issues
-2. Run `make build-server` and fix any build issues
-3. Run relevant tests (`make test-unit` and/or `make test-integration-new`) and fix any issues
+1. Run `make lint` and fix any linting issues (required for ALL file changes)
+2. If OpenAPI spec was modified:
+   - Run `make validate-openapi` and fix any issues
+   - Run `make generate-api` to regenerate API code
+3. If any Go files were modified (including regenerated `api/api.go`):
+   - Run `make build-server` and fix any build issues
+   - Run `make test-unit` and fix any test failures
 4. Suggest a conventional commit message
+
+**Note**: Build and test steps are only required when Go files are modified. For non-Go changes (documentation, scripts, configuration), only linting is required.
 
 ## Git Commit Guidelines
 

@@ -3711,7 +3711,8 @@
           "description": {
             "type": "string",
             "description": "Description of what the add-on does",
-            "maxLength": 1024
+            "maxLength": 1024,
+            "minLength": 0
           },
           "icon": {
             "type": "string",
@@ -4360,29 +4361,94 @@
       },
       "CreateAdministratorRequest": {
         "type": "object",
+        "description": "Request to create an administrator grant. Exactly one of email, provider_user_id, or group_name must be specified.",
         "required": [
           "provider"
         ],
         "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "description": "User email to grant admin privileges (mutually exclusive with provider_user_id and group_name)"
-          },
-          "provider_user_id": {
-            "type": "string",
-            "description": "Provider user ID to grant admin privileges (mutually exclusive with email and group_name)"
-          },
-          "group_name": {
-            "type": "string",
-            "description": "Group name to grant admin privileges (mutually exclusive with email and provider_user_id)"
-          },
           "provider": {
             "type": "string",
             "description": "OAuth/SAML provider"
           }
         },
-        "description": "Request to create an administrator grant. Exactly one of email, provider_user_id, or group_name must be specified.",
+        "oneOf": [
+          {
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email",
+                "description": "User email to grant admin privileges"
+              }
+            },
+            "required": [
+              "email"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "provider_user_id"
+                  ]
+                },
+                {
+                  "required": [
+                    "group_name"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "properties": {
+              "provider_user_id": {
+                "type": "string",
+                "description": "Provider user ID to grant admin privileges"
+              }
+            },
+            "required": [
+              "provider_user_id"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "email"
+                  ]
+                },
+                {
+                  "required": [
+                    "group_name"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "properties": {
+              "group_name": {
+                "type": "string",
+                "description": "Group name to grant admin privileges"
+              }
+            },
+            "required": [
+              "group_name"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "email"
+                  ]
+                },
+                {
+                  "required": [
+                    "provider_user_id"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
         "example": {
           "email": "admin@example.com",
           "provider": "github"
@@ -4871,13 +4937,13 @@
         "properties": {
           "group_name": {
             "type": "string",
-            "maxLength": 500,
+            "maxLength": 128,
             "pattern": "^[a-zA-Z0-9_-]+$",
             "description": "Group identifier (alphanumeric, hyphens, underscores only)"
           },
           "name": {
             "type": "string",
-            "maxLength": 256,
+            "maxLength": 128,
             "description": "Human-readable group name"
           },
           "description": {
@@ -4899,7 +4965,7 @@
         "properties": {
           "name": {
             "type": "string",
-            "maxLength": 256,
+            "maxLength": 128,
             "description": "Updated human-readable group name",
             "minLength": 1
           },
@@ -6756,7 +6822,8 @@
         "name": "email",
         "in": "query",
         "schema": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024
         },
         "description": "Filter by email (case-insensitive substring match)"
       },
@@ -6837,7 +6904,8 @@
         "name": "group_name",
         "in": "query",
         "schema": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024
         },
         "description": "Filter by group name (case-insensitive substring match)"
       },
