@@ -152,24 +152,28 @@ func (r *GormUserRepository) GetProviders(ctx context.Context, userID string) ([
 
 // GetPrimaryProviderID returns the provider user ID for a user
 func (r *GormUserRepository) GetPrimaryProviderID(ctx context.Context, userID string) (string, error) {
-	var providerUserID *string
-	result := r.db.WithContext(ctx).
+	// Use a struct to scan the result - this works reliably across all databases
+	// (PostgreSQL, Oracle, SQLite) unlike scanning directly into a *string pointer
+	var result struct {
+		ProviderUserID *string
+	}
+	err := r.db.WithContext(ctx).
 		Model(&models.User{}).
 		Select("provider_user_id").
 		Where("internal_uuid = ?", userID).
-		First(&providerUserID)
+		First(&result).Error
 
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
 			return "", nil // User not found
 		}
-		return "", fmt.Errorf("failed to get provider user ID: %w", result.Error)
+		return "", fmt.Errorf("failed to get provider user ID: %w", err)
 	}
 
-	if providerUserID == nil {
+	if result.ProviderUserID == nil {
 		return "", nil
 	}
-	return *providerUserID, nil
+	return *result.ProviderUserID, nil
 }
 
 // Create creates a new user

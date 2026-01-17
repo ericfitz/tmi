@@ -353,21 +353,61 @@ func TestGormUserRepository_GetProviders_UserNotFound(t *testing.T) {
 	assert.Empty(t, providers)
 }
 
-// Note: GetPrimaryProviderID tests are skipped because the GORM implementation
-// uses First() with a raw *string pointer which doesn't work with SQLite's
-// scan behavior. These tests pass with PostgreSQL in integration tests.
-// The functionality is covered by GetByID which returns the full user object.
-
 func TestGormUserRepository_GetPrimaryProviderID_Found(t *testing.T) {
-	t.Skip("GORM's First() with *string doesn't work with SQLite - tested via integration tests with PostgreSQL")
+	tdb := db.MustCreateTestDB(t)
+	defer tdb.Cleanup()
+
+	repo := NewGormUserRepository(tdb.DB)
+
+	// Create a user
+	user := &User{
+		Provider:       "google",
+		ProviderUserID: "google-123",
+		Email:          "test@example.com",
+		Name:           "Test User",
+	}
+	created, err := repo.Create(context.Background(), user)
+	require.NoError(t, err)
+
+	// Get primary provider ID
+	providerID, err := repo.GetPrimaryProviderID(context.Background(), created.InternalUUID)
+	require.NoError(t, err)
+
+	assert.Equal(t, "google-123", providerID)
 }
 
 func TestGormUserRepository_GetPrimaryProviderID_NilProviderUserID(t *testing.T) {
-	t.Skip("GORM's First() with *string doesn't work with SQLite - tested via integration tests with PostgreSQL")
+	tdb := db.MustCreateTestDB(t)
+	defer tdb.Cleanup()
+
+	repo := NewGormUserRepository(tdb.DB)
+
+	// Create a user without ProviderUserID
+	user := &User{
+		Provider: "google",
+		Email:    "test@example.com",
+		Name:     "Test User",
+	}
+	created, err := repo.Create(context.Background(), user)
+	require.NoError(t, err)
+
+	// Get primary provider ID
+	providerID, err := repo.GetPrimaryProviderID(context.Background(), created.InternalUUID)
+	require.NoError(t, err)
+
+	assert.Empty(t, providerID)
 }
 
 func TestGormUserRepository_GetPrimaryProviderID_NotFound(t *testing.T) {
-	t.Skip("GORM's First() with *string doesn't work with SQLite - tested via integration tests with PostgreSQL")
+	tdb := db.MustCreateTestDB(t)
+	defer tdb.Cleanup()
+
+	repo := NewGormUserRepository(tdb.DB)
+
+	providerID, err := repo.GetPrimaryProviderID(context.Background(), uuid.New().String())
+	require.NoError(t, err)
+
+	assert.Empty(t, providerID)
 }
 
 func TestGormUserRepository_Update_Success(t *testing.T) {
