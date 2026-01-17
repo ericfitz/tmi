@@ -199,15 +199,26 @@ func (h *ThreatModelMetadataHandler) UpdateThreatModelMetadata(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate request body using OpenAPI validation
-	var metadata Metadata
-	if err := c.ShouldBindJSON(&metadata); err != nil {
+	// Parse request body - only value is required for updates (key comes from URL)
+	// Use a map to allow flexible input without requiring key in body
+	var requestBody map[string]string
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
 		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
 		return
 	}
 
-	// Ensure the key matches the URL parameter
-	metadata.Key = key
+	// Extract value from request body
+	value, hasValue := requestBody["value"]
+	if !hasValue || value == "" {
+		HandleRequestError(c, InvalidInputError("Missing required field: value"))
+		return
+	}
+
+	// Create metadata struct with key from URL and value from body
+	metadata := Metadata{
+		Key:   key,
+		Value: value,
+	}
 
 	logger.Debug("Updating metadata key '%s' for threat model %s (user: %s)", key, threatModelID, userEmail)
 
@@ -272,7 +283,7 @@ func (h *ThreatModelMetadataHandler) DeleteThreatModelMetadata(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully deleted metadata key '%s' for threat model %s", key, threatModelID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // BulkCreateThreatModelMetadata creates multiple metadata entries in a single request

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -227,6 +228,11 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	// Update document in store
 	if err := h.documentStore.Update(c.Request.Context(), document, threatModelID); err != nil {
 		logger.Error("Failed to update document %s: %v", documentID, err)
+		// Check if the error indicates document not found
+		if strings.Contains(err.Error(), "not found") {
+			HandleRequestError(c, NotFoundError("Document not found"))
+			return
+		}
 		HandleRequestError(c, ServerError("Failed to update document"))
 		return
 	}
@@ -266,12 +272,17 @@ func (h *DocumentSubResourceHandler) DeleteDocument(c *gin.Context) {
 	// Delete document from store
 	if err := h.documentStore.Delete(c.Request.Context(), documentID); err != nil {
 		logger.Error("Failed to delete document %s: %v", documentID, err)
+		// Check if the error indicates document not found
+		if strings.Contains(err.Error(), "not found") {
+			HandleRequestError(c, NotFoundError("Document not found"))
+			return
+		}
 		HandleRequestError(c, ServerError("Failed to delete document"))
 		return
 	}
 
 	logger.Debug("Successfully deleted document %s", documentID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // BulkCreateDocuments creates multiple documents in a single request

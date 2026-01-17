@@ -15,7 +15,7 @@
     },
     {
       "key": "testUser",
-      "value": "metadata-test-{{$randomInt}}"
+      "value": "metadata-test-user"
     },
     {
       "key": "threatModelId",
@@ -57,9 +57,9 @@
           "const aliceToken = pm.environment.get('token_alice');",
           "if (aliceToken) {",
           "    pm.collectionVariables.set('accessToken', aliceToken);",
-          "    console.log('\u2705 Using pre-authenticated token for alice');",
+          "    console.log('Using pre-authenticated token for alice');",
           "} else {",
-          "    console.error('\u274c No pre-authenticated token found for alice');",
+          "    console.error('No pre-authenticated token found for alice');",
           "}"
         ]
       }
@@ -67,7 +67,7 @@
   ],
   "item": [
     {
-      "name": "Setup Test Rerepositories",
+      "name": "Setup Test Resources",
       "item": [
         {
           "name": "Create Threat Model",
@@ -85,7 +85,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\\n  \\\"name\\\": \\\"Metadata Test Threat Model {{$randomInt}}\\\",\\n  \\\"description\\\": \\\"For metadata testing\\\",\\n  \\\"threat_model_framework\\\": \\\"STRIDE\\\"\\n}"
+              "raw": "{\n  \"name\": \"Metadata Test Threat Model\",\n  \"description\": \"For metadata testing\",\n  \"threat_model_framework\": \"STRIDE\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models",
@@ -103,8 +103,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const jsonData = pm.response.json();",
-                  "pm.collectionVariables.set('threatModelId', jsonData.id);"
+                  "pm.test('Threat model created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('threatModelId', jsonData.id);",
+                  "    console.log('Created threat model: ' + jsonData.id);",
+                  "}"
                 ]
               }
             }
@@ -131,7 +138,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\\n  \\\"key\\\": \\\"test_key\\\",\\n  \\\"value\\\": \\\"test_value\\\"\\n}"
+              "raw": "{\n  \"key\": \"test_key\",\n  \"value\": \"test_value\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata",
@@ -147,6 +154,19 @@
           },
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Ensure we have a valid threat model ID",
+                  "const tmId = pm.collectionVariables.get('threatModelId');",
+                  "if (!tmId || tmId === '') {",
+                  "    console.error('No threat model ID available - setup may have failed');",
+                  "}"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -155,11 +175,13 @@
                   "    pm.response.to.have.status(201);",
                   "});",
                   "",
-                  "pm.test('Metadata created', function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.key).to.equal('test_key');",
-                  "    pm.expect(jsonData.value).to.equal('test_value');",
-                  "});"
+                  "if (pm.response.code === 201) {",
+                  "    pm.test('Metadata created', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.key).to.equal('test_key');",
+                  "        pm.expect(jsonData.value).to.equal('test_value');",
+                  "    });",
+                  "}"
                 ]
               }
             }
@@ -197,10 +219,12 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test('Metadata list returned', function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.be.an('array');",
-                  "});"
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Metadata list returned', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData).to.be.an('array');",
+                  "    });",
+                  "}"
                 ]
               }
             }
@@ -239,10 +263,12 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test('Specific metadata returned', function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.value).to.equal('test_value');",
-                  "});"
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Specific metadata returned', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.value).to.equal('test_value');",
+                  "    });",
+                  "}"
                 ]
               }
             }
@@ -264,7 +290,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\\n  \\\"value\\\": \\\"updated_value\\\"\\n}"
+              "raw": "{\n  \"value\": \"updated_value\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata/test_key",
@@ -289,10 +315,12 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test('Metadata updated', function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.value).to.equal('updated_value');",
-                  "});"
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Metadata updated', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.value).to.equal('updated_value');",
+                  "    });",
+                  "}"
                 ]
               }
             }
@@ -355,7 +383,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "[\\n  {\\\"key\\\": \\\"bulk_key_1\\\", \\\"value\\\": \\\"bulk_value_1\\\"},\\n  {\\\"key\\\": \\\"bulk_key_2\\\", \\\"value\\\": \\\"bulk_value_2\\\"},\\n  {\\\"key\\\": \\\"bulk_key_3\\\", \\\"value\\\": \\\"bulk_value_3\\\"}\\n]"
+              "raw": "[\n  {\"key\": \"bulk_key_1\", \"value\": \"bulk_value_1\"},\n  {\"key\": \"bulk_key_2\", \"value\": \"bulk_value_2\"},\n  {\"key\": \"bulk_key_3\", \"value\": \"bulk_value_3\"}\n]"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/metadata/bulk",
@@ -380,11 +408,13 @@
                   "    pm.response.to.have.status(201);",
                   "});",
                   "",
-                  "pm.test('Bulk metadata created', function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.be.an('array');",
-                  "    pm.expect(jsonData.length).to.equal(3);",
-                  "});"
+                  "if (pm.response.code === 201) {",
+                  "    pm.test('Bulk metadata created', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData).to.be.an('array');",
+                  "        pm.expect(jsonData.length).to.equal(3);",
+                  "    });",
+                  "}"
                 ]
               }
             }

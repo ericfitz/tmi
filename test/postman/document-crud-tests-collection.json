@@ -253,9 +253,9 @@
                   "    pm.response.to.have.status(400);",
                   "});",
                   "",
-                  "pm.test('Error message mentions url field', function () {",
+                  "pm.test('Error message mentions uri field', function () {",
                   "    const responseText = pm.response.text();",
-                  "    pm.expect(responseText.toLowerCase()).to.include('url');",
+                  "    pm.expect(responseText.toLowerCase()).to.include('uri');",
                   "});"
                 ]
               }
@@ -278,7 +278,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Test Document\",\n  \"url\": \"not-a-valid-url\",\n  \"description\": \"Invalid URL format\"\n}"
+              "raw": "{\n  \"name\": \"Test Document\",\n  \"uri\": \"not-a-valid-url\",\n  \"description\": \"Invalid URL format\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents",
@@ -302,9 +302,9 @@
                   "    pm.response.to.have.status(400);",
                   "});",
                   "",
-                  "pm.test('Error message mentions URL validation', function () {",
+                  "pm.test('Error message mentions URI validation', function () {",
                   "    const responseText = pm.response.text();",
-                  "    pm.expect(responseText.toLowerCase()).to.include('url');",
+                  "    pm.expect(responseText.toLowerCase()).to.include('uri');",
                   "});"
                 ]
               }
@@ -448,7 +448,7 @@
                   "    if (jsonData.length > 0) {",
                   "        pm.expect(jsonData[0]).to.have.property('id');",
                   "        pm.expect(jsonData[0]).to.have.property('name');",
-                  "        pm.expect(jsonData[0]).to.have.property('url');",
+                  "        pm.expect(jsonData[0]).to.have.property('uri');",
                   "    }",
                   "});",
                   "",
@@ -677,7 +677,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"\",\n  \"url\": \"not-a-valid-url\"\n}"
+              "raw": "{\n  \"name\": \"\",\n  \"uri\": \"not-a-valid-uri\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{threatModelId}}/documents/{{documentId}}",
@@ -704,7 +704,7 @@
                   "",
                   "pm.test('Error mentions validation failure', function () {",
                   "    const responseText = pm.response.text();",
-                  "    pm.expect(responseText.toLowerCase()).to.match(/(name|url|validation|invalid)/);",
+                  "    pm.expect(responseText.toLowerCase()).to.match(/(name|uri|validation|invalid)/);",
                   "});"
                 ]
               }
@@ -986,7 +986,7 @@
                   "    jsonData.forEach(doc => {",
                   "        pm.expect(doc.id).to.exist;",
                   "        pm.expect(doc.name).to.exist;",
-                  "        pm.expect(doc.url).to.exist;",
+                  "        pm.expect(doc.uri).to.exist;",
                   "    });",
                   "});",
                   "",
