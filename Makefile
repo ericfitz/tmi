@@ -504,7 +504,7 @@ clean-everything: clean-process clean-containers clean-files
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-api test-api-collection test-api-list start-dev start-dev-0 restart-dev clean-dev test-coverage
+.PHONY: test-unit test-integration test-api test-api-collection test-api-list start-dev start-dev-0 start-dev-oci restart-dev clean-dev test-coverage
 
 # Unit Testing - Fast tests with no external dependencies
 test-unit:
@@ -591,6 +591,15 @@ start-dev-0:
 	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	SERVER_INTERFACE=0.0.0.0 SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development environment started on 0.0.0.0:8080")
+
+# Development Environment - Oracle Cloud Infrastructure (OCI) Autonomous Database
+# Prerequisites:
+#   1. Oracle Instant Client installed
+#   2. Wallet extracted to ./wallet directory
+#   3. Database user created in OCI ADB
+#   4. scripts/start-dev-oci.sh configured with your credentials (gitignored)
+start-dev-oci:
+	@./scripts/start-dev-oci.sh
 
 # Development Environment - Restart (stop server, clean logs, start dev)
 restart-dev:
@@ -1407,6 +1416,7 @@ help:
 	@echo "  test-unit              - Run unit tests"
 	@echo "  test-integration       - Run integration tests with full setup"
 	@echo "  start-dev              - Start development environment"
+	@echo "  start-dev-oci          - Start dev environment with OCI Autonomous Database"
 	@echo "  start-dev-existing     - Start server using existing containers"
 	@echo "  clean-dev              - Clean development environment"
 	@echo ""
