@@ -90,13 +90,15 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		log.Debug("Using PostgreSQL dialector for %s:%s/%s", cfg.PostgresHost, cfg.PostgresPort, cfg.PostgresDatabase)
 
 	case DatabaseTypeOracle:
-		// Oracle connection string format: user/password@host:port/service
-		// For Oracle ADB with wallet: user/password@tcps://host:port/service?wallet_location=/path/to/wallet
+		// Oracle connection string format for godror driver (used by dzwvip/oracle):
+		// user="username" password="password" connectString="tns_alias_or_easy_connect" configDir="/path/to/wallet"
+		// For Oracle ADB with wallet, configDir points to the wallet directory containing tnsnames.ora and cwallet.sso
+		// Password containing special characters should be quoted, not URL-encoded for godror
 		if cfg.OracleWalletLocation != "" {
-			dsn = fmt.Sprintf("%s/%s@%s?wallet_location=%s",
+			dsn = fmt.Sprintf(`user="%s" password="%s" connectString="%s" configDir="%s"`,
 				cfg.OracleUser, cfg.OraclePassword, cfg.OracleConnectString, cfg.OracleWalletLocation)
 		} else {
-			dsn = fmt.Sprintf("%s/%s@%s",
+			dsn = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`,
 				cfg.OracleUser, cfg.OraclePassword, cfg.OracleConnectString)
 		}
 		dialector = oracle.Open(dsn)

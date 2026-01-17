@@ -43,7 +43,7 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 type RefreshTokenRecord struct {
 	ID               string    `gorm:"column:id;primaryKey;type:varchar(36)"`
 	UserInternalUUID string    `gorm:"column:user_internal_uuid;type:varchar(36);not null;index"`
-	Token            string    `gorm:"column:token;type:text;not null;uniqueIndex"`
+	Token            string    `gorm:"column:token;type:varchar(4000);not null;uniqueIndex"` // varchar(4000) for Oracle compatibility (CLOB cannot have unique index)
 	ExpiresAt        time.Time `gorm:"column:expires_at;not null"`
 	CreatedAt        time.Time `gorm:"column:created_at;not null;autoCreateTime"`
 
