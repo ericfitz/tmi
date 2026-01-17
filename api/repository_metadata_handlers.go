@@ -272,7 +272,7 @@ func (h *RepositoryMetadataHandler) DeleteRepositoryMetadata(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully deleted metadata key '%s' for repository %s", key, repositoryID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // BulkCreateRepositoryMetadata creates multiple metadata entries in a single request

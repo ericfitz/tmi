@@ -272,7 +272,7 @@ func (h *ThreatMetadataHandler) DeleteThreatMetadata(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully deleted metadata key '%s' for threat %s", key, threatID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // BulkCreateThreatMetadata creates multiple metadata entries in a single request

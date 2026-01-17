@@ -498,7 +498,7 @@ func (h *ThreatSubResourceHandler) DeleteThreat(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully deleted threat %s", threatID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // BulkCreateThreats creates multiple threats in a single request

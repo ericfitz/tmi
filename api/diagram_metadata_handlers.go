@@ -274,7 +274,7 @@ func (h *DiagramMetadataHandler) DeleteDirectDiagramMetadata(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully deleted metadata key '%s' for diagram %s", key, diagramID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // Direct diagram cell metadata handlers for /diagrams/:id/cells/:cell_id/metadata endpoints
@@ -555,7 +555,7 @@ func (h *DiagramMetadataHandler) DeleteDirectDiagramCellMetadata(c *gin.Context)
 	}
 
 	logger.Debug("Successfully deleted metadata key '%s' for cell %s", key, cellID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // Threat model diagram metadata handlers for /threat_models/:threat_model_id/diagrams/:diagram_id/metadata endpoints
@@ -853,7 +853,7 @@ func (h *DiagramMetadataHandler) DeleteThreatModelDiagramMetadata(c *gin.Context
 	}
 
 	logger.Debug("Successfully deleted metadata key '%s' for diagram %s", key, diagramID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // BulkCreateDirectDiagramMetadata creates multiple metadata entries for a diagram via direct route

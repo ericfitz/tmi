@@ -20,17 +20,6 @@ This directory contains scripts that are actively used by the refactored build s
 - **`validate-openapi.py`** - Comprehensive OpenAPI specification validation including JSON syntax, schema validation, and CATS compatibility
 - **`validate-asyncapi.py`** - AsyncAPI specification validation using Pydantic and JSON Schema against AsyncAPI 3.0.0
 
-### OpenAPI Specification Tools
-
-- **`add-400-responses.sh`** - Adds missing 400 Bad Request responses to OpenAPI specification based on CATS fuzzer analysis
-- **`add-unexpected-responses.sh`** - Adds missing response codes identified by CATS "Unexpected response code" analysis
-- **`add-public-endpoint-markers.sh`** - Adds vendor extensions (x-public-endpoint, x-authentication-required) to public endpoints in OpenAPI spec
-- **`add-retry-after-headers.py`** - Adds Retry-After headers to all 429 responses for RFC 6585 compliance
-- **`clean-redundant-ref-headers.py`** - Removes redundant headers from responses that use $ref to component references
-- **`fix-openapi-issues.py`** - Fixes RateMyOpenAPI issues in TMI OpenAPI specification
-- **`fix-openapi-spectral-issues.py`** - Fixes Spectral $ref sibling issues where rate limit headers were added alongside $ref properties
-- **`add-addon-endpoints.py`** - Adds addon-related endpoints, schemas, and security requirements to OpenAPI specification
-
 ### Arazzo Workflow Tools
 
 - **`generate-arazzo-scaffold.sh`** - Generates base Arazzo scaffold from OpenAPI using Redocly CLI
@@ -52,13 +41,6 @@ This directory contains scripts that are actively used by the refactored build s
 ### Testing Tools
 
 - **`generate-test-matrix.py`** - Generates test matrix from Newman API test results showing endpoint coverage
-
-### Code Fix Scripts
-
-- **`fix-validate-auth-calls.sh`** - Fixes all ValidateAuthenticatedUser calls to handle 4 return values
-- **`fix-validate-auth-signature.py`** - Fixes ValidateAuthenticatedUser calls to handle the new 4-value return signature (was 3-value)
-- **`fix-test-auth-setup.py`** - Adds c.Set("userID", ...) after every c.Set("userEmail", ...) in test files
-- **`fix-addon-handler-types.py`** - Fixes type mismatches in addon handler files to work with OpenAPI-generated types
 
 ## CATS Fuzzing Tools
 

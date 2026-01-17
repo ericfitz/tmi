@@ -393,7 +393,7 @@ func (h *CellHandler) DeleteCellMetadata(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully deleted metadata key '%s' for cell %s", key, cellID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // PatchCell applies JSON patch operations to a cell (requires WebSocket connection for real-time updates)

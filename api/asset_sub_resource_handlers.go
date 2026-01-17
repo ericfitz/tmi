@@ -271,7 +271,7 @@ func (h *AssetSubResourceHandler) DeleteAsset(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully deleted asset %s", assetID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // BulkCreateAssets creates multiple assets in a single request

@@ -271,7 +271,7 @@ func (h *RepositorySubResourceHandler) DeleteRepository(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully deleted repository code reference %s", repositoryID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // BulkCreateRepositorys creates multiple repository code references in a single request

@@ -272,7 +272,7 @@ func (h *NoteMetadataHandler) DeleteNoteMetadata(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully deleted metadata key '%s' for note %s", key, noteID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // BulkCreateNoteMetadata creates multiple metadata entries in a single request

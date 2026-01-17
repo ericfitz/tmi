@@ -270,7 +270,7 @@ func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully deleted note %s", noteID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // PatchNote applies JSON patch operations to a note

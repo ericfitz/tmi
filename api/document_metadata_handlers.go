@@ -272,7 +272,7 @@ func (h *DocumentMetadataHandler) DeleteDocumentMetadata(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully deleted metadata key '%s' for document %s", key, documentID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // BulkCreateDocumentMetadata creates multiple metadata entries in a single request

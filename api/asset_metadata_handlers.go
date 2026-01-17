@@ -261,7 +261,7 @@ func (h *AssetMetadataHandler) DeleteAssetMetadata(c *gin.Context) {
 	}
 
 	logger.Debug("Successfully deleted metadata key '%s' for asset %s", key, assetID)
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 // BulkCreateAssetMetadata creates multiple metadata entries in a single request
