@@ -402,20 +402,18 @@ run_cats_fuzz() {
         # CATS expects no-store on all endpoints, but caching discovery metadata is correct
         # See: docs/developer/testing/cats-public-endpoints.md#cacheable-endpoints
         "--skipFuzzersForExtension=x-cacheable-endpoint=true:CheckSecurityHeaders"
-        # Skip fuzzers that crash due to CATS 13.5.0 bugs:
-        # - MassAssignmentFuzzer: JsonPath.InvalidModificationException on array properties
-        #   https://github.com/Endava/cats/issues/191
-        # - InsertRandomValuesInBodyFuzzer: String.repeat count negative during HTML report
-        #   generation (IllegalArgumentException: count is negative: -1)
-        #   https://github.com/Endava/cats/issues/193
-        # TODO: Re-enable when CATS fixes these issues
-        #
         # Skip fuzzers that produce false positives due to valid API behavior:
         # - DuplicateHeaders: TMI ignores duplicate/unknown headers (valid per HTTP spec)
         # - LargeNumberOfRandomAlphanumericHeaders: TMI ignores extra headers (valid behavior)
         # - EnumCaseVariantFields: TMI uses case-sensitive enum validation (stricter is valid)
-        # See: docs/developer/testing/cats-remediation-plan.md
-        "--skipFuzzers=MassAssignmentFuzzer,InsertRandomValuesInBodyFuzzer,DuplicateHeaders,LargeNumberOfRandomAlphanumericHeaders,EnumCaseVariantFields"
+        # See: docs/developer/testing/cats-false-positives.md
+        #
+        # Note: MassAssignmentFuzzer and InsertRandomValuesInBodyFuzzer were previously
+        # skipped due to CATS 13.5.0 bugs, now fixed in CATS 13.6.0:
+        # - https://github.com/Endava/cats/issues/191 (fixed)
+        # - https://github.com/Endava/cats/issues/192 (fixed)
+        # - https://github.com/Endava/cats/issues/193 (fixed)
+        "--skipFuzzers=DuplicateHeaders,LargeNumberOfRandomAlphanumericHeaders,EnumCaseVariantFields"
     )
 
     # Add path filter if specified

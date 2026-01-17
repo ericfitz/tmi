@@ -696,6 +696,63 @@ func TestCheckHTMLInjection(t *testing.T) {
 			wantErr:   true,
 			errMsg:    "potentially unsafe content",
 		},
+		// Template injection patterns
+		{
+			name:      "Handlebars/Jinja2 template opening",
+			value:     "{{constructor.constructor('alert(1)')()}}",
+			fieldName: "name",
+			wantErr:   true,
+			errMsg:    "template expression",
+		},
+		{
+			name:      "Handlebars/Jinja2 template closing",
+			value:     "some text}}",
+			fieldName: "name",
+			wantErr:   true,
+			errMsg:    "template expression",
+		},
+		{
+			name:      "JavaScript template literal",
+			value:     "${alert(1)}",
+			fieldName: "description",
+			wantErr:   true,
+			errMsg:    "template interpolation",
+		},
+		{
+			name:      "JSP/ASP/ERB opening tag",
+			value:     "<%=System.getProperty('user.home')%>",
+			fieldName: "description",
+			wantErr:   true,
+			errMsg:    "server template tag",
+		},
+		{
+			name:      "JSP/ASP/ERB closing tag",
+			value:     "some text%>",
+			fieldName: "description",
+			wantErr:   true,
+			errMsg:    "server template tag",
+		},
+		{
+			name:      "Spring EL expression",
+			value:     "#{T(java.lang.Runtime).getRuntime().exec('calc')}",
+			fieldName: "description",
+			wantErr:   true,
+			errMsg:    "expression language",
+		},
+		{
+			name:      "GitHub Actions context injection",
+			value:     "${{github.event.issue.title}}",
+			fieldName: "description",
+			wantErr:   true,
+			errMsg:    "GitHub Actions context",
+		},
+		{
+			name:      "Angular template expression",
+			value:     "{{user.name}}",
+			fieldName: "name",
+			wantErr:   true,
+			errMsg:    "template expression",
+		},
 	}
 
 	for _, tt := range tests {

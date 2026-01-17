@@ -195,12 +195,12 @@ func ValidateAddonDescription(description string) error {
 	return nil
 }
 
-// checkHTMLInjection checks for common XSS patterns
+// checkHTMLInjection checks for common XSS and template injection patterns
 func checkHTMLInjection(value, fieldName string) error {
 	// Convert to lowercase for case-insensitive matching
 	lowerValue := strings.ToLower(value)
 
-	// Blocked patterns
+	// Blocked patterns for HTML/JavaScript injection
 	blockedPatterns := []string{
 		"<script",
 		"</script>",
@@ -224,6 +224,34 @@ func checkHTMLInjection(value, fieldName string) error {
 				Status:  400,
 				Code:    "invalid_input",
 				Message: fmt.Sprintf("Field '%s' contains potentially unsafe content (%s)", fieldName, pattern),
+			}
+		}
+	}
+
+	// Check for template injection patterns (defense-in-depth for various template engines)
+	// These patterns are commonly used in Server-Side Template Injection (SSTI) attacks
+	// While TMI is a JSON API and doesn't use server-side templates, blocking these
+	// provides defense-in-depth for downstream consumers that might render the data
+	templatePatterns := []struct {
+		pattern string
+		desc    string
+	}{
+		// Order matters: more specific patterns must come before less specific ones
+		{"${{", "GitHub Actions context"}, // GitHub Actions expression injection (check before ${)
+		{"{{", "template expression"},     // Handlebars, Jinja2, Angular, Go templates
+		{"}}", "template expression"},     // Closing template expression
+		{"${", "template interpolation"},  // JavaScript template literals, Freemarker
+		{"<%", "server template tag"},     // JSP, ASP, ERB
+		{"%>", "server template tag"},     // Closing server template tag
+		{"#{", "expression language"},     // Spring EL, JSF EL
+	}
+
+	for _, tp := range templatePatterns {
+		if strings.Contains(value, tp.pattern) {
+			return &RequestError{
+				Status:  400,
+				Code:    "invalid_input",
+				Message: fmt.Sprintf("Field '%s' contains potentially unsafe %s pattern (%s)", fieldName, tp.desc, tp.pattern),
 			}
 		}
 	}
