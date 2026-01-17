@@ -464,7 +464,7 @@ make cats-analyze                # Analyze results
 
 ### Heroku Operations
 
-- **Database Reset**: `make heroku-reset-db` - Drop and recreate Heroku database schema (DESTRUCTIVE)
+- **Database Reset**: `make reset-db-heroku` - Drop and recreate Heroku database schema (DESTRUCTIVE)
   - Script location: `scripts/heroku-reset-database.sh`
   - Documentation: `docs/operator/heroku-database-reset.md`
   - **WARNING**: Deletes all data - requires manual "yes" confirmation
@@ -473,13 +473,13 @@ make cats-analyze                # Analyze results
   - Verifies critical columns (e.g., `issue_uri` in `threat_models`)
   - Post-reset: Users must re-authenticate via OAuth
 
-- **Database Drop**: `make heroku-drop-db` - Drop Heroku database schema leaving it empty (DESTRUCTIVE)
+- **Database Drop**: `make drop-db-heroku` - Drop Heroku database schema leaving it empty (DESTRUCTIVE)
   - Script location: `scripts/heroku-drop-database.sh`
   - **WARNING**: Deletes all data and leaves database in empty state - requires manual "yes" confirmation
   - Use cases: Manual schema control, testing migration process from scratch, preparing for custom schema
   - Performs one step: Drop schema only (no migrations)
   - Database left with empty `public` schema, ready for manual schema creation or migrations
-  - To restore: Run `make heroku-reset-db` or restart Heroku app to trigger auto-migrations
+  - To restore: Run `make reset-db-heroku` or restart Heroku app to trigger auto-migrations
 
 ## Go Style Guidelines
 

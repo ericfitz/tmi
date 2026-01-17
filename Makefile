@@ -601,10 +601,10 @@ start-dev-0:
 start-dev-oci:
 	@./scripts/start-dev-oci.sh
 
-# Oracle ADB Utility - Drop all tables in OCI Autonomous Database
+# OCI ADB Utility - Drop all tables in OCI Autonomous Database
 # Prerequisites: Same as start-dev-oci (Oracle Instant Client, wallet, credentials)
-# WARNING: This is destructive and will delete all data in the Oracle database
-drop-oracle-tables:
+# WARNING: This is destructive and will delete all data in the OCI database
+drop-tables-oci:
 	@./scripts/drop-oracle-tables.sh
 
 # Development Environment - Restart (stop server, clean logs, start dev)
@@ -1088,22 +1088,22 @@ prod: start-dev  # For now, prod is same as dev
 # Heroku Configuration
 # ============================================================================
 
-.PHONY: heroku-setup heroku-setup-dry-run
+.PHONY: setup-heroku setup-heroku-dry-run
 
-heroku-setup: ## Configure Heroku environment variables interactively
+setup-heroku: ## Configure Heroku environment variables interactively
 	$(call log_info,"Starting Heroku environment configuration...")
 	@uv run scripts/setup-heroku-env.py
 
-heroku-setup-dry-run: ## Preview Heroku configuration without applying
+setup-heroku-dry-run: ## Preview Heroku configuration without applying
 	$(call log_info,"Previewing Heroku configuration (dry-run mode)...")
 	@uv run scripts/setup-heroku-env.py --dry-run
 
-.PHONY: heroku-reset-db heroku-drop-db
-heroku-reset-db: ## Drop and recreate Heroku database schema (DESTRUCTIVE - deletes all data). Use ARGS="--yes" to skip confirmation
+.PHONY: reset-db-heroku drop-db-heroku
+reset-db-heroku: ## Drop and recreate Heroku database schema (DESTRUCTIVE - deletes all data). Use ARGS="--yes" to skip confirmation
 	$(call log_warning,"This will DELETE ALL DATA in the Heroku database!")
 	@./scripts/heroku-reset-database.sh $(ARGS) tmi-server
 
-heroku-drop-db: ## Drop Heroku database schema leaving it empty (DESTRUCTIVE - deletes all data, no migrations). Use ARGS="--yes" to skip confirmation
+drop-db-heroku: ## Drop Heroku database schema leaving it empty (DESTRUCTIVE - deletes all data, no migrations). Use ARGS="--yes" to skip confirmation
 	$(call log_warning,"This will DELETE ALL DATA in the Heroku database and leave it EMPTY!")
 	@./scripts/heroku-drop-database.sh $(ARGS) tmi-server
 
@@ -1423,7 +1423,7 @@ help:
 	@echo "  test-integration       - Run integration tests with full setup"
 	@echo "  start-dev              - Start development environment"
 	@echo "  start-dev-oci          - Start dev environment with OCI Autonomous Database"
-	@echo "  drop-oracle-tables     - Drop all tables in OCI ADB (destructive)"
+	@echo "  drop-tables-oci        - Drop all tables in OCI ADB (destructive)"
 	@echo "  start-dev-existing     - Start server using existing containers"
 	@echo "  clean-dev              - Clean development environment"
 	@echo ""
