@@ -392,7 +392,7 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 	// Get current user information from context
 	userInternalUUID := c.GetString("userInternalUUID")
 	userEmail := c.GetString("userEmail")
-	provider := c.GetString("provider")
+	provider := c.GetString("userProvider")
 
 	if userInternalUUID == "" || provider == "" {
 		return fmt.Errorf("missing user context (userInternalUUID or provider)")
