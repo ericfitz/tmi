@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/ericfitz/tmi/auth/db"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,33 +15,40 @@ import (
 
 func TestApiInfoHandler_GetApiInfo(t *testing.T) {
 	tests := []struct {
-		name        string
-		headers     map[string]string
-		expectHTML  bool
-		setupServer func() *Server
+		name         string
+		headers      map[string]string
+		expectHTML   bool
+		expectStatus ApiInfoStatusCode
+		setupServer  func() *Server
 	}{
 		{
-			name:        "JSON response with server",
-			headers:     map[string]string{"Accept": "application/json"},
-			expectHTML:  false,
-			setupServer: func() *Server { return NewServerForTests() },
+			name:         "JSON response with server",
+			headers:      map[string]string{"Accept": "application/json"},
+			expectHTML:   false,
+			expectStatus: DEGRADED, // No database manager in test = DEGRADED status
+			setupServer:  func() *Server { return NewServerForTests() },
 		},
 		{
-			name:        "HTML response with server",
-			headers:     map[string]string{"Accept": "text/html"},
-			expectHTML:  true,
-			setupServer: func() *Server { return NewServerForTests() },
+			name:         "HTML response with server",
+			headers:      map[string]string{"Accept": "text/html"},
+			expectHTML:   true,
+			expectStatus: DEGRADED, // Not checked for HTML, but included for consistency
+			setupServer:  func() *Server { return NewServerForTests() },
 		},
 		{
-			name:        "JSON response without server",
-			headers:     map[string]string{"Accept": "application/json"},
-			expectHTML:  false,
-			setupServer: func() *Server { return nil },
+			name:         "JSON response without server",
+			headers:      map[string]string{"Accept": "application/json"},
+			expectHTML:   false,
+			expectStatus: DEGRADED, // No database manager in test = DEGRADED status
+			setupServer:  func() *Server { return nil },
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Ensure no global manager is set for these tests
+			db.SetGlobalManager(nil)
+
 			// Setup
 			gin.SetMode(gin.TestMode)
 			router := gin.New()
@@ -75,8 +83,16 @@ func TestApiInfoHandler_GetApiInfo(t *testing.T) {
 				err = json.Unmarshal(w.Body.Bytes(), &apiInfo)
 				require.NoError(t, err, "Response should be valid JSON")
 
-				// Verify basic structure
-				assert.Equal(t, "OK", string(apiInfo.Status.Code))
+				// Verify status code reflects health check result
+				// Without a database manager, status should be DEGRADED
+				assert.Equal(t, tt.expectStatus, apiInfo.Status.Code,
+					"Status should be %s when database manager is not configured", tt.expectStatus)
+
+				// When degraded, health details should be included
+				if tt.expectStatus == DEGRADED {
+					assert.NotNil(t, apiInfo.Health, "Health details should be included when status is DEGRADED")
+				}
+
 				assert.Equal(t, "TMI", apiInfo.Service.Name)
 				assert.NotEmpty(t, apiInfo.Service.Build)
 

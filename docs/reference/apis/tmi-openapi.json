@@ -45,9 +45,10 @@
                 "type": "string",
                 "enum": [
                   "OK",
+                  "DEGRADED",
                   "ERROR"
                 ],
-                "description": "Status code indicating if the API is functioning correctly",
+                "description": "Status code indicating system health: OK (all components healthy), DEGRADED (server up but database or Redis unhealthy), ERROR (critical failure)",
                 "pattern": "^[a-zA-Z0-9_-]*$",
                 "maxLength": 512
               },
@@ -131,13 +132,25 @@
               "contact"
             ],
             "additionalProperties": false
+          },
+          "health": {
+            "type": "object",
+            "description": "Detailed health status of system components. Only present when status is DEGRADED.",
+            "properties": {
+              "database": {
+                "$ref": "#/components/schemas/ComponentHealth"
+              },
+              "redis": {
+                "$ref": "#/components/schemas/ComponentHealth"
+              }
+            },
+            "additionalProperties": false
           }
         },
         "required": [
           "status",
           "service",
-          "api",
-          "operator"
+          "api"
         ],
         "example": {
           "status": {
@@ -5883,6 +5896,39 @@
         },
         "required": [
           "refresh_token"
+        ],
+        "additionalProperties": false
+      },
+      "ComponentHealth": {
+        "type": "object",
+        "description": "Health status of a system component",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "unhealthy",
+              "unknown"
+            ],
+            "description": "Component health status",
+            "maxLength": 32
+          },
+          "latency_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Response latency in milliseconds",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable status message or error description",
+            "maxLength": 256,
+            "pattern": "^[\\u0020-\\uFFFF]*$"
+          }
+        },
+        "required": [
+          "status"
         ],
         "additionalProperties": false
       }

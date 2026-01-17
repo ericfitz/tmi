@@ -27,9 +27,9 @@ var (
 	// Major version number
 	VersionMajor = "0"
 	// Minor version number
-	VersionMinor = "256"
+	VersionMinor = "257"
 	// Patch version number
-	VersionPatch = "4"
+	VersionPatch = "0"
 	// GitCommit is the git commit hash from build
 	GitCommit = "development"
 	// BuildDate is the build timestamp
@@ -115,6 +115,9 @@ const rootPageHTML = `<!DOCTYPE html>
 </html>
 `
 
+// healthCheckTimeout is the maximum time allowed for health checks
+const healthCheckTimeout = 100 * time.Millisecond
+
 // GetApiInfo returns service, API, and operator information
 func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 	// Get logger from context
@@ -137,6 +140,12 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 		logger.Debug("No user found in context for root endpoint")
 	}
 
+	// Perform health checks on database and Redis
+	healthChecker := NewHealthChecker(healthCheckTimeout)
+	healthResult := healthChecker.CheckHealth(c.Request.Context())
+	logger.Debug("Health check completed: overall=%s, db=%s, redis=%s",
+		healthResult.Overall, healthResult.Database.Status, healthResult.Redis.Status)
+
 	// Get version info
 	v := GetVersion()
 	buildString := fmt.Sprintf("%d.%d.%d-%s", v.Major, v.Minor, v.Patch, v.GitCommit)
@@ -151,13 +160,13 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 		logger.Debug("Loaded API version from OpenAPI spec: %s", apiVersion)
 	}
 
-	// Create ApiInfo response
+	// Create ApiInfo response with health-aware status
 	apiInfo := ApiInfo{
 		Status: struct {
 			Code ApiInfoStatusCode `json:"code"`
 			Time time.Time         `json:"time"`
 		}{
-			Code: OK,
+			Code: healthResult.Overall,
 			Time: time.Now().UTC(),
 		},
 		Service: struct {
@@ -176,6 +185,19 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 		},
 	}
 
+	// Include health details only when status is DEGRADED
+	if healthResult.Overall == DEGRADED {
+		apiInfo.Health = &struct {
+			Database *ComponentHealth `json:"database,omitempty"`
+			Redis    *ComponentHealth `json:"redis,omitempty"`
+		}{
+			Database: healthResult.Database.ToAPIComponentHealth(),
+			Redis:    healthResult.Redis.ToAPIComponentHealth(),
+		}
+		logger.Warn("System health is degraded: database=%s, redis=%s",
+			healthResult.Database.Status, healthResult.Redis.Status)
+	}
+
 	// Add optional operator info from config (stored in context)
 	operatorName, _ := c.Get("operatorName")
 	operatorContact, _ := c.Get("operatorContact")
@@ -185,7 +207,7 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 	contactStr, contactOk := operatorContact.(string)
 
 	if (nameOk && nameStr != "") || (contactOk && contactStr != "") {
-		apiInfo.Operator = struct {
+		apiInfo.Operator = &struct {
 			Contact string `json:"contact"`
 			Name    string `json:"name"`
 		}{
