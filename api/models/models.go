@@ -4,26 +4,86 @@
 package models
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
+// OracleBool is a custom boolean type that handles Oracle's SMALLINT representation
+// of booleans. Oracle doesn't have a native boolean type, so GORM uses SMALLINT (0/1).
+// The godror driver returns these as godror.Number, which doesn't automatically
+// convert to Go bool. This type implements sql.Scanner and driver.Valuer to handle
+// the conversion for both PostgreSQL (native bool) and Oracle (SMALLINT as Number).
+type OracleBool bool
+
+// Scan implements the sql.Scanner interface for OracleBool.
+// It handles:
+// - bool (PostgreSQL native boolean)
+// - int64/int/int32 (numeric representation)
+// - godror.Number (Oracle's numeric type, implements fmt.Stringer)
+// - nil (NULL values)
+func (b *OracleBool) Scan(value interface{}) error {
+	if value == nil {
+		*b = false
+		return nil
+	}
+
+	switch v := value.(type) {
+	case bool:
+		*b = OracleBool(v)
+	case int64:
+		*b = v != 0
+	case int:
+		*b = v != 0
+	case int32:
+		*b = v != 0
+	case float64:
+		*b = v != 0
+	default:
+		// Handle godror.Number which implements fmt.Stringer
+		if stringer, ok := value.(fmt.Stringer); ok {
+			str := stringer.String()
+			*b = str != "0" && str != ""
+		} else {
+			return fmt.Errorf("cannot scan type %T into OracleBool", value)
+		}
+	}
+	return nil
+}
+
+// Value implements the driver.Valuer interface for OracleBool.
+// It returns the boolean as an int64 (0 or 1) for database storage.
+func (b OracleBool) Value() (driver.Value, error) {
+	if b {
+		return int64(1), nil
+	}
+	return int64(0), nil
+}
+
+// Bool returns the underlying bool value.
+func (b OracleBool) Bool() bool {
+	return bool(b)
+}
+
 // User represents an authenticated user in the system
+// Note: Column names are intentionally not specified to allow GORM's NamingStrategy
+// to handle database-specific casing (lowercase for PostgreSQL, UPPERCASE for Oracle)
 type User struct {
-	InternalUUID   string     `gorm:"column:internal_uuid;primaryKey;type:varchar(36)"`
-	Provider       string     `gorm:"column:provider;type:varchar(255);not null"`
-	ProviderUserID *string    `gorm:"column:provider_user_id;type:varchar(255)"`
-	Email          string     `gorm:"column:email;type:varchar(255);not null"`
-	Name           string     `gorm:"column:name;type:varchar(255);not null"`
-	EmailVerified  bool       `gorm:"column:email_verified;default:false"`
-	AccessToken    *string    `gorm:"column:access_token;type:text"`
-	RefreshToken   *string    `gorm:"column:refresh_token;type:text"`
-	TokenExpiry    *time.Time `gorm:"column:token_expiry"`
-	CreatedAt      time.Time  `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt     time.Time  `gorm:"column:modified_at;not null;autoUpdateTime"`
-	LastLogin      *time.Time `gorm:"column:last_login"`
+	InternalUUID   string     `gorm:"primaryKey;type:varchar(36)"`
+	Provider       string     `gorm:"type:varchar(255);not null"`
+	ProviderUserID *string    `gorm:"type:varchar(255)"`
+	Email          string     `gorm:"type:varchar(255);not null"`
+	Name           string     `gorm:"type:varchar(255);not null"`
+	EmailVerified  OracleBool `gorm:"default:0"`
+	AccessToken    *string    `gorm:"type:text"`
+	RefreshToken   *string    `gorm:"type:text"`
+	TokenExpiry    *time.Time
+	CreatedAt      time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt     time.Time `gorm:"not null;autoUpdateTime"`
+	LastLogin      *time.Time
 }
 
 // TableName specifies the table name for User
@@ -40,12 +100,13 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 }
 
 // RefreshTokenRecord represents a refresh token for a user
+// Note: Explicit column tags removed for Oracle compatibility
 type RefreshTokenRecord struct {
-	ID               string    `gorm:"column:id;primaryKey;type:varchar(36)"`
-	UserInternalUUID string    `gorm:"column:user_internal_uuid;type:varchar(36);not null;index"`
-	Token            string    `gorm:"column:token;type:varchar(4000);not null;uniqueIndex"` // varchar(4000) for Oracle compatibility (CLOB cannot have unique index)
-	ExpiresAt        time.Time `gorm:"column:expires_at;not null"`
-	CreatedAt        time.Time `gorm:"column:created_at;not null;autoCreateTime"`
+	ID               string    `gorm:"primaryKey;type:varchar(36)"`
+	UserInternalUUID string    `gorm:"type:varchar(36);not null;index"`
+	Token            string    `gorm:"type:varchar(4000);not null;uniqueIndex"` // varchar(4000) for Oracle compatibility (CLOB cannot have unique index)
+	ExpiresAt        time.Time `gorm:"not null"`
+	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
 
 	// Relationships
 	User User `gorm:"foreignKey:UserInternalUUID;references:InternalUUID"`
@@ -65,18 +126,19 @@ func (r *RefreshTokenRecord) BeforeCreate(tx *gorm.DB) error {
 }
 
 // ClientCredential represents OAuth 2.0 client credentials for machine-to-machine auth
+// Note: Explicit column tags removed for Oracle compatibility
 type ClientCredential struct {
-	ID               string     `gorm:"column:id;primaryKey;type:varchar(36)"`
-	OwnerUUID        string     `gorm:"column:owner_uuid;type:varchar(36);not null;index"`
-	ClientID         string     `gorm:"column:client_id;type:varchar(255);not null;uniqueIndex"`
-	ClientSecretHash string     `gorm:"column:client_secret_hash;type:text;not null"`
-	Name             string     `gorm:"column:name;type:varchar(255);not null"`
-	Description      *string    `gorm:"column:description;type:text"`
-	IsActive         bool       `gorm:"column:is_active;not null;default:true"`
-	LastUsedAt       *time.Time `gorm:"column:last_used_at"`
-	CreatedAt        time.Time  `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt       time.Time  `gorm:"column:modified_at;not null;autoUpdateTime"`
-	ExpiresAt        *time.Time `gorm:"column:expires_at"`
+	ID               string     `gorm:"primaryKey;type:varchar(36)"`
+	OwnerUUID        string     `gorm:"type:varchar(36);not null;index"`
+	ClientID         string     `gorm:"type:varchar(255);not null;uniqueIndex"`
+	ClientSecretHash string     `gorm:"type:text;not null"`
+	Name             string     `gorm:"type:varchar(255);not null"`
+	Description      *string    `gorm:"type:text"`
+	IsActive         OracleBool `gorm:"default:1"`
+	LastUsedAt       *time.Time
+	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt       time.Time `gorm:"not null;autoUpdateTime"`
+	ExpiresAt        *time.Time
 
 	// Relationships
 	Owner User `gorm:"foreignKey:OwnerUUID;references:InternalUUID"`
@@ -96,18 +158,20 @@ func (c *ClientCredential) BeforeCreate(tx *gorm.DB) error {
 }
 
 // ThreatModel represents a threat model in the system
+// Note: Explicit column tags removed for Oracle compatibility (Oracle stores column names as UPPERCASE,
+// and the dzwvip/oracle driver doesn't handle case-insensitive matching with explicit column tags)
 type ThreatModel struct {
-	ID                    string     `gorm:"column:id;primaryKey;type:varchar(36)"`
-	OwnerInternalUUID     string     `gorm:"column:owner_internal_uuid;type:varchar(36);not null;index"`
-	Name                  string     `gorm:"column:name;type:varchar(255);not null"`
-	Description           *string    `gorm:"column:description;type:text"`
-	CreatedByInternalUUID string     `gorm:"column:created_by_internal_uuid;type:varchar(36);not null"`
-	ThreatModelFramework  string     `gorm:"column:threat_model_framework;type:varchar(50);not null;default:STRIDE"`
-	IssueURI              *string    `gorm:"column:issue_uri;type:varchar(2048)"`
-	Status                *string    `gorm:"column:status;type:varchar(128)"`
-	StatusUpdated         *time.Time `gorm:"column:status_updated"`
-	CreatedAt             time.Time  `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt            time.Time  `gorm:"column:modified_at;not null;autoUpdateTime"`
+	ID                    string  `gorm:"primaryKey;type:varchar(36)"`
+	OwnerInternalUUID     string  `gorm:"type:varchar(36);not null;index"`
+	Name                  string  `gorm:"type:varchar(255);not null"`
+	Description           *string `gorm:"type:text"`
+	CreatedByInternalUUID string  `gorm:"type:varchar(36);not null"`
+	ThreatModelFramework  string  `gorm:"type:varchar(50);default:STRIDE"`
+	IssueURI              *string `gorm:"type:varchar(2048)"`
+	Status                *string `gorm:"type:varchar(128)"`
+	StatusUpdated         *time.Time
+	CreatedAt             time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt            time.Time `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	Owner     User      `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
@@ -131,19 +195,20 @@ func (t *ThreatModel) BeforeCreate(tx *gorm.DB) error {
 }
 
 // Diagram represents a diagram within a threat model
+// Note: Explicit column tags removed for Oracle compatibility
 type Diagram struct {
-	ID                string    `gorm:"column:id;primaryKey;type:varchar(36)"`
-	ThreatModelID     string    `gorm:"column:threat_model_id;type:varchar(36);not null;index"`
-	Name              string    `gorm:"column:name;type:varchar(255);not null"`
-	Description       *string   `gorm:"column:description;type:text"`
-	Type              *string   `gorm:"column:type;type:varchar(50)"`
-	Content           *string   `gorm:"column:content;type:text"`
-	Cells             JSONRaw   `gorm:"column:cells;type:json"`
-	SVGImage          *string   `gorm:"column:svg_image;type:text"`
-	ImageUpdateVector *int64    `gorm:"column:image_update_vector"`
-	UpdateVector      int64     `gorm:"column:update_vector;not null;default:0"`
-	CreatedAt         time.Time `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt        time.Time `gorm:"column:modified_at;not null;autoUpdateTime"`
+	ID                string  `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID     string  `gorm:"type:varchar(36);not null;index"`
+	Name              string  `gorm:"type:varchar(255);not null"`
+	Description       *string `gorm:"type:text"`
+	Type              *string `gorm:"type:varchar(50)"`
+	Content           *string `gorm:"type:text"`
+	Cells             JSONRaw `gorm:"type:json"`
+	SVGImage          *string `gorm:"type:text"`
+	ImageUpdateVector *int64
+	UpdateVector      int64     `gorm:"default:0"`
+	CreatedAt         time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt        time.Time `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -163,17 +228,18 @@ func (d *Diagram) BeforeCreate(tx *gorm.DB) error {
 }
 
 // Asset represents an asset within a threat model
+// Note: Explicit column tags removed for Oracle compatibility
 type Asset struct {
-	ID             string      `gorm:"column:id;primaryKey;type:varchar(36)"`
-	ThreatModelID  string      `gorm:"column:threat_model_id;type:varchar(36);not null;index"`
-	Name           string      `gorm:"column:name;type:varchar(255);not null"`
-	Description    *string     `gorm:"column:description;type:text"`
-	Type           string      `gorm:"column:type;type:varchar(50);not null"`
-	Criticality    *string     `gorm:"column:criticality;type:varchar(50)"`
-	Classification StringArray `gorm:"column:classification;type:json"`
-	Sensitivity    *string     `gorm:"column:sensitivity;type:varchar(50)"`
-	CreatedAt      time.Time   `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt     time.Time   `gorm:"column:modified_at;not null;autoUpdateTime"`
+	ID             string      `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID  string      `gorm:"type:varchar(36);not null;index"`
+	Name           string      `gorm:"type:varchar(255);not null"`
+	Description    *string     `gorm:"type:text"`
+	Type           string      `gorm:"type:varchar(50);not null"`
+	Criticality    *string     `gorm:"type:varchar(50)"`
+	Classification StringArray `gorm:"type:json"`
+	Sensitivity    *string     `gorm:"type:varchar(50)"`
+	CreatedAt      time.Time   `gorm:"not null;autoCreateTime"`
+	ModifiedAt     time.Time   `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -193,26 +259,27 @@ func (a *Asset) BeforeCreate(tx *gorm.DB) error {
 }
 
 // Threat represents a threat within a threat model
+// Note: Explicit column tags removed for Oracle compatibility
 type Threat struct {
-	ID            string      `gorm:"column:id;primaryKey;type:varchar(36)"`
-	ThreatModelID string      `gorm:"column:threat_model_id;type:varchar(36);not null;index"`
-	DiagramID     *string     `gorm:"column:diagram_id;type:varchar(36);index"`
-	CellID        *string     `gorm:"column:cell_id;type:varchar(36)"`
-	AssetID       *string     `gorm:"column:asset_id;type:varchar(36);index"`
-	Name          string      `gorm:"column:name;type:varchar(255);not null"`
-	Description   *string     `gorm:"column:description;type:text"`
-	Severity      *string     `gorm:"column:severity;type:varchar(50)"`
-	Likelihood    *string     `gorm:"column:likelihood;type:varchar(50)"`
-	RiskLevel     *string     `gorm:"column:risk_level;type:varchar(50)"`
-	Score         *float64    `gorm:"column:score;type:decimal(3,1)"`
-	Priority      *string     `gorm:"column:priority;type:varchar(50);default:Medium"`
-	Mitigated     bool        `gorm:"column:mitigated;default:false"`
-	Status        *string     `gorm:"column:status;type:varchar(50);default:Active"`
-	ThreatType    StringArray `gorm:"column:threat_type;type:json;not null"`
-	Mitigation    *string     `gorm:"column:mitigation;type:text"`
-	IssueURI      *string     `gorm:"column:issue_uri;type:varchar(2048)"`
-	CreatedAt     time.Time   `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt    time.Time   `gorm:"column:modified_at;not null;autoUpdateTime"`
+	ID            string      `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID string      `gorm:"type:varchar(36);not null;index"`
+	DiagramID     *string     `gorm:"type:varchar(36);index"`
+	CellID        *string     `gorm:"type:varchar(36)"`
+	AssetID       *string     `gorm:"type:varchar(36);index"`
+	Name          string      `gorm:"type:varchar(255);not null"`
+	Description   *string     `gorm:"type:text"`
+	Severity      *string     `gorm:"type:varchar(50)"`
+	Likelihood    *string     `gorm:"type:varchar(50)"`
+	RiskLevel     *string     `gorm:"type:varchar(50)"`
+	Score         *float64    `gorm:"type:decimal(3,1)"`
+	Priority      *string     `gorm:"type:varchar(50);default:Medium"`
+	Mitigated     OracleBool  `gorm:"default:0"`
+	Status        *string     `gorm:"type:varchar(50);default:Active"`
+	ThreatType    StringArray `gorm:"type:json;not null"`
+	Mitigation    *string     `gorm:"type:text"`
+	IssueURI      *string     `gorm:"type:varchar(2048)"`
+	CreatedAt     time.Time   `gorm:"not null;autoCreateTime"`
+	ModifiedAt    time.Time   `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -226,15 +293,16 @@ func (Threat) TableName() string {
 }
 
 // Group represents an identity provider group
+// Note: Explicit column tags removed for Oracle compatibility
 type Group struct {
-	InternalUUID string    `gorm:"column:internal_uuid;primaryKey;type:varchar(36)"`
-	Provider     string    `gorm:"column:provider;type:varchar(255);not null"`
-	GroupName    string    `gorm:"column:group_name;type:varchar(255);not null"`
-	Name         *string   `gorm:"column:name;type:varchar(255)"`
-	Description  *string   `gorm:"column:description;type:text"`
-	FirstUsed    time.Time `gorm:"column:first_used;not null;autoCreateTime"`
-	LastUsed     time.Time `gorm:"column:last_used;not null;autoUpdateTime"`
-	UsageCount   int       `gorm:"column:usage_count;default:1"`
+	InternalUUID string    `gorm:"primaryKey;type:varchar(36)"`
+	Provider     string    `gorm:"type:varchar(255);not null"`
+	GroupName    string    `gorm:"type:varchar(255);not null"`
+	Name         *string   `gorm:"type:varchar(255)"`
+	Description  *string   `gorm:"type:text"`
+	FirstUsed    time.Time `gorm:"not null;autoCreateTime"`
+	LastUsed     time.Time `gorm:"not null;autoUpdateTime"`
+	UsageCount   int       `gorm:"default:1"`
 }
 
 // TableName specifies the table name for Group
@@ -251,16 +319,18 @@ func (g *Group) BeforeCreate(tx *gorm.DB) error {
 }
 
 // ThreatModelAccess represents access control for threat models
+// Note: Explicit column tags removed for Oracle compatibility (Oracle stores column names as UPPERCASE,
+// and the dzwvip/oracle driver doesn't handle case-insensitive matching with explicit column tags)
 type ThreatModelAccess struct {
-	ID                    string    `gorm:"column:id;primaryKey;type:varchar(36)"`
-	ThreatModelID         string    `gorm:"column:threat_model_id;type:varchar(36);not null;index"`
-	UserInternalUUID      *string   `gorm:"column:user_internal_uuid;type:varchar(36);index"`
-	GroupInternalUUID     *string   `gorm:"column:group_internal_uuid;type:varchar(36);index"`
-	SubjectType           string    `gorm:"column:subject_type;type:varchar(10);not null"`
-	Role                  string    `gorm:"column:role;type:varchar(20);not null"`
-	GrantedByInternalUUID *string   `gorm:"column:granted_by_internal_uuid;type:varchar(36)"`
-	CreatedAt             time.Time `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt            time.Time `gorm:"column:modified_at;not null;autoUpdateTime"`
+	ID                    string    `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID         string    `gorm:"type:varchar(36);not null;index"`
+	UserInternalUUID      *string   `gorm:"type:varchar(36);index"`
+	GroupInternalUUID     *string   `gorm:"type:varchar(36);index"`
+	SubjectType           string    `gorm:"type:varchar(10);not null"`
+	Role                  string    `gorm:"type:varchar(20);not null"`
+	GrantedByInternalUUID *string   `gorm:"type:varchar(36)"`
+	CreatedAt             time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt            time.Time `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -283,14 +353,15 @@ func (t *ThreatModelAccess) BeforeCreate(tx *gorm.DB) error {
 }
 
 // Document represents a document attached to a threat model
+// Note: Explicit column tags removed for Oracle compatibility
 type Document struct {
-	ID            string    `gorm:"column:id;primaryKey;type:varchar(36)"`
-	ThreatModelID string    `gorm:"column:threat_model_id;type:varchar(36);not null;index"`
-	Name          string    `gorm:"column:name;type:varchar(255);not null"`
-	URI           string    `gorm:"column:uri;type:varchar(2048);not null"`
-	Description   *string   `gorm:"column:description;type:text"`
-	CreatedAt     time.Time `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt    time.Time `gorm:"column:modified_at;not null;autoUpdateTime"`
+	ID            string    `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID string    `gorm:"type:varchar(36);not null;index"`
+	Name          string    `gorm:"type:varchar(255);not null"`
+	URI           string    `gorm:"type:varchar(2048);not null"`
+	Description   *string   `gorm:"type:text"`
+	CreatedAt     time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt    time.Time `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -310,14 +381,15 @@ func (d *Document) BeforeCreate(tx *gorm.DB) error {
 }
 
 // Note represents a note attached to a threat model
+// Note: Explicit column tags removed for Oracle compatibility
 type Note struct {
-	ID            string    `gorm:"column:id;primaryKey;type:varchar(36)"`
-	ThreatModelID string    `gorm:"column:threat_model_id;type:varchar(36);not null;index"`
-	Name          string    `gorm:"column:name;type:varchar(255);not null"`
-	Content       string    `gorm:"column:content;type:text;not null"`
-	Description   *string   `gorm:"column:description;type:text"`
-	CreatedAt     time.Time `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt    time.Time `gorm:"column:modified_at;not null;autoUpdateTime"`
+	ID            string    `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID string    `gorm:"type:varchar(36);not null;index"`
+	Name          string    `gorm:"type:varchar(255);not null"`
+	Content       string    `gorm:"type:text;not null"`
+	Description   *string   `gorm:"type:text"`
+	CreatedAt     time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt    time.Time `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -337,16 +409,17 @@ func (n *Note) BeforeCreate(tx *gorm.DB) error {
 }
 
 // Repository represents a repository attached to a threat model
+// Note: Explicit column tags removed for Oracle compatibility
 type Repository struct {
-	ID            string    `gorm:"column:id;primaryKey;type:varchar(36)"`
-	ThreatModelID string    `gorm:"column:threat_model_id;type:varchar(36);not null;index"`
-	Name          *string   `gorm:"column:name;type:varchar(255)"`
-	URI           string    `gorm:"column:uri;type:varchar(2048);not null"`
-	Description   *string   `gorm:"column:description;type:text"`
-	Type          *string   `gorm:"column:type;type:varchar(50)"`
-	Parameters    JSONMap   `gorm:"column:parameters;type:json"`
-	CreatedAt     time.Time `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt    time.Time `gorm:"column:modified_at;not null;autoUpdateTime"`
+	ID            string    `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID string    `gorm:"type:varchar(36);not null;index"`
+	Name          *string   `gorm:"type:varchar(255)"`
+	URI           string    `gorm:"type:varchar(2048);not null"`
+	Description   *string   `gorm:"type:text"`
+	Type          *string   `gorm:"type:varchar(50)"`
+	Parameters    JSONMap   `gorm:"type:json"`
+	CreatedAt     time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt    time.Time `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -366,14 +439,15 @@ func (r *Repository) BeforeCreate(tx *gorm.DB) error {
 }
 
 // Metadata represents key-value metadata for entities
+// Note: Explicit column tags removed for Oracle compatibility
 type Metadata struct {
-	ID         string    `gorm:"column:id;primaryKey;type:varchar(36)"`
-	EntityType string    `gorm:"column:entity_type;type:varchar(50);not null"`
-	EntityID   string    `gorm:"column:entity_id;type:varchar(36);not null"`
-	Key        string    `gorm:"column:key;type:varchar(128);not null"`
-	Value      string    `gorm:"column:value;type:text;not null"`
-	CreatedAt  time.Time `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt time.Time `gorm:"column:modified_at;not null;autoUpdateTime"`
+	ID         string    `gorm:"primaryKey;type:varchar(36)"`
+	EntityType string    `gorm:"type:varchar(50);not null"`
+	EntityID   string    `gorm:"type:varchar(36);not null"`
+	Key        string    `gorm:"type:varchar(128);not null"`
+	Value      string    `gorm:"type:text;not null"`
+	CreatedAt  time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt time.Time `gorm:"not null;autoUpdateTime"`
 }
 
 // TableName specifies the table name for Metadata
@@ -382,13 +456,14 @@ func (Metadata) TableName() string {
 }
 
 // CollaborationSession represents a real-time collaboration session
+// Note: Explicit column tags removed for Oracle compatibility
 type CollaborationSession struct {
-	ID            string     `gorm:"column:id;primaryKey;type:varchar(36)"`
-	ThreatModelID string     `gorm:"column:threat_model_id;type:varchar(36);not null;index"`
-	DiagramID     string     `gorm:"column:diagram_id;type:varchar(36);not null;index"`
-	WebsocketURL  string     `gorm:"column:websocket_url;type:varchar(2048);not null"`
-	CreatedAt     time.Time  `gorm:"column:created_at;not null;autoCreateTime"`
-	ExpiresAt     *time.Time `gorm:"column:expires_at"`
+	ID            string    `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID string    `gorm:"type:varchar(36);not null;index"`
+	DiagramID     string    `gorm:"type:varchar(36);not null;index"`
+	WebsocketURL  string    `gorm:"type:varchar(2048);not null"`
+	CreatedAt     time.Time `gorm:"not null;autoCreateTime"`
+	ExpiresAt     *time.Time
 
 	// Relationships
 	ThreatModel  ThreatModel          `gorm:"foreignKey:ThreatModelID"`
@@ -410,12 +485,13 @@ func (c *CollaborationSession) BeforeCreate(tx *gorm.DB) error {
 }
 
 // SessionParticipant represents a participant in a collaboration session
+// Note: Explicit column tags removed for Oracle compatibility
 type SessionParticipant struct {
-	ID               string     `gorm:"column:id;primaryKey;type:varchar(36)"`
-	SessionID        string     `gorm:"column:session_id;type:varchar(36);not null;index"`
-	UserInternalUUID string     `gorm:"column:user_internal_uuid;type:varchar(36);not null;index"`
-	JoinedAt         time.Time  `gorm:"column:joined_at;not null;autoCreateTime"`
-	LeftAt           *time.Time `gorm:"column:left_at"`
+	ID               string    `gorm:"primaryKey;type:varchar(36)"`
+	SessionID        string    `gorm:"type:varchar(36);not null;index"`
+	UserInternalUUID string    `gorm:"type:varchar(36);not null;index"`
+	JoinedAt         time.Time `gorm:"not null;autoCreateTime"`
+	LeftAt           *time.Time
 
 	// Relationships
 	Session CollaborationSession `gorm:"foreignKey:SessionID"`
@@ -436,22 +512,23 @@ func (s *SessionParticipant) BeforeCreate(tx *gorm.DB) error {
 }
 
 // WebhookSubscription represents a webhook subscription
+// Note: Explicit column tags removed for Oracle compatibility
 type WebhookSubscription struct {
-	ID                  string      `gorm:"column:id;primaryKey;type:varchar(36)"`
-	OwnerInternalUUID   string      `gorm:"column:owner_internal_uuid;type:varchar(36);not null;index"`
-	ThreatModelID       *string     `gorm:"column:threat_model_id;type:varchar(36);index"`
-	Name                string      `gorm:"column:name;type:varchar(255);not null"`
-	URL                 string      `gorm:"column:url;type:varchar(2048);not null"`
-	Events              StringArray `gorm:"column:events;type:json;not null"`
-	Secret              *string     `gorm:"column:secret;type:text"`
-	Status              string      `gorm:"column:status;type:varchar(50);not null;default:pending_verification"`
-	Challenge           *string     `gorm:"column:challenge;type:text"`
-	ChallengesSent      int         `gorm:"column:challenges_sent;not null;default:0"`
-	TimeoutCount        int         `gorm:"column:timeout_count;not null;default:0"`
-	CreatedAt           time.Time   `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt          time.Time   `gorm:"column:modified_at;not null;autoUpdateTime"`
-	LastSuccessfulUse   *time.Time  `gorm:"column:last_successful_use"`
-	PublicationFailures int         `gorm:"column:publication_failures;not null;default:0"`
+	ID                  string      `gorm:"primaryKey;type:varchar(36)"`
+	OwnerInternalUUID   string      `gorm:"type:varchar(36);not null;index"`
+	ThreatModelID       *string     `gorm:"type:varchar(36);index"`
+	Name                string      `gorm:"type:varchar(255);not null"`
+	URL                 string      `gorm:"type:varchar(2048);not null"`
+	Events              StringArray `gorm:"type:json;not null"`
+	Secret              *string     `gorm:"type:text"`
+	Status              string      `gorm:"type:varchar(50);default:pending_verification"`
+	Challenge           *string     `gorm:"type:text"`
+	ChallengesSent      int         `gorm:"default:0"`
+	TimeoutCount        int         `gorm:"default:0"`
+	CreatedAt           time.Time   `gorm:"not null;autoCreateTime"`
+	ModifiedAt          time.Time   `gorm:"not null;autoUpdateTime"`
+	LastSuccessfulUse   *time.Time
+	PublicationFailures int `gorm:"default:0"`
 
 	// Relationships
 	Owner       User         `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
@@ -472,17 +549,18 @@ func (w *WebhookSubscription) BeforeCreate(tx *gorm.DB) error {
 }
 
 // WebhookDelivery represents a webhook delivery attempt
+// Note: Explicit column tags removed for Oracle compatibility
 type WebhookDelivery struct {
-	ID             string     `gorm:"column:id;primaryKey;type:varchar(36)"`
-	SubscriptionID string     `gorm:"column:subscription_id;type:varchar(36);not null;index"`
-	EventType      string     `gorm:"column:event_type;type:varchar(100);not null"`
-	Payload        JSONRaw    `gorm:"column:payload;type:json;not null"`
-	Status         string     `gorm:"column:status;type:varchar(20);not null;default:pending"`
-	Attempts       int        `gorm:"column:attempts;not null;default:0"`
-	NextRetryAt    *time.Time `gorm:"column:next_retry_at"`
-	LastError      *string    `gorm:"column:last_error;type:text"`
-	CreatedAt      time.Time  `gorm:"column:created_at;not null;autoCreateTime"`
-	DeliveredAt    *time.Time `gorm:"column:delivered_at"`
+	ID             string  `gorm:"primaryKey;type:varchar(36)"`
+	SubscriptionID string  `gorm:"type:varchar(36);not null;index"`
+	EventType      string  `gorm:"type:varchar(100);not null"`
+	Payload        JSONRaw `gorm:"type:json;not null"`
+	Status         string  `gorm:"type:varchar(20);default:pending"`
+	Attempts       int     `gorm:"default:0"`
+	NextRetryAt    *time.Time
+	LastError      *string   `gorm:"type:text"`
+	CreatedAt      time.Time `gorm:"not null;autoCreateTime"`
+	DeliveredAt    *time.Time
 
 	// Relationships
 	Subscription WebhookSubscription `gorm:"foreignKey:SubscriptionID"`
@@ -494,14 +572,15 @@ func (WebhookDelivery) TableName() string {
 }
 
 // WebhookQuota represents per-user webhook quotas
+// Note: Explicit column tags removed for Oracle compatibility
 type WebhookQuota struct {
-	OwnerID                          string    `gorm:"column:owner_id;primaryKey;type:varchar(36)"`
-	MaxSubscriptions                 int       `gorm:"column:max_subscriptions;not null;default:10"`
-	MaxEventsPerMinute               int       `gorm:"column:max_events_per_minute;not null;default:12"`
-	MaxSubscriptionRequestsPerMinute int       `gorm:"column:max_subscription_requests_per_minute;not null;default:10"`
-	MaxSubscriptionRequestsPerDay    int       `gorm:"column:max_subscription_requests_per_day;not null;default:20"`
-	CreatedAt                        time.Time `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt                       time.Time `gorm:"column:modified_at;not null;autoUpdateTime"`
+	OwnerID                          string    `gorm:"primaryKey;type:varchar(36)"`
+	MaxSubscriptions                 int       `gorm:"default:10"`
+	MaxEventsPerMinute               int       `gorm:"default:12"`
+	MaxSubscriptionRequestsPerMinute int       `gorm:"default:10"`
+	MaxSubscriptionRequestsPerDay    int       `gorm:"default:20"`
+	CreatedAt                        time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt                       time.Time `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	Owner User `gorm:"foreignKey:OwnerID;references:InternalUUID"`
@@ -513,12 +592,13 @@ func (WebhookQuota) TableName() string {
 }
 
 // WebhookURLDenyList represents URL patterns blocked for webhooks
+// Note: Explicit column tags removed for Oracle compatibility
 type WebhookURLDenyList struct {
-	ID          string    `gorm:"column:id;primaryKey;type:varchar(36)"`
-	Pattern     string    `gorm:"column:pattern;type:varchar(255);not null"`
-	PatternType string    `gorm:"column:pattern_type;type:varchar(20);not null"`
-	Description *string   `gorm:"column:description;type:text"`
-	CreatedAt   time.Time `gorm:"column:created_at;not null;autoCreateTime"`
+	ID          string    `gorm:"primaryKey;type:varchar(36)"`
+	Pattern     string    `gorm:"type:varchar(255);not null"`
+	PatternType string    `gorm:"type:varchar(20);not null"`
+	Description *string   `gorm:"type:text"`
+	CreatedAt   time.Time `gorm:"not null;autoCreateTime"`
 }
 
 // TableName specifies the table name for WebhookURLDenyList
@@ -535,15 +615,16 @@ func (w *WebhookURLDenyList) BeforeCreate(tx *gorm.DB) error {
 }
 
 // Administrator represents an administrator (user or group)
+// Note: Explicit column tags removed for Oracle compatibility
 type Administrator struct {
-	ID                    string    `gorm:"column:id;primaryKey;type:varchar(36)"`
-	UserInternalUUID      *string   `gorm:"column:user_internal_uuid;type:varchar(36);index"`
-	GroupInternalUUID     *string   `gorm:"column:group_internal_uuid;type:varchar(36);index"`
-	SubjectType           string    `gorm:"column:subject_type;type:varchar(10);not null"`
-	Provider              string    `gorm:"column:provider;type:varchar(255);not null"`
-	GrantedAt             time.Time `gorm:"column:granted_at;not null;autoCreateTime"`
-	GrantedByInternalUUID *string   `gorm:"column:granted_by_internal_uuid;type:varchar(36)"`
-	Notes                 *string   `gorm:"column:notes;type:text"`
+	ID                    string    `gorm:"primaryKey;type:varchar(36)"`
+	UserInternalUUID      *string   `gorm:"type:varchar(36);index"`
+	GroupInternalUUID     *string   `gorm:"type:varchar(36);index"`
+	SubjectType           string    `gorm:"type:varchar(10);not null"`
+	Provider              string    `gorm:"type:varchar(255);not null"`
+	GrantedAt             time.Time `gorm:"not null;autoCreateTime"`
+	GrantedByInternalUUID *string   `gorm:"type:varchar(36)"`
+	Notes                 *string   `gorm:"type:text"`
 
 	// Relationships
 	User      *User  `gorm:"foreignKey:UserInternalUUID;references:InternalUUID"`
@@ -565,15 +646,16 @@ func (a *Administrator) BeforeCreate(tx *gorm.DB) error {
 }
 
 // Addon represents an addon configuration
+// Note: Explicit column tags removed for Oracle compatibility
 type Addon struct {
-	ID            string      `gorm:"column:id;primaryKey;type:varchar(36)"`
-	CreatedAt     time.Time   `gorm:"column:created_at;not null;autoCreateTime"`
-	Name          string      `gorm:"column:name;type:varchar(255);not null"`
-	WebhookID     string      `gorm:"column:webhook_id;type:varchar(36);not null;index"`
-	Description   *string     `gorm:"column:description;type:text"`
-	Icon          *string     `gorm:"column:icon;type:text"`
-	Objects       StringArray `gorm:"column:objects;type:json"`
-	ThreatModelID *string     `gorm:"column:threat_model_id;type:varchar(36);index"`
+	ID            string      `gorm:"primaryKey;type:varchar(36)"`
+	CreatedAt     time.Time   `gorm:"not null;autoCreateTime"`
+	Name          string      `gorm:"type:varchar(255);not null"`
+	WebhookID     string      `gorm:"type:varchar(36);not null;index"`
+	Description   *string     `gorm:"type:text"`
+	Icon          *string     `gorm:"type:text"`
+	Objects       StringArray `gorm:"type:json"`
+	ThreatModelID *string     `gorm:"type:varchar(36);index"`
 
 	// Relationships
 	Webhook     WebhookSubscription `gorm:"foreignKey:WebhookID"`
@@ -594,12 +676,13 @@ func (a *Addon) BeforeCreate(tx *gorm.DB) error {
 }
 
 // AddonInvocationQuota represents per-user addon invocation quotas
+// Note: Explicit column tags removed for Oracle compatibility
 type AddonInvocationQuota struct {
-	OwnerInternalUUID     string    `gorm:"column:owner_internal_uuid;primaryKey;type:varchar(36)"`
-	MaxActiveInvocations  int       `gorm:"column:max_active_invocations;not null;default:1"`
-	MaxInvocationsPerHour int       `gorm:"column:max_invocations_per_hour;not null;default:10"`
-	CreatedAt             time.Time `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt            time.Time `gorm:"column:modified_at;not null;autoUpdateTime"`
+	OwnerInternalUUID     string    `gorm:"primaryKey;type:varchar(36)"`
+	MaxActiveInvocations  int       `gorm:"default:1"`
+	MaxInvocationsPerHour int       `gorm:"default:10"`
+	CreatedAt             time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt            time.Time `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	Owner User `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
@@ -611,12 +694,13 @@ func (AddonInvocationQuota) TableName() string {
 }
 
 // UserAPIQuota represents per-user API rate limits
+// Note: Explicit column tags removed for Oracle compatibility
 type UserAPIQuota struct {
-	UserInternalUUID     string    `gorm:"column:user_internal_uuid;primaryKey;type:varchar(36)"`
-	MaxRequestsPerMinute int       `gorm:"column:max_requests_per_minute;not null;default:100"`
-	MaxRequestsPerHour   *int      `gorm:"column:max_requests_per_hour"`
-	CreatedAt            time.Time `gorm:"column:created_at;not null;autoCreateTime"`
-	ModifiedAt           time.Time `gorm:"column:modified_at;not null;autoUpdateTime"`
+	UserInternalUUID     string `gorm:"primaryKey;type:varchar(36)"`
+	MaxRequestsPerMinute int    `gorm:"default:100"`
+	MaxRequestsPerHour   *int
+	CreatedAt            time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt           time.Time `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	User User `gorm:"foreignKey:UserInternalUUID;references:InternalUUID"`
@@ -628,13 +712,14 @@ func (UserAPIQuota) TableName() string {
 }
 
 // GroupMember represents a user's membership in a group
+// Note: Explicit column tags removed for Oracle compatibility
 type GroupMember struct {
-	ID                  string    `gorm:"column:id;primaryKey;type:varchar(36)"`
-	GroupInternalUUID   string    `gorm:"column:group_internal_uuid;type:varchar(36);not null;index"`
-	UserInternalUUID    string    `gorm:"column:user_internal_uuid;type:varchar(36);not null;index"`
-	AddedByInternalUUID *string   `gorm:"column:added_by_internal_uuid;type:varchar(36)"`
-	AddedAt             time.Time `gorm:"column:added_at;not null;autoCreateTime"`
-	Notes               *string   `gorm:"column:notes;type:text"`
+	ID                  string    `gorm:"primaryKey;type:varchar(36)"`
+	GroupInternalUUID   string    `gorm:"type:varchar(36);not null;index"`
+	UserInternalUUID    string    `gorm:"type:varchar(36);not null;index"`
+	AddedByInternalUUID *string   `gorm:"type:varchar(36)"`
+	AddedAt             time.Time `gorm:"not null;autoCreateTime"`
+	Notes               *string   `gorm:"type:text"`
 
 	// Relationships
 	Group   Group `gorm:"foreignKey:GroupInternalUUID;references:InternalUUID"`

@@ -130,6 +130,9 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	}
 
 	// Configure GORM
+	// Note: For Oracle, the dzwvip/oracle driver's Namer automatically converts
+	// table and column names to UPPERCASE. By not specifying explicit column tags
+	// in models, GORM will use the NamingStrategy which the Oracle driver wraps.
 	gormConfig := &gorm.Config{
 		Logger: newGormLogger(log),
 		NowFunc: func() time.Time {

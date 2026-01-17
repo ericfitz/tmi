@@ -601,6 +601,12 @@ start-dev-0:
 start-dev-oci:
 	@./scripts/start-dev-oci.sh
 
+# Oracle ADB Utility - Drop all tables in OCI Autonomous Database
+# Prerequisites: Same as start-dev-oci (Oracle Instant Client, wallet, credentials)
+# WARNING: This is destructive and will delete all data in the Oracle database
+drop-oracle-tables:
+	@./scripts/drop-oracle-tables.sh
+
 # Development Environment - Restart (stop server, clean logs, start dev)
 restart-dev:
 	$(call log_info,"Restarting development environment")
@@ -1417,6 +1423,7 @@ help:
 	@echo "  test-integration       - Run integration tests with full setup"
 	@echo "  start-dev              - Start development environment"
 	@echo "  start-dev-oci          - Start dev environment with OCI Autonomous Database"
+	@echo "  drop-oracle-tables     - Drop all tables in OCI ADB (destructive)"
 	@echo "  start-dev-existing     - Start server using existing containers"
 	@echo "  clean-dev              - Clean development environment"
 	@echo ""

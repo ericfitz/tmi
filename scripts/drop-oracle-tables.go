@@ -1,77 +1,52 @@
-// +build ignore
+//go:build ignore
+
+// Drop all tables in Oracle ADB
 
 package main
 
 import (
-	"database/sql"
 	"fmt"
-	"log"
 	"os"
 
-	_ "github.com/godror/godror"
+	oracle "github.com/dzwvip/oracle"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func main() {
-	// Build DSN from environment
-	user := "ADMIN"
 	password := os.Getenv("ORACLE_PASSWORD")
 	if password == "" {
-		log.Fatal("ORACLE_PASSWORD environment variable not set")
+		fmt.Println("ERROR: ORACLE_PASSWORD environment variable not set")
+		os.Exit(1)
 	}
-	walletDir := os.Getenv("TNS_ADMIN")
-	if walletDir == "" {
-		walletDir = "/Users/efitz/Projects/tmi/wallet"
-	}
-	connectString := "tmiadb_medium"
 
-	dsn := fmt.Sprintf(`user="%s" password="%s" connectString="%s" configDir="%s"`,
-		user, password, connectString, walletDir)
-
-	db, err := sql.Open("godror", dsn)
+	// Connect to Oracle
+	dsn := fmt.Sprintf(`user=ADMIN password="%s" connectString=tmiadb_medium`, password)
+	db, err := gorm.Open(oracle.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
-		log.Fatalf("Failed to connect: %v", err)
-	}
-	defer db.Close()
-
-	// Test connection
-	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping: %v", err)
-	}
-	fmt.Println("Connected to Oracle ADB successfully")
-
-	// Get list of tables to drop (in dependency order - children first)
-	tables := []string{
-		"audit_entries",
-		"webhook_deliveries",
-		"webhook_subscriptions",
-		"rate_limits",
-		"version_history",
-		"collaborators",
-		"collaboration_sessions",
-		"repository_members",
-		"repositories",
-		"notes",
-		"documents",
-		"threat_model_accesses",
-		"threats",
-		"assets",
-		"diagrams",
-		"threat_models",
-		"addon_relationships",
-		"addons",
-		"group_memberships",
-		"groups",
-		"client_credentials",
-		"refresh_tokens",
-		"users",
+		fmt.Printf("Failed to connect to Oracle: %v\n", err)
+		os.Exit(1)
 	}
 
+	fmt.Println("Connected to Oracle ADB")
+
+	// Get all table names
+	var tables []string
+	result := db.Raw("SELECT table_name FROM user_tables").Scan(&tables)
+	if result.Error != nil {
+		fmt.Printf("Failed to list tables: %v\n", result.Error)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Found %d tables\n", len(tables))
+
+	// Drop each table
 	for _, table := range tables {
-		_, err := db.Exec(fmt.Sprintf("DROP TABLE %s CASCADE CONSTRAINTS", table))
-		if err != nil {
-			fmt.Printf("Could not drop %s (may not exist): %v\n", table, err)
-		} else {
-			fmt.Printf("Dropped table: %s\n", table)
+		fmt.Printf("Dropping table: %s\n", table)
+		if err := db.Exec(fmt.Sprintf("DROP TABLE \"%s\" CASCADE CONSTRAINTS PURGE", table)).Error; err != nil {
+			fmt.Printf("  Warning: Failed to drop %s: %v\n", table, err)
 		}
 	}
 

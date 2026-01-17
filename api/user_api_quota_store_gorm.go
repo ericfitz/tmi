@@ -120,16 +120,13 @@ func (s *GormUserAPIQuotaStore) Update(userID string, item UserAPIQuota) error {
 
 	logger := slogging.Get()
 
-	// Update modified timestamp
-	updatedItem := UpdateTimestamps(&item, false)
-	item = *updatedItem
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 
 	result := s.db.Model(&models.UserAPIQuota{}).
 		Where("user_internal_uuid = ?", userID).
 		Updates(map[string]interface{}{
 			"max_requests_per_minute": item.MaxRequestsPerMinute,
 			"max_requests_per_hour":   item.MaxRequestsPerHour,
-			"modified_at":             item.ModifiedAt,
 		})
 
 	if result.Error != nil {

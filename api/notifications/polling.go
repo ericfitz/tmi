@@ -16,7 +16,7 @@ type NotificationQueueEntry struct {
 	Channel   string    `gorm:"column:channel;type:varchar(255);not null;index"`
 	Payload   string    `gorm:"column:payload;type:text"`
 	CreatedAt time.Time `gorm:"column:created_at;not null;autoCreateTime"`
-	Processed bool      `gorm:"column:processed;not null;default:false;index"`
+	Processed bool      `gorm:"column:processed;default:false;not null;index"`
 }
 
 // TableName specifies the table name for NotificationQueueEntry

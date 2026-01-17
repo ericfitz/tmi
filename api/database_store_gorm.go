@@ -473,6 +473,7 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	}
 
 	// Update threat model
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	updates := map[string]interface{}{
 		"name":                     item.Name,
 		"description":              item.Description,
@@ -481,7 +482,6 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 		"threat_model_framework":   framework,
 		"issue_uri":                item.IssueUri,
 		"status":                   item.Status,
-		"modified_at":              item.ModifiedAt,
 	}
 	if statusUpdated != nil {
 		updates["status_updated"] = statusUpdated
@@ -546,41 +546,54 @@ func (s *GormThreatModelStore) Count() int {
 }
 
 // loadAuthorization loads authorization entries for a threat model using GORM
+// Note: Using manual lookups instead of Preload for Oracle compatibility
 func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Authorization, error) {
+	logger := slogging.Get()
 	var accessEntries []models.ThreatModelAccess
-	result := s.db.Preload("User").Preload("Group").
-		Where("threat_model_id = ?", threatModelID).
+	result := s.db.Where("threat_model_id = ?", threatModelID).
 		Order("role DESC").
 		Find(&accessEntries)
 	if result.Error != nil {
 		return nil, result.Error
 	}
 
+	logger.Debug("[GORM-STORE] loadAuthorization: Found %d access entries for threat model %s", len(accessEntries), threatModelID)
+
 	// Initialize as empty slice
 	authorization := []Authorization{}
 
-	for _, entry := range accessEntries {
+	for i, entry := range accessEntries {
 		role := AuthorizationRole(entry.Role)
+		logger.Debug("[GORM-STORE] loadAuthorization: Entry %d - SubjectType=%s, UserUUID=%v, GroupUUID=%v, Role=%s",
+			i, entry.SubjectType, entry.UserInternalUUID, entry.GroupInternalUUID, entry.Role)
 
-		if entry.SubjectType == "user" && entry.User != nil {
-			auth := Authorization{
-				PrincipalType: AuthorizationPrincipalTypeUser,
-				Provider:      entry.User.Provider,
-				ProviderId:    derefString(entry.User.ProviderUserID),
-				DisplayName:   &entry.User.Name,
-				Email:         (*openapi_types.Email)(&entry.User.Email),
-				Role:          role,
+		if entry.SubjectType == "user" && entry.UserInternalUUID != nil {
+			// Manually load the user for Oracle compatibility (Preload doesn't work with Oracle driver)
+			var user models.User
+			if err := s.db.Where("internal_uuid = ?", *entry.UserInternalUUID).First(&user).Error; err == nil {
+				auth := Authorization{
+					PrincipalType: AuthorizationPrincipalTypeUser,
+					Provider:      user.Provider,
+					ProviderId:    derefString(user.ProviderUserID),
+					DisplayName:   &user.Name,
+					Email:         (*openapi_types.Email)(&user.Email),
+					Role:          role,
+				}
+				authorization = append(authorization, auth)
 			}
-			authorization = append(authorization, auth)
-		} else if entry.SubjectType == "group" && entry.Group != nil {
-			auth := Authorization{
-				PrincipalType: AuthorizationPrincipalTypeGroup,
-				Provider:      entry.Group.Provider,
-				ProviderId:    entry.Group.GroupName,
-				DisplayName:   entry.Group.Name,
-				Role:          role,
+		} else if entry.SubjectType == "group" && entry.GroupInternalUUID != nil {
+			// Manually load the group for Oracle compatibility
+			var group models.Group
+			if err := s.db.Where("internal_uuid = ?", *entry.GroupInternalUUID).First(&group).Error; err == nil {
+				auth := Authorization{
+					PrincipalType: AuthorizationPrincipalTypeGroup,
+					Provider:      group.Provider,
+					ProviderId:    group.GroupName,
+					DisplayName:   group.Name,
+					Role:          role,
+				}
+				authorization = append(authorization, auth)
 			}
-			authorization = append(authorization, auth)
 		}
 	}
 
@@ -650,8 +663,9 @@ func (s *GormThreatModelStore) loadThreats(threatModelID string) ([]Threat, erro
 		threatMetadata, _ := s.loadThreatMetadata(tm.ID)
 		metadata := &threatMetadata
 
-		// Convert mitigated from bool to *bool
-		mitigated := &tm.Mitigated
+		// Convert mitigated from OracleBool to *bool
+		mitigatedBool := tm.Mitigated.Bool()
+		mitigated := &mitigatedBool
 
 		threats = append(threats, Threat{
 			Id:            &threatUUID,
@@ -798,18 +812,11 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 			Role:              string(auth.Role),
 		}
 
-		// Upsert: insert or update on conflict
-		var conflictColumns []clause.Column
-		if subjectTypeStr == "user" {
-			conflictColumns = []clause.Column{{Name: "threat_model_id"}, {Name: "user_internal_uuid"}, {Name: "subject_type"}}
-		} else {
-			conflictColumns = []clause.Column{{Name: "threat_model_id"}, {Name: "group_internal_uuid"}, {Name: "subject_type"}}
-		}
-
-		result := tx.Clauses(clause.OnConflict{
-			Columns:   conflictColumns,
-			DoUpdates: clause.AssignmentColumns([]string{"role", "modified_at"}),
-		}).Create(&access)
+		// For Oracle compatibility, use simple Create
+		// The BeforeCreate hook will generate a new ID
+		// If we need upsert behavior, we should delete existing entries first
+		// (which is done in updateAuthorizationTx before calling this function)
+		result := tx.Create(&access)
 
 		if result.Error != nil {
 			logger.Error("[GORM-STORE] saveAuthorizationTx: Failed to insert authorization entry: %v", result.Error)
@@ -1096,6 +1103,7 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 		diagType = &t
 	}
 
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	updates := map[string]interface{}{
 		"name":                item.Name,
 		"description":         item.Description,
@@ -1104,7 +1112,6 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 		"svg_image":           svgImage,
 		"image_update_vector": imageUpdateVector,
 		"update_vector":       updateVector,
-		"modified_at":         item.ModifiedAt,
 	}
 
 	result := s.db.Model(&models.Diagram{}).Where("id = ?", id).Updates(updates)

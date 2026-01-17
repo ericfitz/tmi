@@ -889,16 +889,13 @@ func (s *GormWebhookQuotaStore) Update(ownerID string, item DBWebhookQuota) erro
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Update modified timestamp
-	updatedItem := UpdateTimestamps(&item, false)
-	item = *updatedItem
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 
 	result := s.db.Model(&models.WebhookQuota{}).Where("owner_id = ?", ownerID).Updates(map[string]interface{}{
 		"max_subscriptions":                    item.MaxSubscriptions,
 		"max_events_per_minute":                item.MaxEventsPerMinute,
 		"max_subscription_requests_per_minute": item.MaxSubscriptionRequestsPerMinute,
 		"max_subscription_requests_per_day":    item.MaxSubscriptionRequestsPerDay,
-		"modified_at":                          item.ModifiedAt,
 	})
 
 	if result.Error != nil {

@@ -1062,21 +1062,20 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	} else {
 		// Non-postgres databases use GORM AutoMigrate
 		logger.Info("Running GORM AutoMigrate for %s database", dbType)
-		// Migrate models one at a time to handle "already exists" errors gracefully
+		// Migrate all models at once - GORM will handle foreign key ordering
 		models := api.GetAllModels()
-		for _, model := range models {
-			if err := gormDB.AutoMigrate(model); err != nil {
-				// Oracle ORA-00955: name is already used by an existing object
-				// This is acceptable - table already exists from a previous migration
-				errStr := err.Error()
-				if strings.Contains(errStr, "ORA-00955") {
-					logger.Debug("Table already exists, continuing: %v", err)
-					continue
-				}
+		if err := gormDB.AutoMigrate(models...); err != nil {
+			// Oracle ORA-00955: name is already used by an existing object
+			// This is acceptable - table already exists from a previous migration
+			errStr := err.Error()
+			if strings.Contains(errStr, "ORA-00955") {
+				logger.Debug("Some tables already exist, continuing: %v", err)
+			} else {
 				logger.Error("Failed to auto-migrate schema: %v", err)
 				os.Exit(1)
 			}
 		}
+		logger.Info("GORM AutoMigrate completed for %d models", len(models))
 	}
 
 	// ==== PHASE 3: Auth System ====

@@ -850,7 +850,7 @@ func (s *GormThreatStore) toGormModel(threat *Threat) *models.Threat {
 		gm.Priority = threat.Priority
 	}
 	if threat.Mitigated != nil {
-		gm.Mitigated = *threat.Mitigated
+		gm.Mitigated = models.OracleBool(*threat.Mitigated)
 	}
 	if threat.Score != nil {
 		score64 := float64(*threat.Score)
@@ -883,10 +883,11 @@ func (s *GormThreatStore) toGormModel(threat *Threat) *models.Threat {
 
 // toAPIModel converts a GORM Threat model to an API model
 func (s *GormThreatStore) toAPIModel(gm *models.Threat) *Threat {
+	mitigatedBool := gm.Mitigated.Bool()
 	threat := &Threat{
 		Name:       gm.Name,
 		ThreatType: []string(gm.ThreatType),
-		Mitigated:  &gm.Mitigated,
+		Mitigated:  &mitigatedBool,
 		CreatedAt:  &gm.CreatedAt,
 		ModifiedAt: &gm.ModifiedAt,
 	}

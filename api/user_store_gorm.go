@@ -277,7 +277,7 @@ func (s *GormUserStore) convertToAdminUser(gu *models.User) AdminUser {
 		ProviderUserId: derefString(gu.ProviderUserID),
 		Email:          openapi_types.Email(gu.Email),
 		Name:           gu.Name,
-		EmailVerified:  gu.EmailVerified,
+		EmailVerified:  gu.EmailVerified.Bool(),
 		CreatedAt:      gu.CreatedAt,
 		ModifiedAt:     gu.ModifiedAt,
 	}
