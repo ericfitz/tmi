@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 
 	"github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/auth/repository"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -20,11 +20,14 @@ import (
 
 // Service provides authentication and authorization functionality
 type Service struct {
-	dbManager   *db.Manager
-	config      Config
-	keyManager  *JWTKeyManager
-	samlManager *SAMLManager
-	stateStore  StateStore
+	dbManager    *db.Manager
+	config       Config
+	keyManager   *JWTKeyManager
+	samlManager  *SAMLManager
+	stateStore   StateStore
+	userRepo     repository.UserRepository
+	credRepo     repository.ClientCredentialRepository
+	deletionRepo repository.DeletionRepository
 }
 
 // NewService creates a new authentication service
@@ -53,12 +56,21 @@ func NewService(dbManager *db.Manager, config Config) (*Service, error) {
 	// Initialize state store (in-memory for now, can be Redis later)
 	stateStore := NewInMemoryStateStore()
 
+	// Initialize GORM repositories
+	gormDB := dbManager.Gorm().DB()
+	userRepo := repository.NewGormUserRepository(gormDB)
+	credRepo := repository.NewGormClientCredentialRepository(gormDB)
+	deletionRepo := repository.NewGormDeletionRepository(gormDB)
+
 	// Create service instance
 	service := &Service{
-		dbManager:  dbManager,
-		config:     config,
-		keyManager: keyManager,
-		stateStore: stateStore,
+		dbManager:    dbManager,
+		config:       config,
+		keyManager:   keyManager,
+		stateStore:   stateStore,
+		userRepo:     userRepo,
+		credRepo:     credRepo,
+		deletionRepo: deletionRepo,
 	}
 
 	// Initialize SAML manager if configured
@@ -318,35 +330,15 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 		return *cachedUser, nil
 	}
 
-	db := s.dbManager.Postgres().GetDB()
-
-	var user User
-	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login FROM users WHERE email = $1`
-	err = db.QueryRowContext(ctx, query, email).Scan(
-		&user.InternalUUID,
-		&user.Provider,
-		&user.ProviderUserID,
-		&user.Email,
-		&user.Name,
-		&user.EmailVerified,
-		&user.AccessToken,
-		&user.RefreshToken,
-		&user.TokenExpiry,
-		&user.CreatedAt,
-		&user.ModifiedAt,
-		&user.LastLogin,
-	)
-
-	if err == sql.ErrNoRows {
-		return User{}, errors.New("user not found")
-	}
-
+	repoUser, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		// Keep error logging - helps diagnose database schema issues
-		logger := slogging.Get()
-		logger.Error("GetUserByEmail: database scan failed for email=%s: %v", email, err)
-		return User{}, fmt.Errorf("failed to get user: %w", err)
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return User{}, errors.New("user not found")
+		}
+		return User{}, err
 	}
+
+	user := convertRepoUserToServiceUser(repoUser)
 
 	// Cache the user for future lookups
 	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
@@ -366,32 +358,15 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 		return *cachedUser, nil
 	}
 
-	db := s.dbManager.Postgres().GetDB()
-
-	var user User
-	query := `SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login FROM users WHERE internal_uuid = $1`
-	err = db.QueryRowContext(ctx, query, id).Scan(
-		&user.InternalUUID,
-		&user.Provider,
-		&user.ProviderUserID,
-		&user.Email,
-		&user.Name,
-		&user.EmailVerified,
-		&user.AccessToken,
-		&user.RefreshToken,
-		&user.TokenExpiry,
-		&user.CreatedAt,
-		&user.ModifiedAt,
-		&user.LastLogin,
-	)
-
-	if err == sql.ErrNoRows {
-		return User{}, errors.New("user not found")
-	}
-
+	repoUser, err := s.userRepo.GetByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return User{}, errors.New("user not found")
+		}
 		return User{}, fmt.Errorf("failed to get user: %w", err)
 	}
+
+	user := convertRepoUserToServiceUser(repoUser)
 
 	// Cache the user for future lookups
 	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
@@ -405,99 +380,38 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 
 // CreateUser creates a new user
 func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
-	db := s.dbManager.Postgres().GetDB()
-
-	// Generate a new internal UUID if not provided
-	if user.InternalUUID == "" {
-		user.InternalUUID = uuid.New().String()
-	}
-
 	// Provider and ProviderUserID must be set by caller
 	if user.Provider == "" || user.ProviderUserID == "" {
 		return User{}, errors.New("provider and provider_user_id are required")
 	}
 
-	// Set timestamps if not provided
-	now := time.Now()
-	if user.CreatedAt.IsZero() {
-		user.CreatedAt = now
-	}
-	if user.ModifiedAt.IsZero() {
-		user.ModifiedAt = now
-	}
-
-	query := `
-		INSERT INTO users (internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		RETURNING internal_uuid
-	`
-
-	err := db.QueryRowContext(ctx, query,
-		user.InternalUUID,
-		user.Provider,
-		user.ProviderUserID,
-		user.Email,
-		user.Name,
-		user.EmailVerified,
-		user.AccessToken,
-		user.RefreshToken,
-		user.TokenExpiry,
-		user.CreatedAt,
-		user.ModifiedAt,
-		user.LastLogin,
-	).Scan(&user.InternalUUID)
-
+	repoUser := convertServiceUserToRepoUser(&user)
+	createdUser, err := s.userRepo.Create(ctx, repoUser)
 	if err != nil {
 		return User{}, fmt.Errorf("failed to create user: %w", err)
 	}
 
+	result := convertRepoUserToServiceUser(createdUser)
+
 	// Cache the newly created user
-	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
+	if cacheErr := s.CacheUser(ctx, result); cacheErr != nil {
 		logger := slogging.Get()
 		logger.Warn("Failed to cache newly created user: %v", cacheErr)
 		// Don't fail the request, just log the cache error
 	}
 
-	return user, nil
+	return result, nil
 }
 
 // UpdateUser updates an existing user
 func (s *Service) UpdateUser(ctx context.Context, user User) error {
-	db := s.dbManager.Postgres().GetDB()
-
-	// Update the modified_at timestamp
-	user.ModifiedAt = time.Now()
-
-	query := `
-		UPDATE users
-		SET email = $2, name = $3, email_verified = $4, access_token = $5, refresh_token = $6, token_expiry = $7,
-		    modified_at = $8, last_login = $9
-		WHERE internal_uuid = $1
-	`
-
-	result, err := db.ExecContext(ctx, query,
-		user.InternalUUID,
-		user.Email,
-		user.Name,
-		user.EmailVerified,
-		user.AccessToken,
-		user.RefreshToken,
-		user.TokenExpiry,
-		user.ModifiedAt,
-		user.LastLogin,
-	)
-
+	repoUser := convertServiceUserToRepoUser(&user)
+	err := s.userRepo.Update(ctx, repoUser)
 	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return errors.New("user not found")
+		}
 		return fmt.Errorf("failed to update user: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return errors.New("user not found")
 	}
 
 	// Invalidate cache after update
@@ -518,22 +432,12 @@ func (s *Service) DeleteUser(ctx context.Context, id string) error {
 		return err
 	}
 
-	db := s.dbManager.Postgres().GetDB()
-
-	query := `DELETE FROM users WHERE internal_uuid = $1`
-
-	result, err := db.ExecContext(ctx, query, id)
+	err = s.userRepo.Delete(ctx, id)
 	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return errors.New("user not found")
+		}
 		return fmt.Errorf("failed to delete user: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return errors.New("user not found")
 	}
 
 	// Invalidate cache after deletion
@@ -561,56 +465,24 @@ type UserProvider struct {
 // GetUserProviders gets the OAuth provider for a user
 // Note: In the new architecture, each user has exactly one provider
 func (s *Service) GetUserProviders(ctx context.Context, userID string) ([]UserProvider, error) {
-	db := s.dbManager.Postgres().GetDB()
-
-	query := `
-		SELECT internal_uuid, provider, provider_user_id, email, created_at, last_login
-		FROM users
-		WHERE internal_uuid = $1
-	`
-
-	var user struct {
-		InternalUUID   string
-		Provider       string
-		ProviderUserID string
-		Email          string
-		CreatedAt      time.Time
-		LastLogin      *time.Time
-	}
-
-	err := db.QueryRowContext(ctx, query, userID).Scan(
-		&user.InternalUUID,
-		&user.Provider,
-		&user.ProviderUserID,
-		&user.Email,
-		&user.CreatedAt,
-		&user.LastLogin,
-	)
-
-	if err == sql.ErrNoRows {
-		return []UserProvider{}, nil // User not found, return empty array
-	}
+	repoProviders, err := s.userRepo.GetProviders(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user provider: %w", err)
 	}
 
-	// Convert to UserProvider format (single provider)
-	lastLogin := time.Time{} // Zero value
-	if user.LastLogin != nil {
-		lastLogin = *user.LastLogin
-	}
-
-	providers := []UserProvider{
-		{
-			ID:             user.InternalUUID, // Use internal UUID as provider record ID
-			UserID:         user.InternalUUID,
-			Provider:       user.Provider,
-			ProviderUserID: user.ProviderUserID,
-			Email:          user.Email,
-			IsPrimary:      true, // Always true since there's only one provider per user now
-			CreatedAt:      user.CreatedAt,
-			LastLogin:      lastLogin,
-		},
+	// Convert repository providers to service providers
+	providers := make([]UserProvider, 0, len(repoProviders))
+	for _, rp := range repoProviders {
+		providers = append(providers, UserProvider{
+			ID:             rp.ID,
+			UserID:         rp.UserID,
+			Provider:       rp.Provider,
+			ProviderUserID: rp.ProviderUserID,
+			Email:          rp.Email,
+			IsPrimary:      rp.IsPrimary,
+			CreatedAt:      rp.CreatedAt,
+			LastLogin:      rp.LastLogin,
+		})
 	}
 
 	return providers, nil
@@ -619,23 +491,7 @@ func (s *Service) GetUserProviders(ctx context.Context, userID string) ([]UserPr
 // GetPrimaryProviderID gets the provider user ID for a user
 // Note: In the new architecture, each user has exactly one provider stored directly on the users table
 func (s *Service) GetPrimaryProviderID(ctx context.Context, userID string) (string, error) {
-	db := s.dbManager.Postgres().GetDB()
-
-	var providerUserID string
-	query := `
-		SELECT provider_user_id
-		FROM users
-		WHERE internal_uuid = $1
-		LIMIT 1
-	`
-	err := db.QueryRowContext(ctx, query, userID).Scan(&providerUserID)
-	if err == sql.ErrNoRows {
-		return "", nil // User not found
-	}
-	if err != nil {
-		return "", fmt.Errorf("failed to get provider user ID: %w", err)
-	}
-	return providerUserID, nil
+	return s.userRepo.GetPrimaryProviderID(ctx, userID)
 }
 
 // GetUserByProviderID gets a user by provider and provider user ID
@@ -646,36 +502,15 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 		return *cachedUser, nil
 	}
 
-	db := s.dbManager.Postgres().GetDB()
-
-	var user User
-	query := `
-		SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login
-		FROM users
-		WHERE provider = $1 AND provider_user_id = $2
-	`
-	err = db.QueryRowContext(ctx, query, provider, providerUserID).Scan(
-		&user.InternalUUID,
-		&user.Provider,
-		&user.ProviderUserID,
-		&user.Email,
-		&user.Name,
-		&user.EmailVerified,
-		&user.AccessToken,
-		&user.RefreshToken,
-		&user.TokenExpiry,
-		&user.CreatedAt,
-		&user.ModifiedAt,
-		&user.LastLogin,
-	)
-
-	if err == sql.ErrNoRows {
-		return User{}, errors.New("user not found")
-	}
-
+	repoUser, err := s.userRepo.GetByProviderID(ctx, provider, providerUserID)
 	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return User{}, errors.New("user not found")
+		}
 		return User{}, fmt.Errorf("failed to get user by provider ID: %w", err)
 	}
+
+	user := convertRepoUserToServiceUser(repoUser)
 
 	// Cache the user for future lookups
 	if cacheErr := s.CacheUser(ctx, user); cacheErr != nil {
@@ -690,77 +525,30 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 // GetUserByProviderAndEmail gets a user by provider and email address
 // This is used as a fallback when provider_user_id doesn't match but same provider + email does
 func (s *Service) GetUserByProviderAndEmail(ctx context.Context, provider, email string) (User, error) {
-	db := s.dbManager.Postgres().GetDB()
-
-	var user User
-	query := `
-		SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login
-		FROM users
-		WHERE provider = $1 AND email = $2
-	`
-	err := db.QueryRowContext(ctx, query, provider, email).Scan(
-		&user.InternalUUID,
-		&user.Provider,
-		&user.ProviderUserID,
-		&user.Email,
-		&user.Name,
-		&user.EmailVerified,
-		&user.AccessToken,
-		&user.RefreshToken,
-		&user.TokenExpiry,
-		&user.CreatedAt,
-		&user.ModifiedAt,
-		&user.LastLogin,
-	)
-
-	if err == sql.ErrNoRows {
-		return User{}, errors.New("user not found")
-	}
-
+	repoUser, err := s.userRepo.GetByProviderAndEmail(ctx, provider, email)
 	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return User{}, errors.New("user not found")
+		}
 		return User{}, fmt.Errorf("failed to get user by provider and email: %w", err)
 	}
 
-	return user, nil
+	return convertRepoUserToServiceUser(repoUser), nil
 }
 
 // GetUserByAnyProviderID gets a user by provider ID across all providers
 // This allows provider-independent authorization using IdP user IDs
 // NOTE: This can return ambiguous results if the same provider_user_id exists for multiple providers
 func (s *Service) GetUserByAnyProviderID(ctx context.Context, providerUserID string) (User, error) {
-	db := s.dbManager.Postgres().GetDB()
-
-	var user User
-	query := `
-		SELECT internal_uuid, provider, provider_user_id, email, name, email_verified, access_token, refresh_token, token_expiry, created_at, modified_at, last_login
-		FROM users
-		WHERE provider_user_id = $1
-		LIMIT 1
-	`
-	err := db.QueryRowContext(ctx, query, providerUserID).Scan(
-		&user.InternalUUID,
-		&user.Provider,
-		&user.ProviderUserID,
-		&user.Email,
-		&user.Name,
-		&user.EmailVerified,
-		&user.AccessToken,
-		&user.RefreshToken,
-		&user.TokenExpiry,
-		&user.CreatedAt,
-		&user.ModifiedAt,
-		&user.LastLogin,
-	)
-
-	if err == sql.ErrNoRows {
-		return User{}, errors.New("user not found")
-	}
-
+	repoUser, err := s.userRepo.GetByAnyProviderID(ctx, providerUserID)
 	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return User{}, errors.New("user not found")
+		}
 		return User{}, fmt.Errorf("failed to get user by provider ID: %w", err)
 	}
 
-	return user, nil
+	return convertRepoUserToServiceUser(repoUser), nil
 }
 
 // User Caching Methods
@@ -1105,4 +893,40 @@ func (s *Service) getIssuer() string {
 	}
 	// Fallback to default
 	return "http://localhost:8080"
+}
+
+// convertRepoUserToServiceUser converts a repository User to a service User
+func convertRepoUserToServiceUser(repoUser *repository.User) User {
+	return User{
+		InternalUUID:   repoUser.InternalUUID,
+		Provider:       repoUser.Provider,
+		ProviderUserID: repoUser.ProviderUserID,
+		Email:          repoUser.Email,
+		Name:           repoUser.Name,
+		EmailVerified:  repoUser.EmailVerified,
+		AccessToken:    repoUser.AccessToken,
+		RefreshToken:   repoUser.RefreshToken,
+		TokenExpiry:    repoUser.TokenExpiry,
+		CreatedAt:      repoUser.CreatedAt,
+		ModifiedAt:     repoUser.ModifiedAt,
+		LastLogin:      repoUser.LastLogin,
+	}
+}
+
+// convertServiceUserToRepoUser converts a service User to a repository User
+func convertServiceUserToRepoUser(user *User) *repository.User {
+	return &repository.User{
+		InternalUUID:   user.InternalUUID,
+		Provider:       user.Provider,
+		ProviderUserID: user.ProviderUserID,
+		Email:          user.Email,
+		Name:           user.Name,
+		EmailVerified:  user.EmailVerified,
+		AccessToken:    user.AccessToken,
+		RefreshToken:   user.RefreshToken,
+		TokenExpiry:    user.TokenExpiry,
+		CreatedAt:      user.CreatedAt,
+		ModifiedAt:     user.ModifiedAt,
+		LastLogin:      user.LastLogin,
+	}
 }

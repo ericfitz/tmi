@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -101,140 +100,14 @@ func (s *Service) ValidateDeletionChallenge(ctx context.Context, userEmail, chal
 
 // DeleteUserAndData deletes a user and handles ownership transfer for threat models
 func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*DeletionResult, error) {
-	db := s.dbManager.Postgres().GetDB()
-
-	// Begin transaction
-	tx, err := db.BeginTx(ctx, nil)
+	repoResult, err := s.deletionRepo.DeleteUserAndData(ctx, userEmail)
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			slogging.Get().Error("Failed to rollback user deletion transaction: %v", err)
-		}
-	}()
-
-	result := &DeletionResult{
-		UserEmail: userEmail,
+		return nil, err
 	}
 
-	// First, get the user's internal_uuid
-	var userInternalUUID string
-	err = tx.QueryRowContext(ctx,
-		`SELECT internal_uuid FROM users WHERE email = $1`,
-		userEmail).Scan(&userInternalUUID)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found: %s", userEmail)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to query user: %w", err)
-	}
-
-	// Get all threat models owned by user
-	rows, err := tx.QueryContext(ctx,
-		`SELECT id FROM threat_models WHERE owner_internal_uuid = $1`,
-		userInternalUUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query owned threat models: %w", err)
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			slogging.Get().Error("Failed to close rows: %v", err)
-		}
-	}()
-
-	var threatModelIDs []string
-	for rows.Next() {
-		var tmID string
-		if err := rows.Scan(&tmID); err != nil {
-			return nil, fmt.Errorf("failed to scan threat model ID: %w", err)
-		}
-		threatModelIDs = append(threatModelIDs, tmID)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating threat models: %w", err)
-	}
-
-	// Process each threat model
-	for _, tmID := range threatModelIDs {
-		// Find alternate owner (user with owner role in threat_model_access)
-		var altOwnerUUID string
-		err := tx.QueryRowContext(ctx, `
-			SELECT user_internal_uuid FROM threat_model_access
-			WHERE threat_model_id = $1
-			  AND role = 'owner'
-			  AND subject_type = 'user'
-			  AND user_internal_uuid != $2
-			LIMIT 1`,
-			tmID, userInternalUUID).Scan(&altOwnerUUID)
-
-		if err == sql.ErrNoRows {
-			// No alternate owner - delete threat model (cascades to children)
-			_, err = tx.ExecContext(ctx,
-				`DELETE FROM threat_models WHERE id = $1`,
-				tmID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to delete threat model %s: %w", tmID, err)
-			}
-			result.ThreatModelsDeleted++
-			slogging.Get().Debug("Deleted threat model %s (no alternate owner)", tmID)
-		} else if err != nil {
-			return nil, fmt.Errorf("failed to find alternate owner for threat model %s: %w", tmID, err)
-		} else {
-			// Transfer ownership to alternate owner
-			_, err = tx.ExecContext(ctx,
-				`UPDATE threat_models SET owner_internal_uuid = $1, modified_at = $2 WHERE id = $3`,
-				altOwnerUUID, time.Now().UTC(), tmID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to transfer ownership of threat model %s: %w", tmID, err)
-			}
-
-			// Remove deleting user's permissions
-			_, err = tx.ExecContext(ctx, `
-				DELETE FROM threat_model_access
-				WHERE threat_model_id = $1 AND user_internal_uuid = $2 AND subject_type = 'user'`,
-				tmID, userInternalUUID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to remove user permissions from threat model %s: %w", tmID, err)
-			}
-
-			result.ThreatModelsTransferred++
-			slogging.Get().Debug("Transferred ownership of threat model %s to %s", tmID, altOwnerUUID)
-		}
-	}
-
-	// Clean up any remaining permissions (reader/writer on other threat models)
-	_, err = tx.ExecContext(ctx,
-		`DELETE FROM threat_model_access WHERE user_internal_uuid = $1 AND subject_type = 'user'`,
-		userInternalUUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to clean up remaining permissions: %w", err)
-	}
-
-	// Delete user record (cascades to user_providers)
-	deleteResult, err := tx.ExecContext(ctx,
-		`DELETE FROM users WHERE email = $1`,
-		userEmail)
-	if err != nil {
-		return nil, fmt.Errorf("failed to delete user: %w", err)
-	}
-
-	rowsAffected, err := deleteResult.RowsAffected()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return nil, fmt.Errorf("user not found: %s", userEmail)
-	}
-
-	// Commit transaction
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	slogging.Get().Info("User deleted successfully: email=%s, transferred=%d, deleted=%d",
-		userEmail, result.ThreatModelsTransferred, result.ThreatModelsDeleted)
-
-	return result, nil
+	return &DeletionResult{
+		ThreatModelsTransferred: repoResult.ThreatModelsTransferred,
+		ThreatModelsDeleted:     repoResult.ThreatModelsDeleted,
+		UserEmail:               repoResult.UserEmail,
+	}, nil
 }

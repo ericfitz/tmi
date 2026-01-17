@@ -1028,16 +1028,6 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		os.Exit(1)
 	}
 
-	// Initialize legacy PostgreSQL connection if using postgres (for migrations and backward compatibility)
-	if dbType == "postgres" {
-		logger.Info("Initializing legacy PostgreSQL connection for migrations")
-		pgConfig := buildPostgresConfig(config)
-		if err := dbManager.InitPostgres(pgConfig); err != nil {
-			logger.Warn("Failed to initialize legacy PostgreSQL connection: %v", err)
-			// Don't fail - GORM connection is primary
-		}
-	}
-
 	// Initialize Redis
 	logger.Info("Initializing Redis connection")
 	redisConfig := buildRedisConfig(config)
@@ -1334,7 +1324,7 @@ func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.W
 	var deliveryWorker *api.WebhookDeliveryWorker
 	var cleanupWorker *api.WebhookCleanupWorker
 
-	if dbManager != nil && dbManager.Postgres() != nil {
+	if dbManager != nil && dbManager.Gorm() != nil {
 		logger.Info("Starting webhook workers...")
 
 		// Start event consumer (requires Redis)
@@ -1863,18 +1853,6 @@ func buildGormConfig(cfg *config.Config) db.GormConfig {
 
 		// SQLite configuration
 		SQLitePath: cfg.Database.SQLite.Path,
-	}
-}
-
-// buildPostgresConfig creates a PostgreSQL configuration from the application config
-func buildPostgresConfig(cfg *config.Config) db.PostgresConfig {
-	return db.PostgresConfig{
-		Host:     cfg.Database.Postgres.Host,
-		Port:     cfg.Database.Postgres.Port,
-		User:     cfg.Database.Postgres.User,
-		Password: cfg.Database.Postgres.Password,
-		Database: cfg.Database.Postgres.Database,
-		SSLMode:  cfg.Database.Postgres.SSLMode,
 	}
 }
 

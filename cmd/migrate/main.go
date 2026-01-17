@@ -31,22 +31,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create database configuration from unified config
-	pgConfig := db.PostgresConfig{
-		Host:     cfg.Database.Postgres.Host,
-		Port:     cfg.Database.Postgres.Port,
-		User:     cfg.Database.Postgres.User,
-		Password: cfg.Database.Postgres.Password,
-		Database: cfg.Database.Postgres.Database,
-		SSLMode:  cfg.Database.Postgres.SSLMode,
+	// Create GORM database configuration from unified config
+	gormConfig := db.GormConfig{
+		Type:             db.DatabaseTypePostgres,
+		PostgresHost:     cfg.Database.Postgres.Host,
+		PostgresPort:     cfg.Database.Postgres.Port,
+		PostgresUser:     cfg.Database.Postgres.User,
+		PostgresPassword: cfg.Database.Postgres.Password,
+		PostgresDatabase: cfg.Database.Postgres.Database,
+		PostgresSSLMode:  cfg.Database.Postgres.SSLMode,
 	}
 
 	// Create database manager
 	dbManager := db.NewManager()
 
-	// Initialize PostgreSQL connection
-	slogging.Get().Info("Connecting to PostgreSQL at %s:%s/%s", pgConfig.Host, pgConfig.Port, pgConfig.Database)
-	if err := dbManager.InitPostgres(pgConfig); err != nil {
+	// Initialize GORM connection
+	slogging.Get().Info("Connecting to PostgreSQL at %s:%s/%s", gormConfig.PostgresHost, gormConfig.PostgresPort, gormConfig.PostgresDatabase)
+	if err := dbManager.InitGorm(gormConfig); err != nil {
 		slogging.Get().Error("Failed to connect to PostgreSQL: %v", err)
 		os.Exit(1)
 	}
@@ -85,7 +86,7 @@ func main() {
 	// Create migration config
 	migrationConfig := db.MigrationConfig{
 		MigrationsPath: migrationsPath,
-		DatabaseName:   pgConfig.Database,
+		DatabaseName:   gormConfig.PostgresDatabase,
 	}
 
 	// Run migrations based on flags
@@ -116,12 +117,12 @@ func main() {
 
 	// Only validate schema if we're not rolling back
 	if !*down {
-		validateSchema(pgConfig)
+		validateSchema(gormConfig)
 	}
 }
 
 // validateSchema validates the database schema after migrations
-func validateSchema(pgConfig db.PostgresConfig) {
+func validateSchema(gormConfig db.GormConfig) {
 	// Initialize logger for schema validation
 	if err := slogging.Initialize(slogging.Config{
 		Level:            slogging.ParseLogLevel("info"),
@@ -140,7 +141,7 @@ func validateSchema(pgConfig db.PostgresConfig) {
 
 	// Create database connection for validation
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		pgConfig.User, pgConfig.Password, pgConfig.Host, pgConfig.Port, pgConfig.Database, pgConfig.SSLMode)
+		gormConfig.PostgresUser, gormConfig.PostgresPassword, gormConfig.PostgresHost, gormConfig.PostgresPort, gormConfig.PostgresDatabase, gormConfig.PostgresSSLMode)
 
 	db, err := sql.Open("pgx", connStr)
 	if err != nil {

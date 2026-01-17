@@ -250,23 +250,6 @@ func LoadConfig() (Config, error) {
 	return config, nil
 }
 
-// ToDBConfig converts Config to db.PostgresConfig and db.RedisConfig (legacy method)
-func (c *Config) ToDBConfig() (db.PostgresConfig, db.RedisConfig) {
-	return db.PostgresConfig{
-			Host:     c.Postgres.Host,
-			Port:     c.Postgres.Port,
-			User:     c.Postgres.User,
-			Password: c.Postgres.Password,
-			Database: c.Postgres.Database,
-			SSLMode:  c.Postgres.SSLMode,
-		}, db.RedisConfig{
-			Host:     c.Redis.Host,
-			Port:     c.Redis.Port,
-			Password: c.Redis.Password,
-			DB:       c.Redis.DB,
-		}
-}
-
 // ToGormConfig converts Config to db.GormConfig for GORM database connections
 func (c *Config) ToGormConfig() db.GormConfig {
 	return db.GormConfig{

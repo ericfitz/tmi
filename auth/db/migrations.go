@@ -18,14 +18,19 @@ type MigrationConfig struct {
 
 // RunMigrations runs database migrations
 func (m *Manager) RunMigrations(cfg MigrationConfig) error {
-	if m.postgres == nil {
-		return fmt.Errorf("postgres connection not initialized")
+	if m.gorm == nil {
+		return fmt.Errorf("gorm connection not initialized")
 	}
 
-	// Get the database connection
-	db := m.postgres.GetDB()
+	// Get the underlying database connection from GORM
+	db, err := m.gorm.DB().DB()
+	if err != nil {
+		return fmt.Errorf("failed to get underlying sql.DB from GORM: %w", err)
+	}
 
 	// Create a new postgres driver for migrations
+	// Note: golang-migrate only supports PostgreSQL migrations currently
+	// For other databases, GORM's AutoMigrate should be used instead
 	driver, err := postgres.WithInstance(db, &postgres.Config{
 		DatabaseName: cfg.DatabaseName,
 	})
@@ -56,12 +61,15 @@ func (m *Manager) RunMigrations(cfg MigrationConfig) error {
 
 // MigrateDown rolls back all migrations
 func (m *Manager) MigrateDown(cfg MigrationConfig) error {
-	if m.postgres == nil {
-		return fmt.Errorf("postgres connection not initialized")
+	if m.gorm == nil {
+		return fmt.Errorf("gorm connection not initialized")
 	}
 
-	// Get the database connection
-	db := m.postgres.GetDB()
+	// Get the underlying database connection from GORM
+	db, err := m.gorm.DB().DB()
+	if err != nil {
+		return fmt.Errorf("failed to get underlying sql.DB from GORM: %w", err)
+	}
 
 	// Create a new postgres driver for migrations
 	driver, err := postgres.WithInstance(db, &postgres.Config{
@@ -94,12 +102,15 @@ func (m *Manager) MigrateDown(cfg MigrationConfig) error {
 
 // MigrateStep runs a specific number of migrations
 func (m *Manager) MigrateStep(cfg MigrationConfig, steps int) error {
-	if m.postgres == nil {
-		return fmt.Errorf("postgres connection not initialized")
+	if m.gorm == nil {
+		return fmt.Errorf("gorm connection not initialized")
 	}
 
-	// Get the database connection
-	db := m.postgres.GetDB()
+	// Get the underlying database connection from GORM
+	db, err := m.gorm.DB().DB()
+	if err != nil {
+		return fmt.Errorf("failed to get underlying sql.DB from GORM: %w", err)
+	}
 
 	// Create a new postgres driver for migrations
 	driver, err := postgres.WithInstance(db, &postgres.Config{

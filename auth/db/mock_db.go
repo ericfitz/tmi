@@ -2,34 +2,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"time"
 )
-
-// MockPostgresDB is a mock implementation of PostgresDB for testing
-type MockPostgresDB struct {
-	db *sql.DB
-}
-
-// NewMockPostgresDB creates a new mock PostgresDB
-func NewMockPostgresDB() *MockPostgresDB {
-	return &MockPostgresDB{}
-}
-
-// Close is a mock implementation that does nothing
-func (db *MockPostgresDB) Close() error {
-	return nil
-}
-
-// GetDB returns a nil DB pointer
-func (db *MockPostgresDB) GetDB() *sql.DB {
-	return db.db
-}
-
-// Ping is a mock implementation that always succeeds
-func (db *MockPostgresDB) Ping(ctx context.Context) error {
-	return nil
-}
 
 // MockRedisDB is a mock implementation of RedisDB for testing
 type MockRedisDB struct{}
@@ -96,19 +70,6 @@ type MockManager struct {
 // NewMockManager creates a new mock Manager
 func NewMockManager() *Manager {
 	manager := NewManager()
-
-	// Create a custom Manager with our mock implementations
-	manager.postgres = &PostgresDB{
-		db: nil,
-		cfg: PostgresConfig{
-			Host:     "localhost",
-			Port:     "5432",
-			User:     "postgres",
-			Password: "postgres",
-			Database: "tmi_test",
-			SSLMode:  "disable",
-		},
-	}
 
 	// Create a mock Redis implementation
 	manager.redis = &RedisDB{

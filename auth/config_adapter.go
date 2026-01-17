@@ -190,15 +190,6 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 		return nil, fmt.Errorf("failed to initialize database (%s): %w", gormConfig.Type, err)
 	}
 
-	// Also initialize legacy PostgreSQL connection if using postgres (for backward compatibility)
-	if gormConfig.Type == db.DatabaseTypePostgres {
-		pgConfig, _ := authConfig.ToDBConfig()
-		if err := dbManager.InitPostgres(pgConfig); err != nil {
-			logger.Warn("[AUTH_CONFIG_ADAPTER] Failed to initialize legacy PostgreSQL connection: %v", err)
-			// Don't fail - GORM connection is primary
-		}
-	}
-
 	// Initialize Redis
 	redisConfig := authConfig.ToRedisConfig()
 	if err := dbManager.InitRedis(redisConfig); err != nil {

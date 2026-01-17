@@ -2,15 +2,16 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"path/filepath"
 	"time"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
+	"gorm.io/gorm"
 )
 
 // InitAuth initializes the authentication system
@@ -24,13 +25,14 @@ func InitAuth(router *gin.Engine) error {
 	// Create database manager
 	dbManager := db.NewManager()
 
-	// Initialize PostgreSQL
-	pgConfig, redisConfig := config.ToDBConfig()
-	if err := dbManager.InitPostgres(pgConfig); err != nil {
-		return fmt.Errorf("failed to initialize postgres: %w", err)
+	// Initialize GORM (supports PostgreSQL, Oracle, MySQL, SQL Server, SQLite)
+	gormConfig := config.ToGormConfig()
+	if err := dbManager.InitGorm(gormConfig); err != nil {
+		return fmt.Errorf("failed to initialize gorm: %w", err)
 	}
 
 	// Initialize Redis
+	redisConfig := config.ToRedisConfig()
 	if err := dbManager.InitRedis(redisConfig); err != nil {
 		return fmt.Errorf("failed to initialize redis: %w", err)
 	}
@@ -39,7 +41,7 @@ func InitAuth(router *gin.Engine) error {
 	migrationsPath := filepath.Join("auth", "migrations")
 	if err := dbManager.RunMigrations(db.MigrationConfig{
 		MigrationsPath: migrationsPath,
-		DatabaseName:   config.Postgres.Database,
+		DatabaseName:   config.Database.PostgresDatabase,
 	}); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
@@ -56,7 +58,12 @@ func InitAuth(router *gin.Engine) error {
 
 	// Start background health monitor to keep connection pool warm
 	// Use 25-second interval to stay under Heroku's ~30s idle timeout
-	db.StartHealthMonitor(context.Background(), dbManager.Postgres().GetDB(), 25*time.Second)
+	// Get underlying *sql.DB from GORM for health monitoring
+	sqlDB, err := dbManager.Gorm().DB().DB()
+	if err != nil {
+		return fmt.Errorf("failed to get underlying sql.DB from GORM: %w", err)
+	}
+	db.StartHealthMonitor(context.Background(), sqlDB, 25*time.Second)
 
 	// Start background job for periodic cache rebuilding
 	go startCacheRebuildJob(context.Background(), dbManager)
@@ -112,7 +119,12 @@ func rebuildCacheWithRetry(ctx context.Context, dbManager *db.Manager) error {
 		// This closes stale idle connections and creates fresh ones
 		// A simple Ping() only validates ONE connection, but the subsequent
 		// transaction may get a DIFFERENT (stale) connection from the pool
-		sqlDB := dbManager.Postgres().GetDB()
+		sqlDB, err := dbManager.Gorm().DB().DB()
+		if err != nil {
+			lastErr = fmt.Errorf("failed to get underlying sql.DB from GORM: %w", err)
+			logger.Warn("Failed to get sql.DB (attempt %d/%d): %v", attempt+1, maxRetries, err)
+			continue
+		}
 		if err := db.RefreshConnectionPool(sqlDB); err != nil {
 			lastErr = fmt.Errorf("failed to refresh connection pool: %w", err)
 			logger.Warn("Connection pool refresh failed (attempt %d/%d): %v", attempt+1, maxRetries, err)
@@ -140,114 +152,88 @@ func rebuildCacheWithRetry(ctx context.Context, dbManager *db.Manager) error {
 	return fmt.Errorf("cache rebuild failed after %d attempts: %w", maxRetries, lastErr)
 }
 
-// rebuildCache rebuilds the Redis cache from PostgreSQL
+// rebuildCache rebuilds the Redis cache from the database using GORM
 func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
-	postgres := dbManager.Postgres().GetDB()
-	redis := dbManager.Redis().GetClient()
+	gormDB := dbManager.Gorm().DB()
+	redisClient := dbManager.Redis().GetClient()
 
-	tx, err := postgres.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to start transaction: %w", err)
-	}
-
-	committed := false
-	defer func() {
-		if !committed {
-			if err := tx.Rollback(); err != nil {
-				slogging.Get().Error("Error rolling back transaction: %v", err)
-			}
+	// Use GORM transaction for consistent reads
+	return gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Rebuild threat model authorization cache
+		if err := rebuildThreatModelAuthCache(ctx, tx, redisClient); err != nil {
+			return err
 		}
-	}()
 
-	// Rebuild threat model authorization cache
-	if err := rebuildThreatModelAuthCache(ctx, tx, redis); err != nil {
-		return err
-	}
+		// Rebuild threat-to-threat-model mapping cache
+		if err := rebuildThreatMappingCache(ctx, tx, redisClient); err != nil {
+			return err
+		}
 
-	// Rebuild threat-to-threat-model mapping cache
-	if err := rebuildThreatMappingCache(ctx, tx, redis); err != nil {
-		return err
-	}
+		// Rebuild diagram-to-threat-model mapping cache
+		if err := rebuildDiagramMappingCache(ctx, tx, redisClient); err != nil {
+			return err
+		}
 
-	// Rebuild diagram-to-threat-model mapping cache
-	if err := rebuildDiagramMappingCache(ctx, tx, redis); err != nil {
-		return err
-	}
+		return nil
+	})
+}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-	committed = true
-
-	return nil
+// threatModelWithOwner is a helper struct for the join query result
+type threatModelWithOwner struct {
+	ID         string
+	OwnerEmail string
 }
 
 // rebuildThreatModelAuthCache rebuilds authorization data for threat models
-func rebuildThreatModelAuthCache(ctx context.Context, tx *sql.Tx, redis *redis.Client) error {
-	rows, err := tx.QueryContext(ctx, `
-		SELECT tm.id, u.email
-		FROM threat_models tm
-		JOIN users u ON tm.owner_internal_uuid = u.internal_uuid
-	`)
+func rebuildThreatModelAuthCache(ctx context.Context, tx *gorm.DB, redisClient *redis.Client) error {
+	// Query threat models with owner email via join
+	var results []threatModelWithOwner
+	err := tx.Model(&models.ThreatModel{}).
+		Select("threat_models.id, users.email as owner_email").
+		Joins("JOIN users ON threat_models.owner_internal_uuid = users.internal_uuid").
+		Find(&results).Error
 	if err != nil {
 		return fmt.Errorf("failed to get threat models: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			slogging.Get().Error("Error closing rows: %v", err)
-		}
-	}()
 
-	for rows.Next() {
-		var id, ownerEmail string
-		if err := rows.Scan(&id, &ownerEmail); err != nil {
-			return fmt.Errorf("failed to scan threat model: %w", err)
-		}
-
-		roles, err := getThreatModelRoles(ctx, tx, id, ownerEmail)
+	for _, result := range results {
+		roles, err := getThreatModelRoles(ctx, tx, result.ID, result.OwnerEmail)
 		if err != nil {
 			return err
 		}
 
-		if err := storeThreatModelRoles(ctx, redis, id, roles); err != nil {
+		if err := storeThreatModelRoles(ctx, redisClient, result.ID, roles); err != nil {
 			return err
 		}
 	}
 
-	return rows.Err()
+	return nil
+}
+
+// accessWithEmail is a helper struct for the access query result
+type accessWithEmail struct {
+	Email string
+	Role  string
 }
 
 // getThreatModelRoles retrieves roles for a threat model
-func getThreatModelRoles(ctx context.Context, tx *sql.Tx, threatModelID, ownerEmail string) (map[string]string, error) {
-	accessRows, err := tx.QueryContext(ctx, `
-		SELECT u.email, tma.role
-		FROM threat_model_access tma
-		JOIN users u ON tma.user_internal_uuid = u.internal_uuid
-		WHERE tma.threat_model_id = $1
-		  AND tma.subject_type = 'user'
-	`, threatModelID)
+func getThreatModelRoles(_ context.Context, tx *gorm.DB, threatModelID, ownerEmail string) (map[string]string, error) {
+	// Query access records with user email via join
+	var accessResults []accessWithEmail
+	err := tx.Model(&models.ThreatModelAccess{}).
+		Select("users.email, threat_model_access.role").
+		Joins("JOIN users ON threat_model_access.user_internal_uuid = users.internal_uuid").
+		Where("threat_model_access.threat_model_id = ? AND threat_model_access.subject_type = ?", threatModelID, "user").
+		Find(&accessResults).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to get threat model access: %w", err)
 	}
-	defer func() {
-		if err := accessRows.Close(); err != nil {
-			slogging.Get().Error("Error closing accessRows: %v", err)
-		}
-	}()
 
 	roles := make(map[string]string)
 	roles[ownerEmail] = "owner"
 
-	for accessRows.Next() {
-		var email, role string
-		if err := accessRows.Scan(&email, &role); err != nil {
-			return nil, fmt.Errorf("failed to scan threat model access: %w", err)
-		}
-		roles[email] = role
-	}
-
-	if err := accessRows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating threat model access: %w", err)
+	for _, access := range accessResults {
+		roles[access.Email] = access.Role
 	}
 
 	return roles, nil
@@ -270,57 +256,37 @@ func storeThreatModelRoles(ctx context.Context, redis *redis.Client, threatModel
 }
 
 // rebuildThreatMappingCache rebuilds threat-to-threat-model mapping cache
-func rebuildThreatMappingCache(ctx context.Context, tx *sql.Tx, redis *redis.Client) error {
-	rows, err := tx.QueryContext(ctx, `SELECT id, threat_model_id FROM threats`)
-	if err != nil {
+func rebuildThreatMappingCache(ctx context.Context, tx *gorm.DB, redisClient *redis.Client) error {
+	var threats []models.Threat
+	if err := tx.Select("id, threat_model_id").Find(&threats).Error; err != nil {
 		return fmt.Errorf("failed to get threats: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			slogging.Get().Error("Error closing rows: %v", err)
-		}
-	}()
 
-	for rows.Next() {
-		var id, threatModelID string
-		if err := rows.Scan(&id, &threatModelID); err != nil {
-			return fmt.Errorf("failed to scan threat: %w", err)
-		}
-
-		key := fmt.Sprintf("threat:%s:threatmodel", id)
-		if err := redis.Set(ctx, key, threatModelID, 24*time.Hour).Err(); err != nil {
+	for _, threat := range threats {
+		key := fmt.Sprintf("threat:%s:threatmodel", threat.ID)
+		if err := redisClient.Set(ctx, key, threat.ThreatModelID, 24*time.Hour).Err(); err != nil {
 			return fmt.Errorf("failed to store threat mapping in Redis: %w", err)
 		}
 	}
 
-	return rows.Err()
+	return nil
 }
 
 // rebuildDiagramMappingCache rebuilds diagram-to-threat-model mapping cache
-func rebuildDiagramMappingCache(ctx context.Context, tx *sql.Tx, redis *redis.Client) error {
-	rows, err := tx.QueryContext(ctx, `SELECT id, threat_model_id FROM diagrams`)
-	if err != nil {
+func rebuildDiagramMappingCache(ctx context.Context, tx *gorm.DB, redisClient *redis.Client) error {
+	var diagrams []models.Diagram
+	if err := tx.Select("id, threat_model_id").Find(&diagrams).Error; err != nil {
 		return fmt.Errorf("failed to get diagrams: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			slogging.Get().Error("Error closing rows: %v", err)
-		}
-	}()
 
-	for rows.Next() {
-		var id, threatModelID string
-		if err := rows.Scan(&id, &threatModelID); err != nil {
-			return fmt.Errorf("failed to scan diagram: %w", err)
-		}
-
-		key := fmt.Sprintf("diagram:%s:threatmodel", id)
-		if err := redis.Set(ctx, key, threatModelID, 24*time.Hour).Err(); err != nil {
+	for _, diagram := range diagrams {
+		key := fmt.Sprintf("diagram:%s:threatmodel", diagram.ID)
+		if err := redisClient.Set(ctx, key, diagram.ThreatModelID, 24*time.Hour).Err(); err != nil {
 			return fmt.Errorf("failed to store diagram mapping in Redis: %w", err)
 		}
 	}
 
-	return rows.Err()
+	return nil
 }
 
 // GetDatabaseManager returns the global database manager.

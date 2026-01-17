@@ -32,10 +32,9 @@ func GetGlobalManager() *Manager {
 
 // Manager handles database connections
 type Manager struct {
-	postgres *PostgresDB
-	gorm     *GormDB
-	redis    *RedisDB
-	mu       sync.Mutex
+	gorm  *GormDB
+	redis *RedisDB
+	mu    sync.Mutex
 }
 
 // NewManager creates a new database manager
@@ -43,31 +42,7 @@ func NewManager() *Manager {
 	return &Manager{}
 }
 
-// InitPostgres initializes the PostgreSQL connection
-func (m *Manager) InitPostgres(cfg PostgresConfig) error {
-	logger := slogging.Get()
-	logger.Debug("Initializing PostgreSQL connection in database manager")
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.postgres != nil {
-		logger.Warn("PostgreSQL connection already initialized")
-		return fmt.Errorf("postgres connection already initialized")
-	}
-
-	db, err := NewPostgresDB(cfg)
-	if err != nil {
-		logger.Error("Failed to initialize PostgreSQL: %v", err)
-		return fmt.Errorf("failed to initialize postgres: %w", err)
-	}
-
-	logger.Debug("PostgreSQL connection successfully initialized in database manager")
-	m.postgres = db
-	return nil
-}
-
-// InitGorm initializes the GORM database connection (supports PostgreSQL and Oracle)
+// InitGorm initializes the GORM database connection (supports PostgreSQL, Oracle, MySQL, SQL Server, SQLite)
 func (m *Manager) InitGorm(cfg GormConfig) error {
 	logger := slogging.Get()
 	logger.Debug("Initializing GORM connection in database manager (type: %s)", cfg.Type)
@@ -115,13 +90,6 @@ func (m *Manager) InitRedis(cfg RedisConfig) error {
 	return nil
 }
 
-// Postgres returns the PostgreSQL connection
-func (m *Manager) Postgres() *PostgresDB {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.postgres
-}
-
 // Gorm returns the GORM database connection
 func (m *Manager) Gorm() *GormDB {
 	m.mu.Lock()
@@ -145,14 +113,6 @@ func (m *Manager) Close() error {
 	defer m.mu.Unlock()
 
 	var errs []error
-
-	if m.postgres != nil {
-		logger.Debug("Closing PostgreSQL connection")
-		if err := m.postgres.Close(); err != nil {
-			logger.Error("Failed to close PostgreSQL connection: %v", err)
-			errs = append(errs, fmt.Errorf("failed to close postgres: %w", err))
-		}
-	}
 
 	if m.gorm != nil {
 		logger.Debug("Closing GORM connection")
@@ -188,18 +148,6 @@ func (m *Manager) Ping(ctx context.Context) error {
 	defer m.mu.Unlock()
 
 	var errs []error
-
-	if m.postgres != nil {
-		logger.Debug("Pinging PostgreSQL connection")
-		if err := m.postgres.Ping(ctx); err != nil {
-			logger.Error("PostgreSQL ping failed: %v", err)
-			errs = append(errs, fmt.Errorf("postgres ping failed: %w", err))
-		} else {
-			logger.Debug("PostgreSQL ping successful")
-		}
-	} else {
-		logger.Debug("PostgreSQL connection not initialized, skipping ping")
-	}
 
 	if m.gorm != nil {
 		logger.Debug("Pinging GORM connection")
@@ -241,11 +189,6 @@ func (m *Manager) LogConnectionStats(ctx context.Context) {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	if m.postgres != nil {
-		logger.Debug("Logging PostgreSQL connection stats")
-		m.postgres.LogStats()
-	}
 
 	if m.gorm != nil {
 		logger.Debug("Logging GORM connection stats")

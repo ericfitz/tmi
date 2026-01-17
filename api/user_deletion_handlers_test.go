@@ -25,14 +25,15 @@ func setupUserDeletionTest(t *testing.T) (*gin.Engine, *auth.Service, *auth.User
 		t.Skip("Skipping user deletion integration test in short mode")
 	}
 
-	// Initialize database manager
-	postgresConfig := db.PostgresConfig{
-		Host:     "localhost",
-		Port:     "5432",
-		User:     "tmi_dev",
-		Password: "dev123",
-		Database: "tmi_dev",
-		SSLMode:  "disable",
+	// Initialize database manager with GORM
+	gormConfig := db.GormConfig{
+		Type:             db.DatabaseTypePostgres,
+		PostgresHost:     "localhost",
+		PostgresPort:     "5432",
+		PostgresUser:     "tmi_dev",
+		PostgresPassword: "dev123",
+		PostgresDatabase: "tmi_dev",
+		PostgresSSLMode:  "disable",
 	}
 
 	redisConfig := db.RedisConfig{
@@ -43,8 +44,8 @@ func setupUserDeletionTest(t *testing.T) (*gin.Engine, *auth.Service, *auth.User
 	}
 
 	dbManager := db.NewManager()
-	err := dbManager.InitPostgres(postgresConfig)
-	require.NoError(t, err, "Failed to initialize PostgreSQL")
+	err := dbManager.InitGorm(gormConfig)
+	require.NoError(t, err, "Failed to initialize GORM")
 	err = dbManager.InitRedis(redisConfig)
 	require.NoError(t, err, "Failed to initialize Redis")
 
@@ -65,13 +66,14 @@ func setupUserDeletionTest(t *testing.T) (*gin.Engine, *auth.Service, *auth.User
 				},
 			},
 		},
-		Postgres: auth.PostgresConfig{
-			Host:     postgresConfig.Host,
-			Port:     postgresConfig.Port,
-			User:     postgresConfig.User,
-			Password: postgresConfig.Password,
-			Database: postgresConfig.Database,
-			SSLMode:  postgresConfig.SSLMode,
+		Database: auth.DatabaseConfig{
+			Type:             "postgres",
+			PostgresHost:     gormConfig.PostgresHost,
+			PostgresPort:     gormConfig.PostgresPort,
+			PostgresUser:     gormConfig.PostgresUser,
+			PostgresPassword: gormConfig.PostgresPassword,
+			PostgresDatabase: gormConfig.PostgresDatabase,
+			PostgresSSLMode:  gormConfig.PostgresSSLMode,
 		},
 		Redis: auth.RedisConfig{
 			Host:     redisConfig.Host,
