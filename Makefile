@@ -478,7 +478,7 @@ clean-process:
 	fi
 	$(call log_success,"Process cleanup completed")
 
-clean-everything: clean-process clean-containers clean-files
+clean-everything: clean-process clean-containers clean-redis clean-logs clean-files
 
 # ============================================================================
 # COMPOSITE TARGETS - Main User-Facing Commands
@@ -789,7 +789,7 @@ check-oauth-stub:
 # CATS FUZZING - API Security Testing
 # ============================================================================
 
-.PHONY: cats-seed cats-seed-oci cats-fuzz-prep cats-set-max-quotas cats-create-test-data cats-fuzz cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
+.PHONY: cats-seed cats-seed-oci cats-fuzz-prep cats-set-max-quotas cats-create-test-data cats-fuzz cats-fuzz-oci cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
 
 # Default config file for CATS seeding (can be overridden)
 CATS_CONFIG ?= config-development.yml
@@ -845,6 +845,16 @@ cats-fuzz: cats-seed  ## Run CATS API fuzzing with database-agnostic seeding
 		exit 1; \
 	fi
 	@./scripts/run-cats-fuzz.sh
+
+cats-fuzz-oci: cats-seed-oci  ## Run CATS API fuzzing with OCI Autonomous Database
+	$(call log_info,"Running CATS API fuzzing with OCI ADB...")
+	@if ! command -v cats >/dev/null 2>&1; then \
+		$(call log_error,"CATS tool not found. Please install it first."); \
+		$(call log_info,"See: https://github.com/Endava/cats"); \
+		$(call log_info,"On MacOS with Homebrew: brew install cats"); \
+		exit 1; \
+	fi
+	@./scripts/run-cats-fuzz.sh --oci
 
 cats-fuzz-user:
 	$(call log_info,"Running CATS API fuzzing with custom user...")

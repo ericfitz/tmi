@@ -36,6 +36,7 @@ usage() {
     echo "  -s, --server URL     TMI server URL (default: ${DEFAULT_SERVER})"
     echo "  -p, --path PATH      Restrict to specific endpoint path (e.g., /addons, /invocations)"
     echo "  -b, --blackbox       Ignore all error codes other than 500"
+    echo "  -o, --oci            Use OCI Autonomous Database configuration"
     echo "  -h, --help           Show this help message"
     echo ""
     echo "Examples:"
@@ -43,10 +44,12 @@ usage() {
     echo "  $0 -u alice -s http://localhost:8080  # Custom user and server"
     echo "  $0 -p /addons                         # Only test /addons endpoints"
     echo "  $0 -p /invocations -u alice           # Only test /invocations with user alice"
+    echo "  $0 --oci                              # Use OCI ADB instead of PostgreSQL"
     echo ""
     echo "Prerequisites:"
-    echo "  - TMI server running (make start-dev)"
+    echo "  - TMI server running (make start-dev or make start-dev-oci)"
     echo "  - CATS tool installed"
+    echo "  - For OCI mode: scripts/oci-env.sh configured"
 }
 
 log() {
@@ -102,6 +105,7 @@ check_prerequisites() {
 
 restart_server_clean() {
     local server="$1"
+    local use_oci="${2:-false}"
 
     log "Restarting server with clean logs for CATS fuzzing..."
 
@@ -122,8 +126,13 @@ restart_server_clean() {
     rm -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.yml" || true
 
     # Start the server fresh
-    log "Starting TMI server..."
-    PATH="$PATH" make -C "${PROJECT_ROOT}" start-dev > /dev/null 2>&1 &
+    if [[ "${use_oci}" == "true" ]]; then
+        log "Starting TMI server with OCI configuration..."
+        PATH="$PATH" make -C "${PROJECT_ROOT}" start-dev-oci > /dev/null 2>&1 &
+    else
+        log "Starting TMI server..."
+        PATH="$PATH" make -C "${PROJECT_ROOT}" start-dev > /dev/null 2>&1 &
+    fi
 
     # Wait for server to be ready
     log "Waiting for server to be ready..."
@@ -440,6 +449,7 @@ main() {
     local server="${DEFAULT_SERVER}"
     local path=""
     local blackbox=""
+    local use_oci="false"
 
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
@@ -460,6 +470,10 @@ main() {
                 blackbox="-b"
                 shift 1
                 ;;
+            -o|--oci)
+                use_oci="true"
+                shift 1
+                ;;
             -h|--help)
                 usage
                 exit 0
@@ -478,12 +492,17 @@ main() {
     log "Starting CATS fuzzing with OAuth integration"
     log "User: ${user}"
     log "Server: ${server}"
+    if [[ "${use_oci}" == "true" ]]; then
+        log "Database: OCI Autonomous Database"
+    else
+        log "Database: PostgreSQL (Docker)"
+    fi
     if [[ -n "${path}" ]]; then
         log "Path filter: ${path}"
     fi
 
     check_prerequisites
-    restart_server_clean "${server}"
+    restart_server_clean "${server}" "${use_oci}"
     start_oauth_stub
 
     local access_token
