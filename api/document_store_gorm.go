@@ -156,13 +156,13 @@ func (s *GormDocumentStore) Update(ctx context.Context, document *Document, thre
 	logger := slogging.Get()
 	logger.Debug("Updating document: %s", document.Id)
 
-	now := time.Now().UTC()
-
+	// Note: Do not include modified_at in updates map as the Document model has
+	// autoUpdateTime which GORM handles automatically. Including it manually
+	// causes ORA-00957 (duplicate column name) errors in Oracle.
 	updates := map[string]interface{}{
 		"name":        document.Name,
 		"uri":         document.Uri,
 		"description": document.Description,
-		"modified_at": now,
 	}
 
 	result := s.db.WithContext(ctx).Model(&models.Document{}).

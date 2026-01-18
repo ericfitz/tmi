@@ -520,9 +520,17 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 }
 
 // Delete removes a threat model using GORM
+// Note: Must delete related threat_model_access records first to avoid
+// ORA-02292 (foreign key constraint violated) errors in Oracle.
+// PostgreSQL handles CASCADE DELETE automatically, but Oracle requires explicit deletion.
 func (s *GormThreatModelStore) Delete(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
+	// Delete related access records first to avoid foreign key constraint violations
+	if err := s.db.Where("threat_model_id = ?", id).Delete(&models.ThreatModelAccess{}).Error; err != nil {
+		return fmt.Errorf("failed to delete threat model access records: %w", err)
+	}
 
 	result := s.db.Delete(&models.ThreatModel{}, "id = ?", id)
 	if result.Error != nil {
