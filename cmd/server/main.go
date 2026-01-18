@@ -1749,14 +1749,15 @@ func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provid
 		InternalUUID string `gorm:"column:internal_uuid"`
 	}
 
+	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	query := gormDB.WithContext(ctx).Table("users").
 		Select("internal_uuid").
-		Where("provider = ?", provider)
+		Where(map[string]interface{}{"provider": provider})
 
 	if providerID != "" {
-		query = query.Where("provider_user_id = ?", providerID)
+		query = query.Where(map[string]interface{}{"provider_user_id": providerID})
 	} else if email != "" {
-		query = query.Where("email = ?", email)
+		query = query.Where(map[string]interface{}{"email": email})
 	} else {
 		return uuid.Nil, fmt.Errorf("either provider_id or email is required")
 	}

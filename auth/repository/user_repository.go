@@ -59,8 +59,9 @@ func (r *GormUserRepository) GetByID(ctx context.Context, id string) (*User, err
 // GetByProviderID retrieves a user by provider and provider user ID
 func (r *GormUserRepository) GetByProviderID(ctx context.Context, provider, providerUserID string) (*User, error) {
 	var gormUser models.User
+	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := r.db.WithContext(ctx).
-		Where("provider = ? AND provider_user_id = ?", provider, providerUserID).
+		Where(map[string]interface{}{"provider": provider, "provider_user_id": providerUserID}).
 		First(&gormUser)
 
 	if result.Error != nil {
@@ -93,8 +94,9 @@ func (r *GormUserRepository) GetByProviderAndEmail(ctx context.Context, provider
 // GetByAnyProviderID retrieves a user by provider user ID across all providers
 func (r *GormUserRepository) GetByAnyProviderID(ctx context.Context, providerUserID string) (*User, error) {
 	var gormUser models.User
+	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := r.db.WithContext(ctx).
-		Where("provider_user_id = ?", providerUserID).
+		Where(map[string]interface{}{"provider_user_id": providerUserID}).
 		First(&gormUser)
 
 	if result.Error != nil {

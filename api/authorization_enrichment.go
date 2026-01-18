@@ -7,6 +7,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // EnrichAuthorizationEntry enriches a single Authorization entry by looking up missing fields
@@ -58,13 +59,15 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 
 	if hasProviderID {
 		// Primary path: lookup by provider_id
+		// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 		result = db.WithContext(ctx).
-			Where("provider_user_id = ? AND provider = ?", auth.ProviderId, auth.Provider).
+			Where(map[string]interface{}{"provider_user_id": auth.ProviderId, "provider": auth.Provider}).
 			First(&user)
 	} else {
 		// Secondary path: lookup by email
+		// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 		result = db.WithContext(ctx).
-			Where("email = ? AND provider = ?", string(*auth.Email), auth.Provider).
+			Where(map[string]interface{}{"email": string(*auth.Email), "provider": auth.Provider}).
 			First(&user)
 	}
 
@@ -84,13 +87,14 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 		}
 
 		// After insert, query again to get the internal_uuid
+		// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 		if hasProviderID {
 			result = db.WithContext(ctx).
-				Where("provider_user_id = ? AND provider = ?", auth.ProviderId, auth.Provider).
+				Where(map[string]interface{}{"provider_user_id": auth.ProviderId, "provider": auth.Provider}).
 				First(&user)
 		} else {
 			result = db.WithContext(ctx).
-				Where("email = ? AND provider = ?", string(*auth.Email), auth.Provider).
+				Where(map[string]interface{}{"email": string(*auth.Email), "provider": auth.Provider}).
 				First(&user)
 		}
 		if result.Error != nil {
@@ -171,9 +175,13 @@ func performSparseUserInsert(ctx context.Context, db *gorm.DB, auth *Authorizati
 
 	// Use ON CONFLICT to handle duplicates
 	// GORM handles this differently - try to create, ignore if exists
+	// Use clause expressions for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := db.WithContext(ctx).
-		Where("provider = ? AND (provider_user_id = ? OR email = ?)",
-			auth.Provider, providerUserID, email).
+		Where(map[string]interface{}{"provider": auth.Provider}).
+		Where(
+			db.Where(clause.Expr{SQL: "? = ?", Vars: []interface{}{clause.Column{Name: "provider_user_id"}, providerUserID}}).
+				Or(clause.Expr{SQL: "? = ?", Vars: []interface{}{clause.Column{Name: "email"}, email}}),
+		).
 		FirstOrCreate(&user)
 
 	if result.Error != nil {

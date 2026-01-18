@@ -128,8 +128,9 @@ func (s *GormUserStore) Get(ctx context.Context, internalUUID openapi_types.UUID
 // GetByProviderAndID retrieves a user by provider and provider_user_id
 func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string, providerUserID string) (*AdminUser, error) {
 	var gormUser models.User
+	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := s.db.WithContext(ctx).
-		Where("provider = ? AND provider_user_id = ?", provider, providerUserID).
+		Where(map[string]interface{}{"provider": provider, "provider_user_id": providerUserID}).
 		First(&gormUser)
 
 	if result.Error != nil {

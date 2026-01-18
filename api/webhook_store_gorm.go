@@ -752,7 +752,9 @@ func (s *GormWebhookDeliveryStore) DeleteOld(daysOld int) (int, error) {
 
 	cutoff := time.Now().UTC().AddDate(0, 0, -daysOld)
 
-	result := s.db.Where("status IN ? AND created_at < ?", []string{"delivered", "failed"}, cutoff).
+	// Use clause expressions for cross-database compatibility (Oracle requires quoted lowercase column names)
+	result := s.db.Where(map[string]interface{}{"status": []string{"delivered", "failed"}}).
+		Where(clause.Expr{SQL: "? < ?", Vars: []interface{}{clause.Column{Name: "created_at"}, cutoff}}).
 		Delete(&models.WebhookDelivery{})
 
 	if result.Error != nil {

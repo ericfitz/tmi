@@ -36,22 +36,23 @@ func (s *GormThreatModelStore) GetDB() *gorm.DB {
 func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifier string) (string, error) {
 	var user models.User
 
+	// Use map-based queries for cross-database compatibility (Oracle requires quoted lowercase column names)
 	// Step 1: Check if it's already a valid internal_uuid
 	if _, err := uuid.Parse(identifier); err == nil {
-		result := tx.Where("internal_uuid = ?", identifier).First(&user)
+		result := tx.Where(map[string]interface{}{"internal_uuid": identifier}).First(&user)
 		if result.Error == nil {
 			return user.InternalUUID, nil
 		}
 	}
 
 	// Step 2: Try as provider_user_id
-	result := tx.Where("provider_user_id = ?", identifier).First(&user)
+	result := tx.Where(map[string]interface{}{"provider_user_id": identifier}).First(&user)
 	if result.Error == nil {
 		return user.InternalUUID, nil
 	}
 
 	// Step 3: Try as email
-	result = tx.Where("email = ?", identifier).First(&user)
+	result = tx.Where(map[string]interface{}{"email": identifier}).First(&user)
 	if result.Error == nil {
 		return user.InternalUUID, nil
 	}
