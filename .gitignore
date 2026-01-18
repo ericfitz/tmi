@@ -83,6 +83,7 @@ scripts/drop-oracle-tables.sh
 **/__pycache__/
 **/*.pyc
 docs/reference/apis/openapi-validation-report.json
+docs/reference/apis/openapi-validation.db
 docs/reference/apis/asyncapi-validation-report.json
 
 # OpenAPI backup files

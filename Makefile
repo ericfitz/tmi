@@ -1272,7 +1272,7 @@ build-server-sbom: build-with-sbom
 # VALIDATION TARGETS
 # ============================================================================
 
-.PHONY: validate-openapi validate-asyncapi scan-openapi-security arazzo-install arazzo-scaffold arazzo-enhance generate-arazzo validate-arazzo arazzo-all
+.PHONY: validate-openapi parse-openapi-validation validate-asyncapi scan-openapi-security arazzo-install arazzo-scaffold arazzo-enhance generate-arazzo validate-arazzo arazzo-all
 
 # ============================================================================
 # ARAZZO WORKFLOW GENERATION
@@ -1312,6 +1312,7 @@ arazzo-all: arazzo-install generate-arazzo
 
 OPENAPI_SPEC := docs/reference/apis/tmi-openapi.json
 OPENAPI_VALIDATION_REPORT := docs/reference/apis/openapi-validation-report.json
+OPENAPI_VALIDATION_DB := docs/reference/apis/openapi-validation.db
 ASYNCAPI_SPEC := docs/reference/apis/tmi-asyncapi.yml
 ASYNCAPI_VALIDATION_REPORT := docs/reference/apis/asyncapi-validation-report.json
 
@@ -1334,6 +1335,9 @@ validate-openapi:
 		echo -e "$(BLUE)[INFO]$(NC) Results: $$ERRORS errors, $$WARNINGS warnings, $$INFOS info"; \
 		if [ "$$ERRORS" -gt 0 ]; then \
 			echo -e "$(RED)[ERROR]$(NC) Validation failed with $$ERRORS errors"; \
+			echo -e "$(BLUE)[INFO]$(NC) Loading results into SQLite database for analysis..."; \
+			uv run scripts/parse-openapi-validation.py --report $(OPENAPI_VALIDATION_REPORT) --db $(OPENAPI_VALIDATION_DB) --summary; \
+			echo -e "$(BLUE)[INFO]$(NC) Query database: sqlite3 $(OPENAPI_VALIDATION_DB) 'SELECT * FROM error_summary'"; \
 			exit 1; \
 		fi; \
 	else \
@@ -1342,6 +1346,11 @@ validate-openapi:
 		exit 1; \
 	fi
 	$(call log_success,OpenAPI validation complete. Report: $(OPENAPI_VALIDATION_REPORT))
+
+parse-openapi-validation:
+	$(call log_info,Parsing OpenAPI validation report into SQLite database...)
+	@uv run scripts/parse-openapi-validation.py --report $(OPENAPI_VALIDATION_REPORT) --db $(OPENAPI_VALIDATION_DB) --summary
+	$(call log_success,Validation results loaded into: $(OPENAPI_VALIDATION_DB))
 
 validate-asyncapi:
 	$(call log_info,Validating AsyncAPI specification with Spectral...)
