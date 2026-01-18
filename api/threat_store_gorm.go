@@ -47,14 +47,18 @@ func (s *GormThreatStore) Create(ctx context.Context, threat *Threat) error {
 		threat.Severity = &normalized
 	}
 
-	// Convert API model to GORM model (timestamps handled by GORM autoCreateTime/autoUpdateTime)
+	// Convert API model to GORM model
 	gormThreat := s.toGormModelForCreate(threat)
 
 	// Log the gormThreat for debugging
 	logger.Debug("GORM Threat model before insert: ID=%s, ThreatModelID=%s, Name=%s",
 		gormThreat.ID, gormThreat.ThreatModelID, gormThreat.Name)
 
-	// Insert into database
+	// Use GORM's standard Create - this handles all type conversions correctly
+	// (StringArray, OracleBool, etc.) across different database dialects.
+	// Note: The Threat model now has FieldsWithDefaultDBValue=0 (autoCreateTime/autoUpdateTime
+	// tags removed, timestamps set explicitly in toGormModelForCreate), so the dzwvip/oracle
+	// driver's RETURNING INTO bug should not be triggered.
 	if err := s.db.WithContext(ctx).Create(gormThreat).Error; err != nil {
 		logger.Error("Failed to create threat in database: %v", err)
 		return fmt.Errorf("failed to create threat: %w", err)
@@ -600,7 +604,7 @@ func (s *GormThreatStore) BulkCreate(ctx context.Context, threats []Threat) erro
 		return nil
 	}
 
-	// Convert to GORM models (timestamps handled by GORM autoCreateTime/autoUpdateTime)
+	// Convert to GORM models (timestamps set explicitly in toGormModelForCreate)
 	var parentThreatModelID string
 	gormThreats := make([]models.Threat, 0, len(threats))
 
@@ -827,9 +831,10 @@ func (s *GormThreatStore) tryGetFromCache(ctx context.Context, threatModelID str
 }
 
 // toGormModelForCreate converts an API Threat to a GORM model for CREATE operations.
-// This version does NOT set timestamps - GORM's autoCreateTime/autoUpdateTime handles them.
-// This is critical for Oracle compatibility where manually setting timestamps interferes
-// with the driver's RETURNING INTO clause handling.
+// Timestamps are set explicitly to ensure compatibility across all database backends.
+// The dzwvip/oracle driver has issues with RETURNING INTO clause when relying on
+// GORM's autoCreateTime/autoUpdateTime - by setting timestamps explicitly, we avoid
+// the RETURNING INTO clause and the associated Oracle driver bugs.
 func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
 	var id string
 	var threatModelID string
@@ -840,11 +845,16 @@ func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
 		threatModelID = threat.ThreatModelId.String()
 	}
 
+	// Set timestamps explicitly to avoid Oracle RETURNING INTO clause issues
+	now := time.Now().UTC()
+
 	gm := &models.Threat{
 		ID:            id,
 		ThreatModelID: threatModelID,
 		Name:          threat.Name,
 		ThreatType:    models.StringArray(threat.ThreatType),
+		CreatedAt:     now,
+		ModifiedAt:    now,
 	}
 	if threat.Description != nil {
 		gm.Description = threat.Description
@@ -883,7 +893,6 @@ func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
 		assetID := threat.AssetId.String()
 		gm.AssetID = &assetID
 	}
-	// Note: CreatedAt and ModifiedAt are NOT set here - GORM handles them via autoCreateTime/autoUpdateTime
 
 	return gm
 }

@@ -55,12 +55,11 @@ func (b *OracleBool) Scan(value interface{}) error {
 }
 
 // Value implements the driver.Valuer interface for OracleBool.
-// It returns the boolean as an int64 (0 or 1) for database storage.
+// It returns the boolean as a native Go bool for cross-database compatibility.
+// PostgreSQL expects bool for boolean columns, and Oracle's godror driver
+// can handle Go bool and convert it to NUMBER(1) appropriately.
 func (b OracleBool) Value() (driver.Value, error) {
-	if b {
-		return int64(1), nil
-	}
-	return int64(0), nil
+	return bool(b), nil
 }
 
 // Bool returns the underlying bool value.
@@ -275,11 +274,15 @@ type Threat struct {
 	Priority      *string  `gorm:"type:varchar(50)"`
 	Mitigated     OracleBool
 	Status        *string     `gorm:"type:varchar(50)"`
-	ThreatType    StringArray `gorm:"type:json;not null"`
+	ThreatType    StringArray `gorm:"type:text;serializer:json;not null"`
 	Mitigation    *string     `gorm:"type:text"`
 	IssueURI      *string     `gorm:"type:varchar(2048)"`
-	CreatedAt     time.Time   `gorm:"not null;autoCreateTime"`
-	ModifiedAt    time.Time   `gorm:"not null;autoUpdateTime"`
+	// Note: autoCreateTime/autoUpdateTime tags removed for Oracle compatibility.
+	// The dzwvip/oracle driver has a bug where RETURNING INTO clause is used when
+	// these tags are present, causing ORA-01400 errors even when values are set.
+	// Timestamps are set explicitly in the store layer (toGormModelForCreate).
+	CreatedAt  time.Time `gorm:"not null"`
+	ModifiedAt time.Time `gorm:"not null"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`

@@ -182,10 +182,10 @@ func TestOracleBool_Value(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    OracleBool
-		expected int64
+		expected bool
 	}{
-		{"true returns 1", OracleBool(true), 1},
-		{"false returns 0", OracleBool(false), 0},
+		{"true returns true", OracleBool(true), true},
+		{"false returns false", OracleBool(false), false},
 	}
 
 	for _, tt := range tests {

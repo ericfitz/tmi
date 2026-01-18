@@ -133,12 +133,17 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	// Note: For Oracle, the dzwvip/oracle driver's Namer automatically converts
 	// table and column names to UPPERCASE. By not specifying explicit column tags
 	// in models, GORM will use the NamingStrategy which the Oracle driver wraps.
+	//
+	// PrepareStmt is disabled for Oracle because the dzwvip/oracle driver has issues
+	// with cached prepared statements when schema changes occur. This causes bind
+	// variable misalignment and ORA-01400 errors.
+	prepareStmt := cfg.Type != DatabaseTypeOracle
 	gormConfig := &gorm.Config{
 		Logger: newGormLogger(log),
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		PrepareStmt: true, // Cache prepared statements for performance
+		PrepareStmt: prepareStmt,
 	}
 
 	// Open database connection
