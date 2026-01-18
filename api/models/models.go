@@ -260,10 +260,6 @@ func (a *Asset) BeforeCreate(tx *gorm.DB) error {
 
 // Threat represents a threat within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
-// Note: autoCreateTime:false is required to prevent GORM from auto-detecting CreatedAt
-// as an auto-timestamp field. The dzwvip/oracle driver's RETURNING INTO handling
-// for FieldsWithDefaultDBValue causes ORA-01400 errors when bind variables get corrupted.
-// We set timestamps explicitly in threat_store_gorm.go before insert.
 type Threat struct {
 	ID            string   `gorm:"primaryKey;type:varchar(36)"`
 	ThreatModelID string   `gorm:"type:varchar(36);not null;index"`
@@ -282,8 +278,8 @@ type Threat struct {
 	ThreatType    StringArray `gorm:"type:json;not null"`
 	Mitigation    *string     `gorm:"type:text"`
 	IssueURI      *string     `gorm:"type:varchar(2048)"`
-	CreatedAt     time.Time   `gorm:"not null;autoCreateTime:false"`
-	ModifiedAt    time.Time   `gorm:"not null"`
+	CreatedAt     time.Time   `gorm:"not null;autoCreateTime"`
+	ModifiedAt    time.Time   `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`

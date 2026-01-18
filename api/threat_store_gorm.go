@@ -41,19 +41,14 @@ func (s *GormThreatStore) Create(ctx context.Context, threat *Threat) error {
 		threat.Id = &id
 	}
 
-	// Set timestamps
-	now := time.Now().UTC()
-	threat.CreatedAt = &now
-	threat.ModifiedAt = &now
-
 	// Normalize severity
 	if threat.Severity != nil {
 		normalized := normalizeSeverity(*threat.Severity)
 		threat.Severity = &normalized
 	}
 
-	// Convert API model to GORM model
-	gormThreat := s.toGormModel(threat)
+	// Convert API model to GORM model (timestamps handled by GORM autoCreateTime/autoUpdateTime)
+	gormThreat := s.toGormModelForCreate(threat)
 
 	// Log the gormThreat for debugging
 	logger.Debug("GORM Threat model before insert: ID=%s, ThreatModelID=%s, Name=%s",
@@ -64,6 +59,10 @@ func (s *GormThreatStore) Create(ctx context.Context, threat *Threat) error {
 		logger.Error("Failed to create threat in database: %v", err)
 		return fmt.Errorf("failed to create threat: %w", err)
 	}
+
+	// Update API model with timestamps set by GORM
+	threat.CreatedAt = &gormThreat.CreatedAt
+	threat.ModifiedAt = &gormThreat.ModifiedAt
 
 	// Cache the new threat
 	if s.cache != nil {
@@ -601,8 +600,7 @@ func (s *GormThreatStore) BulkCreate(ctx context.Context, threats []Threat) erro
 		return nil
 	}
 
-	// Convert to GORM models
-	now := time.Now().UTC()
+	// Convert to GORM models (timestamps handled by GORM autoCreateTime/autoUpdateTime)
 	var parentThreatModelID string
 	gormThreats := make([]models.Threat, 0, len(threats))
 
@@ -614,9 +612,6 @@ func (s *GormThreatStore) BulkCreate(ctx context.Context, threats []Threat) erro
 			threat.Id = &id
 		}
 
-		threat.CreatedAt = &now
-		threat.ModifiedAt = &now
-
 		if threat.Severity != nil {
 			normalized := normalizeSeverity(*threat.Severity)
 			threat.Severity = &normalized
@@ -626,7 +621,7 @@ func (s *GormThreatStore) BulkCreate(ctx context.Context, threats []Threat) erro
 			parentThreatModelID = threat.ThreatModelId.String()
 		}
 
-		gormThreats = append(gormThreats, *s.toGormModel(threat))
+		gormThreats = append(gormThreats, *s.toGormModelForCreate(threat))
 	}
 
 	// Create all in a transaction
@@ -637,6 +632,12 @@ func (s *GormThreatStore) BulkCreate(ctx context.Context, threats []Threat) erro
 	if err != nil {
 		logger.Error("Failed to bulk create threats: %v", err)
 		return fmt.Errorf("failed to bulk create threats: %w", err)
+	}
+
+	// Update API models with timestamps set by GORM
+	for i := range threats {
+		threats[i].CreatedAt = &gormThreats[i].CreatedAt
+		threats[i].ModifiedAt = &gormThreats[i].ModifiedAt
 	}
 
 	// Invalidate related caches
@@ -825,10 +826,11 @@ func (s *GormThreatStore) tryGetFromCache(ctx context.Context, threatModelID str
 	return nil, err
 }
 
-// toGormModel converts an API Threat to a GORM model
-func (s *GormThreatStore) toGormModel(threat *Threat) *models.Threat {
-	// Initialize all required fields in the struct literal for Oracle compatibility
-	// Oracle GORM driver may not properly track fields set after struct initialization
+// toGormModelForCreate converts an API Threat to a GORM model for CREATE operations.
+// This version does NOT set timestamps - GORM's autoCreateTime/autoUpdateTime handles them.
+// This is critical for Oracle compatibility where manually setting timestamps interferes
+// with the driver's RETURNING INTO clause handling.
+func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
 	var id string
 	var threatModelID string
 	if threat.Id != nil {
@@ -881,13 +883,21 @@ func (s *GormThreatStore) toGormModel(threat *Threat) *models.Threat {
 		assetID := threat.AssetId.String()
 		gm.AssetID = &assetID
 	}
+	// Note: CreatedAt and ModifiedAt are NOT set here - GORM handles them via autoCreateTime/autoUpdateTime
+
+	return gm
+}
+
+// toGormModel converts an API Threat to a GORM model for UPDATE operations.
+// This version sets timestamps from the API model for updates.
+func (s *GormThreatStore) toGormModel(threat *Threat) *models.Threat {
+	gm := s.toGormModelForCreate(threat)
 	if threat.CreatedAt != nil {
 		gm.CreatedAt = *threat.CreatedAt
 	}
 	if threat.ModifiedAt != nil {
 		gm.ModifiedAt = *threat.ModifiedAt
 	}
-
 	return gm
 }
 
