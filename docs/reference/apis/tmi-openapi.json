@@ -90,7 +90,8 @@
               "name",
               "build"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "example": "tmi"
           },
           "api": {
             "type": "object",
@@ -113,7 +114,8 @@
               "version",
               "specification"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "example": "tmi-api"
           },
           "operator": {
             "type": "object",
@@ -135,7 +137,8 @@
               "name",
               "contact"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "example": "Acme Corporation"
           },
           "health": {
             "type": "object",
@@ -148,7 +151,8 @@
                 "$ref": "#/components/schemas/ComponentHealth"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "example": "healthy"
           }
         },
         "required": [
@@ -2857,14 +2861,7 @@
             },
             "additionalProperties": false
           }
-        ],
-        "example": {
-          "id": "550e8400-e29b-41d4-a716-446655440000",
-          "name": "Security Analysis Notes",
-          "content": "Initial security analysis of the authentication flow.",
-          "created_at": "2026-01-15T10:00:00Z",
-          "modified_at": "2026-01-16T14:30:00Z"
-        }
+        ]
       },
       "Asset": {
         "description": "Complete Asset schema with server-generated fields",
@@ -2914,15 +2911,7 @@
             },
             "additionalProperties": false
           }
-        ],
-        "example": {
-          "id": "550e8400-e29b-41d4-a716-446655440000",
-          "name": "User Database",
-          "type": "data",
-          "description": "Primary database storing user credentials",
-          "created_at": "2026-01-15T10:00:00Z",
-          "modified_at": "2026-01-16T14:30:00Z"
-        }
+        ]
       },
       "ExtendedAsset": {
         "allOf": [
@@ -2962,15 +2951,6 @@
             "additionalProperties": false
           }
         ],
-        "example": {
-          "id": "550e8400-e29b-41d4-a716-446655440000",
-          "name": "User Database",
-          "type": "data",
-          "description": "Primary database storing user credentials",
-          "threat_count": 3,
-          "created_at": "2026-01-15T10:00:00Z",
-          "modified_at": "2026-01-16T14:30:00Z"
-        },
         "description": "Asset with extended metadata for detailed security analysis"
       },
       "AssetBase": {
@@ -4395,6 +4375,19 @@
           "provider": {
             "type": "string",
             "description": "OAuth/SAML provider"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "User email to grant admin privileges"
+          },
+          "provider_user_id": {
+            "type": "string",
+            "description": "Provider user ID to grant admin privileges"
+          },
+          "group_name": {
+            "type": "string",
+            "description": "Group name to grant admin privileges"
           }
         },
         "oneOf": [
@@ -4412,14 +4405,26 @@
             "not": {
               "anyOf": [
                 {
+                  "type": "object",
                   "required": [
                     "provider_user_id"
-                  ]
+                  ],
+                  "properties": {
+                    "provider_user_id": {
+                      "type": "string"
+                    }
+                  }
                 },
                 {
+                  "type": "object",
                   "required": [
                     "group_name"
-                  ]
+                  ],
+                  "properties": {
+                    "group_name": {
+                      "type": "string"
+                    }
+                  }
                 }
               ]
             }
@@ -4437,14 +4442,26 @@
             "not": {
               "anyOf": [
                 {
+                  "type": "object",
                   "required": [
                     "email"
-                  ]
+                  ],
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    }
+                  }
                 },
                 {
+                  "type": "object",
                   "required": [
                     "group_name"
-                  ]
+                  ],
+                  "properties": {
+                    "group_name": {
+                      "type": "string"
+                    }
+                  }
                 }
               ]
             }
@@ -4462,14 +4479,26 @@
             "not": {
               "anyOf": [
                 {
+                  "type": "object",
                   "required": [
                     "email"
-                  ]
+                  ],
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    }
+                  }
                 },
                 {
+                  "type": "object",
                   "required": [
                     "provider_user_id"
-                  ]
+                  ],
+                  "properties": {
+                    "provider_user_id": {
+                      "type": "string"
+                    }
+                  }
                 }
               ]
             }
@@ -5709,7 +5738,33 @@
               "pattern": "^(/[^/]*)*$",
               "maxLength": 512
             },
-            "value": {}
+            "value": {
+              "description": "The value to use for add/replace/test operations. Can be any JSON value per RFC 6902.",
+              "nullable": true,
+              "oneOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                {
+                  "type": "array",
+                  "maxItems": 1000
+                }
+              ]
+            }
           },
           "required": [
             "op",
@@ -5765,12 +5820,14 @@
           "code_verifier": {
             "type": "string",
             "description": "PKCE code verifier (required for authorization_code grant)",
-            "nullable": true
+            "nullable": true,
+            "example": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
           },
           "state": {
             "type": "string",
             "description": "State parameter for CSRF protection",
-            "nullable": true
+            "nullable": true,
+            "example": "xyz123abc456"
           }
         },
         "required": [
@@ -5822,7 +5879,8 @@
             "type": "integer",
             "minimum": 1,
             "description": "Maximum addon invocations per hour",
-            "maximum": 1000
+            "maximum": 1000,
+            "example": 1000
           }
         },
         "additionalProperties": false,
@@ -5846,7 +5904,8 @@
             "minimum": 1,
             "nullable": true,
             "description": "Maximum API requests per hour (optional)",
-            "maximum": 600000
+            "maximum": 600000,
+            "example": 10000
           }
         },
         "additionalProperties": false,
@@ -5872,19 +5931,22 @@
             "type": "integer",
             "minimum": 1,
             "description": "Maximum webhook events per minute",
-            "maximum": 1000
+            "maximum": 1000,
+            "example": 100
           },
           "max_subscription_requests_per_minute": {
             "type": "integer",
             "minimum": 1,
             "description": "Maximum subscription requests per minute",
-            "maximum": 100
+            "maximum": 100,
+            "example": 60
           },
           "max_subscription_requests_per_day": {
             "type": "integer",
             "minimum": 1,
             "description": "Maximum subscription requests per day",
-            "maximum": 10000
+            "maximum": 10000,
+            "example": 1440
           }
         },
         "additionalProperties": false,
@@ -5904,7 +5966,8 @@
             "type": "string",
             "description": "State parameter for CSRF protection",
             "maxLength": 10000,
-            "pattern": "^[^\\x00-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "example": "https://app.example.com/dashboard"
           }
         },
         "required": [
@@ -6216,7 +6279,8 @@
                 },
                 "request_id": {
                   "type": "string",
-                  "description": "Unique request identifier for troubleshooting"
+                  "description": "Unique request identifier for troubleshooting",
+                  "example": "req_abc123xyz789"
                 }
               },
               "required": [
@@ -8134,7 +8198,12 @@
                         ],
                         "additionalProperties": false
                       },
-                      "maxItems": 1000
+                      "maxItems": 1000,
+                      "example": [
+                        "admins",
+                        "developers",
+                        "users"
+                      ]
                     }
                   },
                   "required": [
@@ -8890,26 +8959,30 @@
                       "format": "uuid",
                       "description": "Unique identifier for the user (UUID)",
                       "maxLength": 36,
-                      "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
+                      "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$",
+                      "example": "user-12345-uuid"
                     },
                     "email": {
                       "type": "string",
                       "format": "email",
                       "description": "User email address",
                       "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
-                      "maxLength": 254
+                      "maxLength": 254,
+                      "example": "user@example.com"
                     },
                     "name": {
                       "type": "string",
                       "description": "User display name",
                       "maxLength": 256,
-                      "pattern": "^[^\\x00-\\x1F]*$"
+                      "pattern": "^[^\\x00-\\x1F]*$",
+                      "example": "John Doe"
                     },
                     "idp": {
                       "type": "string",
                       "description": "Current identity provider",
                       "maxLength": 100,
-                      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
+                      "example": "github"
                     },
                     "groups": {
                       "type": "array",
@@ -8918,7 +8991,11 @@
                         "type": "string",
                         "maxLength": 1000
                       },
-                      "maxItems": 1000
+                      "maxItems": 1000,
+                      "example": [
+                        "admins",
+                        "users"
+                      ]
                     },
                     "providers": {
                       "type": "array",
@@ -8938,7 +9015,11 @@
                         "additionalProperties": false
                       },
                       "description": "Linked OAuth providers",
-                      "maxItems": 1000
+                      "maxItems": 1000,
+                      "example": [
+                        "github",
+                        "google"
+                      ]
                     }
                   },
                   "required": [
@@ -12616,7 +12697,11 @@
                         "maxLength": 36
                       },
                       "description": "IDs of deleted threats",
-                      "maxItems": 1000
+                      "maxItems": 1000,
+                      "example": [
+                        "550e8400-e29b-41d4-a716-446655440001",
+                        "550e8400-e29b-41d4-a716-446655440002"
+                      ]
                     }
                   },
                   "additionalProperties": false
@@ -20273,6 +20358,13 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Note"
+                },
+                "example": {
+                  "id": "550e8400-e29b-41d4-a716-446655440001",
+                  "name": "Security Analysis Notes",
+                  "content": "Initial security analysis of the authentication flow.",
+                  "created_at": "2026-01-15T10:00:00Z",
+                  "modified_at": "2026-01-15T10:00:00Z"
                 }
               }
             },
@@ -20391,6 +20483,13 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Note"
+                },
+                "example": {
+                  "id": "550e8400-e29b-41d4-a716-446655440001",
+                  "name": "Security Analysis Notes",
+                  "content": "Initial security analysis of the authentication flow.",
+                  "created_at": "2026-01-15T10:00:00Z",
+                  "modified_at": "2026-01-16T14:30:00Z"
                 }
               }
             },
@@ -20518,6 +20617,13 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Note"
+                },
+                "example": {
+                  "id": "550e8400-e29b-41d4-a716-446655440001",
+                  "name": "Security Analysis Notes - Replaced",
+                  "content": "Completely revised security analysis document.",
+                  "created_at": "2026-01-15T10:00:00Z",
+                  "modified_at": "2026-01-17T09:00:00Z"
                 }
               }
             },
@@ -20761,6 +20867,13 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Note"
+                },
+                "example": {
+                  "id": "550e8400-e29b-41d4-a716-446655440001",
+                  "name": "Security Analysis Notes - Updated",
+                  "content": "Updated security analysis with additional findings.",
+                  "created_at": "2026-01-15T10:00:00Z",
+                  "modified_at": "2026-01-17T09:00:00Z"
                 }
               }
             },
@@ -21791,7 +21904,17 @@
                     "$ref": "#/components/schemas/Asset"
                   },
                   "maxItems": 1000
-                }
+                },
+                "example": [
+                  {
+                    "id": "550e8400-e29b-41d4-a716-446655440001",
+                    "name": "User Database",
+                    "type": "data",
+                    "description": "Primary database storing user credentials",
+                    "created_at": "2026-01-15T10:00:00Z",
+                    "modified_at": "2026-01-16T14:30:00Z"
+                  }
+                ]
               }
             },
             "headers": {
@@ -21915,6 +22038,14 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Asset"
+                },
+                "example": {
+                  "id": "550e8400-e29b-41d4-a716-446655440001",
+                  "name": "User Database",
+                  "type": "data",
+                  "description": "Primary database storing user credentials",
+                  "created_at": "2026-01-15T10:00:00Z",
+                  "modified_at": "2026-01-16T14:30:00Z"
                 }
               }
             },
@@ -22033,7 +22164,19 @@
                   "$ref": "#/components/schemas/Asset"
                 },
                 "maxItems": 50
-              }
+              },
+              "example": [
+                {
+                  "name": "API Gateway",
+                  "type": "software",
+                  "description": "Main API gateway service"
+                },
+                {
+                  "name": "Redis Cache",
+                  "type": "infrastructure",
+                  "description": "Caching layer"
+                }
+              ]
             }
           },
           "description": "Array of assets to create in bulk"
@@ -22049,7 +22192,25 @@
                     "$ref": "#/components/schemas/Asset"
                   },
                   "maxItems": 1000
-                }
+                },
+                "example": [
+                  {
+                    "id": "550e8400-e29b-41d4-a716-446655440001",
+                    "name": "API Gateway",
+                    "type": "software",
+                    "description": "Main API gateway service",
+                    "created_at": "2026-01-17T10:00:00Z",
+                    "modified_at": "2026-01-17T10:00:00Z"
+                  },
+                  {
+                    "id": "550e8400-e29b-41d4-a716-446655440002",
+                    "name": "Redis Cache",
+                    "type": "infrastructure",
+                    "description": "Caching layer",
+                    "created_at": "2026-01-17T10:00:00Z",
+                    "modified_at": "2026-01-17T10:00:00Z"
+                  }
+                ]
               }
             },
             "headers": {
@@ -22165,7 +22326,15 @@
                   "$ref": "#/components/schemas/Asset"
                 },
                 "maxItems": 50
-              }
+              },
+              "example": [
+                {
+                  "id": "550e8400-e29b-41d4-a716-446655440001",
+                  "name": "API Gateway Updated",
+                  "type": "software",
+                  "description": "Updated gateway service"
+                }
+              ]
             }
           },
           "description": "Array of assets to upsert in bulk"
@@ -22181,7 +22350,17 @@
                     "$ref": "#/components/schemas/Asset"
                   },
                   "maxItems": 1000
-                }
+                },
+                "example": [
+                  {
+                    "id": "550e8400-e29b-41d4-a716-446655440001",
+                    "name": "API Gateway Updated",
+                    "type": "software",
+                    "description": "Updated gateway service",
+                    "created_at": "2026-01-17T10:00:00Z",
+                    "modified_at": "2026-01-17T11:00:00Z"
+                  }
+                ]
               }
             },
             "headers": {
@@ -22299,6 +22478,14 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Asset"
+                },
+                "example": {
+                  "id": "550e8400-e29b-41d4-a716-446655440001",
+                  "name": "User Database",
+                  "type": "data",
+                  "description": "Primary database storing user credentials",
+                  "created_at": "2026-01-15T10:00:00Z",
+                  "modified_at": "2026-01-16T14:30:00Z"
                 }
               }
             },
@@ -22426,6 +22613,14 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Asset"
+                },
+                "example": {
+                  "id": "550e8400-e29b-41d4-a716-446655440001",
+                  "name": "User Database",
+                  "type": "data",
+                  "description": "Primary database storing user credentials - replaced",
+                  "created_at": "2026-01-15T10:00:00Z",
+                  "modified_at": "2026-01-17T09:00:00Z"
                 }
               }
             },
@@ -22669,6 +22864,14 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Asset"
+                },
+                "example": {
+                  "id": "550e8400-e29b-41d4-a716-446655440001",
+                  "name": "User Database",
+                  "type": "data",
+                  "description": "Primary database storing user credentials - updated",
+                  "created_at": "2026-01-15T10:00:00Z",
+                  "modified_at": "2026-01-17T09:00:00Z"
                 }
               }
             },
@@ -27608,7 +27811,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -27868,7 +28072,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -28150,7 +28355,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -28366,7 +28572,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -28638,7 +28845,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -28881,7 +29089,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -29097,7 +29306,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -29371,7 +29581,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -29614,7 +29825,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -29864,7 +30076,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -30120,7 +30333,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -30385,7 +30599,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -30632,7 +30847,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -30873,7 +31089,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -31133,7 +31350,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -31389,7 +31607,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -31654,7 +31873,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -31901,7 +32121,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -32133,7 +32354,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -32398,7 +32620,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -32696,7 +32919,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -32948,7 +33172,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -33171,7 +33396,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -33394,7 +33620,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -33617,7 +33844,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -33833,7 +34061,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -34105,7 +34334,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -34348,7 +34578,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -34662,12 +34893,14 @@
                   "description": {
                     "type": "string",
                     "maxLength": 500,
-                    "description": "Optional description of the credential's purpose"
+                    "description": "Optional description of the credential's purpose",
+                    "example": "CI/CD pipeline automation credential"
                   },
                   "expires_at": {
                     "type": "string",
                     "format": "date-time",
-                    "description": "Optional expiration timestamp (ISO 8601)"
+                    "description": "Optional expiration timestamp (ISO 8601)",
+                    "example": "2027-01-17T00:00:00Z"
                   }
                 }
               },
@@ -34860,7 +35093,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -35039,7 +35273,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [
@@ -35247,7 +35482,8 @@
                     },
                     "retry_after": {
                       "type": "integer",
-                      "description": "Seconds until rate limit resets"
+                      "description": "Seconds until rate limit resets",
+                      "example": 60
                     }
                   },
                   "required": [

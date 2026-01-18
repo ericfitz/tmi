@@ -389,7 +389,12 @@ def main() -> int:
         print(f"Error: Invalid JSON in report file: {e}", file=sys.stderr)
         return 1
 
-    # Create/connect to database
+    # Delete existing database to ensure clean state (no duplicates)
+    if db_path.exists():
+        print(f"Removing existing database: {db_path}")
+        db_path.unlink()
+
+    # Create new database
     print(f"Creating database: {db_path}")
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
