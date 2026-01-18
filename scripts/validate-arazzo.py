@@ -73,7 +73,7 @@ def validate_arazzo(arazzo_path: str, format: str = 'stylish') -> bool:
 
     except FileNotFoundError:
         print("❌ Spectral CLI not found")
-        print("   Install with: npm install")
+        print("   Install with: pnpm install")
         return False
     except Exception as e:
         print(f"❌ Validation error: {e}")

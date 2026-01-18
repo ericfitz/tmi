@@ -345,7 +345,7 @@ tests:
 
 ```bash
 # Install StepCI
-npm install -g stepci
+pnpm install -g stepci
 
 # Run basic test
 stepci run oauth-test.yml

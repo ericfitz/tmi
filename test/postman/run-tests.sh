@@ -100,7 +100,7 @@ elif command -v newman-reporter-htmlextra >/dev/null 2>&1; then
     HTML_REPORTER="htmlextra"
 else
     echo "⚠️ newman-reporter-htmlextra not found, HTML reports will be disabled"
-    echo "   To install: npm install -g newman-reporter-htmlextra"
+    echo "   To install: pnpm install -g newman-reporter-htmlextra"
     HTML_REPORTER=""
 fi
 

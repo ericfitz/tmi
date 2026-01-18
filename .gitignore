@@ -62,7 +62,6 @@ config-integration-test.yml
 coverage/
 coverage_html/
 security-reports/
-rmoa-api-key
 .venv/
 **/bin/**
 migrate

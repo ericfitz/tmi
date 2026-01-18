@@ -513,7 +513,7 @@ test-api:
 		exit 1; \
 	fi
 	@if ! command -v newman >/dev/null 2>&1; then \
-		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: npm install -g newman newman-reporter-htmlextra"; \
+		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: pnpm install -g newman newman-reporter-htmlextra"; \
 		exit 1; \
 	fi
 	@bash test/postman/run-tests.sh
@@ -537,7 +537,7 @@ test-api-collection:
 		exit 1; \
 	fi
 	@if ! command -v newman >/dev/null 2>&1; then \
-		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: npm install -g newman newman-reporter-htmlextra"; \
+		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: pnpm install -g newman newman-reporter-htmlextra"; \
 		exit 1; \
 	fi
 	@# Use script that handles PKCE OAuth authentication properly
@@ -1257,7 +1257,7 @@ build-server-sbom: build-with-sbom
 
 arazzo-install:
 	$(call log_info,Installing Arazzo tooling...)
-	@npm install
+	@pnpm install
 	$(call log_success,Arazzo tools installed)
 
 arazzo-scaffold: arazzo-install
@@ -1334,21 +1334,6 @@ validate-asyncapi:
 	@uv run scripts/validate-asyncapi.py $(ASYNCAPI_SPEC) --format json --output $(ASYNCAPI_VALIDATION_REPORT)
 	@uv run scripts/validate-asyncapi.py $(ASYNCAPI_SPEC)
 	$(call log_success,AsyncAPI validation complete. Report: $(ASYNCAPI_VALIDATION_REPORT))
-
-scan-openapi-security:
-	$(call log_info,Scanning OpenAPI specification for security issues...)
-	@if [ ! -f rmoa-api-key ]; then \
-		$(call log_error,rmoa-api-key file not found); \
-		echo "Create rmoa-api-key file with your API key"; \
-		exit 1; \
-	fi
-	@if ! command -v rmoa >/dev/null 2>&1; then \
-		$(call log_error,rmoa not found. Install with: npm install -g rmoa); \
-		exit 1; \
-	fi
-	@API_KEY=$$(cat rmoa-api-key); \
-	rmoa lint --filename docs/reference/apis/tmi-openapi.json --output json --api-key $$API_KEY
-	$(call log_success,OpenAPI security scan completed)
 
 # ============================================================================
 # STATUS CHECKING
@@ -1479,7 +1464,6 @@ help:
 	@echo "Validation Targets:"
 	@echo "  validate-openapi       - Validate OpenAPI specification"
 	@echo "  validate-asyncapi      - Validate AsyncAPI specification"
-	@echo "  scan-openapi-security  - Scan OpenAPI specification for security issues (requires rmoa)"
 	@echo ""
 	@echo "Configuration Files:"
 	@echo "  config/test-unit.yml           - Unit testing configuration"

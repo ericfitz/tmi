@@ -236,7 +236,7 @@ Each child resource step automatically depends on parent resource creation.
 ```
 make generate-arazzo
 ├── arazzo-scaffold
-│   ├── arazzo-install (npm install)
+│   ├── arazzo-install (pnpm install)
 │   └── scripts/generate-arazzo-scaffold.sh
 │       └── npx @redocly/cli generate-arazzo
 ├── arazzo-enhance
