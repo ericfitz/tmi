@@ -130,7 +130,8 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, groupNa
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Get group internal_uuid (provider is always "*" for TMI-managed groups)
 		var group models.Group
-		if err := tx.Where("provider = ? AND group_name = ?", "*", groupName).First(&group).Error; err != nil {
+		// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
+		if err := tx.Where(&models.Group{Provider: "*", GroupName: groupName}).First(&group).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return fmt.Errorf("group not found: %s", groupName)
 			}

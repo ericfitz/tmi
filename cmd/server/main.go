@@ -1654,7 +1654,8 @@ func ensureEveryonePseudoGroupGorm(gormDB *gorm.DB) error {
 		UsageCount:   0,
 	}
 
-	result := gormDB.Where("provider = ? AND group_name = ?", "*", "everyone").FirstOrCreate(&group)
+	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
+	result := gormDB.Where(&models.Group{Provider: "*", GroupName: "everyone"}).FirstOrCreate(&group)
 	if result.Error != nil {
 		return fmt.Errorf("failed to ensure everyone pseudo-group exists: %w", result.Error)
 	}
@@ -1803,13 +1804,11 @@ func createUserForAdministratorGorm(ctx context.Context, gormDB *gorm.DB, adminC
 
 // findGroupByProviderAndNameGorm looks up a group by provider and group_name using GORM
 func findGroupByProviderAndNameGorm(ctx context.Context, gormDB *gorm.DB, provider string, groupName string) (uuid.UUID, error) {
-	var group struct {
-		InternalUUID string `gorm:"column:internal_uuid"`
-	}
+	var group models.Group
 
-	if err := gormDB.WithContext(ctx).Table("groups").
-		Select("internal_uuid").
-		Where("provider = ? AND group_name = ?", provider, groupName).
+	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
+	if err := gormDB.WithContext(ctx).
+		Where(&models.Group{Provider: provider, GroupName: groupName}).
 		First(&group).Error; err != nil {
 		return uuid.Nil, err
 	}

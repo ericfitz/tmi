@@ -35,13 +35,18 @@ func (s *GormGroupStore) List(ctx context.Context, filter GroupFilter) ([]Group,
 	query := s.db.WithContext(ctx).Model(&models.Group{})
 
 	// Apply filters
+	// Use map-based queries for cross-database compatibility (Oracle requires quoted lowercase column names)
 	if filter.Provider != "" {
-		query = query.Where("provider = ?", filter.Provider)
+		query = query.Where(map[string]interface{}{"provider": filter.Provider})
 	}
 
 	if filter.GroupName != "" {
-		// Use LOWER() for cross-database case-insensitive search
-		query = query.Where("LOWER(group_name) LIKE LOWER(?)", "%"+filter.GroupName+"%")
+		// Use LOWER() with clause.Column for cross-database case-insensitive search
+		// clause.Column ensures proper quoting of column names (required for Oracle)
+		query = query.Where(
+			clause.Expr{SQL: "LOWER(?) LIKE LOWER(?)",
+				Vars: []interface{}{clause.Column{Name: "group_name"}, "%" + filter.GroupName + "%"}},
+		)
 	}
 
 	if filter.UsedInAuthorizations != nil {
@@ -120,8 +125,9 @@ func (s *GormGroupStore) Get(ctx context.Context, internalUUID uuid.UUID) (*Grou
 // GetByProviderAndName retrieves a group by provider and group_name
 func (s *GormGroupStore) GetByProviderAndName(ctx context.Context, provider string, groupName string) (*Group, error) {
 	var gormGroup models.Group
+	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := s.db.WithContext(ctx).
-		Where("provider = ? AND group_name = ?", provider, groupName).
+		Where(&models.Group{Provider: provider, GroupName: groupName}).
 		First(&gormGroup)
 
 	if result.Error != nil {
@@ -211,12 +217,18 @@ func (s *GormGroupStore) Count(ctx context.Context, filter GroupFilter) (int, er
 	query := s.db.WithContext(ctx).Model(&models.Group{})
 
 	// Apply same filters as List (excluding pagination and sorting)
+	// Use map-based queries for cross-database compatibility (Oracle requires quoted lowercase column names)
 	if filter.Provider != "" {
-		query = query.Where("provider = ?", filter.Provider)
+		query = query.Where(map[string]interface{}{"provider": filter.Provider})
 	}
 
 	if filter.GroupName != "" {
-		query = query.Where("LOWER(group_name) LIKE LOWER(?)", "%"+filter.GroupName+"%")
+		// Use LOWER() with clause.Column for cross-database case-insensitive search
+		// clause.Column ensures proper quoting of column names (required for Oracle)
+		query = query.Where(
+			clause.Expr{SQL: "LOWER(?) LIKE LOWER(?)",
+				Vars: []interface{}{clause.Column{Name: "group_name"}, "%" + filter.GroupName + "%"}},
+		)
 	}
 
 	if filter.UsedInAuthorizations != nil {

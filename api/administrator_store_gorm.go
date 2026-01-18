@@ -194,8 +194,10 @@ func (s *GormAdministratorStore) GetGroupUUIDsByNames(ctx context.Context, provi
 	logger := slogging.Get()
 
 	var groups []models.Group
+	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
+	// Map keys are converted to proper column names by GORM's schema layer
 	result := s.db.WithContext(ctx).
-		Where("provider = ? AND group_name IN ?", provider, groupNames).
+		Where(map[string]interface{}{"provider": provider, "group_name": groupNames}).
 		Find(&groups)
 
 	if result.Error != nil {
@@ -330,9 +332,10 @@ func (s *GormAdministratorStore) GetGroupName(ctx context.Context, groupID uuid.
 	logger := slogging.Get()
 
 	var group models.Group
+	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := s.db.WithContext(ctx).
-		Select("group_name").
-		First(&group, "internal_uuid = ? AND provider = ?", groupID.String(), provider)
+		Where(map[string]interface{}{"internal_uuid": groupID.String(), "provider": provider}).
+		First(&group)
 
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {

@@ -67,7 +67,8 @@ func (s *GormThreatModelStore) resolveGroupToUUID(tx *gorm.DB, groupName string,
 	}
 
 	var group models.Group
-	result := tx.Where("provider = ? AND group_name = ?", provider, groupName).First(&group)
+	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
+	result := tx.Where(&models.Group{Provider: provider, GroupName: groupName}).First(&group)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
 			return "", fmt.Errorf("group not found: %s@%s", groupName, provider)
@@ -105,7 +106,8 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 	// If the group was updated (not created), we need to fetch its UUID
 	if group.InternalUUID == "" {
 		var existingGroup models.Group
-		if err := tx.Where("provider = ? AND group_name = ?", provider, groupName).First(&existingGroup).Error; err != nil {
+		// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
+		if err := tx.Where(&models.Group{Provider: provider, GroupName: groupName}).First(&existingGroup).Error; err != nil {
 			return "", fmt.Errorf("failed to fetch group after upsert: %w", err)
 		}
 		return existingGroup.InternalUUID, nil

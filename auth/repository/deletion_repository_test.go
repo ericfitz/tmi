@@ -192,8 +192,9 @@ func TestGormDeletionRepository_DeleteGroupAndData_NoThreatModels(t *testing.T) 
 	assert.Equal(t, 0, result.ThreatModelsRetained)
 
 	// Verify group is deleted
+	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	var count int64
-	tdb.DB.Model(&models.Group{}).Where("group_name = ?", "test-group").Count(&count)
+	tdb.DB.Model(&models.Group{}).Where(&models.Group{GroupName: "test-group"}).Count(&count)
 	assert.Equal(t, int64(0), count)
 }
 
