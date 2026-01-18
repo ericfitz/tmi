@@ -82,6 +82,7 @@ scripts/drop-oracle-tables.sh
 .dedupe/
 **/__pycache__/
 **/*.pyc
+docs/reference/apis/openapi-validation-report.json
 
 # OpenAPI backup files
 *.json.backup
