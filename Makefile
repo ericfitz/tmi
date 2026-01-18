@@ -186,6 +186,11 @@ build-cats-seed:  ## Build CATS database seeding tool (database-agnostic)
 	@go build -o bin/cats-seed github.com/ericfitz/tmi/cmd/cats-seed
 	$(call log_success,"CATS seeding tool built: bin/cats-seed")
 
+build-diagnose-oracle:  ## Build Oracle diagnostic tool
+	$(call log_info,Building Oracle diagnostic tool...)
+	@go build -o bin/diagnose-oracle github.com/ericfitz/tmi/cmd/diagnose-oracle
+	$(call log_success,"Oracle diagnostic tool built: bin/diagnose-oracle")
+
 clean-build:
 	$(call log_info,"Cleaning build artifacts...")
 	@rm -rf ./bin/*
@@ -809,6 +814,15 @@ cats-seed-oci: build-cats-seed  ## Seed database for CATS fuzzing (Oracle ADB - 
 	fi
 	@CATS_USER_ARG="$(CATS_USER)" CATS_PROVIDER_ARG="$(CATS_PROVIDER)" /bin/bash -c '. scripts/oci-env.sh && ./bin/cats-seed --config=config-development-oci.yml --user="$$CATS_USER_ARG" --provider="$$CATS_PROVIDER_ARG"'
 	$(call log_success,CATS database seeding completed - Oracle ADB)
+
+diagnose-oracle: build-diagnose-oracle  ## Run Oracle diagnostic tool (requires oci-env.sh)
+	$(call log_info,"Running Oracle diagnostic tool...")
+	@if [ ! -f "scripts/oci-env.sh" ]; then \
+		$(call log_error,"scripts/oci-env.sh not found. Copy from scripts/oci-env.sh.example and configure."); \
+		exit 1; \
+	fi
+	@/bin/bash -c '. scripts/oci-env.sh && ./bin/diagnose-oracle --config=config-development-oci.yml --verbose'
+	$(call log_success,Oracle diagnostic completed)
 
 cats-fuzz-prep:  ## Prepare database for CATS fuzzing (DEPRECATED: use cats-seed instead)
 	$(call log_warn,"cats-fuzz-prep is deprecated. Use 'make cats-seed' for database-agnostic seeding.")

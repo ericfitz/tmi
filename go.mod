@@ -1,13 +1,12 @@
 module github.com/ericfitz/tmi
 
-go 1.25.3
+go 1.25.4
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/coreos/go-oidc/v3 v3.17.0
 	github.com/crewjam/saml v0.5.1
-	github.com/dzwvip/oracle v1.3.2
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/gin-gonic/gin v1.11.0
@@ -21,6 +20,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/oapi-codegen/gin-middleware v1.0.2
 	github.com/oapi-codegen/runtime v1.1.2
+	github.com/oracle-samples/gorm-oracle v1.1.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.48.0
 	golang.org/x/oauth2 v0.34.0
@@ -36,11 +36,11 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/emirpasic/gods v1.12.0 // indirect
-	github.com/go-logfmt/logfmt v0.6.0 // indirect
-	github.com/go-sql-driver/mysql v1.8.1 // indirect
-	github.com/godror/godror v0.40.3 // indirect
-	github.com/godror/knownpb v0.1.1 // indirect
+	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
+	github.com/go-logfmt/logfmt v0.6.1 // indirect
+	github.com/go-sql-driver/mysql v1.9.3 // indirect
+	github.com/godror/godror v0.49.4 // indirect
+	github.com/godror/knownpb v0.3.0 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/jackc/pgx/v5 v5.6.0 // indirect
@@ -49,9 +49,9 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/microsoft/go-mssqldb v1.8.2 // indirect
-	github.com/thoas/go-funk v0.7.0 // indirect
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
+	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/sync v0.19.0 // indirect
+	gorm.io/datatypes v1.2.7 // indirect
 )
 
 require (

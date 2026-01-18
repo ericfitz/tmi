@@ -56,9 +56,6 @@ func (s *GormThreatStore) Create(ctx context.Context, threat *Threat) error {
 
 	// Use GORM's standard Create - this handles all type conversions correctly
 	// (StringArray, OracleBool, etc.) across different database dialects.
-	// Note: The Threat model now has FieldsWithDefaultDBValue=0 (autoCreateTime/autoUpdateTime
-	// tags removed, timestamps set explicitly in toGormModelForCreate), so the dzwvip/oracle
-	// driver's RETURNING INTO bug should not be triggered.
 	if err := s.db.WithContext(ctx).Create(gormThreat).Error; err != nil {
 		logger.Error("Failed to create threat in database: %v", err)
 		return fmt.Errorf("failed to create threat: %w", err)
@@ -832,9 +829,6 @@ func (s *GormThreatStore) tryGetFromCache(ctx context.Context, threatModelID str
 
 // toGormModelForCreate converts an API Threat to a GORM model for CREATE operations.
 // Timestamps are set explicitly to ensure compatibility across all database backends.
-// The dzwvip/oracle driver has issues with RETURNING INTO clause when relying on
-// GORM's autoCreateTime/autoUpdateTime - by setting timestamps explicitly, we avoid
-// the RETURNING INTO clause and the associated Oracle driver bugs.
 func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
 	var id string
 	var threatModelID string

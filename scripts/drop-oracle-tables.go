@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	oracle "github.com/dzwvip/oracle"
+	"github.com/oracle-samples/gorm-oracle/oracle"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )

@@ -13,8 +13,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	// Oracle driver - uses godror under the hood
-	oracle "github.com/dzwvip/oracle"
+	// Official Oracle GORM driver - uses godror under the hood
+	"github.com/oracle-samples/gorm-oracle/oracle"
 )
 
 // DatabaseType represents the type of database
@@ -90,7 +90,7 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		log.Debug("Using PostgreSQL dialector for %s:%s/%s", cfg.PostgresHost, cfg.PostgresPort, cfg.PostgresDatabase)
 
 	case DatabaseTypeOracle:
-		// Oracle connection string format for godror driver (used by dzwvip/oracle):
+		// Oracle connection string format for godror driver (used by oracle-samples/gorm-oracle):
 		// user="username" password="password" connectString="tns_alias_or_easy_connect" configDir="/path/to/wallet"
 		// For Oracle ADB with wallet, configDir points to the wallet directory containing tnsnames.ora and cwallet.sso
 		// Password containing special characters should be quoted, not URL-encoded for godror
@@ -130,14 +130,10 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	}
 
 	// Configure GORM
-	// Note: For Oracle, the dzwvip/oracle driver's Namer automatically converts
+	// Note: For Oracle, the oracle-samples/gorm-oracle driver's Namer automatically converts
 	// table and column names to UPPERCASE. By not specifying explicit column tags
 	// in models, GORM will use the NamingStrategy which the Oracle driver wraps.
-	//
-	// PrepareStmt is disabled for Oracle because the dzwvip/oracle driver has issues
-	// with cached prepared statements when schema changes occur. This causes bind
-	// variable misalignment and ORA-01400 errors.
-	prepareStmt := cfg.Type != DatabaseTypeOracle
+	prepareStmt := true
 	gormConfig := &gorm.Config{
 		Logger: newGormLogger(log),
 		NowFunc: func() time.Time {

@@ -158,7 +158,7 @@ func (c *ClientCredential) BeforeCreate(tx *gorm.DB) error {
 
 // ThreatModel represents a threat model in the system
 // Note: Explicit column tags removed for Oracle compatibility (Oracle stores column names as UPPERCASE,
-// and the dzwvip/oracle driver doesn't handle case-insensitive matching with explicit column tags)
+// and the Oracle GORM driver doesn't handle case-insensitive matching with explicit column tags)
 type ThreatModel struct {
 	ID                    string  `gorm:"primaryKey;type:varchar(36)"`
 	OwnerInternalUUID     string  `gorm:"type:varchar(36);not null;index"`
@@ -278,8 +278,6 @@ type Threat struct {
 	Mitigation    *string     `gorm:"type:text"`
 	IssueURI      *string     `gorm:"type:varchar(2048)"`
 	// Note: autoCreateTime/autoUpdateTime tags removed for Oracle compatibility.
-	// The dzwvip/oracle driver has a bug where RETURNING INTO clause is used when
-	// these tags are present, causing ORA-01400 errors even when values are set.
 	// Timestamps are set explicitly in the store layer (toGormModelForCreate).
 	CreatedAt  time.Time `gorm:"not null"`
 	ModifiedAt time.Time `gorm:"not null"`
@@ -333,7 +331,7 @@ func (g *Group) BeforeCreate(tx *gorm.DB) error {
 
 // ThreatModelAccess represents access control for threat models
 // Note: Explicit column tags removed for Oracle compatibility (Oracle stores column names as UPPERCASE,
-// and the dzwvip/oracle driver doesn't handle case-insensitive matching with explicit column tags)
+// and the Oracle GORM driver doesn't handle case-insensitive matching with explicit column tags)
 type ThreatModelAccess struct {
 	ID                    string    `gorm:"primaryKey;type:varchar(36)"`
 	ThreatModelID         string    `gorm:"type:varchar(36);not null;index"`
