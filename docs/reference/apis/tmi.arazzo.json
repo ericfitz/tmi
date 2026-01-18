@@ -23,13 +23,13 @@
         "properties": {
           "idp": {
             "type": "string",
-            "default": "test",
-            "description": "OAuth provider (test, google, github)"
+            "default": "tmi",
+            "description": "OAuth provider (tmi, google, github)"
           },
           "login_hint": {
             "type": "string",
             "default": "alice",
-            "description": "User identity hint for test provider (3-20 alphanumeric + hyphens)"
+            "description": "User identity hint for TMI provider (3-20 alphanumeric + hyphens)"
           },
           "client_callback": {
             "type": "string",
@@ -3819,7 +3819,7 @@
         {
           "stepId": "threat_model_full_cr_tmi_list_authorize",
           "description": "Start OAuth authorization flow with PKCE",
-          "operationPath": "GET /oauth2/authorize",
+          "operationId": "authorizeOAuthProvider",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -3829,7 +3829,7 @@
         {
           "stepId": "threat_model_full_cr_tmi_list_callback",
           "description": "Receive authorization code",
-          "operationPath": "GET /oauth2/callback",
+          "operationId": "handleOAuthCallback",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -3839,7 +3839,7 @@
         {
           "stepId": "threat_model_full_cr_tmi_create_token",
           "description": "Exchange code for access token using code_verifier",
-          "operationPath": "POST /oauth2/token",
+          "operationId": "exchangeOAuthCode",
           "successCriteria": [
             {
               "condition": "$statusCode == 201 || $statusCode == 200"
@@ -3852,7 +3852,7 @@
         {
           "stepId": "threat_model_full_cr_tmi_create_threat_model",
           "description": "Create threat model",
-          "operationPath": "POST /threat_models",
+          "operationId": "createThreatModel",
           "dependsOn": [
             "threat_model_full_cr_tmi_create_token"
           ],
@@ -3868,7 +3868,7 @@
         {
           "stepId": "threat_model_full_cr_tmi_list_threat_model",
           "description": "List threat models",
-          "operationPath": "GET /threat_models",
+          "operationId": "listThreatModels",
           "dependsOn": [
             "threat_model_full_cr_tmi_create_token"
           ],
@@ -3881,10 +3881,10 @@
         {
           "stepId": "threat_model_full_cr_tmi_get_threat_model",
           "description": "Get specific threat model",
-          "operationPath": "GET /threat_models/{threat_model_id}",
+          "operationId": "getThreatModel",
           "dependsOn": [
-            "threat_model_full_cr_tmi_create_threat_model",
-            "threat_model_full_cr_tmi_create_token"
+            "threat_model_full_cr_tmi_create_token",
+            "threat_model_full_cr_tmi_create_threat_model"
           ],
           "successCriteria": [
             {
@@ -3895,10 +3895,10 @@
         {
           "stepId": "threat_model_full_cr_tmi_update_threat_model",
           "description": "Update threat model",
-          "operationPath": "PUT /threat_models/{threat_model_id}",
+          "operationId": "updateThreatModel",
           "dependsOn": [
-            "threat_model_full_cr_tmi_create_threat_model",
-            "threat_model_full_cr_tmi_create_token"
+            "threat_model_full_cr_tmi_create_token",
+            "threat_model_full_cr_tmi_create_threat_model"
           ],
           "successCriteria": [
             {
@@ -3909,10 +3909,10 @@
         {
           "stepId": "threat_model_full_cr_tmi_patch_threat_model",
           "description": "Partially update threat model",
-          "operationPath": "PATCH /threat_models/{threat_model_id}",
+          "operationId": "patchThreatModel",
           "dependsOn": [
-            "threat_model_full_cr_tmi_create_threat_model",
-            "threat_model_full_cr_tmi_create_token"
+            "threat_model_full_cr_tmi_create_token",
+            "threat_model_full_cr_tmi_create_threat_model"
           ],
           "successCriteria": [
             {
@@ -3923,10 +3923,10 @@
         {
           "stepId": "threat_model_full_cr_tmi_delete_threat_model",
           "description": "Delete threat model",
-          "operationPath": "DELETE /threat_models/{threat_model_id}",
+          "operationId": "deleteThreatModel",
           "dependsOn": [
-            "threat_model_full_cr_tmi_create_threat_model",
-            "threat_model_full_cr_tmi_create_token"
+            "threat_model_full_cr_tmi_create_token",
+            "threat_model_full_cr_tmi_create_threat_model"
           ],
           "successCriteria": [
             {
@@ -3948,7 +3948,7 @@
         {
           "stepId": "asset_full_crud_tmi_list_authorize",
           "description": "Start OAuth flow",
-          "operationPath": "GET /oauth2/authorize",
+          "operationId": "authorizeOAuthProvider",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -3958,7 +3958,7 @@
         {
           "stepId": "asset_full_crud_tmi_list_callback",
           "description": "Complete OAuth callback",
-          "operationPath": "GET /oauth2/callback",
+          "operationId": "handleOAuthCallback",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -3968,7 +3968,7 @@
         {
           "stepId": "asset_full_crud_tmi_create_token",
           "description": "Get access token",
-          "operationPath": "POST /oauth2/token",
+          "operationId": "exchangeOAuthCode",
           "successCriteria": [
             {
               "condition": "$statusCode == 201 || $statusCode == 200"
@@ -3981,7 +3981,7 @@
         {
           "stepId": "asset_full_crud_tmi_create_threat_model",
           "description": "Create parent threat model",
-          "operationPath": "POST /threat_models",
+          "operationId": "createThreatModel",
           "dependsOn": [
             "asset_full_crud_tmi_create_token"
           ],
@@ -3997,7 +3997,7 @@
         {
           "stepId": "asset_full_crud_tmi_create_asset",
           "description": "Create asset",
-          "operationPath": "POST /threat_models/{threat_model_id}/assets",
+          "operationId": "createThreatModelAsset",
           "dependsOn": [
             "asset_full_crud_tmi_create_token",
             "asset_full_crud_tmi_create_threat_model"
@@ -4011,7 +4011,7 @@
         {
           "stepId": "asset_full_crud_tmi_get_asset",
           "description": "List assets",
-          "operationPath": "GET /threat_models/{threat_model_id}/assets",
+          "operationId": "getThreatModelAssets",
           "dependsOn": [
             "asset_full_crud_tmi_create_token",
             "asset_full_crud_tmi_create_threat_model"
@@ -4025,10 +4025,10 @@
         {
           "stepId": "asset_full_crud_tmi_get_asset_7",
           "description": "Get specific asset",
-          "operationPath": "GET /threat_models/{threat_model_id}/assets/{asset_id}",
+          "operationId": "getThreatModelAsset",
           "dependsOn": [
-            "asset_full_crud_tmi_create_asset",
             "asset_full_crud_tmi_create_token",
+            "asset_full_crud_tmi_create_asset",
             "asset_full_crud_tmi_create_threat_model"
           ],
           "successCriteria": [
@@ -4040,10 +4040,10 @@
         {
           "stepId": "asset_full_crud_tmi_update_asset",
           "description": "Update asset",
-          "operationPath": "PUT /threat_models/{threat_model_id}/assets/{asset_id}",
+          "operationId": "updateThreatModelAsset",
           "dependsOn": [
-            "asset_full_crud_tmi_create_asset",
             "asset_full_crud_tmi_create_token",
+            "asset_full_crud_tmi_create_asset",
             "asset_full_crud_tmi_create_threat_model"
           ],
           "successCriteria": [
@@ -4055,10 +4055,10 @@
         {
           "stepId": "asset_full_crud_tmi_patch_asset",
           "description": "Partially update asset",
-          "operationPath": "PATCH /threat_models/{threat_model_id}/assets/{asset_id}",
+          "operationId": "patchThreatModelAsset",
           "dependsOn": [
-            "asset_full_crud_tmi_create_asset",
             "asset_full_crud_tmi_create_token",
+            "asset_full_crud_tmi_create_asset",
             "asset_full_crud_tmi_create_threat_model"
           ],
           "successCriteria": [
@@ -4070,10 +4070,10 @@
         {
           "stepId": "asset_full_crud_tmi_delete_asset",
           "description": "Delete asset",
-          "operationPath": "DELETE /threat_models/{threat_model_id}/assets/{asset_id}",
+          "operationId": "deleteThreatModelAsset",
           "dependsOn": [
-            "asset_full_crud_tmi_create_asset",
             "asset_full_crud_tmi_create_token",
+            "asset_full_crud_tmi_create_asset",
             "asset_full_crud_tmi_create_threat_model"
           ],
           "successCriteria": [
@@ -4096,7 +4096,7 @@
         {
           "stepId": "diagram_collaboratio_tmi_list_authorize",
           "description": "Start OAuth flow",
-          "operationPath": "GET /oauth2/authorize",
+          "operationId": "authorizeOAuthProvider",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -4106,7 +4106,7 @@
         {
           "stepId": "diagram_collaboratio_tmi_list_callback",
           "description": "Complete OAuth",
-          "operationPath": "GET /oauth2/callback",
+          "operationId": "handleOAuthCallback",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -4116,7 +4116,7 @@
         {
           "stepId": "diagram_collaboratio_tmi_create_token",
           "description": "Get tokens",
-          "operationPath": "POST /oauth2/token",
+          "operationId": "exchangeOAuthCode",
           "successCriteria": [
             {
               "condition": "$statusCode == 201 || $statusCode == 200"
@@ -4129,7 +4129,7 @@
         {
           "stepId": "diagram_collaboratio_tmi_create_threat_model",
           "description": "Create threat model",
-          "operationPath": "POST /threat_models",
+          "operationId": "createThreatModel",
           "dependsOn": [
             "diagram_collaboratio_tmi_create_token"
           ],
@@ -4145,10 +4145,10 @@
         {
           "stepId": "diagram_collaboratio_tmi_create_diagram",
           "description": "Create diagram",
-          "operationPath": "POST /threat_models/{threat_model_id}/diagrams",
+          "operationId": "createThreatModelDiagram",
           "dependsOn": [
-            "diagram_collaboratio_tmi_create_threat_model",
-            "diagram_collaboratio_tmi_create_token"
+            "diagram_collaboratio_tmi_create_token",
+            "diagram_collaboratio_tmi_create_threat_model"
           ],
           "successCriteria": [
             {
@@ -4159,11 +4159,11 @@
         {
           "stepId": "diagram_collaboratio_tmi_post_collaboration_session",
           "description": "Start collaboration session",
-          "operationPath": "POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate",
+          "operationId": "createDiagramCollaborationSession",
           "dependsOn": [
-            "diagram_collaboratio_tmi_create_threat_model",
+            "diagram_collaboratio_tmi_create_token",
             "diagram_collaboratio_tmi_create_diagram",
-            "diagram_collaboratio_tmi_create_token"
+            "diagram_collaboratio_tmi_create_threat_model"
           ],
           "successCriteria": [
             {
@@ -4174,11 +4174,11 @@
         {
           "stepId": "diagram_collaboratio_tmi_get_collaboration_session",
           "description": "Get collaboration status",
-          "operationPath": "GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate",
+          "operationId": "getDiagramCollaborationSession",
           "dependsOn": [
-            "diagram_collaboratio_tmi_create_threat_model",
+            "diagram_collaboratio_tmi_create_token",
             "diagram_collaboratio_tmi_create_diagram",
-            "diagram_collaboratio_tmi_create_token"
+            "diagram_collaboratio_tmi_create_threat_model"
           ],
           "successCriteria": [
             {
@@ -4189,7 +4189,7 @@
         {
           "stepId": "diagram_collaboratio_tmi_list_session",
           "description": "List active sessions",
-          "operationPath": "GET /collaboration/sessions",
+          "operationId": "getCollaborationSessions",
           "dependsOn": [
             "diagram_collaboratio_tmi_create_token"
           ],
@@ -4202,11 +4202,11 @@
         {
           "stepId": "diagram_collaboratio_tmi_patch_diagram",
           "description": "Update diagram content",
-          "operationPath": "PATCH /threat_models/{threat_model_id}/diagrams/{diagram_id}",
+          "operationId": "patchThreatModelDiagram",
           "dependsOn": [
-            "diagram_collaboratio_tmi_create_threat_model",
+            "diagram_collaboratio_tmi_create_token",
             "diagram_collaboratio_tmi_create_diagram",
-            "diagram_collaboratio_tmi_create_token"
+            "diagram_collaboratio_tmi_create_threat_model"
           ],
           "successCriteria": [
             {
@@ -4217,11 +4217,11 @@
         {
           "stepId": "diagram_collaboratio_tmi_delete_collaboration_session",
           "description": "End collaboration",
-          "operationPath": "DELETE /threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate",
+          "operationId": "endDiagramCollaborationSession",
           "dependsOn": [
-            "diagram_collaboratio_tmi_create_threat_model",
+            "diagram_collaboratio_tmi_create_token",
             "diagram_collaboratio_tmi_create_diagram",
-            "diagram_collaboratio_tmi_create_token"
+            "diagram_collaboratio_tmi_create_threat_model"
           ],
           "successCriteria": [
             {
@@ -4239,7 +4239,7 @@
         {
           "stepId": "metadata_operations_tmi_list_authorize",
           "description": "Start OAuth",
-          "operationPath": "GET /oauth2/authorize",
+          "operationId": "authorizeOAuthProvider",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -4249,7 +4249,7 @@
         {
           "stepId": "metadata_operations_tmi_list_callback",
           "description": "OAuth callback",
-          "operationPath": "GET /oauth2/callback",
+          "operationId": "handleOAuthCallback",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -4259,7 +4259,7 @@
         {
           "stepId": "metadata_operations_tmi_create_token",
           "description": "Get tokens",
-          "operationPath": "POST /oauth2/token",
+          "operationId": "exchangeOAuthCode",
           "successCriteria": [
             {
               "condition": "$statusCode == 201 || $statusCode == 200"
@@ -4272,7 +4272,7 @@
         {
           "stepId": "metadata_operations_tmi_create_threat_model",
           "description": "Create threat model",
-          "operationPath": "POST /threat_models",
+          "operationId": "createThreatModel",
           "dependsOn": [
             "metadata_operations_tmi_create_token"
           ],
@@ -4288,10 +4288,10 @@
         {
           "stepId": "metadata_operations_tmi_post_threat_models_metadata",
           "description": "Create metadata entry",
-          "operationPath": "POST /threat_models/{threat_model_id}/metadata",
+          "operationId": "createThreatModelMetadata",
           "dependsOn": [
-            "metadata_operations_tmi_create_token",
-            "metadata_operations_tmi_create_threat_model"
+            "metadata_operations_tmi_create_threat_model",
+            "metadata_operations_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -4302,10 +4302,10 @@
         {
           "stepId": "metadata_operations_tmi_get_threat_models_metadata",
           "description": "List metadata",
-          "operationPath": "GET /threat_models/{threat_model_id}/metadata",
+          "operationId": "getThreatModelMetadata",
           "dependsOn": [
-            "metadata_operations_tmi_create_token",
-            "metadata_operations_tmi_create_threat_model"
+            "metadata_operations_tmi_create_threat_model",
+            "metadata_operations_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -4316,10 +4316,10 @@
         {
           "stepId": "metadata_operations_tmi_put_threat_models_metadata_key",
           "description": "Set metadata key",
-          "operationPath": "PUT /threat_models/{threat_model_id}/metadata/{key}",
+          "operationId": "updateThreatModelMetadataByKey",
           "dependsOn": [
-            "metadata_operations_tmi_create_token",
-            "metadata_operations_tmi_create_threat_model"
+            "metadata_operations_tmi_create_threat_model",
+            "metadata_operations_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -4330,10 +4330,10 @@
         {
           "stepId": "metadata_operations_tmi_get_threat_models_metadata_key",
           "description": "Get metadata key",
-          "operationPath": "GET /threat_models/{threat_model_id}/metadata/{key}",
+          "operationId": "getThreatModelMetadataByKey",
           "dependsOn": [
-            "metadata_operations_tmi_create_token",
-            "metadata_operations_tmi_create_threat_model"
+            "metadata_operations_tmi_create_threat_model",
+            "metadata_operations_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -4344,10 +4344,10 @@
         {
           "stepId": "metadata_operations_tmi_post_metadata_bulk",
           "description": "Bulk update metadata",
-          "operationPath": "POST /threat_models/{threat_model_id}/metadata/bulk",
+          "operationId": "bulkCreateThreatModelMetadata",
           "dependsOn": [
-            "metadata_operations_tmi_create_token",
-            "metadata_operations_tmi_create_threat_model"
+            "metadata_operations_tmi_create_threat_model",
+            "metadata_operations_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -4358,10 +4358,10 @@
         {
           "stepId": "metadata_operations_tmi_delete_threat_models_metadata_key",
           "description": "Delete metadata key",
-          "operationPath": "DELETE /threat_models/{threat_model_id}/metadata/{key}",
+          "operationId": "deleteThreatModelMetadataByKey",
           "dependsOn": [
-            "metadata_operations_tmi_create_token",
-            "metadata_operations_tmi_create_threat_model"
+            "metadata_operations_tmi_create_threat_model",
+            "metadata_operations_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -4379,7 +4379,7 @@
         {
           "stepId": "bulk_operations_tmi_list_authorize",
           "description": "Start OAuth",
-          "operationPath": "GET /oauth2/authorize",
+          "operationId": "authorizeOAuthProvider",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -4389,7 +4389,7 @@
         {
           "stepId": "bulk_operations_tmi_list_callback",
           "description": "OAuth callback",
-          "operationPath": "GET /oauth2/callback",
+          "operationId": "handleOAuthCallback",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -4399,7 +4399,7 @@
         {
           "stepId": "bulk_operations_tmi_create_token",
           "description": "Get tokens",
-          "operationPath": "POST /oauth2/token",
+          "operationId": "exchangeOAuthCode",
           "successCriteria": [
             {
               "condition": "$statusCode == 201 || $statusCode == 200"
@@ -4412,7 +4412,7 @@
         {
           "stepId": "bulk_operations_tmi_create_threat_model",
           "description": "Create threat model",
-          "operationPath": "POST /threat_models",
+          "operationId": "createThreatModel",
           "dependsOn": [
             "bulk_operations_tmi_create_token"
           ],
@@ -4428,7 +4428,7 @@
         {
           "stepId": "bulk_operations_tmi_post_threats_bulk",
           "description": "Bulk create threats",
-          "operationPath": "POST /threat_models/{threat_model_id}/threats/bulk",
+          "operationId": "bulkCreateThreatModelThreats",
           "dependsOn": [
             "bulk_operations_tmi_create_token",
             "bulk_operations_tmi_create_threat_model"
@@ -4442,7 +4442,7 @@
         {
           "stepId": "bulk_operations_tmi_put_threats_bulk",
           "description": "Bulk update threats",
-          "operationPath": "PUT /threat_models/{threat_model_id}/threats/bulk",
+          "operationId": "bulkUpdateThreatModelThreats",
           "dependsOn": [
             "bulk_operations_tmi_create_token",
             "bulk_operations_tmi_create_threat_model"
@@ -4456,7 +4456,7 @@
         {
           "stepId": "bulk_operations_tmi_patch_threats_bulk",
           "description": "Bulk patch threats",
-          "operationPath": "PATCH /threat_models/{threat_model_id}/threats/bulk",
+          "operationId": "bulkPatchThreatModelThreats",
           "dependsOn": [
             "bulk_operations_tmi_create_token",
             "bulk_operations_tmi_create_threat_model"
@@ -4470,7 +4470,7 @@
         {
           "stepId": "bulk_operations_tmi_post_assets_bulk",
           "description": "Bulk create assets",
-          "operationPath": "POST /threat_models/{threat_model_id}/assets/bulk",
+          "operationId": "bulkCreateThreatModelAssets",
           "dependsOn": [
             "bulk_operations_tmi_create_token",
             "bulk_operations_tmi_create_threat_model"
@@ -4484,7 +4484,7 @@
         {
           "stepId": "bulk_operations_tmi_post_documents_bulk",
           "description": "Bulk create documents",
-          "operationPath": "POST /threat_models/{threat_model_id}/documents/bulk",
+          "operationId": "bulkCreateThreatModelDocuments",
           "dependsOn": [
             "bulk_operations_tmi_create_token",
             "bulk_operations_tmi_create_threat_model"
@@ -4498,7 +4498,7 @@
         {
           "stepId": "bulk_operations_tmi_delete_threats_bulk",
           "description": "Bulk delete threats",
-          "operationPath": "DELETE /threat_models/{threat_model_id}/threats/bulk",
+          "operationId": "bulkDeleteThreatModelThreats",
           "dependsOn": [
             "bulk_operations_tmi_create_token",
             "bulk_operations_tmi_create_threat_model"
@@ -4519,7 +4519,7 @@
         {
           "stepId": "webhook_workflow_tmi_list_authorize",
           "description": "Start OAuth",
-          "operationPath": "GET /oauth2/authorize",
+          "operationId": "authorizeOAuthProvider",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -4529,7 +4529,7 @@
         {
           "stepId": "webhook_workflow_tmi_list_callback",
           "description": "OAuth callback",
-          "operationPath": "GET /oauth2/callback",
+          "operationId": "handleOAuthCallback",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -4539,7 +4539,7 @@
         {
           "stepId": "webhook_workflow_tmi_create_token",
           "description": "Get tokens",
-          "operationPath": "POST /oauth2/token",
+          "operationId": "exchangeOAuthCode",
           "successCriteria": [
             {
               "condition": "$statusCode == 201 || $statusCode == 200"
@@ -4552,7 +4552,7 @@
         {
           "stepId": "webhook_workflow_tmi_create_subscription",
           "description": "Create webhook subscription",
-          "operationPath": "POST /webhooks/subscriptions",
+          "operationId": "createWebhookSubscription",
           "dependsOn": [
             "webhook_workflow_tmi_create_token"
           ],
@@ -4568,7 +4568,7 @@
         {
           "stepId": "webhook_workflow_tmi_list_subscription",
           "description": "List subscriptions",
-          "operationPath": "GET /webhooks/subscriptions",
+          "operationId": "listWebhookSubscriptions",
           "dependsOn": [
             "webhook_workflow_tmi_create_token"
           ],
@@ -4581,7 +4581,7 @@
         {
           "stepId": "webhook_workflow_tmi_create_test",
           "description": "Test webhook",
-          "operationPath": "POST /webhooks/subscriptions/{webhook_id}/test",
+          "operationId": "testWebhookSubscription",
           "dependsOn": [
             "webhook_workflow_tmi_create_token"
           ],
@@ -4594,7 +4594,7 @@
         {
           "stepId": "webhook_workflow_tmi_list_deliverie",
           "description": "List webhook deliveries",
-          "operationPath": "GET /webhooks/deliveries",
+          "operationId": "listWebhookDeliveries",
           "dependsOn": [
             "webhook_workflow_tmi_create_token"
           ],
@@ -4607,7 +4607,7 @@
         {
           "stepId": "webhook_workflow_tmi_delete_subscription",
           "description": "Delete subscription",
-          "operationPath": "DELETE /webhooks/subscriptions/{webhook_id}",
+          "operationId": "deleteWebhookSubscription",
           "dependsOn": [
             "webhook_workflow_tmi_create_token"
           ],
@@ -4627,7 +4627,7 @@
         {
           "stepId": "addon_workflow_tmi_list_authorize",
           "description": "Start OAuth",
-          "operationPath": "GET /oauth2/authorize",
+          "operationId": "authorizeOAuthProvider",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -4637,7 +4637,7 @@
         {
           "stepId": "addon_workflow_tmi_list_callback",
           "description": "OAuth callback",
-          "operationPath": "GET /oauth2/callback",
+          "operationId": "handleOAuthCallback",
           "successCriteria": [
             {
               "condition": "$statusCode == 200"
@@ -4647,7 +4647,7 @@
         {
           "stepId": "addon_workflow_tmi_create_token",
           "description": "Get tokens",
-          "operationPath": "POST /oauth2/token",
+          "operationId": "exchangeOAuthCode",
           "successCriteria": [
             {
               "condition": "$statusCode == 201 || $statusCode == 200"
@@ -4660,7 +4660,7 @@
         {
           "stepId": "addon_workflow_tmi_create_addon",
           "description": "Register addon",
-          "operationPath": "POST /addons",
+          "operationId": "createAddon",
           "dependsOn": [
             "addon_workflow_tmi_create_token"
           ],
@@ -4676,7 +4676,7 @@
         {
           "stepId": "addon_workflow_tmi_list_addon",
           "description": "List addons",
-          "operationPath": "GET /addons",
+          "operationId": "listAddons",
           "dependsOn": [
             "addon_workflow_tmi_create_token"
           ],
@@ -4689,7 +4689,7 @@
         {
           "stepId": "addon_workflow_tmi_create_invoke",
           "description": "Invoke addon",
-          "operationPath": "POST /addons/{id}/invoke",
+          "operationId": "invokeAddon",
           "dependsOn": [
             "addon_workflow_tmi_create_token"
           ],
@@ -4702,7 +4702,7 @@
         {
           "stepId": "addon_workflow_tmi_list_invocation",
           "description": "List invocations",
-          "operationPath": "GET /invocations",
+          "operationId": "listInvocations",
           "dependsOn": [
             "addon_workflow_tmi_create_token"
           ],
@@ -4715,7 +4715,7 @@
         {
           "stepId": "addon_workflow_tmi_get_invocation",
           "description": "Get invocation status",
-          "operationPath": "GET /invocations/{id}",
+          "operationId": "getInvocation",
           "dependsOn": [
             "addon_workflow_tmi_create_token"
           ],
@@ -4728,7 +4728,7 @@
         {
           "stepId": "addon_workflow_tmi_delete_addon",
           "description": "Delete addon",
-          "operationPath": "DELETE /addons/{id}",
+          "operationId": "deleteAddon",
           "dependsOn": [
             "addon_workflow_tmi_create_token"
           ],

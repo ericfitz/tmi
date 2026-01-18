@@ -29,11 +29,15 @@ from typing import Dict, List, Any
 class ArazzoEnhancer:
     """Enhance Arazzo specifications with TMI workflow knowledge."""
 
-    def __init__(self, api_workflows_path: str):
-        """Load TMI workflow patterns."""
+    def __init__(self, api_workflows_path: str, openapi_path: str):
+        """Load TMI workflow patterns and OpenAPI spec."""
         print(f"📖 Loading TMI workflow patterns from {api_workflows_path}")
         with open(api_workflows_path) as f:
             self.workflows = json.load(f)
+
+        print(f"📖 Loading OpenAPI spec from {openapi_path}")
+        self.operation_map = self._build_operation_map(openapi_path)
+        print(f"   Loaded {len(self.operation_map)} operation mappings")
 
         # Prerequisite mapping from TMI to Arazzo step IDs
         self.prereq_map = {
@@ -54,6 +58,21 @@ class ArazzoEnhancer:
             "threat_model_metadata_set_key": "set_threat_model_metadata_key",
             "diagram_collaboration_start_session": "start_collaboration_session",
         }
+
+    def _build_operation_map(self, openapi_path: str) -> Dict[str, str]:
+        """Build mapping from 'METHOD /path' to operationId."""
+        with open(openapi_path) as f:
+            openapi = json.load(f)
+
+        op_map: Dict[str, str] = {}
+        for path, methods in openapi.get("paths", {}).items():
+            for method, details in methods.items():
+                if method in ("get", "post", "put", "patch", "delete"):
+                    op_id = details.get("operationId")
+                    if op_id:
+                        key = f"{method.upper()} {path}"
+                        op_map[key] = op_id
+        return op_map
 
     def enhance_scaffold(self, scaffold_path: str, output_yaml: str, output_json: str):
         """Main enhancement pipeline."""
@@ -346,11 +365,20 @@ class ArazzoEnhancer:
                 method = parts[0] if len(parts) > 1 else "GET"
                 path = parts[1] if len(parts) > 1 else parts[0]
 
-                arazzo_step = {
+                # Look up operationId from OpenAPI spec
+                action_key = step_data["action"]
+                operation_id = self.operation_map.get(action_key)
+
+                arazzo_step: Dict[str, Any] = {
                     "stepId": step_id,
                     "description": step_data["description"],
-                    "operationPath": step_data["action"],
                 }
+
+                # Use operationId if available, fallback to operationPath
+                if operation_id:
+                    arazzo_step["operationId"] = operation_id
+                else:
+                    arazzo_step["operationPath"] = action_key
 
                 # Add dependencies (referencing steps within the same workflow)
                 dependencies = []
@@ -395,8 +423,8 @@ class ArazzoEnhancer:
                 if dependencies:
                     arazzo_step["dependsOn"] = list(set(dependencies))
 
-                # When using operationPath, don't add inline parameters or requestBody
-                # The Arazzo runtime should get those from the OpenAPI spec
+                # When using operationId, the Arazzo runtime gets parameters
+                # and requestBody from the OpenAPI spec
                 # Only add success criteria and outputs
 
                 # Add success criteria
@@ -685,6 +713,7 @@ if __name__ == "__main__":
 
     # Default paths
     api_workflows = "docs/reference/apis/api-workflows.json"
+    openapi_spec = "docs/reference/apis/tmi-openapi.json"
     scaffold = "docs/reference/apis/arazzo/scaffolds/base-scaffold.arazzo.yaml"
     output_yaml = "docs/reference/apis/tmi.arazzo.yaml"
     output_json = "docs/reference/apis/tmi.arazzo.json"
@@ -693,17 +722,19 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         api_workflows = sys.argv[1]
     if len(sys.argv) > 2:
-        scaffold = sys.argv[2]
+        openapi_spec = sys.argv[2]
     if len(sys.argv) > 3:
-        output_yaml = sys.argv[3]
+        scaffold = sys.argv[3]
     if len(sys.argv) > 4:
-        output_json = sys.argv[4]
+        output_yaml = sys.argv[4]
+    if len(sys.argv) > 5:
+        output_json = sys.argv[5]
 
     print("=" * 80)
     print("TMI Arazzo Enhancement Tool")
     print("=" * 80)
 
-    enhancer = ArazzoEnhancer(api_workflows)
+    enhancer = ArazzoEnhancer(api_workflows, openapi_spec)
     enhancer.enhance_scaffold(scaffold, output_yaml, output_json)
 
     print("\n" + "=" * 80)
