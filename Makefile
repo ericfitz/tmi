@@ -1312,6 +1312,8 @@ arazzo-all: arazzo-install generate-arazzo
 
 OPENAPI_SPEC := docs/reference/apis/tmi-openapi.json
 OPENAPI_VALIDATION_REPORT := docs/reference/apis/openapi-validation-report.json
+ASYNCAPI_SPEC := docs/reference/apis/tmi-asyncapi.yml
+ASYNCAPI_VALIDATION_REPORT := docs/reference/apis/asyncapi-validation-report.json
 
 validate-openapi:
 	$(call log_info,Validating OpenAPI specification...)
@@ -1335,9 +1337,10 @@ validate-openapi:
 	$(call log_success,OpenAPI validation complete. Report: $(OPENAPI_VALIDATION_REPORT))
 
 validate-asyncapi:
-	$(call log_info,Validating AsyncAPI specification...)
-	@uv run scripts/validate-asyncapi.py docs/reference/apis/tmi-asyncapi.yml
-	$(call log_success,AsyncAPI specification is valid)
+	$(call log_info,Validating AsyncAPI specification with Spectral...)
+	@uv run scripts/validate-asyncapi.py $(ASYNCAPI_SPEC) --format json --output $(ASYNCAPI_VALIDATION_REPORT)
+	@uv run scripts/validate-asyncapi.py $(ASYNCAPI_SPEC)
+	$(call log_success,AsyncAPI validation complete. Report: $(ASYNCAPI_VALIDATION_REPORT))
 
 scan-openapi-security:
 	$(call log_info,Scanning OpenAPI specification for security issues...)

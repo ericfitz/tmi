@@ -47,6 +47,8 @@ def validate_arazzo(arazzo_path: str, format: str = 'stylish') -> bool:
                 '@stoplight/spectral-cli',
                 'lint',
                 str(arazzo_file),
+                '--ruleset',
+                'arazzo-spectral.yaml',
                 '--format',
                 format,
             ],
