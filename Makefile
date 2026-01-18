@@ -1384,6 +1384,7 @@ status:
 	@printf "%-1s %-23s %-6s %-13s %-35s %s\n" "S" "SERVICE" "PORT" "STATUS" "PROCESS" "CHANGE STATE"
 	@printf "%-1s %-23s %-6s %-13s %-35s %s\n" "-" "-----------------------" "------" "-------------" "-----------------------------------" "--------------------"
 	@# Check Service (port 8080) - look for actual server process
+	@# First check by port, then fall back to PID file for starting servers
 	@SERVICE_PID=""; \
 	for pid in $$(lsof -ti :8080 2>/dev/null || true); do \
 		PROC_CMD=$$(ps -p $$pid -o args= 2>/dev/null | head -1 || true); \
@@ -1392,13 +1393,28 @@ status:
 			break; \
 		fi; \
 	done; \
+	if [ -z "$$SERVICE_PID" ] && [ -f .server.pid ]; then \
+		PID_FROM_FILE=$$(cat .server.pid 2>/dev/null || true); \
+		if [ -n "$$PID_FROM_FILE" ] && ps -p $$PID_FROM_FILE > /dev/null 2>&1; then \
+			PROC_CMD=$$(ps -p $$PID_FROM_FILE -o args= 2>/dev/null | head -1 || true); \
+			if echo "$$PROC_CMD" | grep -q "bin/tmiserver\|tmiserver.*--config"; then \
+				SERVICE_PID=$$PID_FROM_FILE; \
+			fi; \
+		fi; \
+	fi; \
 	if [ -n "$$SERVICE_PID" ]; then \
 		SERVICE_NAME=$$(ps -p $$SERVICE_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Running" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
-		API_VERSION=$$(curl -s http://localhost:8080 2>/dev/null | jq -r '.api.version // "unknown"' 2>/dev/null || echo "unknown"); \
-		SERVICE_BUILD=$$(curl -s http://localhost:8080 2>/dev/null | jq -r '.service.build // "unknown"' 2>/dev/null || echo "unknown"); \
-		if [ "$$API_VERSION" != "unknown" ] || [ "$$SERVICE_BUILD" != "unknown" ]; then \
-			printf "  %-44s API Version: $$API_VERSION, Build: $$SERVICE_BUILD\n" ""; \
+		HEALTH_RESPONSE=$$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 5 http://localhost:8080 2>/dev/null || echo "000"); \
+		if [ "$$HEALTH_RESPONSE" = "200" ]; then \
+			printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Running" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
+			API_VERSION=$$(curl -s http://localhost:8080 2>/dev/null | jq -r '.api.version // "unknown"' 2>/dev/null || echo "unknown"); \
+			SERVICE_BUILD=$$(curl -s http://localhost:8080 2>/dev/null | jq -r '.service.build // "unknown"' 2>/dev/null || echo "unknown"); \
+			if [ "$$API_VERSION" != "unknown" ] || [ "$$SERVICE_BUILD" != "unknown" ]; then \
+				printf "  %-44s API Version: $$API_VERSION, Build: $$SERVICE_BUILD\n" ""; \
+			fi; \
+		else \
+			printf "\033[1;33m⏳\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Starting" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
+			printf "  %-44s Process running but not responding (migrations/init)\n" ""; \
 		fi; \
 	else \
 		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Stopped" "-" "make start-server"; \
