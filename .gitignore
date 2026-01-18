@@ -94,6 +94,9 @@ test/outputs/
 test/deprecated/
 test/tools/wstest/wstest
 
-# Oracle wallet (contains sensitive credentials)
+# Oracle/OCI (contains sensitive credentials)
 wallet/
 Wallet_*.zip
+config-development-oci.yml
+config-test-integration-oci.yml
+scripts/run-integration-tests-oci.sh

@@ -343,7 +343,7 @@ wait-process:
 # ATOMIC COMPONENTS - Test Execution
 # ============================================================================
 
-.PHONY: execute-tests-unit execute-tests-integration
+.PHONY: execute-tests-unit
 
 execute-tests-unit:
 	$(call log_info,"Executing unit tests...")
@@ -365,31 +365,6 @@ execute-tests-unit:
 	fi; \
 	eval $$TEST_CMD
 	$(call log_success,"Unit tests completed")
-
-execute-tests-integration:
-	$(call log_info,"Executing integration tests...")
-	@TEST_EXIT_CODE=0; \
-	$(ENVIRONMENT_LOGGING_IS_TEST)=true \
-	TEST_DB_HOST=localhost \
-	TEST_DB_PORT=$(INFRASTRUCTURE_POSTGRES_PORT) \
-	TEST_DB_USER=$(INFRASTRUCTURE_POSTGRES_USER) \
-	TEST_DB_PASSWORD=$(INFRASTRUCTURE_POSTGRES_PASSWORD) \
-	TEST_DB_NAME=$(INFRASTRUCTURE_POSTGRES_DATABASE) \
-	TEST_REDIS_HOST=localhost \
-	TEST_REDIS_PORT=$(INFRASTRUCTURE_REDIS_PORT) \
-	TEST_SERVER_URL=http://localhost:$(SERVER_PORT) \
-		go test -v -timeout=$(TEST_TIMEOUT) $(TEST_PACKAGES) -run "$(TEST_PATTERN)" \
-		| tee integration-test.log \
-		|| TEST_EXIT_CODE=$$?; \
-	if [ $$TEST_EXIT_CODE -eq 0 ]; then \
-		$(call log_success,"Integration tests completed successfully"); \
-	else \
-		$(call log_error,"Integration tests failed with exit code $$TEST_EXIT_CODE"); \
-		echo ""; \
-		$(call log_info,"Failed test summary:"); \
-		grep -E "FAIL:|--- FAIL" integration-test.log || true; \
-		exit $$TEST_EXIT_CODE; \
-	fi
 
 # ============================================================================
 # ATOMIC COMPONENTS - Cleanup Operations
@@ -504,7 +479,7 @@ clean-everything: clean-process clean-containers clean-files
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-api test-api-collection test-api-list start-dev start-dev-0 start-dev-oci restart-dev clean-dev test-coverage
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-0 start-dev-oci restart-dev clean-dev test-coverage
 
 # Unit Testing - Fast tests with no external dependencies
 test-unit:
@@ -512,18 +487,21 @@ test-unit:
 	@LOGGING_IS_TEST=true go test -short ./api/... ./auth/... ./cmd/... ./internal/... -v
 	@$(MAKE) -f $(MAKEFILE_LIST) clean-logs
 
-# Integration Testing - Full environment with database and server
-test-integration:
-	$(call log_info,"Running integration tests")
-	@trap '$(MAKE) -f $(MAKEFILE_LIST) clean-everything' EXIT; \
-	$(MAKE) -f $(MAKEFILE_LIST) clean-everything && \
-	$(MAKE) -f $(MAKEFILE_LIST) start-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
-	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
-	SERVER_CONFIG_FILE=config-test.yml $(MAKE) -f $(MAKEFILE_LIST) start-server && \
-	$(MAKE) -f $(MAKEFILE_LIST) wait-process && \
-	$(MAKE) -f $(MAKEFILE_LIST) execute-tests-integration
+# Integration Testing - Default to PostgreSQL backend
+# Also available: test-integration-oci for Oracle ADB
+test-integration: test-integration-pg
+
+# Integration Testing - PostgreSQL backend (Docker container)
+# Starts PostgreSQL, Redis, runs migrations, and executes integration tests
+# Configuration: config-test-integration-pg.yml
+test-integration-pg:
+	@./scripts/run-integration-tests-pg.sh
+
+# Integration Testing - Oracle ADB backend (OCI Autonomous Database)
+# Requires Oracle Instant Client and wallet configuration
+# Configuration: config-test-integration-oci.yml
+test-integration-oci:
+	@./scripts/run-integration-tests-oci.sh
 
 # API Testing - Comprehensive Postman/Newman test suite
 # Usage: make test-api                          - Run all Postman collections
@@ -1451,7 +1429,9 @@ help:
 	@echo "Core Composite Targets (use these):"
 	@echo "  status                 - Check status of all services"
 	@echo "  test-unit              - Run unit tests"
-	@echo "  test-integration       - Run integration tests with full setup"
+	@echo "  test-integration       - Run integration tests with PostgreSQL (default)"
+	@echo "  test-integration-pg    - Run integration tests with PostgreSQL (Docker)"
+	@echo "  test-integration-oci   - Run integration tests with Oracle ADB"
 	@echo "  start-dev              - Start development environment"
 	@echo "  start-dev-oci          - Start dev environment with OCI Autonomous Database"
 	@echo "  reset-db-oci           - Drop all tables in OCI ADB (destructive)"
