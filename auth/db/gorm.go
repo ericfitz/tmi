@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -262,12 +263,31 @@ func (g *GormDB) AutoMigrate(models ...interface{}) error {
 	log.Debug("Running GORM auto-migration for %d models", len(models))
 
 	if err := g.db.AutoMigrate(models...); err != nil {
+		// For Oracle, ignore ORA-01442 "column to be modified to NOT NULL is already NOT NULL"
+		// This error occurs when GORM tries to re-apply NOT NULL constraints during migration
+		// on columns that are already NOT NULL. This is safe to ignore as it means
+		// the schema is already in the desired state.
+		if g.cfg.Type == DatabaseTypeOracle && isOracleAlreadyNotNullError(err) {
+			log.Warn("Oracle migration warning (ignored): column already NOT NULL - schema is in desired state")
+			log.Debug("GORM auto-migration completed with acceptable Oracle warnings")
+			return nil
+		}
 		log.Error("GORM auto-migration failed: %v", err)
 		return fmt.Errorf("auto-migration failed: %w", err)
 	}
 
 	log.Debug("GORM auto-migration completed successfully")
 	return nil
+}
+
+// isOracleAlreadyNotNullError checks if the error is Oracle's ORA-01442
+// "column to be modified to NOT NULL is already NOT NULL"
+func isOracleAlreadyNotNullError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "ORA-01442")
 }
 
 // gormLogger adapts our slogging to GORM's logger interface

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // NotificationQueueEntry represents an entry in the notification polling table
@@ -103,10 +104,11 @@ func (p *PollingNotifier) processNewNotifications() {
 	}
 
 	// Query for unprocessed notifications in subscribed channels
+	// Use clause.OrderByColumn for cross-database compatibility (Oracle requires quoted lowercase column names)
 	var entries []NotificationQueueEntry
 	result := p.db.Where("channel IN ? AND processed = ? AND created_at > ?",
 		subscribedChannels, false, p.lastProcessed).
-		Order("created_at ASC").
+		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{{Column: clause.Column{Name: "created_at"}, Desc: false}}}).
 		Limit(100).
 		Find(&entries)
 
